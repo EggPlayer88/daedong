@@ -623,9 +623,8 @@ function MainApp({ session, onLogout }) {
   }
 
   const canAccess = (pageId) => {
-    if(['timetable'].includes(pageId)) return ['super_admin','timetable_admin'].includes(teacher.role);
     if(['users','settings'].includes(pageId)) return teacher.role==='super_admin';
-    return true;
+    return true; // 시간표 탭은 모두 접근 가능 (내부에서 권한 분기)
   };
 
   const renderContent = () => {
@@ -638,7 +637,7 @@ function MainApp({ session, onLogout }) {
       case "schedule":  return <ScheduleView teacher={teacher}/>;
       case "handover":  return <HandoverView/>;
       case "record":    return <RecordView/>;
-      case "timetable": return <TimetablePage/>;
+      case "timetable": return <TimetablePage teacher={teacher}/>;
       case "users":     return <UsersView/>;
       case "settings":  return <SettingsView/>;
       default:          return <DashboardView teacher={teacher}/>;
