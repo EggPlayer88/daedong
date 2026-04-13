@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from './lib/supabase';
 import TimetablePage from './pages/TimetablePage';
+import SchedulePage from './pages/SchedulePage';
 
 // ─── STATIC DATA (프로토타입용 — 나중에 DB로 대체) ───
 const TASKS = [
@@ -68,10 +69,11 @@ function Card({ children, style, hover, onClick }) {
 function getMenuItems(role) {
   const common = [
     { id:"dashboard", icon:"🏠", label:"대시보드" },
+    { id:"schedule",  icon:"📅", label:"일정 관리" },
     { id:"chat",      icon:"🤖", label:"AI 업무 비서" },
     { id:"tasks",     icon:"📋", label:"업무 문서 총정리" },
     { id:"docs",      icon:"📝", label:"문서 작성 AI" },
-    { id:"schedule",  icon:"📅", label:"나의 할 일" },
+    { id:"mytasks",   icon:"✅", label:"나의 할 일" },
     { id:"handover",  icon:"🤝", label:"업무 인수인계" },
     { id:"record",    icon:"📒", label:"생활기록부 도우미" },
   ];
@@ -631,10 +633,11 @@ function MainApp({ session, onLogout }) {
     if(!canAccess(page)) return <NoAccessView/>;
     switch(page){
       case "dashboard": return <DashboardView teacher={teacher}/>;
+      case "schedule":  return <SchedulePage teacher={teacher}/>;
       case "chat":      return <ChatView teacher={teacher}/>;
       case "tasks":     return <TasksView/>;
       case "docs":      return <DocWriterView/>;
-      case "schedule":  return <ScheduleView teacher={teacher}/>;
+      case "mytasks":   return <ScheduleView teacher={teacher}/>;
       case "handover":  return <HandoverView/>;
       case "record":    return <RecordView/>;
       case "timetable": return <TimetablePage teacher={teacher}/>;
