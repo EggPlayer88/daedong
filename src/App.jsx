@@ -437,38 +437,129 @@ function RecordView() {
   );
 }
 
+// ─── 승인 대기 / 거절 화면 ───
+function PendingView({ onLogout, status }) {
+  const isRejected = status === 'rejected';
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:C.bg,fontFamily:font}}>
+      <div style={{background:C.card,border:`1px solid ${isRejected?C.red+'40':C.border}`,borderRadius:16,padding:"48px 40px",textAlign:"center",maxWidth:360}}>
+        <div style={{fontSize:40,marginBottom:16}}>{isRejected?'❌':'⏳'}</div>
+        <h2 style={{margin:"0 0 10px",fontSize:20,fontWeight:800,color:C.text}}>
+          {isRejected?'가입이 거절되었습니다':'승인 대기 중'}
+        </h2>
+        <p style={{margin:"0 0 8px",fontSize:13,color:C.textMid,lineHeight:1.7}}>
+          {isRejected
+            ? '관리자에 의해 가입이 거절되었습니다.\n문의가 필요하시면 학교 관리자에게 연락해주세요.'
+            : '가입 신청이 완료되었습니다.\n슈퍼관리자가 계정을 승인하면 이용하실 수 있습니다.'
+          }
+        </p>
+        {!isRejected && <p style={{margin:"0 0 28px",fontSize:11,color:C.textDim}}>승인 후 다시 로그인해주세요.</p>}
+        {isRejected && <div style={{height:28}}/>}
+        <button onClick={onLogout} style={{background:"transparent",color:C.textDim,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 24px",fontSize:13,cursor:"pointer",fontFamily:font}}>
+          로그아웃
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── 사용자 관리 (슈퍼관리자 전용) ───
 function UsersView() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  useEffect(()=>{
+  const [tab, setTab] = useState('pending'); // pending | approved
+
+  const fetchUsers = () => {
     supabase.from('teachers').select('*').order('created_at')
       .then(({data})=>{ if(data) setUsers(data); setLoading(false); });
-  },[]);
+  };
+  useEffect(()=>{ fetchUsers(); },[]);
+
+  const approve = async (id, role) => {
+    await supabase.from('teachers').update({ status:'approved', role }).eq('id', id);
+    fetchUsers();
+  };
+  const reject = async (id) => {
+    if(!confirm('이 계정의 가입을 거절하시겠습니까?')) return;
+    await supabase.from('teachers').update({ status:'rejected' }).eq('id', id);
+    fetchUsers();
+  };
   const updateRole = async (id, role) => {
-    await supabase.from('teachers').update({role}).eq('id',id);
+    await supabase.from('teachers').update({ role }).eq('id', id);
     setUsers(prev=>prev.map(u=>u.id===id?{...u,role}:u));
   };
+
+  const pending  = users.filter(u=>u.status==='pending');
+  const approved = users.filter(u=>u.status==='approved');
+
   return (
     <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font}}>
       <h2 style={{margin:"0 0 4px",fontSize:17,fontWeight:800,color:C.text}}>👥 사용자 관리</h2>
-      <p style={{margin:"0 0 20px",fontSize:11,color:C.textDim}}>Google 로그인한 교사 계정의 권한을 관리합니다</p>
-      {loading?<div style={{color:C.textDim,textAlign:"center",padding:40}}>로딩 중...</div>:(
+      <p style={{margin:"0 0 16px",fontSize:11,color:C.textDim}}>Google 계정으로 가입 신청한 교사를 승인하고 역할을 부여합니다</p>
+
+      {/* 탭 */}
+      <div style={{display:"flex",gap:0,borderBottom:`1px solid ${C.border}`,marginBottom:20}}>
+        {[['pending',`⏳ 승인 대기 (${pending.length})`],['approved',`✅ 승인된 계정 (${approved.length})`]].map(([id,lbl])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"10px 20px",border:"none",background:"transparent",borderBottom:`2px solid ${tab===id?C.accent:'transparent'}`,color:tab===id?C.accent:C.textMid,fontSize:12,fontWeight:tab===id?700:500,cursor:"pointer",fontFamily:font}}>{lbl}</button>
+        ))}
+      </div>
+
+      {loading ? <div style={{color:C.textDim,textAlign:"center",padding:40}}>로딩 중...</div> : (
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {users.map(u=>(
-            <Card key={u.id} style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <div style={{fontSize:14,fontWeight:700,color:C.text}}>{u.name}</div>
-                <div style={{fontSize:11,color:C.textDim,marginTop:3}}>{u.email||'이메일 미등록'}</div>
-              </div>
-              <select value={u.role} onChange={e=>updateRole(u.id,e.target.value)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:ROLE_COLOR[u.role]||C.text,fontSize:12,fontFamily:font,outline:"none",fontWeight:600}}>
-                <option value="teacher">교사</option>
-                <option value="timetable_admin">시간표관리자</option>
-                <option value="super_admin">슈퍼관리자</option>
-              </select>
-            </Card>
-          ))}
-          {users.length===0&&<div style={{color:C.textDim,textAlign:"center",padding:40}}>등록된 사용자가 없습니다</div>}
+
+          {/* 승인 대기 */}
+          {tab==='pending' && (
+            pending.length===0
+              ? <div style={{color:C.textDim,textAlign:"center",padding:40}}>대기 중인 가입 신청이 없습니다 🎉</div>
+              : pending.map(u=>(
+                <Card key={u.id} style={{padding:"16px 18px"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:12}}>
+                    <div>
+                      <div style={{fontSize:14,fontWeight:700,color:C.text}}>{u.name}</div>
+                      <div style={{fontSize:11,color:C.textDim,marginTop:3}}>{u.email||'이메일 미등록'}</div>
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <select id={`role-${u.id}`} defaultValue="teacher" style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.text,fontSize:12,fontFamily:font,outline:"none"}}>
+                        <option value="teacher">교사</option>
+                        <option value="timetable_admin">시간표관리자</option>
+                        <option value="super_admin">슈퍼관리자</option>
+                      </select>
+                      <button
+                        onClick={()=>{
+                          const role = document.getElementById(`role-${u.id}`).value;
+                          approve(u.id, role);
+                        }}
+                        style={{padding:"7px 16px",borderRadius:8,border:"none",background:C.green,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:font}}
+                      >승인</button>
+                      <button
+                        onClick={()=>reject(u.id)}
+                        style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${C.red}40`,background:"transparent",color:C.red,fontSize:12,cursor:"pointer",fontFamily:font}}
+                      >거절</button>
+                    </div>
+                  </div>
+                </Card>
+              ))
+          )}
+
+          {/* 승인된 계정 */}
+          {tab==='approved' && (
+            approved.length===0
+              ? <div style={{color:C.textDim,textAlign:"center",padding:40}}>승인된 계정이 없습니다</div>
+              : approved.map(u=>(
+                <Card key={u.id} style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                  <div>
+                    <div style={{fontSize:14,fontWeight:700,color:C.text}}>{u.name}</div>
+                    <div style={{fontSize:11,color:C.textDim,marginTop:3}}>{u.email||'이메일 미등록'}</div>
+                  </div>
+                  <select value={u.role} onChange={e=>updateRole(u.id,e.target.value)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:ROLE_COLOR[u.role]||C.text,fontSize:12,fontFamily:font,outline:"none",fontWeight:600}}>
+                    <option value="teacher">교사</option>
+                    <option value="timetable_admin">시간표관리자</option>
+                    <option value="super_admin">슈퍼관리자</option>
+                  </select>
+                </Card>
+              ))
+          )}
+
         </div>
       )}
     </div>
@@ -525,6 +616,11 @@ function MainApp({ session, onLogout }) {
       사용자 정보 로딩 중...
     </div>
   );
+
+  // 승인 대기 중이면 대기 화면 표시
+  if(teacher.status === 'pending' || teacher.status === 'rejected') {
+    return <PendingView onLogout={onLogout} status={teacher.status}/>;
+  }
 
   const canAccess = (pageId) => {
     if(['timetable'].includes(pageId)) return ['super_admin','timetable_admin'].includes(teacher.role);
