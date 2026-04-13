@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
+import { supabase } from './lib/supabase'
 
 // ─── DATA ───
 const TEACHERS = [
@@ -47,13 +48,6 @@ const HANDOVER_RECORDS = [
   { id:3, taskId:4, from:"윤서연", to:"최미래", date:"2026-03-01", summary:"현장체험학습 업무 인계", notes:"작년 2학년 제주도 체험학습 운영. 올해는 예산 삭감으로 1박 2일로 축소 가능성. 사전 답사는 4월 초에 진행해야 함.", issues:"학부모 동의서 회수율이 낮았음. 올해는 전자동의서 도입 검토." },
 ];
 
-const REGULATIONS = [
-  { id:1, title:"학교폭력예방법 주요 조항", content:"학교폭력 사안 인지 시 즉시 학교장에 보고. 피해학생 보호조치 우선. 가해학생 선도조치. 심의위원회 운영 규정." },
-  { id:2, title:"학교생활규정", content:"출결 관리 기준, 상벌점제 운영, 교복 규정, 휴대전화 사용 규정 등 학교 자체 규정." },
-  { id:3, title:"교육과정 편성·운영 지침", content:"수행평가 비율, 지필평가 출제 기준, 성적 처리 절차, 성적 정정 규정." },
-  { id:4, title:"학교 안전사고 예방 및 보상에 관한 법률", content:"현장체험학습 안전 기준, 안전교육 의무, 사고 발생 시 처리 절차." },
-];
-
 const SCHEDULE_THIS_WEEK = [
   { day:"월", items:[{task:"수행평가 계획서 교과별 취합",priority:"높음"},{task:"학부모 총회 안내문 발송",priority:"중간"}] },
   { day:"화", items:[{task:"교과 부장 회의 (수행평가 검토)",priority:"높음"}] },
@@ -87,7 +81,7 @@ function Card({ children, style, hover, onClick }) {
 }
 
 // ─── SIDEBAR ───
-function Sidebar({ active, onNav, user, onUserChange }) {
+function Sidebar({ active, onNav, user, onUserChange, onLogout }) {
   const sections = [
     { id:"dashboard", icon:"🏠", label:"대시보드" },
     { id:"chat", icon:"🤖", label:"AI 업무 비서" },
@@ -117,8 +111,10 @@ function Sidebar({ active, onNav, user, onUserChange }) {
           }}><span style={{ fontSize:15 }}>{s.icon}</span>{s.label}</button>
         ))}
       </div>
-      <div style={{ padding:"16px 20px", borderTop:`1px solid ${C.border}`, fontSize:10, color:C.textDim }}>
-        v1.0 프로토타입 · Supabase + OpenAI
+      <div style={{ padding:"16px 20px", borderTop:`1px solid ${C.border}` }}>
+        <button onClick={onLogout} style={{ width:"100%", padding:"8px", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.textDim, fontSize:12, cursor:"pointer", fontFamily:font }}>
+          로그아웃
+        </button>
       </div>
     </nav>
   );
@@ -138,7 +134,6 @@ function DashboardView({ user }) {
         <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:C.text }}>{user.name} 선생님, 좋은 아침입니다 ☀️</h1>
         <p style={{ margin:"6px 0 0", fontSize:13, color:C.textMid }}>{user.role} · 담당 업무 {myTasks.length}건 · 오늘 할 일 {todayItems.length}건</p>
       </div>
-
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:28 }}>
         {[
           { label:"담당 업무", value:myTasks.length, icon:"📋", color:C.accent },
@@ -157,7 +152,6 @@ function DashboardView({ user }) {
           </Card>
         ))}
       </div>
-
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
         <Card style={{ padding:22 }}>
           <h3 style={{ margin:"0 0 14px", fontSize:14, fontWeight:700, color:C.text }}>📅 오늘 할 일</h3>
@@ -201,12 +195,12 @@ function ChatView({ user }) {
   const examples = ["수행평가 업무 절차와 필요 문서 알려줘","학교폭력 발생 시 24시간 내 처리 절차는?","현장체험학습 안전교육 관련 규정 알려줘","수행평가 가정통신문 초안 작성해줘","이번 달 내 업무 정리해줘"];
 
   const reply = (q) => {
-    if(q.includes("수행평가")&&!q.includes("가정통신문")) return `**[업무 요약]**\n수행평가 계획은 3월 초 계획 수립과 결재가 핵심입니다.\n\n**[절차]**\n1. 전년도 계획서 검토 및 교과 협의\n2. 수행평가 계획서 초안 작성\n3. 교과 부장 검토 → 교무부장 확인\n4. 관리자 결재\n5. 학생·학부모 안내 (가정통신문 발송)\n6. 평가 실시 및 결과 정리\n\n**[필요 문서]**\n• 수행평가 계획서\n• 가정통신문\n• 결과보고서\n\n**[관련 규정]**\n교육과정 편성·운영 지침에 따라 수행평가 비율 및 성적 처리 절차를 준수해야 합니다.\n\n**[주의사항]**\n• 평가 기준 사전 공개 필수\n• 학년 협의 내용 반영\n• 특수교육 대상 학생 평가 조정 확인\n\n**[인수인계 메모]**\n전임자 정민호: "체육과·미술과 실기 비중 높아 별도 협의 필요. 작년 학부모 민원 2건 발생."`;
-    if(q.includes("학교폭력")) return `**[학교폭력 초기 대응 절차]**\n\n**관련 법령:** 학교폭력예방법\n\n**24시간 이내 필수 처리:**\n1. 사안 인지 즉시 → 피해·가해 학생 분리\n2. 관리자(교감) 즉시 보고\n3. 보호자 양측 통보\n4. 사안조사 실시 (반드시 2인 이상)\n5. 학교폭력대책심의위 요청 여부 검토\n\n**[필요 문서]**\n• 학교폭력 사안처리 체크리스트\n• 피해/가해 학생 진술서\n• 목격자 진술서\n\n**[주의사항]**\n• 조사 시 CCTV 확인 절차 필요 (행정실 협조)\n• 모든 과정 기록·보관 필수\n• 비밀 유지 의무\n\n**[인수인계 메모]**\n전임자 한수진: "CCTV 확인 절차가 명확하지 않음. 행정실과 사전 협의 필요."`;
-    if(q.includes("현장체험")&&q.includes("규정")) return `**[현장체험학습 안전 관련 규정]**\n\n**근거 법령:** 학교 안전사고 예방 및 보상에 관한 법률\n\n**주요 내용:**\n1. 사전 안전교육 필수 실시 및 기록 보관\n2. 인솔교사 학생 비율 기준 준수\n3. 교통수단 보험 가입 확인\n4. 비상연락망 구축 및 비상시 행동요령 사전 안내\n5. 우천 등 비상 시 대체 계획 수립\n\n**[관련 문서]**\n• 현장체험학습 계획서\n• 학부모 동의서\n• 안전교육 확인서`;
-    if(q.includes("가정통신문")&&q.includes("작성")) return `**[📝 문서 생성: 수행평가 안내 가정통신문]**\n\n━━━━━━━━━━━━━━━━━━\n\n**2026학년도 1학기 수행평가 안내**\n\n학부모님께,\n\n안녕하십니까? 본교 교육활동에 관심을 가져 주셔서 감사합니다.\n\n2026학년도 1학기 수행평가 계획을 다음과 같이 안내드립니다.\n\n**1. 평가 기간:** 2026년 4월 ~ 6월\n**2. 평가 교과:** 국어, 수학, 영어, 사회, 과학 외\n**3. 평가 방법:** 각 교과별 세부 기준은 추후 별도 안내\n**4. 유의사항:**\n   - 평가 기준은 사전에 학생에게 안내됩니다\n   - 결시 시 사전 연락 필수\n   - 부정행위 시 해당 영역 0점 처리\n\n자세한 사항은 담임선생님께 문의 바랍니다.\n\n2026. 3.\n○○중학교장\n\n━━━━━━━━━━━━━━━━━━\n\n✅ 학교 상황에 맞게 수정하여 사용하세요.`;
-    if(q.includes("이번 달")||q.includes("내 업무")) return `**[${user.name} 선생님 3월 업무 안내]**\n\n**이번 주:**\n• 수행평가 계획서 교과별 취합 (월)\n• 교과 부장 회의 참석 (화)\n• 계획서 교무부장 결재 (수)\n• 가정통신문 최종 검토 (목)\n\n**이번 달 핵심 업무:**\n1. 수행평가 계획 수립 및 결재 — 높음\n2. 학부모 총회 준비 — 중간\n3. 출결 관리 시스템 점검 — 상시\n\n**주의:** 수행평가 계획서는 3월 둘째 주까지 결재 완료해야 일정이 편합니다.`;
-    return `질문을 분석하고 있습니다.\n\n관련 업무와 문서를 검색했으나 정확히 매칭되는 정보가 부족합니다.\n\n**추천 질문:**\n• "수행평가 업무 절차 알려줘"\n• "학교폭력 초기 대응 절차"\n• "가정통신문 작성해줘"`;
+    if(q.includes("수행평가")&&!q.includes("가정통신문")) return `**[업무 요약]**\n수행평가 계획은 3월 초 계획 수립과 결재가 핵심입니다.\n\n**[절차]**\n1. 전년도 계획서 검토 및 교과 협의\n2. 수행평가 계획서 초안 작성\n3. 교과 부장 검토 → 교무부장 확인\n4. 관리자 결재\n5. 학생·학부모 안내 (가정통신문 발송)\n6. 평가 실시 및 결과 정리\n\n**[필요 문서]**\n• 수행평가 계획서\n• 가정통신문\n• 결과보고서\n\n**[주의사항]**\n• 평가 기준 사전 공개 필수\n• 학년 협의 내용 반영\n• 특수교육 대상 학생 평가 조정 확인`;
+    if(q.includes("학교폭력")) return `**[학교폭력 초기 대응 절차]**\n\n**24시간 이내 필수 처리:**\n1. 사안 인지 즉시 → 피해·가해 학생 분리\n2. 관리자(교감) 즉시 보고\n3. 보호자 양측 통보\n4. 사안조사 실시 (반드시 2인 이상)\n5. 학교폭력대책심의위 요청 여부 검토\n\n**[주의사항]**\n• 조사 시 CCTV 확인 절차 필요 (행정실 협조)\n• 모든 과정 기록·보관 필수\n• 비밀 유지 의무`;
+    if(q.includes("현장체험")&&q.includes("규정")) return `**[현장체험학습 안전 관련 규정]**\n\n**근거 법령:** 학교 안전사고 예방 및 보상에 관한 법률\n\n**주요 내용:**\n1. 사전 안전교육 필수 실시 및 기록 보관\n2. 인솔교사 학생 비율 기준 준수\n3. 교통수단 보험 가입 확인\n4. 비상연락망 구축 및 비상시 행동요령 사전 안내\n5. 우천 등 비상 시 대체 계획 수립`;
+    if(q.includes("가정통신문")&&q.includes("작성")) return `**[📝 수행평가 안내 가정통신문]**\n\n━━━━━━━━━━━━━━━━━━\n\n2026학년도 1학기 수행평가 안내\n\n학부모님께,\n\n안녕하십니까? 본교 교육활동에 관심을 가져 주셔서 감사합니다.\n\n2026학년도 1학기 수행평가 계획을 다음과 같이 안내드립니다.\n\n1. 평가 기간: 2026년 4월 ~ 6월\n2. 평가 교과: 국어, 수학, 영어, 사회, 과학 외\n3. 유의사항\n   - 평가 기준은 사전에 학생에게 안내됩니다\n   - 결시 시 사전 연락 필수\n\n2026. 3.\n대동여중 교장\n\n━━━━━━━━━━━━━━━━━━\n\n✅ 학교 상황에 맞게 수정하여 사용하세요.`;
+    if(q.includes("이번 달")||q.includes("내 업무")) return `**[${user.name} 선생님 3월 업무 안내]**\n\n**이번 주:**\n• 수행평가 계획서 교과별 취합 (월)\n• 교과 부장 회의 참석 (화)\n• 계획서 교무부장 결재 (수)\n• 가정통신문 최종 검토 (목)\n\n**이번 달 핵심 업무:**\n1. 수행평가 계획 수립 및 결재 — 높음\n2. 학부모 총회 준비 — 중간\n3. 출결 관리 시스템 점검 — 상시`;
+    return `질문을 분석하고 있습니다.\n\n**추천 질문:**\n• "수행평가 업무 절차 알려줘"\n• "학교폭력 초기 대응 절차"\n• "가정통신문 작성해줘"`;
   };
 
   const send = ()=>{
@@ -235,7 +229,7 @@ function ChatView({ user }) {
       </div>
       <div style={{ padding:"8px 28px" }}>
         <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-          {examples.map((ex,i)=><button key={i} onClick={()=>setInput(ex)} style={{ padding:"5px 12px", borderRadius:8, border:`1px solid ${C.border}`, background:C.card, color:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font, transition:"all .15s" }} onMouseEnter={e=>{e.target.style.borderColor=C.accent;e.target.style.color=C.text}} onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.color=C.textMid}}>{ex}</button>)}
+          {examples.map((ex,i)=><button key={i} onClick={()=>setInput(ex)} style={{ padding:"5px 12px", borderRadius:8, border:`1px solid ${C.border}`, background:C.card, color:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font }} onMouseEnter={e=>{e.target.style.borderColor=C.accent;e.target.style.color=C.text}} onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.color=C.textMid}}>{ex}</button>)}
         </div>
       </div>
       <div style={{ padding:"0 28px 20px", display:"flex", gap:8 }}>
@@ -282,7 +276,7 @@ function TasksView({ user }) {
   return (
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
       <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📋 업무 문서 총정리</h2>
-      <p style={{ margin:"0 0 18px", fontSize:11, color:C.textDim }}>학교 전체 업무와 관련 문서를 한 곳에서 관리합니다. 업무를 클릭하면 상세 매뉴얼을 확인할 수 있습니다.</p>
+      <p style={{ margin:"0 0 18px", fontSize:11, color:C.textDim }}>학교 전체 업무와 관련 문서를 한 곳에서 관리합니다.</p>
       <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
         {depts.map(d=><button key={d} onClick={()=>setFilter(d)} style={{ padding:"5px 14px", borderRadius:8, border:`1px solid ${filter===d?C.accent:C.border}`, background:filter===d?C.accentSoft:"transparent", color:filter===d?C.accent:C.textMid, fontSize:11, cursor:"pointer", fontWeight:filter===d?700:500, fontFamily:font }}>{d}</button>)}
       </div>
@@ -331,9 +325,9 @@ function DocWriterView() {
     setGenerating(true); setResult(null);
     setTimeout(()=>{
       const templates={
-        "가정통신문":`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n2026학년도 ${task?.name||""} 안내\n\n학부모님께,\n\n안녕하십니까? 본교 교육활동에 항상 관심을 가져 주셔서 감사합니다.\n\n${task?.name||""} 관련 사항을 다음과 같이 안내드립니다.\n\n1. 목적: ${task?.name||""} 관련 학부모 안내\n2. 기간: 2026년 해당 시기\n3. 대상: 본교 재학생\n4. 세부 내용:\n   - 관련 사항 기재\n   - 유의사항 기재\n\n자세한 사항은 담임선생님께 문의 바랍니다.\n\n2026. 3.\n○○중학교장\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        "계획서":`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n2026학년도 ${task?.name||""} 계획(안)\n\n1. 목적\n   ${task?.name||""} 의 체계적 운영\n\n2. 방침\n   가. 관련 규정에 근거하여 운영\n   나. 사전 안내 철저\n   다. 결과 환류\n\n3. 세부 계획\n   가. 추진 일정\n      - 3월: 계획 수립\n      - 4~6월: 실행\n      - 7월: 결과 정리\n   나. 역할 분담\n      - 담당: ${task?.dept||""}\n   다. 예산: 별도 편성\n\n4. 기대 효과\n   - 업무의 체계적 운영\n   - 교육 효과 향상\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-        "결과보고서":`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n2026학년도 ${task?.name||""} 결과 보고\n\n1. 사업명: ${task?.name||""}\n2. 기간: 2026년 해당 기간\n3. 대상: 본교 재학생\n4. 추진 경과\n   - 계획 수립 및 결재\n   - 실행\n   - 결과 정리\n5. 성과 및 개선점\n   가. 성과: 기재\n   나. 개선점: 기재\n6. 첨부: 관련 자료\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        "가정통신문":`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n2026학년도 ${task?.name||""} 안내\n\n학부모님께,\n\n안녕하십니까? 본교 교육활동에 항상 관심을 가져 주셔서 감사합니다.\n\n${task?.name||""} 관련 사항을 다음과 같이 안내드립니다.\n\n1. 목적: ${task?.name||""} 관련 학부모 안내\n2. 기간: 2026년 해당 시기\n3. 대상: 본교 재학생\n4. 세부 내용:\n   - 관련 사항 기재\n   - 유의사항 기재\n\n자세한 사항은 담임선생님께 문의 바랍니다.\n\n2026. 3.\n대동여중 교장\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        "계획서":`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n2026학년도 ${task?.name||""} 계획(안)\n\n1. 목적\n   ${task?.name||""} 의 체계적 운영\n\n2. 방침\n   가. 관련 규정에 근거하여 운영\n   나. 사전 안내 철저\n   다. 결과 환류\n\n3. 세부 계획\n   가. 추진 일정\n      - 3월: 계획 수립\n      - 4~6월: 실행\n      - 7월: 결과 정리\n   나. 역할 분담\n      - 담당: ${task?.dept||""}\n\n4. 기대 효과\n   - 업무의 체계적 운영\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        "결과보고서":`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n2026학년도 ${task?.name||""} 결과 보고\n\n1. 사업명: ${task?.name||""}\n2. 기간: 2026년 해당 기간\n3. 추진 경과\n   - 계획 수립 및 결재\n   - 실행\n   - 결과 정리\n4. 성과 및 개선점\n   가. 성과: 기재\n   나. 개선점: 기재\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       };
       setResult(templates[docType]||templates["가정통신문"]);
       setGenerating(false);
@@ -344,7 +338,6 @@ function DocWriterView() {
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
       <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📝 문서 작성 AI</h2>
       <p style={{ margin:"0 0 22px", fontSize:11, color:C.textDim }}>업무 데이터를 바탕으로 계획서, 보고서, 가정통신문 등 문서 초안을 자동 생성합니다</p>
-
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
           <Card style={{ padding:20 }}>
@@ -363,11 +356,10 @@ function DocWriterView() {
             <label style={{ fontSize:12, fontWeight:600, color:C.textMid, marginBottom:8, display:"block" }}>추가 요청사항 (선택)</label>
             <textarea value={extra} onChange={e=>setExtra(e.target.value)} placeholder="예: 날짜를 4월 15일로, 장소를 강당으로..." rows={3} style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.text, fontSize:12, fontFamily:font, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
           </Card>
-          <button onClick={generate} disabled={generating} style={{ padding:"14px", borderRadius:12, border:"none", background:generating?C.textDim:C.accent, color:"#fff", fontSize:14, fontWeight:700, cursor:generating?"wait":"pointer", fontFamily:font, transition:"all .2s" }}>
+          <button onClick={generate} disabled={generating} style={{ padding:"14px", borderRadius:12, border:"none", background:generating?C.textDim:C.accent, color:"#fff", fontSize:14, fontWeight:700, cursor:generating?"wait":"pointer", fontFamily:font }}>
             {generating?"✍️ 문서 생성 중...":"✨ 문서 초안 생성"}
           </button>
         </div>
-
         <Card style={{ padding:20, display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
             <h3 style={{ margin:0, fontSize:13, fontWeight:700, color:C.text }}>생성된 문서</h3>
@@ -395,7 +387,6 @@ function ScheduleView({ user }) {
       <div style={{ display:"flex", gap:6, marginBottom:22 }}>
         {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"7px 18px", borderRadius:8, border:`1px solid ${tab===t.id?C.accent:C.border}`, background:tab===t.id?C.accentSoft:"transparent", color:tab===t.id?C.accent:C.textMid, fontSize:12, cursor:"pointer", fontWeight:tab===t.id?700:500, fontFamily:font }}>{t.label}</button>)}
       </div>
-
       {tab==="today"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <Card style={{ padding:"14px 18px", borderLeft:`3px solid ${C.red}` }}>
@@ -412,7 +403,6 @@ function ScheduleView({ user }) {
           </Card>
         </div>
       )}
-
       {tab==="week"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
           {SCHEDULE_THIS_WEEK.map((day,i)=>(
@@ -431,10 +421,9 @@ function ScheduleView({ user }) {
           ))}
         </div>
       )}
-
       {tab==="month"&&(
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {myTasks.map((t,i)=>(
+          {myTasks.map((t)=>(
             <Card key={t.id} style={{ padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <div>
                 <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{t.name}</div>
@@ -452,12 +441,10 @@ function ScheduleView({ user }) {
 // ─── HANDOVER ───
 function HandoverView({ user }) {
   const records=HANDOVER_RECORDS.filter(h=>user.tasks.includes(h.taskId));
-
   return (
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
       <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>🤝 업무 인수인계</h2>
-      <p style={{ margin:"0 0 22px", fontSize:11, color:C.textDim }}>담당 업무의 인수인계 기록을 확인하고 관리합니다. 전임자의 경험과 주의사항을 놓치지 마세요.</p>
-      
+      <p style={{ margin:"0 0 22px", fontSize:11, color:C.textDim }}>담당 업무의 인수인계 기록을 확인하고 관리합니다.</p>
       {records.length===0?(
         <Card style={{ padding:40, textAlign:"center" }}><p style={{ color:C.textDim, fontSize:13 }}>등록된 인수인계 기록이 없습니다.</p></Card>
       ):(
@@ -493,21 +480,11 @@ function HandoverView({ user }) {
           })}
         </div>
       )}
-
-      <Card style={{ padding:20, marginTop:24, borderColor:C.accent+"30" }}>
-        <h3 style={{ margin:"0 0 10px", fontSize:13, fontWeight:700, color:C.accent }}>📌 인수인계 작성 가이드</h3>
-        <div style={{ fontSize:12, color:C.textMid, lineHeight:1.9 }}>
-          <div>1. 올해 가장 어려웠던 점을 구체적으로 적어주세요</div>
-          <div>2. 자주 실수하는 부분을 반드시 기록해 주세요</div>
-          <div>3. 내년 일정상 주의할 점을 남겨주세요</div>
-          <div>4. 미해결 사안이 있다면 명확하게 전달해 주세요</div>
-        </div>
-      </Card>
     </div>
   );
 }
 
-// ─── 생활기록부 작성 도우미 ───
+// ─── 생활기록부 ───
 function RecordView() {
   const [category,setCategory]=useState("세부능력및특기사항");
   const [subject,setSubject]=useState("국어");
@@ -520,31 +497,18 @@ function RecordView() {
   const subjects=["국어","수학","영어","사회","과학","기술·가정","체육","음악","미술","도덕","정보"];
   const grades=["1학년","2학년","3학년"];
 
-  const sampleOutputs={
-    "세부능력및특기사항":`교과 수업에 적극적으로 참여하며, 특히 토론 활동에서 논리적인 근거를 바탕으로 자신의 의견을 명확하게 표현하는 능력이 뛰어남. 모둠 활동 시 협력적 태도로 구성원들의 의견을 경청하고 조율하는 리더십을 발휘함. 교과 관련 심화 탐구에 자발적으로 참여하여 보고서를 작성하는 등 학습에 대한 열의가 높음.`,
-    "행동특성및종합의견":`밝고 긍정적인 성격으로 교우관계가 원만하며, 학급 내 갈등 상황에서 중재자 역할을 자연스럽게 수행함. 학급 자치활동에 적극 참여하여 반장으로서 책임감 있게 역할을 수행하였으며, 교사와 학생 사이의 소통을 원활하게 이끌어감. 자기주도적 학습 습관이 형성되어 있으며, 꾸준한 노력으로 학업 성취도가 향상되는 추세를 보임.`,
-    "창의적체험활동":`(자율활동) 학급 회의에 적극적으로 참여하여 건설적인 의견을 제시함.\n(동아리활동) 과학탐구 동아리에서 실험 설계와 결과 분석에 주도적으로 참여하여 탐구 능력을 신장함.\n(봉사활동) 지역사회 봉사활동에 성실하게 참여하며 나눔의 가치를 실천함.\n(진로활동) 직업 체험 활동을 통해 자신의 적성과 흥미를 탐색하고 진로 계획을 구체화함.`,
-    "자유학기활동":`(주제선택) '환경과 지속가능한 미래' 주제선택 프로그램에 참여하여 환경 문제에 대한 깊이 있는 이해를 보여줌. 조별 프로젝트에서 자료 수집과 발표를 담당하여 우수한 결과를 도출함.\n(예술·체육) 뮤지컬 프로그램에 참여하여 창의적 표현력과 협동심을 기름.\n(동아리) 코딩 동아리에서 기초 프로그래밍을 학습하고 간단한 앱을 제작하는 과정에서 논리적 사고력을 향상시킴.`,
-    "독서활동":`'정의란 무엇인가(마이클 샌델)'을 읽고 사회 정의에 대한 다양한 관점을 이해하며 자신의 가치관을 성찰하는 계기가 되었다고 발표함. '코스모스(칼 세이건)'을 통해 우주와 과학에 대한 호기심을 넓히고 과학 에세이를 작성하여 교내 독서 감상문 대회에 참가함.`,
-  };
-
   const generate=()=>{
     setGenerating(true); setResult(null);
     setTimeout(()=>{
-      let output = sampleOutputs[category]||sampleOutputs["세부능력및특기사항"];
-      if(category==="세부능력및특기사항" && subject) {
-        const subjectIntros={
-          "국어":`${subject} 교과에서 문학 작품 감상 능력이 뛰어나며, 글쓰기 활동에서 창의적이고 논리적인 표현력을 보여줌. `,
-          "수학":`${subject} 교과에서 수학적 개념을 정확히 이해하고 다양한 문제 해결 전략을 활용하는 능력이 우수함. `,
-          "영어":`${subject} 교과에서 영어 의사소통 능력이 우수하며, 특히 영어 프레젠테이션 활동에서 유창한 발표력을 보여줌. `,
-          "과학":`${subject} 교과에서 실험 활동에 적극적으로 참여하며, 과학적 탐구 방법을 체계적으로 적용하는 능력이 돋보임. `,
-          "사회":`${subject} 교과에서 사회 현상에 대한 비판적 사고력이 뛰어나며, 시사 이슈에 대해 다양한 관점에서 분석하는 능력을 보여줌. `,
-        };
-        output = (subjectIntros[subject]||`${subject} 교과에서 `) + output;
-      }
-      if(keywords.trim()) {
-        output += `\n\n[키워드 반영: ${keywords}]`;
-      }
+      const base = {
+        "세부능력및특기사항":`${subject} 교과에서 수업에 적극적으로 참여하며, 토론 활동에서 논리적인 근거를 바탕으로 자신의 의견을 명확하게 표현하는 능력이 뛰어남. 모둠 활동 시 협력적 태도로 구성원들의 의견을 경청하고 조율하는 리더십을 발휘함.`,
+        "행동특성및종합의견":`밝고 긍정적인 성격으로 교우관계가 원만하며, 학급 내 갈등 상황에서 중재자 역할을 자연스럽게 수행함. 자기주도적 학습 습관이 형성되어 있으며, 꾸준한 노력으로 학업 성취도가 향상되는 추세를 보임.`,
+        "창의적체험활동":`(자율활동) 학급 회의에 적극적으로 참여하여 건설적인 의견을 제시함.\n(동아리활동) 동아리 활동에서 탐구 능력을 신장함.\n(봉사활동) 지역사회 봉사활동에 성실하게 참여함.\n(진로활동) 직업 체험 활동을 통해 자신의 적성과 흥미를 탐색함.`,
+        "자유학기활동":`주제선택 프로그램에 참여하여 깊이 있는 이해를 보여줌. 조별 프로젝트에서 자료 수집과 발표를 담당하여 우수한 결과를 도출함.`,
+        "독서활동":`다양한 분야의 독서를 통해 폭넓은 교양을 쌓고, 독서 감상문 작성을 통해 자신의 생각을 체계적으로 표현함.`,
+      };
+      let output = base[category] || base["세부능력및특기사항"];
+      if(keywords.trim()) output += `\n\n[키워드 반영: ${keywords}]`;
       setResult(output);
       setGenerating(false);
     },1300);
@@ -554,7 +518,6 @@ function RecordView() {
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
       <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📒 생활기록부 작성 도우미</h2>
       <p style={{ margin:"0 0 22px", fontSize:11, color:C.textDim }}>영역·교과·학년을 선택하고 키워드를 입력하면 생활기록부 문구 초안을 생성합니다</p>
-
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
           <Card style={{ padding:20 }}>
@@ -563,7 +526,6 @@ function RecordView() {
               {categories.map(c=><button key={c} onClick={()=>setCategory(c)} style={{ padding:"6px 12px", borderRadius:8, border:`1px solid ${category===c?C.accent:C.border}`, background:category===c?C.accentSoft:"transparent", color:category===c?C.accent:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font, fontWeight:category===c?700:500 }}>{c}</button>)}
             </div>
           </Card>
-
           {category==="세부능력및특기사항"&&(
             <Card style={{ padding:20 }}>
               <label style={{ fontSize:12, fontWeight:600, color:C.textMid, marginBottom:10, display:"block" }}>교과 선택</label>
@@ -572,34 +534,20 @@ function RecordView() {
               </div>
             </Card>
           )}
-
           <Card style={{ padding:20 }}>
             <label style={{ fontSize:12, fontWeight:600, color:C.textMid, marginBottom:10, display:"block" }}>학년</label>
             <div style={{ display:"flex", gap:6 }}>
               {grades.map(g=><button key={g} onClick={()=>setGrade(g)} style={{ padding:"6px 16px", borderRadius:8, border:`1px solid ${grade===g?C.accent:C.border}`, background:grade===g?C.accentSoft:"transparent", color:grade===g?C.accent:C.textMid, fontSize:12, cursor:"pointer", fontFamily:font, fontWeight:grade===g?700:500 }}>{g}</button>)}
             </div>
           </Card>
-
           <Card style={{ padding:20 }}>
             <label style={{ fontSize:12, fontWeight:600, color:C.textMid, marginBottom:10, display:"block" }}>학생 특성 키워드 (선택)</label>
-            <textarea value={keywords} onChange={e=>setKeywords(e.target.value)} placeholder="예: 리더십, 발표력 우수, 모둠활동 적극적, 독서 습관 좋음..." rows={3} style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.text, fontSize:12, fontFamily:font, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
+            <textarea value={keywords} onChange={e=>setKeywords(e.target.value)} placeholder="예: 리더십, 발표력 우수, 모둠활동 적극적..." rows={3} style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:`1px solid ${C.border}`, background:C.bg, color:C.text, fontSize:12, fontFamily:font, outline:"none", resize:"vertical", boxSizing:"border-box" }} />
           </Card>
-
-          <button onClick={generate} disabled={generating} style={{ padding:"14px", borderRadius:12, border:"none", background:generating?C.textDim:C.accent, color:"#fff", fontSize:14, fontWeight:700, cursor:generating?"wait":"pointer", fontFamily:font, transition:"all .2s" }}>
+          <button onClick={generate} disabled={generating} style={{ padding:"14px", borderRadius:12, border:"none", background:generating?C.textDim:C.accent, color:"#fff", fontSize:14, fontWeight:700, cursor:generating?"wait":"pointer", fontFamily:font }}>
             {generating?"✍️ 문구 생성 중...":"✨ 생활기록부 문구 생성"}
           </button>
-
-          <Card style={{ padding:16, borderColor:C.yellow+"30" }}>
-            <div style={{ fontSize:11, fontWeight:600, color:C.yellow, marginBottom:6 }}>⚠️ 유의사항</div>
-            <div style={{ fontSize:11, color:C.textMid, lineHeight:1.8 }}>
-              <div>• AI가 생성한 문구는 반드시 검토 후 수정하여 사용하세요</div>
-              <div>• 학생 개인 특성에 맞게 구체적 사실을 반영해야 합니다</div>
-              <div>• 생활기록부 기재요령을 반드시 준수하세요</div>
-              <div>• 부정적 표현, 비교 표현은 삼가주세요</div>
-            </div>
-          </Card>
         </div>
-
         <Card style={{ padding:20, display:"flex", flexDirection:"column" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
             <div>
@@ -610,15 +558,7 @@ function RecordView() {
           </div>
           <div style={{ flex:1, padding:16, background:C.bg, borderRadius:10, border:`1px solid ${C.border}`, overflowY:"auto", minHeight:350 }}>
             {result?(
-              <div>
-                <pre style={{ margin:0, whiteSpace:"pre-wrap", fontSize:13, color:C.text, lineHeight:2, fontFamily:font }}>{result}</pre>
-                <div style={{ marginTop:20, padding:12, background:C.accent+"08", borderRadius:8, border:`1px solid ${C.accent}15` }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:C.accent, marginBottom:4 }}>💡 활용 팁</div>
-                  <div style={{ fontSize:11, color:C.textMid, lineHeight:1.7 }}>
-                    위 문구를 기반으로 학생의 실제 활동과 성취를 구체적으로 수정하세요. "토론 활동" → "인권 관련 토론에서" 등 구체적 맥락을 추가하면 더 좋은 기록이 됩니다.
-                  </div>
-                </div>
-              </div>
+              <pre style={{ margin:0, whiteSpace:"pre-wrap", fontSize:13, color:C.text, lineHeight:2, fontFamily:font }}>{result}</pre>
             ):(
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", flexDirection:"column", gap:12 }}>
                 <span style={{ fontSize:36 }}>📒</span>
@@ -632,29 +572,78 @@ function RecordView() {
   );
 }
 
-// ─── APP ───
-export default function App() {
+// ─── MAIN APP (로그인 후) ───
+function MainApp({ onLogout }) {
   const [page,setPage]=useState("dashboard");
   const [user,setUser]=useState(TEACHERS[0]);
 
   const renderContent=()=>{
     switch(page){
       case "dashboard": return <DashboardView user={user}/>;
-      case "chat": return <ChatView user={user}/>;
-      case "tasks": return <TasksView user={user}/>;
-      case "docs": return <DocWriterView/>;
-      case "schedule": return <ScheduleView user={user}/>;
-      case "handover": return <HandoverView user={user}/>;
-      case "record": return <RecordView/>;
-      default: return <DashboardView user={user}/>;
+      case "chat":      return <ChatView user={user}/>;
+      case "tasks":     return <TasksView user={user}/>;
+      case "docs":      return <DocWriterView/>;
+      case "schedule":  return <ScheduleView user={user}/>;
+      case "handover":  return <HandoverView user={user}/>;
+      case "record":    return <RecordView/>;
+      default:          return <DashboardView user={user}/>;
     }
   };
 
   return (
     <div style={{ display:"flex", height:"100vh", width:"100vw", fontFamily:font, background:C.bg, color:C.text }}>
-      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
-      <Sidebar active={page} onNav={setPage} user={user} onUserChange={setUser}/>
+      <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+      <Sidebar active={page} onNav={setPage} user={user} onUserChange={setUser} onLogout={onLogout}/>
       <div style={{ flex:1, overflow:"hidden" }}>{renderContent()}</div>
     </div>
   );
+}
+
+// ─── APP (인증 래퍼) ───
+export default function App() {
+  const [session, setSession] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    });
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:C.bg, color:C.text, fontFamily:font }}>
+      로딩 중...
+    </div>
+  );
+
+  if (!session) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", background:C.bg, fontFamily:font }}>
+      <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:"48px 40px", textAlign:"center", minWidth:300 }}>
+        <div style={{ fontSize:32, marginBottom:12 }}>🏫</div>
+        <h1 style={{ margin:"0 0 6px", fontSize:22, fontWeight:800, color:C.text }}>대동여중</h1>
+        <p style={{ margin:"0 0 32px", fontSize:13, color:C.textMid }}>업무시스템</p>
+        <button onClick={handleLogin} style={{ background:C.accent, color:"#fff", border:"none", borderRadius:10, padding:"13px 28px", fontSize:14, fontWeight:600, cursor:"pointer", width:"100%", fontFamily:font }}>
+          Google 계정으로 로그인
+        </button>
+      </div>
+    </div>
+  );
+
+  return <MainApp onLogout={handleLogout} />;
 }
