@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from './lib/supabase'
+import TimetablePage from './pages/TimetablePage'
 
 // ─── DATA ───
 const TEACHERS = [
@@ -90,6 +91,7 @@ function Sidebar({ active, onNav, user, onUserChange, onLogout }) {
     { id:"schedule", icon:"📅", label:"나의 할 일" },
     { id:"handover", icon:"🤝", label:"업무 인수인계" },
     { id:"record", icon:"📒", label:"생활기록부 도우미" },
+    { id:"timetable", icon:"📅", label:"시간표 관리" },
   ];
   return (
     <nav style={{ width:240, minWidth:240, background:"#080b14", display:"flex", flexDirection:"column", borderRight:`1px solid ${C.border}`, fontFamily:font }}>
@@ -586,6 +588,7 @@ function MainApp({ onLogout }) {
       case "schedule":  return <ScheduleView user={user}/>;
       case "handover":  return <HandoverView user={user}/>;
       case "record":    return <RecordView/>;
+      case "timetable": return <TimetablePage/>;
       default:          return <DashboardView user={user}/>;
     }
   };
