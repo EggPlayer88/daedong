@@ -182,51 +182,161 @@ function DashboardView({ teacher }) {
 }
 
 // ─── AI CHAT ───
+const SYSTEM_PROMPT = `당신은 대동여중(대동여자중학교)의 학교 업무 AI 비서입니다.
+
+학교 정보:
+- 학교명: 대동여중 (대동여자중학교)
+- 학급: 9개 (1~3학년 각 3반)
+- 교직원: 약 24명
+
+주요 업무 목록:
+- 수행평가 계획 (3월, 교무부 담당)
+- 출결 관리 (상시, 교무부)
+- 생활기록부 점검 (학기말, 교무부)
+- 현장체험학습 (5월, 행사담당)
+- 학교폭력 초기 대응 (상시, 생활지도부)
+- 학부모 총회 (3월, 교무부)
+- 교내 연수 (학기중, 연구부)
+- 체육대회 (5월, 행사담당)
+- 학생 상담 관리 (상시, 생활지도부)
+- 수업공개 (학기중, 연구부)
+
+주요 제약 및 규정:
+- 학교폭력 사안 인지 후 24시간 이내 초기 대응 필수
+- 수행평가 기준 사전 공개 의무
+- 생활기록부 기재요령 준수
+- 출결 무단결석 3일 이상 시 즉시 보고
+
+답변 지침:
+- 한국어로 답변하세요
+- 학교 업무에 관련된 질문에 구체적이고 실용적으로 답변하세요
+- 절차나 주의사항은 번호 목록으로 명확하게 제시하세요
+- 문서 작성 요청 시 바로 초안을 작성해주세요
+- 모르는 내용은 솔직하게 모른다고 하세요`;
+
 function ChatView({ teacher }) {
-  const [messages, setMessages] = useState([{ role:"ai", text:`${teacher.name} 선생님, 안녕하세요! 학교 업무 AI 비서입니다.\n\n업무 절차, 학교 규정, 필요 문서 등 무엇이든 질문하세요.` }]);
+  const [messages, setMessages] = useState([
+    { role:"assistant", text:`${teacher.name} 선생님, 안녕하세요! 대동여중 AI 업무 비서입니다. 😊\n\n업무 절차, 규정, 문서 작성 등 무엇이든 질문해 주세요.\n실제 Claude AI가 답변해 드립니다.` }
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
-  const examples = ["수행평가 업무 절차와 필요 문서 알려줘","학교폭력 발생 시 24시간 내 처리 절차는?","수행평가 가정통신문 초안 작성해줘"];
-  const reply = (q) => {
-    if(q.includes("수행평가")&&!q.includes("가정통신문")) return `**[업무 요약]**\n수행평가 계획은 3월 초 계획 수립과 결재가 핵심입니다.\n\n**[절차]**\n1. 전년도 계획서 검토 및 교과 협의\n2. 수행평가 계획서 초안 작성\n3. 교과 부장 검토 → 교무부장 확인\n4. 관리자 결재\n5. 학생·학부모 안내\n6. 평가 실시 및 결과 정리`;
-    if(q.includes("학교폭력")) return `**[학교폭력 초기 대응]**\n\n1. 피해·가해 학생 분리\n2. 관리자 즉시 보고\n3. 보호자 양측 통보\n4. 사안조사 (2인 이상)\n5. 심의위 요청 여부 검토`;
-    if(q.includes("가정통신문")) return `**[수행평가 가정통신문 초안]**\n\n학부모님께,\n\n2026학년도 1학기 수행평가 계획을 안내드립니다.\n\n1. 평가 기간: 4월~6월\n2. 평가 기준은 사전 안내됩니다\n3. 결시 시 사전 연락 필수\n\n2026. 3. 대동여중 교장`;
-    return `질문을 분석 중입니다.\n\n추천: "수행평가 절차 알려줘" / "학교폭력 대응" / "가정통신문 작성"`;
+
+  const examples = [
+    "수행평가 계획 업무 절차를 단계별로 알려줘",
+    "학교폭력 발생 시 24시간 내 처리 절차는?",
+    "수행평가 안내 가정통신문 초안 작성해줘",
+    "생활기록부 행동특성 문구 예시 써줘",
+    "학부모 총회 준비 체크리스트 만들어줘",
+  ];
+
+  const send = async () => {
+    if(!input.trim() || loading) return;
+    const userText = input.trim();
+    setInput("");
+
+    // 사용자 메시지 추가
+    const newMessages = [...messages, { role:"user", text:userText }];
+    setMessages(newMessages);
+    setLoading(true);
+
+    try {
+      // API 형식으로 변환 (system 메시지 제외)
+      const apiMessages = newMessages
+        .filter(m => m.role !== 'system')
+        .map(m => ({
+          role: m.role === 'assistant' ? 'assistant' : 'user',
+          content: m.text,
+        }));
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: apiMessages,
+          systemPrompt: SYSTEM_PROMPT,
+        }),
+      });
+
+      if(!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || '오류가 발생했습니다');
+      }
+
+      const data = await res.json();
+      setMessages(m => [...m, { role:"assistant", text: data.content }]);
+    } catch(e) {
+      setMessages(m => [...m, { role:"assistant", text:`⚠️ 오류: ${e.message}\n\nAPI 연결을 확인해주세요.` }]);
+    } finally {
+      setLoading(false);
+    }
   };
-  const send = () => {
-    if(!input.trim()) return;
-    setMessages(m=>[...m,{role:"user",text:input.trim()}]);
-    const q=input.trim(); setInput(""); setLoading(true);
-    setTimeout(()=>{ setMessages(m=>[...m,{role:"ai",text:reply(q)}]); setLoading(false); },1200);
-  };
+
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", fontFamily:font }}>
-      <div style={{ padding:"20px 28px 14px", borderBottom:`1px solid ${C.border}` }}>
-        <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.text }}>🤖 AI 업무 비서</h2>
+      <div style={{ padding:"16px 24px 12px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div>
+          <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.text }}>🤖 AI 업무 비서</h2>
+          <p style={{ margin:"3px 0 0", fontSize:11, color:C.textDim }}>Claude AI · 학교 업무 전문 · 실시간 답변</p>
+        </div>
+        <span style={{ padding:"3px 10px", borderRadius:20, background:C.green+"15", color:C.green, fontSize:11, fontWeight:600, border:`1px solid ${C.green}25` }}>● 온라인</span>
       </div>
-      <div style={{ flex:1, overflowY:"auto", padding:"20px 28px", display:"flex", flexDirection:"column", gap:14 }}>
+
+      <div style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:14 }}>
         {messages.map((m,i)=>(
-          <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start" }}>
-            <div style={{ maxWidth:"82%", padding:"12px 16px", borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:m.role==="user"?C.accent:C.card, color:C.text, fontSize:13, lineHeight:1.75, whiteSpace:"pre-wrap", fontFamily:font, border:m.role==="user"?"none":`1px solid ${C.border}` }}>
-              {m.text.split(/(\*\*.*?\*\*)/).map((p,j)=> p.startsWith("**")&&p.endsWith("**")?<strong key={j} style={{color:m.role==="user"?"#dbeafe":C.accent}}>{p.slice(2,-2)}</strong>:<span key={j}>{p}</span>)}
+          <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", gap:8, alignItems:"flex-start" }}>
+            {m.role==="assistant"&&(
+              <div style={{ width:28, height:28, borderRadius:"50%", background:C.accent+"20", border:`1px solid ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2, fontSize:14 }}>🤖</div>
+            )}
+            <div style={{ maxWidth:"82%", padding:"12px 16px", borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:m.role==="user"?C.accent:C.card, color:C.text, fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap", fontFamily:font, border:m.role==="user"?"none":`1px solid ${C.border}` }}>
+              {m.text.split(/(\*\*.*?\*\*)/).map((p,j)=>
+                p.startsWith("**")&&p.endsWith("**")
+                  ? <strong key={j} style={{color:m.role==="user"?"#dbeafe":C.accent}}>{p.slice(2,-2)}</strong>
+                  : <span key={j}>{p}</span>
+              )}
             </div>
           </div>
         ))}
-        {loading&&<div style={{display:"flex",gap:5,padding:12}}>{[0,1,2].map(i=><div key={i} style={{width:7,height:7,borderRadius:"50%",background:C.accent,animation:`bounce .6s ${i*.15}s infinite alternate`}}/>)}</div>}
+        {loading&&(
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:28, height:28, borderRadius:"50%", background:C.accent+"20", border:`1px solid ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🤖</div>
+            <div style={{ display:"flex", gap:5, padding:"12px 16px", background:C.card, borderRadius:"14px 14px 14px 4px", border:`1px solid ${C.border}` }}>
+              {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.accent, animation:`bounce .6s ${i*.2}s infinite alternate` }}/>)}
+            </div>
+          </div>
+        )}
         <div ref={endRef}/>
       </div>
-      <div style={{ padding:"8px 28px" }}>
+
+      <div style={{ padding:"8px 24px" }}>
         <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-          {examples.map((ex,i)=><button key={i} onClick={()=>setInput(ex)} style={{ padding:"5px 12px", borderRadius:8, border:`1px solid ${C.border}`, background:C.card, color:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font }}>{ex}</button>)}
+          {examples.map((ex,i)=>(
+            <button key={i} onClick={()=>setInput(ex)} style={{ padding:"5px 12px", borderRadius:20, border:`1px solid ${C.border}`, background:C.card, color:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font, transition:"all .15s" }}
+              onMouseEnter={e=>{e.target.style.borderColor=C.accent;e.target.style.color=C.text;}}
+              onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.color=C.textMid;}}>
+              {ex}
+            </button>
+          ))}
         </div>
       </div>
-      <div style={{ padding:"0 28px 20px", display:"flex", gap:8 }}>
-        <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&send()} placeholder="무엇이든 질문하세요..." style={{ flex:1, padding:"12px 16px", borderRadius:12, border:`1px solid ${C.border}`, background:C.card, color:C.text, fontSize:13, outline:"none", fontFamily:font }} onFocus={e=>e.target.style.borderColor=C.accent} onBlur={e=>e.target.style.borderColor=C.border}/>
-        <button onClick={send} style={{ padding:"12px 22px", borderRadius:12, border:"none", background:C.accent, color:"#fff", fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:font }}>전송</button>
+
+      <div style={{ padding:"0 24px 20px", display:"flex", gap:8 }}>
+        <input
+          value={input}
+          onChange={e=>setInput(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
+          placeholder="업무, 규정, 문서 작성 등 무엇이든 질문하세요..."
+          disabled={loading}
+          style={{ flex:1, padding:"12px 16px", borderRadius:12, border:`1px solid ${C.border}`, background:C.card, color:C.text, fontSize:13, outline:"none", fontFamily:font }}
+          onFocus={e=>e.target.style.borderColor=C.accent}
+          onBlur={e=>e.target.style.borderColor=C.border}
+        />
+        <button onClick={send} disabled={loading||!input.trim()} style={{ padding:"12px 22px", borderRadius:12, border:"none", background:loading||!input.trim()?C.textDim:C.accent, color:"#fff", fontSize:13, fontWeight:700, cursor:loading||!input.trim()?"not-allowed":"pointer", fontFamily:font }}>
+          전송
+        </button>
       </div>
-      <style>{`@keyframes bounce{to{transform:translateY(-5px);opacity:.3}}`}</style>
+      <style>{`@keyframes bounce{to{transform:translateY(-6px);opacity:.3}}`}</style>
     </div>
   );
 }
