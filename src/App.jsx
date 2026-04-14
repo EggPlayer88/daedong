@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from './lib/supabase';
 import TimetablePage from './pages/TimetablePage';
 import SchedulePage from './pages/SchedulePage';
+import DocumentsPage from './pages/DocumentsPage';
 
 // ─── STATIC DATA (프로토타입용 — 나중에 DB로 대체) ───
 const TASKS = [
@@ -70,6 +71,7 @@ function getMenuItems(role) {
   const common = [
     { id:"dashboard", icon:"🏠", label:"대시보드" },
     { id:"schedule",  icon:"📅", label:"일정 관리" },
+    { id:"documents", icon:"📂", label:"문서 관리" },
     { id:"chat",      icon:"🤖", label:"AI 업무 비서" },
     { id:"tasks",     icon:"📋", label:"업무 문서 총정리" },
     { id:"docs",      icon:"📝", label:"문서 작성 AI" },
@@ -744,6 +746,7 @@ function MainApp({ session, onLogout }) {
     switch(page){
       case "dashboard": return <DashboardView teacher={teacher}/>;
       case "schedule":  return <SchedulePage teacher={teacher}/>;
+      case "documents": return <DocumentsPage teacher={teacher}/>;
       case "chat":      return <ChatView teacher={teacher}/>;
       case "tasks":     return <TasksView/>;
       case "docs":      return <DocWriterView/>;
