@@ -4,43 +4,8 @@ import TimetablePage from './pages/TimetablePage';
 import SchedulePage from './pages/SchedulePage';
 import DocumentsPage from './pages/DocumentsPage';
 
-// ─── STATIC DATA (프로토타입용 — 나중에 DB로 대체) ───
-const TASKS = [
-  { id:1, name:"수행평가 계획", dept:"교무", type:"평가", period:"3월", priority:"높음", status:"공식" },
-  { id:2, name:"출결 관리", dept:"교무", type:"학생지도", period:"상시", priority:"높음", status:"공식" },
-  { id:3, name:"생활기록부 점검", dept:"교무", type:"보고", period:"학기말", priority:"높음", status:"검토중" },
-  { id:4, name:"현장체험학습", dept:"행사", type:"행사", period:"5월", priority:"중간", status:"공식" },
-  { id:5, name:"학교폭력 초기 대응", dept:"생활지도", type:"학생지도", period:"상시", priority:"높음", status:"공식" },
-  { id:6, name:"학부모 총회", dept:"교무", type:"행사", period:"3월", priority:"중간", status:"초안" },
-  { id:7, name:"교내 연수", dept:"연구", type:"회의/연수", period:"학기중", priority:"중간", status:"공식" },
-  { id:8, name:"체육대회", dept:"행사", type:"행사", period:"5월", priority:"중간", status:"검토중" },
-  { id:9, name:"학생 상담 관리", dept:"생활지도", type:"학생지도", period:"상시", priority:"중간", status:"공식" },
-  { id:10, name:"수업공개", dept:"연구", type:"정기업무", period:"학기중", priority:"중간", status:"공식" },
-];
-
-const DOCS = [
-  { id:1, name:"수행평가 계획서 (2026)", type:"계획서", taskId:1, year:"2026", dept:"교무", latest:true },
-  { id:2, name:"수행평가 가정통신문", type:"가정통신문", taskId:1, year:"2026", dept:"교무", latest:true },
-  { id:3, name:"현장체험학습 계획서", type:"계획서", taskId:4, year:"2026", dept:"행사", latest:true },
-  { id:4, name:"현장체험학습 동의서", type:"동의서", taskId:4, year:"2026", dept:"행사", latest:true },
-  { id:5, name:"학교폭력 사안처리 체크리스트", type:"체크리스트", taskId:5, year:"2026", dept:"생활지도", latest:true },
-  { id:8, name:"교내 연수 계획서", type:"계획서", taskId:7, year:"2026", dept:"연구", latest:true },
-  { id:9, name:"학부모 총회 안내문", type:"가정통신문", taskId:6, year:"2026", dept:"교무", latest:true },
-  { id:10, name:"생활기록부 점검 체크리스트", type:"체크리스트", taskId:3, year:"2026", dept:"교무", latest:true },
-];
-
-const TASK_DETAILS = {
-  1: { overview:"학기 초 각 교과별 수행평가 계획을 수립하고 학생·학부모에게 안내하는 핵심 업무", steps:["전년도 계획서 검토 및 교과 협의","수행평가 계획서 초안 작성","교과 부장 검토 → 교무부장 확인","관리자 결재","학생·학부모 안내(가정통신문)","평가 실시 및 결과 정리"], cautions:["평가 기준 사전 공개 필수","학년 협의 내용 반영","특수교육 대상 학생 평가 조정 확인"] },
-  5: { overview:"학교폭력 사안 발생 시 초기 대응 및 처리 절차", steps:["사안 인지 및 접수","피해·가해 학생 분리","즉시 관리자 보고","사안조사 실시","학교폭력대책심의위원회 요청 검토","결과 통보 및 후속 조치"], cautions:["24시간 이내 초기 대응 필수","조사 시 반드시 2인 이상 참여","보호자 통보 기록 보관"] },
-};
-
-const SCHEDULE_THIS_WEEK = [
-  { day:"월", items:[{task:"수행평가 계획서 교과별 취합",priority:"높음"},{task:"학부모 총회 안내문 발송",priority:"중간"}] },
-  { day:"화", items:[{task:"교과 부장 회의 (수행평가 검토)",priority:"높음"}] },
-  { day:"수", items:[{task:"수행평가 계획서 교무부장 결재",priority:"높음"},{task:"교내 연수 일정 확정",priority:"중간"}] },
-  { day:"목", items:[{task:"수행평가 가정통신문 최종 검토",priority:"중간"}] },
-  { day:"금", items:[{task:"주간 업무 정리 및 차주 계획",priority:"낮음"}] },
-];
+// ─── STATIC DATA removed — tasks now from Supabase ───
+const DEPT_LIST = ["교무부","연구부","학생안전부","학생생활부","진로부","정보부"];
 
 // ─── STYLES ───
 const C = {
@@ -52,7 +17,7 @@ const C = {
 };
 const PRIORITY_C = { "높음":C.red, "중간":C.yellow, "낮음":C.green };
 const STATUS_C   = { "공식":C.green, "검토중":C.yellow, "초안":C.textDim };
-const DEPT_C     = { "교무":"#4f8cff","연구":"#a78bfa","생활지도":"#f472b6","행사":"#fb923c","정보":"#38bdf8","보건":"#34d399" };
+const DEPT_C     = { "교무부":"#4f8cff","연구부":"#a78bfa","학생안전부":"#f472b6","학생생활부":"#fb923c","진로부":"#22d3ee","정보부":"#34d399" };
 const ROLE_LABEL = { super_admin:"슈퍼관리자", timetable_admin:"시간표관리자", teacher:"교사" };
 const ROLE_COLOR = { super_admin:C.red, timetable_admin:C.purple, teacher:C.green };
 
@@ -129,22 +94,54 @@ function Sidebar({ active, onNav, teacher, onLogout }) {
 
 // ─── DASHBOARD ───
 function DashboardView({ teacher }) {
-  const todayItems = SCHEDULE_THIS_WEEK[0]?.items||[];
-  const urgentTasks = TASKS.filter(t=>t.priority==="높음");
+  const [tasks, setTasks] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [docCount, setDocCount] = useState(0);
+
+  useEffect(()=>{
+    const load = async () => {
+      const { data: taskData } = await supabase.from('tasks').select('*').eq('dept', teacher.dept);
+      if(taskData) setTasks(taskData);
+
+      const today = new Date().toISOString().split('T')[0];
+      const weekEnd = new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
+      const { data: schData } = await supabase.from('schedules').select('*').gte('date',today).lte('date',weekEnd).order('date');
+      if(schData) setSchedules(schData);
+
+      const { count } = await supabase.from('documents').select('id', {count:'exact',head:true});
+      setDocCount(count||0);
+    };
+    load();
+  },[teacher]);
+
+  const urgentTasks = tasks.filter(t=>t.priority==="높음");
+  const isHomeroom = !!teacher.homeroom;
+  const mySchedules = schedules.filter(e=>{
+    const tags = Array.isArray(e.tags)?e.tags:[];
+    if(e.visibility==='personal' && e.created_by!==teacher.id) return false;
+    if(tags.includes('전체')) return true;
+    if(tags.includes('담임') && isHomeroom) return true;
+    if(e.dept===teacher.dept) return true;
+    if(e.created_by===teacher.id) return true;
+    return false;
+  });
+  const todayStr = new Date().toISOString().split('T')[0];
+  const todaySchedules = mySchedules.filter(e=>e.date===todayStr);
+
   return (
     <div style={{ padding:32, overflowY:"auto", height:"100%" }}>
       <div style={{ marginBottom:28 }}>
         <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:C.text }}>{teacher.name} 선생님, 좋은 아침입니다 ☀️</h1>
-        <p style={{ margin:"6px 0 0", fontSize:13, color:C.textMid }}>{ROLE_LABEL[teacher.role]} · 오늘 할 일 {todayItems.length}건</p>
+        <p style={{ margin:"6px 0 0", fontSize:13, color:C.textMid }}>{ROLE_LABEL[teacher.role]} · {teacher.dept} · 오늘 할 일 {todaySchedules.length}건</p>
       </div>
       {teacher.role==='super_admin'&&<div style={{padding:"12px 16px",borderRadius:10,background:C.red+"10",border:`1px solid ${C.red}20`,marginBottom:20,fontSize:12,color:C.red}}>🔑 슈퍼관리자 계정입니다. 사용자 관리 및 학교 설정에 접근할 수 있습니다.</div>}
       {teacher.role==='timetable_admin'&&<div style={{padding:"12px 16px",borderRadius:10,background:C.purple+"10",border:`1px solid ${C.purple}20`,marginBottom:20,fontSize:12,color:C.purple}}>🗓️ 시간표관리자 계정입니다. 시간표 생성 및 관리에 접근할 수 있습니다.</div>}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:28 }}>
         {[
-          { label:"오늘 할 일",  value:todayItems.length,  icon:"📅", color:C.accent },
-          { label:"긴급 업무",   value:urgentTasks.length, icon:"🔴", color:C.red },
-          { label:"관련 문서",   value:DOCS.length,        icon:"📄", color:C.purple },
-          { label:"이번 주 일정",value:SCHEDULE_THIS_WEEK.length, icon:"📋", color:C.green },
+          { label:"오늘 할 일",  value:todaySchedules.length, icon:"📅", color:C.accent },
+          { label:"긴급 업무",   value:urgentTasks.length,    icon:"🔴", color:C.red },
+          { label:"전체 문서",   value:docCount,              icon:"📄", color:C.purple },
+          { label:"이번 주 일정",value:mySchedules.length,    icon:"📋", color:C.green },
         ].map((s,i)=>(
           <Card key={i} style={{ padding:"18px 20px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
@@ -158,11 +155,12 @@ function DashboardView({ teacher }) {
         <Card style={{ padding:22 }}>
           <h3 style={{ margin:"0 0 14px", fontSize:14, fontWeight:700, color:C.text }}>📅 오늘 할 일</h3>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {todayItems.map((item,i)=>(
-              <div key={i} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.bg, borderRadius:10 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:PRIORITY_C[item.priority], flexShrink:0 }}/>
-                <span style={{ fontSize:13, color:C.text, flex:1 }}>{item.task}</span>
-                <Badge label={item.priority} color={PRIORITY_C[item.priority]} small/>
+            {todaySchedules.length===0&&<div style={{fontSize:12,color:C.textDim,padding:8}}>오늘 등록된 일정이 없습니다</div>}
+            {todaySchedules.map(item=>(
+              <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.bg, borderRadius:10 }}>
+                <div style={{ width:8, height:8, borderRadius:"50%", background:PRIORITY_C[item.priority]||C.yellow, flexShrink:0 }}/>
+                <span style={{ fontSize:13, color:C.text, flex:1 }}>{item.title}</span>
+                <Badge label={item.priority||'보통'} color={PRIORITY_C[item.priority]||C.textDim} small/>
               </div>
             ))}
           </div>
@@ -170,6 +168,7 @@ function DashboardView({ teacher }) {
         <Card style={{ padding:22 }}>
           <h3 style={{ margin:"0 0 14px", fontSize:14, fontWeight:700, color:C.text }}>⚡ 긴급 업무</h3>
           <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {urgentTasks.length===0&&<div style={{fontSize:12,color:C.textDim,padding:8}}>긴급 업무가 없습니다 🎉</div>}
             {urgentTasks.map(t=>(
               <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.bg, borderRadius:10 }}>
                 <span style={{ fontSize:13, color:C.text, flex:1 }}>{t.name}</span>
@@ -286,8 +285,9 @@ function ChatView({ teacher }) {
             </div>
           </div>
         )}
-        {contextInfo && (contextInfo.documents > 0 || contextInfo.schedules > 0) && (
+        {contextInfo && (contextInfo.documents > 0 || contextInfo.schedules > 0 || contextInfo.tasks > 0) && (
           <div style={{ display:"flex", gap:6, padding:"4px 0", marginTop:-8 }}>
+            {contextInfo.tasks > 0 && <span style={{ fontSize:10, color:C.yellow, background:C.yellow+"12", padding:"2px 8px", borderRadius:10 }}>📋 업무 {contextInfo.tasks}건 참고</span>}
             {contextInfo.documents > 0 && <span style={{ fontSize:10, color:C.green, background:C.green+"12", padding:"2px 8px", borderRadius:10 }}>📄 문서 {contextInfo.documents}건 참고</span>}
             {contextInfo.schedules > 0 && <span style={{ fontSize:10, color:C.accent, background:C.accentSoft, padding:"2px 8px", borderRadius:10 }}>📅 일정 {contextInfo.schedules}건 참고</span>}
           </div>
@@ -327,100 +327,223 @@ function ChatView({ teacher }) {
   );
 }
 
-// ─── TASKS ───
-function TasksView() {
-  const [filter,setFilter]=useState("전체");
-  const [sel,setSel]=useState(null);
-  const depts=["전체",...new Set(TASKS.map(t=>t.dept))];
-  const filtered=filter==="전체"?TASKS:TASKS.filter(t=>t.dept===filter);
-  if(sel){
-    const detail=TASK_DETAILS[sel.id];
-    const relDocs=DOCS.filter(d=>d.taskId===sel.id);
+// ─── TASKS (Supabase 연동) ───
+function TasksView({ teacher }) {
+  const [tasks, setTasks] = useState([]);
+  const [filter, setFilter] = useState("전체");
+  const [sel, setSel] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [form, setForm] = useState({ name:"", dept:"교무부", area:"", type:"정기업무", period:"상시", priority:"중간", status:"초안", overview:"", steps:[""], cautions:[""], required_docs:[""] });
+
+  const fetchTasks = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('tasks').select('*').order('created_at', { ascending: false });
+    if (data) setTasks(data);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchTasks(); }, []);
+
+  const depts = ["전체", ...DEPT_LIST];
+  const filtered = filter === "전체" ? tasks : tasks.filter(t => t.dept === filter);
+
+  const resetForm = () => setForm({ name:"", dept:"교무부", area:"", type:"정기업무", period:"상시", priority:"중간", status:"초안", overview:"", steps:[""], cautions:[""], required_docs:[""] });
+
+  const handleSave = async () => {
+    if (!form.name.trim()) return;
+    const payload = {
+      ...form,
+      steps: JSON.stringify(form.steps.filter(s => s.trim())),
+      cautions: JSON.stringify(form.cautions.filter(c => c.trim())),
+      required_docs: JSON.stringify(form.required_docs.filter(d => d.trim())),
+      created_by: teacher?.id,
+    };
+
+    if (editMode && sel) {
+      await supabase.from('tasks').update(payload).eq('id', sel.id);
+    } else {
+      await supabase.from('tasks').insert([payload]);
+    }
+    setShowAdd(false); setEditMode(false); setSel(null); resetForm(); fetchTasks();
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm('이 업무를 삭제하시겠습니까?')) return;
+    await supabase.from('tasks').delete().eq('id', id);
+    setSel(null); fetchTasks();
+  };
+
+  const startEdit = (task) => {
+    const steps = Array.isArray(task.steps) ? task.steps : JSON.parse(task.steps || '[]');
+    const cautions = Array.isArray(task.cautions) ? task.cautions : JSON.parse(task.cautions || '[]');
+    const docs = Array.isArray(task.required_docs) ? task.required_docs : JSON.parse(task.required_docs || '[]');
+    setForm({ name:task.name, dept:task.dept, area:task.area||"", type:task.type||"", period:task.period||"", priority:task.priority||"중간", status:task.status||"초안", overview:task.overview||"", steps:steps.length?steps:[""], cautions:cautions.length?cautions:[""], required_docs:docs.length?docs:[""] });
+    setEditMode(true); setShowAdd(true);
+  };
+
+  const updateList = (key, idx, val) => { const arr = [...form[key]]; arr[idx] = val; setForm({...form, [key]: arr}); };
+  const addListItem = (key) => setForm({...form, [key]: [...form[key], ""]});
+  const removeListItem = (key, idx) => { const arr = form[key].filter((_,i)=>i!==idx); setForm({...form, [key]: arr.length?arr:[""]}); };
+
+  // ─── 업무 추가/수정 폼 ───
+  if (showAdd) {
     return (
       <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
-        <button onClick={()=>setSel(null)} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", padding:0, fontFamily:font, fontWeight:600, marginBottom:16 }}>← 목록으로</button>
-        <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
-          <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:C.text }}>{sel.name}</h2>
-          <Badge label={sel.priority} color={PRIORITY_C[sel.priority]}/><Badge label={sel.status} color={STATUS_C[sel.status]}/>
+        <button onClick={()=>{setShowAdd(false);setEditMode(false);resetForm()}} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", padding:0, fontFamily:font, fontWeight:600, marginBottom:16 }}>← 목록으로</button>
+        <h2 style={{ margin:"0 0 20px", fontSize:17, fontWeight:800, color:C.text }}>{editMode?"📝 업무 수정":"➕ 업무 추가"}</h2>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, marginBottom:16 }}>
+          <div><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>업무명 *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,fontFamily:font,outline:"none",boxSizing:"border-box"}} /></div>
+          <div><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>부서</label><select value={form.dept} onChange={e=>setForm({...form,dept:e.target.value})} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none"}}>{DEPT_LIST.map(d=> <option key={d} value={d}>{d}</option>)}</select></div>
+          <div><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>세부 영역</label><input value={form.area} onChange={e=>setForm({...form,area:e.target.value})} placeholder="예: 성적, 학적, 학생안전..." style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none",boxSizing:"border-box"}} /></div>
+          <div><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>시행 시기</label><select value={form.period} onChange={e=>setForm({...form,period:e.target.value})} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none"}}>{["3월","4월","5월","6월","7월","8월","9월","10월","11월","12월","1월","2월","학기초","학기중","학기말","상시","수시"].map(p=> <option key={p} value={p}>{p}</option>)}</select></div>
+          <div><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>중요도</label><div style={{display:"flex",gap:6}}>{["높음","중간","낮음"].map(p=> <button key={p} onClick={()=>setForm({...form,priority:p})} style={{flex:1,padding:"8px",borderRadius:8,border:`1px solid ${form.priority===p?PRIORITY_C[p]:C.border}`,background:form.priority===p?PRIORITY_C[p]+"18":"transparent",color:form.priority===p?PRIORITY_C[p]:C.textMid,fontSize:12,cursor:"pointer",fontFamily:font,fontWeight:form.priority===p?700:500}}>{p}</button>)}</div></div>
+          <div><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>상태</label><div style={{display:"flex",gap:6}}>{["초안","검토중","공식"].map(s=> <button key={s} onClick={()=>setForm({...form,status:s})} style={{flex:1,padding:"8px",borderRadius:8,border:`1px solid ${form.status===s?STATUS_C[s]:C.border}`,background:form.status===s?STATUS_C[s]+"18":"transparent",color:form.status===s?STATUS_C[s]:C.textMid,fontSize:12,cursor:"pointer",fontFamily:font,fontWeight:form.status===s?700:500}}>{s}</button>)}</div></div>
         </div>
-        {detail?(
-          <div style={{ display:"flex", flexDirection:"column", gap:16, marginTop:16 }}>
-            <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>📌 업무 개요</h3><p style={{margin:0,color:C.textMid,fontSize:13,lineHeight:1.7}}>{detail.overview}</p></Card>
-            <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>📋 절차</h3><ol style={{margin:0,paddingLeft:20,color:C.textMid,fontSize:13,lineHeight:2}}>{detail.steps.map((s,i)=><li key={i}>{s}</li>)}</ol></Card>
-            <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>⚠️ 주의사항</h3><ul style={{margin:0,paddingLeft:20,color:C.yellow,fontSize:13,lineHeight:2}}>{detail.cautions.map((c,i)=><li key={i}>{c}</li>)}</ul></Card>
-            {relDocs.length>0&&<Card style={{padding:18}}><h3 style={{margin:"0 0 10px",fontSize:13,fontWeight:700,color:C.text}}>📂 연결 문서</h3>{relDocs.map(d=><div key={d.id} style={{display:"flex",justifyContent:"space-between",padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:6}}><span style={{fontSize:12,color:C.text}}>📄 {d.name}</span><Badge label={d.type} color={C.textDim} small/></div>)}</Card>}
+        <div style={{marginBottom:16}}><label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>업무 개요</label><textarea value={form.overview} onChange={e=>setForm({...form,overview:e.target.value})} placeholder="이 업무가 무엇인지 간단히 설명해주세요" rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none",resize:"vertical",boxSizing:"border-box"}} /></div>
+
+        {[{key:"steps",label:"📋 업무 절차",ph:"1단계: ..."},{key:"cautions",label:"⚠️ 주의사항",ph:"주의할 점"},{key:"required_docs",label:"📂 필요 문서",ph:"문서명"}].map(({key,label,ph})=>(
+          <div key={key} style={{marginBottom:16}}>
+            <label style={{fontSize:11,fontWeight:600,color:C.textMid,display:"block",marginBottom:6}}>{label}</label>
+            {form[key].map((item,idx)=> <div key={idx} style={{display:"flex",gap:6,marginBottom:4}}>
+              <input value={item} onChange={e=>updateList(key,idx,e.target.value)} placeholder={ph} style={{flex:1,padding:"8px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none"}} />
+              <button onClick={()=>removeListItem(key,idx)} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.red,fontSize:12,cursor:"pointer",fontFamily:font}}>✕</button>
+            </div>)}
+            <button onClick={()=>addListItem(key)} style={{padding:"6px 12px",borderRadius:6,border:`1px dashed ${C.border}`,background:"transparent",color:C.textMid,fontSize:11,cursor:"pointer",fontFamily:font,marginTop:4}}>+ 항목 추가</button>
           </div>
-        ):(<Card style={{padding:40,textAlign:"center"}}><p style={{color:C.textDim}}>상세 매뉴얼 준비 중입니다.</p></Card>)}
+        ))}
+
+        <div style={{display:"flex",gap:8,marginTop:8}}>
+          <button onClick={()=>{setShowAdd(false);setEditMode(false);resetForm()}} style={{flex:1,padding:"12px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",color:C.textMid,fontSize:13,cursor:"pointer",fontFamily:font}}>취소</button>
+          <button onClick={handleSave} style={{flex:2,padding:"12px",borderRadius:10,border:"none",background:C.accent,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:font}}>{editMode?"수정 완료":"업무 등록"}</button>
+        </div>
       </div>
     );
   }
+
+  // ─── 업무 상세 ───
+  if (sel) {
+    const steps = Array.isArray(sel.steps) ? sel.steps : JSON.parse(sel.steps || '[]');
+    const cautions = Array.isArray(sel.cautions) ? sel.cautions : JSON.parse(sel.cautions || '[]');
+    const docs = Array.isArray(sel.required_docs) ? sel.required_docs : JSON.parse(sel.required_docs || '[]');
+    const canEdit = teacher?.role === 'super_admin' || true;
+
+    return (
+      <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
+        <button onClick={()=>setSel(null)} style={{ background:"none", border:"none", color:C.accent, fontSize:12, cursor:"pointer", padding:0, fontFamily:font, fontWeight:600, marginBottom:16 }}>← 목록으로</button>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+          <div>
+            <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:6 }}>
+              <h2 style={{ margin:0, fontSize:20, fontWeight:800, color:C.text }}>{sel.name}</h2>
+              <Badge label={sel.priority} color={PRIORITY_C[sel.priority]}/><Badge label={sel.status} color={STATUS_C[sel.status]}/>
+            </div>
+            <div style={{ display:"flex", gap:5 }}><Badge label={sel.dept} color={DEPT_C[sel.dept]||C.textDim} small/>{sel.area&&<Badge label={sel.area} color={C.textDim} small/>}<Badge label={sel.period} color={C.accent} small/></div>
+          </div>
+          {canEdit && <div style={{display:"flex",gap:6}}>
+            <button onClick={()=>startEdit(sel)} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${C.accent}40`,background:C.accentSoft,color:C.accent,fontSize:11,cursor:"pointer",fontFamily:font}}>✏️ 수정</button>
+            <button onClick={()=>handleDelete(sel.id)} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${C.red}40`,background:C.red+"10",color:C.red,fontSize:11,cursor:"pointer",fontFamily:font}}>🗑 삭제</button>
+          </div>}
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          {sel.overview && <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>📌 업무 개요</h3><p style={{margin:0,color:C.textMid,fontSize:13,lineHeight:1.7}}>{sel.overview}</p></Card>}
+          {steps.length>0 && <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>📋 업무 절차</h3><ol style={{margin:0,paddingLeft:20,color:C.textMid,fontSize:13,lineHeight:2.1}}>{steps.map((s,i)=> <li key={i}>{s}</li>)}</ol></Card>}
+          {cautions.length>0 && <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>⚠️ 주의사항</h3><ul style={{margin:0,paddingLeft:20,color:C.yellow,fontSize:13,lineHeight:2}}>{cautions.map((c,i)=> <li key={i}>{c}</li>)}</ul></Card>}
+          {docs.length>0 && <Card style={{padding:18}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.text}}>📂 필요 문서</h3>{docs.map((d,i)=> <div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:4}}><span style={{color:C.accent}}>📄</span><span style={{fontSize:12,color:C.text}}>{d}</span></div>)}</Card>}
+          {sel.handover_note && <Card style={{padding:18,borderColor:C.accent+"30"}}><h3 style={{margin:"0 0 8px",fontSize:13,fontWeight:700,color:C.accent}}>🤝 인수인계 메모</h3><p style={{margin:0,color:C.textMid,fontSize:13,lineHeight:1.7,fontStyle:"italic"}}>"{sel.handover_note}"</p></Card>}
+        </div>
+      </div>
+    );
+  }
+
+  // ─── 업무 목록 ───
   return (
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
-      <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📋 업무 문서 총정리</h2>
-      <p style={{ margin:"0 0 18px", fontSize:11, color:C.textDim }}>학교 전체 업무와 관련 문서를 한 곳에서 관리합니다.</p>
-      <div style={{ display:"flex", gap:6, marginBottom:18, flexWrap:"wrap" }}>
-        {depts.map(d=><button key={d} onClick={()=>setFilter(d)} style={{ padding:"5px 14px", borderRadius:8, border:`1px solid ${filter===d?C.accent:C.border}`, background:filter===d?C.accentSoft:"transparent", color:filter===d?C.accent:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font }}>{d}</button>)}
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:16 }}>
+        <div>
+          <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📋 업무 문서 총정리</h2>
+          <p style={{ margin:0, fontSize:11, color:C.textDim }}>학교 전체 업무를 관리합니다 · 업무를 클릭하면 상세 매뉴얼을 볼 수 있습니다</p>
+        </div>
+        <button onClick={()=>{resetForm();setShowAdd(true)}} style={{padding:"8px 16px",borderRadius:8,border:"none",background:C.accent,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:font}}>+ 업무 추가</button>
       </div>
-      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-        {filtered.map(task=>{
-          const docCount=DOCS.filter(d=>d.taskId===task.id).length;
-          return (
+      <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+        {depts.map(d=> <button key={d} onClick={()=>setFilter(d)} style={{ padding:"5px 14px", borderRadius:8, border:`1px solid ${filter===d?C.accent:C.border}`, background:filter===d?C.accentSoft:"transparent", color:filter===d?C.accent:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font }}>{d}</button>)}
+      </div>
+      {loading ? <div style={{textAlign:"center",padding:40,color:C.textDim}}>불러오는 중...</div> : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {filtered.length === 0 && <Card style={{padding:40,textAlign:"center"}}><p style={{color:C.textDim,fontSize:13}}>등록된 업무가 없습니다. 업무를 추가해 주세요.</p></Card>}
+          {filtered.map(task => (
             <Card key={task.id} hover onClick={()=>setSel(task)} style={{ padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <span style={{ fontSize:14, fontWeight:700, color:C.text }}>{task.name}</span>
-                  {docCount>0&&<span style={{ fontSize:10, color:C.accent }}>📄 {docCount}</span>}
-                </div>
-                <div style={{ display:"flex", gap:5 }}><Badge label={task.dept} color={DEPT_C[task.dept]||C.textDim} small/><Badge label={task.period} color={C.accent} small/></div>
+                <span style={{ fontSize:14, fontWeight:700, color:C.text }}>{task.name}</span>
+                <div style={{ display:"flex", gap:5 }}><Badge label={task.dept} color={DEPT_C[task.dept]||C.textDim} small/>{task.area&&<Badge label={task.area} color={C.textDim} small/>}<Badge label={task.period} color={C.accent} small/></div>
               </div>
               <div style={{ display:"flex", gap:6, alignItems:"center" }}>
                 <Badge label={task.priority} color={PRIORITY_C[task.priority]}/><Badge label={task.status} color={STATUS_C[task.status]}/>
                 <span style={{ color:C.textDim }}>→</span>
               </div>
             </Card>
-          );
-        })}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-// ─── DOC WRITER ───
-function DocWriterView() {
+// ─── DOC WRITER (Claude API 연동) ───
+function DocWriterView({ teacher }) {
   const [docType,setDocType]=useState("가정통신문");
-  const [taskRef,setTaskRef]=useState(1);
+  const [tasks,setTasks]=useState([]);
+  const [taskRef,setTaskRef]=useState("");
+  const [extra,setExtra]=useState("");
   const [result,setResult]=useState(null);
   const [generating,setGenerating]=useState(false);
-  const types=["가정통신문","계획서","결과보고서","안내문","동의서","회의록"];
-  const task=TASKS.find(t=>t.id===taskRef);
-  const generate=()=>{
-    setGenerating(true);setResult(null);
-    setTimeout(()=>{
-      const templates={
-        "가정통신문":`2026학년도 ${task?.name||""} 안내\n\n학부모님께,\n\n안녕하십니까? ${task?.name||""} 관련 사항을 안내드립니다.\n\n1. 기간: 2026년 해당 시기\n2. 대상: 본교 재학생\n3. 유의사항: 관련 사항 기재\n\n2026. 3. 대동여중 교장`,
-        "계획서":`2026학년도 ${task?.name||""} 계획(안)\n\n1. 목적: ${task?.name||""} 체계적 운영\n2. 방침\n   - 관련 규정 준수\n   - 사전 안내 철저\n3. 추진 일정\n   - 3월: 계획 수립\n   - 4~6월: 실행\n   - 7월: 결과 정리`,
-      };
-      setResult(templates[docType]||templates["가정통신문"]);
-      setGenerating(false);
-    },1500);
+  const types=["가정통신문","계획서","결과보고서","안내문","동의서","회의록","문자메시지"];
+
+  useEffect(()=>{ supabase.from('tasks').select('id,name,dept,area,overview').order('name').then(({data})=>{ if(data){setTasks(data);if(data[0])setTaskRef(data[0].id)} }); },[]);
+
+  const task = tasks.find(t=>t.id===taskRef);
+
+  const generate = async () => {
+    setGenerating(true); setResult(null);
+    try {
+      const res = await fetch('/api/chat', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          messages:[{ role:'user', content:`"${docType}" 문서를 작성해주세요.\n\n관련 업무: ${task?.name||'미지정'} (${task?.dept||''})\n업무 개요: ${task?.overview||'없음'}\n\n추가 요청: ${extra||'없음'}\n\n완성본에 가까운 초안을 작성해주세요. 대동여중 명의로 작성하세요.` }],
+          teacher,
+          systemPrompt: `당신은 대동여중의 문서 작성 전문 AI입니다.\n사용자가 요청한 문서 유형에 맞는 완성도 높은 초안을 작성합니다.\n- 학교명은 "대동여자중학교" 또는 "대동여중"을 사용합니다\n- 날짜, 장소 등 확인 필요한 부분은 [   ]로 표시합니다\n- 공문서 형식에 맞게 작성합니다\n- 바로 사용할 수 있을 수준으로 작성합니다`,
+          useContext: true,
+        }),
+      });
+      const data = await res.json();
+      setResult(data.content || '문서 생성에 실패했습니다.');
+    } catch(e) { setResult('오류: '+e.message); }
+    setGenerating(false);
   };
+
   return (
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
       <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📝 문서 작성 AI</h2>
-      <p style={{ margin:"0 0 22px", fontSize:11, color:C.textDim }}>업무 데이터를 바탕으로 문서 초안을 자동 생성합니다</p>
+      <p style={{ margin:"0 0 22px", fontSize:11, color:C.textDim }}>업무 데이터를 바탕으로 Claude AI가 문서 초안을 작성합니다</p>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
           <Card style={{padding:20}}>
             <label style={{fontSize:12,fontWeight:600,color:C.textMid,marginBottom:8,display:"block"}}>문서 종류</label>
-            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{types.map(t=><button key={t} onClick={()=>setDocType(t)} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${docType===t?C.accent:C.border}`,background:docType===t?C.accentSoft:"transparent",color:docType===t?C.accent:C.textMid,fontSize:12,cursor:"pointer",fontFamily:font}}>{t}</button>)}</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>{types.map(t=> <button key={t} onClick={()=>setDocType(t)} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${docType===t?C.accent:C.border}`,background:docType===t?C.accentSoft:"transparent",color:docType===t?C.accent:C.textMid,fontSize:12,cursor:"pointer",fontFamily:font}}>{t}</button>)}</div>
           </Card>
           <Card style={{padding:20}}>
             <label style={{fontSize:12,fontWeight:600,color:C.textMid,marginBottom:8,display:"block"}}>관련 업무</label>
-            <select value={taskRef} onChange={e=>setTaskRef(+e.target.value)} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none"}}>
-              {TASKS.map(t=><option key={t.id} value={t.id}>{t.name} ({t.dept})</option>)}
+            <select value={taskRef} onChange={e=>setTaskRef(e.target.value)} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none"}}>
+              {tasks.map(t=> <option key={t.id} value={t.id}>{t.name} ({t.dept})</option>)}
             </select>
           </Card>
-          <button onClick={generate} disabled={generating} style={{padding:"14px",borderRadius:12,border:"none",background:generating?C.textDim:C.accent,color:"#fff",fontSize:14,fontWeight:700,cursor:generating?"wait":"pointer",fontFamily:font}}>{generating?"✍️ 생성 중...":"✨ 문서 초안 생성"}</button>
+          <Card style={{padding:20}}>
+            <label style={{fontSize:12,fontWeight:600,color:C.textMid,marginBottom:8,display:"block"}}>추가 요청사항</label>
+            <textarea value={extra} onChange={e=>setExtra(e.target.value)} placeholder="예: 날짜를 4월 15일로, 장소를 강당으로, 3학년 대상으로..." rows={3} style={{width:"100%",padding:"10px 12px",borderRadius:10,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,fontFamily:font,outline:"none",resize:"vertical",boxSizing:"border-box"}} />
+          </Card>
+          <button onClick={generate} disabled={generating} style={{padding:"14px",borderRadius:12,border:"none",background:generating?C.textDim:C.accent,color:"#fff",fontSize:14,fontWeight:700,cursor:generating?"wait":"pointer",fontFamily:font}}>{generating?"✍️ AI가 작성 중...":"✨ 문서 초안 생성"}</button>
         </div>
         <Card style={{padding:20,display:"flex",flexDirection:"column"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
@@ -428,7 +551,7 @@ function DocWriterView() {
             {result&&<button onClick={()=>navigator.clipboard?.writeText(result)} style={{padding:"4px 12px",borderRadius:6,border:`1px solid ${C.accent}30`,background:C.accentSoft,color:C.accent,fontSize:11,cursor:"pointer",fontFamily:font}}>📋 복사</button>}
           </div>
           <div style={{flex:1,padding:16,background:C.bg,borderRadius:10,border:`1px solid ${C.border}`,overflowY:"auto",minHeight:280}}>
-            {result?<pre style={{margin:0,whiteSpace:"pre-wrap",fontSize:12,color:C.text,lineHeight:1.8,fontFamily:font}}>{result}</pre>:<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:C.textDim,fontSize:12}}>문서 종류와 업무를 선택 후 생성해주세요</div>}
+            {result? <pre style={{margin:0,whiteSpace:"pre-wrap",fontSize:12,color:C.text,lineHeight:1.8,fontFamily:font}}>{result}</pre>:<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",flexDirection:"column",gap:10,color:C.textDim,fontSize:12}}><span style={{fontSize:28}}>📝</span>문서 종류와 업무를 선택 후 생성해주세요</div>}
           </div>
         </Card>
       </div>
@@ -436,58 +559,92 @@ function DocWriterView() {
   );
 }
 
-// ─── SCHEDULE ───
-function ScheduleView({ teacher }) {
-  const [tab,setTab]=useState("week");
+// ─── SCHEDULE (나의 할 일) ───
+function MyScheduleView({ teacher }) {
+  const [schedules, setSchedules] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(()=>{
+    const load = async () => {
+      setLoading(true);
+      // 이번 달 일정
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+      const end = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
+      const { data: schData } = await supabase.from('schedules').select('*').gte('date',start).lte('date',end).order('date');
+      if(schData) setSchedules(schData);
+      // 내 부서 업무
+      const { data: taskData } = await supabase.from('tasks').select('*').order('priority');
+      if(taskData) setTasks(taskData);
+      setLoading(false);
+    };
+    load();
+  },[]);
+
+  const isHomeroom = !!teacher.homeroom;
+  const mySchedules = schedules.filter(e=>{
+    if(e.visibility==='personal' && e.created_by!==teacher.id) return false;
+    const tags = Array.isArray(e.tags)?e.tags:[];
+    if(tags.includes('전체')) return true;
+    if(tags.includes('담임') && isHomeroom) return true;
+    if(tags.includes('교과')) return true;
+    if(e.dept===teacher.dept) return true;
+    if(e.created_by===teacher.id) return true;
+    return false;
+  });
+  const myTasks = tasks.filter(t=>t.dept===teacher.dept);
+  const urgentTasks = myTasks.filter(t=>t.priority==='높음');
+
+  const today = new Date().toISOString().split('T')[0];
+  const todaySchedules = mySchedules.filter(e=>e.date===today);
+  const thisWeek = mySchedules.filter(e=>{const d=new Date(e.date);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<7;});
+
+  if(loading) return <div style={{padding:40,textAlign:"center",color:C.textDim,fontFamily:font}}>불러오는 중...</div>;
+
   return (
     <div style={{ padding:28, overflowY:"auto", height:"100%", fontFamily:font }}>
-      <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>📅 {teacher.name} 선생님의 할 일</h2>
-      <div style={{ display:"flex", gap:6, marginBottom:22, marginTop:16 }}>
-        {[{id:"week",label:"이번 주"},{id:"month",label:"이번 달"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"7px 18px",borderRadius:8,border:`1px solid ${tab===t.id?C.accent:C.border}`,background:tab===t.id?C.accentSoft:"transparent",color:tab===t.id?C.accent:C.textMid,fontSize:12,cursor:"pointer",fontFamily:font}}>{t.label}</button>
-        ))}
+      <h2 style={{ margin:"0 0 4px", fontSize:17, fontWeight:800, color:C.text }}>✅ {teacher.name} 선생님의 할 일</h2>
+      <p style={{ margin:"0 0 20px", fontSize:11, color:C.textDim }}>{teacher.dept} · {teacher.area||''} · {isHomeroom?`${teacher.homeroom} 담임`:'비담임'}</p>
+
+      <div style={{display:"flex",flexDirection:"column",gap:16}}>
+        <Card style={{padding:18}}>
+          <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:C.red}}>🔴 오늘 ({todaySchedules.length}건)</h3>
+          {todaySchedules.length===0?<div style={{fontSize:12,color:C.textDim,padding:8}}>오늘 등록된 일정이 없습니다</div>:
+          todaySchedules.map(e=> <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:4}}><div style={{width:6,height:6,borderRadius:"50%",background:PRIORITY_C[e.priority]||C.yellow}}/><span style={{fontSize:12,color:C.text,flex:1}}>{e.title}</span><Badge label={e.category||'일정'} color={C.accent} small/></div>)}
+        </Card>
+
+        <Card style={{padding:18}}>
+          <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:C.yellow}}>🟡 이번 주 ({thisWeek.length}건)</h3>
+          {thisWeek.length===0?<div style={{fontSize:12,color:C.textDim,padding:8}}>이번 주 일정이 없습니다</div>:
+          thisWeek.map(e=> <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:4}}><div style={{width:6,height:6,borderRadius:"50%",background:PRIORITY_C[e.priority]||C.yellow}}/><div style={{flex:1}}><div style={{fontSize:12,color:C.text}}>{e.title}</div><div style={{fontSize:10,color:C.textDim}}>{e.date?.slice(5)}</div></div><Badge label={e.priority||'보통'} color={PRIORITY_C[e.priority]||C.textDim} small/></div>)}
+        </Card>
+
+        <Card style={{padding:18}}>
+          <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:C.accent}}>📋 내 부서 업무 ({myTasks.length}건)</h3>
+          {myTasks.length===0?<div style={{fontSize:12,color:C.textDim,padding:8}}>등록된 업무가 없습니다</div>:
+          myTasks.map(t=> <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:4}}><span style={{fontSize:12,color:C.text,flex:1}}>{t.name}</span><Badge label={t.period} color={C.accent} small/><Badge label={t.priority} color={PRIORITY_C[t.priority]} small/></div>)}
+        </Card>
+
+        {urgentTasks.length>0&&<Card style={{padding:18,borderColor:C.red+"30"}}>
+          <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:C.red}}>⚡ 긴급 업무</h3>
+          {urgentTasks.map(t=> <div key={t.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.red+"08",borderRadius:8,marginBottom:4}}><span style={{fontSize:12,color:C.text,flex:1}}>{t.name}</span><Badge label={t.dept} color={DEPT_C[t.dept]||C.textDim} small/></div>)}
+        </Card>}
       </div>
-      {tab==="week"&&(
-        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-          {SCHEDULE_THIS_WEEK.map((day,i)=>(
-            <Card key={i} style={{padding:"14px 18px"}}>
-              <div style={{fontSize:12,fontWeight:700,color:C.accent,marginBottom:10}}>{day.day}요일</div>
-              <div style={{display:"flex",flexDirection:"column",gap:6}}>
-                {day.items.map((item,j)=>(
-                  <div key={j} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",background:C.bg,borderRadius:8}}>
-                    <div style={{width:6,height:6,borderRadius:"50%",background:PRIORITY_C[item.priority]}}/>
-                    <span style={{fontSize:12,color:C.text,flex:1}}>{item.task}</span>
-                    <Badge label={item.priority} color={PRIORITY_C[item.priority]} small/>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-      {tab==="month"&&(
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {TASKS.slice(0,5).map(t=>(
-            <Card key={t.id} style={{padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <div style={{fontSize:13,fontWeight:700,color:C.text}}>{t.name}</div>
-                <div style={{display:"flex",gap:5,marginTop:5}}><Badge label={t.dept} color={DEPT_C[t.dept]||C.textDim} small/><Badge label={t.period} color={C.accent} small/></div>
-              </div>
-              <Badge label={t.priority} color={PRIORITY_C[t.priority]}/>
-            </Card>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
 
-// ─── HANDOVER ───
+// ─── HANDOVER (준비중) ───
 function HandoverView() {
   return (
-    <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font}}>
-      <h2 style={{margin:"0 0 22px",fontSize:17,fontWeight:800,color:C.text}}>🤝 업무 인수인계</h2>
-      <Card style={{padding:40,textAlign:"center"}}><div style={{fontSize:32,marginBottom:12}}>📋</div><div style={{fontSize:14,color:C.textDim}}>인수인계 기록이 없습니다</div></Card>
+    <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font,display:"flex",alignItems:"center",justifyContent:"center"}}>
+      <Card style={{padding:"60px 48px",textAlign:"center",maxWidth:400}}>
+        <div style={{fontSize:48,marginBottom:16}}>🚧</div>
+        <h2 style={{margin:"0 0 10px",fontSize:20,fontWeight:800,color:C.text}}>업무 인수인계</h2>
+        <p style={{margin:"0 0 8px",fontSize:14,color:C.yellow,fontWeight:600}}>준비중입니다</p>
+        <p style={{margin:0,fontSize:12,color:C.textDim,lineHeight:1.7}}>인수인계 기능은 현재 설계 중입니다.<br/>더 나은 형태로 곧 찾아뵙겠습니다.</p>
+      </Card>
     </div>
   );
 }
@@ -732,9 +889,9 @@ function MainApp({ session, onLogout }) {
       case "schedule":  return <SchedulePage teacher={teacher}/>;
       case "documents": return <DocumentsPage teacher={teacher}/>;
       case "chat":      return <ChatView teacher={teacher}/>;
-      case "tasks":     return <TasksView/>;
-      case "docs":      return <DocWriterView/>;
-      case "mytasks":   return <ScheduleView teacher={teacher}/>;
+      case "tasks":     return <TasksView teacher={teacher}/>;
+      case "docs":      return <DocWriterView teacher={teacher}/>;
+      case "mytasks":   return <MyScheduleView teacher={teacher}/>;
       case "handover":  return <HandoverView/>;
       case "record":    return <RecordView/>;
       case "timetable": return <TimetablePage teacher={teacher}/>;
