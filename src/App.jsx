@@ -63,6 +63,15 @@ function Sidebar({ active, onNav, teacher, onLogout }) {
   const menuItems = getMenuItems(teacher.role);
   const roleColor = ROLE_COLOR[teacher.role]||C.green;
   const roleLabel = ROLE_LABEL[teacher.role]||'교사';
+
+  // 시간표 미확인 알림 카운트 (TimetableViewer 가 window 이벤트로 dispatch)
+  const [ttUnread, setTtUnread] = useState(0);
+  useEffect(() => {
+    const handler = (e) => setTtUnread(e.detail?.count || 0);
+    window.addEventListener('timetable:unread-count', handler);
+    return () => window.removeEventListener('timetable:unread-count', handler);
+  }, []);
+
   return (
     <nav style={{ width:240, minWidth:240, background:"#080b14", display:"flex", flexDirection:"column", borderRight:`1px solid ${C.border}`, fontFamily:font }}>
       <div style={{ padding:"24px 20px 16px" }}>
@@ -78,16 +87,30 @@ function Sidebar({ active, onNav, teacher, onLogout }) {
         </div>
       </div>
       <div style={{ flex:1, padding:"12px 0", display:"flex", flexDirection:"column", gap:2, overflowY:"auto" }}>
-        {menuItems.map(s=>(
-          <button key={s.id} onClick={()=>onNav(s.id)} style={{
-            display:"flex", alignItems:"center", gap:10, padding:"10px 20px",
-            background:active===s.id?C.accentSoft:"transparent",
-            border:"none", color:active===s.id?C.accent:C.textMid,
-            fontSize:13, fontWeight:active===s.id?700:500,
-            cursor:"pointer", borderRight:active===s.id?`3px solid ${C.accent}`:"3px solid transparent",
-            fontFamily:font, textAlign:"left", transition:"all .15s",
-          }}><span style={{ fontSize:15 }}>{s.icon}</span>{s.label}</button>
-        ))}
+        {menuItems.map(s=>{
+          const showDot = s.id === 'timetable_v2' && ttUnread > 0 && active !== s.id;
+          return (
+            <button key={s.id} onClick={()=>onNav(s.id)} style={{
+              display:"flex", alignItems:"center", gap:10, padding:"10px 20px",
+              background:active===s.id?C.accentSoft:"transparent",
+              border:"none", color:active===s.id?C.accent:C.textMid,
+              fontSize:13, fontWeight:active===s.id?700:500,
+              cursor:"pointer", borderRight:active===s.id?`3px solid ${C.accent}`:"3px solid transparent",
+              fontFamily:font, textAlign:"left", transition:"all .15s", position:"relative",
+            }}>
+              <span style={{ fontSize:15 }}>{s.icon}</span>
+              {s.label}
+              {showDot && (
+                <span style={{
+                  marginLeft: 'auto', minWidth: 18, height: 18, padding: '0 5px',
+                  borderRadius: 9, background: C.red, color: '#fff',
+                  fontSize: 10, fontWeight: 700, display: 'inline-flex',
+                  alignItems: 'center', justifyContent: 'center',
+                }}>{ttUnread > 99 ? '99+' : ttUnread}</span>
+              )}
+            </button>
+          );
+        })}
       </div>
       <div style={{ padding:"16px 20px", borderTop:`1px solid ${C.border}` }}>
         <button onClick={onLogout} style={{ width:"100%", padding:"8px", borderRadius:8, border:`1px solid ${C.border}`, background:"transparent", color:C.textDim, fontSize:12, cursor:"pointer", fontFamily:font }}>로그아웃</button>
