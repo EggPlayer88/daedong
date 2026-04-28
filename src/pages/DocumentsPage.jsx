@@ -78,7 +78,7 @@ function UploadModal({ teacher, onClose, onUploaded }) {
         if(upErr) throw upErr;
 
         // DB에 메타데이터 저장
-        const { error: dbErr } = await supabase.from('documents').insert([{
+        const { data: docData, error: dbErr } = await supabase.from('documents').insert([{
           name: file.name.replace(`.${ext}`,''),
           file_path: path,
           file_size: file.size,
@@ -89,9 +89,41 @@ function UploadModal({ teacher, onClose, onUploaded }) {
           uploaded_by_name: teacher.name,
           is_shared: isShared,
           year,
-        }]);
+          extracted_text: null,
+          parse_status: 'pending',
+        }]).select().single();
 
         if(dbErr) throw dbErr;
+
+        // 텍스트 추출 (HWP, HWPX, PDF, DOCX)
+        const parseable = ['hwp','hwpx','pdf','docx','doc','txt','md'];
+        if(parseable.includes(ext.toLowerCase())) {
+          setProgress(prev=>{const n=[...prev]; n[i]='extracting'; return n;});
+          try {
+            const parseRes = await fetch('/api/parse-document', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ filePath: path, fileType: ext.toLowerCase() }),
+            });
+            const parseData = await parseRes.json();
+
+            if(parseData.text) {
+              await supabase.from('documents')
+                .update({ extracted_text: parseData.text, parse_status: 'done' })
+                .eq('id', docData.id);
+            } else {
+              await supabase.from('documents')
+                .update({ parse_status: 'no_text' })
+                .eq('id', docData.id);
+            }
+          } catch(parseErr) {
+            console.error('Text extraction failed:', parseErr);
+            await supabase.from('documents')
+              .update({ parse_status: 'failed' })
+              .eq('id', docData.id);
+          }
+        }
+
         setProgress(prev=>{const n=[...prev]; n[i]='done'; return n;});
         results.push(file.name);
       } catch(e) {
@@ -143,6 +175,7 @@ function UploadModal({ teacher, onClose, onUploaded }) {
                 </div>
                 <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                   {progress[i]==='uploading'&&<span style={{ fontSize:11, color:C.yellow }}>업로드 중...</span>}
+                  {progress[i]==='extracting'&&<span style={{ fontSize:11, color:C.purple }}>📄 텍스트 추출 중...</span>}
                   {progress[i]==='done'&&<span style={{ fontSize:11, color:C.green }}>✅ 완료</span>}
                   {progress[i]==='error'&&<span style={{ fontSize:11, color:C.red }}>❌ 실패</span>}
                   {!progress[i]&&<button onClick={()=>setFiles(prev=>prev.filter((_,j)=>j!==i))} style={{ background:'none', border:'none', color:C.textDim, cursor:'pointer', fontSize:14 }}>✕</button>}
@@ -219,12 +252,16 @@ function DocDetailModal({ doc, teacher, onClose, onDelete }) {
     if(!question.trim()) return;
     setAsking(true); setAnswer('');
     try {
+      const docContent = doc.extracted_text
+        ? `\n\n문서 본문 내용:\n${doc.extracted_text.slice(0, 8000)}`
+        : '\n\n(문서 본문 텍스트가 추출되지 않았습니다. 파일명과 카테고리 기반으로 답변합니다.)';
+
       const res = await fetch('/api/chat', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({
           messages:[{ role:'user', content: question }],
-          systemPrompt: `당신은 학교 업무 AI 비서입니다.\n\n현재 사용자가 "${doc.name}" 문서에 대해 질문하고 있습니다.\n문서 정보:\n- 파일명: ${doc.name}\n- 카테고리: ${doc.category}\n- 설명: ${doc.description||'없음'}\n- 업로더: ${doc.uploaded_by_name}\n- 연도: ${doc.year}\n\n문서 내용은 직접 읽을 수 없지만, 카테고리와 문서명을 바탕으로 학교 업무 관련 도움을 주세요.`,
+          systemPrompt: `당신은 학교 업무 AI 비서입니다.\n\n현재 사용자가 "${doc.name}" 문서에 대해 질문하고 있습니다.\n문서 정보:\n- 파일명: ${doc.name}\n- 카테고리: ${doc.category}\n- 설명: ${doc.description||'없음'}\n- 업로더: ${doc.uploaded_by_name}\n- 연도: ${doc.year}${docContent}\n\n문서 내용을 바탕으로 정확하게 답변해주세요. 문서에 없는 내용은 추측하지 마세요.`,
         }),
       });
       const data = await res.json();
@@ -262,9 +299,28 @@ function DocDetailModal({ doc, teacher, onClose, onDelete }) {
           </div>
         )}
 
-        <div style={{ fontSize:11, color:C.textDim, marginBottom:20 }}>
+        <div style={{ fontSize:11, color:C.textDim, marginBottom:12 }}>
           업로드: {doc.uploaded_by_name} · {new Date(doc.created_at).toLocaleDateString('ko-KR')}
         </div>
+
+        {/* 텍스트 추출 상태 */}
+        <div style={{ padding:'10px 14px', borderRadius:8, marginBottom:16, fontSize:12, background: doc.parse_status==='done'?C.green+'10':doc.parse_status==='failed'?C.red+'10':C.bg, border:`1px solid ${doc.parse_status==='done'?C.green+'25':doc.parse_status==='failed'?C.red+'25':C.border}` }}>
+          {doc.parse_status==='done' && <span style={{color:C.green}}>✅ 텍스트 추출 완료 — AI가 이 문서 내용을 읽을 수 있습니다 ({doc.extracted_text?.length?.toLocaleString()||0}자)</span>}
+          {doc.parse_status==='failed' && <span style={{color:C.red}}>⚠️ 텍스트 추출 실패 — 파일은 정상 저장되었습니다</span>}
+          {doc.parse_status==='no_text' && <span style={{color:C.yellow}}>📄 텍스트를 추출할 수 없는 파일입니다</span>}
+          {doc.parse_status==='pending' && <span style={{color:C.yellow}}>⏳ 텍스트 추출 대기 중</span>}
+          {!doc.parse_status && <span style={{color:C.textDim}}>📎 텍스트 추출 미지원 파일</span>}
+        </div>
+
+        {/* 추출된 텍스트 미리보기 */}
+        {doc.extracted_text && (
+          <details style={{ marginBottom:16 }}>
+            <summary style={{ fontSize:12, fontWeight:600, color:C.accent, cursor:'pointer', marginBottom:8 }}>📖 추출된 텍스트 미리보기</summary>
+            <div style={{ padding:'12px 14px', background:C.bg, borderRadius:8, border:`1px solid ${C.border}`, maxHeight:200, overflowY:'auto', fontSize:11, color:C.textMid, lineHeight:1.7, whiteSpace:'pre-wrap' }}>
+              {doc.extracted_text.slice(0, 2000)}{doc.extracted_text.length > 2000 ? '\n\n... (이하 생략)' : ''}
+            </div>
+          </details>
+        )}
 
         {/* 다운로드 */}
         <button onClick={handleDownload} disabled={downloading} style={{ width:'100%', padding:'11px', borderRadius:10, border:'none', background:C.accent, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:font, marginBottom:16 }}>
@@ -408,6 +464,7 @@ export default function DocumentsPage({ teacher }) {
                     <div style={{ display:'flex', justifyContent:'center', gap:4, flexWrap:'wrap' }}>
                       <Badge label={cat.id} color={cat.color} small/>
                       <Badge label={doc.file_type?.toUpperCase()||'FILE'} color={C.textDim} small/>
+                      {doc.parse_status==='done'&&<Badge label="AI 읽기 가능" color={C.green} small/>}
                     </div>
                     <div style={{ fontSize:10, color:C.textDim, textAlign:'center' }}>{doc.uploaded_by_name} · {doc.year}년</div>
                   </Card>
@@ -428,6 +485,7 @@ export default function DocumentsPage({ teacher }) {
                     <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
                       <Badge label={cat.id} color={cat.color} small/>
                       <Badge label={doc.file_type?.toUpperCase()||'FILE'} color={C.textDim} small/>
+                      {doc.parse_status==='done'&&<Badge label="AI" color={C.green} small/>}
                       <span style={{ fontSize:11, color:C.textDim }}>{doc.year}년</span>
                       <span style={{ fontSize:11, color:C.textDim }}>{formatSize(doc.file_size)}</span>
                     </div>
