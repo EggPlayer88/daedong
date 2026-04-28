@@ -184,53 +184,22 @@ function DashboardView({ teacher }) {
 }
 
 // ─── AI CHAT ───
-const SYSTEM_PROMPT = `당신은 대동여중(대동여자중학교)의 학교 업무 AI 비서입니다.
-
-학교 정보:
-- 학교명: 대동여중 (대동여자중학교)
-- 학급: 9개 (1~3학년 각 3반)
-- 교직원: 약 24명
-
-주요 업무 목록:
-- 수행평가 계획 (3월, 교무부 담당)
-- 출결 관리 (상시, 교무부)
-- 생활기록부 점검 (학기말, 교무부)
-- 현장체험학습 (5월, 행사담당)
-- 학교폭력 초기 대응 (상시, 생활지도부)
-- 학부모 총회 (3월, 교무부)
-- 교내 연수 (학기중, 연구부)
-- 체육대회 (5월, 행사담당)
-- 학생 상담 관리 (상시, 생활지도부)
-- 수업공개 (학기중, 연구부)
-
-주요 제약 및 규정:
-- 학교폭력 사안 인지 후 24시간 이내 초기 대응 필수
-- 수행평가 기준 사전 공개 의무
-- 생활기록부 기재요령 준수
-- 출결 무단결석 3일 이상 시 즉시 보고
-
-답변 지침:
-- 한국어로 답변하세요
-- 학교 업무에 관련된 질문에 구체적이고 실용적으로 답변하세요
-- 절차나 주의사항은 번호 목록으로 명확하게 제시하세요
-- 문서 작성 요청 시 바로 초안을 작성해주세요
-- 모르는 내용은 솔직하게 모른다고 하세요`;
-
 function ChatView({ teacher }) {
   const [messages, setMessages] = useState([
-    { role:"assistant", text:`${teacher.name} 선생님, 안녕하세요! 대동여중 AI 업무 비서입니다. 😊\n\n업무 절차, 규정, 문서 작성 등 무엇이든 질문해 주세요.\n실제 Claude AI가 답변해 드립니다.` }
+    { role:"assistant", text:`${teacher.name} 선생님, 안녕하세요! 대동여중 AI 업무 비서입니다. 😊\n\n아래와 같은 도움을 드릴 수 있습니다:\n📋 업무 절차·규정 안내\n📝 문서 작성 (계획서, 보고서, 가정통신문 등)\n🔍 작성한 문서 검토\n📅 일정 안내 및 조언\n✅ 할 일 정리 및 우선순위\n\n무엇이든 질문해 주세요!` }
   ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [contextInfo, setContextInfo] = useState(null);
   const endRef = useRef(null);
   useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
 
   const examples = [
-    "수행평가 계획 업무 절차를 단계별로 알려줘",
-    "학교폭력 발생 시 24시간 내 처리 절차는?",
+    "수행평가 업무 절차를 단계별로 알려줘",
+    "이번 달 내가 해야 할 일 정리해줘",
     "수행평가 안내 가정통신문 초안 작성해줘",
-    "생활기록부 행동특성 문구 예시 써줘",
-    "학부모 총회 준비 체크리스트 만들어줘",
+    "학교폭력 발생 시 처리 절차는?",
+    "이번 주 학교 일정 알려줘",
   ];
 
   const send = async () => {
@@ -238,13 +207,12 @@ function ChatView({ teacher }) {
     const userText = input.trim();
     setInput("");
 
-    // 사용자 메시지 추가
     const newMessages = [...messages, { role:"user", text:userText }];
     setMessages(newMessages);
     setLoading(true);
+    setContextInfo(null);
 
     try {
-      // API 형식으로 변환 (system 메시지 제외)
       const apiMessages = newMessages
         .filter(m => m.role !== 'system')
         .map(m => ({
@@ -257,7 +225,16 @@ function ChatView({ teacher }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: apiMessages,
-          systemPrompt: SYSTEM_PROMPT,
+          teacher: {
+            id: teacher.id,
+            name: teacher.name,
+            dept: teacher.dept,
+            area: teacher.area,
+            subject: teacher.subject,
+            role: teacher.role,
+            homeroom: teacher.homeroom,
+          },
+          useContext: true,
         }),
       });
 
@@ -268,6 +245,7 @@ function ChatView({ teacher }) {
 
       const data = await res.json();
       setMessages(m => [...m, { role:"assistant", text: data.content }]);
+      if (data.contextUsed) setContextInfo(data.contextUsed);
     } catch(e) {
       setMessages(m => [...m, { role:"assistant", text:`⚠️ 오류: ${e.message}\n\nAPI 연결을 확인해주세요.` }]);
     } finally {
@@ -306,6 +284,12 @@ function ChatView({ teacher }) {
             <div style={{ display:"flex", gap:5, padding:"12px 16px", background:C.card, borderRadius:"14px 14px 14px 4px", border:`1px solid ${C.border}` }}>
               {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.accent, animation:`bounce .6s ${i*.2}s infinite alternate` }}/>)}
             </div>
+          </div>
+        )}
+        {contextInfo && (contextInfo.documents > 0 || contextInfo.schedules > 0) && (
+          <div style={{ display:"flex", gap:6, padding:"4px 0", marginTop:-8 }}>
+            {contextInfo.documents > 0 && <span style={{ fontSize:10, color:C.green, background:C.green+"12", padding:"2px 8px", borderRadius:10 }}>📄 문서 {contextInfo.documents}건 참고</span>}
+            {contextInfo.schedules > 0 && <span style={{ fontSize:10, color:C.accent, background:C.accentSoft, padding:"2px 8px", borderRadius:10 }}>📅 일정 {contextInfo.schedules}건 참고</span>}
           </div>
         )}
         <div ref={endRef}/>
