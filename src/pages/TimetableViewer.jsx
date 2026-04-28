@@ -42,7 +42,8 @@ function dispatchUnreadCount(count) {
 
 
 export default function TimetableViewer({ currentUser }) {
-  const [persona, setPersona] = useState(currentUser?.id || 't2');
+  // 시드 시간표에 등장하는 교사를 기본값으로 (Phase 4 에서 currentUser.id 로 교체)
+  const [persona, setPersona] = useState('t2');
   const [tab, setTab] = useState('timetable');
 
   const [viewMode, setViewMode] = useState('class');
@@ -201,8 +202,14 @@ export default function TimetableViewer({ currentUser }) {
 
 
 function PersonaSwitcher({ persona, onChange }) {
+  // 시드 시간표에 실제 등장하는 교사들 + admin
+  // (002_seed_data.sql 의 v_teachers 와 매칭: t2=국어T2, t7=수학T1, t20=영어T2, t12=과학T2, t4=사회, t14=체육T2)
+  const seedTeachers = ['t2', 't7', 't20', 't12', 't4', 't14'];
   const opts = [
-    ...TCH.slice(0, 6).map(t => ({ id: t.id, label: t.name })),
+    ...seedTeachers.map(id => {
+      const t = TCH.find(x => x.id === id);
+      return { id, label: t ? t.name : id };
+    }),
     { id: 'admin', label: '시간표관리자' },
   ];
   return (
@@ -212,7 +219,9 @@ function PersonaSwitcher({ persona, onChange }) {
         style={{ background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 12, fontFamily: font }}>
         {opts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
       </select>
-      <span style={{ color: C.textDim, marginLeft: 14, fontSize: 11 }}>Phase 4 에서 실제 인증으로 교체</span>
+      <span style={{ color: C.textDim, marginLeft: 14, fontSize: 11 }}>
+        시드 시간표에 등장하는 교사만 표시 · Phase 4 에서 실제 인증으로 교체
+      </span>
     </div>
   );
 }
