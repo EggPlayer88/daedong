@@ -7,14 +7,21 @@ const supabase = createClient(
 
 // ─── 관련 데이터 검색 ───
 async function fetchContext(query, teacherId) {
-  const results = { documents: [], schedules: [] };
+  const results = { documents: [], schedules: [], tasks: [] };
 
   try {
-    // 1. 문서 검색
     const keywords = query.replace(/[?.,!~\s]+/g, ' ').split(' ').filter(w => w.length > 1).slice(0, 5);
 
     if (keywords.length > 0) {
-      // 문서명에서 검색
+      // 1. 업무 검색
+      const { data: taskData } = await supabase
+        .from('tasks')
+        .select('name, dept, area, type, period, priority, status, overview, steps, cautions, required_docs, handover_note')
+        .or(keywords.map(k => `name.ilike.%${k}%,overview.ilike.%${k}%,dept.ilike.%${k}%,area.ilike.%${k}%`).join(','))
+        .limit(5);
+      if (taskData?.length) results.tasks = taskData;
+
+      // 2. 문서 검색
       const { data: docs } = await supabase
         .from('documents')
         .select('name, category, description, file_type, year, uploaded_by_name, extracted_text, parse_status')
@@ -24,7 +31,6 @@ async function fetchContext(query, teacherId) {
       if (docs?.length) {
         results.documents = docs;
       } else {
-        // 추출된 텍스트에서 검색
         for (const kw of keywords.slice(0, 3)) {
           const { data: textDocs } = await supabase
             .from('documents')
@@ -39,7 +45,7 @@ async function fetchContext(query, teacherId) {
       }
     }
 
-    // 2. 일정 검색
+    // 3. 일정 검색
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString().split('T')[0];
@@ -73,6 +79,21 @@ function buildSystemPrompt(basePrompt, context, teacher) {
 - 교과: ${teacher.subject || '미지정'}
 - 역할: ${teacher.role || '교사'}
 - 담임: ${teacher.homeroom || '비담임'}`;
+  }
+
+  if (context.tasks?.length) {
+    prompt += '\n\n[관련 업무 데이터]';
+    for (const t of context.tasks) {
+      prompt += `\n\n--- 업무: ${t.name} (${t.dept}, ${t.area||''}) ---`;
+      if (t.overview) prompt += `\n개요: ${t.overview}`;
+      const steps = Array.isArray(t.steps) ? t.steps : JSON.parse(t.steps || '[]');
+      if (steps.length) prompt += `\n절차:\n${steps.map((s,i)=>`${i+1}. ${s}`).join('\n')}`;
+      const cautions = Array.isArray(t.cautions) ? t.cautions : JSON.parse(t.cautions || '[]');
+      if (cautions.length) prompt += `\n주의사항:\n${cautions.map(c=>`- ${c}`).join('\n')}`;
+      const docs = Array.isArray(t.required_docs) ? t.required_docs : JSON.parse(t.required_docs || '[]');
+      if (docs.length) prompt += `\n필요문서: ${docs.join(', ')}`;
+      if (t.handover_note) prompt += `\n인수인계: ${t.handover_note}`;
+    }
   }
 
   if (context.documents?.length) {
@@ -232,6 +253,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       content: data.content[0]?.text || '',
       contextUsed: {
+        tasks: context.tasks?.length || 0,
         documents: context.documents?.length || 0,
         schedules: context.schedules?.length || 0,
       },
