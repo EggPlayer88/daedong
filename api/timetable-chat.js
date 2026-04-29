@@ -15,7 +15,7 @@
 import {
   fetchTimetableContext, expandTimetableData, toTeacherView,
   summarizeTeacherSchedule, slotKey, supabase,
-} from './_timetableContext';
+} from './_timetableContext.js';
 
 // 일반 교사용 시스템 프롬프트
 const SYSTEM_PROMPT = `당신은 대동여중 시간표 전용 AI 비서입니다. 일반 교사가 시간표 페이지에서 시간표 관련 질문을 하면 도와줍니다.
