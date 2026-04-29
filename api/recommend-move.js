@@ -20,7 +20,7 @@
 import {
   fetchTimetableContext, expandTimetableData, toTeacherView,
   findFreeSlotsForTeacher, slotKey,
-} from './_timetableContext';
+} from './_timetableContext.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
