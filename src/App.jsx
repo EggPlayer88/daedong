@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from './lib/supabase';
 import TimetablePage from './pages/TimetablePage';
 import TimetableViewer from './pages/TimetableViewer';
+import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import SchedulePage from './pages/SchedulePage';
 import DocumentsPage from './pages/DocumentsPage';
 
@@ -46,8 +47,9 @@ function getMenuItems(role) {
     { id:"record",    icon:"📒", label:"생활기록부 도우미" },
   ];
   const adminMenus = [
-    { id:"timetable",    icon:"🗓️", label:"시간표 관리" },
-    { id:"timetable_v2", icon:"📅", label:"시간표 보기 (신)" },
+    { id:"timetable",       icon:"🗓️", label:"시간표 관리" },
+    { id:"timetable_v2",    icon:"📅", label:"시간표 보기 (신)" },
+    { id:"school_calendar", icon:"📆", label:"학사일정" },
   ];
   const superMenus = [
     { id:"users",    icon:"👥", label:"사용자 관리" },
@@ -921,8 +923,9 @@ function MainApp({ session, onLogout }) {
       case "mytasks":   return <MyScheduleView teacher={teacher}/>;
       case "handover":  return <HandoverView/>;
       case "record":    return <RecordView/>;
-      case "timetable":    return <TimetablePage teacher={teacher}/>;
-      case "timetable_v2": return <TimetableViewer currentUser={teacher}/>;
+      case "timetable":       return <TimetablePage teacher={teacher}/>;
+      case "timetable_v2":    return <TimetableViewer currentUser={teacher}/>;
+      case "school_calendar": return <SchoolCalendarPage currentUser={teacher}/>;
       case "users":     return <UsersView/>;
       case "settings":  return <SettingsView/>;
       default:          return <DashboardView teacher={teacher}/>;
