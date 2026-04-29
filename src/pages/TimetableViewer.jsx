@@ -220,12 +220,18 @@ export default function TimetableViewer({ currentUser }) {
       )}
 
       {/* 시간표 전용 AI 비서 — 토글 버튼 + 사이드 패널 */}
-      <TimetableAIToggleButton open={aiOpen} onClick={() => setAiOpen(true)} />
+      <TimetableAIToggleButton
+        open={aiOpen}
+        onClick={() => setAiOpen(true)}
+        isAdminMode={currentMode === 'admin' && persona === 'admin'}
+      />
       <TimetableAIPanel
         open={aiOpen}
         onClose={() => setAiOpen(false)}
         currentUser={me}
         weekDates={weekDates}
+        isAdminMode={currentMode === 'admin' && persona === 'admin'}
+        onProposalApplied={refreshAll}
       />
     </div>
   );
