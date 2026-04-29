@@ -45,6 +45,7 @@ function dispatchUnreadCount(count) {
 export default function TimetableViewer({ currentUser }) {
   // 시드 시간표에 등장하는 교사를 기본값으로 (Phase 4 에서 currentUser.id 로 교체)
   const [persona, setPersona] = useState('t2');
+  const [currentMode, setCurrentMode] = useState('teacher'); // 'teacher' | 'admin'
   const [tab, setTab] = useState('timetable');
 
   const [viewMode, setViewMode] = useState('class');
@@ -123,14 +124,26 @@ export default function TimetableViewer({ currentUser }) {
     }
   }, [persona, viewMode]);
 
+  // 페르소나가 일반 교사면 항상 teacher 모드, admin 페르소나일 때만 모드 자유
+  useEffect(() => {
+    if (persona !== 'admin' && currentMode !== 'teacher') {
+      setCurrentMode('teacher');
+    }
+  }, [persona, currentMode]);
+
   useEffect(() => () => dispatchUnreadCount(0), []);
 
   const handleCellClick = (classId, day, period, slot, dateStr) => {
     if (!slot || slot.type === 'special' || slot.type === 'self_study') return;
-    if (slot.tid !== me.id) {
-      alert('내 수업 셀에서만 변동 요청을 시작할 수 있습니다.\n(관리자 직권 변경은 Phase 3 에서 추가 예정)');
+
+    const isAdminMode = currentMode === 'admin' && persona === 'admin';
+
+    // 교사 모드: 본인 수업만
+    if (!isAdminMode && slot.tid !== me.id) {
+      alert('내 수업 셀에서만 변동 요청을 시작할 수 있습니다.');
       return;
     }
+
     setDraftSourceCell({
       classId, day, period,
       sid: slot.sid, tid: slot.tid,
@@ -146,7 +159,12 @@ export default function TimetableViewer({ currentUser }) {
 
   return (
     <div style={{ background: C.bg, color: C.text, fontFamily: font, minHeight: '100vh', padding: '24px 32px' }}>
-      <PersonaSwitcher persona={persona} onChange={setPersona} />
+      <PersonaSwitcher
+        persona={persona}
+        onChange={setPersona}
+        currentMode={currentMode}
+        onModeChange={setCurrentMode}
+      />
 
       <Tabs
         tab={tab}
@@ -167,6 +185,7 @@ export default function TimetableViewer({ currentUser }) {
               <ChangeRequestForm
                 sourceCell={draftSourceCell}
                 currentUser={me}
+                adminMode={currentMode === 'admin' && persona === 'admin'}
                 baseTT={activeTimetable?.data}
                 approvedChanges={approvedChanges}
                 onSubmit={handleFormSubmit}
@@ -183,6 +202,7 @@ export default function TimetableViewer({ currentUser }) {
                 entityId={entityId} setEntityId={setEntityId}
                 onCellClick={handleCellClick}
                 me={me}
+                isAdminMode={currentMode === 'admin' && persona === 'admin'}
               />
             )
           )}
@@ -212,9 +232,8 @@ export default function TimetableViewer({ currentUser }) {
 }
 
 
-function PersonaSwitcher({ persona, onChange }) {
+function PersonaSwitcher({ persona, onChange, currentMode, onModeChange }) {
   // 시드 시간표에 실제 등장하는 교사들 + admin
-  // (002_seed_data.sql 의 v_teachers 와 매칭: t2=국어T2, t7=수학T1, t20=영어T2, t12=과학T2, t4=사회, t14=체육T2)
   const seedTeachers = ['t2', 't7', 't20', 't12', 't4', 't14'];
   const opts = [
     ...seedTeachers.map(id => {
@@ -223,18 +242,47 @@ function PersonaSwitcher({ persona, onChange }) {
     }),
     { id: 'admin', label: '시간표관리자' },
   ];
+  const isAdmin = persona === 'admin';
   return (
-    <div style={{ marginBottom: 16, padding: '10px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12 }}>
-      <span style={{ color: C.textDim, marginRight: 10 }}>페르소나 (시뮬레이션):</span>
+    <div style={{ marginBottom: 16, padding: '10px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, fontSize: 12, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <span style={{ color: C.textDim }}>페르소나:</span>
       <select value={persona} onChange={e => onChange(e.target.value)}
         style={{ background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '4px 8px', fontSize: 12, fontFamily: font }}>
         {opts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
       </select>
-      <span style={{ color: C.textDim, marginLeft: 14, fontSize: 11 }}>
-        시드 시간표에 등장하는 교사만 표시 · Phase 4 에서 실제 인증으로 교체
+      {isAdmin && (
+        <>
+          <div style={{ width: 1, height: 18, background: C.border }} />
+          <span style={{ color: C.textDim, fontSize: 11 }}>모드:</span>
+          <div style={{ display: 'flex', gap: 0, border: `1px solid ${C.border}`, borderRadius: 6, overflow: 'hidden' }}>
+            <button onClick={() => onModeChange('teacher')} style={modeBtnStyle(currentMode === 'teacher', false)}>
+              👤 교사 모드
+            </button>
+            <button onClick={() => onModeChange('admin')} style={modeBtnStyle(currentMode === 'admin', true)}>
+              ⚙️ 관리자 모드
+            </button>
+          </div>
+          {currentMode === 'admin' && (
+            <span style={{ fontSize: 10, color: '#a78bfa', background: '#a78bfa15', padding: '3px 8px', borderRadius: 4 }}>
+              직권 변경: 즉시 적용 + 사후 통보
+            </span>
+          )}
+        </>
+      )}
+      <span style={{ color: C.textDim, marginLeft: 'auto', fontSize: 10 }}>
+        Phase 4 에서 실제 인증으로 교체
       </span>
     </div>
   );
+}
+
+function modeBtnStyle(active, isAdminMode) {
+  return {
+    padding: '4px 10px', fontSize: 11, fontFamily: font, fontWeight: active ? 600 : 500,
+    border: 'none', cursor: 'pointer',
+    background: active ? (isAdminMode ? '#a78bfa30' : '#34d39930') : 'transparent',
+    color: active ? (isAdminMode ? '#a78bfa' : '#34d399') : C.textMid,
+  };
 }
 
 function Tabs({ tab, onChange, unreadCount, myRequestCount, adminQueueCount, isAdmin }) {
@@ -271,7 +319,7 @@ function Tabs({ tab, onChange, unreadCount, myRequestCount, adminQueueCount, isA
 function TimetableSection({
   activeTimetable, approvedChanges, calendar, weekDates,
   weekRef, setWeekRef, viewMode, setViewMode, entityId, setEntityId,
-  onCellClick, me,
+  onCellClick, me, isAdminMode,
 }) {
   const goWeek = (delta) => {
     const d = new Date(weekRef);
@@ -316,18 +364,22 @@ function TimetableSection({
         entityId={entityId}
         onCellClick={onCellClick}
         me={me}
+        isAdminMode={isAdminMode}
       />
 
       <div style={{ fontSize: 11, color: C.textMid, marginTop: 10 }}>
         <span style={{ display: 'inline-block', width: 10, height: 10, background: C.green, borderRadius: 2, marginRight: 4, verticalAlign: 'middle' }} />
-        변동 적용된 셀은 초록색으로 표시. 본인 수업 셀을 클릭하면 변동 요청을 시작할 수 있습니다.
+        변동 적용된 셀은 초록색으로 표시.
+        {isAdminMode
+          ? ' 관리자 모드: 모든 셀 클릭 시 직권 변경 폼이 열립니다.'
+          : ' 본인 수업 셀을 클릭하면 변동 요청을 시작할 수 있습니다.'}
       </div>
     </>
   );
 }
 
 
-function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewMode, entityId, onCellClick, me }) {
+function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewMode, entityId, onCellClick, me, isAdminMode }) {
   const dayStates = weekDates.map(date => {
     const dateStr = fmtDate(date);
     const calEntry = calendar[dateStr];
@@ -387,6 +439,7 @@ function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewM
                   entityId={entityId}
                   onCellClick={onCellClick}
                   me={me}
+                  isAdminMode={isAdminMode}
                 />
               ))}
             </tr>
@@ -398,7 +451,7 @@ function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewM
 }
 
 
-function SlotCell({ state, period, day, dateStr, slots, viewMode, entityId, onCellClick, me }) {
+function SlotCell({ state, period, day, dateStr, slots, viewMode, entityId, onCellClick, me, isAdminMode }) {
   const cellBase = {
     padding: '6px', borderBottom: `1px solid ${C.border}`,
     borderLeft: `1px solid ${C.border}`, height: 54, verticalAlign: 'middle',
@@ -439,8 +492,12 @@ function SlotCell({ state, period, day, dateStr, slots, viewMode, entityId, onCe
   const otherEntity = viewMode === 'class' ? gT(slot.tid)?.name : gC(slot.cid)?.name;
   const isChanged = !!slot._changed;
 
+  // 관리자 모드에서는 모든 셀 클릭 가능, 그 외엔 본인 셀만
   const isOwnSlot = slot.tid === me.id;
-  const clickable = isOwnSlot && state.kind === 'normal' && !slot.type;
+  const clickable = (isAdminMode || isOwnSlot) && state.kind === 'normal' && !slot.type;
+
+  // 관리자 모드에서 다른 사람 셀이 클릭 가능할 때 시각적 hint
+  const adminHint = isAdminMode && !isOwnSlot;
 
   const classId = viewMode === 'class' ? entityId : slot.cid;
 
@@ -453,7 +510,7 @@ function SlotCell({ state, period, day, dateStr, slots, viewMode, entityId, onCe
       cursor: clickable ? 'pointer' : 'default',
     }}
       onClick={() => clickable && onCellClick(classId, day, period, slot, dateStr)}
-      onMouseEnter={e => { if (clickable) e.currentTarget.style.outline = `1px solid ${C.accent}`; }}
+      onMouseEnter={e => { if (clickable) e.currentTarget.style.outline = `1px solid ${adminHint ? C.purple : C.accent}`; }}
       onMouseLeave={e => { e.currentTarget.style.outline = 'none'; }}
     >
       <div style={{ fontSize: 11, fontWeight: 600, color: isChanged ? C.green : clr.bg }}>
