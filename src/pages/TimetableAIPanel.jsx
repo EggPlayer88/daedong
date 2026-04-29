@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { useState, useEffect, useRef } from 'react';
-import { TCH, SUBJ, CLS, gT, gC, gS } from '../lib/timetableData';
+import { TCH, SBJ, CLS, gT, gC, gS } from '../lib/timetableData';
 import { fmtDate, fmtDateShort } from '../lib/timetableEngine';
 import { createChangeRequest } from '../lib/changesAPI';
 
@@ -81,7 +81,7 @@ export default function TimetableAIPanel({ open, onClose, currentUser, weekDates
             currentUser: { id: currentUser?.id, name: currentUser?.name },
             weekStart, weekEnd,
             allTeachers,
-            allSubjects: SUBJ,
+            allSubjects: SBJ,
             allClasses: CLS,
           }
         : {
