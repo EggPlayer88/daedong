@@ -96,3 +96,105 @@ export function summarizeTeacherSchedule(tid, teacherViewTT, classMap, subjectMa
   }
   return lines.join('\n');
 }
+
+
+// ═══════════════════════════════════════════════════════════════════
+//  관리자 AI 도구용 추가 유틸
+// ═══════════════════════════════════════════════════════════════════
+
+// ─── 활성 시간표 단독 조회 ───
+export async function fetchActiveTimetable() {
+  const { data, error } = await supabase
+    .from('timetables').select('*').eq('is_active', true).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// ─── 학급별 시수 카운트 (실제 배치된 시수) ───
+//   classTT 에서 학급별로 과목별 시수 카운트
+//   반환: { c1: { s1: 4, s5: 5, ... }, c2: ..., }
+export function countActualHours(classTT) {
+  const result = {};
+  for (const [cid, cls] of Object.entries(classTT || {})) {
+    result[cid] = {};
+    for (const slot of Object.values(cls || {})) {
+      if (!slot?.sid || slot.type) continue;
+      result[cid][slot.sid] = (result[cid][slot.sid] || 0) + 1;
+    }
+  }
+  return result;
+}
+
+// ─── 교사별 시수 카운트 (실제 배치된 시수) ───
+export function countTeacherActualHours(classTT) {
+  const result = {};
+  for (const cls of Object.values(classTT || {})) {
+    for (const slot of Object.values(cls || {})) {
+      if (!slot?.tid || slot.type) continue;
+      result[slot.tid] = (result[slot.tid] || 0) + 1;
+    }
+  }
+  return result;
+}
+
+// ─── 시간표 충돌 탐지 ───
+//   같은 시간에 한 교사가 두 학급에 들어가 있는지
+//   반환: [{ tid, day, period, classes: [c1, c2] }, ...]
+export function findTeacherConflicts(classTT) {
+  const conflicts = [];
+  // 각 (day, period) 별로 교사 등장 횟수 추적
+  const slotMap = {}; // {`day-period`: { tid: [c1, c2, ...] } }
+
+  for (const [cid, cls] of Object.entries(classTT || {})) {
+    for (const [sKey, slot] of Object.entries(cls || {})) {
+      if (!slot?.tid || slot.type) continue;
+      if (!slotMap[sKey]) slotMap[sKey] = {};
+      if (!slotMap[sKey][slot.tid]) slotMap[sKey][slot.tid] = [];
+      slotMap[sKey][slot.tid].push(cid);
+    }
+  }
+
+  for (const [sKey, byTid] of Object.entries(slotMap)) {
+    for (const [tid, cids] of Object.entries(byTid)) {
+      if (cids.length > 1) {
+        const [day, p] = sKey.split('-');
+        conflicts.push({ tid, day, period: parseInt(p, 10), classes: cids });
+      }
+    }
+  }
+  return conflicts;
+}
+
+// ─── 변동 통계 조회 ───
+export async function fetchChangeStats(filter = {}) {
+  let q = supabase.from('timetable_changes').select('*');
+  if (filter.startDate) q = q.gte('source_date', filter.startDate);
+  if (filter.endDate)   q = q.lte('source_date', filter.endDate);
+  if (filter.teacherId) q = q.eq('source_teacher_id', filter.teacherId);
+  if (filter.type)      q = q.eq('type', filter.type);
+  if (filter.status)    q = q.eq('status', filter.status);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+// ─── 보강 누적 분석 ───
+//   각 교사별 보강(substitute payload.substitute_teacher_id) 횟수 합산
+export async function fetchSubstituteLoad(startDate, endDate) {
+  const { data, error } = await supabase
+    .from('timetable_changes')
+    .select('payload, status')
+    .eq('type', 'substitute')
+    .eq('status', 'approved')
+    .gte('source_date', startDate)
+    .lte('source_date', endDate);
+  if (error) throw error;
+
+  const counts = {};
+  for (const row of data || []) {
+    const tid = row.payload?.substitute_teacher_id;
+    if (!tid) continue;
+    counts[tid] = (counts[tid] || 0) + 1;
+  }
+  return counts;
+}
