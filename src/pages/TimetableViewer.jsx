@@ -22,6 +22,7 @@ import {
 } from '../lib/changesAPI';
 import ChangeRequestForm from './ChangeRequestForm';
 import { NotificationsTab, MyRequestsTab, AdminQueueTab } from './ChangeTabPanels';
+import TimetableAIPanel, { TimetableAIToggleButton } from './TimetableAIPanel';
 
 const C = {
   bg:'#0c0f1a', card:'#141929', cardHover:'#1a2038',
@@ -59,6 +60,7 @@ export default function TimetableViewer({ currentUser }) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   const [draftSourceCell, setDraftSourceCell] = useState(null);
+  const [aiOpen, setAiOpen] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -196,6 +198,15 @@ export default function TimetableViewer({ currentUser }) {
           )}
         </>
       )}
+
+      {/* 시간표 전용 AI 비서 — 토글 버튼 + 사이드 패널 */}
+      <TimetableAIToggleButton open={aiOpen} onClick={() => setAiOpen(true)} />
+      <TimetableAIPanel
+        open={aiOpen}
+        onClose={() => setAiOpen(false)}
+        currentUser={me}
+        weekDates={weekDates}
+      />
     </div>
   );
 }
