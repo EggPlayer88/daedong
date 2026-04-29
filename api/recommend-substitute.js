@@ -11,7 +11,7 @@
 import {
   fetchTimetableContext, expandTimetableData, toTeacherView, findFreeTeachersAt,
   slotKey, supabase,
-} from './_timetableContext';
+} from './_timetableContext.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
