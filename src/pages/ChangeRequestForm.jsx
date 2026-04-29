@@ -35,7 +35,7 @@ const TYPE_DESC = {
 
 
 export default function ChangeRequestForm({
-  sourceCell, currentUser, baseTT, approvedChanges, onSubmit, onCancel,
+  sourceCell, currentUser, baseTT, approvedChanges, onSubmit, onCancel, adminMode = false,
 }) {
   const [type, setType] = useState(null);
   const [reason, setReason] = useState('');
@@ -109,6 +109,7 @@ export default function ChangeRequestForm({
         reason: reason.trim(),
         requesterId: currentUser.id,
         partnerIds,
+        isAdminDirect: adminMode,
       });
 
       onSubmit?.();
@@ -141,11 +142,29 @@ export default function ChangeRequestForm({
   };
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 20, fontFamily: font }}>
+    <div style={{ background: C.card, border: `1px solid ${adminMode ? C.purple + '60' : C.border}`, borderRadius: 12, padding: 20, fontFamily: font, position: 'relative' }}>
+      {adminMode && (
+        <div style={{
+          position: 'absolute', top: 0, right: 0,
+          background: C.purple, color: '#fff',
+          padding: '4px 12px', fontSize: 10, fontWeight: 700,
+          borderRadius: '0 12px 0 8px', letterSpacing: 0.5,
+        }}>
+          ⚙️ 직권 변경 (즉시 적용)
+        </div>
+      )}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>변동 요청 작성</h3>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.text, flex: 1 }}>
+          {adminMode ? '관리자 직권 변경' : '변동 요청 작성'}
+        </h3>
         <button onClick={onCancel} style={btnStyle()}>취소</button>
       </div>
+
+      {adminMode && (
+        <div style={{ fontSize: 11, padding: '8px 12px', background: C.purple + '15', color: C.purple, borderRadius: 6, marginBottom: 14, lineHeight: 1.5 }}>
+          ⚠️ 직권 변경은 승인 단계 없이 즉시 시간표에 반영됩니다. 영향받는 교사들에게 사후 통보 알림이 자동 발송됩니다.
+        </div>
+      )}
 
       <Section label="선택한 내 수업">
         <div style={{ fontSize: 13, color: C.text, padding: '8px 12px', background: C.bg, borderRadius: 8 }}>
@@ -218,8 +237,8 @@ export default function ChangeRequestForm({
       )}
 
       {type && (
-        <div style={{ fontSize: 11, color: C.textMid, padding: '10px 12px', background: C.bg, borderRadius: 6, marginBottom: 12 }}>
-          제출 후: {getApprovalSummary(type, partnerIds)}
+        <div style={{ fontSize: 11, color: adminMode ? C.purple : C.textMid, padding: '10px 12px', background: adminMode ? C.purple + '12' : C.bg, borderRadius: 6, marginBottom: 12 }}>
+          제출 후: {adminMode ? `즉시 적용 + ${partnerIds.length > 0 ? `${partnerIds.length}명에게 사후 통보` : '관련 교사 없음 (단순 적용)'}` : getApprovalSummary(type, partnerIds)}
         </div>
       )}
 
@@ -232,8 +251,8 @@ export default function ChangeRequestForm({
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
         <button onClick={onCancel} style={btnStyle()}>취소</button>
         <button onClick={handleSubmit} disabled={!canSubmit || submitting}
-          style={btnStyle({ primary: true, disabled: !canSubmit || submitting })}>
-          {submitting ? '제출 중…' : '요청 제출'}
+          style={btnStyle({ primary: true, adminMode, disabled: !canSubmit || submitting })}>
+          {submitting ? '처리 중…' : (adminMode ? '직권 변경 적용' : '요청 제출')}
         </button>
       </div>
     </div>
@@ -735,12 +754,13 @@ function Section({ label, children }) {
   );
 }
 
-function btnStyle({ active = false, primary = false, disabled = false, block = false, align = 'center', ai = false, small = false } = {}) {
+function btnStyle({ active = false, primary = false, disabled = false, block = false, align = 'center', ai = false, small = false, adminMode = false } = {}) {
+  const primaryColor = adminMode ? C.purple : C.accent;
   return {
     padding: small ? '4px 10px' : block ? '10px 12px' : '7px 14px',
     fontSize: small ? 11 : 12, fontFamily: font,
-    border: `1px solid ${primary ? C.accent : ai ? C.aiText : (active ? C.accent : C.border)}`,
-    background: primary ? C.accent : ai ? C.aiBg : (active ? C.accentSoft : 'transparent'),
+    border: `1px solid ${primary ? primaryColor : ai ? C.aiText : (active ? C.accent : C.border)}`,
+    background: primary ? primaryColor : ai ? C.aiBg : (active ? C.accentSoft : 'transparent'),
     color: primary ? '#fff' : ai ? C.aiText : (active ? C.accent : C.text),
     borderRadius: 6, cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.5 : 1,
