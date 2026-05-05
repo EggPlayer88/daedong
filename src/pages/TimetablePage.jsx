@@ -7,6 +7,7 @@ import {
   buildLessons, cpSolve, buildTTfromCP,
   calcTotalPenalty, localSearch
 } from '../lib/solver';
+import { saveTimetable } from '../lib/timetablesAPI';
 
 // ─── 스타일 상수 ───
 const C = {
@@ -606,12 +607,128 @@ function InitSettingsTab() {
 }
 
 // ══════════════════════════════════════════════════════
+//  Supabase 저장 모달 (Phase 4A)
+//  - 솔버 결과를 timetables 테이블에 draft 또는 active 로 저장
+// ══════════════════════════════════════════════════════
+function SaveTimetableModal({ ttResult, onClose, onSaved }) {
+  const [name, setName] = useState(`${new Date().getFullYear()}학년도 시간표 (${new Date().toLocaleDateString('ko-KR')})`);
+  const [effectiveFrom, setEffectiveFrom] = useState(() => {
+    const d = new Date();
+    return d.toISOString().slice(0, 10);
+  });
+  const [effectiveUntil, setEffectiveUntil] = useState('');
+  const [asActive, setAsActive] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const saved = await saveTimetable(ttResult.tt, {
+        name: name.trim(),
+        effective_from: effectiveFrom,
+        effective_until: effectiveUntil || null,
+        asActive,
+      });
+      setSuccess(true);
+      setTimeout(() => { onSaved?.(saved); onClose(); }, 1500);
+    } catch (e) {
+      setError(e.message || '저장 실패');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: C.card, border: `1px solid ${C.border}`,
+        borderRadius: 12, padding: 24, maxWidth: 480, width: '100%',
+        fontFamily: font, color: C.text,
+      }}>
+        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>📥 시간표를 Supabase 에 저장</div>
+
+        {success ? (
+          <div style={{ padding: 24, textAlign: 'center', color: C.green, fontSize: 14 }}>
+            ✅ 저장 완료! {asActive ? '시간표가 활성화되었습니다.' : '드래프트로 저장되었습니다.'}
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>이름</div>
+              <input value={name} onChange={e => setName(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 12, background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: font }} />
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>발효일 (필수)</div>
+                <input type="date" value={effectiveFrom} onChange={e => setEffectiveFrom(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 12, background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: font }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, color: C.textDim, marginBottom: 4 }}>만료일 (선택)</div>
+                <input type="date" value={effectiveUntil} onChange={e => setEffectiveUntil(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 12, background: C.bg, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, fontFamily: font }} />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: '10px 12px', background: C.bg, borderRadius: 6 }}>
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer' }}>
+                <input type="checkbox" checked={asActive} onChange={e => setAsActive(e.target.checked)} style={{ marginTop: 2 }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: asActive ? C.red : C.text }}>
+                    {asActive ? '⚠️ 즉시 활성화' : '드래프트로 저장 (권장)'}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textMid, marginTop: 4, lineHeight: 1.4 }}>
+                    {asActive
+                      ? '저장과 동시에 활성화됩니다. 기존 활성 시간표는 비활성화(superseded) 됩니다. 시간표 보기(신) 페이지에 즉시 반영됩니다.'
+                      : '드래프트 상태로 저장되어 시간표에 영향을 주지 않습니다. 검토 후 별도로 활성화할 수 있습니다.'}
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            {error && (
+              <div style={{ padding: '8px 12px', background: '#f8717115', color: C.red, borderRadius: 6, fontSize: 12, marginBottom: 12 }}>
+                {error}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button onClick={onClose} disabled={submitting} style={{
+                padding: '8px 16px', fontSize: 12, fontFamily: font,
+                background: 'transparent', color: C.text,
+                border: `1px solid ${C.border}`, borderRadius: 6, cursor: submitting ? 'not-allowed' : 'pointer',
+              }}>취소</button>
+              <button onClick={handleSubmit} disabled={submitting || !name.trim() || !effectiveFrom} style={{
+                padding: '8px 16px', fontSize: 12, fontFamily: font, fontWeight: 600,
+                background: asActive ? C.red : C.accent, color: '#fff',
+                border: 'none', borderRadius: 6, cursor: submitting ? 'not-allowed' : 'pointer',
+                opacity: (!name.trim() || !effectiveFrom) ? 0.5 : 1,
+              }}>{submitting ? '저장 중...' : (asActive ? '즉시 활성화' : '드래프트로 저장')}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+// ══════════════════════════════════════════════════════
 //  메인 컴포넌트
 // ══════════════════════════════════════════════════════
 export default function TimetablePage({ teacher }) {
   const [activeTab, setActiveTab] = useState('view');
   const [ttResult, setTTResult] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   const isAdmin = teacher && ['super_admin','timetable_admin'].includes(teacher.role);
 
@@ -663,6 +780,12 @@ export default function TimetablePage({ teacher }) {
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {ttResult&&<Badge label="✅ 시간표 있음" color={C.green} small/>}
           {requests.filter(r=>r.status==='pending').length>0&&<Badge label={`교체 요청 ${requests.filter(r=>r.status==='pending').length}건`} color={C.yellow} small/>}
+          {ttResult && isAdmin && (
+            <button onClick={()=>setShowSaveModal(true)} style={{
+              padding:'6px 12px', fontSize:11, fontFamily:font, fontWeight:600,
+              background:C.accent, color:'#fff', border:'none', borderRadius:6, cursor:'pointer',
+            }}>📥 Supabase 에 저장</button>
+          )}
         </div>
       </div>
 
@@ -685,6 +808,15 @@ export default function TimetablePage({ teacher }) {
       <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
         {renderTab()}
       </div>
+
+      {/* Supabase 저장 모달 */}
+      {showSaveModal && ttResult && (
+        <SaveTimetableModal
+          ttResult={ttResult}
+          onClose={()=>setShowSaveModal(false)}
+          onSaved={()=>{}}
+        />
+      )}
     </div>
   );
 }
