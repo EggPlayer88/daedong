@@ -23,6 +23,7 @@ import {
 import ChangeRequestForm from './ChangeRequestForm';
 import { NotificationsTab, MyRequestsTab, AdminQueueTab } from './ChangeTabPanels';
 import TimetableAIPanel, { TimetableAIToggleButton } from './TimetableAIPanel';
+import TimetableManagePanel from './TimetableManagePanel';
 
 const C = {
   bg:'#0c0f1a', card:'#141929', cardHover:'#1a2038',
@@ -192,18 +193,30 @@ export default function TimetableViewer({ currentUser }) {
                 onCancel={() => setDraftSourceCell(null)}
               />
             ) : (
-              <TimetableSection
-                activeTimetable={activeTimetable}
-                approvedChanges={approvedChanges}
-                calendar={calendar}
-                weekDates={weekDates}
-                weekRef={weekRef} setWeekRef={setWeekRef}
-                viewMode={viewMode} setViewMode={setViewMode}
-                entityId={entityId} setEntityId={setEntityId}
-                onCellClick={handleCellClick}
-                me={me}
-                isAdminMode={currentMode === 'admin' && persona === 'admin'}
-              />
+              <>
+                {currentMode === 'admin' && persona === 'admin' && (
+                  <details style={{ marginBottom: 16 }}>
+                    <summary style={{ cursor: 'pointer', padding: '10px 14px', background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 13, fontWeight: 600, color: C.purple }}>
+                      🗂️ 시간표 관리 (드래프트 / 활성화)
+                    </summary>
+                    <div style={{ marginTop: 8 }}>
+                      <TimetableManagePanel onActivated={refreshAll} />
+                    </div>
+                  </details>
+                )}
+                <TimetableSection
+                  activeTimetable={activeTimetable}
+                  approvedChanges={approvedChanges}
+                  calendar={calendar}
+                  weekDates={weekDates}
+                  weekRef={weekRef} setWeekRef={setWeekRef}
+                  viewMode={viewMode} setViewMode={setViewMode}
+                  entityId={entityId} setEntityId={setEntityId}
+                  onCellClick={handleCellClick}
+                  me={me}
+                  isAdminMode={currentMode === 'admin' && persona === 'admin'}
+                />
+              </>
             )
           )}
 
