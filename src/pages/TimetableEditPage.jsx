@@ -134,6 +134,39 @@ export default function TimetableEditPage({ timetableId, currentUser, onDone }) 
     return computeWarnings(editedData);
   }, [editedData]);
 
+  // ── 선택 카드의 교사가 이미 배정된 (day, period, classId) 위치들 ──
+  //   사전 차단(결정 8 — "확실한 충돌"의 사전 차단)에 사용.
+  //   { tid, usedAt: Map<'day-period', [{classId}, ...]> }
+  const blockedSlots = useMemo(() => {
+    if (!selectedCardId || !editedData) return null;
+    const card = basket.find(c => c.id === selectedCardId);
+    if (!card) return null;
+    const usedAt = new Map();
+    for (const cid of Object.keys(editedData)) {
+      const cls = editedData[cid] || {};
+      for (const k of Object.keys(cls)) {
+        const slot = cls[k];
+        if (!slot || slot.type === 'special') continue;
+        if (slot.tid === card.tid) {
+          if (!usedAt.has(k)) usedAt.set(k, []);
+          usedAt.get(k).push({ classId: cid });
+        }
+      }
+    }
+    return { tid: card.tid, usedAt };
+  }, [selectedCardId, basket, editedData]);
+
+  // 현재 학급 기준으로 (day, period) 가 차단 대상인지 — 다른 학급에서 같은 교사 사용 중이면 차단
+  const getBlocking = (day, period) => {
+    if (!blockedSlots) return null;
+    const usages = blockedSlots.usedAt.get(cellKey(day, period));
+    if (!usages || usages.length === 0) return null;
+    // 현재 학급(selectedClassId)이 아닌 다른 학급에 사용 중인 경우만 차단 (자기 자신 제외)
+    const otherUsage = usages.find(u => u.classId !== selectedClassId);
+    if (!otherUsage) return null;
+    return { tid: blockedSlots.tid, blockingClassId: otherUsage.classId };
+  };
+
   // ── 이벤트 push 헬퍼 ──
   const pushEvent = (event) => setPendingEvents(prev => [...prev, event]);
   const userId = currentUser?.id || 'unknown';
@@ -257,6 +290,9 @@ export default function TimetableEditPage({ timetableId, currentUser, onDone }) 
     // 빈 셀 메뉴가 떠있으면 먼저 닫기 (다른 셀 클릭 시 이전 메뉴 정리)
     setEmptyCellMenu(null);
 
+    // 카드 선택 상태에서 사전 차단된 셀이면 무시 (UI에서도 막지만 안전망)
+    if (selectedCardId && getBlocking(day, period)) return;
+
     if (selectedCardId) {
       if (slot) {
         swapCardOnCell(classId, day, period, slot, selectedCardId);
@@ -283,6 +319,23 @@ export default function TimetableEditPage({ timetableId, currentUser, onDone }) 
   // ── 카드 클릭 (선택/해제) ──
   const handleCardClick = (cardId) => {
     setSelectedCardId(prev => prev === cardId ? null : cardId);
+  };
+
+  // ── 카드 삭제 ──
+  //   confirm 후 basket 에서 제거. selectedCardId 였다면 해제.
+  //   edit_log 에는 별도 이벤트 추가하지 않음
+  //   (신규 카드 삭제는 cell_edit 와 상쇄, 기존 카드 삭제는 이미 기록된 cell_clear 가 최종 상태)
+  const handleDeleteCard = (cardId) => {
+    const card = basket.find(c => c.id === cardId);
+    if (!card) return;
+    const subjName = gS(card.sid)?.name || '?';
+    const teacherName = gT(card.tid)?.name || '?';
+    const ok = window.confirm(
+      `이 카드를 삭제하시겠습니까?\n\n${subjName} / ${teacherName}\n\n삭제된 카드는 복구할 수 없습니다.`
+    );
+    if (!ok) return;
+    setBasket(prev => prev.filter(c => c.id !== cardId));
+    if (selectedCardId === cardId) setSelectedCardId(null);
   };
 
   // ── 학급 변경 ──
@@ -424,6 +477,7 @@ export default function TimetableEditPage({ timetableId, currentUser, onDone }) 
         slots={slotsForClass}
         originalSlots={(originalData && originalData[selectedClassId]) || {}}
         hasSelectedCard={!!selectedCardId}
+        getBlocking={getBlocking}
         onCellClick={handleCellClick}
       />
 
@@ -436,6 +490,7 @@ export default function TimetableEditPage({ timetableId, currentUser, onDone }) 
         cards={basket}
         selectedCardId={selectedCardId}
         onCardClick={handleCardClick}
+        onCardDelete={handleDeleteCard}
       />
 
       {/* 빈 셀 메뉴 */}
@@ -470,7 +525,7 @@ export default function TimetableEditPage({ timetableId, currentUser, onDone }) 
 // ═══════════════════════════════════════════════════════════════════
 //  편집 가능한 그리드
 // ═══════════════════════════════════════════════════════════════════
-function EditableGrid({ slots, originalSlots, hasSelectedCard, onCellClick }) {
+function EditableGrid({ slots, originalSlots, hasSelectedCard, getBlocking, onCellClick }) {
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
@@ -496,6 +551,7 @@ function EditableGrid({ slots, originalSlots, hasSelectedCard, onCellClick }) {
                   slot={slots[cellKey(d, p)]}
                   originalSlot={originalSlots[cellKey(d, p)]}
                   hasSelectedCard={hasSelectedCard}
+                  blocking={getBlocking ? getBlocking(d, p) : null}
                   onClick={onCellClick}
                 />
               ))}
@@ -508,7 +564,7 @@ function EditableGrid({ slots, originalSlots, hasSelectedCard, onCellClick }) {
 }
 
 
-function EditableCell({ day, period, slot, originalSlot, hasSelectedCard, onClick }) {
+function EditableCell({ day, period, slot, originalSlot, hasSelectedCard, blocking, onClick }) {
   const base = {
     padding: '6px', borderBottom: `1px solid ${C.border}`,
     borderLeft: `1px solid ${C.border}`, height: 56, verticalAlign: 'middle',
@@ -529,6 +585,54 @@ function EditableCell({ day, period, slot, originalSlot, hasSelectedCard, onClic
     return (
       <td style={{ ...base, background: '#1a1530', cursor: 'not-allowed' }} title="특별활동 슬롯은 편집할 수 없습니다">
         <div style={{ fontSize: 10, color: C.purple, fontWeight: 600 }}>창체</div>
+      </td>
+    );
+  }
+
+  // ── 사전 차단 셀 (선택 카드의 교사가 동시간 다른 학급에 이미 배정) ──
+  if (blocking) {
+    const tName = gT(blocking.tid)?.name || blocking.tid;
+    const cName = gC(blocking.blockingClassId)?.name || blocking.blockingClassId;
+    const tooltip = `${tName} 선생님이 ${day}${period}교시에 ${cName}에 이미 배정되어 있습니다`;
+
+    if (!slot) {
+      // 차단된 빈 셀
+      return (
+        <td
+          style={{
+            ...base,
+            background: C.red + '30',
+            cursor: 'not-allowed',
+            ...(changed ? { boxShadow: `inset 0 0 0 2px ${C.yellow}` } : {}),
+          }}
+          title={tooltip}
+        >
+          <div style={{ fontSize: 11, color: C.red, fontWeight: 700 }}>⊘</div>
+          {changed && <ChangedDot />}
+        </td>
+      );
+    }
+    // 차단된 점유 셀 — 슬롯 내용은 흐리게, 빨간 오버레이
+    const subj = gS(slot.sid);
+    const clr = CLR[subj?.ci ?? 0] || { bg: '#444', tx: '#fff' };
+    const teacherName = gT(slot.tid)?.name;
+    return (
+      <td
+        style={{
+          ...base,
+          background: C.red + '30',
+          borderLeft: `3px solid ${clr.bg}`,
+          cursor: 'not-allowed',
+          opacity: 0.55,
+          ...(changed ? { boxShadow: `inset 0 0 0 2px ${C.yellow}` } : {}),
+        }}
+        title={tooltip}
+      >
+        <div style={{ fontSize: 11, fontWeight: 600, color: clr.bg }}>
+          {subj?.name || '?'}
+        </div>
+        <div style={{ fontSize: 9, color: C.textDim, marginTop: 2 }}>{teacherName || '-'}</div>
+        {changed && <ChangedDot />}
       </td>
     );
   }
@@ -599,7 +703,7 @@ function ChangedDot() {
 // ═══════════════════════════════════════════════════════════════════
 //  카드 바구니
 // ═══════════════════════════════════════════════════════════════════
-function CardBasket({ cards, selectedCardId, onCardClick }) {
+function CardBasket({ cards, selectedCardId, onCardClick, onCardDelete }) {
   return (
     <div style={{
       marginTop: 16,
@@ -635,6 +739,7 @@ function CardBasket({ cards, selectedCardId, onCardClick }) {
               card={card}
               selected={selectedCardId === card.id}
               onClick={() => onCardClick(card.id)}
+              onDelete={() => onCardDelete(card.id)}
             />
           ))}
         </div>
@@ -644,7 +749,7 @@ function CardBasket({ cards, selectedCardId, onCardClick }) {
 }
 
 
-function BasketCard({ card, selected, onClick }) {
+function BasketCard({ card, selected, onClick, onDelete }) {
   const subj = gS(card.sid);
   const clr = CLR[subj?.ci ?? 0] || { bg: '#888', tx: '#fff' };
   const teacher = gT(card.tid);
@@ -657,6 +762,7 @@ function BasketCard({ card, selected, onClick }) {
     <div
       onClick={onClick}
       style={{
+        position: 'relative',
         minWidth: 150, flex: '0 0 auto',
         background: selected ? C.accentSoft : C.bg,
         border: `1.5px solid ${selected ? C.accent : C.border}`,
@@ -667,7 +773,10 @@ function BasketCard({ card, selected, onClick }) {
       onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = C.borderLight; }}
       onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = C.border; }}
     >
-      <div style={{ fontSize: 14, fontWeight: 700, color: clr.bg, marginBottom: 3 }}>
+      <CardDeleteBtn onDelete={onDelete} />
+
+      {/* 과목명: 우측 X 버튼과 겹치지 않도록 우측 패딩 */}
+      <div style={{ fontSize: 14, fontWeight: 700, color: clr.bg, marginBottom: 3, paddingRight: 18 }}>
         {subj?.name || '?'}
       </div>
       <div style={{ fontSize: 11, color: C.text, marginBottom: 8 }}>
@@ -677,6 +786,36 @@ function BasketCard({ card, selected, onClick }) {
         원래: {originText}
       </div>
     </div>
+  );
+}
+
+
+function CardDeleteBtn({ onDelete }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <button
+      // 카드 선택 클릭과 충돌 안 나도록 stopPropagation
+      onClick={(e) => { e.stopPropagation(); onDelete(); }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseEnter={(e) => { e.stopPropagation(); setHover(true); }}
+      onMouseLeave={() => setHover(false)}
+      title="이 카드 삭제"
+      style={{
+        position: 'absolute',
+        top: 4, right: 4,
+        width: 18, height: 18,
+        background: hover ? C.red + '20' : 'transparent',
+        border: 'none',
+        color: hover ? C.red : C.textDim,
+        cursor: 'pointer',
+        fontSize: 11, fontWeight: 700, lineHeight: 1,
+        padding: 0, borderRadius: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontFamily: font,
+      }}
+    >
+      ✕
+    </button>
   );
 }
 
