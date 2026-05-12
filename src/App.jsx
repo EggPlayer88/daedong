@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from './lib/supabase';
 import TimetablePage from './pages/TimetablePage';
 import TimetableViewer from './pages/TimetableViewer';
+import TimetablesListPage from './pages/TimetablesListPage';
 import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import SchedulePage from './pages/SchedulePage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -49,6 +50,7 @@ function getMenuItems(role) {
   const adminMenus = [
     { id:"timetable",       icon:"🗓️", label:"시간표 관리" },
     { id:"timetable_v2",    icon:"📅", label:"시간표 보기 (신)" },
+    { id:"timetables_list", icon:"🗂️", label:"시간표 목록" },
     { id:"school_calendar", icon:"📆", label:"학사일정" },
   ];
   const superMenus = [
@@ -925,6 +927,7 @@ function MainApp({ session, onLogout }) {
       case "record":    return <RecordView/>;
       case "timetable":       return <TimetablePage teacher={teacher}/>;
       case "timetable_v2":    return <TimetableViewer currentUser={teacher}/>;
+      case "timetables_list": return <TimetablesListPage currentUser={teacher}/>;
       case "school_calendar": return <SchoolCalendarPage currentUser={teacher}/>;
       case "users":     return <UsersView/>;
       case "settings":  return <SettingsView/>;
