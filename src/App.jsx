@@ -3,6 +3,7 @@ import { supabase } from './lib/supabase';
 import TimetablePage from './pages/TimetablePage';
 import TimetableViewer from './pages/TimetableViewer';
 import TimetablesListPage from './pages/TimetablesListPage';
+import TimetableEditPage from './pages/TimetableEditPage';
 import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import SchedulePage from './pages/SchedulePage';
 import DocumentsPage from './pages/DocumentsPage';
@@ -881,6 +882,8 @@ function NoAccessView() {
 // ─── MAIN APP ───
 function MainApp({ session, onLogout }) {
   const [page, setPage] = useState("dashboard");
+  // 시간표 편집 진입 시 대상 ID (Phase 4C-1, 사이드바 메뉴 아닌 목록 페이지의 편집 버튼으로 진입)
+  const [editTimetableId, setEditTimetableId] = useState(null);
   const [teacher, setTeacher] = useState(null);
   const [loadingTeacher, setLoadingTeacher] = useState(true);
 
@@ -927,7 +930,8 @@ function MainApp({ session, onLogout }) {
       case "record":    return <RecordView/>;
       case "timetable":       return <TimetablePage teacher={teacher}/>;
       case "timetable_v2":    return <TimetableViewer currentUser={teacher}/>;
-      case "timetables_list": return <TimetablesListPage currentUser={teacher}/>;
+      case "timetables_list": return <TimetablesListPage currentUser={teacher} onEditDraft={(id) => { setEditTimetableId(id); setPage("timetable_edit"); }}/>;
+      case "timetable_edit":  return <TimetableEditPage timetableId={editTimetableId} currentUser={teacher} onDone={() => { setEditTimetableId(null); setPage("timetables_list"); }}/>;
       case "school_calendar": return <SchoolCalendarPage currentUser={teacher}/>;
       case "users":     return <UsersView/>;
       case "settings":  return <SettingsView/>;

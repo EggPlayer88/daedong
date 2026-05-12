@@ -29,7 +29,7 @@ const C = {
 const font = "'Pretendard','Noto Sans KR',-apple-system,sans-serif";
 
 
-export default function TimetablesListPage({ currentUser }) {
+export default function TimetablesListPage({ currentUser, onEditDraft }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -124,6 +124,7 @@ export default function TimetablesListPage({ currentUser }) {
               drafts.map(d => (
                 <ItemRow key={d.id} item={d} kind="draft" busy={busyId === d.id}
                   onPreview={() => setPreviewId(d.id)}
+                  onEdit={onEditDraft ? () => onEditDraft(d.id) : undefined}
                   onActivate={() => handleActivate(d)}
                   onDelete={() => handleDelete(d)}
                 />
@@ -314,7 +315,7 @@ function PreviewMode({ timetableId, meta, onBack }) {
 // ═══════════════════════════════════════════════════════════════════
 //  부품
 // ═══════════════════════════════════════════════════════════════════
-function ItemRow({ item, kind, busy, onPreview, onActivate, onDelete }) {
+function ItemRow({ item, kind, busy, onPreview, onEdit, onActivate, onDelete }) {
   const colorByKind = {
     active: C.green,
     draft: C.yellow,
@@ -358,6 +359,11 @@ function ItemRow({ item, kind, busy, onPreview, onActivate, onDelete }) {
 
       {kind === 'draft' && (
         <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+          {onEdit && (
+            <button onClick={onEdit} disabled={busy} style={btnStyle({ accent: true })}>
+              ✏️ 편집
+            </button>
+          )}
           <button onClick={onActivate} disabled={busy} style={btnStyle({ primary: true })}>
             {busy ? '처리 중...' : '활성화'}
           </button>
@@ -405,12 +411,13 @@ function Empty({ children }) {
   );
 }
 
-function btnStyle({ primary = false, danger = false } = {}) {
+function btnStyle({ primary = false, danger = false, accent = false } = {}) {
+  // accent = 편집(보조) 버튼 — 액센트 색상의 외곽선만 (primary 와 구분)
   return {
     padding: '6px 12px', fontSize: 12, fontFamily: font, fontWeight: 500,
-    background: primary ? C.accent : 'transparent',
-    color: primary ? '#fff' : danger ? C.red : C.text,
-    border: `1px solid ${primary ? C.accent : danger ? C.red : C.border}`,
+    background: primary ? C.accent : accent ? C.accentSoft : 'transparent',
+    color: primary ? '#fff' : accent ? C.accent : danger ? C.red : C.text,
+    border: `1px solid ${primary ? C.accent : accent ? C.accent : danger ? C.red : C.border}`,
     borderRadius: 6, cursor: 'pointer',
   };
 }

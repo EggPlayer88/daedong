@@ -139,6 +139,44 @@ export async function deleteDraftTimetable(id) {
 }
 
 
+// ─── 드래프트 시간표 data + edit_log 동시 업데이트 ───
+//   - Phase 4C-1: 셀 단위 편집 후 저장
+//   - draft 상태만 허용 (active/superseded 은 임시 변경 시스템으로 처리)
+//   - newEvents 는 edit_log.events 배열에 누적 append
+//   - 기존 edit_log 객체의 다른 키는 그대로 보존
+export async function updateTimetableData(id, newData, newEvents = []) {
+  if (!newData || typeof newData !== 'object') {
+    throw new Error('시간표 데이터가 비어있습니다');
+  }
+
+  // 1) 현재 상태 + edit_log 조회 (draft 검증 + 기존 events 보존)
+  const { data: cur, error: e1 } = await supabase
+    .from('timetables')
+    .select('status, edit_log')
+    .eq('id', id)
+    .single();
+  if (e1) throw e1;
+  if (cur.status !== 'draft') {
+    throw new Error('드래프트 시간표만 편집할 수 있습니다');
+  }
+
+  // 2) edit_log 머지 — 기존 events 뒤에 새 events 추가
+  const existing = (cur.edit_log && typeof cur.edit_log === 'object') ? cur.edit_log : {};
+  const prevEvents = Array.isArray(existing.events) ? existing.events : [];
+  const mergedLog = { ...existing, events: [...prevEvents, ...newEvents] };
+
+  // 3) data + edit_log 함께 update (단일 요청)
+  const { data: updated, error: e2 } = await supabase
+    .from('timetables')
+    .update({ data: newData, edit_log: mergedLog })
+    .eq('id', id)
+    .select()
+    .single();
+  if (e2) throw e2;
+  return updated;
+}
+
+
 // ─── 시간표 정보 수정 (이름, 발효일 등) ───
 //   data 자체는 수정 불가 (편집은 새 row 생성)
 export async function updateTimetableMeta(id, { name, effective_from, effective_until }) {
