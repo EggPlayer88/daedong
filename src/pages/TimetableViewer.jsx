@@ -385,7 +385,7 @@ function TimetableSection({
 }
 
 
-function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewMode, entityId, onCellClick, me, isAdminMode }) {
+export function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewMode, entityId, onCellClick, me, isAdminMode }) {
   const dayStates = weekDates.map(date => {
     const dateStr = fmtDate(date);
     const calEntry = calendar[dateStr];
@@ -457,7 +457,7 @@ function WeekGrid({ activeTimetable, approvedChanges, calendar, weekDates, viewM
 }
 
 
-function SlotCell({ state, period, day, dateStr, slots, viewMode, entityId, onCellClick, me, isAdminMode }) {
+export function SlotCell({ state, period, day, dateStr, slots, viewMode, entityId, onCellClick, me, isAdminMode }) {
   const cellBase = {
     padding: '6px', borderBottom: `1px solid ${C.border}`,
     borderLeft: `1px solid ${C.border}`, height: 54, verticalAlign: 'middle',
