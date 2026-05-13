@@ -50,12 +50,13 @@ async function fetchContext(query, teacherId) {
     const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
     const endDate = new Date(now.getFullYear(), now.getMonth() + 2, 0).toISOString().split('T')[0];
 
+    // 정리 작업 1: schedules → events 로 통일. date 컬럼은 start_date, visibility 는 scope 로 매핑.
     const { data: schedules } = await supabase
-      .from('schedules')
-      .select('title, date, category, priority, visibility, tags, dept')
-      .gte('date', startDate)
-      .lte('date', endDate)
-      .order('date', { ascending: true })
+      .from('events')
+      .select('title, start_date, category, priority, scope, tags, dept')
+      .gte('start_date', startDate)
+      .lte('start_date', endDate)
+      .order('start_date', { ascending: true })
       .limit(20);
 
     if (schedules?.length) results.schedules = schedules;
@@ -112,7 +113,8 @@ function buildSystemPrompt(basePrompt, context, teacher) {
     prompt += '\n\n[이번 달~다음 달 학교 일정]';
     for (const s of context.schedules) {
       const tags = Array.isArray(s.tags) ? s.tags.join(', ') : '';
-      prompt += `\n- ${s.date} | ${s.title} | ${s.category || ''} | 중요도: ${s.priority || '보통'} | 대상: ${tags}`;
+      // 정리 작업 1: s.date → s.start_date
+      prompt += `\n- ${s.start_date} | ${s.title} | ${s.category || ''} | 중요도: ${s.priority || '보통'} | 대상: ${tags}`;
     }
   }
 

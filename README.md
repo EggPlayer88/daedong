@@ -59,7 +59,8 @@ daedong/
 ├── migrations/
 │   ├── 001_phase1_timetable.sql   # 4개 테이블 생성
 │   ├── 002_seed_data.sql          # 시드 데이터
-│   └── 003_phase2_relax_types.sql # UUID → TEXT (시뮬레이션용)
+│   ├── 003_phase2_relax_types.sql # UUID → TEXT (시뮬레이션용)
+│   └── 004_create_events.sql      # events 테이블 (정리 작업 1, schedules→events 통일)
 └── docs/                          # ← 이 문서들 (핸드오프)
     ├── CLAUDE.md                  # 클로드 코드 안내
     ├── ARCHITECTURE.md            # 시스템 구조
@@ -70,7 +71,7 @@ daedong/
 
 ---
 
-## ✅ 현재 진행 상태 (Phase 4C-3 완료)
+## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 작업 1 완료)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -86,6 +87,7 @@ daedong/
 | 4C-1 | 드래프트 편집 페이지 (카드 바구니 방식 + 충돌 사전 차단) | ✅ 완료 |
 | 4C-2 | swap 편집 + 충돌 강제 차단 | ✅ 완료 (4C-1 에 흡수, 결정 8) |
 | 4C-3 | edit_log 이력 표시 UI (목록 페이지 "📜 이력" 버튼 → 별도 페이지) | ✅ 완료 |
+| 정리 1 | schedules→events 통일, 베타 라벨, 학교 설정 임시 비활성화, 잔존 파일/문구 정리 | ✅ 완료 |
 | 5 | 임시교사 시스템 | ⏳ 예정 |
 | 6 | 인증 통합 (페르소나 → 실인증) | ⏳ 예정 |
 | 7 | 영구 변경 시스템 (시간 여행) | ⏳ 예정 |

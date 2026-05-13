@@ -308,6 +308,15 @@ RLS 비활성화 (Phase 6 에서 정책 작성 예정).
 - 5월 캘린더: 휴일 3개(1, 5, 25일), 행사 2개(13, 20일), 시험 3일(27, 28, 29일)
 - 시간표는 `is_active = true` 로 저장
 
+### 004_create_events.sql
+
+정리 작업 1: `events` 테이블 생성. SchedulePage / DashboardView / MyScheduleView / api/chat.js 가 의존하는 일정 테이블 누락(404) 해결.
+
+기존 코드 안에서 `events`(SchedulePage) 와 `schedules`(나머지) 가 분리되어 있던 것을 `events` 로 통일.
+`date → start_date`, `visibility → scope` 컬럼 매핑 + schedules 의 `priority/tags/dept` 흡수.
+
+데이터 입력 UI 정비 (priority/tags/dept 입력 필드) 는 Phase 5 + 데이터 입력 UI 작업과 함께.
+
 ### 003_phase2_relax_types.sql
 
 UUID → TEXT 마이그레이션. 시뮬레이션 페르소나 't2', 'admin' 같은 문자열 사용 가능하게.

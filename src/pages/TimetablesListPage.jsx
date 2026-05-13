@@ -306,7 +306,7 @@ function PreviewMode({ timetableId, meta, onBack }) {
           />
 
           <div style={{ fontSize: 11, color: C.textMid, marginTop: 10 }}>
-            🔒 읽기 전용 보기 — 셀 클릭이나 편집은 불가능합니다. 편집하려면 드래프트 편집 페이지를 이용하세요 (Phase 4C 예정).
+            🔒 읽기 전용 보기 — 셀 클릭이나 편집은 불가능합니다. 편집하려면 시간표 목록에서 드래프트의 "✏️ 편집" 버튼을 이용하세요.
           </div>
         </>
       )}

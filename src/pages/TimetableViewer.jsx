@@ -276,7 +276,7 @@ function PersonaSwitcher({ persona, onChange, currentMode, onModeChange }) {
         </>
       )}
       <span style={{ color: C.textDim, marginLeft: 'auto', fontSize: 10 }}>
-        Phase 4 에서 실제 인증으로 교체
+        시뮬레이션 페르소나 — 본격 인증 통합 후 본인 계정으로 자동 매핑됩니다
       </span>
     </div>
   );
@@ -337,7 +337,12 @@ function TimetableSection({
   const weekLabel = `${fmtDateShort(weekDates[0])} ~ ${fmtDateShort(weekDates[4])}`;
 
   if (!activeTimetable) {
-    return <Empty>활성화된 시간표가 없습니다. SQL 시드를 먼저 실행해주세요.</Empty>;
+    return (
+      <Empty>
+        📭 활성 시간표가 없습니다.<br/>
+        사이드바의 "🗓️ 시간표 관리" 에서 시간표를 생성하고 활성화해주세요.
+      </Empty>
+    );
   }
 
   return (

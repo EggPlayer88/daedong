@@ -46,8 +46,8 @@ function getMenuItems(role) {
     { id:"tasks",     icon:"📋", label:"업무 문서 총정리" },
     { id:"docs",      icon:"📝", label:"문서 작성 AI" },
     { id:"mytasks",   icon:"✅", label:"나의 할 일" },
-    { id:"handover",  icon:"🤝", label:"업무 인수인계" },
-    { id:"record",    icon:"📒", label:"생활기록부 도우미" },
+    { id:"handover",  icon:"🤝", label:"업무 인수인계", beta:true },
+    { id:"record",    icon:"📒", label:"생활기록부 도우미", beta:true },
   ];
   const adminMenus = [
     { id:"timetable",       icon:"🗓️", label:"시간표 관리" },
@@ -57,7 +57,8 @@ function getMenuItems(role) {
   ];
   const superMenus = [
     { id:"users",    icon:"👥", label:"사용자 관리" },
-    { id:"settings", icon:"⚙️", label:"학교 설정" },
+    // 정리 작업 1: 학교 설정 메뉴 임시 비활성화 — Phase 5 + 데이터 입력 UI 와 함께 부활 예정
+    // { id:"settings", icon:"⚙️", label:"학교 설정" },
   ];
   if(role==='super_admin')     return [...common, ...adminMenus, ...superMenus];
   if(role==='timetable_admin') return [...common, ...adminMenus];
@@ -106,6 +107,9 @@ function Sidebar({ active, onNav, teacher, onLogout }) {
             }}>
               <span style={{ fontSize:15 }}>{s.icon}</span>
               {s.label}
+              {s.beta && (
+                <span style={{ fontSize:10, color:C.textDim, marginLeft:4, fontWeight:500 }}>(베타)</span>
+              )}
               {showDot && (
                 <span style={{
                   marginLeft: 'auto', minWidth: 18, height: 18, padding: '0 5px',
@@ -138,7 +142,8 @@ function DashboardView({ teacher }) {
 
       const today = new Date().toISOString().split('T')[0];
       const weekEnd = new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
-      const { data: schData } = await supabase.from('schedules').select('*').gte('date',today).lte('date',weekEnd).order('date');
+      // 정리 작업 1: schedules → events 로 통일. date 컬럼은 start_date 로 매핑.
+      const { data: schData } = await supabase.from('events').select('*').gte('start_date',today).lte('start_date',weekEnd).order('start_date');
       if(schData) setSchedules(schData);
 
       const { count } = await supabase.from('documents').select('id', {count:'exact',head:true});
@@ -151,7 +156,8 @@ function DashboardView({ teacher }) {
   const isHomeroom = !!teacher.homeroom;
   const mySchedules = schedules.filter(e=>{
     const tags = Array.isArray(e.tags)?e.tags:[];
-    if(e.visibility==='personal' && e.created_by!==teacher.id) return false;
+    // 정리 작업 1: visibility → scope ('personal' 값은 동일)
+    if(e.scope==='personal' && e.created_by!==teacher.id) return false;
     if(tags.includes('전체')) return true;
     if(tags.includes('담임') && isHomeroom) return true;
     if(e.dept===teacher.dept) return true;
@@ -159,7 +165,8 @@ function DashboardView({ teacher }) {
     return false;
   });
   const todayStr = new Date().toISOString().split('T')[0];
-  const todaySchedules = mySchedules.filter(e=>e.date===todayStr);
+  // 정리 작업 1: date → start_date
+  const todaySchedules = mySchedules.filter(e=>e.start_date===todayStr);
 
   return (
     <div style={{ padding:32, overflowY:"auto", height:"100%" }}>
@@ -605,7 +612,8 @@ function MyScheduleView({ teacher }) {
       const now = new Date();
       const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
       const end = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0];
-      const { data: schData } = await supabase.from('schedules').select('*').gte('date',start).lte('date',end).order('date');
+      // 정리 작업 1: schedules → events 로 통일. date 컬럼은 start_date 로 매핑.
+      const { data: schData } = await supabase.from('events').select('*').gte('start_date',start).lte('start_date',end).order('start_date');
       if(schData) setSchedules(schData);
       // 내 부서 업무
       const { data: taskData } = await supabase.from('tasks').select('*').order('priority');
@@ -617,7 +625,8 @@ function MyScheduleView({ teacher }) {
 
   const isHomeroom = !!teacher.homeroom;
   const mySchedules = schedules.filter(e=>{
-    if(e.visibility==='personal' && e.created_by!==teacher.id) return false;
+    // 정리 작업 1: visibility → scope
+    if(e.scope==='personal' && e.created_by!==teacher.id) return false;
     const tags = Array.isArray(e.tags)?e.tags:[];
     if(tags.includes('전체')) return true;
     if(tags.includes('담임') && isHomeroom) return true;
@@ -630,8 +639,9 @@ function MyScheduleView({ teacher }) {
   const urgentTasks = myTasks.filter(t=>t.priority==='높음');
 
   const today = new Date().toISOString().split('T')[0];
-  const todaySchedules = mySchedules.filter(e=>e.date===today);
-  const thisWeek = mySchedules.filter(e=>{const d=new Date(e.date);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<7;});
+  // 정리 작업 1: date → start_date
+  const todaySchedules = mySchedules.filter(e=>e.start_date===today);
+  const thisWeek = mySchedules.filter(e=>{const d=new Date(e.start_date);const diff=(d-new Date())/(1000*60*60*24);return diff>=0&&diff<7;});
 
   if(loading) return <div style={{padding:40,textAlign:"center",color:C.textDim,fontFamily:font}}>불러오는 중...</div>;
 
@@ -650,7 +660,7 @@ function MyScheduleView({ teacher }) {
         <Card style={{padding:18}}>
           <h3 style={{margin:"0 0 12px",fontSize:14,fontWeight:700,color:C.yellow}}>🟡 이번 주 ({thisWeek.length}건)</h3>
           {thisWeek.length===0?<div style={{fontSize:12,color:C.textDim,padding:8}}>이번 주 일정이 없습니다</div>:
-          thisWeek.map(e=> <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:4}}><div style={{width:6,height:6,borderRadius:"50%",background:PRIORITY_C[e.priority]||C.yellow}}/><div style={{flex:1}}><div style={{fontSize:12,color:C.text}}>{e.title}</div><div style={{fontSize:10,color:C.textDim}}>{e.date?.slice(5)}</div></div><Badge label={e.priority||'보통'} color={PRIORITY_C[e.priority]||C.textDim} small/></div>)}
+          thisWeek.map(e=> <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 10px",background:C.bg,borderRadius:8,marginBottom:4}}><div style={{width:6,height:6,borderRadius:"50%",background:PRIORITY_C[e.priority]||C.yellow}}/><div style={{flex:1}}><div style={{fontSize:12,color:C.text}}>{e.title}</div><div style={{fontSize:10,color:C.textDim}}>{e.start_date?.slice(5)}</div></div><Badge label={e.priority||'보통'} color={PRIORITY_C[e.priority]||C.textDim} small/></div>)}
         </Card>
 
         <Card style={{padding:18}}>
@@ -668,16 +678,33 @@ function MyScheduleView({ teacher }) {
   );
 }
 
+// ─── 공통 베타 안내 배너 (정리 작업 1) ───
+function BetaBanner({ message }) {
+  return (
+    <div style={{
+      padding:'10px 14px', marginBottom:16,
+      background:C.yellow+'15', color:C.yellow,
+      border:`1px solid ${C.yellow}40`, borderRadius:8,
+      fontSize:12, fontFamily:font, lineHeight:1.6,
+    }}>
+      ⚠️ {message}
+    </div>
+  );
+}
+
 // ─── HANDOVER (준비중) ───
 function HandoverView() {
   return (
-    <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font,display:"flex",alignItems:"center",justifyContent:"center"}}>
+    <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font}}>
+      <BetaBanner message="이 기능은 아직 개발 중입니다. 일부 기능이 동작하지 않을 수 있어요. 운영 안정화 후 정식 릴리즈 예정입니다." />
+      <div style={{display:"flex",alignItems:"center",justifyContent:"center",minHeight:'calc(100% - 60px)'}}>
       <Card style={{padding:"60px 48px",textAlign:"center",maxWidth:400}}>
         <div style={{fontSize:48,marginBottom:16}}>🚧</div>
         <h2 style={{margin:"0 0 10px",fontSize:20,fontWeight:800,color:C.text}}>업무 인수인계</h2>
         <p style={{margin:"0 0 8px",fontSize:14,color:C.yellow,fontWeight:600}}>준비중입니다</p>
         <p style={{margin:0,fontSize:12,color:C.textDim,lineHeight:1.7}}>인수인계 기능은 현재 설계 중입니다.<br/>더 나은 형태로 곧 찾아뵙겠습니다.</p>
       </Card>
+      </div>
     </div>
   );
 }
@@ -703,7 +730,8 @@ function RecordView() {
   return (
     <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font}}>
       <h2 style={{margin:"0 0 4px",fontSize:17,fontWeight:800,color:C.text}}>📒 생활기록부 작성 도우미</h2>
-      <p style={{margin:"0 0 22px",fontSize:11,color:C.textDim}}>영역·교과를 선택하고 키워드를 입력하면 문구 초안을 생성합니다</p>
+      <p style={{margin:"0 0 14px",fontSize:11,color:C.textDim}}>영역·교과를 선택하고 키워드를 입력하면 문구 초안을 생성합니다</p>
+      <BetaBanner message="이 기능은 실제 AI 호출 없이 샘플 문구를 보여주는 베타 버전입니다. 실제 AI 기반 생성은 추후 정식 릴리즈에서 제공됩니다." />
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20}}>
         <div style={{display:"flex",flexDirection:"column",gap:14}}>
           <Card style={{padding:20}}><label style={{fontSize:12,fontWeight:600,color:C.textMid,marginBottom:10,display:"block"}}>기록 영역</label><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{categories.map(c=><button key={c} onClick={()=>setCategory(c)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${category===c?C.accent:C.border}`,background:category===c?C.accentSoft:"transparent",color:category===c?C.accent:C.textMid,fontSize:11,cursor:"pointer",fontFamily:font}}>{c}</button>)}</div></Card>
@@ -855,6 +883,8 @@ function UsersView() {
 }
 
 // ─── 학교 설정 ───
+// 임시 비활성화 — 정리 작업 1 (Phase 5 + 데이터 입력 UI 와 함께 부활 예정)
+// 메뉴에서 제거되어 현재 라우팅 안 됨. 본격 구현 시 메뉴 + 라우팅 부활.
 function SettingsView() {
   return (
     <div style={{padding:28,overflowY:"auto",height:"100%",fontFamily:font}}>
@@ -915,7 +945,8 @@ function MainApp({ session, onLogout }) {
   }
 
   const canAccess = (pageId) => {
-    if(['users','settings'].includes(pageId)) return teacher.role==='super_admin';
+    // 정리 작업 1: settings 는 메뉴에서 제거되어 현재 라우팅 안 됨 (Phase 5 와 함께 부활 예정)
+    if(pageId === 'users') return teacher.role==='super_admin';
     return true; // 시간표 탭은 모두 접근 가능 (내부에서 권한 분기)
   };
 
@@ -941,7 +972,7 @@ function MainApp({ session, onLogout }) {
       case "timetable_history": return <TimetableHistoryPage timetableId={historyTimetableId} onDone={() => { setHistoryTimetableId(null); setPage("timetables_list"); }}/>;
       case "school_calendar": return <SchoolCalendarPage currentUser={teacher}/>;
       case "users":     return <UsersView/>;
-      case "settings":  return <SettingsView/>;
+      // 정리 작업 1: case "settings" 임시 비활성화 — 메뉴/라우팅 모두 제거, default 로 fallback
       default:          return <DashboardView teacher={teacher}/>;
     }
   };

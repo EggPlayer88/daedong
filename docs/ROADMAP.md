@@ -159,13 +159,13 @@ Phase 4C 전체 완료 — 시범운영 시작 가능.
 
 ## 기타 정리 작업 (시범운영 전후 어딘가에)
 
-### 정리 1 — schedules 테이블 404 해결
+### 정리 1 — schedules 테이블 404 해결 — ✅ 완료
 
-**문제**: 대시보드, 나의 할 일, 업무 AI 가 `schedules` 테이블 조회하는데 테이블 없음.
-
-**해결책 후보**:
-- 빠른 해결: `schedules` 테이블 생성 (이전 채팅 작업 흐름 복구)
-- 정리: 호출부 제거 (일정 관리 기능 미사용)
+**해결 내용**:
+- `SchedulePage` 가 사실은 `events` 테이블을, 대시보드/나의 할 일/AI 비서가 `schedules` 테이블을 호출하는 불일치 발견
+- `events` 로 통일 (옵션 B). `migrations/004_create_events.sql` 생성 — schedules 의 priority/tags/dept 컬럼까지 흡수한 통합 스키마
+- `App.jsx` DashboardView/MyScheduleView, `api/chat.js` 의 `from('schedules')` → `from('events')` 교체. `date → start_date`, `visibility → scope` 매핑
+- 데이터 입력 UI 정비는 Phase 5 (임시교사) + 데이터 입력 UI 작업과 함께 (priority/tags/dept 필드는 SchedulePage 폼에 아직 없음)
 
 ### 정리 2 — 시간표 관리(구) 와 (신) 통합
 
@@ -181,11 +181,24 @@ Phase 4C 전체 완료 — 시범운영 시작 가능.
 
 영향 없음 (현재도 작동), 권고 사항.
 
-### 정리 4 — TimetableManagePanel.jsx 정리
+### 정리 4 — TimetableManagePanel.jsx 정리 — ✅ 완료
 
-**문제**: Phase 4B-1 에서 TimetablesListPage 로 흡수됐는데 파일은 남아있음.
+`src/pages/TimetableManagePanel.jsx` 삭제 (어디서도 import 안 함).
 
-**해결책**: 파일 삭제. 어디서도 import 안 함.
+### 정리 5 — 미완성 메뉴 베타 처리 — ✅ 완료
+
+업무 인수인계(`HandoverView`) / 생활기록부 도우미(`RecordView`) 메뉴에 `(베타)` 라벨 + 페이지 상단 노란 안내 배너 추가.
+
+### 정리 6 — 학교 설정 메뉴 임시 비활성화 — ✅ 완료
+
+`SettingsView` 가 placeholder 인 상태이므로 사이드바/라우팅에서 제거.
+`SettingsView` 컴포넌트는 보존 — Phase 5 + 데이터 입력 UI 와 함께 부활 예정.
+
+### 정리 7 — 잔존 메모/문구 정리 — ✅ 완료
+
+- TimetableViewer: "Phase 4 에서 실제 인증으로 교체" → 사용자 친화 문구
+- TimetableViewer: 빈 시간표 안내 "SQL 시드 먼저 실행" → "사이드바의 시간표 관리에서 생성하세요"
+- TimetablesListPage: "Phase 4C 예정" → "드래프트의 ✏️ 편집 버튼 이용"
 
 ---
 
@@ -196,10 +209,11 @@ Phase 4C 전체 완료 — 시범운영 시작 가능.
   ↓
 [지금 — 시범운영 시작 가능]
   ↓
-Phase 5 (임시교사)
+[정리 작업 1 완료 — 시범운영 청소]
   ↓
-정리 1 (schedules 테이블)
-정리 2 (메뉴 통합)
+Phase 5 (임시교사) + 데이터 입력 UI (학교 설정 부활)
+  ↓
+정리 2 (시간표 관리 구/신 통합)
   ↓
 Phase 6 (인증 통합) — 본격 운영 전 필수
   ↓
