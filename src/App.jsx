@@ -160,7 +160,8 @@ function DashboardView({ teacher }) {
     if(e.scope==='personal' && e.created_by!==teacher.id) return false;
     if(tags.includes('전체')) return true;
     if(tags.includes('담임') && isHomeroom) return true;
-    if(e.dept===teacher.dept) return true;
+    // 정리 1 보강: e.dept 와 teacher.dept 가 둘 다 NULL 이면 모든 일정이 매칭되므로 양쪽 truthy 일 때만 비교
+    if(e.dept && e.dept===teacher.dept) return true;
     if(e.created_by===teacher.id) return true;
     return false;
   });
@@ -631,7 +632,8 @@ function MyScheduleView({ teacher }) {
     if(tags.includes('전체')) return true;
     if(tags.includes('담임') && isHomeroom) return true;
     if(tags.includes('교과')) return true;
-    if(e.dept===teacher.dept) return true;
+    // 정리 1 보강: e.dept 와 teacher.dept 가 둘 다 NULL 이면 모든 일정이 매칭되므로 양쪽 truthy 일 때만 비교
+    if(e.dept && e.dept===teacher.dept) return true;
     if(e.created_by===teacher.id) return true;
     return false;
   });

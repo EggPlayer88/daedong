@@ -165,7 +165,9 @@ Phase 4C 전체 완료 — 시범운영 시작 가능.
 - `SchedulePage` 가 사실은 `events` 테이블을, 대시보드/나의 할 일/AI 비서가 `schedules` 테이블을 호출하는 불일치 발견
 - `events` 로 통일 (옵션 B). `migrations/004_create_events.sql` 생성 — schedules 의 priority/tags/dept 컬럼까지 흡수한 통합 스키마
 - `App.jsx` DashboardView/MyScheduleView, `api/chat.js` 의 `from('schedules')` → `from('events')` 교체. `date → start_date`, `visibility → scope` 매핑
-- 데이터 입력 UI 정비는 Phase 5 (임시교사) + 데이터 입력 UI 작업과 함께 (priority/tags/dept 필드는 SchedulePage 폼에 아직 없음)
+- **운영 환경 보강**: events 테이블이 이미 존재하는 환경(SchedulePage 가 생성) 이라 004 의 CREATE TABLE 이 효과 없음 → `migrations/005_add_event_columns.sql` 로 priority/tags/dept 컬럼 추가
+- **방어 보강**: 대시보드/나의 할 일의 `e.dept === teacher.dept` 비교에 `e.dept && ...` 추가 (양쪽 NULL 시 모든 일정이 매칭되는 버그 차단)
+- 일정 시스템 본격 보강(SchedulePage 폼 보강 + 대시보드 재설계) 은 정리 8 로 분리
 
 ### 정리 2 — 시간표 관리(구) 와 (신) 통합
 
@@ -199,6 +201,22 @@ Phase 4C 전체 완료 — 시범운영 시작 가능.
 - TimetableViewer: "Phase 4 에서 실제 인증으로 교체" → 사용자 친화 문구
 - TimetableViewer: 빈 시간표 안내 "SQL 시드 먼저 실행" → "사이드바의 시간표 관리에서 생성하세요"
 - TimetablesListPage: "Phase 4C 예정" → "드래프트의 ✏️ 편집 버튼 이용"
+
+### 정리 8 — 일정 시스템 본격 보강 (예정)
+
+**목적**: 대시보드의 "본인 관련 일정 필터링" 핵심 가치 살리기.
+
+**작업 범위**:
+- SchedulePage 입력 폼에 priority/tags/dept 입력 필드 추가
+- 부서 목록 데이터 소스 결정 (timetableData.js 상수 추가 후 Phase 5 에서 DB 화)
+- 대시보드 재설계 — 내 일정 + 메모장 + AI 비서 통합 + 오늘 내 수업
+- 메모장 데이터 모델 (새 테이블 또는 localStorage)
+
+**선행 결정 필요**:
+- 부서 목록 데이터 출처 (A/B/C 안)
+- tags 값 종류 ('전체'/'담임'/'교과' 외 추가?)
+- 메모장 저장 방식 (DB vs localStorage)
+- 대시보드 레이아웃 (그리드/탭/스크롤)
 
 ---
 

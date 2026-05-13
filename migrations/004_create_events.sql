@@ -1,6 +1,11 @@
 -- ═══════════════════════════════════════════════════════════════════
 -- 정리 작업 1 — events 테이블 생성
 -- ═══════════════════════════════════════════════════════════════════
+-- ⚠️ 주의: 이 마이그레이션은 events 테이블이 존재하지 않는 신규 환경용입니다.
+-- 대동여중 운영 환경에서는 SchedulePage 가 이미 events 테이블을 만들어
+-- 사용하고 있어서 CREATE TABLE IF NOT EXISTS 가 효과 없음.
+-- 누락 컬럼(priority/tags/dept) 추가는 005_add_event_columns.sql 참조.
+--
 -- 목적: SchedulePage / DashboardView / MyScheduleView / api/chat.js 가
 --       의존하는 일정 테이블 누락(404) 해결.
 --
