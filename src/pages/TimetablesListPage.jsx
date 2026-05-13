@@ -29,7 +29,7 @@ const C = {
 const font = "'Pretendard','Noto Sans KR',-apple-system,sans-serif";
 
 
-export default function TimetablesListPage({ currentUser, onEditDraft }) {
+export default function TimetablesListPage({ currentUser, onEditDraft, onShowHistory }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -111,6 +111,7 @@ export default function TimetablesListPage({ currentUser, onEditDraft }) {
             {active ? (
               <ItemRow item={active} kind="active" busy={busyId === active.id}
                 onPreview={() => setPreviewId(active.id)}
+                onHistory={onShowHistory ? () => onShowHistory(active.id) : undefined}
               />
             ) : (
               <Empty>활성 시간표가 없습니다.</Empty>
@@ -124,6 +125,7 @@ export default function TimetablesListPage({ currentUser, onEditDraft }) {
               drafts.map(d => (
                 <ItemRow key={d.id} item={d} kind="draft" busy={busyId === d.id}
                   onPreview={() => setPreviewId(d.id)}
+                  onHistory={onShowHistory ? () => onShowHistory(d.id) : undefined}
                   onEdit={onEditDraft ? () => onEditDraft(d.id) : undefined}
                   onActivate={() => handleActivate(d)}
                   onDelete={() => handleDelete(d)}
@@ -137,6 +139,7 @@ export default function TimetablesListPage({ currentUser, onEditDraft }) {
               {superseded.slice(0, 10).map(i => (
                 <ItemRow key={i.id} item={i} kind="superseded" busy={busyId === i.id}
                   onPreview={() => setPreviewId(i.id)}
+                  onHistory={onShowHistory ? () => onShowHistory(i.id) : undefined}
                 />
               ))}
               {superseded.length > 10 && (
@@ -315,7 +318,7 @@ function PreviewMode({ timetableId, meta, onBack }) {
 // ═══════════════════════════════════════════════════════════════════
 //  부품
 // ═══════════════════════════════════════════════════════════════════
-function ItemRow({ item, kind, busy, onPreview, onEdit, onActivate, onDelete }) {
+function ItemRow({ item, kind, busy, onPreview, onHistory, onEdit, onActivate, onDelete }) {
   const colorByKind = {
     active: C.green,
     draft: C.yellow,
@@ -357,21 +360,29 @@ function ItemRow({ item, kind, busy, onPreview, onEdit, onActivate, onDelete }) 
         </div>
       </div>
 
-      {kind === 'draft' && (
-        <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
-          {onEdit && (
-            <button onClick={onEdit} disabled={busy} style={btnStyle({ accent: true })}>
-              ✏️ 편집
-            </button>
-          )}
+      {/* 우측 액션 영역 — 카드 클릭(미리보기) 와 분리하기 위해 stopPropagation */}
+      <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+        {onHistory && (
+          <button onClick={onHistory} disabled={busy} style={btnStyle()} title="편집 이력 보기">
+            📜 이력
+          </button>
+        )}
+        {kind === 'draft' && onEdit && (
+          <button onClick={onEdit} disabled={busy} style={btnStyle({ accent: true })}>
+            ✏️ 편집
+          </button>
+        )}
+        {kind === 'draft' && onActivate && (
           <button onClick={onActivate} disabled={busy} style={btnStyle({ primary: true })}>
             {busy ? '처리 중...' : '활성화'}
           </button>
+        )}
+        {kind === 'draft' && onDelete && (
           <button onClick={onDelete} disabled={busy} style={btnStyle({ danger: true })}>
             삭제
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
