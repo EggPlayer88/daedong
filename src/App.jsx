@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from './lib/supabase';
+import { DEPT } from './lib/timetableData';
 import TimetablePage from './pages/TimetablePage';
 import TimetableViewer from './pages/TimetableViewer';
 import TimetablesListPage from './pages/TimetablesListPage';
@@ -9,8 +10,7 @@ import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import SchedulePage from './pages/SchedulePage';
 import DocumentsPage from './pages/DocumentsPage';
 
-// ─── STATIC DATA removed — tasks now from Supabase ───
-const DEPT_LIST = ["교무부","연구부","학생안전부","학생생활부","진로부","정보부"];
+// 정리 작업 2-A: 부서 목록은 timetableData.js 의 DEPT 로 통합 (SBJ/TCH/CLS 와 같은 출처)
 
 // ─── STYLES ───
 const C = {
@@ -387,7 +387,7 @@ function TasksView({ teacher }) {
 
   useEffect(() => { fetchTasks(); }, []);
 
-  const depts = ["전체", ...DEPT_LIST];
+  const depts = ["전체", ...DEPT];
   const filtered = filter === "전체" ? tasks : tasks.filter(t => t.dept === filter);
 
   const resetForm = () => setForm({ name:"", dept:"교무부", area:"", type:"정기업무", period:"상시", priority:"중간", status:"초안", overview:"", steps:[""], cautions:[""], required_docs:[""] });

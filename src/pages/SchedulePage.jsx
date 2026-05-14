@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { DEPT } from '../lib/timetableData';
 
 // ─── 스타일 ───
 const C = {
@@ -24,6 +25,15 @@ const CATEGORIES = [
 
 const getCat = (id) => CATEGORIES.find(c=>c.id===id) || CATEGORIES[6];
 
+// 정리 작업 2-A: 일정 분류 보강
+const TAG_OPTIONS = ['전체', '담임', '교과'];
+const PRIORITY_OPTIONS = [
+  { id: '높음', color: '#f87171' },
+  { id: '중간', color: '#fbbf24' },
+  { id: '낮음', color: '#34d399' },
+];
+const getPriorityColor = (p) => (PRIORITY_OPTIONS.find(o => o.id === p) || PRIORITY_OPTIONS[1]).color;
+
 const DAYS_KO = ['일','월','화','수','목','금','토'];
 const MONTHS_KO = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 
@@ -33,6 +43,12 @@ function Badge({ label, color, small }) {
 
 // ─── 일정 추가/수정 모달 ───
 function EventModal({ event, teacher, onSave, onClose, onDelete }) {
+  // 정리 작업 2-A:
+  //  - scope 토글 제거 → tags 로 통일 (tags=[] 면 개인 일정, tags=['전체',...] 이면 공유)
+  //  - priority/tags/dept 입력 UI 추가
+  //  - private 는 가상 필드 (DB 저장 X). 기존 일정 로드 시 tags 비어있으면 true 로 추론
+  const initialTags = Array.isArray(event?.tags) ? event.tags : null;
+  const initialPrivate = event ? (Array.isArray(event.tags) && event.tags.length === 0) : false;
   const [form, setForm] = useState({
     title: event?.title || '',
     description: event?.description || '',
@@ -41,21 +57,48 @@ function EventModal({ event, teacher, onSave, onClose, onDelete }) {
     start_time: event?.start_time || '',
     end_time: event?.end_time || '',
     category: event?.category || '행사',
-    scope: event?.scope || 'all',
     is_allday: event?.is_allday ?? true,
+    priority: event?.priority || '중간',
+    tags: initialTags && initialTags.length > 0 ? initialTags : ['전체'],
+    dept: event?.dept || '',
+    private: initialPrivate,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const update = (k, v) => setForm(f=>({...f, [k]:v}));
 
+  const toggleTag = (tag) => {
+    if (form.private) return;
+    setForm(f => {
+      const has = (f.tags || []).includes(tag);
+      const next = has ? f.tags.filter(t => t !== tag) : [...(f.tags || []), tag];
+      return { ...f, tags: next };
+    });
+  };
+
   const handleSave = async () => {
     if(!form.title.trim()) { setError('제목을 입력해주세요'); return; }
     if(!form.start_date)   { setError('시작일을 선택해주세요'); return; }
     setSaving(true); setError('');
-    await onSave({ ...form, end_date: form.end_date || form.start_date });
+
+    // private 가상 필드 분리, isPrivate 면 tags 강제 [], dept 도 의미 없으니 null
+    const { private: isPrivate, ...rest } = form;
+    const finalTags = isPrivate ? [] : (form.tags || []);
+    const finalDept = isPrivate ? null : (form.dept || null);
+    const payload = {
+      ...rest,
+      tags: finalTags,
+      dept: finalDept,
+      end_date: form.end_date || form.start_date,
+    };
+    // scope 컬럼은 더 이상 사용 안 함 — payload 에 포함 X (기존 값은 DB 에 보존)
+    await onSave(payload);
     setSaving(false);
   };
+
+  const disabledScopeArea = form.private;
+  const dimStyle = disabledScopeArea ? { opacity: 0.4, pointerEvents: 'none' } : {};
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
@@ -81,6 +124,16 @@ function EventModal({ event, teacher, onSave, onClose, onDelete }) {
               <button key={cat.id} onClick={()=>update('category',cat.id)} style={{ padding:'5px 12px', borderRadius:20, border:`1px solid ${form.category===cat.id?cat.color:C.border}`, background:form.category===cat.id?cat.color+'18':'transparent', color:form.category===cat.id?cat.color:C.textMid, fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:font }}>
                 {cat.icon} {cat.id}
               </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 우선순위 */}
+        <div style={{ marginBottom:14 }}>
+          <label style={{ fontSize:11, fontWeight:600, color:C.textMid, display:'block', marginBottom:6 }}>우선순위</label>
+          <div style={{ display:'flex', gap:6 }}>
+            {PRIORITY_OPTIONS.map(p => (
+              <button key={p.id} onClick={()=>update('priority', p.id)} style={{ flex:1, padding:'8px', borderRadius:8, border:`1px solid ${form.priority===p.id?p.color:C.border}`, background:form.priority===p.id?p.color+'18':'transparent', color:form.priority===p.id?p.color:C.textMid, fontSize:12, cursor:'pointer', fontFamily:font, fontWeight:form.priority===p.id?700:500 }}>{p.id}</button>
             ))}
           </div>
         </div>
@@ -117,14 +170,48 @@ function EventModal({ event, teacher, onSave, onClose, onDelete }) {
           </div>
         )}
 
-        {/* 공개 범위 */}
-        <div style={{ marginBottom:14 }}>
-          <label style={{ fontSize:11, fontWeight:600, color:C.textMid, display:'block', marginBottom:6 }}>공개 범위</label>
-          <div style={{ display:'flex', gap:6 }}>
-            {[['all','🏫 전체 공유'],['personal','🔒 나만 보기']].map(([val,lbl])=>(
-              <button key={val} onClick={()=>update('scope',val)} style={{ flex:1, padding:'8px', borderRadius:8, border:`1px solid ${form.scope===val?C.accent:C.border}`, background:form.scope===val?C.accentSoft:'transparent', color:form.scope===val?C.accent:C.textMid, fontSize:12, cursor:'pointer', fontFamily:font, fontWeight:form.scope===val?700:400 }}>{lbl}</button>
-            ))}
+        {/* 나만 보기 (개인 일정) */}
+        <div style={{
+          marginBottom:14, padding:'10px 12px', borderRadius:8,
+          background:form.private?C.purple+'12':'transparent',
+          border:`1px solid ${form.private?C.purple+'40':C.border}`,
+        }}>
+          <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+            <input type="checkbox" checked={form.private} onChange={e=>update('private', e.target.checked)} style={{ accentColor:C.purple }}/>
+            <span style={{ fontSize:13, fontWeight:600, color:form.private?C.purple:C.text }}>🔒 나만 보기 (개인 일정)</span>
+          </label>
+          {form.private && (
+            <div style={{ fontSize:11, color:C.textMid, marginTop:6, paddingLeft:24 }}>
+              이 일정은 본인에게만 보입니다. 대상 태그·부서 설정은 무시됩니다.
+            </div>
+          )}
+        </div>
+
+        {/* 대상 태그 (tags) */}
+        <div style={{ marginBottom:14, ...dimStyle }}>
+          <label style={{ fontSize:11, fontWeight:600, color:C.textMid, display:'block', marginBottom:6 }}>대상 태그 (여러 개 선택 가능)</label>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {TAG_OPTIONS.map(tag => {
+              const active = (form.tags || []).includes(tag);
+              return (
+                <button key={tag} onClick={()=>toggleTag(tag)} disabled={disabledScopeArea} style={{ padding:'6px 12px', borderRadius:20, border:`1px solid ${active?C.accent:C.border}`, background:active?C.accentSoft:'transparent', color:active?C.accent:C.textMid, fontSize:12, fontWeight:active?700:500, cursor:disabledScopeArea?'not-allowed':'pointer', fontFamily:font }}>
+                  {active ? '☑' : '☐'} {tag}
+                </button>
+              );
+            })}
           </div>
+          <div style={{ fontSize:10, color:C.textDim, marginTop:6 }}>
+            예: 전체 = 모두에게, 담임 = 담임 교사에게, 교과 = 교과 담당에게
+          </div>
+        </div>
+
+        {/* 관련 부서 (dept) */}
+        <div style={{ marginBottom:14, ...dimStyle }}>
+          <label style={{ fontSize:11, fontWeight:600, color:C.textMid, display:'block', marginBottom:6 }}>관련 부서 (선택 사항)</label>
+          <select value={form.dept || ''} onChange={e=>update('dept', e.target.value)} disabled={disabledScopeArea} style={{ width:'100%', padding:'10px 12px', borderRadius:8, border:`1px solid ${C.border}`, background:C.bg, color:form.dept?C.text:C.textDim, fontSize:12, fontFamily:font, outline:'none', boxSizing:'border-box', cursor:disabledScopeArea?'not-allowed':'pointer' }}>
+            <option value="">선택 안 함</option>
+            {DEPT.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
         </div>
 
         {/* 설명 */}
@@ -284,6 +371,10 @@ function ListView({ events, onEventClick }) {
             {evs.map(ev=>{
               const cat=getCat(ev.category);
               const isMulti = ev.end_date && ev.end_date !== ev.start_date;
+              // 정리 작업 2-A: tags 배열이 비어있으면 개인 일정
+              const isPrivate = Array.isArray(ev.tags) && ev.tags.length === 0;
+              const evTags = Array.isArray(ev.tags) ? ev.tags : [];
+              const prColor = getPriorityColor(ev.priority);
               return (
                 <div key={ev.id} onClick={()=>onEventClick(ev)} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:C.card, border:`1px solid ${C.border}`, borderLeft:`3px solid ${cat.color}`, borderRadius:8, cursor:'pointer', transition:'all .15s' }}
                   onMouseEnter={e=>e.currentTarget.style.borderColor=C.borderLight}
@@ -293,11 +384,16 @@ function ListView({ events, onEventClick }) {
                     <div style={{ fontSize:9, color:C.textDim }}>{DAYS_KO[new Date(ev.start_date).getDay()]}요일</div>
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{ev.title}</div>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      {ev.priority && <span title={`우선순위: ${ev.priority}`} style={{ width:8, height:8, borderRadius:'50%', background:prColor, flexShrink:0 }}/>}
+                      <div style={{ fontSize:13, fontWeight:700, color:C.text }}>{ev.title}</div>
+                    </div>
                     <div style={{ display:'flex', gap:6, marginTop:4, flexWrap:'wrap' }}>
                       <Badge label={`${cat.icon} ${cat.id}`} color={cat.color} small/>
                       {isMulti&&<Badge label={`~${ev.end_date.slice(5).replace('-','/')}`} color={C.textMid} small/>}
-                      {ev.scope==='personal'&&<Badge label="🔒 나만 보기" color={C.textDim} small/>}
+                      {isPrivate&&<Badge label="🔒 개인" color={C.purple} small/>}
+                      {evTags.map(t => <Badge key={t} label={t} color={C.accent} small/>)}
+                      {ev.dept && <Badge label={ev.dept} color={C.teal} small/>}
                     </div>
                     {ev.description&&<div style={{ fontSize:11, color:C.textDim, marginTop:4 }}>{ev.description}</div>}
                   </div>
@@ -349,6 +445,7 @@ export default function SchedulePage({ teacher }) {
   useEffect(()=>{ fetchEvents(); },[]);
 
   // 일정 저장
+  // payload 는 EventModal 에서 이미 정리됨 (private 분리, tags/dept 강제 처리, scope 미포함)
   const handleSave = async (form) => {
     const payload = {
       ...form,

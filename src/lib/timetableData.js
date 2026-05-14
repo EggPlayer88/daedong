@@ -46,6 +46,9 @@ export const CLS = [
   {id:'c7',name:'3-1반',g:3},{id:'c8',name:'3-2반',g:3},{id:'c9',name:'3-3반',g:3},
 ];
 
+// 학교 부서 목록 — Phase 5+ 에서 DB 화 예정 (SBJ/TCH/CLS 와 함께)
+export const DEPT = ['교무부','연구부','학생안전부','학생생활부','진로부','정보부'];
+
 export const TCH = [
   {id:'t1', name:'국어T1',   hr:true, hc:'c1', al:null,
    as:[{s:'s1',c:'c3',h:3},{s:'s1',c:'c7',h:4},{s:'s1',c:'c8',h:4},{s:'s1',c:'c9',h:4}]},

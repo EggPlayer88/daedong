@@ -315,7 +315,19 @@ RLS 비활성화 (Phase 6 에서 정책 작성 예정).
 기존 코드 안에서 `events`(SchedulePage) 와 `schedules`(나머지) 가 분리되어 있던 것을 `events` 로 통일.
 `date → start_date`, `visibility → scope` 컬럼 매핑 + schedules 의 `priority/tags/dept` 흡수.
 
-데이터 입력 UI 정비 (priority/tags/dept 입력 필드) 는 Phase 5 + 데이터 입력 UI 작업과 함께.
+### 005_add_event_columns.sql
+
+정리 작업 1 보강. 운영 환경 events 테이블이 이미 존재해 004 의 `CREATE TABLE IF NOT EXISTS` 가 효과 없는 문제 해결. `ALTER TABLE` 로 priority/tags/dept 컬럼만 보강.
+
+### 006_migrate_scope_to_tags.sql
+
+정리 작업 2-A. `scope` 컬럼을 코드에서 제거하고 `tags` 로 단일화하는 과정의 데이터 보강.
+`scope='all'` 이면서 `tags` 가 NULL/빈 배열인 기존 일정에 `tags=['전체']` 자동 채움.
+`scope` 컬럼 자체는 DROP 하지 않고 보존 (롤백 가능성). 코드는 더 이상 scope 를 사용 안 함.
+
+새 규칙:
+- `tags=['전체', ...]` → 공유 일정
+- `tags=[]` → 개인 일정 (본인만)
 
 ### 003_phase2_relax_types.sql
 
