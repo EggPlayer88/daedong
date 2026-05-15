@@ -22,10 +22,11 @@
 ### 사이드바 메뉴 (`App.jsx` 의 `commonMenus` + `adminMenus`)
 
 **모든 교사 공통**:
-- 🏠 대시보드 (이전 채팅 작업)
+- 🏠 대시보드 (`DashboardPage`, 정리 2-B 재설계: 좌우 분할 + 메모장 + AI 임베드)
 - 📋 나의 할 일 (이전 채팅 작업)
-- 📅 일정관리 (`SchedulePage`, 이전 채팅 작업, schedules 테이블 404 이슈)
+- 📅 일정관리 (`SchedulePage`, 정리 2-A 폼 보강)
 - 📁 문서함 (`DocumentsPage`, 이전 채팅 작업)
+- 🤖 AI 업무 비서 (`ChatView` 단독 페이지, 대시보드 임베드와 컴포넌트 공유)
 
 **관리자 (시간표관리자 + 슈퍼관리자)**:
 - 🗓️ 시간표 관리 (`TimetablePage`, 솔버 + Supabase 저장)
@@ -328,6 +329,12 @@ RLS 비활성화 (Phase 6 에서 정책 작성 예정).
 새 규칙:
 - `tags=['전체', ...]` → 공유 일정
 - `tags=[]` → 개인 일정 (본인만)
+
+### 007_create_notes.sql
+
+정리 작업 2-B. 대시보드 메모장용 `notes` 테이블 생성.
+사용자당 1행 (user_id PK), content (TEXT), updated_at. upsert 로 자동 저장.
+RLS 는 Phase 6 인증 통합과 함께 설정.
 
 ### 003_phase2_relax_types.sql
 

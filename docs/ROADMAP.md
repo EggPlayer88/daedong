@@ -6,10 +6,10 @@
 
 ## 현재 위치
 
-**Phase 4C-3 완료** (edit_log 이력 표시 UI) + 정리 작업 1·2-A 완료.
+**Phase 4C-3 완료** (edit_log 이력 표시 UI) + 정리 작업 1·2-A·2-B 완료.
 시범운영 시작 가능.
 
-다음 작업: **정리 2-B** (대시보드 재설계 + 메모장) 또는 **Phase 5** (임시교사 시스템)
+다음 작업: **Phase 5** (임시교사 시스템) 또는 추가 정리 작업
 
 ---
 
@@ -225,17 +225,26 @@
 - ListView 카드 시각 보강: 우선순위 색 점 + 태그 배지 + 부서 배지 + 🔒 개인 라벨.
 - 기존 일정 마이그레이션: `migrations/006_migrate_scope_to_tags.sql` — `scope='all'` 이면서 `tags` 가 NULL/[] 인 일정에 `tags=['전체']` 자동 채움.
 
-#### 정리 2-B — 대시보드 재설계 + 메모장 (예정)
+#### 정리 2-B — 대시보드 재설계 + 메모장 — ✅ 완료
 
-**작업 범위**:
-- 대시보드 레이아웃 재설계 — 내 일정 + 메모장 + AI 비서 + 오늘 내 수업 통합
-- 메모장 데이터 모델 (새 테이블 또는 localStorage)
-- "본인 관련 일정 필터링" 의 UX 확정 (담임/교과 매칭 규칙 시각화)
+**구현된 범위**:
+- `src/pages/DashboardPage.jsx` 신규 — App.jsx 의 인라인 DashboardView 대체
+- 좌우 분할 레이아웃 (결정 1):
+  * 왼쪽: 📚 오늘 내 수업 (활성 시간표에서 본인 셀 추출, 시간순) + 📅 내 일정 (오늘 + 이번 주)
+  * 오른쪽: 📝 메모장 + 🤖 AI 비서 (ChatView 임베드)
+- 반응형: 좁은 화면(< 900px) 위아래 스택 자동 전환 (`window.matchMedia`)
+- `ChatView` 를 `src/components/ChatView.jsx` 로 분리 (대시보드 + 사이드바 양쪽에서 사용).
+  대시보드 임베드 시 `compact` 모드 (헤더 축소, 예시 질문 숨김, "큰 화면 ↗" 링크 표시).
+- 메모장:
+  * `migrations/007_create_notes.sql` — `notes` 테이블 (user_id PK, content, updated_at)
+  * `src/lib/notesAPI.js` — getNote/saveNote (upsert)
+  * 1.5초 debounce 자동 저장, "✓ N분 전 저장됨" 상대 시각 표시 (60초마다 갱신)
+- 내 일정 필터링: 기존 App.jsx DashboardView 의 규칙 그대로 (tags 매칭 + dept truthy 비교 + 본인 created_by)
+- 사이드바 메뉴 변경 없음: "🏠 대시보드" 와 "🤖 AI 업무 비서" 둘 다 유지
 
-**선행 결정 필요**:
-- 메모장 저장 방식 (DB vs localStorage)
-- 대시보드 레이아웃 (그리드/탭/스크롤)
-- 오늘 내 수업 표시 위치/형식
+**후속 보강 메모**:
+- 활성 시간표 조회는 `supabase.from('timetables').select(...).eq('is_active', true).maybeSingle()` 인라인. 시간표 시스템 통합 시 `timetablesAPI.getActiveTimetable()` 으로 묶을 수 있음.
+- `teacher.id` 가 TCH 의 id (t2/t7 등) 와 일치해야 본인 수업이 노출됨. Phase 6 인증 통합 후 매핑 자동화.
 
 ---
 

@@ -46,7 +46,8 @@ daedong/
 │       ├── ChangeTabPanels.jsx     # 알림/내요청/관리자승인 탭
 │       ├── TimetableAIPanel.jsx    # AI 사이드 챗봇
 │       ├── DocumentsPage.jsx       # 문서 (이전 채팅 작업)
-│       └── SchedulePage.jsx        # 일정 관리 (이전 채팅 작업, schedules 테이블 404)
+│       ├── SchedulePage.jsx        # 일정 관리 (정리 2-A 에서 폼 보강)
+│       └── DashboardPage.jsx       # 대시보드 (정리 2-B 재설계, 좌우 분할 + 메모장 + AI 임베드)
 ├── api/
 │   ├── chat.js                    # 업무 AI 비서 (이전 채팅 작업)
 │   ├── _timetableContext.js       # 시간표 AI 공통 유틸
@@ -62,7 +63,8 @@ daedong/
 │   ├── 003_phase2_relax_types.sql    # UUID → TEXT (시뮬레이션용)
 │   ├── 004_create_events.sql         # events 테이블 (정리 1, schedules→events 통일)
 │   ├── 005_add_event_columns.sql     # priority/tags/dept 컬럼 보강 (정리 1 보강)
-│   └── 006_migrate_scope_to_tags.sql # scope='all' → tags=['전체'] 자동 변환 (정리 2-A)
+│   ├── 006_migrate_scope_to_tags.sql # scope='all' → tags=['전체'] 자동 변환 (정리 2-A)
+│   └── 007_create_notes.sql          # 메모장 테이블 (정리 2-B)
 └── docs/                          # ← 이 문서들 (핸드오프)
     ├── CLAUDE.md                  # 클로드 코드 안내
     ├── ARCHITECTURE.md            # 시스템 구조
@@ -73,7 +75,7 @@ daedong/
 
 ---
 
-## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 작업 1·2-A 완료)
+## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 작업 1·2-A·2-B 완료)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -91,7 +93,7 @@ daedong/
 | 4C-3 | edit_log 이력 표시 UI (목록 페이지 "📜 이력" 버튼 → 별도 페이지) | ✅ 완료 |
 | 정리 1 | schedules→events 통일, 베타 라벨, 학교 설정 임시 비활성화, 잔존 파일/문구 정리 | ✅ 완료 |
 | 정리 2-A | SchedulePage 폼 보강 (priority/tags/dept), 부서 DEPT 통합, scope→tags 단순화 | ✅ 완료 |
-| 정리 2-B | 대시보드 재설계 + 메모장 + 오늘 내 수업 통합 | ⏳ 예정 |
+| 정리 2-B | 대시보드 재설계 (좌우 분할) + 메모장 + 오늘 내 수업 + AI 비서 임베드 | ✅ 완료 |
 | 5 | 임시교사 시스템 | ⏳ 예정 |
 | 6 | 인증 통합 (페르소나 → 실인증) | ⏳ 예정 |
 | 7 | 영구 변경 시스템 (시간 여행) | ⏳ 예정 |

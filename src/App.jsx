@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from './lib/supabase';
 import { DEPT } from './lib/timetableData';
 import TimetablePage from './pages/TimetablePage';
@@ -9,6 +9,8 @@ import TimetableHistoryPage from './pages/TimetableHistoryPage';
 import SchoolCalendarPage from './pages/SchoolCalendarPage';
 import SchedulePage from './pages/SchedulePage';
 import DocumentsPage from './pages/DocumentsPage';
+import DashboardPage from './pages/DashboardPage';
+import ChatView from './components/ChatView';
 
 // 정리 작업 2-A: 부서 목록은 timetableData.js 의 DEPT 로 통합 (SBJ/TCH/CLS 와 같은 출처)
 
@@ -129,244 +131,10 @@ function Sidebar({ active, onNav, teacher, onLogout }) {
   );
 }
 
-// ─── DASHBOARD ───
-function DashboardView({ teacher }) {
-  const [tasks, setTasks] = useState([]);
-  const [schedules, setSchedules] = useState([]);
-  const [docCount, setDocCount] = useState(0);
-
-  useEffect(()=>{
-    const load = async () => {
-      const { data: taskData } = await supabase.from('tasks').select('*').eq('dept', teacher.dept);
-      if(taskData) setTasks(taskData);
-
-      const today = new Date().toISOString().split('T')[0];
-      const weekEnd = new Date(Date.now()+7*24*60*60*1000).toISOString().split('T')[0];
-      // 정리 작업 1: schedules → events 로 통일. date 컬럼은 start_date 로 매핑.
-      const { data: schData } = await supabase.from('events').select('*').gte('start_date',today).lte('start_date',weekEnd).order('start_date');
-      if(schData) setSchedules(schData);
-
-      const { count } = await supabase.from('documents').select('id', {count:'exact',head:true});
-      setDocCount(count||0);
-    };
-    load();
-  },[teacher]);
-
-  const urgentTasks = tasks.filter(t=>t.priority==="높음");
-  const isHomeroom = !!teacher.homeroom;
-  const mySchedules = schedules.filter(e=>{
-    const tags = Array.isArray(e.tags)?e.tags:[];
-    // 정리 작업 1: visibility → scope ('personal' 값은 동일)
-    if(e.scope==='personal' && e.created_by!==teacher.id) return false;
-    if(tags.includes('전체')) return true;
-    if(tags.includes('담임') && isHomeroom) return true;
-    // 정리 1 보강: e.dept 와 teacher.dept 가 둘 다 NULL 이면 모든 일정이 매칭되므로 양쪽 truthy 일 때만 비교
-    if(e.dept && e.dept===teacher.dept) return true;
-    if(e.created_by===teacher.id) return true;
-    return false;
-  });
-  const todayStr = new Date().toISOString().split('T')[0];
-  // 정리 작업 1: date → start_date
-  const todaySchedules = mySchedules.filter(e=>e.start_date===todayStr);
-
-  return (
-    <div style={{ padding:32, overflowY:"auto", height:"100%" }}>
-      <div style={{ marginBottom:28 }}>
-        <h1 style={{ margin:0, fontSize:22, fontWeight:800, color:C.text }}>{teacher.name} 선생님, 좋은 아침입니다 ☀️</h1>
-        <p style={{ margin:"6px 0 0", fontSize:13, color:C.textMid }}>{ROLE_LABEL[teacher.role]} · {teacher.dept} · 오늘 할 일 {todaySchedules.length}건</p>
-      </div>
-      {teacher.role==='super_admin'&&<div style={{padding:"12px 16px",borderRadius:10,background:C.red+"10",border:`1px solid ${C.red}20`,marginBottom:20,fontSize:12,color:C.red}}>🔑 슈퍼관리자 계정입니다. 사용자 관리 및 학교 설정에 접근할 수 있습니다.</div>}
-      {teacher.role==='timetable_admin'&&<div style={{padding:"12px 16px",borderRadius:10,background:C.purple+"10",border:`1px solid ${C.purple}20`,marginBottom:20,fontSize:12,color:C.purple}}>🗓️ 시간표관리자 계정입니다. 시간표 생성 및 관리에 접근할 수 있습니다.</div>}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:14, marginBottom:28 }}>
-        {[
-          { label:"오늘 할 일",  value:todaySchedules.length, icon:"📅", color:C.accent },
-          { label:"긴급 업무",   value:urgentTasks.length,    icon:"🔴", color:C.red },
-          { label:"전체 문서",   value:docCount,              icon:"📄", color:C.purple },
-          { label:"이번 주 일정",value:mySchedules.length,    icon:"📋", color:C.green },
-        ].map((s,i)=>(
-          <Card key={i} style={{ padding:"18px 20px" }}>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-              <div><div style={{ fontSize:11, color:C.textMid, marginBottom:6 }}>{s.label}</div><div style={{ fontSize:28, fontWeight:800, color:s.color }}>{s.value}</div></div>
-              <span style={{ fontSize:24 }}>{s.icon}</span>
-            </div>
-          </Card>
-        ))}
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20 }}>
-        <Card style={{ padding:22 }}>
-          <h3 style={{ margin:"0 0 14px", fontSize:14, fontWeight:700, color:C.text }}>📅 오늘 할 일</h3>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {todaySchedules.length===0&&<div style={{fontSize:12,color:C.textDim,padding:8}}>오늘 등록된 일정이 없습니다</div>}
-            {todaySchedules.map(item=>(
-              <div key={item.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.bg, borderRadius:10 }}>
-                <div style={{ width:8, height:8, borderRadius:"50%", background:PRIORITY_C[item.priority]||C.yellow, flexShrink:0 }}/>
-                <span style={{ fontSize:13, color:C.text, flex:1 }}>{item.title}</span>
-                <Badge label={item.priority||'보통'} color={PRIORITY_C[item.priority]||C.textDim} small/>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card style={{ padding:22 }}>
-          <h3 style={{ margin:"0 0 14px", fontSize:14, fontWeight:700, color:C.text }}>⚡ 긴급 업무</h3>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {urgentTasks.length===0&&<div style={{fontSize:12,color:C.textDim,padding:8}}>긴급 업무가 없습니다 🎉</div>}
-            {urgentTasks.map(t=>(
-              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 12px", background:C.bg, borderRadius:10 }}>
-                <span style={{ fontSize:13, color:C.text, flex:1 }}>{t.name}</span>
-                <Badge label={t.dept} color={DEPT_C[t.dept]||C.textDim} small/>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-    </div>
-  );
-}
-
-// ─── AI CHAT ───
-function ChatView({ teacher }) {
-  const [messages, setMessages] = useState([
-    { role:"assistant", text:`${teacher.name} 선생님, 안녕하세요! 대동여중 AI 업무 비서입니다. 😊\n\n아래와 같은 도움을 드릴 수 있습니다:\n📋 업무 절차·규정 안내\n📝 문서 작성 (계획서, 보고서, 가정통신문 등)\n🔍 작성한 문서 검토\n📅 일정 안내 및 조언\n✅ 할 일 정리 및 우선순위\n\n무엇이든 질문해 주세요!` }
-  ]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [contextInfo, setContextInfo] = useState(null);
-  const endRef = useRef(null);
-  useEffect(()=>{ endRef.current?.scrollIntoView({behavior:"smooth"}); },[messages]);
-
-  const examples = [
-    "수행평가 업무 절차를 단계별로 알려줘",
-    "이번 달 내가 해야 할 일 정리해줘",
-    "수행평가 안내 가정통신문 초안 작성해줘",
-    "학교폭력 발생 시 처리 절차는?",
-    "이번 주 학교 일정 알려줘",
-  ];
-
-  const send = async () => {
-    if(!input.trim() || loading) return;
-    const userText = input.trim();
-    setInput("");
-
-    const newMessages = [...messages, { role:"user", text:userText }];
-    setMessages(newMessages);
-    setLoading(true);
-    setContextInfo(null);
-
-    try {
-      const apiMessages = newMessages
-        .filter(m => m.role !== 'system')
-        .map(m => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          content: m.text,
-        }));
-
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: apiMessages,
-          teacher: {
-            id: teacher.id,
-            name: teacher.name,
-            dept: teacher.dept,
-            area: teacher.area,
-            subject: teacher.subject,
-            role: teacher.role,
-            homeroom: teacher.homeroom,
-          },
-          useContext: true,
-        }),
-      });
-
-      if(!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || '오류가 발생했습니다');
-      }
-
-      const data = await res.json();
-      setMessages(m => [...m, { role:"assistant", text: data.content }]);
-      if (data.contextUsed) setContextInfo(data.contextUsed);
-    } catch(e) {
-      setMessages(m => [...m, { role:"assistant", text:`⚠️ 오류: ${e.message}\n\nAPI 연결을 확인해주세요.` }]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", fontFamily:font }}>
-      <div style={{ padding:"16px 24px 12px", borderBottom:`1px solid ${C.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div>
-          <h2 style={{ margin:0, fontSize:17, fontWeight:800, color:C.text }}>🤖 AI 업무 비서</h2>
-          <p style={{ margin:"3px 0 0", fontSize:11, color:C.textDim }}>Claude AI · 학교 업무 전문 · 실시간 답변</p>
-        </div>
-        <span style={{ padding:"3px 10px", borderRadius:20, background:C.green+"15", color:C.green, fontSize:11, fontWeight:600, border:`1px solid ${C.green}25` }}>● 온라인</span>
-      </div>
-
-      <div style={{ flex:1, overflowY:"auto", padding:"20px 24px", display:"flex", flexDirection:"column", gap:14 }}>
-        {messages.map((m,i)=>(
-          <div key={i} style={{ display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", gap:8, alignItems:"flex-start" }}>
-            {m.role==="assistant"&&(
-              <div style={{ width:28, height:28, borderRadius:"50%", background:C.accent+"20", border:`1px solid ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2, fontSize:14 }}>🤖</div>
-            )}
-            <div style={{ maxWidth:"82%", padding:"12px 16px", borderRadius:m.role==="user"?"14px 14px 4px 14px":"14px 14px 14px 4px", background:m.role==="user"?C.accent:C.card, color:C.text, fontSize:13, lineHeight:1.8, whiteSpace:"pre-wrap", fontFamily:font, border:m.role==="user"?"none":`1px solid ${C.border}` }}>
-              {m.text.split(/(\*\*.*?\*\*)/).map((p,j)=>
-                p.startsWith("**")&&p.endsWith("**")
-                  ? <strong key={j} style={{color:m.role==="user"?"#dbeafe":C.accent}}>{p.slice(2,-2)}</strong>
-                  : <span key={j}>{p}</span>
-              )}
-            </div>
-          </div>
-        ))}
-        {loading&&(
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <div style={{ width:28, height:28, borderRadius:"50%", background:C.accent+"20", border:`1px solid ${C.accent}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14 }}>🤖</div>
-            <div style={{ display:"flex", gap:5, padding:"12px 16px", background:C.card, borderRadius:"14px 14px 14px 4px", border:`1px solid ${C.border}` }}>
-              {[0,1,2].map(i=><div key={i} style={{ width:7, height:7, borderRadius:"50%", background:C.accent, animation:`bounce .6s ${i*.2}s infinite alternate` }}/>)}
-            </div>
-          </div>
-        )}
-        {contextInfo && (contextInfo.documents > 0 || contextInfo.schedules > 0 || contextInfo.tasks > 0) && (
-          <div style={{ display:"flex", gap:6, padding:"4px 0", marginTop:-8 }}>
-            {contextInfo.tasks > 0 && <span style={{ fontSize:10, color:C.yellow, background:C.yellow+"12", padding:"2px 8px", borderRadius:10 }}>📋 업무 {contextInfo.tasks}건 참고</span>}
-            {contextInfo.documents > 0 && <span style={{ fontSize:10, color:C.green, background:C.green+"12", padding:"2px 8px", borderRadius:10 }}>📄 문서 {contextInfo.documents}건 참고</span>}
-            {contextInfo.schedules > 0 && <span style={{ fontSize:10, color:C.accent, background:C.accentSoft, padding:"2px 8px", borderRadius:10 }}>📅 일정 {contextInfo.schedules}건 참고</span>}
-          </div>
-        )}
-        <div ref={endRef}/>
-      </div>
-
-      <div style={{ padding:"8px 24px" }}>
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10 }}>
-          {examples.map((ex,i)=>(
-            <button key={i} onClick={()=>setInput(ex)} style={{ padding:"5px 12px", borderRadius:20, border:`1px solid ${C.border}`, background:C.card, color:C.textMid, fontSize:11, cursor:"pointer", fontFamily:font, transition:"all .15s" }}
-              onMouseEnter={e=>{e.target.style.borderColor=C.accent;e.target.style.color=C.text;}}
-              onMouseLeave={e=>{e.target.style.borderColor=C.border;e.target.style.color=C.textMid;}}>
-              {ex}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div style={{ padding:"0 24px 20px", display:"flex", gap:8 }}>
-        <input
-          value={input}
-          onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()}
-          placeholder="업무, 규정, 문서 작성 등 무엇이든 질문하세요..."
-          disabled={loading}
-          style={{ flex:1, padding:"12px 16px", borderRadius:12, border:`1px solid ${C.border}`, background:C.card, color:C.text, fontSize:13, outline:"none", fontFamily:font }}
-          onFocus={e=>e.target.style.borderColor=C.accent}
-          onBlur={e=>e.target.style.borderColor=C.border}
-        />
-        <button onClick={send} disabled={loading||!input.trim()} style={{ padding:"12px 22px", borderRadius:12, border:"none", background:loading||!input.trim()?C.textDim:C.accent, color:"#fff", fontSize:13, fontWeight:700, cursor:loading||!input.trim()?"not-allowed":"pointer", fontFamily:font }}>
-          전송
-        </button>
-      </div>
-      <style>{`@keyframes bounce{to{transform:translateY(-6px);opacity:.3}}`}</style>
-    </div>
-  );
-}
+// ─── DASHBOARD / CHAT ───
+// 정리 작업 2-B: DashboardView 와 ChatView 를 별도 파일로 분리.
+//   DashboardView → src/pages/DashboardPage.jsx
+//   ChatView      → src/components/ChatView.jsx (대시보드 임베드 + 사이드바 양쪽에서 사용)
 
 // ─── TASKS (Supabase 연동) ───
 function TasksView({ teacher }) {
@@ -955,7 +723,7 @@ function MainApp({ session, onLogout }) {
   const renderContent = () => {
     if(!canAccess(page)) return <NoAccessView/>;
     switch(page){
-      case "dashboard": return <DashboardView teacher={teacher}/>;
+      case "dashboard": return <DashboardPage teacher={teacher} onNavigate={setPage}/>;
       case "schedule":  return <SchedulePage teacher={teacher}/>;
       case "documents": return <DocumentsPage teacher={teacher}/>;
       case "chat":      return <ChatView teacher={teacher}/>;
@@ -975,7 +743,7 @@ function MainApp({ session, onLogout }) {
       case "school_calendar": return <SchoolCalendarPage currentUser={teacher}/>;
       case "users":     return <UsersView/>;
       // 정리 작업 1: case "settings" 임시 비활성화 — 메뉴/라우팅 모두 제거, default 로 fallback
-      default:          return <DashboardView teacher={teacher}/>;
+      default:          return <DashboardPage teacher={teacher} onNavigate={setPage}/>;
     }
   };
 
