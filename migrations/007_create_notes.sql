@@ -17,3 +17,9 @@ CREATE TABLE IF NOT EXISTS notes (
   content    TEXT DEFAULT '',
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Supabase 는 새 테이블 생성 시 RLS 를 기본 활성화함.
+-- 다른 테이블들 (events, timetables, tasks 등) 과 일관성을 위해 비활성화.
+-- Phase 6 인증 통합 시 모든 테이블 RLS 일괄 설정 예정.
+-- 운영 환경 사고 노트: 이 줄 누락으로 메모장 저장이 403 으로 차단되어 수동 수정.
+ALTER TABLE notes DISABLE ROW LEVEL SECURITY;

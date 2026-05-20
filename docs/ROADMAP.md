@@ -246,6 +246,10 @@
 - 활성 시간표 조회는 `supabase.from('timetables').select(...).eq('is_active', true).maybeSingle()` 인라인. 시간표 시스템 통합 시 `timetablesAPI.getActiveTimetable()` 으로 묶을 수 있음.
 - `teacher.id` 가 TCH 의 id (t2/t7 등) 와 일치해야 본인 수업이 노출됨. Phase 6 인증 통합 후 매핑 자동화.
 
+**완료 후 보강 (배포 후 발견된 잔존 이슈)**:
+- `migrations/007_create_notes.sql` 에 `ALTER TABLE notes DISABLE ROW LEVEL SECURITY` 추가. Supabase 가 새 테이블에 기본 RLS 활성화 → 메모장 저장 403 에러. 운영 환경에서는 수동 수정으로 해결했으나 마이그레이션 파일 보강으로 신규 환경 재현 가능하게.
+- `src/App.jsx` TasksView 의 부서 select 에 남아있던 `DEPT_LIST` 참조를 `DEPT` 로 교체 (정리 2-A 누락분). "업무 추가" 모달 진입 시 ReferenceError 차단.
+
 ---
 
 ## 권장 진행 순서
