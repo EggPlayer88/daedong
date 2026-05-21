@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from './lib/supabase';
 import { DEPT } from './lib/timetableData';
-import TimetablePage from './pages/TimetablePage';
+// 정리 2-C: TimetablePage 라우팅 폐지 (솔버는 TimetablesListPage 의 SolverModal 로 흡수)
+//   파일 자체는 deprecated stub 으로 보존 (src/pages/TimetablePage.jsx).
 import TimetableViewer from './pages/TimetableViewer';
 import TimetablesListPage from './pages/TimetablesListPage';
 import TimetableEditPage from './pages/TimetableEditPage';
@@ -40,21 +41,24 @@ function Card({ children, style, hover, onClick }) {
 
 // ─── 권한별 메뉴 ───
 function getMenuItems(role) {
+  // 정리 2-C: 시간표 메뉴 재구성
+  //   - 📅 시간표 (TimetableViewer) 가 commonMenus 로 이동 — 일반 교사도 변동 요청 시작 가능
+  //   - 🗂️ 시간표 관리 (TimetablesListPage) 는 adminMenus 유지 — 드래프트/활성화 행정 작업
+  //   - 기존 "🗓️ 시간표 관리"(TimetablePage 솔버 페이지) 폐지 — 솔버는 시간표 관리의 모달로 흡수
   const common = [
-    { id:"dashboard", icon:"🏠", label:"대시보드" },
-    { id:"schedule",  icon:"📅", label:"일정 관리" },
-    { id:"documents", icon:"📂", label:"문서 관리" },
-    { id:"chat",      icon:"🤖", label:"AI 업무 비서" },
-    { id:"tasks",     icon:"📋", label:"업무 문서 총정리" },
-    { id:"docs",      icon:"📝", label:"문서 작성 AI" },
-    { id:"mytasks",   icon:"✅", label:"나의 할 일" },
-    { id:"handover",  icon:"🤝", label:"업무 인수인계", beta:true },
-    { id:"record",    icon:"📒", label:"생활기록부 도우미", beta:true },
+    { id:"dashboard",     icon:"🏠", label:"대시보드" },
+    { id:"timetable_v2",  icon:"📅", label:"시간표" },
+    { id:"schedule",      icon:"🗓️", label:"일정 관리" },
+    { id:"documents",     icon:"📂", label:"문서 관리" },
+    { id:"chat",          icon:"🤖", label:"AI 업무 비서" },
+    { id:"tasks",         icon:"📋", label:"업무 문서 총정리" },
+    { id:"docs",          icon:"📝", label:"문서 작성 AI" },
+    { id:"mytasks",       icon:"✅", label:"나의 할 일" },
+    { id:"handover",      icon:"🤝", label:"업무 인수인계", beta:true },
+    { id:"record",        icon:"📒", label:"생활기록부 도우미", beta:true },
   ];
   const adminMenus = [
-    { id:"timetable",       icon:"🗓️", label:"시간표 관리" },
-    { id:"timetable_v2",    icon:"📅", label:"시간표 보기 (신)" },
-    { id:"timetables_list", icon:"🗂️", label:"시간표 목록" },
+    { id:"timetables_list", icon:"🗂️", label:"시간표 관리" },
     { id:"school_calendar", icon:"📆", label:"학사일정" },
   ];
   const superMenus = [
@@ -732,7 +736,8 @@ function MainApp({ session, onLogout }) {
       case "mytasks":   return <MyScheduleView teacher={teacher}/>;
       case "handover":  return <HandoverView/>;
       case "record":    return <RecordView/>;
-      case "timetable":       return <TimetablePage teacher={teacher}/>;
+      // 정리 2-C: case "timetable" (TimetablePage 솔버 페이지) 폐지.
+      //   기존 북마크/링크는 default 로 fallback 됨 (대시보드).
       case "timetable_v2":    return <TimetableViewer currentUser={teacher}/>;
       case "timetables_list": return <TimetablesListPage currentUser={teacher}
         onEditDraft={(id) => { setEditTimetableId(id); setPage("timetable_edit"); }}

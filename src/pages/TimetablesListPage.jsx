@@ -18,6 +18,7 @@ import {
   getWeekDates, fmtDate, fmtDateShort,
 } from '../lib/timetableEngine';
 import { WeekGrid } from './TimetableViewer';
+import SolverModal from '../components/timetable/SolverModal';
 
 const C = {
   bg:'#0c0f1a', card:'#141929', border:'#232940',
@@ -35,6 +36,7 @@ export default function TimetablesListPage({ currentUser, onEditDraft, onShowHis
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
   const [previewId, setPreviewId] = useState(null); // 미리보기 대상 ID
+  const [solverOpen, setSolverOpen] = useState(false); // 솔버 모달 (정리 2-C)
 
   const refresh = async () => {
     setError(null);
@@ -91,11 +93,27 @@ export default function TimetablesListPage({ currentUser, onEditDraft, onShowHis
 
   return (
     <div style={{ background: C.bg, color: C.text, fontFamily: font, minHeight: '100vh', padding: '24px 32px' }}>
-      <div style={{ marginBottom: 20 }}>
-        <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>🗂️ 시간표 목록</h2>
-        <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
-          드래프트와 활성 시간표를 관리합니다. 항목을 클릭하면 시간표를 미리 볼 수 있어요.
+      <div style={{
+        marginBottom: 20, display: 'flex', alignItems: 'flex-start',
+        justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>🗂️ 시간표 관리</h2>
+          <div style={{ fontSize: 12, color: C.textMid, marginTop: 4 }}>
+            드래프트와 활성 시간표를 관리합니다. 항목을 클릭하면 시간표를 미리 볼 수 있어요.
+          </div>
         </div>
+        <button
+          onClick={() => setSolverOpen(true)}
+          style={{
+            padding: '10px 18px', borderRadius: 10, border: 'none',
+            background: C.accent, color: '#fff', fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', fontFamily: font, whiteSpace: 'nowrap',
+            boxShadow: `0 2px 8px ${C.accent}40`,
+          }}
+        >
+          + 새 드래프트 만들기
+        </button>
       </div>
 
       {loading && <div style={{ padding: 60, textAlign: 'center', color: C.textDim, fontSize: 13 }}>불러오는 중...</div>}
@@ -120,7 +138,7 @@ export default function TimetablesListPage({ currentUser, onEditDraft, onShowHis
 
           <Section title={`드래프트 (${drafts.length}개)`} emoji="📝">
             {drafts.length === 0 ? (
-              <Empty>드래프트가 없습니다. <strong>🗓️ 시간표 관리(구)</strong> 페이지에서 솔버를 돌려 새 시간표를 만든 뒤 "📥 Supabase 에 저장" 버튼으로 드래프트를 생성하세요.</Empty>
+              <Empty>드래프트가 없습니다. 상단의 <strong>"+ 새 드래프트 만들기"</strong> 버튼으로 시작하세요.</Empty>
             ) : (
               drafts.map(d => (
                 <ItemRow key={d.id} item={d} kind="draft" busy={busyId === d.id}
@@ -151,6 +169,13 @@ export default function TimetablesListPage({ currentUser, onEditDraft, onShowHis
           )}
         </>
       )}
+
+      {/* 새 드래프트 만들기 모달 (정리 2-C) */}
+      <SolverModal
+        open={solverOpen}
+        onClose={() => setSolverOpen(false)}
+        onSavedDraft={() => { refresh(); }}
+      />
     </div>
   );
 }

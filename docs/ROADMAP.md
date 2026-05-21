@@ -6,7 +6,7 @@
 
 ## 현재 위치
 
-**Phase 4C-3 완료** (edit_log 이력 표시 UI) + 정리 작업 1·2-A·2-B 완료.
+**Phase 4C-3 완료** (edit_log 이력 표시 UI) + 정리 작업 1·2-A·2-B·2-C 완료.
 시범운영 시작 가능.
 
 다음 작업: **Phase 5** (임시교사 시스템) 또는 추가 정리 작업
@@ -169,11 +169,25 @@
 - **방어 보강**: 대시보드/나의 할 일의 `e.dept === teacher.dept` 비교에 `e.dept && ...` 추가 (양쪽 NULL 시 모든 일정이 매칭되는 버그 차단)
 - 일정 시스템 본격 보강(SchedulePage 폼 보강 + 대시보드 재설계) 은 정리 8 로 분리
 
-### 정리 2 — 시간표 관리(구) 와 (신) 통합
+### 정리 2-C — 시간표 영역 통합 정돈 — ✅ 완료
 
-**문제**: 두 메뉴가 별도. 사용자가 어디서 어떻게 작업할지 헷갈림.
+**구현된 범위**:
+- 사이드바 메뉴 재구성:
+  * `📅 시간표` (TimetableViewer) — commonMenus 로 승격 (모든 교사 변동 요청 가능)
+  * `🗂️ 시간표 관리` (TimetablesListPage) — adminMenus 유지, 라벨 통일
+  * 기존 `🗓️ 시간표 관리` (TimetablePage 솔버 페이지) / `📅 시간표 보기 (신)` 메뉴 폐지
+  * `🗓️ 일정 관리` 아이콘만 변경 (📅 → 🗓️, 시간표와 충돌 해소)
+- 솔버를 2-스텝 모달로 흡수 (`src/components/timetable/SolverModal.jsx`):
+  * Step 1 — 초기설정 read-only 미리보기 (`InitSettingsView`: 과목·시수 / 학급 / 교사 / 부서 탭)
+  * Step 2 — 솔버 실행 + 결과 미리보기 (학급/교사 그리드) + 접이식 상세 통계 + 드래프트 저장
+  * 결과 보존된 채로 Step 1 ↔ 2 이동 가능, 외부 클릭/ESC 시 결과 있으면 confirm
+- `TimetablesListPage` 헤더에 `+ 새 드래프트 만들기` 버튼 + 빈 상태 안내 갱신
+- `TimetablePage.jsx` 를 deprecated stub 으로 교체 (`export default () => null`). 라우팅 `case "timetable"` 제거. App.jsx import 제거.
+- 빌드 결과 614KB → 607KB (TimetablePage 822줄 제거 효과)
 
-**해결책**: Phase 5+ 어딘가에서 통합. 솔버 기능을 시간표 보기(신) 또는 시간표 목록에 흡수.
+**후속 보강 메모**:
+- `TimetablePage.jsx` 파일 자체 완전 삭제는 Phase 5 또는 Phase 7 정리 시.
+- 페르소나 셀렉터 안내문 "시뮬레이션 페르소나..." 는 모든 사용자에게 노출되지만 Phase 6 인증 통합 때 일괄 정리.
 
 ### 정리 3 — Vercel ANTHROPIC_API_KEY Sensitive 전환
 

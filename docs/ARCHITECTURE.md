@@ -23,16 +23,19 @@
 
 **모든 교사 공통**:
 - 🏠 대시보드 (`DashboardPage`, 정리 2-B 재설계: 좌우 분할 + 메모장 + AI 임베드)
-- 📋 나의 할 일 (이전 채팅 작업)
-- 📅 일정관리 (`SchedulePage`, 정리 2-A 폼 보강)
-- 📁 문서함 (`DocumentsPage`, 이전 채팅 작업)
+- 📅 시간표 (`TimetableViewer`, 정리 2-C 에서 commonMenus 로 승격 — 변동 요청 진입점)
+- 🗓️ 일정 관리 (`SchedulePage`, 정리 2-A 폼 보강)
+- 📂 문서 관리 (`DocumentsPage`, 이전 채팅 작업)
 - 🤖 AI 업무 비서 (`ChatView` 단독 페이지, 대시보드 임베드와 컴포넌트 공유)
+- ✅ 나의 할 일 / 📋 업무 문서 총정리 / 📝 문서 작성 AI 등
 
 **관리자 (시간표관리자 + 슈퍼관리자)**:
-- 🗓️ 시간표 관리 (`TimetablePage`, 솔버 + Supabase 저장)
-- 📅 시간표 보기 (신) (`TimetableViewer`, 메인 페이지)
-- 🗂️ 시간표 목록 (`TimetablesListPage`, 드래프트/활성/이전 관리)
+- 🗂️ 시간표 관리 (`TimetablesListPage`, 드래프트/활성/이전 관리 + `+ 새 드래프트 만들기` → `SolverModal`)
 - 📆 학사일정 (`SchoolCalendarPage`)
+
+**폐지된 메뉴 (정리 2-C)**:
+- 🗓️ 시간표 관리 (`TimetablePage`, 솔버) → `SolverModal` 로 흡수. 파일은 deprecated stub.
+- 📅 시간표 보기 (신) → commonMenus 의 `📅 시간표` 로 통합.
 
 ---
 

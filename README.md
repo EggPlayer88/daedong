@@ -38,9 +38,9 @@ daedong/
 │   │   ├── timetablesAPI.js       # 시간표 CRUD API
 │   │   └── solver.js              # CP-SAT 시간표 생성기
 │   └── pages/
-│       ├── TimetablePage.jsx       # 시간표 관리(구) - 솔버 + 저장
-│       ├── TimetableViewer.jsx     # 시간표 보기(신) - 메인 페이지
-│       ├── TimetablesListPage.jsx  # 시간표 목록 + 미리보기
+│       ├── TimetablePage.jsx       # ⚠️ DEPRECATED (정리 2-C, stub 만 남음)
+│       ├── TimetableViewer.jsx     # 📅 시간표 (모든 교사) - 메인 페이지
+│       ├── TimetablesListPage.jsx  # 🗂️ 시간표 관리 (관리자) + 솔버 모달 진입
 │       ├── SchoolCalendarPage.jsx  # 학사일정 관리
 │       ├── ChangeRequestForm.jsx   # 변동 요청 폼
 │       ├── ChangeTabPanels.jsx     # 알림/내요청/관리자승인 탭
@@ -48,6 +48,11 @@ daedong/
 │       ├── DocumentsPage.jsx       # 문서 (이전 채팅 작업)
 │       ├── SchedulePage.jsx        # 일정 관리 (정리 2-A 에서 폼 보강)
 │       └── DashboardPage.jsx       # 대시보드 (정리 2-B 재설계, 좌우 분할 + 메모장 + AI 임베드)
+├── src/components/
+│   ├── ChatView.jsx                # AI 비서 (정리 2-B 분리)
+│   └── timetable/
+│       ├── InitSettingsView.jsx    # 학교 설정 read-only 미리보기 (정리 2-C)
+│       └── SolverModal.jsx         # 2-스텝 시간표 생성 위저드 (정리 2-C)
 ├── api/
 │   ├── chat.js                    # 업무 AI 비서 (이전 채팅 작업)
 │   ├── _timetableContext.js       # 시간표 AI 공통 유틸
@@ -75,7 +80,7 @@ daedong/
 
 ---
 
-## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 작업 1·2-A·2-B 완료)
+## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 작업 1·2-A·2-B·2-C 완료)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -94,6 +99,7 @@ daedong/
 | 정리 1 | schedules→events 통일, 베타 라벨, 학교 설정 임시 비활성화, 잔존 파일/문구 정리 | ✅ 완료 |
 | 정리 2-A | SchedulePage 폼 보강 (priority/tags/dept), 부서 DEPT 통합, scope→tags 단순화 | ✅ 완료 |
 | 정리 2-B | 대시보드 재설계 (좌우 분할) + 메모장 + 오늘 내 수업 + AI 비서 임베드 | ✅ 완료 |
+| 정리 2-C | 시간표 영역 통합 (메뉴 5→2, 솔버를 시간표 관리 페이지의 2-스텝 모달로 흡수) | ✅ 완료 |
 | 5 | 임시교사 시스템 | ⏳ 예정 |
 | 6 | 인증 통합 (페르소나 → 실인증) | ⏳ 예정 |
 | 7 | 영구 변경 시스템 (시간 여행) | ⏳ 예정 |

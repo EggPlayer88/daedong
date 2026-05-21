@@ -239,6 +239,43 @@
 
 ---
 
+## 정리 작업 2-C — 시간표 영역 통합 정돈
+
+### 결정 1 — 사이드바 메뉴 구조 단순화
+- 기존 3개 시간표 메뉴 (`timetable` / `timetable_v2` / `timetables_list`) → 2개로 축소.
+- `📅 시간표` (TimetableViewer) — **commonMenus 로 승격**. 일반 교사도 사이드바에서 직접 진입 가능.
+- `🗂️ 시간표 관리` (TimetablesListPage) — adminMenus 유지. 드래프트/활성화/편집/이력 행정 작업.
+- `🗓️ 시간표 관리` (TimetablePage 솔버 페이지) 메뉴 폐지.
+- 일정 관리 아이콘만 📅 → 🗓️ 로 변경 (시간표와 충돌 해소).
+
+### 결정 2 — 솔버는 시간표 관리 페이지의 2-스텝 모달
+- 사이드바 별도 메뉴 없음. `🗂️ 시간표 관리` 헤더의 `+ 새 드래프트 만들기` 버튼이 진입점.
+- Step 1 — 초기설정 미리보기 (read-only). "이 데이터로 만든다" 사전 확인.
+- Step 2 — 솔버 실행 + 결과 미리보기 + 통계 + 드래프트 저장.
+- 결과는 모달 닫을 때까지 보존. Step 1 ↔ 2 자유롭게 이동.
+- **항상 드래프트로 저장** (asActive=false). 활성화는 목록 페이지의 별도 버튼.
+- 모달 외부 클릭 / ESC: 결과 있으면 confirm 으로 보호.
+
+### 결정 3 — TimetablePage 파일 보존 방식
+- 파일 자체 삭제하지 않고 deprecated stub (`export default () => null`) 으로 교체.
+- 사유: git history 보존 + 향후 참조용. 822줄짜리였던 원본의 각 탭이 어디로 이동했는지 주석으로 안내.
+- 완전 삭제는 Phase 5 또는 Phase 7 정리 시점에.
+
+### 결정 4 — TimetablePage 의 잔존 탭 4개의 운명
+- `📅 시간표 보기` 탭 — TimetableViewer 의 메인 화면으로 흡수 (이미 정식 구현).
+- `🔄 교체 요청` 탭 — 폐지 (로컬 useState 데모용. 정식 흐름은 TimetableViewer 의 셀 클릭 → ChangeRequestForm).
+- `🔄 교체 관리` 탭 — 폐지 (TimetableViewer 의 "승인 대기" 탭과 동일 의도).
+- `⚙️ 초기설정` 탭 → `InitSettingsView` 로 분리, SolverModal Step 1 에서 임베드 (read-only).
+- `📊 통계` 탭 → SolverModal Step 2 의 접이식 "상세 통계" 섹션으로 흡수 (저장 직전 검증용).
+- `✨ 시간표 생성` 탭 → SolverModal Step 2 의 메인.
+
+### 결정 5 — 컴포넌트 분리 규칙
+- `src/components/timetable/` 하위에 시간표 영역 신규 컴포넌트 정리.
+- 다른 곳에서 재사용되는 ChatView 와 동일한 패턴 (`src/components/ChatView.jsx`).
+- 페이지 (`src/pages/`) 와 재사용 컴포넌트 (`src/components/`) 분리.
+
+---
+
 ## 정리 작업 2-B — 대시보드 재설계 + 메모장
 
 ### 결정 1 — 레이아웃: 좌우 분할 (B)
