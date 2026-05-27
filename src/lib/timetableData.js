@@ -1,6 +1,26 @@
-// ══════════════════════════════════════
-//  대동여중 학교 데이터
-// ══════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════
+//  timetableData.js — 대동여중 학교 데이터 (정적 상수 + 헬퍼)
+// ═══════════════════════════════════════════════════════════════════
+//  Phase 5-A 부터 이 파일의 학교 데이터 상수 (SBJ / CLS / DEPT / TCH) 는
+//  DB 의 동일 데이터의 mirror 입니다. 진실의 원천 (source of truth) 은
+//  여전히 이 파일.
+//
+//  · 마이그레이션 008 — subjects / classes / departments / teacher_assignments
+//    테이블 생성 + teachers 컬럼 보강 (homeroom_class_id / day_restriction /
+//    is_placeholder / is_external).
+//  · 마이그레이션 009 — 이 파일의 상수를 직렬화한 INSERT (자동 생성).
+//
+//  D3 결정 (C-2 = 순수 시드만): 코드 변경 없음. 모든 사용처(16개 파일) 가
+//  동기 API 그대로 동작. Phase 5-B 에서 학교 설정 페이지 부활 시
+//  진실의 원천을 DB 로 이동 예정.
+//
+//  코드와 DB 의 양면 일치 검증:
+//    import('./schoolDataAPI.js').then(m => m.verifySchoolDataIntegrity())
+//
+//  운영 규칙·시각 자원 (DAYS / DP / DAILY / SP / D2N / TIMES / CLR) 과
+//  순수 함수 (enc / decS / isV / getSP / gS / gC / gT / getHR) 는
+//  DB 화 대상 아님 — 학교 차원 거의 불변 + 모듈 로드 시점 동기 사용.
+// ═══════════════════════════════════════════════════════════════════
 
 export const DAYS = ['월','화','수','목','금'];
 export const DP = { 월:6, 화:7, 수:6, 목:7, 금:6 };

@@ -239,6 +239,51 @@
 
 ---
 
+## Phase 5-A — 학교 정적 데이터 DB 화
+
+### 결정 1 — DB 스키마
+- 신규 테이블 4개: `subjects` (TEXT PK), `classes` (TEXT PK), `departments` (부서명 PK), `teacher_assignments` (UUID PK + UNIQUE 3-tuple).
+- `teachers` 에 컬럼 4개 추가: `homeroom_class_id`, `day_restriction (INTEGER[])`, `is_placeholder`, `is_external`.
+- 모든 신규 테이블 RLS 비활성화 (007 사고 재발 방지, Phase 6 와 일괄 RLS 설계).
+
+### 결정 2 — ID 정책 (D6)
+- `teachers.id` 영원히 TEXT.
+- placeholder 행 (t1~t22, ti, ts3) 과 실 사용자 행 (UUID 형식 TEXT) 공존.
+- **Phase 6 의 "UUID 컬럼 복원 (003 역방향)" 결정 폐기**. 모든 사용자 ID 컬럼 영구 TEXT.
+- 근거: 003 이 손댄 5개 컬럼만 UUID 로 되돌리면 `teachers.id` (TEXT) 와 타입 불일치 + placeholder 매핑 불가. JSONB 내부 ID (timetables.data, payload) 의 마이그레이션 비용도 큼.
+
+### 결정 3 — wrapper 패턴 (D3, C-2)
+- Phase 5-A 는 **순수 시드만**. 코드 변경 0.
+- 진실의 원천 = `src/lib/timetableData.js` 상수, DB = mirror.
+- 16개 import 사이트 모두 동기 API 그대로 동작.
+- Phase 5-B 에서 학교 설정 편집 UI 부활 시 진실의 원천을 DB 로 전환 (그때 wrapper 패턴 정확한 옵션 재논의).
+
+### 결정 4 — homeroom 컬럼 처리 (D1)
+- `homeroom_class_id` 신규 컬럼 (class_id 형식, 예: 'c7').
+- 기존 `homeroom` 컬럼 보존 (DROP 안 함, 정리 2-A 의 `events.scope` 패턴과 동일).
+- 표시명은 향후 `homeroom_class_id` → `classes` 테이블 lookup 으로 동적 계산 (Phase 5-B 작업).
+
+### 결정 5 — 교사 시드 전략 (D2)
+- TCH 24명을 `teachers` 테이블에 **직접 시드** (별도 `staff_profiles` 테이블 만들지 않음).
+- `is_placeholder=TRUE`, `user_id=NULL`, `status='approved'`.
+- `ON CONFLICT (id) DO NOTHING` — 기존 Google 사용자 행 보호.
+- Phase 6 인증 통합에서 실 사용자가 placeholder 의 `user_id` 를 채우며 매핑 (id 보존).
+
+### 결정 6 — TCH.as 구조 (D4)
+- 별도 `teacher_assignments` 테이블. `(teacher_id, subject_id, class_id)` UNIQUE.
+- 정규화 + Phase 5-B 편집 UI 가 행 단위 CRUD 자연스러움.
+
+### 결정 7 — TCH.al 구조 (D5)
+- `teachers.day_restriction INTEGER[]` 단일 컬럼.
+- 별도 테이블 없음 — 보통 0~2개 값, 정규화 가치 낮음.
+
+### 결정 8 — DB 화 범위
+- ✅ 시드 대상: SBJ / CLS / TCH / DEPT.
+- ❌ 코드 유지: DAYS / DP / DAILY / SP / D2N / TIMES / CLR (운영 규칙·시각 — 학교 차원 거의 불변).
+- ❌ 코드 유지: 순수 함수 (enc / decS / isV / getSP / gS / gC / gT / getHR).
+
+---
+
 ## 정리 작업 2-C — 시간표 영역 통합 정돈
 
 ### 결정 1 — 사이드바 메뉴 구조 단순화
@@ -369,9 +414,10 @@
 
 ### Phase 6 — 인증 통합
 - 페르소나 셀렉터 제거 시점
-- UUID 컬럼 복원 마이그레이션 (003 의 역방향)
-- RLS 정책 설계 (어떤 사용자가 어떤 데이터 볼 수 있는지)
+- ~~UUID 컬럼 복원 마이그레이션 (003 의 역방향)~~ → **Phase 5-A D6 결정으로 폐기**. 모든 사용자 ID 컬럼 영구 TEXT.
+- RLS 정책 설계 — `auth.uid()::text` 캐스팅으로 TEXT 비교
 - 'admin' fallback 제거 정책
+- placeholder 행 (t1~t22, ti, ts3) 의 `user_id` 채워서 실 사용자와 매핑 (id 보존)
 
 ### Phase 7 — 영구 변경 시스템
 - 영구 변경 등록 UI

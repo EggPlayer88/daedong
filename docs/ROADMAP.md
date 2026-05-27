@@ -6,10 +6,10 @@
 
 ## 현재 위치
 
-**Phase 4C-3 완료** (edit_log 이력 표시 UI) + 정리 작업 1·2-A·2-B·2-C 완료.
+**Phase 4C-3 완료** + 정리 작업 1·2-A·2-B·2-C 완료 + **Phase 5-A 완료** (학교 정적 데이터 DB 화).
 시범운영 시작 가능.
 
-다음 작업: **Phase 5** (임시교사 시스템) 또는 추가 정리 작업
+다음 작업: **Phase 5-B** (학교 설정 페이지 부활 / 편집 UI) 또는 **Phase 5-C** (임시교사 시스템)
 
 ---
 
@@ -70,25 +70,56 @@
 
 ---
 
-## Phase 5 — 임시교사 시스템
+## Phase 5 — 학교 데이터 DB 화 + 임시교사
 
-**목표**: 학기 시작 시 회원가입 안 한 신규 교사를 위한 자리 만들기
+원래 단일 Phase 였으나 작업 분량 + 위험도 차이로 3단계로 분할:
+
+### Phase 5-A — 학교 정적 데이터 DB 화 — ✅ 완료
+
+**구현된 범위**:
+- 마이그레이션 008: `subjects` / `classes` / `departments` / `teacher_assignments` 신규 + `teachers` 컬럼 4개 추가 (`homeroom_class_id` / `day_restriction` / `is_placeholder` / `is_external`).
+- 마이그레이션 009 (자동 생성): SBJ 16개 + CLS 9개 + DEPT 6개 + TCH 24명 placeholder + assignments 123건.
+- `src/lib/schoolDataAPI.js` — list/get + `verifySchoolDataIntegrity()` 양면 일치 검증.
+- `src/lib/timetableData.js` — 헤더 주석만 추가, 코드 그대로 (D3=C-2 순수 시드).
+
+**확정 결정**: DECISIONS.md 의 Phase 5-A 섹션 (8개 결정).
+
+### Phase 5-B — 학교 설정 페이지 부활 (편집 UI) — ⏳ 예정
+
+**목표**: 진실의 원천을 timetableData.js → DB 로 전환.
 
 **왜 필요한가**:
-- 학교 운영 흐름: 학기 시작 직전 신규 교사 발령
-- 시간표는 발령 받기 전에 미리 짜야 함
-- 그래서 "진짜 교사" 없이 시간표 짜고, 나중에 매핑
+- 시범운영 후 학교 운영 데이터 (교사 추가/이동, 시수 조정 등) 가 발생
+- 코드 수정 + 배포로는 비개발자가 못 함
+- 학교 설정 UI 가 부활하면 비개발자도 DB 편집 가능
 
 **작업 범위**:
-- `teachers.is_placeholder` 컬럼 추가 (SQL)
-- 임시교사 등록 페이지 (관리자) — 이름, 담당 과목만 입력
-- 임시교사도 시간표에 배치 가능 (TCH 상수 → DB 로 옮기는 작업과 함께)
-- 신규 회원가입자 → 임시교사 매핑 화면
-- 매핑 시 시간표 데이터 자동 인계 (같은 ID 만 변경하면 됨)
+- `SettingsView` 부활 (정리 1 에서 임시 비활성화됨)
+- 4개 서브탭: 과목 / 학급 / 부서 / 교사 (+ assignments)
+- CRUD UI (테이블 행 추가/수정/삭제)
+- timetableData.js 의 동기 API 를 wrapper 로 전환 (D3 옵션 재논의 시점)
+- 솔버/뷰어가 DB 데이터를 쓰도록 전환 (편집 ↔ 솔버 연쇄 동작 확인)
 
 **결정 필요**:
-- `TCH` 상수를 DB 로 옮길지, 임시교사만 DB 에 넣을지
-- 매핑 UI 의 형태 (드래그앤드롭, 또는 셀렉트 박스)
+- wrapper 동기성 처리 방식 (A 가변+hydrate / B top-level await / C 코드 seed 보존)
+- 편집 시 진행 중인 시간표/변동에 미치는 영향 (예: 교사 삭제 → 시간표의 tid 고아)
+
+### Phase 5-C — 임시교사 등록/매핑 — ⏳ 예정
+
+**목표**: 신규 교사 발령 → 시간표 배치 → 회원가입 시 매핑.
+
+**왜 필요한가**:
+- 학기 시작 직전 신규 교사 발령. 발령 받기 전에 시간표 짜야 함.
+- placeholder 행은 이미 5-A 에서 구조 완비 (`is_placeholder` 플래그).
+
+**작업 범위**:
+- placeholder 행 등록 UI (Phase 5-B 의 교사 탭에 흡수 가능)
+- "임시교사 → 실 사용자" 매핑 화면
+- 매핑 시 placeholder 행의 `user_id` 채우기 (id 그대로). 시간표/변동 데이터는 손대지 않음 (tid 가 그대로 유효).
+
+**결정 필요**:
+- 매핑 UI 의 형태 (드래그앤드롭 vs 셀렉트 박스)
+- 매핑 후 placeholder 행의 처리 (id 유지 + is_placeholder=FALSE? 또는 별도 user 행으로 분리?)
 
 ---
 

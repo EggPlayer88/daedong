@@ -36,6 +36,7 @@ daedong/
 │   │   ├── timetableEngine.js     # 순수함수 (TT 변환, 변동 병합)
 │   │   ├── changesAPI.js          # 변동 요청 DB API
 │   │   ├── timetablesAPI.js       # 시간표 CRUD API
+│   │   ├── schoolDataAPI.js       # 학교 정적 데이터 mirror 조회 + 정합성 검증 (Phase 5-A)
 │   │   └── solver.js              # CP-SAT 시간표 생성기
 │   └── pages/
 │       ├── TimetablePage.jsx       # ⚠️ DEPRECATED (정리 2-C, stub 만 남음)
@@ -69,7 +70,9 @@ daedong/
 │   ├── 004_create_events.sql         # events 테이블 (정리 1, schedules→events 통일)
 │   ├── 005_add_event_columns.sql     # priority/tags/dept 컬럼 보강 (정리 1 보강)
 │   ├── 006_migrate_scope_to_tags.sql # scope='all' → tags=['전체'] 자동 변환 (정리 2-A)
-│   └── 007_create_notes.sql          # 메모장 테이블 (정리 2-B)
+│   ├── 007_create_notes.sql          # 메모장 테이블 (정리 2-B)
+│   ├── 008_phase5a_school_data.sql   # 학교 정적 데이터 스키마 (Phase 5-A)
+│   └── 009_seed_school_data.sql      # 학교 데이터 시드 (자동 생성, Phase 5-A)
 └── docs/                          # ← 이 문서들 (핸드오프)
     ├── CLAUDE.md                  # 클로드 코드 안내
     ├── ARCHITECTURE.md            # 시스템 구조
@@ -80,7 +83,7 @@ daedong/
 
 ---
 
-## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 작업 1·2-A·2-B·2-C 완료)
+## ✅ 현재 진행 상태 (Phase 4C-3 완료 + 정리 1·2-A·2-B·2-C 완료 + Phase 5-A 완료)
 
 | Phase | 내용 | 상태 |
 |-------|------|------|
@@ -100,7 +103,9 @@ daedong/
 | 정리 2-A | SchedulePage 폼 보강 (priority/tags/dept), 부서 DEPT 통합, scope→tags 단순화 | ✅ 완료 |
 | 정리 2-B | 대시보드 재설계 (좌우 분할) + 메모장 + 오늘 내 수업 + AI 비서 임베드 | ✅ 완료 |
 | 정리 2-C | 시간표 영역 통합 (메뉴 5→2, 솔버를 시간표 관리 페이지의 2-스텝 모달로 흡수) | ✅ 완료 |
-| 5 | 임시교사 시스템 | ⏳ 예정 |
+| 5-A | 학교 정적 데이터 DB 화 (subjects/classes/departments/teacher_assignments + teachers 컬럼 보강) | ✅ 완료 |
+| 5-B | 학교 설정 페이지 부활 (편집 UI, 진실의 원천 → DB 전환) | ⏳ 예정 |
+| 5-C | 임시교사 등록/매핑 | ⏳ 예정 |
 | 6 | 인증 통합 (페르소나 → 실인증) | ⏳ 예정 |
 | 7 | 영구 변경 시스템 (시간 여행) | ⏳ 예정 |
 | 8 | AI 재설계 (시범운영 피드백 반영) | ⏸️ 보류 |

@@ -185,7 +185,9 @@ dept      TEXT
 
 ## 5. 정적 데이터 (`src/lib/timetableData.js`)
 
-코드에 박혀있는 학교 운영 데이터. Phase 4 까지는 코드 상수, Phase 5 이후 DB 로 옮길 예정.
+코드에 박혀있는 학교 운영 데이터. **Phase 5-A 부터** SBJ/CLS/DEPT/TCH 는 DB 의 mirror 와 양면 존재 (코드가 여전히 진실의 원천). DAYS/DP/DAILY/SP/D2N/TIMES/CLR 같은 운영 규칙·시각 자원은 코드 유지.
+
+Phase 5-B 에서 학교 설정 페이지 부활 시 진실의 원천을 DB 로 전환 예정.
 
 ### Exports
 
@@ -338,6 +340,34 @@ RLS 비활성화 (Phase 6 에서 정책 작성 예정).
 정리 작업 2-B. 대시보드 메모장용 `notes` 테이블 생성.
 사용자당 1행 (user_id PK), content (TEXT), updated_at. upsert 로 자동 저장.
 RLS 는 Phase 6 인증 통합과 함께 설정.
+
+### 008_phase5a_school_data.sql
+
+Phase 5-A. 학교 정적 데이터의 DB mirror 스키마.
+
+신규 테이블:
+- `subjects` (TEXT PK = s1~s16) — 과목명·색·학년별 표준시수.
+- `classes` (TEXT PK = c1~c9) — 학급명·학년.
+- `departments` (TEXT PK = 부서명) — 6개 부서.
+- `teacher_assignments` (UUID PK + UNIQUE 3-tuple) — 교사·과목·학급·시수.
+
+`teachers` 컬럼 보강:
+- `homeroom_class_id TEXT` — TCH.hc 대응. 기존 `homeroom` 컬럼은 보존 (DROP 안 함, 정리 2-A 의 `events.scope` 패턴).
+- `day_restriction INTEGER[]` — TCH.al 대응 (요일 인덱스 배열).
+- `is_placeholder BOOLEAN` — 시드 행 표시.
+- `is_external BOOLEAN` — TCH.isExt (외부강사) 대응.
+
+FK 안 검 — placeholder 행 + 실 사용자 행 공존 + Phase 5-B/C 의 유연성 확보. RLS 비활성화 (007 사고 재발 방지, Phase 6 와 일괄).
+
+### 009_seed_school_data.sql
+
+Phase 5-A. 자동 생성 시드 — `src/lib/timetableData.js` 의 SBJ/CLS/DEPT/TCH 상수를 INSERT 로 직렬화한 파일.
+
+생성 도구: 클로드 코드 변환 스크립트. 재실행 안전:
+- subjects/classes/departments/teacher_assignments → `ON CONFLICT DO UPDATE` (최신 값 갱신).
+- teachers → `ON CONFLICT (id) DO NOTHING` (기존 Google 사용자 행 보호).
+
+행 수: subjects 16 / classes 9 / departments 6 / teachers placeholder 24 / teacher_assignments 123. 검증 쿼리 파일 끝 주석 참조.
 
 ### 003_phase2_relax_types.sql
 
