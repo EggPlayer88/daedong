@@ -169,17 +169,27 @@ read_at     TIMESTAMPTZ
 created_at  TIMESTAMPTZ
 ```
 
-### `teachers` — 사용자 (이전 채팅 작업)
+### `teachers` — 사용자 (이전 채팅 작업 + Phase 5-A 컬럼 보강 + 010 정비)
 
 ```sql
-id        UUID PRIMARY KEY
-name      TEXT
-email     TEXT
-role      TEXT  -- 'teacher' | 'timetable_admin' | 'super_admin' | 'pending'
-status    TEXT  -- 'approved' | 'pending' | 'rejected'
-dept      TEXT
+id                 TEXT PRIMARY KEY   -- 010 정비: UUID → TEXT (D6 컴플라이언스)
+                                      -- placeholder (t1~t22) + 실 사용자 (UUID 형식 TEXT) 공존
+user_id            UUID               -- Supabase auth.users.id 매핑 (실 사용자만)
+name               TEXT
+email              TEXT
+role               TEXT  -- 'teacher' | 'timetable_admin' | 'super_admin' | 'pending'
+status             TEXT  -- 'approved' | 'pending' | 'rejected'
+dept               TEXT
+homeroom           TEXT  -- 기존 컬럼 보존 (Phase 5-A 결정 4 D1)
+-- Phase 5-A 신규 컬럼
+homeroom_class_id  TEXT      -- TCH.hc 대응 (class_id 형식, 예: 'c7')
+day_restriction    INTEGER[] -- TCH.al 대응 (요일 인덱스 배열)
+is_placeholder     BOOLEAN   -- TCH 시드 행 표시
+is_external        BOOLEAN   -- TCH.isExt (외부강사)
 ...
 ```
+
+**010 정비로 DROP 된 잔재 컬럼**: `is_homeroom`, `is_parttime`, `allowed_days` (이전 작업자가 추가, 코드 참조 0건).
 
 ---
 
@@ -372,13 +382,31 @@ Phase 5-A. 자동 생성 시드 — `src/lib/timetableData.js` 의 SBJ/CLS/DEPT/
 ### 003_phase2_relax_types.sql
 
 UUID → TEXT 마이그레이션. 시뮬레이션 페르소나 't2', 'admin' 같은 문자열 사용 가능하게.
-Phase 6 인증 통합 시 되돌릴 예정.
+~~Phase 6 인증 통합 시 되돌릴 예정.~~ → **Phase 5-A D6 결정 + 010 정비로 영구 TEXT 확정.**
 
 영향 컬럼:
 - `timetable_changes.requester_id`, `approver_id`, `rejected_by`
 - `notifications.user_id`
 - `timetables.created_by`
 - `school_calendar.created_by`
+
+### 010_phase5a_cleanup.sql
+
+Phase 5-A 정비. 이전 작업자가 시간표 솔버 DB 화를 시도하며 남긴 광범위한 잔재를 한 트랜잭션으로 정리.
+
+처리 내용 (6단계, BEGIN/COMMIT):
+1. 의존 FK 임시 제거: `teacher_constraints.teacher_id_fkey`, `events.created_by_fkey`, `documents.uploaded_by_fkey`.
+2. 잔재 테이블 DROP: `teacher_constraints CASCADE` (코드 참조 0건).
+3. `teachers.id` TYPE 변경: UUID → TEXT (D6 컴플라이언스 회복). 기존 UUID 값은 같은 문자열로 자동 보존.
+4. 의존 컬럼 TYPE 변경: `events.created_by`, `documents.uploaded_by` 도 TEXT 로.
+5. 잔재 컬럼 DROP: `teachers.is_homeroom / is_parttime / allowed_days` (코드 참조 0건, Phase 5-A 의 신규 컬럼과 의미 중복).
+6. FK 재생성: `events`, `documents` 의 FK 를 TEXT ↔ TEXT 로 복원 (`ON DELETE SET NULL`).
+
+기존 데이터 보존: `teachers` 1행 (계란님), `events` 1행 (계란님 일정).
+
+010 적용 후 `009_seed_school_data.sql` 재실행 → placeholder 24명 + assignments 123건 채워짐.
+
+자세한 배경은 `docs/DECISIONS.md` 의 "Phase 5-A 정비" 절 참조.
 
 ---
 

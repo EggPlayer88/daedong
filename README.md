@@ -72,7 +72,8 @@ daedong/
 │   ├── 006_migrate_scope_to_tags.sql # scope='all' → tags=['전체'] 자동 변환 (정리 2-A)
 │   ├── 007_create_notes.sql          # 메모장 테이블 (정리 2-B)
 │   ├── 008_phase5a_school_data.sql   # 학교 정적 데이터 스키마 (Phase 5-A)
-│   └── 009_seed_school_data.sql      # 학교 데이터 시드 (자동 생성, Phase 5-A)
+│   ├── 009_seed_school_data.sql      # 학교 데이터 시드 (자동 생성, Phase 5-A)
+│   └── 010_phase5a_cleanup.sql       # 이전 작업자의 DB 잔재 정리 + D6 컴플라이언스 회복
 └── docs/                          # ← 이 문서들 (핸드오프)
     ├── CLAUDE.md                  # 클로드 코드 안내
     ├── ARCHITECTURE.md            # 시스템 구조
@@ -104,6 +105,7 @@ daedong/
 | 정리 2-B | 대시보드 재설계 (좌우 분할) + 메모장 + 오늘 내 수업 + AI 비서 임베드 | ✅ 완료 |
 | 정리 2-C | 시간표 영역 통합 (메뉴 5→2, 솔버를 시간표 관리 페이지의 2-스텝 모달로 흡수) | ✅ 완료 |
 | 5-A | 학교 정적 데이터 DB 화 (subjects/classes/departments/teacher_assignments + teachers 컬럼 보강) | ✅ 완료 |
+| 5-A 정비 | 이전 작업자의 DB 잔재 정리 (teachers.id UUID→TEXT, 잔재 테이블/컬럼 DROP, FK 재생성) | ✅ 완료 |
 | 5-B | 학교 설정 페이지 부활 (편집 UI, 진실의 원천 → DB 전환) | ⏳ 예정 |
 | 5-C | 임시교사 등록/매핑 | ⏳ 예정 |
 | 6 | 인증 통합 (페르소나 → 실인증) | ⏳ 예정 |

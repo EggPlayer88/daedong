@@ -284,6 +284,79 @@
 
 ---
 
+## Phase 5-A 정비 — DB 잔재 정리 (2026-05-27)
+
+Phase 5-A 코드 작업 (커밋 `b2d05ce`) 완료 후 DB 점검에서 발견된 이전 작업자의 광범위한 잔재를 정리. 마이그레이션 `010_phase5a_cleanup.sql`.
+
+### 발견된 잔재의 정체
+
+이전 작업자가 시간표 솔버 DB 화를 시도하며 남긴 잔재:
+
+- `teachers.id` 가 UUID 타입 — 003 마이그레이션 정책 + D6 결정 양쪽 모두와 충돌. 009 시드의 `t1~t22` placeholder INSERT 가 이 때문에 실패한 원인.
+- `teachers` 잔재 컬럼 3개: `is_homeroom (bool)`, `is_parttime (bool)`, `allowed_days (jsonb)`. Phase 5-A 의 신규 컬럼 (`homeroom_class_id` / `day_restriction` / `is_external`) 과 의미 중복. 코드 전체에 참조 0건.
+- 고립 잔재 테이블: `teacher_constraints` (코드 참조 0건, FK CASCADE).
+- 의존 FK 3개 (`teacher_constraints.teacher_id`, `events.created_by`, `documents.uploaded_by`) — 모두 teachers.id 참조 + UUID.
+- 이미 DROP CASCADE 된 구 잔재 (Phase 5-A 작업 중 정리됨): 구 subjects/classes/teacher_assignments (UUID PK), weekly_hours.
+
+### 진단 결과 (계란님 Supabase 확인)
+
+- `timetables.data` 의 `tid` 형식: `t2, t4, t7, t12, t14, t20` (TEXT) — 매핑 작업 자체가 불필요.
+- `events.created_by` 1건: 계란님 본인 UUID `7ac5cbc9-...` — TEXT 캐스트 시 같은 값 보존.
+- `teacher_constraints` 0건, `documents.uploaded_by` 0건 — 캐스트/DROP 부담 없음.
+
+### 결정 1 — D6 유지
+
+`teachers.id` 영원히 TEXT. UUID 유지 + `placeholder_code` 매핑 컬럼 추가 옵션은 폐기.
+
+근거:
+- `timetables.data` JSONB 와 솔버 출력이 이미 `t1~t22` 형식을 씀 → TEXT 가 자연 매핑.
+- 코드 전체가 teacher.id 를 그저 문자열로 비교 (`teachers.find(t => t.id === tid)`) — DB 컬럼 타입 변경의 코드 영향 거의 0.
+- 의존 FK 3개 중 사실상 `teacher_constraints` 1개만 진짜 충돌, 나머지 2개는 데이터 0~1건 + 비즈니스 로직 무관.
+
+### 결정 2 — 잔재 컬럼 DROP
+
+`teachers.is_homeroom / is_parttime / allowed_days` 모두 DROP. 기존 `homeroom` (text) 컬럼은 보존 (Phase 5-A 결정 4 의 D1 패턴 유지).
+
+근거: 코드 참조 0건. Phase 5-A 의 신규 컬럼이 의미상 상위 호환. 통합 시도하면 신규 컬럼 의미가 흐려짐.
+
+### 결정 3 — teacher_constraints 테이블 DROP
+
+`teacher_constraints` 테이블 자체 삭제. 마이그레이션 011 이후로 재등장 금지.
+
+근거: 코드 참조 0건. 솔버는 `timetableData.js` 의 `TCH` 상수에 모든 제약 (al, hc 등) 을 내장 → 별도 테이블 필요 없음.
+
+### 결정 4 — 의존 FK 3개 동시 변경 + 재생성
+
+`events.created_by`, `documents.uploaded_by` 의 UUID 컬럼도 TEXT 로 변경. FK 는 원래 정책 (`ON DELETE SET NULL`) 으로 재생성.
+
+`teacher_constraints` 의 FK 는 테이블 자체가 DROP 되므로 재생성 없음.
+
+### 결정 5 — 기존 데이터 모두 보존
+
+`ALTER COLUMN TYPE USING ... ::text` 는 UUID 값을 같은 문자열로 캐스트 (예: `7ac5cbc9-...`). 어떤 행도 손실되지 않음.
+
+`teachers` 1행 (계란님), `events` 1행 (계란님 일정) 그대로 보존.
+
+### 트랜잭션 안전성
+
+`010_phase5a_cleanup.sql` 은 한 BEGIN/COMMIT 으로 묶여 6단계 (FK drop → 잔재 테이블 drop → teachers.id TEXT → 의존 컬럼 TEXT → 잔재 컬럼 drop → FK 재생성) 모두 성공해야만 적용. 한 단계라도 실패하면 자동 ROLLBACK.
+
+### D6 정합성 재확인
+
+010 적용 후의 DB 상태는 D6 결정과 완전히 일치:
+- `teachers.id` 영구 TEXT.
+- placeholder (`t1~t22`, `ti`, `ts3`) + 실 사용자 (UUID 형식 TEXT) 공존.
+- 모든 사용자 ID 컬럼 (`requester_id`, `created_by`, `uploaded_by` 등) TEXT.
+- Phase 6 의 UUID 복원 결정은 폐기 상태 유지 (이 문서 "향후 결정 필요 사항" 참조).
+
+### 후속 작업
+
+- 010 적용 직후 `009_seed_school_data.sql` 재실행 → placeholder 24명 + 시수 123건 채워짐.
+- 코드 변경 0 (D3 = C-2 정책 유지). `src/` 디렉토리는 손대지 않음.
+- Phase 5-B (학교 설정 페이지 부활) 가 이 정비된 상태를 전제로 진행.
+
+---
+
 ## 정리 작업 2-C — 시간표 영역 통합 정돈
 
 ### 결정 1 — 사이드바 메뉴 구조 단순화

@@ -84,6 +84,19 @@
 
 **확정 결정**: DECISIONS.md 의 Phase 5-A 섹션 (8개 결정).
 
+### Phase 5-A 정비 — 이전 작업자의 DB 잔재 정리 — ✅ 완료 (2026-05-27)
+
+**배경**: Phase 5-A 코드 완료 후 DB 점검에서 이전 작업자가 시간표 솔버 DB 화를 시도하며 남긴 광범위한 잔재 발견. 009 시드의 placeholder INSERT 가 `teachers.id` 의 UUID 타입 때문에 실패한 원인이 이 잔재였음.
+
+**구현된 범위**:
+- 마이그레이션 010 (`010_phase5a_cleanup.sql`): 한 트랜잭션 6단계로 정비.
+  - 의존 FK 3개 임시 제거 → `teacher_constraints` DROP → `teachers.id` UUID→TEXT → `events.created_by` / `documents.uploaded_by` UUID→TEXT → 잔재 컬럼 (`is_homeroom` / `is_parttime` / `allowed_days`) DROP → FK 재생성 (TEXT ↔ TEXT).
+- 기존 데이터 보존: `teachers` 1행 (계란님), `events` 1행 (계란님 일정).
+- 010 적용 후 009 재실행 → placeholder 24명 + assignments 123건 정상 시드.
+- 코드 변경 0 (D3=C-2 정책 유지). `src/` 손대지 않음.
+
+**확정 결정**: DECISIONS.md 의 "Phase 5-A 정비" 절 (5개 결정 + D6 정합성 재확인).
+
 ### Phase 5-B — 학교 설정 페이지 부활 (편집 UI) — ⏳ 예정
 
 **목표**: 진실의 원천을 timetableData.js → DB 로 전환.
