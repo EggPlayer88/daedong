@@ -6,3 +6,11 @@
 # 빌드 결과물
 dist/
 node_modules/
+
+# 에디터 백업 파일
+*.save
+*~
+.*.swp
+
+# 일회성 DB 조사 산출물 (재실행 가능)
+db-survey-results/

@@ -1,4 +1,14 @@
 -- ═══════════════════════════════════════════════════════════════════
+-- ⚠️ DEPRECATED — 실행하지 말 것 (미적용 + 불완전).
+--   이 파일은 운영 DB 에 적용된 적이 없음 (2026-05 전수조사로 확인).
+--   teacher_constraints 1개만 처리할 뿐 다음을 모두 누락:
+--     · ensure_rls 이벤트 트리거 + rls_auto_enable 함수 제거
+--     · 잔재 9개 테이블 (academic_events/period_config/rooms/schedules/
+--       school_settings/special_slots/swap_requests/teacher_subjects/timetable_entries)
+--     · teachers.id 의 DEFAULT 를 gen_random_uuid()::text 로 교체 (handle_new_user 호환)
+--     · 보존 테이블 RLS 비활성화
+--   → 마이그레이션 011~014 (+ 009 재실행) 으로 대체됨. 이력 보존용으로만 남김.
+-- ═══════════════════════════════════════════════════════════════════
 -- Phase 5-A 정비 — 이전 작업자의 DB 잔재 정리 + D6 컴플라이언스 회복
 -- ═══════════════════════════════════════════════════════════════════
 -- 작성일: 2026-05-27
