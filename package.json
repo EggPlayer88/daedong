@@ -8,15 +8,16 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-"dependencies": {
-  "react": "^18.3.1",
-  "react-dom": "^18.3.1",
-  "@supabase/supabase-js": "^2.49.4",
-  "jszip": "^3.10.1",
-  "pdf-parse": "^1.1.1",
-  "mammoth": "^1.8.0",
-  "cfb": "^1.2.2"
-},
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "cfb": "^1.2.2",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "xlsx": "^0.18.5"
+  },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.0"

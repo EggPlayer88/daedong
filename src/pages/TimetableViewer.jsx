@@ -23,6 +23,7 @@ import {
 import ChangeRequestForm from './ChangeRequestForm';
 import { NotificationsTab, MyRequestsTab, AdminQueueTab } from './ChangeTabPanels';
 import TimetableAIPanel, { TimetableAIToggleButton } from './TimetableAIPanel';
+import { exportTimetableToExcel, defaultExportFilename } from '../lib/timetableExport';
 
 const C = {
   bg:'#0c0f1a', card:'#141929', cardHover:'#1a2038',
@@ -357,6 +358,18 @@ function TimetableSection({
           style={{ background: C.card, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: '7px 10px', fontSize: 12, fontFamily: font, minWidth: 140 }}>
           {entities.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
         </select>
+
+        <button
+          onClick={() => {
+            try { exportTimetableToExcel(activeTimetable?.data, defaultExportFilename()); }
+            catch (e) { alert('엑셀 다운로드 실패: ' + (e.message || e)); }
+          }}
+          style={{
+            padding: '7px 14px', borderRadius: 8, border: 'none',
+            background: C.green, color: '#04140d', fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', fontFamily: font,
+          }}
+        >📥 엑셀 다운로드</button>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
           <SegBtn onClick={() => goWeek(-1)}>‹ 이전</SegBtn>

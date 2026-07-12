@@ -19,6 +19,7 @@ import {
   buildLessons, cpSolve, buildTTfromCP, calcTotalPenalty, localSearch,
 } from '../../lib/solver';
 import { saveTimetable } from '../../lib/timetablesAPI';
+import { exportTimetableToExcel, defaultExportFilename } from '../../lib/timetableExport';
 import InitSettingsView from './InitSettingsView';
 
 const C = {
@@ -361,6 +362,17 @@ function ResultPreview({ result }) {
           <SegBtn active={mode==='class'} onClick={()=>{ setMode('class'); setEntityId('c1'); }}>학급별</SegBtn>
           <SegBtn active={mode==='teacher'} onClick={()=>{ setMode('teacher'); setEntityId('t1'); }}>교사별</SegBtn>
         </div>
+        <button
+          onClick={() => {
+            try { exportTimetableToExcel(result.tt, defaultExportFilename()); }
+            catch (e) { alert('엑셀 다운로드 실패: ' + (e.message || e)); }
+          }}
+          style={{
+            marginLeft: 'auto', padding: '6px 14px', borderRadius: 6, border: 'none',
+            background: C.green, color: '#04140d', fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', fontFamily: font,
+          }}
+        >📥 엑셀 다운로드</button>
         <select value={entityId} onChange={e => setEntityId(e.target.value)} style={{
           padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`,
           background: C.bg, color: C.text, fontSize: 12, fontFamily: font, outline: 'none',
