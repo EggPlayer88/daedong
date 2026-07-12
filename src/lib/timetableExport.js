@@ -9,12 +9,24 @@
 //    · 빈 슬롯    → ''               (완전 공백)
 //  시트 33개: 학급별 종합 → 교사별 종합 → 반 9개(c1~c9) → 교사 22개(t1~t22)
 // ══════════════════════════════════════
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { CLS, TCH, DAYS, DP, gS, gT } from './timetableData.js';
 
 // 시간표 그리드 헤더 (빈칸 + 요일)
 const HEADER = ['', ...DAYS];
 const MAX_PERIOD = 7;   // 최대 교시 (목·화 = 7교시)
+
+// 옅은 회색 스타일 (헤더 행 + 첫 열 교시 라벨 전용) — 과목별 색상은 사용 안 함
+const GRAY = 'FFECECEC';
+const HEADER_STYLE = {
+  fill: { patternType: 'solid', fgColor: { rgb: GRAY } },
+  font: { bold: true },
+  alignment: { horizontal: 'center', vertical: 'center' },
+};
+const FIRSTCOL_STYLE = {
+  fill: { patternType: 'solid', fgColor: { rgb: GRAY } },
+  alignment: { horizontal: 'center', vertical: 'center' },
+};
 
 // 학급 관점 셀 텍스트 — data[cid][slot] 엔트리를 사람이 읽는 문자열로
 export function classCellText(entry) {
@@ -68,11 +80,22 @@ export function buildTeacherGrid(tid, data) {
   return grid;
 }
 
-// AOA(2차원 배열)를 시트로 만들고 열 너비를 지정해 워크북에 추가
+// AOA(2차원 배열)를 시트로 만들고 열 너비 + 옅은 회색 헤더/첫 열 스타일 적용
 function appendAoaSheet(wb, sheetName, aoa) {
   const ws = XLSX.utils.aoa_to_sheet(aoa);
   // 첫 열(교시/제목) 좁게, 요일 5열 넓게
   ws['!cols'] = [{ wch: 10 }, ...DAYS.map(() => ({ wch: 18 }))];
+  // 헤더 행('' | 월~금) 과 첫 열 교시 라벨만 옅은 회색
+  for (let r = 0; r < aoa.length; r++) {
+    const row = aoa[r] || [];
+    const isHeader = row[0] === '' && row[1] === DAYS[0];
+    for (let c = 0; c < row.length; c++) {
+      const cell = ws[XLSX.utils.encode_cell({ r, c })];
+      if (!cell) continue;
+      if (isHeader) cell.s = HEADER_STYLE;
+      else if (c === 0 && typeof row[0] === 'string' && /교시$/.test(row[0])) cell.s = FIRSTCOL_STYLE;
+    }
+  }
   XLSX.utils.book_append_sheet(wb, ws, sheetName);
 }
 

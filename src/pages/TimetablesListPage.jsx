@@ -19,6 +19,7 @@ import {
 } from '../lib/timetableEngine';
 import { WeekGrid } from './TimetableViewer';
 import SolverModal from '../components/timetable/SolverModal';
+import { exportTimetableToExcel, defaultExportFilename } from '../lib/timetableExport';
 
 const C = {
   bg:'#0c0f1a', card:'#141929', border:'#232940',
@@ -356,6 +357,21 @@ function ItemRow({ item, kind, busy, onPreview, onHistory, onEdit, onActivate, o
   };
   const color = colorByKind[kind] || C.textDim;
 
+  const [exporting, setExporting] = useState(false);
+  // 목록 쿼리는 data 컬럼을 안 가져오므로, 클릭 시 그 시간표를 조회해서 바로 다운로드
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const full = await getTimetable(item.id);
+      exportTimetableToExcel(full.data, defaultExportFilename());
+    } catch (e) {
+      alert('엑셀 다운로드 실패: ' + (e.message || e));
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div style={{
       background: C.card, border: `1px solid ${C.border}`,
@@ -387,6 +403,9 @@ function ItemRow({ item, kind, busy, onPreview, onHistory, onEdit, onActivate, o
 
       {/* 우측 액션 영역 — 카드 클릭(미리보기) 와 분리하기 위해 stopPropagation */}
       <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+        <button onClick={handleExport} disabled={exporting} style={btnStyle()} title="엑셀(.xlsx) 다운로드">
+          {exporting ? '⏳ …' : '📥 엑셀'}
+        </button>
         {onHistory && (
           <button onClick={onHistory} disabled={busy} style={btnStyle()} title="편집 이력 보기">
             📜 이력
