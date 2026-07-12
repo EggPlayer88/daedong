@@ -190,6 +190,16 @@ export const TCH = [
    as:[{s:'s16',c:'c7',h:1},{s:'s16',c:'c8',h:1},{s:'s16',c:'c9',h:1}]},
 ];
 
+// ─── 블록수업 하드 제약 (Phase 3) ───
+//  지정된 (교사, 과목, 반) 그룹의 배정 중 length 시수가 반드시 같은 요일 인접 교시에
+//  연속 배치돼야 함. 그룹의 나머지 시수는 제약 없음(자유). 배열에 없는 조합은 제약 없음.
+export const BLOCKS = [
+  // 장원혁 3학년 과학 — 각 반 1번 블록 (2시수 연속)
+  { teacherId:'t12', subjectId:'s9', classes:['c7','c8','c9'], length:2 },
+  // 이이현 2·3학년 기가 — 각 반 1번 블록 (2시수 연속)
+  { teacherId:'t11', subjectId:'s8', classes:['c4','c5','c6','c7','c8','c9'], length:2 },
+];
+
 export const gS = id => SBJ.find(s=>s.id===id);
 export const gC = id => CLS.find(c=>c.id===id);
 export const gT = id => TCH.find(t=>t.id===id);

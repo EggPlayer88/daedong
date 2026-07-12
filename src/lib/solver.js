@@ -4,7 +4,7 @@
 // ══════════════════════════════════════
 
 import {
-  CLS, TCH, SBJ, SP, DAYS, DP, DAILY, D2N, enc, decS, getHR, gC,
+  CLS, TCH, SBJ, SP, BLOCKS, DAYS, DP, DAILY, D2N, enc, decS, getHR, gC,
   spAppliesToClass, isEmptyReservation,
 } from './timetableData.js';
 
@@ -136,7 +136,25 @@ export function buildLessons() {
       const baseSlots = candidateSlots(cls, a.s, al, t);   // SP + 시간 제약 반영된 후보 슬롯
       for(let i=0; i<a.h; i++){
         const isM1 = (a.s==='s5' && ['c1','c2','c3'].includes(a.c));
-        L.push({ id:id++, cid:a.c, sid:a.s, tid:t.id, slots:[...baseSlots], isM1 });
+        L.push({ id:id++, cid:a.c, sid:a.s, tid:t.id, slots:[...baseSlots], isM1,
+                 blkPrev:null, blkNext:null });
+      }
+    });
+  });
+
+  // Phase 3: 블록 지정 — 각 BLOCKS×반 그룹에서 length 개 카드를 연속 체인으로 묶음
+  //  (chain[k].blkPrev = chain[k-1].id, blkNext = chain[k+1].id — id 는 lessons 인덱스와 일치)
+  BLOCKS.forEach(blk => {
+    blk.classes.forEach(cid => {
+      const group = L.filter(l => l.tid===blk.teacherId && l.sid===blk.subjectId && l.cid===cid);
+      if(group.length < blk.length){
+        console.warn(`[BLOCK] ${cid} ${blk.teacherId}/${blk.subjectId}: 배정 시수 ${group.length} < 블록 길이 ${blk.length} — 블록 불가`);
+        return;
+      }
+      const chain = group.slice(0, blk.length);
+      for(let k=0;k<chain.length;k++){
+        if(k>0)            chain[k].blkPrev = chain[k-1].id;
+        if(k<chain.length-1) chain[k].blkNext = chain[k+1].id;
       }
     });
   });
@@ -182,6 +200,9 @@ export function cpSolve(lessons, maxNodes=120000) {
       if(ts.has(`${l.tid}-${slot}`)) continue;
       if(cnt[l.cid][d]>=NEED[l.cid][d]) continue;
       if(l.isM1&&m1d.has(`${l.cid}-${d}`)) continue;
+      // Phase 3 블록: 이미 배정된 체인 이웃과 같은 요일·인접 교시여야 함
+      if(l.blkPrev!=null && asgn[l.blkPrev]>=0){ const a=decS(asgn[l.blkPrev]); if(a.d!==d||a.p!==p-1) continue; }
+      if(l.blkNext!=null && asgn[l.blkNext]>=0){ const a=decS(asgn[l.blkNext]); if(a.d!==d||a.p!==p+1) continue; }
 
       asgn[lid]=slot;
       cs.set(`${l.cid}-${slot}`,lid);
@@ -215,6 +236,18 @@ export function cpSolve(lessons, maxNodes=120000) {
           }
           if(!dom[jid].size){ok=false;break;}
         }
+      }
+
+      // Phase 3 블록: 미배정 체인 이웃 도메인을 인접 슬롯 1칸으로 축소(강한 전파)
+      if(ok && l.blkNext!=null && asgn[l.blkNext]<0){
+        const jid=l.blkNext, want=enc(d,p+1);
+        for(const s of [...dom[jid]]){ if(s!==want){ dom[jid].delete(s); pruned.push({jid,s}); } }
+        if(!dom[jid].size) ok=false;
+      }
+      if(ok && l.blkPrev!=null && asgn[l.blkPrev]<0){
+        const jid=l.blkPrev, want=enc(d,p-1);
+        for(const s of [...dom[jid]]){ if(s!==want){ dom[jid].delete(s); pruned.push({jid,s}); } }
+        if(!dom[jid].size) ok=false;
       }
 
       if(ok){
@@ -345,6 +378,8 @@ export function localSearch(lessons, asgn, iters=4000) {
     //  "주제선택→일반 슬롯" "일반→창체/정보 슬롯" 같은 위반 스왑을 원천 차단한다.
     //  추가 안전장치: 정보 고정처럼 슬롯이 1칸으로 못박힌 수업은 아예 스왑 제외.
     if(li.slots.length<=1 || lj.slots.length<=1) continue;
+    // Phase 3: 블록 체인 카드는 스왑 제외 → cpSolve 가 놓은 연속 배치 유지
+    if(li.blkPrev!=null||li.blkNext!=null||lj.blkPrev!=null||lj.blkNext!=null) continue;
     if(!li.slots.includes(sj)||!lj.slots.includes(si)) continue;
 
     const {d:di,p:pi}=decS(si), {d:dj,p:pj}=decS(sj);
