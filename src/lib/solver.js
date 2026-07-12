@@ -44,6 +44,34 @@ function slotAllowedByConstraint(d, p, con) {
   return true;
 }
 
+// ─── Phase 4: 자원 충돌 + 스포츠 담임 동행 (하드 제약, 초기 배정에만 적용) ───
+//  같은 슬롯에 함께 배정될 수 없는 (수업,수업) 쌍을 판별한다.
+//  · RESOURCE_CONFLICT_PAIRS: 두 교사가 체육관 등 자원을 공유 → 동시간 배정 불가
+//  · SPORT_HOMEROOM: 김혜진(t16) 스포츠 슬롯에 그 반 담임은 다른 배정 불가 (NEIS)
+const RESOURCE_CONFLICT_PAIRS = [
+  ['t14', 't15'],   // 이창철 + 정상호 — 체육관 공유
+];
+const SPORT_HOMEROOM = {
+  c1:'t7',  c2:'t17', c3:'t4',
+  c4:'t15', c5:'t5',  c6:'t2',
+  c7:'t11', c8:'t9',  c9:'t12',
+};
+const SPORT_TEACHER_ID = 't16';   // 김혜진 (스포츠 담당)
+const SPORT_SUBJ = 's11';         // 스포츠
+// 자원 충돌쌍 양방향 조회용 Set
+const RC_SET = new Set();
+RESOURCE_CONFLICT_PAIRS.forEach(([a,b]) => { RC_SET.add(a+'|'+b); RC_SET.add(b+'|'+a); });
+
+// 두 수업 la, lb 가 같은 슬롯에 공존할 수 없으면 true (교사가 서로 달라도 적용)
+function p4SameSlotForbidden(la, lb) {
+  // 자원 충돌쌍
+  if (RC_SET.has(la.tid+'|'+lb.tid)) return true;
+  // 스포츠 담임 동행 (양방향): 한쪽이 김혜진 스포츠(반 C), 다른쪽이 C 담임
+  if (la.tid===SPORT_TEACHER_ID && la.sid===SPORT_SUBJ && SPORT_HOMEROOM[la.cid]===lb.tid) return true;
+  if (lb.tid===SPORT_TEACHER_ID && lb.sid===SPORT_SUBJ && SPORT_HOMEROOM[lb.cid]===la.tid) return true;
+  return false;
+}
+
 // ─── 수업(반·과목)의 후보 슬롯 계산 — SP 제약을 도메인에 반영 ───
 //  · 정보 고정 (classId+subjectId 일치) → 그 슬롯 1칸만
 //  · 주제선택 과목 (s18~s23)          → 해당 학년 gradeOnly 슬롯만
@@ -236,6 +264,11 @@ export function cpSolve(lessons, maxNodes=120000) {
           }
           if(!dom[jid].size){ok=false;break;}
         }
+        // Phase 4: 자원 충돌 / 스포츠 담임 동행 — 같은 슬롯 공존 불가면 이 슬롯 제거
+        if(p4SameSlotForbidden(l,jl) && dom[jid].has(slot)){
+          dom[jid].delete(slot); pruned.push({jid,s:slot});
+          if(!dom[jid].size){ok=false;break;}
+        }
       }
 
       // Phase 3 블록: 미배정 체인 이웃 도메인을 인접 슬롯 1칸으로 축소(강한 전파)
@@ -346,6 +379,7 @@ export function localSearch(lessons, asgn, iters=4000) {
   const cs=new Map(), ts=new Map();
   const cnt={}; CLS.forEach(c=>{ cnt[c.id]=[0,0,0,0,0]; });
   const m1d=new Map();
+  const slotOcc=new Map();   // Phase 4: 슬롯 → 그 슬롯에 배정된 lid 집합
 
   lessons.forEach((l,i) => {
     if(asgn[i]<0) return;
@@ -354,7 +388,21 @@ export function localSearch(lessons, asgn, iters=4000) {
     ts.set(`${l.tid}-${asgn[i]}`,i);
     cnt[l.cid][d]++;
     if(l.isM1) m1d.set(`${l.cid}-${d}`,i);
+    if(!slotOcc.has(asgn[i])) slotOcc.set(asgn[i], new Set());
+    slotOcc.get(asgn[i]).add(i);
   });
+
+  // Phase 4 가드: 수업 mv 를 slot 에 놓을 때, 떠나는 수업 lv 를 제외한 기존 점유자와
+  // 자원충돌/스포츠담임 위반이 생기면 true → 그 스왑은 거부
+  const p4Clash = (mv, slot, lv) => {
+    const occ = slotOcc.get(slot);
+    if(!occ) return false;
+    for(const o of occ){
+      if(o===lv||o===mv) continue;
+      if(p4SameSlotForbidden(lessons[mv], lessons[o])) return true;
+    }
+    return false;
+  };
 
   const ss = makeSoftState();
   lessons.forEach((l,i) => {
@@ -400,6 +448,8 @@ export function localSearch(lessons, asgn, iters=4000) {
     }
     if(li.isM1&&di!==dj&&m1d.has(`${li.cid}-${dj}`)&&m1d.get(`${li.cid}-${dj}`)!==i) continue;
     if(lj.isM1&&di!==dj&&m1d.has(`${lj.cid}-${di}`)&&m1d.get(`${lj.cid}-${di}`)!==j) continue;
+    // Phase 4: 스왑 후 자원충돌/스포츠담임 위반이 생기면 거부 (li→sj, lj→si)
+    if(p4Clash(i,sj,j)||p4Clash(j,si,i)) continue;
 
     ssDel(ss,li,di,pi); ssDel(ss,lj,dj,pj);
     const penAfter = /* softPenalty placeholder — swap is accepted if neutral or better */
@@ -415,6 +465,8 @@ export function localSearch(lessons, asgn, iters=4000) {
       ts.delete(`${li.tid}-${si}`); ts.delete(`${lj.tid}-${sj}`);
       cs.set(`${li.cid}-${sj}`,i); cs.set(`${lj.cid}-${si}`,j);
       ts.set(`${li.tid}-${sj}`,i); ts.set(`${lj.tid}-${si}`,j);
+      slotOcc.get(si).delete(i); slotOcc.get(sj).delete(j);
+      slotOcc.get(sj).add(i);   slotOcc.get(si).add(j);
       if(di!==dj){cnt[li.cid][di]--;cnt[li.cid][dj]++;cnt[lj.cid][dj]--;cnt[lj.cid][di]++;}
       if(li.isM1){m1d.delete(`${li.cid}-${di}`);m1d.set(`${li.cid}-${dj}`,i);}
       if(lj.isM1){m1d.delete(`${lj.cid}-${dj}`);m1d.set(`${lj.cid}-${di}`,j);}
