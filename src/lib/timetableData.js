@@ -122,7 +122,8 @@ export const SBJ = [
   {id:'s22',name:'과학㈜',  ci:5, gh:{1:1,2:0,3:0}},
   {id:'s23',name:'진로㈜',  ci:6, gh:{1:1,2:0,3:0}},
   // ─── 영어 원어민 (표시용, 배정된 교사는 정은화/고민희) ───
-  {id:'s24',name:'영원',    ci:2, gh:{1:1,2:1,3:1}},
+  {id:'s24',name:'영원',    ci:2, gh:{1:1,2:1,3:1},
+   timeConstraint:{ allowedDays:['월','화','수'] }},
 ];
 
 export const CLS = [
@@ -140,6 +141,11 @@ export const TCH = [
   {id:'t2', name:'심원영', hr:false, hc:null, al:null,
    as:[{s:'s1',c:'c1',h:4},{s:'s1',c:'c2',h:4},{s:'s1',c:'c4',h:3},{s:'s1',c:'c5',h:3},{s:'s1',c:'c6',h:3}]},
   {id:'t3', name:'이연숙', hr:false, hc:null, al:null,
+   slotConstraints:{ blockedSlots:[
+     {day:'월', periods:[1,2,3,4]},
+     {day:'수', periods:[1,2,3,4]},
+     {day:'목', periods:[1,2,3,4]},
+   ]},
    as:[{s:'s1',c:'c4',h:1},{s:'s1',c:'c5',h:1},{s:'s1',c:'c6',h:1},{s:'s18',c:'c1',h:1},{s:'s18',c:'c2',h:1},{s:'s18',c:'c3',h:1},{s:'s17',c:'c4',h:1},{s:'s17',c:'c5',h:1},{s:'s17',c:'c6',h:1}]},
   {id:'t4', name:'최민희', hr:false, hc:null, al:null,
    as:[{s:'s2',c:'c1',h:2},{s:'s2',c:'c2',h:2},{s:'s2',c:'c3',h:2},{s:'s2',c:'c7',h:2},{s:'s2',c:'c8',h:2},{s:'s2',c:'c9',h:2},{s:'s19',c:'c1',h:1},{s:'s19',c:'c2',h:1},{s:'s19',c:'c3',h:1}]},
@@ -166,10 +172,12 @@ export const TCH = [
   {id:'t15',name:'정상호', hr:false, hc:null, al:null,
    as:[{s:'s10',c:'c1',h:2},{s:'s10',c:'c2',h:2},{s:'s10',c:'c3',h:2},{s:'s10',c:'c4',h:3},{s:'s10',c:'c5',h:3},{s:'s10',c:'c6',h:2}]},
   {id:'t16',name:'김혜진', hr:false, hc:null, al:null,
+   slotConstraints:{ maxPeriod:3 },
    as:[{s:'s11',c:'c1',h:1},{s:'s11',c:'c2',h:1},{s:'s11',c:'c3',h:1},{s:'s11',c:'c4',h:1},{s:'s11',c:'c5',h:1},{s:'s11',c:'c6',h:1},{s:'s11',c:'c7',h:1},{s:'s11',c:'c8',h:1},{s:'s11',c:'c9',h:1}]},
   {id:'t17',name:'서상은', hr:false, hc:null, al:null,
    as:[{s:'s12',c:'c1',h:1},{s:'s12',c:'c2',h:1},{s:'s12',c:'c3',h:1},{s:'s12',c:'c4',h:1},{s:'s12',c:'c5',h:1},{s:'s12',c:'c6',h:1},{s:'s12',c:'c7',h:2},{s:'s12',c:'c8',h:2},{s:'s12',c:'c9',h:2}]},
   {id:'t18',name:'변주안', hr:false, hc:null, al:null,
+   slotConstraints:{ maxPeriodPerDay:{ 화:5, 목:5 } },
    as:[{s:'s13',c:'c1',h:2},{s:'s13',c:'c2',h:2},{s:'s13',c:'c3',h:2},{s:'s13',c:'c4',h:2},{s:'s13',c:'c5',h:2},{s:'s13',c:'c6',h:2}]},
   {id:'t19',name:'이은경', hr:false, hc:null, al:null,
    as:[{s:'s14',c:'c4',h:1},{s:'s14',c:'c5',h:1},{s:'s14',c:'c6',h:1},{s:'s23',c:'c1',h:1},{s:'s23',c:'c2',h:1},{s:'s23',c:'c3',h:1}]},
@@ -178,6 +186,7 @@ export const TCH = [
   {id:'t21',name:'고민희', hr:false, hc:null, al:null,
    as:[{s:'s15',c:'c1',h:2},{s:'s15',c:'c7',h:3},{s:'s15',c:'c8',h:3},{s:'s15',c:'c9',h:3},{s:'s24',c:'c1',h:1},{s:'s24',c:'c7',h:1},{s:'s24',c:'c8',h:1},{s:'s24',c:'c9',h:1}]},
   {id:'t22',name:'정지현', hr:false, hc:null, al:null,
+   slotConstraints:{ morningOnly:true },
    as:[{s:'s16',c:'c7',h:1},{s:'s16',c:'c8',h:1},{s:'s16',c:'c9',h:1}]},
 ];
 

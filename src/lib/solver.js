@@ -17,14 +17,50 @@ const TOPIC_SUBS = new Set(['s18','s19','s20','s21','s22','s23']);
 // 하루 실제 교시 수 (DP 기준) — 요일 index 배열
 const PER_DAY = DAYS.map(d => DP[d]);   // [6,7,6,7,6]
 
+// ─── 시간 제약 필터 (과목 timeConstraint / 교사 slotConstraints 공용 스키마) ───
+//  정의: 오전 = 1~4교시(점심 전), 오후 = 5교시 이상
+//  · allowedDays:[요일명…]        → 이 요일에만 허용
+//  · blockedSlots:[{day,periods}] → 지정 (요일,교시) 슬롯 배제
+//  · morningOnly:true             → 오전(1~4교시)만 허용
+//  · maxPeriod:n                  → 모든 요일 n교시 초과 배제
+//  · maxPeriodPerDay:{요일:최대}  → 해당 요일만 최대교시 초과 배제 (미지정 요일은 무제한)
+//  필드가 없으면(=undefined) 제약 없음 → 하위 호환 유지
+const MORNING_MAX = 4;
+function slotAllowedByConstraint(d, p, con) {
+  if (!con) return true;
+  const dayName = DAYS[d];
+  if (con.allowedDays && !con.allowedDays.includes(dayName)) return false;
+  if (con.morningOnly && p > MORNING_MAX) return false;
+  if (con.maxPeriod != null && p > con.maxPeriod) return false;
+  if (con.maxPeriodPerDay) {
+    const lim = con.maxPeriodPerDay[dayName];
+    if (lim != null && p > lim) return false;
+  }
+  if (con.blockedSlots) {
+    for (const b of con.blockedSlots) {
+      if (b.day === dayName && b.periods.includes(p)) return false;
+    }
+  }
+  return true;
+}
+
 // ─── 수업(반·과목)의 후보 슬롯 계산 — SP 제약을 도메인에 반영 ───
 //  · 정보 고정 (classId+subjectId 일치) → 그 슬롯 1칸만
 //  · 주제선택 과목 (s18~s23)          → 해당 학년 gradeOnly 슬롯만
 //  · 일반 과목                        → 창체/gradeOnly/타반 정보 슬롯 제외
-function candidateSlots(cls, sid, al) {
+function candidateSlots(cls, sid, al, teacher) {
+  // Phase 2: 과목(timeConstraint)·교사(slotConstraints) 시간 제약 — 둘 중 하나라도 위반 시 배제
+  const subjCon = (SBJ.find(s => s.id === sid) || {}).timeConstraint;
+  const tchCon = teacher && teacher.slotConstraints;
+
   // 정보 고정: (반, 과목) 이 classId+subjectId SP 와 일치하면 그 슬롯으로 고정
   const fixed = SP.find(sp => sp.classId === cls.id && sp.subjectId === sid);
-  if (fixed) return [enc(DAYS.indexOf(fixed.day), fixed.p)];
+  if (fixed) {
+    const fd = DAYS.indexOf(fixed.day);
+    if (!slotAllowedByConstraint(fd, fixed.p, subjCon)) return [];
+    if (!slotAllowedByConstraint(fd, fixed.p, tchCon)) return [];
+    return [enc(fd, fixed.p)];
+  }
 
   const isTopic = TOPIC_SUBS.has(sid);
   const out = [];
@@ -40,6 +76,9 @@ function candidateSlots(cls, sid, al) {
       // gradeOnly(주제선택) 슬롯 ↔ 주제선택 과목 양방향 제약
       const isGradeSlot = sps.some(sp => sp.gradeOnly);
       if (isGradeSlot !== isTopic) continue;
+      // Phase 2: 과목·교사 시간 제약 반영
+      if (!slotAllowedByConstraint(d, p, subjCon)) continue;
+      if (!slotAllowedByConstraint(d, p, tchCon)) continue;
       out.push(enc(d, p));
     }
   }
@@ -94,7 +133,7 @@ export function buildLessons() {
     const al = t.al||[0,1,2,3,4];
     t.as.forEach(a => {
       const cls = gC(a.c);
-      const baseSlots = candidateSlots(cls, a.s, al);   // SP 제약 반영된 후보 슬롯
+      const baseSlots = candidateSlots(cls, a.s, al, t);   // SP + 시간 제약 반영된 후보 슬롯
       for(let i=0; i<a.h; i++){
         const isM1 = (a.s==='s5' && ['c1','c2','c3'].includes(a.c));
         L.push({ id:id++, cid:a.c, sid:a.s, tid:t.id, slots:[...baseSlots], isM1 });
