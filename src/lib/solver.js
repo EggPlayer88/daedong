@@ -3,10 +3,48 @@
 //  원본 알고리즘 + cnt 기반 전파 개선
 // ══════════════════════════════════════
 
-import { CLS, TCH, SBJ, SP, DAYS, DAILY, D2N, enc, decS, getHR } from './timetableData.js';
+import {
+  CLS, TCH, SBJ, SP, DAYS, DP, DAILY, D2N, enc, decS, getHR, gC,
+  spAppliesToClass, isEmptyReservation,
+} from './timetableData.js';
 
 // ─── 소프트 제약 가중치 ───
 export const SW = { S1:10, S2:3, S3:4, S4:5, S5:4 };
+
+// ─── 주제선택 과목 (gradeOnly 슬롯 전용) ───
+const TOPIC_SUBS = new Set(['s18','s19','s20','s21','s22','s23']);
+
+// 하루 실제 교시 수 (DP 기준) — 요일 index 배열
+const PER_DAY = DAYS.map(d => DP[d]);   // [6,7,6,7,6]
+
+// ─── 수업(반·과목)의 후보 슬롯 계산 — SP 제약을 도메인에 반영 ───
+//  · 정보 고정 (classId+subjectId 일치) → 그 슬롯 1칸만
+//  · 주제선택 과목 (s18~s23)          → 해당 학년 gradeOnly 슬롯만
+//  · 일반 과목                        → 창체/gradeOnly/타반 정보 슬롯 제외
+function candidateSlots(cls, sid, al) {
+  // 정보 고정: (반, 과목) 이 classId+subjectId SP 와 일치하면 그 슬롯으로 고정
+  const fixed = SP.find(sp => sp.classId === cls.id && sp.subjectId === sid);
+  if (fixed) return [enc(DAYS.indexOf(fixed.day), fixed.p)];
+
+  const isTopic = TOPIC_SUBS.has(sid);
+  const out = [];
+  for (const d of al) {
+    const dayName = DAYS[d];
+    for (let p = 1; p <= PER_DAY[d]; p++) {
+      const sps = SP.filter(sp => sp.day === dayName && sp.p === p && spAppliesToClass(sp, cls));
+      // 창체 등 빈칸 예약 → 어떤 수업도 배정 불가
+      if (sps.some(sp => isEmptyReservation(sp))) continue;
+      // 이 반의 정보 고정 슬롯 → 그 과목만 (fixed 분기에서 이미 처리되므로 여기선 배제만)
+      const fixedHere = sps.find(sp => sp.classId && sp.subjectId);
+      if (fixedHere && sid !== fixedHere.subjectId) continue;
+      // gradeOnly(주제선택) 슬롯 ↔ 주제선택 과목 양방향 제약
+      const isGradeSlot = sps.some(sp => sp.gradeOnly);
+      if (isGradeSlot !== isTopic) continue;
+      out.push(enc(d, p));
+    }
+  }
+  return out;
+}
 
 const T_TOTAL = {};
 TCH.forEach(t => { T_TOTAL[t.id] = t.as.reduce((s,a) => s+a.h, 0); });
@@ -55,14 +93,11 @@ export function buildLessons() {
   TCH.forEach(t => {
     const al = t.al||[0,1,2,3,4];
     t.as.forEach(a => {
+      const cls = gC(a.c);
+      const baseSlots = candidateSlots(cls, a.s, al);   // SP 제약 반영된 후보 슬롯
       for(let i=0; i<a.h; i++){
-        const slots = [];
-        for(const d of al){
-          const mx = (d===3?6:DAILY[d]);
-          for(let p=1; p<=mx; p++) slots.push(enc(d,p));
-        }
         const isM1 = (a.s==='s5' && ['c1','c2','c3'].includes(a.c));
-        L.push({ id:id++, cid:a.c, sid:a.s, tid:t.id, slots, isM1 });
+        L.push({ id:id++, cid:a.c, sid:a.s, tid:t.id, slots:[...baseSlots], isM1 });
       }
     });
   });
@@ -76,7 +111,16 @@ export function cpSolve(lessons, maxNodes=120000) {
   const dom = lessons.map(l => new Set(l.slots));
 
   const cs=new Map(), ts=new Map(), m1d=new Map();
-  const NEED={}; CLS.forEach(c=>{ NEED[c.id]=[6,7,6,6,6]; });
+  // NEED[c][d] = 그 반이 요일 d 에 배정할 수업 수
+  //   = 실제 교시 수 − 빈칸예약(창체) 슬롯 수.  (gradeOnly/정보 슬롯은 수업이 채우므로 차감 안 함)
+  const NEED={}; CLS.forEach(c=>{
+    NEED[c.id] = PER_DAY.map((per, d) => {
+      const dayName = DAYS[d];
+      const empties = SP.filter(sp => sp.day===dayName
+        && isEmptyReservation(sp) && spAppliesToClass(sp, c)).length;
+      return per - empties;
+    });
+  });
   const cnt={}; CLS.forEach(c=>{ cnt[c.id]=[0,0,0,0,0]; });
 
   const ord = [...Array(n).keys()].sort((a,b) => dom[a].size-dom[b].size);
@@ -158,17 +202,40 @@ export function cpSolve(lessons, maxNodes=120000) {
 export function buildTTfromCP(lessons, asgn) {
   const tt = {};
   CLS.forEach(c => { tt[c.id] = {}; });
-  SP.forEach(sp => {
-    CLS.forEach(c => {
-      const hr = getHR(c.id);
-      tt[c.id][`${sp.day}-${sp.p}`] = { type:'special', name:sp.name, tid:hr?.id||null };
-    });
-  });
+
+  // 1) 배정된 수업 채우기 (주제선택·정보 포함 — 실제 수업이므로 여기서 자리 잡음)
   lessons.forEach((l,i) => {
     if(asgn[i]<0) return;
     const {d,p} = decS(asgn[i]);
     tt[l.cid][`${D2N[d]}-${p}`] = { tid:l.tid, sid:l.sid };
   });
+
+  // 2) SP 처리: 창체는 빈칸에 오버레이 / 주제선택·정보는 배정 검증
+  const errors = [];
+  SP.forEach(sp => {
+    CLS.forEach(c => {
+      if(!spAppliesToClass(sp, c)) return;
+      const key = `${sp.day}-${sp.p}`;
+      const cell = tt[c.id][key];
+      if(isEmptyReservation(sp)){
+        // 창체: 반드시 비어 있어야 하며 특별활동으로 오버레이
+        if(cell) errors.push(`${c.name} ${key}: 창체 슬롯에 수업(${cell.sid})이 배정됨`);
+        const hr = getHR(c.id);
+        tt[c.id][key] = { type:'special', name:sp.name, tid:hr?.id||null };
+      } else if(sp.classId && sp.subjectId){
+        // 정보 고정: 그 과목이 정확히 있어야 함
+        if(!cell || cell.sid !== sp.subjectId)
+          errors.push(`${c.name} ${key}: 정보 고정 위반 — 기대 ${sp.subjectId}, 실제 ${cell?(cell.sid||cell.name):'빈칸'}`);
+      } else if(sp.gradeOnly){
+        // 주제선택: 주제선택 과목(s18~s23)이 있어야 함
+        if(!cell || !TOPIC_SUBS.has(cell.sid))
+          errors.push(`${c.name} ${key}: 주제선택 슬롯 위반 — 실제 ${cell?(cell.sid||cell.name):'빈칸'}`);
+      }
+    });
+  });
+  if(errors.length){
+    console.warn('[buildTTfromCP] SP 예약 검증 경고 (%d건):\n%s', errors.length, errors.join('\n'));
+  }
   return tt;
 }
 
@@ -234,6 +301,11 @@ export function localSearch(lessons, asgn, iters=4000) {
     const si=asgn[i], sj=asgn[j];
     if(si===sj) continue;
 
+    // ── SP 예약 가드 ──
+    //  후보 도메인(slots)에 SP 제약이 이미 반영돼 있으므로, 아래 도메인 검사가
+    //  "주제선택→일반 슬롯" "일반→창체/정보 슬롯" 같은 위반 스왑을 원천 차단한다.
+    //  추가 안전장치: 정보 고정처럼 슬롯이 1칸으로 못박힌 수업은 아예 스왑 제외.
+    if(li.slots.length<=1 || lj.slots.length<=1) continue;
     if(!li.slots.includes(sj)||!lj.slots.includes(si)) continue;
 
     const {d:di,p:pi}=decS(si), {d:dj,p:pj}=decS(sj);

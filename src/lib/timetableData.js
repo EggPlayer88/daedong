@@ -33,14 +33,61 @@
 export const DAYS = ['월','화','수','목','금'];
 export const DP = { 월:6, 화:7, 수:6, 목:7, 금:6 };
 export const DAILY = [6,7,6,6,6]; // 창체 제외 정규 수업 정원
-export const SP = [{ name:'창체', day:'목', p:7 }];
+// ─── 특별활동·고정 슬롯 (SP) ───
+//  3가지 형태를 지원 (하위 호환 유지):
+//   a. name 만        → 모든 반에서 그 슬롯을 "빈칸 예약" (창체). 어떤 수업도 배정 불가.
+//   b. gradeOnly:g    → 해당 학년 반들의 이 슬롯은 주제선택 과목(s18~s23) 전용.
+//   c. classId+subjectId → 해당 반의 그 슬롯에 반드시 그 과목만 배정 (정보 고정).
+export const SP = [
+  { name:'창체', day:'목', p:7 },
+  // 주제선택 슬롯 (1학년 전용, 6슬롯) — s18~s23 만 배정, 다른 과목은 배제
+  { name:'주제선택', day:'월', p:5, gradeOnly:1 },
+  { name:'주제선택', day:'월', p:6, gradeOnly:1 },
+  { name:'주제선택', day:'화', p:6, gradeOnly:1 },
+  { name:'주제선택', day:'화', p:7, gradeOnly:1 },
+  { name:'주제선택', day:'수', p:5, gradeOnly:1 },
+  { name:'주제선택', day:'수', p:6, gradeOnly:1 },
+  // 정보 고정 (2학년 특정 반, 목 2/3/4교시) — 해당 반의 s7(정보)이 반드시 이 슬롯
+  { name:'정보', day:'목', p:2, classId:'c4', subjectId:'s7' },
+  { name:'정보', day:'목', p:3, classId:'c5', subjectId:'s7' },
+  { name:'정보', day:'목', p:4, classId:'c6', subjectId:'s7' },
+];
 export const D2N = { 0:'월', 1:'화', 2:'수', 3:'목', 4:'금' };
 export const TIMES = ['09:00','10:00','11:00','12:00','13:00','14:00','15:00'];
 
 export const enc = (d,p) => d*10+p;
 export const decS = s => ({ d:(s/10)|0, p:s%10 });
 export const isV = (d,p) => p<=(DP[d]||0);
-export const getSP = (d,p) => SP.find(s=>s.day===d&&s.p===p)||null;
+
+// SP 항목이 특정 반에 적용되는가?
+//  classId → 그 반만 / gradeOnly → 그 학년만 / 둘 다 없으면 → 모든 반(창체)
+export const spAppliesToClass = (sp, cls) => {
+  if (sp.classId)  return sp.classId === cls.id;
+  if (sp.gradeOnly) return sp.gradeOnly === cls.g;
+  return true;
+};
+// "빈칸 예약" (창체류) — 수업이 채우지 않고 비워두는 슬롯인가?
+export const isEmptyReservation = sp => !sp.gradeOnly && !sp.classId;
+
+// getSP(d, p [, classId] [, grade]) — 하위 호환 확장.
+//  · 인자 2개(기존 호출)  → 창체(범용 빈칸예약)만 반환 (없으면 null)
+//  · classId / grade 지정 → 그 반/학년에 적용되는 SP 반환 (여러 개면 배열)
+export const getSP = (d, p, classId = null, grade = null) => {
+  const hits = SP.filter(s => s.day === d && s.p === p);
+  if (!hits.length) return null;
+  if (classId == null && grade == null) {
+    return hits.find(s => isEmptyReservation(s)) || null;
+  }
+  const cls = classId != null ? gC(classId) : null;
+  const g = grade != null ? grade : cls?.g;
+  const matched = hits.filter(s => {
+    if (s.classId)  return s.classId === classId;
+    if (s.gradeOnly) return s.gradeOnly === g;
+    return true;
+  });
+  if (!matched.length) return null;
+  return matched.length === 1 ? matched[0] : matched;
+};
 
 export const CLR = [
   {bg:'#B5D4F4',tx:'#042C53'},{bg:'#CECBF6',tx:'#26215C'},{bg:'#9FE1CB',tx:'#04342C'},
