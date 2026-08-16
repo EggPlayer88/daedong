@@ -1,10 +1,13 @@
-// POST /api/doc-ai/chat — 평가계획서 수집 대화 (Node, Vercel Function)
+// POST /api/doc-ai/chat — 「교수·학습 및 평가 계획서」 수집 대화 (Node, Vercel Function)
 //
 // 설계 원칙 (D19): AI 는 "내용 수집"만 한다. 파일 생성은 generate.py 가 결정적으로 수행.
-// 이 함수는 manifest 의 필드 명세를 시스템 프롬프트로 주입하고, 대화가 확정되면
-// AI 가 ===PLAN_READY=== JSON ===END=== 마커로 결과를 뱉게 한다.
 //
-// ⚠ 필드 목록을 이 파일에 하드코딩하지 말 것. manifest 가 바뀌면 프롬프트도 따라 바뀌어야 한다.
+// 시스템 프롬프트 = ① prompt-rules.v2.md 고정부 (대화 규칙 전문)
+//                 + ② school-constants-*.json ({{CONSTANTS}} 자리에 주입)
+//                 + ③ manifest v2 에서 생성한 수집 항목·출력 JSON 구조
+//
+// ⚠ 필드 목록·학교 상수를 이 파일에 하드코딩하지 말 것.
+//   자산 3개 중 무엇이 바뀌어도 프롬프트가 자동으로 따라가야 한다.
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -12,95 +15,231 @@ import { dirname, join } from 'node:path'
 
 // ESM 에는 __dirname 이 없다. import.meta.url 로 파생시킨다.
 const HERE = dirname(fileURLToPath(import.meta.url))
-const MANIFEST_PATH = join(HERE, '_assets', 'template-manifest.json')
+const ASSETS = join(HERE, '_assets')
 
-const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf-8'))
+const manifest = JSON.parse(readFileSync(join(ASSETS, 'template-manifest.json'), 'utf-8'))
+const constants = JSON.parse(
+  readFileSync(join(ASSETS, 'school-constants-2026-2.json'), 'utf-8')
+)
+const rulesMd = readFileSync(join(ASSETS, 'prompt-rules.v2.md'), 'utf-8')
 
 // 모델은 env 로 교체 가능 (기본: 현재 Sonnet 세대)
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
-// 비용 폭주 방지 상한
-const MAX_MESSAGES = 60
-const MAX_TOTAL_CHARS = 40000
+// v2 는 최종 JSON 이 크다 (월별 5행 + 수행 출제계획 최대 4블록).
+// 2000 으로 두면 PLAN_READY JSON 이 중간에 잘린다.
+const MAX_TOKENS = 8000
+
+// 비용 폭주 방지 상한 (참고자료 hwpx 를 붙이는 것을 감안한 값)
+const MAX_MESSAGES = 80
+const MAX_TOTAL_CHARS = 80000
+
+// prompt-rules.v2.md 안의 자리표시 — 여기에 실제 JSON 골격을 끼운다
+const SKELETON_MARK = '{ manifest 의 key 구조를 그대로 따르는 JSON }'
+const CONSTANTS_MARK = '{{CONSTANTS}}'
 
 // ---------------------------------------------------------------------------
-// 시스템 프롬프트 — manifest 에서 코드로 생성
+// manifest v2 읽기 헬퍼
+//   ⚠ 노드의 key 는 property 이름과 다를 수 있다 (perf_summary → key: "perf_areas").
+//     반드시 node.key 를 우선한다.
 // ---------------------------------------------------------------------------
-function fieldLine(f) {
-  const bits = [f.type === 'number' ? '숫자' : '텍스트']
-  bits.push(f.required ? '필수' : '선택')
-  if (f.default !== undefined && f.default !== '') bits.push(`기본값 ${f.default}`)
-  return `- ${f.label} (key: ${f.key}, ${bits.join(', ')})`
+const keyOf = (node, fallback) => node?.key || fallback
+
+function typeNote(f) {
+  const bits = []
+  if (f.type) bits.push(f.type === 'number' ? '숫자' : f.type)
+  if (f.enum) bits.push(`값: ${f.enum.join('/')}`)
+  if (f.required) bits.push('필수')
+  if (f.default !== undefined) bits.push(`기본 ${f.default}`)
+  if (f.validation) bits.push(f.validation)
+  return bits.length ? ` (${bits.join(', ')})` : ''
 }
 
-function buildJsonSkeleton(m) {
-  const obj = {}
-  for (const f of m.fields) obj[f.key] = f.type === 'number' ? 0 : '…'
-  const g = m.repeating_group
-  if (g) {
-    const item = {}
-    for (const it of g.item_fields) item[it.key] = '…'
-    obj[g.key] = [item]
+const itemLines = (fields, indent = '  ') =>
+  fields.map((f) => {
+    let line = `${indent}- ${f.label} — ${f.key}${typeNote(f)}`
+    if (f.options) line += `\n${indent}    선택지: ${f.options.join(' / ')}`
+    if (f.row_fields) line += `\n${indent}    각 행: ${f.row_fields.join(', ')} (행 수: ${f.max_rows})`
+    return line
+  })
+
+/** 수집 항목 문서 — manifest v2 구조를 그대로 서술한다 */
+function buildFieldDoc(m) {
+  const L = [`## 수집 항목과 출력 key (manifest v${m.manifest_version})`]
+  L.push(
+    '최종 JSON 은 아래 key 를 그대로 쓴다. 라벨(한글)을 key 로 쓰지 않는다.',
+    '값을 모르면 빈 문자열 "" 또는 빈 배열 [] 로 둔다 — 추정으로 채우지 않는다(제1원칙).',
+    ''
+  )
+
+  L.push('### 기본 정보')
+  L.push(...itemLines(m.basic_fields, ''))
+
+  const mp = m.monthly_plan
+  if (mp) {
+    L.push(
+      '',
+      `### 교수·학습 계획 — key: ${keyOf(mp, 'monthly_plan')} (${mp.rows}행 고정, month 순서: ${mp.months.join(', ')})`,
+      '각 행 객체: { "month": "8월", ... }'
+    )
+    L.push(...itemLines(mp.row_fields, ''))
   }
+
+  const ep = m.eval_purpose
+  if (ep) {
+    L.push('', `### ${ep.label} — key: ${keyOf(ep, 'eval_purpose')} (문자열 ${ep.count}개 배열)`)
+  }
+
+  const ex = m.exam
+  if (ex) {
+    L.push('', `### 정기시험 — key: ${keyOf(ex, 'exam')} (객체)`)
+    L.push(...itemLines(ex.fields, ''))
+    L.push(
+      `- 회차 배열 — rounds (최대 ${ex.rounds.max}개, count 만큼만 채운다)`,
+      ...itemLines(ex.rounds.item_fields, '  ')
+    )
+  }
+
+  const ps = m.perf_summary
+  if (ps) {
+    L.push(
+      '',
+      `### 평가 세부 운영 계획의 수행평가 열 — key: ${keyOf(ps, 'perf_areas')} (${ps.min}~${ps.max}개 배열)`
+    )
+    L.push(...itemLines(ps.item_fields, ''))
+  }
+
+  if (m.essay_total_ratio) {
+    const f = m.essay_total_ratio
+    L.push('', `### ${f.label} — key: ${keyOf(f, 'essay_total_ratio')}${typeNote(f)}`)
+  }
+
+  const al = m.achievement_levels
+  if (al) {
+    L.push(
+      '',
+      `### ${al.label} — key: ${keyOf(al, 'achievement_levels')} (객체, key 는 ${al.levels.join('/')})`
+    )
+  }
+
+  const pp = m.perf_plans
+  if (pp) {
+    L.push(
+      '',
+      `### 수행평가 출제 계획 — key: ${keyOf(pp, 'perf_plans')} (배열, 최대 ${pp.max}개. 수행평가 개수만큼)`
+    )
+    L.push(...itemLines(pp.item_fields, ''))
+  }
+
+  const mip = m.min_achievement_plan
+  if (mip) {
+    L.push('', `### ${mip.label} — key: ${keyOf(mip, 'min_achievement_plan')}${typeNote(mip)}`)
+  }
+
+  return L.join('\n')
+}
+
+/** 출력 JSON 골격 — manifest v2 에서 생성 */
+function buildSkeleton(m) {
+  const blank = (f) => (f.type === 'number' ? 0 : '')
+  const obj = {}
+
+  for (const f of m.basic_fields) obj[f.key] = blank(f)
+
+  const mp = m.monthly_plan
+  if (mp) {
+    obj[keyOf(mp, 'monthly_plan')] = mp.months.map((month) => {
+      const row = { month }
+      for (const rf of mp.row_fields) row[rf.key] = ''
+      return row
+    })
+  }
+
+  const ep = m.eval_purpose
+  if (ep) obj[keyOf(ep, 'eval_purpose')] = Array.from({ length: ep.count }, () => '')
+
+  const ex = m.exam
+  if (ex) {
+    const e = {}
+    for (const f of ex.fields) e[f.key] = blank(f)
+    const round = {}
+    for (const f of ex.rounds.item_fields) round[f.key] = ''
+    e.rounds = [round]
+    obj[keyOf(ex, 'exam')] = e
+  }
+
+  const ps = m.perf_summary
+  if (ps) {
+    const item = {}
+    for (const f of ps.item_fields) item[f.key] = ''
+    obj[keyOf(ps, 'perf_areas')] = [item]
+  }
+
+  if (m.essay_total_ratio) obj[keyOf(m.essay_total_ratio, 'essay_total_ratio')] = 0
+
+  const al = m.achievement_levels
+  if (al) {
+    const levels = {}
+    for (const lv of al.levels) levels[lv] = ''
+    obj[keyOf(al, 'achievement_levels')] = levels
+  }
+
+  const pp = m.perf_plans
+  if (pp) {
+    const item = {}
+    for (const f of pp.item_fields) {
+      if (f.type === 'multi_select') item[f.key] = []
+      else if (f.type === 'table_rows') {
+        const row = {}
+        for (const rf of f.row_fields) row[rf] = ''
+        item[f.key] = [row]
+      } else item[f.key] = ''
+    }
+    obj[keyOf(pp, 'perf_plans')] = [item]
+  }
+
+  if (m.min_achievement_plan) obj[keyOf(m.min_achievement_plan, 'min_achievement_plan')] = ''
+
   return JSON.stringify(obj, null, 2)
 }
 
-function buildSystemPrompt(m) {
-  const g = m.repeating_group
-  const lines = []
-
-  lines.push(
-    `너는 대동여자중학교의 ${m.doc_title} 작성 도우미다. 교사와 대화하며 아래 항목을`,
-    `수집해 ${m.doc_title}를 완성한다.`,
-    '',
-    '[수집 항목]'
-  )
-  for (const f of m.fields) lines.push(fieldLine(f))
-  if (g) {
-    const itemDesc = g.item_fields.map((it) => `${it.label}(${it.key})`).join(' / ')
-    lines.push(
-      `- ${g.label} (key: ${g.key}, ${g.min}~${g.max}개) — 각 항목마다: ${itemDesc}`
-    )
-  }
-
-  lines.push('', '[대화 규칙]')
-  lines.push(
-    '- 첫 인사에서 무엇을 만들지 한 줄로 안내하고, 교과·학년부터 묻는다.',
-    '- 한 번에 1~2개 항목만 묻는다. 교사가 한꺼번에 여러 정보를 주면 모두 반영하고 빠진 것만 이어서 묻는다.',
-    '- 교사가 준 정보를 절대 지어내거나 임의로 보완하지 않는다. 불명확하면 되묻는다.'
-  )
-  const ratio = m.validation?.ratio_sum_100
-  if (ratio) {
-    const labels = ratio
-      .map((k) => m.fields.find((f) => f.key === k)?.label || k)
-      .join(' + ')
-    lines.push(
-      `- ${labels} 의 합이 100 이 아니면 지적하고 재확인한다 (자유학기 등 지필 0% 는 가능 — 사유를 지필평가 계획에 기록).`
-    )
-  }
-  lines.push(
-    '- 평가 기준 등 서술 항목은 교사의 메모를 학업성적관리규정에 맞는 문어체(개조식)로 다듬어 제안하고 확인받는다.',
-    '- 학생 이름·성적 등 개인정보는 수집하지 않는다. 언급되면 계획서에 넣지 않겠다고 안내한다.',
-    '- 모든 항목이 확정되면 전체 내용을 요약해 보여주고 "이대로 생성할까요?" 확인을 받는다.',
-    '- 교사가 확정하면, 다른 말 없이 정확히 아래 형식만 출력한다:',
-    '',
-    '===PLAN_READY===',
-    buildJsonSkeleton(m),
-    '===END===',
-    '',
-    '[출력 형식 주의]',
-    '- 위 JSON 의 key 는 반드시 그대로 쓴다. 라벨(한글)을 key 로 쓰지 않는다.',
-    `- 숫자 항목은 따옴표 없는 숫자로 쓴다.`,
-    '- 마커 줄(===PLAN_READY===, ===END===) 앞뒤에 다른 설명을 붙이지 않는다.',
-    '- 확정 전에는 절대 이 마커를 출력하지 않는다.'
-  )
-  return lines.join('\n')
+/** prompt-rules.v2.md 의 머리말(설명 블록)을 떼고 본문만 남긴다 */
+function rulesBody(md) {
+  const i = md.indexOf('\n---\n')
+  return (i === -1 ? md : md.slice(i + 5)).trim()
 }
 
-const SYSTEM_PROMPT = buildSystemPrompt(manifest)
+export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd) {
+  let body = rulesBody(md)
+
+  // ① 학교 상수 주입
+  if (body.includes(CONSTANTS_MARK)) {
+    body = body.replace(CONSTANTS_MARK, JSON.stringify(c, null, 2))
+  } else {
+    body += `\n\n## 학교 공통 정보\n${JSON.stringify(c, null, 2)}`
+  }
+
+  // ② 출력 JSON 골격 주입
+  const skeleton = buildSkeleton(m)
+  body = body.includes(SKELETON_MARK)
+    ? body.replace(SKELETON_MARK, skeleton)
+    : `${body}\n\n===PLAN_READY===\n${skeleton}\n===END===`
+
+  // ③ 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
+  const fieldDoc = buildFieldDoc(m)
+  const at = body.indexOf('## 완료 절차')
+  body =
+    at === -1
+      ? `${body}\n\n${fieldDoc}`
+      : `${body.slice(0, at)}${fieldDoc}\n\n${body.slice(at)}`
+
+  return body
+}
+
+const SYSTEM_PROMPT = buildSystemPrompt()
 
 // 테스트용 노출 (Vercel 은 default export 만 핸들러로 쓴다)
-export { buildSystemPrompt, validateMessages, SYSTEM_PROMPT }
+export { buildFieldDoc, buildSkeleton, validateMessages, SYSTEM_PROMPT, manifest, constants }
 
 // ---------------------------------------------------------------------------
 // 인증 — Supabase 에 검증 위임 (의존성 0)
@@ -142,9 +281,25 @@ function validateMessages(body) {
     total += m.content.length
   }
   if (total > MAX_TOTAL_CHARS) {
-    return { error: `대화 총 길이가 너무 깁니다 (${total}/${MAX_TOTAL_CHARS}자). 새로 시작해 주세요.` }
+    return {
+      error:
+        `대화 총 길이가 상한을 넘었습니다 (${total}/${MAX_TOTAL_CHARS}자). ` +
+        '참고자료를 줄이거나 새로 시작해 주세요.',
+    }
   }
   return { messages }
+}
+
+/**
+ * 프롬프트 캐싱 — 시스템 프롬프트(고정)와 직전까지의 대화를 캐시 구간으로 잡는다.
+ * 폼 채우기 대화는 턴이 길고 참고자료가 붙어 히스토리가 커지므로 효과가 크다.
+ */
+function toApiMessages(messages) {
+  return messages.map((m, i) => {
+    const block = { type: 'text', text: m.content }
+    if (i === messages.length - 1) block.cache_control = { type: 'ephemeral' }
+    return { role: m.role, content: [block] }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -184,13 +339,15 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 2000,
+        max_tokens: MAX_TOKENS,
         // 양식 수집 대화라 깊은 추론이 필요 없다. thinking 을 끄지 않으면
-        // max_tokens 를 사고 토큰이 잠식해 응답이 잘릴 수 있다.
+        // max_tokens 를 사고 토큰이 잠식해 PLAN_READY JSON 이 잘릴 수 있다.
         thinking: { type: 'disabled' },
         output_config: { effort: 'medium' },
-        system: SYSTEM_PROMPT,
-        messages: parsed.messages,
+        system: [
+          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+        ],
+        messages: toApiMessages(parsed.messages),
       }),
     })
   } catch (e) {
@@ -220,9 +377,11 @@ export default async function handler(req, res) {
     .map((b) => b.text)
     .join('')
 
+  // max_tokens 로 잘렸으면 프론트가 알아야 한다 (PLAN_READY JSON 이 깨질 수 있음)
   return res.status(200).json({
     reply,
     stop_reason: data.stop_reason,
+    truncated: data.stop_reason === 'max_tokens',
     usage: data.usage,
   })
 }

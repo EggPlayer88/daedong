@@ -236,6 +236,19 @@ def build_filename(manifest: dict, values: dict) -> str:
 
 def generate(payload: dict) -> tuple[str, str]:
     manifest = load_manifest()
+
+    # manifest v2 는 키 구조가 다르고(basic_fields/monthly_plan/exam/perf_plans…)
+    # token 값이 전부 TBD 다. 토큰 맵은 내일 template.hwpx v2 확정본과 함께 온다.
+    # 그때까지 이 함수는 v1 로직을 그대로 두되, v2 manifest 로 호출되면
+    # 아래에서 명확히 멈춘다 — 검증을 억지로 돌려 엉뚱한 오류를 내지 않는다.
+    if int(manifest.get("manifest_version", 1)) >= 2:
+        if not TEMPLATE_PATH.exists():
+            raise TemplateMissing()
+        raise TemplateMismatch(
+            "manifest v2 의 토큰 맵이 아직 구현되지 않았습니다 "
+            "(template.hwpx v2 확정본 수령 후 작업 예정)."
+        )
+
     values = validate_fields(manifest, payload.get("fields"))
 
     if not TEMPLATE_PATH.exists():
