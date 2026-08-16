@@ -1,0 +1,9 @@
+conname,pg_get_constraintdef
+timetables_parent_id_fkey,FOREIGN KEY (parent_id) REFERENCES timetables(id) ON DELETE SET NULL
+timetables_pkey,PRIMARY KEY (id)
+timetables_status_check,"CHECK ((status = ANY (ARRAY['active'::text, 'superseded'::text, 'rolled_back'::text, 'draft'::text])))"
+timetable_changes_pkey,PRIMARY KEY (id)
+timetable_changes_status_check,"CHECK ((status = ANY (ARRAY['pending'::text, 'awaiting_partners'::text, 'awaiting_admin'::text, 'approved'::text, 'rejected'::text, 'cancelled'::text])))"
+timetable_changes_superseded_by_fkey,FOREIGN KEY (superseded_by) REFERENCES timetables(id) ON DELETE SET NULL
+timetable_changes_supersession_status_check,"CHECK ((supersession_status = ANY (ARRAY['compatible'::text, 'superseded'::text, 'needs_review'::text, 'manually_resolved'::text])))"
+timetable_changes_type_check,"CHECK ((type = ANY (ARRAY['swap'::text, 'substitute'::text, 'self_study'::text, 'period_move'::text])))"

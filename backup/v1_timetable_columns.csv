@@ -1,0 +1,37 @@
+table_name,column_name,data_type,is_nullable,column_default
+timetable_changes,id,uuid,NO,gen_random_uuid()
+timetable_changes,type,text,NO,null
+timetable_changes,status,text,NO,'pending'::text
+timetable_changes,source_date,date,NO,null
+timetable_changes,source_class_id,text,NO,null
+timetable_changes,source_period,integer,NO,null
+timetable_changes,source_day,text,NO,null
+timetable_changes,source_teacher_id,text,NO,null
+timetable_changes,source_subject_id,text,NO,null
+timetable_changes,payload,jsonb,NO,'{}'::jsonb
+timetable_changes,partner_status,jsonb,NO,'{}'::jsonb
+timetable_changes,requester_id,text,YES,null
+timetable_changes,approver_id,text,YES,null
+timetable_changes,approved_at,timestamp with time zone,YES,null
+timetable_changes,rejected_by,text,YES,null
+timetable_changes,rejection_reason,text,YES,null
+timetable_changes,supersession_status,text,YES,null
+timetable_changes,superseded_by,uuid,YES,null
+timetable_changes,notification_text,text,YES,null
+timetable_changes,notification_sent_at,timestamp with time zone,YES,null
+timetable_changes,reason,text,YES,null
+timetable_changes,is_admin_direct,boolean,NO,false
+timetable_changes,created_at,timestamp with time zone,NO,now()
+timetable_changes,updated_at,timestamp with time zone,NO,now()
+timetables,id,uuid,NO,gen_random_uuid()
+timetables,name,text,NO,null
+timetables,effective_from,date,NO,null
+timetables,effective_until,date,YES,null
+timetables,parent_id,uuid,YES,null
+timetables,edit_log,jsonb,YES,'{}'::jsonb
+timetables,status,text,NO,'active'::text
+timetables,is_active,boolean,NO,false
+timetables,data,jsonb,NO,null
+timetables,created_by,text,YES,null
+timetables,created_at,timestamp with time zone,NO,now()
+timetables,updated_at,timestamp with time zone,NO,now()

@@ -1,6 +1,6 @@
 # daedong-v2 DB 스키마 정의 (SCHEMA.md)
 
-> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 테이블 수 정정(16→17), D15~D17 반영
+> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 테이블 수 정정(16→17), D15~D17 반영 / 2026-08-16 — 15~16절 시간표 스키마를 v1 실측으로 교정 (정본: backup/v1_timetable_schema.sql)
 > 총 17개 테이블(시간표 2개 포함), 6개 도메인. RLS 패턴은 DECISIONS.md P4 의 3패턴 (personal / shared / admin-only).
 > 모든 PK 는 TEXT, DEFAULT gen_random_uuid()::text (P2). 사용자 ID 는 auth.uid()::text.
 
@@ -265,12 +265,32 @@ CREATE TABLE user_dashboard_config (
 
 ## 15~16. 시간표 도메인 — v1 스키마 이식
 
+> **⚠ 정본은 `backup/v1_timetable_schema.sql`** (2026-08-16, 000 초기화 직전 실측).
+> 아래는 요약이며, 010 작성 시에는 반드시 그 파일을 기준으로 한다.
+> (2026-08-16 교정: 이 절에 `effective_date` 라고 적혀 있었으나 실측 결과 그런 컬럼은 없고,
+> `effective_from`/`effective_until` + `parent_id` + `status` 로 구성된 **버전 워크플로우**였다.
+> 교훈 3 — 문서 맹신 금지의 실사례.)
+
 ```sql
--- timetables: v1 스키마 그대로 (id, name, data JSONB, is_active, effective_date, created_at 등)
--- timetable_changes: v1 스키마 그대로
+-- timetables (실측 요약)
+--   id UUID PK, name, effective_from DATE NOT NULL, effective_until DATE,
+--   parent_id UUID → timetables(id) 자기참조, edit_log JSONB,
+--   status TEXT CHECK ('active'|'superseded'|'rolled_back'|'draft'),
+--   is_active BOOLEAN + 부분 유니크 인덱스(활성본은 전체에서 1개만),
+--   data JSONB NOT NULL (최상위 키 c1~c8), created_by, created_at, updated_at
+
+-- timetable_changes (실측 요약) — 변경 요청 승인 워크플로우
+--   id UUID PK, type CHECK ('swap'|'substitute'|'self_study'|'period_move'),
+--   status CHECK ('pending'|'awaiting_partners'|'awaiting_admin'|'approved'|'rejected'|'cancelled'),
+--   source_* 6개, payload/partner_status JSONB, requester/approver/rejected_by,
+--   supersession_status CHECK, superseded_by UUID → timetables(id), 알림 필드 2개,
+--   reason, is_admin_direct, created_at, updated_at
 ```
+- PK 가 **UUID** — v2 의 P2(TEXT PK)와 다르지만 "v1 스키마 그대로 복제" 결정에 따라 010 에서도 uuid 유지 (격리된 도메인이라 무해)
 - packages/timetable 만 접근. v1 의 subjects/classes/teachers/teacher_assignments 테이블은 v2 로 가져오지 않음 (진실의 원천이 timetableData.js 이므로, P5 예외 조항)
-- 010_timetable_domain.sql 작성 시 v1 의 실제 스키마를 조회해서 그대로 복제 (시드가 009 로 확정되며 번호 스왑)
+- **RLS 는 v1 것을 복제하지 않는다** — P4 3패턴 + `has_extra_permission('timetable_manage')` 로 새로 설계
+- 010_timetable_domain.sql 작성 시 `backup/v1_timetable_schema.sql` 을 그대로 복제 + 001 의 `set_updated_at()` 트리거 부착 (시드가 009 로 확정되며 번호 스왑)
+- 데이터: `backup/v1_timetables_data.csv` 의 최신 초안(7/29) `data` JSONB 재주입 시 솔버 재실행 불필요
 
 ---
 
