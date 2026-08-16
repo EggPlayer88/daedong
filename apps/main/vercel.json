@@ -1,3 +1,13 @@
 {
+  "functions": {
+    "api/doc-ai/generate.py": {
+      "includeFiles": "api/**",
+      "maxDuration": 60
+    },
+    "api/doc-ai/chat.js": {
+      "includeFiles": "api/doc-ai/_assets/**",
+      "maxDuration": 60
+    }
+  },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
 }
