@@ -1,106 +1,435 @@
 {
-  "_comment": "manifest v2 DRAFT (2026-08-17). 실측한 「교수·학습 및 평가 계획서」 양식 기준의 필드 '키 구조' 확정본. ⚠ token 값은 전부 TBD — 내일 양식 v2(수행 4열 + 출제계획 4블록) 수령 후 Claude Web 이 토큰을 심으면서 확정한다. 코드(chat 프롬프트 생성, PLAN_READY 파싱, UI 확인 카드)는 이 키 구조를 기준으로 오늘 작성 가능.",
+  "_comment": "manifest v2 FINAL (2026-08-17). template.hwpx(원본 양식 기준 임시판 — 수행 최대 2)와 쌍. 토큰 130개 전수 검증 완료(쪼개짐 0). 양식 v2(수행 4열) 도착 시 이 구조 그대로 토큰만 확장한 v3 로 교체 예정.",
   "manifest_version": 2,
   "doc_type": "evaluation_plan",
   "doc_title": "교수·학습 및 평가 계획서",
   "template_file": "template.hwpx",
   "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서(초안).hwpx",
-
+  "limits": {
+    "exam_count": [
+      0,
+      1,
+      2
+    ],
+    "perf_areas_max": 2,
+    "perf_plans_max": 2,
+    "_note": "수행 최대 2 는 현 양식의 물리 한도. 수행 3~4회 교과는 양식 v2 대기"
+  },
+  "_merge_note": "이 파일 = template-manifest.v2.final.json(토큰·조립 계약) + v2 draft(수집 명세) 병합본. FINAL 은 direct_tokens/perf_plan_block_tokens/composition_rules/unused_handling 만 담고 basic_fields 등 '무엇을 수집할지'는 담지 않아, 둘 다 있어야 chat(프롬프트 생성)·PlanCard(확인 카드)·generate(치환)가 한 파일을 본다. 계약 4개 섹션은 FINAL 원문과 완전히 동일(테스트로 고정).",
   "basic_fields": [
-    { "key": "year",         "label": "학년도", "type": "number", "required": true, "default": 2026 },
-    { "key": "semester",     "label": "학기",   "type": "number", "required": true, "default": 2 },
-    { "key": "grade",        "label": "대상 학년", "type": "number", "required": true },
-    { "key": "subject",      "label": "교과(과목명)", "type": "text", "required": true },
-    { "key": "teacher_name", "label": "작성 교사", "type": "text", "required": true },
-    { "key": "weekly_hours", "label": "주당 시수", "type": "number", "required": true }
+    {
+      "key": "year",
+      "label": "학년도",
+      "type": "number",
+      "required": true,
+      "default": 2026
+    },
+    {
+      "key": "semester",
+      "label": "학기",
+      "type": "number",
+      "required": true,
+      "default": 2
+    },
+    {
+      "key": "grade",
+      "label": "대상 학년",
+      "type": "number",
+      "required": true
+    },
+    {
+      "key": "subject",
+      "label": "교과(과목명)",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "teacher_name",
+      "label": "작성 교사",
+      "type": "text",
+      "required": true
+    },
+    {
+      "key": "weekly_hours",
+      "label": "주당 시수",
+      "type": "number",
+      "required": true
+    }
   ],
-
   "monthly_plan": {
     "_comment": "교수·학습 계획 표. 5행 고정 (8~12월). hours_cum 은 '9/9' 형식 문자열.",
     "rows": 5,
-    "months": ["8월", "9월", "10월", "11월", "12월"],
+    "months": [
+      "8월",
+      "9월",
+      "10월",
+      "11월",
+      "12월"
+    ],
     "row_fields": [
-      { "key": "hours_cum",     "label": "시수/누계" },
-      { "key": "units",         "label": "단원명(교수·학습 내용)" },
-      { "key": "standards",     "label": "성취기준" },
-      { "key": "eval_elements", "label": "평가 요소" }
+      {
+        "key": "hours_cum",
+        "label": "시수/누계"
+      },
+      {
+        "key": "units",
+        "label": "단원명(교수·학습 내용)"
+      },
+      {
+        "key": "standards",
+        "label": "성취기준"
+      },
+      {
+        "key": "eval_elements",
+        "label": "평가 요소"
+      }
     ]
   },
-
-  "min_achievement_plan": { "key": "min_achievement_plan", "label": "최소 성취수준 미도달 예상 학생 지도 방안", "type": "text", "required": false },
-
-  "eval_purpose": { "key": "eval_purpose", "label": "평가 목적", "type": "list", "count": 3 },
-
+  "eval_purpose": {
+    "key": "eval_purpose",
+    "label": "평가 목적",
+    "type": "list",
+    "count": 3
+  },
   "exam": {
     "_comment": "정기시험. count 0/1/2. count 에 따라 서버가 고정 문구 2곳(1회고사와 2회고사 문장, 반영비율 문장)을 조립한다 — 조립 규칙은 generate 쪽 composition_rules 로 확정 예정.",
     "key": "exam",
     "fields": [
-      { "key": "count",      "label": "정기시험 횟수", "type": "number", "enum": [0, 1, 2], "required": true },
-      { "key": "ratio",      "label": "정기시험 반영비율(%)", "type": "number" },
-      { "key": "mc_points",  "label": "회차별 선택형 배점(100점 만점 중)", "type": "number" },
-      { "key": "essay_points", "label": "회차별 서술형 배점", "type": "number" }
+      {
+        "key": "count",
+        "label": "정기시험 횟수",
+        "type": "number",
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "required": true
+      },
+      {
+        "key": "ratio",
+        "label": "정기시험 반영비율(%)",
+        "type": "number"
+      },
+      {
+        "key": "mc_points",
+        "label": "회차별 선택형 배점(100점 만점 중)",
+        "type": "number"
+      },
+      {
+        "key": "essay_points",
+        "label": "회차별 서술형 배점",
+        "type": "number"
+      }
     ],
     "rounds": {
       "max": 2,
       "item_fields": [
-        { "key": "label",     "label": "회차명 (1차/2차)" },
-        { "key": "period",    "label": "평가 시기" },
-        { "key": "standards", "label": "출제 범위 성취기준" },
-        { "key": "mc",        "label": "선택형 만점(반영비율)" },
-        { "key": "essay",     "label": "서·논술형 만점(반영비율)" }
+        {
+          "key": "label",
+          "label": "회차명 (1차/2차)"
+        },
+        {
+          "key": "period",
+          "label": "평가 시기"
+        },
+        {
+          "key": "standards",
+          "label": "출제 범위 성취기준"
+        },
+        {
+          "key": "mc",
+          "label": "선택형 만점(반영비율)"
+        },
+        {
+          "key": "essay",
+          "label": "서·논술형 만점(반영비율)"
+        },
+        {
+          "key": "essay_ratio",
+          "label": "서·논술형 반영비율(회차)"
+        }
       ]
     }
   },
-
   "perf_summary": {
     "_comment": "평가 세부 운영 계획 표의 수행평가 열 (최대 4). 미사용 열은 빈칸 유지.",
     "key": "perf_areas",
     "min": 1,
-    "max": 4,
+    "max": 2,
     "strategy": "fixed_columns_blank_unused",
     "item_fields": [
-      { "key": "name",        "label": "영역(수행평가명)" },
-      { "key": "points",      "label": "영역 만점(반영비율)" },
-      { "key": "essay_ratio", "label": "서·논술형 반영비율(해당 시)" },
-      { "key": "standards",   "label": "교육과정 성취기준" },
-      { "key": "period",      "label": "평가 시기" }
+      {
+        "key": "name",
+        "label": "영역(수행평가명)"
+      },
+      {
+        "key": "points",
+        "label": "영역 만점(반영비율)"
+      },
+      {
+        "key": "essay_ratio",
+        "label": "서·논술형 반영비율(해당 시)"
+      },
+      {
+        "key": "standards",
+        "label": "교육과정 성취기준"
+      },
+      {
+        "key": "period",
+        "label": "평가 시기"
+      }
     ]
   },
-
-  "essay_total_ratio": { "key": "essay_total_ratio", "label": "서·논술형 전체 반영비율 합계(%)", "type": "number", "validation": "예외 교과가 아니면 30 이상" },
-
+  "essay_total_ratio": {
+    "key": "essay_total_ratio",
+    "label": "서·논술형 전체 반영비율 합계(%)",
+    "type": "number",
+    "validation": "예외 교과가 아니면 30 이상"
+  },
   "achievement_levels": {
     "key": "achievement_levels",
     "label": "학기 단위 성취수준 진술",
-    "levels": ["A", "B", "C", "D", "E"],
+    "levels": [
+      "A",
+      "B",
+      "C",
+      "D",
+      "E"
+    ],
     "required": false
   },
-
   "perf_plans": {
     "_comment": "8. 수행평가 출제 계획 블록 (수행평가 개수만큼, 최대 4). 미사용 블록은 서버가 통째 삭제. elements 는 평가 요소/수행수준(채점기준)/배점 행 — 양식 v2 의 행 수 실측 후 max_rows 확정.",
     "key": "perf_plans",
-    "max": 4,
+    "max": 2,
     "strategy": "fixed_blocks_delete_unused",
     "item_fields": [
-      { "key": "name",          "label": "수행평가명" },
-      { "key": "task",          "label": "수행 과제" },
-      { "key": "standards",     "label": "교육과정 성취기준" },
-      { "key": "criteria_high", "label": "평가기준 (상)" },
-      { "key": "criteria_mid",  "label": "평가기준 (중)" },
-      { "key": "criteria_low",  "label": "평가기준 (하)" },
-      { "key": "methods",       "label": "평가방법 체크", "type": "multi_select",
-        "options": ["서술·논술", "구술·발표", "토의·토론", "프로젝트", "실험·실습", "포트폴리오", "기타", "교사 관찰 및 기록", "자기평가", "동료평가"] },
-      { "key": "elements",      "label": "평가 요소별 수행수준·배점", "type": "table_rows",
-        "row_fields": ["element", "level_desc", "points"], "max_rows": "TBD(양식 v2 실측)" },
-      { "key": "absentee_rule", "label": "결시자·학적변동자 처리", "required": false }
+      {
+        "key": "name",
+        "label": "수행평가명"
+      },
+      {
+        "key": "task",
+        "label": "수행 과제"
+      },
+      {
+        "key": "standards",
+        "label": "교육과정 성취기준"
+      },
+      {
+        "key": "criteria_high",
+        "label": "평가기준 (상)"
+      },
+      {
+        "key": "criteria_mid",
+        "label": "평가기준 (중)"
+      },
+      {
+        "key": "criteria_low",
+        "label": "평가기준 (하)"
+      },
+      {
+        "key": "methods",
+        "label": "평가방법 체크",
+        "type": "multi_select",
+        "options": [
+          "서술·논술",
+          "구술·발표",
+          "토의·토론",
+          "프로젝트",
+          "실험·실습",
+          "포트폴리오",
+          "기타",
+          "교사 관찰 및 기록",
+          "자기평가",
+          "동료평가"
+        ]
+      },
+      {
+        "key": "elements",
+        "label": "평가 요소별 수행수준·배점",
+        "type": "element_groups",
+        "groups": 3,
+        "levels": 4,
+        "group_fields": [
+          {
+            "key": "name",
+            "label": "평가 요소명"
+          }
+        ],
+        "level_fields": [
+          {
+            "key": "desc",
+            "label": "수행수준 진술"
+          },
+          {
+            "key": "points",
+            "label": "배점"
+          }
+        ],
+        "_comment": "토큰 {{PP{b}_E{g}_NAME}} / {{PP{b}_E{g}_L{k}}} / {{PP{b}_E{g}_L{k}_PTS}} 와 1:1"
+      },
+      {
+        "key": "absentee_rule",
+        "label": "결시자·학적변동자 처리",
+        "required": false
+      }
     ]
   },
-
+  "min_achievement_plan": {
+    "key": "min_achievement_plan",
+    "label": "최소 성취수준 미도달 예상 학생 지도 방안",
+    "type": "text",
+    "required": false
+  },
+  "direct_tokens": {
+    "_comment": "AI 가 확정한 표시용 문자열을 그대로 치환. 값이 없으면 빈 문자열.",
+    "{{YEAR}}": "year",
+    "{{SEMESTER}}": "semester",
+    "{{GRADE}}": "grade",
+    "{{SUBJECT}}": "subject",
+    "{{M1_HOURS}}": "monthly_plan[0].hours_cum",
+    "{{M1_UNITS}}": "monthly_plan[0].units",
+    "{{M1_STD}}": "monthly_plan[0].standards",
+    "{{M1_EVAL}}": "monthly_plan[0].eval_elements",
+    "{{M2_HOURS}}": "monthly_plan[1].hours_cum",
+    "{{M2_UNITS}}": "monthly_plan[1].units",
+    "{{M2_STD}}": "monthly_plan[1].standards",
+    "{{M2_EVAL}}": "monthly_plan[1].eval_elements",
+    "{{M3_HOURS}}": "monthly_plan[2].hours_cum",
+    "{{M3_UNITS}}": "monthly_plan[2].units",
+    "{{M3_STD}}": "monthly_plan[2].standards",
+    "{{M3_EVAL}}": "monthly_plan[2].eval_elements",
+    "{{M4_HOURS}}": "monthly_plan[3].hours_cum",
+    "{{M4_UNITS}}": "monthly_plan[3].units",
+    "{{M4_STD}}": "monthly_plan[3].standards",
+    "{{M4_EVAL}}": "monthly_plan[3].eval_elements",
+    "{{M5_HOURS}}": "monthly_plan[4].hours_cum",
+    "{{M5_UNITS}}": "monthly_plan[4].units",
+    "{{M5_STD}}": "monthly_plan[4].standards",
+    "{{M5_EVAL}}": "monthly_plan[4].eval_elements",
+    "{{MIN_ACH}}": "min_achievement_plan",
+    "{{PURPOSE1}}": "eval_purpose[0]",
+    "{{PURPOSE2}}": "eval_purpose[1]",
+    "{{PURPOSE3}}": "eval_purpose[2]",
+    "{{EXAM_TOTAL_RATIO}}": "exam.ratio_display",
+    "{{PERF_TOTAL_RATIO}}": "perf.ratio_display",
+    "{{EX1_MC}}": "exam.rounds[0].mc",
+    "{{EX1_ESSAY}}": "exam.rounds[0].essay",
+    "{{EX2_MC}}": "exam.rounds[1].mc",
+    "{{EX2_ESSAY}}": "exam.rounds[1].essay",
+    "{{EX1_ESSAY_RATIO}}": "exam.rounds[0].essay_ratio",
+    "{{EX2_ESSAY_RATIO}}": "exam.rounds[1].essay_ratio",
+    "{{EX1_STD}}": "exam.rounds[0].standards",
+    "{{EX2_STD}}": "exam.rounds[1].standards",
+    "{{EX1_PERIOD}}": "exam.rounds[0].period",
+    "{{EX2_PERIOD}}": "exam.rounds[1].period",
+    "{{P1_NAME}}": "perf_areas[0].name",
+    "{{P1_POINTS}}": "perf_areas[0].points",
+    "{{P1_PERIOD}}": "perf_areas[0].period",
+    "{{P2_NAME}}": "perf_areas[1].name",
+    "{{P2_POINTS}}": "perf_areas[1].points",
+    "{{P2_PERIOD}}": "perf_areas[1].period",
+    "{{PERF_ESSAY_RATIO}}": "perf.essay_ratio_display",
+    "{{PERF_STD}}": "perf.standards_combined",
+    "{{POINTS_SUM}}": "computed.points_sum",
+    "{{ESSAY_TOTAL_RATIO}}": "essay_total_ratio_display",
+    "{{LV_A}}": "achievement_levels.A",
+    "{{LV_B}}": "achievement_levels.B",
+    "{{LV_C}}": "achievement_levels.C",
+    "{{LV_D}}": "achievement_levels.D",
+    "{{LV_E}}": "achievement_levels.E"
+  },
+  "perf_plan_block_tokens": {
+    "_comment": "출제계획 블록 b=1,2. 평가 요소 3그룹(E1~E3) × 수행수준 4단계(L1~L4).",
+    "pattern": {
+      "{{PP{b}_NAME}}": "perf_plans[b-1].name",
+      "{{PP{b}_TASK}}": "perf_plans[b-1].task",
+      "{{PP{b}_STD}}": "perf_plans[b-1].standards",
+      "{{PP{b}_HIGH}}": "perf_plans[b-1].criteria_high",
+      "{{PP{b}_MID}}": "perf_plans[b-1].criteria_mid",
+      "{{PP{b}_LOW}}": "perf_plans[b-1].criteria_low",
+      "{{PP{b}_METHODS1}}": "composed — methods_line1 규칙",
+      "{{PP{b}_METHODS2}}": "composed — methods_line2 규칙",
+      "{{PP{b}_E{g}_NAME}}": "perf_plans[b-1].elements[g-1].name",
+      "{{PP{b}_E{g}_L{k}}}": "perf_plans[b-1].elements[g-1].levels[k-1].desc",
+      "{{PP{b}_E{g}_L{k}_PTS}}": "perf_plans[b-1].elements[g-1].levels[k-1].points"
+    },
+    "{{PP{b}_ABSENT}}": "perf_plans[b-1].absentee_rule"
+  },
+  "composition_rules": {
+    "EXAM_INTRO": {
+      "2": "성취평가제에 근거한 정기시험 및 서술형·논술형 평가는 교과협의회를 통하여 매학기 1회고사와 2회고사 때 실시한다.",
+      "1": "성취평가제에 근거한 정기시험 및 서술형·논술형 평가는 교과협의회를 통하여 매학기 1회 실시한다.",
+      "0": "정기시험은 실시하지 않는다."
+    },
+    "EXAM_RATIO_SENT": {
+      "ge1": "정기시험의 반영비율은 {exam.ratio}%로 하고 각 회차별 100점 만점에 선택형 {exam.mc_points}점, 서술형 {exam.essay_points}점의 비율로 출제한다.",
+      "0": "정기시험을 실시하지 않으며, 수행평가 100%로 평가한다."
+    },
+    "methods_line1": {
+      "_comment": "선택된 항목은 □→■. 항목 문자열은 원본 그대로 (･ 는 원본의 반각 가운뎃점 — 임의로 바꾸지 말 것).",
+      "template": " {c1} 서술·논술     {c2} 구술·발표      {c3} 토의･토론       {c4} 프로젝트 {c5} 실험･실습    {c6} 포트폴리오      {c7} 기타",
+      "options_order": [
+        "서술·논술",
+        "구술·발표",
+        "토의·토론",
+        "프로젝트",
+        "실험·실습",
+        "포트폴리오",
+        "기타"
+      ]
+    },
+    "methods_line2": {
+      "template": "{c1} 교사 관찰 및 기록      {c2} 자기평가      {c3} 동료평가 ",
+      "options_order": [
+        "교사 관찰 및 기록",
+        "자기평가",
+        "동료평가"
+      ]
+    },
+    "computed": {
+      "points_sum": "정기 회차 만점 합 + 수행 영역 만점 합 표시 (예: '100점(100%)')",
+      "ratio_display": "숫자 + '%' (예: '60%'). 시험 0회면 EXAM_TOTAL_RATIO='0%', PERF_TOTAL_RATIO='100%'"
+    }
+  },
+  "unused_handling": {
+    "blank_tokens": {
+      "exam.count == 1": [
+        "EX2_MC",
+        "EX2_ESSAY",
+        "EX2_ESSAY_RATIO",
+        "EX2_STD",
+        "EX2_PERIOD"
+      ],
+      "exam.count == 0": [
+        "EX1_MC",
+        "EX1_ESSAY",
+        "EX1_ESSAY_RATIO",
+        "EX1_STD",
+        "EX1_PERIOD",
+        "EX2_MC",
+        "EX2_ESSAY",
+        "EX2_ESSAY_RATIO",
+        "EX2_STD",
+        "EX2_PERIOD"
+      ],
+      "perf_areas 1개": [
+        "P2_NAME",
+        "P2_POINTS",
+        "P2_PERIOD"
+      ],
+      "elements/levels 미사용": "해당 E·L 토큰 전부 빈 문자열"
+    },
+    "delete_blocks": {
+      "perf_plans 1개": "{{PP2_NAME}} 이 든 문단, 그 다음 표 문단, {{PP2_ABSENT}} 가 든 문단, 그리고 그 사이·직전의 빈 문단 1개를 sec 에서 제거. 제거 후 잔여 PP2_ 토큰 0 확인"
+    },
+    "final_check": "치환·삭제 후 문서 전체에 '{{' 잔존 0 (scan), verify_hwpx 통과 필수"
+  },
   "pending": [
-    "token 전체 — 양식 v2 수령 후 확정",
-    "exam.count 별 고정 문구 조립 규칙(composition_rules) — 템플릿 토큰화와 함께 확정",
+    "양식 v2(수행 4열) 도착 시 토큰만 확장한 manifest v3 로 교체 — 구조는 그대로",
     "perf_count_rule: 시험 1회 시 수행 상한 — 계란님 답 대기",
-    "essay_ratio_rule.exempt_subjects — 예외 교과 목록 대기",
-    "perf_plans.elements.max_rows — 양식 v2 실측 대기"
+    "essay_ratio_rule.exempt_subjects — 예외 교과 목록 대기"
   ]
 }

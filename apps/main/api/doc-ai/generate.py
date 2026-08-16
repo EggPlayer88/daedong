@@ -34,6 +34,8 @@ TEMPLATE_PATH = ASSETS / "template.hwpx"
 # 검증된 엔진 (api/_hwpx). 이 폴더는 수정하지 않고 import 만 한다.
 sys.path.insert(0, str(HERE.parent / "_hwpx"))
 from hwpx_lib import (  # noqa: E402
+    ln,
+    _para_text,
     load_section,
     save_section,
     replace_text_anywhere,
@@ -42,6 +44,9 @@ from hwpx_lib import (  # noqa: E402
     verify_hwpx,
 )
 from hwpx_zip import pack, unpack  # noqa: E402
+
+sys.path.insert(0, str(HERE))
+import _v2fill  # noqa: E402
 
 MAX_REQUEST_BYTES = 1_000_000
 
@@ -234,20 +239,92 @@ def build_filename(manifest: dict, values: dict) -> str:
     return name or "평가계획서.hwpx"
 
 
+def validate_v2(manifest: dict, plan: dict) -> None:
+    """v2 최소 검증 — 양식 한도를 넘는 입력만 막는다.
+    (내용의 빈칸은 정상이다: '공란은 실패가 아니다' — prompt-rules 제1원칙)
+    """
+    if not isinstance(plan, dict):
+        raise BadRequest("fields 는 객체여야 합니다.")
+
+    limits = manifest.get("limits") or {}
+    exam = plan.get("exam") or {}
+    allowed = limits.get("exam_count", [0, 1, 2])
+    count = int(_v2fill.first_num(exam.get("count"), -1))
+    if count not in allowed:
+        raise BadRequest(f"정기시험 횟수는 {allowed} 중 하나여야 하는데 '{exam.get('count')}' 를 받았습니다.")
+
+    for key, cap, label in (
+        ("perf_areas", limits.get("perf_areas_max", 2), "수행평가 영역"),
+        ("perf_plans", limits.get("perf_plans_max", 2), "수행평가 출제 계획"),
+    ):
+        items = plan.get(key) or []
+        if not isinstance(items, list):
+            raise BadRequest(f"'{label}' 은 배열이어야 합니다.")
+        if len(items) > cap:
+            raise BadRequest(
+                f"현재 양식은 {label}를 {cap}개까지만 담을 수 있는데 {len(items)}개를 받았습니다. "
+                "수행 3~4회 교과용 확장 양식은 준비 중입니다."
+            )
+
+    if not str(plan.get("subject") or "").strip():
+        raise BadRequest("필수 항목 '교과(과목명)' 이 비어 있습니다.")
+
+
+def generate_v2(manifest: dict, plan: dict) -> tuple[str, str]:
+    validate_v2(manifest, plan)
+
+    if not TEMPLATE_PATH.exists():
+        raise TemplateMissing()
+
+    values, data = _v2fill.build_token_values(plan, manifest)
+
+    tmp = Path(tempfile.mkdtemp(prefix="hwpx_"))
+    try:
+        work = tmp / "work"
+        out = tmp / "out.hwpx"
+        unpack(TEMPLATE_PATH, work)
+
+        section = work / "Contents" / "section0.xml"
+        if not section.exists():
+            raise TemplateMismatch("template.hwpx 안에 Contents/section0.xml 이 없습니다.")
+        tree, _root, sec = load_section(section)
+
+        _v2fill.fill_document(
+            sec, values, data, manifest,
+            ln=ln,
+            find_text_indices=find_text_indices,
+            replace_text_anywhere=replace_text_anywhere,
+            para_text=_para_text,
+        )
+
+        # final_check ① 잔여 토큰 0
+        leftover = _v2fill.leftover_tokens(sec, ln=ln)
+        if leftover:
+            raise TemplateMismatch(
+                f"치환되지 않은 토큰이 남았습니다: {', '.join(leftover[:8])}"
+            )
+
+        save_section(tree, section)
+        pack(work, out)
+
+        # final_check ② verify_hwpx
+        expect = [t for t in (as_str(data.get("subject")), as_str(data.get("year"))) if t]
+        verify_hwpx(out, expect_texts=expect, forbid_texts=["{{"])
+
+        return build_filename(manifest, data), base64.b64encode(out.read_bytes()).decode("ascii")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def as_str(v) -> str:
+    return "" if v is None else str(v).strip()
+
+
 def generate(payload: dict) -> tuple[str, str]:
     manifest = load_manifest()
 
-    # manifest v2 는 키 구조가 다르고(basic_fields/monthly_plan/exam/perf_plans…)
-    # token 값이 전부 TBD 다. 토큰 맵은 내일 template.hwpx v2 확정본과 함께 온다.
-    # 그때까지 이 함수는 v1 로직을 그대로 두되, v2 manifest 로 호출되면
-    # 아래에서 명확히 멈춘다 — 검증을 억지로 돌려 엉뚱한 오류를 내지 않는다.
     if int(manifest.get("manifest_version", 1)) >= 2:
-        if not TEMPLATE_PATH.exists():
-            raise TemplateMissing()
-        raise TemplateMismatch(
-            "manifest v2 의 토큰 맵이 아직 구현되지 않았습니다 "
-            "(template.hwpx v2 확정본 수령 후 작업 예정)."
-        )
+        return generate_v2(manifest, payload.get("fields") or {})
 
     values = validate_fields(manifest, payload.get("fields"))
 
