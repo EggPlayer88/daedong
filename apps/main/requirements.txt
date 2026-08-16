@@ -1,0 +1,3 @@
+# Vercel Python 런타임 의존성 (api/doc-ai/generate.py 용)
+# hwpx_lib 이 lxml.etree 를 사용한다. 이 파일이 없으면 배포된 함수가 import 에서 죽는다.
+lxml>=5.0

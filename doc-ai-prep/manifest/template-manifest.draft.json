@@ -1,0 +1,41 @@
+{
+  "_comment": "⚠ DRAFT — 2026-08-16 작성. 실제 양식 확정(내일) 후 Claude Web 이 template.hwpx 와 함께 최종본 제작. 코드는 이 파일의 '구조'에만 의존할 것 (필드 목록은 바뀐다).",
+  "manifest_version": 1,
+  "doc_type": "evaluation_plan",
+  "doc_title": "평가계획서",
+  "template_file": "template.hwpx",
+  "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서.hwpx",
+
+  "fields": [
+    { "key": "year",          "token": "{{YEAR}}",          "label": "학년도",             "type": "number", "required": true, "default": 2026 },
+    { "key": "semester",      "token": "{{SEMESTER}}",      "label": "학기",               "type": "number", "required": true, "default": 2 },
+    { "key": "subject",       "token": "{{SUBJECT}}",       "label": "교과(과목명)",        "type": "text",   "required": true },
+    { "key": "grade",         "token": "{{GRADE}}",         "label": "대상 학년",           "type": "number", "required": true },
+    { "key": "teacher_name",  "token": "{{TEACHER}}",       "label": "작성(담당) 교사",     "type": "text",   "required": true },
+    { "key": "written_ratio", "token": "{{WRITTEN_RATIO}}", "label": "지필평가 반영 비율(%)", "type": "number", "required": true },
+    { "key": "perf_ratio",    "token": "{{PERF_RATIO}}",    "label": "수행평가 반영 비율(%)", "type": "number", "required": true },
+    { "key": "written_plan",  "token": "{{WRITTEN_PLAN}}",  "label": "지필평가 계획(회차별 시기·범위·배점, 자유학기 등 미실시 사유 포함)", "type": "text", "required": true },
+    { "key": "notes",         "token": "{{NOTES}}",         "label": "기타 유의사항(성적처리 기준, 결시자 처리 등)", "type": "text", "required": false, "default": "" }
+  ],
+
+  "repeating_group": {
+    "_comment": "수행평가 영역 — 교과별 개수 가변. 전략: 템플릿에 max 개수만큼 행/토큰을 두고, 미사용 슬롯은 빈 문자열로 치환 (fixed_rows_blank_unused). 실제 양식이 가변 행을 요구하면 전략 변경.",
+    "key": "perf_areas",
+    "label": "수행평가 영역",
+    "min": 1,
+    "max": 5,
+    "strategy": "fixed_rows_blank_unused",
+    "item_fields": [
+      { "key": "name",     "token_pattern": "{{PA{n}_NAME}}",     "label": "영역명" },
+      { "key": "points",   "token_pattern": "{{PA{n}_POINTS}}",   "label": "만점/반영 비율" },
+      { "key": "method",   "token_pattern": "{{PA{n}_METHOD}}",   "label": "평가 방법" },
+      { "key": "period",   "token_pattern": "{{PA{n}_PERIOD}}",   "label": "평가 시기" },
+      { "key": "criteria", "token_pattern": "{{PA{n}_CRITERIA}}", "label": "평가 기준(채점 기준 요약)" }
+    ]
+  },
+
+  "validation": {
+    "ratio_sum_100": ["written_ratio", "perf_ratio"],
+    "_comment": "지필+수행 = 100 확인. 자유학기 등 지필 0% 케이스 허용."
+  }
+}
