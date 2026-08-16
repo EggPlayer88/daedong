@@ -4,6 +4,10 @@
       "includeFiles": "api/**",
       "maxDuration": 60
     },
+    "api/doc-ai/extract.py": {
+      "includeFiles": "api/**",
+      "maxDuration": 60
+    },
     "api/doc-ai/chat.js": {
       "includeFiles": "api/doc-ai/_assets/**",
       "maxDuration": 60

@@ -247,6 +247,14 @@ button {
   width: auto;
   padding: 11px 20px;
 }
+.composer .attach {
+  padding: 11px 14px;
+  white-space: nowrap;
+}
+.ref-chip {
+  background: #34d39918;
+  border: 1px solid #34d39935;
+}
 .plan {
   max-width: 100%;
 }

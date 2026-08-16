@@ -8,6 +8,9 @@ import manifest from '../../api/doc-ai/_assets/template-manifest.json'
 // 대화 시작용 첫 사용자 메시지 (API 는 첫 메시지가 user 여야 한다)
 const OPENING = '평가계획서 작성을 시작하려고 합니다.'
 
+// 참고자료 삽입 형식 — prompt-rules.v2.md 2단계가 이 블록을 인식한다
+const REF_PREFIX = '[참고자료: '
+
 export default function DocAiPage() {
   const { session } = useAuth()
   const token = session?.access_token
@@ -20,6 +23,7 @@ export default function DocAiPage() {
   const [notice, setNotice] = useState(null) // 양식 준비 중 등 안내
   const bottomRef = useRef(null)
   const started = useRef(false)
+  const fileRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -145,6 +149,48 @@ export default function DocAiPage() {
     }
   }
 
+  /** 참고자료 hwpx 첨부 → 텍스트 추출 → 대화에 user 메시지로 삽입 */
+  async function attach(file) {
+    if (!file) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    try {
+      const buf = await file.arrayBuffer()
+      // 큰 파일에서 String.fromCharCode(...array) 는 스택을 넘긴다 — 청크로 나눈다
+      const bytes = new Uint8Array(buf)
+      let bin = ''
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
+      }
+
+      const r = await fetch('/api/doc-ai/extract', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ filename: file.name, base64: btoa(bin) }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || `추출 실패 (${r.status})`)
+
+      setNotice(
+        `참고자료를 읽었습니다: ${data.filename} (${data.chars.toLocaleString()}자` +
+          `${data.truncated ? ', 앞부분만 사용' : ''})`
+      )
+      // 프롬프트 2단계가 기대하는 형식으로 대화에 넣는다
+      await sendHistory([
+        ...messages,
+        { role: 'user', content: `${REF_PREFIX}${data.filename}]\n${data.text}` },
+      ])
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   // 화면에 보일 대화만 (PLAN_READY 블록은 카드로 대체)
   const visible = messages.map((m) =>
     m.role === 'assistant' ? { ...m, content: splitPlan(m.content).text } : m
@@ -159,13 +205,26 @@ export default function DocAiPage() {
       </p>
 
       <div className="chat">
-        {visible.map((m, i) =>
-          m.content ? (
+        {visible.map((m, i) => {
+          if (!m.content) return null
+          // 참고자료는 본문이 길어 채팅에 그대로 펼치지 않고 요약 칩으로 보여준다
+          // (AI 에게는 전문이 그대로 전달된다)
+          if (m.role === 'user' && m.content.startsWith(REF_PREFIX)) {
+            const head = m.content.slice(0, m.content.indexOf('\n'))
+            const chars = m.content.length - head.length
+            return (
+              <div key={i} className="msg user ref-chip">
+                📎 {head.slice(REF_PREFIX.length, -1)}
+                <span className="muted small"> · {chars.toLocaleString()}자 전달됨</span>
+              </div>
+            )
+          }
+          return (
             <div key={i} className={`msg ${m.role}`}>
               {m.content}
             </div>
-          ) : null
-        )}
+          )
+        })}
         {busy && <div className="msg assistant muted">…</div>}
         <div ref={bottomRef} />
       </div>
@@ -184,6 +243,25 @@ export default function DocAiPage() {
       )}
 
       <form className="composer" onSubmit={onSubmit}>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".hwpx"
+          hidden
+          onChange={(e) => {
+            attach(e.target.files?.[0])
+            e.target.value = '' // 같은 파일 다시 고를 수 있게
+          }}
+        />
+        <button
+          type="button"
+          className="btn-plain attach"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          title="지난 학기 평가계획서(.hwpx)를 올리면 초안 품질이 크게 좋아집니다"
+        >
+          📎 참고자료
+        </button>
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
