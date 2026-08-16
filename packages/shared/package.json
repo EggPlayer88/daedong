@@ -1,0 +1,14 @@
+{
+  "name": "@daedong/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "공통 기반 (최하층). P8: 아무것도 import 하지 않는다.",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4"
+  }
+}

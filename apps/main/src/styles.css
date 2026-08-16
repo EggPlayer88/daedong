@@ -1,0 +1,41 @@
+:root {
+  --bg: #0c0f1a;
+  --card: #141929;
+  --card-hover: #1a2038;
+  --border: #232940;
+  --border-light: #2d3555;
+  --accent: #4f8cff;
+  --text: #e8ecf4;
+  --text-mid: #8b95ad;
+  --text-dim: #5a6480;
+  --green: #34d399;
+  --yellow: #fbbf24;
+  --red: #f87171;
+  --purple: #a78bfa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+.scaffold {
+  padding: 48px;
+}
+
+.scaffold h1 {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.scaffold p {
+  color: var(--text-mid);
+  margin: 0;
+}

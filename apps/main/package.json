@@ -1,0 +1,23 @@
+{
+  "name": "@daedong/main",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "대동고 업무시스템 v2 — 메인 앱 (Vercel 배포 대상)",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@daedong/shared": "*",
+    "@daedong/timetable": "*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^7.18.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.0"
+  }
+}

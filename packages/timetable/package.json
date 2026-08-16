@@ -1,0 +1,17 @@
+{
+  "name": "@daedong/timetable",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "시간표 도메인 (Phase 2 에서 v1 코드 이식). P8: shared 만 import 가능.",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "dependencies": {
+    "@daedong/shared": "*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1"
+  }
+}

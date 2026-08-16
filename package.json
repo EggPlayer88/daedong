@@ -1,0 +1,16 @@
+{
+  "name": "daedong-v2",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "대동고 업무시스템 v2 — npm workspaces 모노레포",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/main",
+    "build": "npm run build -w apps/main",
+    "preview": "npm run preview -w apps/main"
+  }
+}
