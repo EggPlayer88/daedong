@@ -5,7 +5,8 @@
 
 | 파일 | 상태 | 실행일 | 실행자 | 비고 |
 |------|------|--------|--------|------|
-| 001_users_departments.sql | ⬜ 미실행 | | | 실행 후 D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 |
+| 000_reset_v1_project.sql | ⬜ 미실행 | | | **v1 프로젝트 초기화 (D18)**. ⚠ 파괴적 — 한 번에 Run 금지, `[A]→[B]→[C]→[D]→[검증]` **블록 단위 실행**. [A] 조사 결과에서 **Supabase 시스템 이벤트 트리거(graphql_watch_*, pgsodium_* 등)는 삭제 금지**, v1 것만 [B1] 에 실명 기입. **[D] auth 사용자 전부 삭제는 생략 금지** (남으면 첫 로그인 시 handle_new_user 트리거가 안 돌아 public.users 행이 생기지 않음) |
+| 001_users_departments.sql | ⬜ 미실행 | | | 000 선행 필수. 실행 후 D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 |
 | 002_schedules_tasks.sql | ⬜ 미실행 | | | 001 선행 필수 |
 | 009_seed.sql | ⬜ 미실행 | | | **Phase 1 말 실행** (001~008 선행). 부서 6개 + 2026-2 term. 1회만 실행 |
 | (D17) superadmin 승격 UPDATE | ⬜ 미실행 | | | 001 파일 맨 아래 블록. 첫 Google 로그인 후 실행 |

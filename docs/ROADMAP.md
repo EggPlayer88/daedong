@@ -60,6 +60,7 @@ daedong-v2/
 ## 마이그레이션 순서
 
 ```
+000_reset_v1_project.sql       -- v1 프로젝트 초기화 (D18, 재사용 전제). 블록 단위 실행
 001_users_departments.sql      -- users, departments + RLS + handle_new_user 트리거
 002_schedules_tasks.sql        -- schedules, tasks + RLS
 003_documents.sql              -- documents, labels, label_map + Storage 버킷 + RLS
@@ -79,7 +80,7 @@ daedong-v2/
 - [ ] v1 DB 에서 "업무 종류" 데이터 조회 → 백업 (보존 대상 확인)
 - [ ] 새 repo daedong-v2 생성, npm workspaces 모노레포 셋업
 - [ ] docs/ 에 DECISIONS.md, SCHEMA.md, ROADMAP.md 배치
-- [ ] 새 Supabase 프로젝트 생성
+- [ ] ~~새 Supabase 프로젝트 생성~~ → **v1 프로젝트 초기화 후 재사용 (D18, 000 실행)**
 - [ ] Google OAuth 설정 — **redirect URL 에 배포 URL + http://localhost:5175/** 둘 다** (v1 교훈)
 - [ ] 001, 002 마이그레이션 실행 (확정본이 migrations/ 에 있음. 새로 작성 금지. 실행 후 README 기록)
 - [ ] shared 패키지 (supabase.js, auth.js, permissions.js)

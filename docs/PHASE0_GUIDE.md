@@ -13,7 +13,9 @@
 - [ ] Google 계정 (로그인에 사용할 계정 확정 — 이 이메일이 D17 승격 기준이 됨)
 - [ ] v1 Supabase 프로젝트 접근 (업무 종류 데이터 조사용)
 - [ ] GitHub 계정 (EggPlayer88), Vercel 계정
-- [ ] 이 폴더의 파일들: migrations/001, 002, README + docs 4개
+- [ ] 이 폴더의 파일들: migrations/000, 001, 002, 009_seed, README + docs 4개
+- [ ] (D18) v1 사이트 운영 중단 합의 — 000 실행 시점부터 v1 은 영구적으로 깨진다.
+      **v1 GitHub repo 는 유일한 참조본이므로 절대 삭제 금지**
 
 ---
 
@@ -76,19 +78,33 @@ DB 접근은 shared/supabase.js 단일 경유.
 
 ---
 
-## 3단계. 새 Supabase 프로젝트 생성 — [계란]
+## 3단계. v1 Supabase 프로젝트 초기화 (000 실행) — [계란] + [CC 안내]
 
-1. https://supabase.com/dashboard → **New project**
-2. 설정:
-   - Name: `daedong-v2`
-   - Database Password: 생성 후 **비밀번호 관리 도구에 보관** (분실 시 리셋 가능하지만 번거로움)
-   - Region: **Northeast Asia (Seoul)** `ap-northeast-2`
-3. 생성 완료 후 **Project Settings → API** 에서 복사해 둘 것 2개:
-   - Project URL (`https://<PROJECT_REF>.supabase.co`)
-   - `anon` `public` key
-4. `<PROJECT_REF>` 값도 따로 메모 (5단계 Google 리디렉션 URI 에 필요)
+> **변경 (2026-08-16, D18)**: 원래 계획은 "새 프로젝트 생성"이었으나 무료 플랜의
+> 프로젝트 한도로 신규 생성이 불가 → **v1 프로젝트를 밀고 v2 로 재사용**한다.
+> v1 사이트는 운영 중단. DB 백업은 생략(보존 대상은 이미 backup/ 에 확보됨).
+> **⚠ v1 GitHub repo 는 이제 v1 의 유일한 참조본 — 절대 삭제 금지.**
 
-✅ 확인: URL 과 anon key 를 Claude Code 에 전달할 준비가 됐다 (.env 용).
+**[계란] v1 Supabase → SQL Editor 에서 `migrations/000_reset_v1_project.sql` 실행.**
+⚠ **한 번에 전체 Run 금지.** `[A] → [B] → [C] → [D] → [검증]` 블록 단위로 나눠서 실행한다.
+
+- **[A0]** (선택) 시간표 테이블 정의 추출 — 백업이 아니라 **Phase 2 재료**(010 이 v1 실측
+  스키마 복제를 전제). 결과 CSV 를 backup/ 에. 건너뛰어도 Phase 0~1 진행에는 지장 없음
+- **[A] 조사** — 결과를 [CC] 에 전달. 이벤트 트리거 목록에서 **Supabase 시스템 것
+  (`graphql_watch_*`, `pgsodium_*` 등) 은 절대 삭제 대상에 넣지 않는다.**
+  v1 이 만든 것(`rls_auto_enable` 류)만 [B1] 에 실명으로 채운다
+- **[B] 표적 제거** — B1 은 [A] 결과를 보고 주석 해제, B2(storage 비우기)는 그대로 실행
+- **[C] public 스키마 재생성** — ⚠ 여기서 v1 테이블/데이터/정책이 전부 소멸.
+  **권한 복구 GRANT 블록까지 반드시 함께 실행** (빠지면 API 가 아무것도 못 읽음)
+- **[D] auth 사용자 전부 삭제** — 대시보드 Authentication → Users → 각 사용자 Delete.
+  **생략 금지**: v1 계정이 남아 있으면 v2 첫 로그인 때 `auth.users` INSERT 가 없어
+  `handle_new_user` 트리거가 안 돌고 → public.users 행 없음 → D17 승격 대상 없음
+- **[검증]** public_tables = 0, buckets = 0, auth.users 트리거 0행, Users 화면 0 users
+
+**접속 정보**: 프로젝트가 그대로이므로 **Project URL / anon key 는 v1 것을 그대로 사용**한다
+(Project Settings → API). 초기화로 값이 바뀌지 않는다. `<PROJECT_REF>` 도 v1 것 그대로.
+
+✅ 확인: [검증] 4개 항목 통과 + URL/anon key 를 Claude Code 에 전달할 준비 완료 (.env 용).
 
 ---
 
@@ -107,29 +123,34 @@ DB 접근은 shared/supabase.js 단일 경유.
 
 ## 5단계. Google OAuth 설정 — [계란], [CC 가 옆에서 안내]
 
+> **변경 (2026-08-16, D18)**: 같은 Supabase 프로젝트를 계속 쓰므로 **Google Cloud 의
+> OAuth 클라이언트와 Supabase 의 Google Provider 설정을 그대로 재사용**한다.
+> 000 초기화는 `public` 스키마와 auth 사용자만 지우며, Provider 설정(Client ID/Secret)과
+> URL Configuration 은 그대로 남는다. 새 클라이언트를 만들 필요 없음.
+> 리디렉션 URI(`https://<PROJECT_REF>.supabase.co/auth/v1/callback`) 도 REF 가 같아 그대로 유효.
+> **실제로 할 일은 아래 2개 — 5175 등록뿐이다.**
+
 ### 5-1. Google Cloud Console (https://console.cloud.google.com)
 
-1. 프로젝트 선택/생성 (v1 때 쓰던 OAuth 클라이언트를 재사용해도 되지만,
-   깔끔한 폐기(Phase 4 v1 폐기)를 위해 **새 클라이언트 권장**)
-2. API 및 서비스 → OAuth 동의 화면: 외부(External), 앱 이름/이메일만 채우고 저장
-3. 사용자 인증 정보 → 사용자 인증 정보 만들기 → **OAuth 클라이언트 ID** → 웹 애플리케이션
-   - 승인된 자바스크립트 원본:
-     - `http://localhost:5175`
-     - (8단계 후) Vercel 배포 도메인 추가
-   - 승인된 리디렉션 URI:
-     - `https://<PROJECT_REF>.supabase.co/auth/v1/callback`  ← 3단계에서 메모한 REF
-4. 생성된 **Client ID / Client Secret** 복사
+1. v1 때 쓰던 프로젝트 → API 및 서비스 → 사용자 인증 정보 → **기존 OAuth 클라이언트 ID** 열기
+2. **승인된 자바스크립트 원본에 `http://localhost:5175` 추가** ← (a) 이번에 할 일
+   - 기존 항목(v1 배포 도메인 등)은 지우지 않아도 무방
+   - (8단계 후) Vercel 배포 도메인도 여기에 추가
+3. 승인된 리디렉션 URI: `https://<PROJECT_REF>.supabase.co/auth/v1/callback` 이 이미 있는지만 확인
+4. Client ID / Secret 은 이미 Supabase 에 등록돼 있으므로 다시 복사할 필요 없음
 
 ### 5-2. Supabase Dashboard
 
-1. Authentication → Providers → Google → Enable, Client ID/Secret 붙여넣기 → Save
+1. Authentication → Providers → Google → **Enabled 상태인지 확인만** (재설정 불필요)
 2. Authentication → **URL Configuration**:
-   - Site URL: 일단 `http://localhost:5175` (8단계 배포 후 배포 URL 로 교체)
-   - **Additional Redirect URLs: `http://localhost:5175/**`**
+   - Site URL: `http://localhost:5175` 로 **변경** (8단계 배포 후 배포 URL 로 교체)
+   - **Additional Redirect URLs 에 `http://localhost:5175/**` 추가** ← (b) 이번에 할 일
      ← ★ v1 교훈 1. 이걸 빼먹으면 로컬 개발 검증이 불가능해진다. 절대 생략 금지.
-   - (8단계 후) 배포 URL 도 `https://<도메인>/**` 형태로 추가
+   - v1 배포 URL 항목은 남아 있어도 무해 (Phase 4 v1 폐기 때 정리)
+   - (8단계 후) v2 배포 URL 도 `https://<도메인>/**` 형태로 추가
 
-✅ 확인: Providers 에 Google enabled, Redirect URLs 에 localhost 와일드카드 존재.
+✅ 확인: Providers 에 Google enabled, 승인된 원본에 `http://localhost:5175`,
+Redirect URLs 에 `http://localhost:5175/**` 존재.
 
 ---
 
@@ -192,7 +213,7 @@ DB 접근은 shared/supabase.js 단일 경유.
 
 - [ ] backup/ 에 v1 업무 종류 데이터 + 출처 테이블 기록
 - [ ] 모노레포 스캐폴드 + 문서/마이그레이션 배치 + 커밋
-- [ ] 001, 002 실행 + README 기록
+- [ ] 000 초기화 [검증] 통과 (D18) + 001, 002 실행 + README 기록
 - [ ] OAuth: localhost + 배포 URL 모두 등록
 - [ ] **배포 사이트에서 계란님 로그인 → superadmin 역할 확인** (ROADMAP 완료 기준)
 
