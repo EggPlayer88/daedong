@@ -1,0 +1,144 @@
+대동여중 업무혁신시스템 — Phase 5-A 전면 재설계
+
+## 배경
+
+이전 채팅에서 Phase 5-A (학교 정적 데이터 DB 화) 진행 중 
+이전 작업자가 남긴 DB 잔재가 예상보다 훨씬 광범위하게 발견됨.
+부분 정비로는 안전한 정착이 불가능 — 전면 재설계로 방향 전환.
+
+## 현재 코드 상태 (정상)
+
+- 커밋: b2d05ce (Phase 5-A 코드) + 2523194 (010 정비 + 문서)
+- 빌드: 통과
+- Vercel 배포: 정상 (코드 변경 0, 회귀 없음)
+- 모든 페이지 정상 동작
+
+## 발견된 잔재 (지금까지 식별된 것만)
+
+### 이전 작업자의 시간표 솔버 DB 화 시도 잔재
+
+#### 1. DB 테이블 (정체 불명, ~12개)
+- academic_events
+- documents (?), period_config, rooms
+- school_settings
+- special_slots, swap_requests
+- tasks, teacher_constraints
+- teacher_subjects
+- (그 외 2개 더, 미확인)
+
+각 테이블의 정체, 컬럼 구조, 행 수, FK 관계 모두 미파악.
+
+#### 2. teachers 테이블 비정상 컬럼
+- id 가 UUID 타입 (D6 결정과 충돌)
+- is_homeroom (boolean) — 잔재
+- is_parttime (boolean) — 잔재
+- allowed_days (jsonb) — 잔재
+- + 정상 컬럼들 + Phase 5-A 가 추가한 컬럼들 (homeroom_class_id, 
+  day_restriction, is_placeholder, is_external)
+
+#### 3. RLS 정책 (~10개+)
+- documents: 관리자 전체 관리(ALL), 본인 문서 관리(ALL), 승인된 사용자(SELECT)
+- events: 관리자 전체 관리(ALL), 본인 일정 수정(ALL), 승인된 사용자(SELECT)
+- teachers: 관리자 쓰기(ALL), 관리자 전체 읽기(SELECT), 본인 읽기(SELECT)
+- storage.objects: 승인된 사용자 (SELECT, INSERT)
+- school_settings: 관리자 쓰기(ALL)
+- 모두 get_my_role() 함수 또는 teachers 테이블 조회 의존
+
+#### 4. DB 함수 (정체 불명)
+- get_my_role() — RLS 정책에서 호출
+- 그 외 함수들 미파악
+
+#### 5. FK 의존성 (teachers.id → )
+- teacher_constraints.teacher_id ON DELETE CASCADE
+- events.created_by ON DELETE SET NULL
+- documents.uploaded_by ON DELETE SET NULL
+
+#### 6. 이미 DROP 된 구 잔재 (이전 채팅에서 처리됨)
+- subjects (UUID, allow_consecutive) — 17건 데이터 있었음
+- classes (UUID, homeroom_teacher_id) — 0건
+- teacher_assignments (UUID, hours_per_week, fixed_day) — 0건
+- weekly_hours (UUID, subject_id, grade) — 0건
+
+## 의도된 정상 테이블 (보존 필수)
+
+- teachers (1행: 계란님 본인, super_admin)
+- timetables (활성 시간표 + 드래프트)
+- timetable_changes (변동 요청 이력)
+- events (1행: 계란님의 일정)
+- notes (사용자 메모장)
+- school_calendar (학사 일정)
+
+## 코드가 실제로 사용하는 DB 객체
+
+src/lib/ 의 API 모듈들이 다음 테이블만 참조:
+- teachers
+- timetables, timetable_changes
+- events
+- notes
+- school_calendar
+- subjects, classes, departments, teacher_assignments (Phase 5-A 신규)
+
+위 목록에 없는 테이블 (academic_events, period_config, rooms, 
+school_settings, special_slots, swap_requests, tasks, teacher_constraints, 
+teacher_subjects 등) 은 모두 잔재 가능성 매우 높음.
+
+## Phase 5-A 까지 확정된 결정 (DECISIONS.md 참조)
+
+- D1: homeroom_class_id 신규, 기존 homeroom 컬럼 보존
+- D2: TCH 24명 teachers 직접 시드 + is_placeholder=TRUE
+- D3: C-2 순수 시드 (코드 변경 0)
+- D4: teacher_assignments 별도 테이블
+- D5: teachers.day_restriction INTEGER[]
+- D6: 모든 사용자 ID 컬럼 영구 TEXT (Phase 6 의 UUID 복원 결정 폐기)
+
+## 전면 재설계 의 목표
+
+1. 이전 작업자 잔재 전수 조사 (테이블 / 컬럼 / FK / 정책 / 함수 / 트리거)
+2. 코드가 실제 쓰는 것 vs 잔재 명확 구분
+3. 단계별 정비 마이그레이션 작성 (한 번에 모든 잔재 정리)
+4. RLS 정책 일괄 비활성화 (Phase 6 인증 통합에서 재설계)
+5. D6 정책 (모든 사용자 ID TEXT) 완전 정착
+6. 진실의 원천 명확화 (timetableData.js 또는 DB)
+
+## 새 채팅 진행 방식
+
+### Step 1: 전수 조사
+~/projects/daedong/db-survey.sql 의 10개 섹션을 Supabase SQL Editor 에서 차례로 실행.
+모든 결과를 캡처하거나 텍스트로 추출해서 클로드 코드에 전달.
+
+### Step 2: 잔재 정체 식별 + 처리 분류
+각 발견된 객체를 다음 카테고리로 분류:
+- 유지 (코드가 쓰는 것)
+- 삭제 (잔재)
+- 검토 필요 (정체 불명)
+
+### Step 3: 전면 정비 마이그레이션 작성
+한 트랜잭션 (또는 단계별 트랜잭션) 으로 정리:
+- 잔재 RLS 정책 DROP
+- 잔재 트리거 DROP
+- 잔재 함수 DROP
+- 잔재 FK DROP
+- 잔재 테이블 DROP CASCADE
+- teachers.id UUID → TEXT
+- 잔재 컬럼 DROP
+- FK 재생성 (TEXT ↔ TEXT)
+
+### Step 4: 009 시드 재실행
+정비 후 placeholder 24명 + assignments 123건 시드.
+
+### Step 5: 검증
+앱 정상 동작 확인 + 데이터 정합성 검증.
+
+## 시급도
+
+- 시범운영 가능 (코드 변경 0)
+- 본격 운영 (학교 데이터 편집) 전 완료 필요
+- Phase 5-B (학교 설정 페이지 부활) 가 의존
+
+## 새 채팅에서 첫 메시지로 보낼 내용
+
+이 핸드오프 메모 전체 + 다음 요청:
+"먼저 핸드오프 6개 문서 (docs/CLAUDE.md, README.md, docs/ARCHITECTURE.md, 
+docs/DECISIONS.md, docs/ROADMAP.md, docs/CONVENTIONS.md) 를 읽고, 
+~/projects/daedong/db-survey.sql 파일의 SQL 들을 검토하세요. 
+실제 실행은 사용자 (계란) 가 Supabase 에서 직접 합니다."
