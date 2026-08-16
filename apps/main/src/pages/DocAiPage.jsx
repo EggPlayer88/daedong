@@ -1,18 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../lib/AuthContext.jsx'
 import { splitPlan } from '../lib/planMarker.js'
+import PlanCard from '../components/PlanCard.jsx'
 // 필드 라벨의 진실의 원천은 manifest 하나 (P5). 서버(chat/generate)와 같은 파일을 읽는다.
 import manifest from '../../api/doc-ai/_assets/template-manifest.json'
 
 // 대화 시작용 첫 사용자 메시지 (API 는 첫 메시지가 user 여야 한다)
 const OPENING = '평가계획서 작성을 시작하려고 합니다.'
-
-function labelOf(key) {
-  const f = manifest.fields.find((x) => x.key === key)
-  if (f) return f.label
-  if (manifest.repeating_group?.key === key) return manifest.repeating_group.label
-  return key
-}
 
 export default function DocAiPage() {
   const { session } = useAuth()
@@ -180,54 +174,13 @@ export default function DocAiPage() {
       {notice && <p className="notice">{notice}</p>}
 
       {plan && (
-        <div className="card plan">
-          <h3>이 내용으로 만듭니다</h3>
-          <table className="table">
-            <tbody>
-              {manifest.fields.map((f) =>
-                plan[f.key] === undefined || plan[f.key] === '' ? null : (
-                  <tr key={f.key}>
-                    <th>{f.label}</th>
-                    <td>{String(plan[f.key])}</td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-
-          {Array.isArray(plan[manifest.repeating_group?.key]) && (
-            <>
-              <h4>{labelOf(manifest.repeating_group.key)}</h4>
-              <table className="table">
-                <thead>
-                  <tr>
-                    {manifest.repeating_group.item_fields.map((it) => (
-                      <th key={it.key}>{it.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {plan[manifest.repeating_group.key].map((row, i) => (
-                    <tr key={i}>
-                      {manifest.repeating_group.item_fields.map((it) => (
-                        <td key={it.key}>{String(row[it.key] ?? '')}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          )}
-
-          <div className="row">
-            <button className="btn-google" onClick={generate} disabled={busy}>
-              한글파일 생성
-            </button>
-            <button className="btn-plain" onClick={() => setPlan(null)} disabled={busy}>
-              대화로 계속 수정
-            </button>
-          </div>
-        </div>
+        <PlanCard
+          manifest={manifest}
+          plan={plan}
+          busy={busy}
+          onGenerate={generate}
+          onEdit={() => setPlan(null)}
+        />
       )}
 
       <form className="composer" onSubmit={onSubmit}>
