@@ -230,7 +230,7 @@ Redirect URLs 에 `http://localhost:5175/**` 존재.
 
 ### Phase 1 로 넘어가기 전 확인할 것
 
-- **v1 코드 사본이 로컬 한 벌뿐** — force push 로 GitHub 의 v1 이력이 사라졌다.
-  `~/projects/daedong` 에서 `v1-final` 태그/브랜치를 GitHub 에 올려두는 것을 권장
-  (DECISIONS.md [보류] 항목). Phase 4 v1 폐기 전까지는 사본 하나로 버티지 말 것
+- [x] **v1 코드 사본 확보 완료** — `EggPlayer88/daedong` 의 `v1-final`(이력 92커밋 + 미커밋
+      조사 파일 3개) / `v1-legacy`(원본 tip 598da56) 브랜치 + 로컬 `~/projects/daedong`.
+      **Phase 4 v1 폐기 전까지 삭제 금지** (Phase 2 시간표 이식의 참조본)
 - 009_seed.sql 은 **Phase 1 말** 실행 (001~008 선행)

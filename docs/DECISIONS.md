@@ -33,7 +33,7 @@
 | D15 | RLS 역할 체크 | 정책 내 역할 확인은 SECURITY DEFINER 헬퍼 함수(get_my_role, is_admin 등, 001 정의) 경유만. users 정책이 users 를 직접 조회하면 무한 재귀 |
 | D16 | 권한 컬럼 보호 | "본인 행 수정 OK, 단 role/extra_permissions/is_active 는 admin+" 는 RLS(행 단위)로 불가 → users BEFORE UPDATE 트리거로 강제 |
 | D17 | superadmin 부트스트랩 | 새 프로젝트에선 첫 로그인 전 uid 를 알 수 없어 시드 불가 → 첫 로그인(teacher 자동 생성) 후 email 기준 UPDATE 로 승격 1회 |
-| D18 | v1 인프라 재사용 | (2026-08-16, Phase 0 완료 시점 확장) 무료 플랜 한도로 신규 생성이 불가해 **v1 의 인프라 3종을 전부 재사용**한다 — ① **Supabase**: 000_reset_v1_project.sql 로 초기화 후 재사용 (URL/anon key/Google OAuth 클라이언트/Provider 설정 그대로). ② **GitHub repo (EggPlayer88/daedong)**: main 을 v2 로 force push. ③ **Vercel 프로젝트**: Root Directory 를 `apps/main` 으로 전환, 배포 도메인 `https://daedong-school.vercel.app` 유지. v1 사이트는 운영 중단, DB 백업은 생략(보존 대상은 backup/ 에 확보). ⚠ **force push 로 GitHub 의 v1 코드가 브랜치 끝에서 사라짐** — v1 코드의 현존 사본은 로컬 `~/projects/daedong` (598da56, 2026-07-13) 뿐. Phase 4 v1 폐기 전까지 이 폴더를 삭제하지 말 것 ([보류] 항목 참조) |
+| D18 | v1 인프라 재사용 | (2026-08-16, Phase 0 완료 시점 확장) 무료 플랜 한도로 신규 생성이 불가해 **v1 의 인프라 3종을 전부 재사용**한다 — ① **Supabase**: 000_reset_v1_project.sql 로 초기화 후 재사용 (URL/anon key/Google OAuth 클라이언트/Provider 설정 그대로). ② **GitHub repo (EggPlayer88/daedong)**: main 을 v2 로 force push. ③ **Vercel 프로젝트**: Root Directory 를 `apps/main` 으로 전환, 배포 도메인 `https://daedong-school.vercel.app` 유지. v1 사이트는 운영 중단, DB 백업은 생략(보존 대상은 backup/ 에 확보). force push 로 사라졌던 v1 코드는 **`v1-final` / `v1-legacy` 브랜치로 복구 완료** ([보류] 항목 참조) |
 
 ## 2. 설계 원칙 (P1~P8)
 
@@ -90,7 +90,7 @@
 
 - v1 "업무 종류" 데이터 → **종결 (2026-08-16)**: v1 public.tasks 로 확인 → 5건 모두 샘플로 판정·폐기 (근거: 동일 시각 일괄 생성, 수정 이력 없음, 일반론적 내용). 원본과 판정 기록은 backup/ 에 보존. handover_docs 는 빈 상태로 시작
 - v1 tasks 구조 필드(dept, area 등) 처리 → **종결 (2026-08-16)**: 폐기 판정으로 결정 불필요. 부활 시 마크다운 평탄화 규칙은 backup/README.md 참조
-- **v1 코드 사본 확보 (D18 후속, 미해결)**: force push 로 GitHub 의 v1 이력이 브랜치 끝에서 사라져, 현재 v1 코드는 로컬 `~/projects/daedong` 한 벌뿐이다 (커밋 안 된 파일 3개 포함). 권장 조치는 그 폴더에서 `v1-final` 태그/브랜치를 GitHub 에 올리는 것 — Phase 4 v1 폐기 전까지는 사본이 하나뿐인 상태를 유지하지 말 것
+- v1 코드 사본 확보 (D18 후속) → **종결 (2026-08-16)**: force push 로 사라졌던 GitHub 의 v1 이력을 브랜치 2개로 복구. `v1-final` (e8ddf6e — v1 이력 92커밋 + 미커밋이던 조사 파일 3개), `v1-legacy` (598da56 — 원본 tip). 로컬 `~/projects/daedong` 까지 포함해 삼중 사본. **Phase 4 v1 폐기 전까지 이 두 브랜치를 삭제하지 말 것** (Phase 2 시간표 이식의 참조본)
 - hwpx 브라우저/서버 생성 기술 방식: Phase 2 시작 시 기술 검토 선행
 - 대시보드 위젯 드래그 배치 등 고급 편집: Phase 3+ 로 연기
 - 진급 마법사 UI: Phase 4. Phase 1~3 은 엑셀 업로드로 운영
