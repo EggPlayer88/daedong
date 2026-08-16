@@ -6,8 +6,8 @@
 | 파일 | 상태 | 실행일 | 실행자 | 비고 |
 |------|------|--------|--------|------|
 | 000_reset_v1_project.sql | ✅ 완료 | 2026-08-16 | 계란 | **v1 프로젝트 초기화 (D18)**. [검증] 전 항목 통과: public_tables 0 / buckets 0 / storage 정책 0 / auth.users 트리거 0행 / Users 0명.<br>⚠ **실행 중 발견**: `storage.objects`·`storage.buckets` 를 SQL 로 직접 DELETE 하면 Supabase 의 `storage.protect_delete()` 트리거가 차단 → **정책만 DO 블록으로 제거하고, 버킷·파일은 대시보드 Storage 에서 버킷 삭제로 처리**. 000 파일 [B2] 구역에 반영 완료 (protect_delete 는 시스템 보호장치이므로 해제 금지) |
-| 001_users_departments.sql | ⬜ 미실행 | | | 000 선행 필수. 실행 후 D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 |
-| 002_schedules_tasks.sql | ⬜ 미실행 | | | 001 선행 필수 |
+| 001_users_departments.sql | ✅ 완료 | 2026-08-16 | 계란 | [검증] 통과: users·departments `rowsecurity = t`, 정책 users 2 + departments 4, 함수 8개. D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 — 아래 행 참조 |
+| 002_schedules_tasks.sql | ✅ 완료 | 2026-08-16 | 계란 | [검증] 통과: 정책 schedules 4 + tasks 4 |
 | 009_seed.sql | ⬜ 미실행 | | | **Phase 1 말 실행** (001~008 선행). 부서 6개 + 2026-2 term. 1회만 실행 |
 | (D17) superadmin 승격 UPDATE | ⬜ 미실행 | | | 001 파일 맨 아래 블록. 첫 Google 로그인 후 실행 |
 
