@@ -5,7 +5,7 @@
 
 | 파일 | 상태 | 실행일 | 실행자 | 비고 |
 |------|------|--------|--------|------|
-| 000_reset_v1_project.sql | ⬜ 미실행 | | | **v1 프로젝트 초기화 (D18)**. ⚠ 파괴적 — 한 번에 Run 금지, `[A]→[B]→[C]→[D]→[검증]` **블록 단위 실행**. [A] 조사 결과에서 **Supabase 시스템 이벤트 트리거(graphql_watch_*, pgsodium_* 등)는 삭제 금지**, v1 것만 [B1] 에 실명 기입. **[D] auth 사용자 전부 삭제는 생략 금지** (남으면 첫 로그인 시 handle_new_user 트리거가 안 돌아 public.users 행이 생기지 않음) |
+| 000_reset_v1_project.sql | ✅ 완료 | 2026-08-16 | 계란 | **v1 프로젝트 초기화 (D18)**. [검증] 전 항목 통과: public_tables 0 / buckets 0 / storage 정책 0 / auth.users 트리거 0행 / Users 0명.<br>⚠ **실행 중 발견**: `storage.objects`·`storage.buckets` 를 SQL 로 직접 DELETE 하면 Supabase 의 `storage.protect_delete()` 트리거가 차단 → **정책만 DO 블록으로 제거하고, 버킷·파일은 대시보드 Storage 에서 버킷 삭제로 처리**. 000 파일 [B2] 구역에 반영 완료 (protect_delete 는 시스템 보호장치이므로 해제 금지) |
 | 001_users_departments.sql | ⬜ 미실행 | | | 000 선행 필수. 실행 후 D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 |
 | 002_schedules_tasks.sql | ⬜ 미실행 | | | 001 선행 필수 |
 | 009_seed.sql | ⬜ 미실행 | | | **Phase 1 말 실행** (001~008 선행). 부서 6개 + 2026-2 term. 1회만 실행 |
@@ -23,3 +23,4 @@
 - `relation "..." already exists` → 이미 실행된 파일. 표 기록 누락 여부 확인.
 - `infinite recursion detected in policy` → 정책이 users 를 직접 조회한 것. 반드시 001 의 헬퍼 함수(is_admin 등) 경유 (D15).
 - 승격 UPDATE 가 0 rows → 아직 첫 로그인을 안 했거나 email 오타. `SELECT * FROM users;` 로 확인.
+- `DELETE FROM storage.objects/buckets` 가 막힘 → Supabase 시스템 트리거 `storage.protect_delete()`. **정상 동작이니 우회하지 말고** 대시보드 Storage 에서 버킷을 삭제한다 (000 [B2]).

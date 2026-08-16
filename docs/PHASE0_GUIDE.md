@@ -93,7 +93,9 @@ DB 접근은 shared/supabase.js 단일 경유.
 - **[A] 조사** — 결과를 [CC] 에 전달. 이벤트 트리거 목록에서 **Supabase 시스템 것
   (`graphql_watch_*`, `pgsodium_*` 등) 은 절대 삭제 대상에 넣지 않는다.**
   v1 이 만든 것(`rls_auto_enable` 류)만 [B1] 에 실명으로 채운다
-- **[B] 표적 제거** — B1 은 [A] 결과를 보고 주석 해제, B2(storage 비우기)는 그대로 실행
+- **[B] 표적 제거** — B1 은 [A] 결과를 보고 주석 해제.
+  B2 는 **정책 제거(DO 블록)만 SQL 로**, 버킷·파일은 **대시보드 Storage 에서 버킷 삭제**로
+  처리한다 (`storage.protect_delete()` 시스템 트리거가 직접 DELETE 를 차단 — 우회 금지)
 - **[C] public 스키마 재생성** — ⚠ 여기서 v1 테이블/데이터/정책이 전부 소멸.
   **권한 복구 GRANT 블록까지 반드시 함께 실행** (빠지면 API 가 아무것도 못 읽음)
 - **[D] auth 사용자 전부 삭제** — 대시보드 Authentication → Users → 각 사용자 Delete.

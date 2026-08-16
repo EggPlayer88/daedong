@@ -8,6 +8,9 @@
 --
 -- 실행 방법: [A] → [B] → [C] → [D] → [검증] 을 "블록 단위로 나눠서" 실행.
 --            한 번에 전체 Run 금지 ([A] 조사 결과를 보고 [B] 를 채워야 함).
+--
+-- 실행 완료: 2026-08-16 (계란). [검증] 전 항목 통과.
+--            [B2] 는 storage.protect_delete() 때문에 대시보드 경유로 수정됨 (해당 구역 주석 참조).
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------
@@ -61,7 +64,14 @@ WHERE n.nspname = 'public';
 -- B1. v1 이벤트 트리거 (A1 결과에서 v1 것만. 예시:)
 -- DROP EVENT TRIGGER IF EXISTS rls_auto_enable;
 
--- B2. storage 비우기 (버킷을 대시보드 Storage 에서 지워도 됨)
+-- B2. storage 비우기
+--     ⚠ 실측 (2026-08-16 실행): storage.objects / storage.buckets 를 SQL 로 직접
+--       DELETE 하면 Supabase 의 storage.protect_delete() 트리거가 차단한다.
+--       → **정책 제거만 아래 DO 블록으로 하고, 버킷·파일 삭제는 대시보드 Storage 에서**
+--         버킷을 지우는 방식으로 처리한다 (버킷 삭제 시 내부 objects 도 함께 사라짐).
+--       protect_delete 는 Supabase 시스템 보호장치이므로 우회·해제하지 말 것.
+
+-- B2-a. storage 정책 제거 (SQL 로 가능)
 DO $$
 DECLARE p RECORD;
 BEGIN
@@ -72,8 +82,9 @@ BEGIN
   END LOOP;
 END $$;
 
-DELETE FROM storage.objects;
-DELETE FROM storage.buckets;
+-- B2-b. 버킷·파일 삭제 → 대시보드 Storage 에서 버킷 삭제 (아래 SQL 은 차단되므로 실행 불가)
+-- DELETE FROM storage.objects;   -- ❌ storage.protect_delete() 로 차단됨
+-- DELETE FROM storage.buckets;   -- ❌ storage.protect_delete() 로 차단됨
 
 -- (참고: auth.users 위의 v1 트리거는 함수가 public 에 있었다면 [C] 에서 함수와 함께
 --  연쇄 삭제됨. [검증] 에서 남아 있으면 그때 A2 의 이름으로 DROP TRIGGER.)
