@@ -6,6 +6,7 @@ import { useAuth } from '../lib/AuthContext.jsx'
 // ROADMAP 의 라우트 표를 따르되, P1 에 맞춰 지금 있는 화면만 등록한다.
 const MENU = [
   { to: '/', label: '대시보드', end: true, action: null },
+  { to: '/doc-ai', label: '문서 작성 AI', end: false, action: null },
   { to: '/admin/users', label: '사용자 관리', end: false, action: 'users.manage' },
 ]
 

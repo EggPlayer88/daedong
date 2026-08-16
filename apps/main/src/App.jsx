@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './lib/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
+import DocAiPage from './pages/DocAiPage.jsx'
 import AdminUsersPage from './pages/AdminUsersPage.jsx'
 
 // 로그인 전에는 무조건 로그인 화면. 세션 확인 중에는 아무것도 그리지 않는다
@@ -17,6 +18,7 @@ function Gate() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<DashboardPage />} />
+        <Route path="doc-ai" element={<DocAiPage />} />
         <Route path="admin/users" element={<AdminUsersPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
