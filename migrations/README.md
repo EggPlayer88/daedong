@@ -9,7 +9,7 @@
 | 001_users_departments.sql | ✅ 완료 | 2026-08-16 | 계란 | [검증] 통과: users·departments `rowsecurity = t`, 정책 users 2 + departments 4, 함수 8개. D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 — 아래 행 참조 |
 | 002_schedules_tasks.sql | ✅ 완료 | 2026-08-16 | 계란 | [검증] 통과: 정책 schedules 4 + tasks 4 |
 | 009_seed.sql | ⬜ 미실행 | | | **Phase 1 말 실행** (001~008 선행). 부서 6개 + 2026-2 term. 1회만 실행 |
-| (D17) superadmin 승격 UPDATE | ⬜ 미실행 | | | 001 파일 맨 아래 블록. 첫 Google 로그인 후 실행 |
+| (D17) superadmin 승격 UPDATE | ✅ 완료 | 2026-08-16 | 계란 | 001 파일 맨 아래 블록. 첫 Google 로그인 후 1회 실행. 배포 사이트(https://daedong-school.vercel.app)에서 superadmin 확인 완료 = **Phase 0 완료 기준 충족** |
 
 ## 실행 방법
 

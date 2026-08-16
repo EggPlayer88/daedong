@@ -1,6 +1,6 @@
 # daedong-v2 실행 로드맵 (ROADMAP.md)
 
-> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 001·002 확정본 배치, D17 승격 단계 추가, 핸드오프 갱신 / 2026-08-16 — v1 판정 반영, 시드↔시간표 번호 스왑(009/010)
+> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 001·002 확정본 배치, D17 승격 단계 추가, 핸드오프 갱신 / 2026-08-16 — v1 판정 반영, 시드↔시간표 번호 스왑(009/010) / 2026-08-16 — **Phase 0 완료** (배포: https://daedong-school.vercel.app), D18 인프라 재사용 반영
 > Phase 0 → 4 순서로 진행. 각 Phase 는 완료 기준을 충족해야 다음으로.
 
 ---
@@ -75,20 +75,21 @@ daedong-v2/
 
 ---
 
-## Phase 0 — 기반 (1~2세션)
+## Phase 0 — 기반 ✅ 완료 (2026-08-16)
 
-- [ ] v1 DB 에서 "업무 종류" 데이터 조회 → 백업 (보존 대상 확인)
-- [ ] 새 repo daedong-v2 생성, npm workspaces 모노레포 셋업
-- [ ] docs/ 에 DECISIONS.md, SCHEMA.md, ROADMAP.md 배치
-- [ ] ~~새 Supabase 프로젝트 생성~~ → **v1 프로젝트 초기화 후 재사용 (D18, 000 실행)**
-- [ ] Google OAuth 설정 — **redirect URL 에 배포 URL + http://localhost:5175/** 둘 다** (v1 교훈)
-- [ ] 001, 002 마이그레이션 실행 (확정본이 migrations/ 에 있음. 새로 작성 금지. 실행 후 README 기록)
-- [ ] shared 패키지 (supabase.js, auth.js, permissions.js)
-- [ ] 로그인 → 빈 대시보드 → 사용자 관리 뼈대
-- [ ] 첫 로그인 후 SQL Editor 에서 superadmin 승격 UPDATE 1회 (001 하단 D17 부트스트랩 블록)
-- [ ] Vercel 배포 연결
+- [x] v1 DB 에서 "업무 종류" 데이터 조회 → 백업 (샘플 판정·폐기, backup/ 보존)
+- [x] repo daedong-v2, npm workspaces 모노레포 셋업 (apps/main, packages/shared, packages/timetable)
+- [x] docs/ 에 DECISIONS.md, SCHEMA.md, ROADMAP.md, PHASE0_GUIDE.md 배치
+- [x] ~~새 Supabase 프로젝트 생성~~ → **v1 프로젝트 초기화 후 재사용 (D18, 000 실행)**
+- [x] (추가) v1 시간표 스키마 실측 백업 — Phase 2 의 010 재료 (backup/v1_timetable_schema.sql)
+- [x] Google OAuth 설정 — redirect URL 에 배포 URL + `http://localhost:5175/**` **둘 다** (v1 교훈 1)
+- [x] 001, 002 마이그레이션 실행 + README 기록 ([검증] 통과)
+- [x] shared 패키지 (supabase.js, auth.js, permissions.js, constants.js)
+- [x] 로그인 → 빈 대시보드 → 사용자 관리 뼈대
+- [x] 첫 로그인 후 superadmin 승격 UPDATE 1회 (D17 부트스트랩)
+- [x] Vercel 배포 연결 — **v1 프로젝트 재사용, Root Directory `apps/main` (D18)**
 
-**완료 기준: 계란님이 배포 사이트에서 로그인해 본인 역할(superadmin) 확인 가능**
+**완료 기준 달성: 배포 사이트 https://daedong-school.vercel.app 에서 로그인 → superadmin 확인 완료**
 
 ## Phase 1 — 일상 코어 (2~3세션)
 
@@ -131,7 +132,10 @@ daedong-v2/
 
 ---
 
-## 다음 세션 첫 지시서 (Claude Code 용 핸드오프)
+## 핸드오프 기록
+
+> **아래는 Phase 0 지시서 — 2026-08-16 완료됨. 기록용으로 보존.**
+> Phase 1 지시서는 Phase 1 착수 시점에 작성한다 (003·004·007·008 + 009 시드 + 일상 코어).
 
 ```
 [daedong-v2 프로젝트 시작 — Phase 0]

@@ -193,6 +193,13 @@ Redirect URLs 에 `http://localhost:5175/**` 존재.
 
 ## 8단계. Vercel 배포 — [계란] + [CC 안내]
 
+> **변경 (2026-08-16, D18 확장)**: 새 repo/프로젝트를 만들지 않고 **v1 것을 그대로 재사용**했다.
+> - GitHub: `EggPlayer88/daedong` 의 main 을 v2 로 **force push**
+>   (⚠ 이로써 GitHub 의 v1 코드는 브랜치 끝에서 사라짐 — DECISIONS [보류] 항목 참조)
+> - Vercel: v1 프로젝트의 **Root Directory 를 `apps/main` 으로 전환**
+> - 배포 도메인: **https://daedong-school.vercel.app** (v1 도메인 승계)
+> 아래 1~2 는 신규 생성 시의 절차이며, 이번에는 2의 설정 전환만 수행했다.
+
 1. Vercel → Add New Project → daedong-v2 repo Import
 2. **모노레포 설정 (중요)**:
    - Root Directory: `apps/main`
@@ -211,12 +218,19 @@ Redirect URLs 에 `http://localhost:5175/**` 존재.
 
 ---
 
-## Phase 0 완료 판정
+## Phase 0 완료 판정 — ✅ 전 항목 완료 (2026-08-16)
 
-- [ ] backup/ 에 v1 업무 종류 데이터 + 출처 테이블 기록
-- [ ] 모노레포 스캐폴드 + 문서/마이그레이션 배치 + 커밋
-- [ ] 000 초기화 [검증] 통과 (D18) + 001, 002 실행 + README 기록
-- [ ] OAuth: localhost + 배포 URL 모두 등록
-- [ ] **배포 사이트에서 계란님 로그인 → superadmin 역할 확인** (ROADMAP 완료 기준)
+- [x] backup/ 에 v1 업무 종류 데이터 + 출처 테이블 기록 (+ 시간표 스키마 실측 5종)
+- [x] 모노레포 스캐폴드 + 문서/마이그레이션 배치 + 커밋
+- [x] 000 초기화 [검증] 통과 (D18) + 001, 002 실행 + README 기록
+- [x] OAuth: localhost(`http://localhost:5175/**`) + 배포 URL 모두 등록 — **localhost 유지됨** (v1 교훈 1)
+- [x] **배포 사이트(https://daedong-school.vercel.app)에서 로그인 → superadmin 역할 확인** (ROADMAP 완료 기준)
 
-완료 시 → Phase 1 (003, 004, 007, 008 + 일상 코어 기능) 로.
+**→ Phase 0 공식 완료. 다음은 Phase 1 (003, 004, 007, 008 + 009 시드 + 일상 코어 기능).**
+
+### Phase 1 로 넘어가기 전 확인할 것
+
+- **v1 코드 사본이 로컬 한 벌뿐** — force push 로 GitHub 의 v1 이력이 사라졌다.
+  `~/projects/daedong` 에서 `v1-final` 태그/브랜치를 GitHub 에 올려두는 것을 권장
+  (DECISIONS.md [보류] 항목). Phase 4 v1 폐기 전까지는 사본 하나로 버티지 말 것
+- 009_seed.sql 은 **Phase 1 말** 실행 (001~008 선행)
