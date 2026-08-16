@@ -26,16 +26,164 @@ body {
   font-size: 14px;
 }
 
-.scaffold {
-  padding: 48px;
+button {
+  font-family: inherit;
+  cursor: pointer;
 }
 
-.scaffold h1 {
-  font-size: 22px;
-  margin: 0 0 8px;
-}
-
-.scaffold p {
+.muted {
   color: var(--text-mid);
-  margin: 0;
+}
+.small {
+  font-size: 12px;
+}
+.error {
+  color: var(--red);
+}
+.boot {
+  padding: 48px;
+  color: var(--text-mid);
+}
+
+/* ─── 로그인 ─── */
+.login {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.login-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 36px 32px;
+  width: 100%;
+  max-width: 360px;
+  text-align: center;
+}
+.login-card h1 {
+  font-size: 20px;
+  margin: 0 0 6px;
+}
+.login-card p {
+  margin: 0 0 24px;
+}
+.btn-google {
+  width: 100%;
+  padding: 11px 16px;
+  border-radius: 9px;
+  border: 1px solid var(--border-light);
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ─── 레이아웃 ─── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 24px;
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  background: var(--card);
+}
+.brand {
+  font-weight: 700;
+}
+.nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+.nav-link {
+  padding: 7px 12px;
+  border-radius: 8px;
+  color: var(--text-mid);
+  text-decoration: none;
+}
+.nav-link:hover {
+  background: var(--card-hover);
+  color: var(--text);
+}
+.nav-link.active {
+  background: #4f8cff18;
+  color: var(--accent);
+}
+.me {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.me-name {
+  color: var(--text-mid);
+}
+.btn-plain {
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: transparent;
+  color: var(--text-mid);
+}
+.btn-plain:hover {
+  color: var(--text);
+}
+
+.content {
+  padding: 28px 24px;
+}
+.page h2 {
+  font-size: 18px;
+  margin: 0 0 18px;
+}
+
+/* ─── 조각 ─── */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 11px;
+  font-weight: 600;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  max-width: 480px;
+  margin-bottom: 16px;
+}
+.kv {
+  display: flex;
+  gap: 16px;
+  padding: 7px 0;
+}
+.kv .k {
+  width: 80px;
+  color: var(--text-dim);
+  flex: none;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  max-width: 960px;
+  margin-bottom: 16px;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.table th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 12px;
 }
