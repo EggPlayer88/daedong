@@ -19,7 +19,7 @@ export default function LoginPage() {
   return (
     <div className="login">
       <div className="login-card">
-        <h1>대동고 업무시스템</h1>
+        <h1>대동여중 업무혁신시스템</h1>
         <p className="muted">학교 계정(Google)으로 로그인하세요.</p>
 
         <button className="btn-google" onClick={handleLogin} disabled={busy}>

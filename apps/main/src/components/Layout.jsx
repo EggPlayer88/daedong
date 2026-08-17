@@ -17,7 +17,7 @@ export default function Layout() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">대동고 업무시스템</div>
+        <div className="brand">대동여중 업무혁신시스템</div>
 
         <nav className="nav">
           {menu.map((m) => (

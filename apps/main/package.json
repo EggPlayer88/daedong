@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "대동고 업무시스템 v2 — 메인 앱 (Vercel 배포 대상)",
+  "description": "대동여중 업무혁신시스템 v2 — 메인 앱 (Vercel 배포 대상)",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

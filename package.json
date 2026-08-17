@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "대동고 업무시스템 v2 — npm workspaces 모노레포",
+  "description": "대동여중 업무혁신시스템 v2 — npm workspaces 모노레포",
   "workspaces": [
     "apps/*",
     "packages/*"
