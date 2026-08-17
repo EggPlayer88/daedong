@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "npm run dev -w apps/main",
     "build": "npm run build -w apps/main",
-    "preview": "npm run preview -w apps/main"
+    "preview": "npm run preview -w apps/main",
+    "test": "node tests/run.mjs"
   }
 }

@@ -26,3 +26,6 @@ npm-debug.log*
 
 # Windows 다운로드 부산물
 *:Zone.Identifier
+
+# 테스트용 파이썬 환경 (tests/README.md 참조)
+tests/.venv/
