@@ -1,6 +1,6 @@
 # daedong-v2 실행 로드맵 (ROADMAP.md)
 
-> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 001·002 확정본 배치, D17 승격 단계 추가, 핸드오프 갱신 / 2026-08-16 — v1 판정 반영, 시드↔시간표 번호 스왑(009/010) / 2026-08-16 — **Phase 0 완료** (배포: https://daedong-school.vercel.app), D18 인프라 재사용 반영
+> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 001·002 확정본 배치, D17 승격 단계 추가, 핸드오프 갱신 / 2026-08-16 — v1 판정 반영, 시드↔시간표 번호 스왑(009/010) / 2026-08-16 — **Phase 0 완료** (배포: https://daedong-school.vercel.app), D18 인프라 재사용 반영 / 2026-08-18 — D20 가입 승인제 003 삽입, 이후 마이그레이션 번호 한 칸씩 이동
 > Phase 0 → 4 순서로 진행. 각 Phase 는 완료 기준을 충족해야 다음으로.
 
 ---
@@ -63,14 +63,15 @@ daedong-v2/
 000_reset_v1_project.sql       -- v1 프로젝트 초기화 (D18, 재사용 전제). 블록 단위 실행
 001_users_departments.sql      -- users, departments + RLS + handle_new_user 트리거
 002_schedules_tasks.sql        -- schedules, tasks + RLS
-003_documents.sql              -- documents, labels, label_map + Storage 버킷 + RLS
-004_handover.sql               -- handover_docs + RLS
-005_students.sql               -- students, class_groups, enrollments + RLS
-006_observations.sql           -- observation_records + RLS (personal!)
-007_academic.sql               -- academic_terms, academic_events + RLS
-008_dashboard.sql              -- user_dashboard_config + RLS
-009_seed.sql                   -- 부서 6개 + 2026-2 term (확정본 있음. Phase 1 말 실행. 업무종류는 샘플 판정으로 폐기, 계정은 D17)
-010_timetable_domain.sql       -- v1 시간표 스키마 복제 (timetables, timetable_changes) — Phase 2
+003_signup_approval.sql        -- 가입 승인제 (D20, 임시) — is_active 기본 false + RLS 게이트
+004_documents.sql              -- documents, labels, label_map + Storage 버킷 + RLS
+005_handover.sql               -- handover_docs + RLS
+006_students.sql               -- students, class_groups, enrollments + RLS
+007_observations.sql           -- observation_records + RLS (personal!)
+008_academic.sql               -- academic_terms, academic_events + RLS
+009_dashboard.sql              -- user_dashboard_config + RLS
+010_seed.sql                   -- 부서 6개 + 2026-2 term (확정본 있음. Phase 1 말 실행. 업무종류는 샘플 판정으로 폐기, 계정은 D17)
+011_timetable_domain.sql       -- v1 시간표 스키마 복제 (timetables, timetable_changes) — Phase 2
 ```
 
 ---
@@ -81,7 +82,7 @@ daedong-v2/
 - [x] repo daedong-v2, npm workspaces 모노레포 셋업 (apps/main, packages/shared, packages/timetable)
 - [x] docs/ 에 DECISIONS.md, SCHEMA.md, ROADMAP.md, PHASE0_GUIDE.md 배치
 - [x] ~~새 Supabase 프로젝트 생성~~ → **v1 프로젝트 초기화 후 재사용 (D18, 000 실행)**
-- [x] (추가) v1 시간표 스키마 실측 백업 — Phase 2 의 010 재료 (backup/v1_timetable_schema.sql)
+- [x] (추가) v1 시간표 스키마 실측 백업 — Phase 2 의 011 재료 (backup/v1_timetable_schema.sql)
 - [x] Google OAuth 설정 — redirect URL 에 배포 URL + `http://localhost:5175/**` **둘 다** (v1 교훈 1)
 - [x] 001, 002 마이그레이션 실행 + README 기록 ([검증] 통과)
 - [x] shared 패키지 (supabase.js, auth.js, permissions.js, constants.js)
@@ -91,9 +92,24 @@ daedong-v2/
 
 **완료 기준 달성: 배포 사이트 https://daedong-school.vercel.app 에서 로그인 → superadmin 확인 완료**
 
+## Phase 1.5 — 문서작성 AI 선행 출시 (D19) — 가동 중
+
+Phase 0 완료 직후 삽입. Phase 1 과 **병행 가능**(순연 아님). 상세: docs/DOC_AI_MASTER_PLAN.md
+
+- [x] hwpx 엔진 이식 (api/_hwpx — 수정 금지) + template.hwpx + manifest 계약
+- [x] /api/doc-ai/chat (대화 수집) · generate (결정적 채움) · extract (참고자료 hwpx)
+- [x] /doc-ai 채팅 UI → 확인 카드 → hwpx(초안) 다운로드
+- [x] 시수/누계 학사일정 고정표 자동 주입, 배점 정합성 검증, 한도 초과 시 안내
+- [ ] prefill 모드 (교과·학년별 작년 문서 기반 "달라진 것만 질문") — 마스터플랜 Phase B
+- [ ] 양식 패밀리 (기본판/3학년판/예체능판) 재토큰화 후 연결
+- [ ] 교사 2~3명 시범 → 프롬프트 다듬기 → 전체 안내
+
+**완료 기준: 교사 수정 5~15% 수준의 초안이 나오고, 시범 교사가 실사용**
+
 ## Phase 1 — 일상 코어 (2~3세션)
 
-- [ ] 003, 004, 007, 008 마이그레이션 + 009 시드 실행 (009 확정본 migrations/ 에 있음)
+- [ ] 004, 005, 008, 009 마이그레이션 + 010 시드 실행 (010 확정본 migrations/ 에 있음)
+      ※ 003(가입 승인제)은 D20 으로 Phase 0 뒤에 삽입되어 번호가 한 칸씩 밀렸다
 - [ ] 일정 관리 (스프레드시트형 UI, 담당자 지정)
 - [ ] tasks + 나의 할 일 위젯 (schedules 합성)
 - [ ] 업무 문서 총정리 (업로드/라벨/다운로드, admin 업로드 제한)
@@ -104,7 +120,7 @@ daedong-v2/
 
 ## Phase 2 — 차별화 기능 (3~4세션)
 
-- [ ] 010 마이그레이션 (시간표 도메인)
+- [ ] 011 마이그레이션 (시간표 도메인)
 - [ ] packages/timetable 로 v1 시간표 코드 이식 (solver, viewer, export, manage)
 - [ ] /timetable, /timetable/manage 탑재 + extra_permissions 체크
 - [ ] AI 업무 비서 (토글 오버레이, 페이지 컨텍스트 주입)
@@ -116,7 +132,7 @@ daedong-v2/
 
 ## Phase 3 — 생기부 + 확장 (2~3세션)
 
-- [ ] 005, 006 마이그레이션
+- [ ] 006, 007 마이그레이션
 - [ ] /admin/students: 학급 생성, 학생 엑셀 업로드, enrollment 관리
 - [ ] /records: 누가기록 작성 UI (학급별/교과별)
 - [ ] 생기부 초안 AI (본인 작성 기록만 재료)
@@ -135,7 +151,9 @@ daedong-v2/
 ## 핸드오프 기록
 
 > **아래는 Phase 0 지시서 — 2026-08-16 완료됨. 기록용으로 보존.**
-> Phase 1 지시서는 Phase 1 착수 시점에 작성한다 (003·004·007·008 + 009 시드 + 일상 코어).
+> Phase 1 지시서는 Phase 1 착수 시점에 작성한다 (004·005·008·009 + 010 시드 + 일상 코어).
+> ⚠ 아래 지시서 원문의 마이그레이션 번호는 작성 당시 기준이다 — 003 이 가입 승인제(D20)로
+>   확정되며 이후 번호가 한 칸씩 밀렸다. 현재 번호는 위 '마이그레이션 순서' 표를 따른다.
 
 ```
 [daedong-v2 프로젝트 시작 — Phase 0]

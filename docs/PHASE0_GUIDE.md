@@ -13,7 +13,7 @@
 - [ ] Google 계정 (로그인에 사용할 계정 확정 — 이 이메일이 D17 승격 기준이 됨)
 - [ ] v1 Supabase 프로젝트 접근 (업무 종류 데이터 조사용)
 - [ ] GitHub 계정 (EggPlayer88), Vercel 계정
-- [ ] 이 폴더의 파일들: migrations/000, 001, 002, 009_seed, README + docs 4개
+- [ ] 이 폴더의 파일들: migrations/000, 001, 002, 010_seed, README + docs 4개
 - [ ] (D18) v1 사이트 운영 중단 합의 — 000 실행 시점부터 v1 은 영구적으로 깨진다.
       **v1 GitHub repo 는 유일한 참조본이므로 절대 삭제 금지**
 
@@ -54,7 +54,7 @@ ORDER BY table_name;
 **[CC]** backup/ 폴더를 repo 에 배치.
 
 > **✔ 이 단계는 완료됨 (2026-08-16)**: 업무종류 = v1 public.tasks 로 확인 → 5건 모두 샘플로
-> 판정되어 폐기. 부서 6개(실제 부서)만 migrations/009_seed.sql 로 이관 확정 (Phase 1 말 실행).
+> 판정되어 폐기. 부서 6개(실제 부서)만 migrations/010_seed.sql 로 이관 확정 (Phase 1 말 실행).
 > 백업·판정 기록은 backup/README.md 참조.
 
 ✅ 확인: backup 파일이 repo 에 있고, 원본 테이블명이 기록되어 있다.
@@ -226,11 +226,11 @@ Redirect URLs 에 `http://localhost:5175/**` 존재.
 - [x] OAuth: localhost(`http://localhost:5175/**`) + 배포 URL 모두 등록 — **localhost 유지됨** (v1 교훈 1)
 - [x] **배포 사이트(https://daedong-school.vercel.app)에서 로그인 → superadmin 역할 확인** (ROADMAP 완료 기준)
 
-**→ Phase 0 공식 완료. 다음은 Phase 1 (003, 004, 007, 008 + 009 시드 + 일상 코어 기능).**
+**→ Phase 0 공식 완료. 다음은 003(가입 승인제, D20) → Phase 1 (004, 005, 008, 009 + 010 시드 + 일상 코어 기능).**
 
 ### Phase 1 로 넘어가기 전 확인할 것
 
 - [x] **v1 코드 사본 확보 완료** — `EggPlayer88/daedong` 의 `v1-final`(이력 92커밋 + 미커밋
       조사 파일 3개) / `v1-legacy`(원본 tip 598da56) 브랜치 + 로컬 `~/projects/daedong`.
       **Phase 4 v1 폐기 전까지 삭제 금지** (Phase 2 시간표 이식의 참조본)
-- 009_seed.sql 은 **Phase 1 말** 실행 (001~008 선행)
+- 010_seed.sql 은 **Phase 1 말** 실행 (001~009 선행)

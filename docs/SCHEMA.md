@@ -1,6 +1,6 @@
 # daedong-v2 DB 스키마 정의 (SCHEMA.md)
 
-> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 테이블 수 정정(16→17), D15~D17 반영 / 2026-08-16 — 15~16절 시간표 스키마를 v1 실측으로 교정 (정본: backup/v1_timetable_schema.sql)
+> 작성일: 2026-08-14 / 갱신: 2026-08-15 — 테이블 수 정정(16→17), D15~D17 반영 / 2026-08-16 — 15~16절 시간표 스키마를 v1 실측으로 교정 (정본: backup/v1_timetable_schema.sql) / 2026-08-18 — D20 가입 승인제로 users.is_active 이중 의미 명기
 > 총 17개 테이블(시간표 2개 포함), 6개 도메인. RLS 패턴은 DECISIONS.md P4 의 3패턴 (personal / shared / admin-only).
 > 모든 PK 는 TEXT, DEFAULT gen_random_uuid()::text (P2). 사용자 ID 는 auth.uid()::text.
 
@@ -45,13 +45,14 @@ CREATE TABLE users (
                     CHECK (role IN ('superadmin','admin','department_head','teacher')),
   extra_permissions JSONB NOT NULL DEFAULT '[]',   -- 예: ["timetable_manage"]
   department_id     TEXT REFERENCES departments(id),
-  is_active         BOOLEAN NOT NULL DEFAULT true, -- 퇴직/전출 시 false (삭제 금지)
+  is_active         BOOLEAN NOT NULL DEFAULT true, -- ⚠ D20 이후 이중 의미 (아래 참조)
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
 - RLS: shared (본인 행은 본인 수정 가능하되 role/extra_permissions 는 admin+ 만 변경)
 - ⚠ 위 컬럼 제한은 RLS 로 표현 불가 → BEFORE UPDATE 트리거 protect_privileged_columns 로 강제 (D16). is_active 도 보호 대상. SQL Editor 실행(auth.uid() 없음)은 통과 → superadmin 부트스트랩 경로 (D17)
 - 신규 가입 시 handle_new_user 트리거로 자동 생성 (role='teacher' 기본)
+- ⚠ **is_active 의 이중 의미 (D20, 임시)**: 003 이후 신규 가입은 `is_active=false`(**승인 대기**)로 생성되고 admin+ 가 승인해야 사용 가능하다. 기존 의미인 **퇴직·전출**도 같은 컬럼을 쓴다 — 임시 제도라 컬럼을 늘리지 않았다(P1). 화면에서는 `created_at` 으로 신규 대기와 비활성 처리를 구분한다. 제도 폐지 시 `status` 컬럼 분리를 검토
 - INSERT 정책 없음(트리거 전용), DELETE 정책 없음(삭제 금지, is_active 로 관리)
 
 ## 2. departments — 부서
@@ -289,7 +290,7 @@ CREATE TABLE user_dashboard_config (
 - PK 가 **UUID** — v2 의 P2(TEXT PK)와 다르지만 "v1 스키마 그대로 복제" 결정에 따라 010 에서도 uuid 유지 (격리된 도메인이라 무해)
 - packages/timetable 만 접근. v1 의 subjects/classes/teachers/teacher_assignments 테이블은 v2 로 가져오지 않음 (진실의 원천이 timetableData.js 이므로, P5 예외 조항)
 - **RLS 는 v1 것을 복제하지 않는다** — P4 3패턴 + `has_extra_permission('timetable_manage')` 로 새로 설계
-- 010_timetable_domain.sql 작성 시 `backup/v1_timetable_schema.sql` 을 그대로 복제 + 001 의 `set_updated_at()` 트리거 부착 (시드가 009 로 확정되며 번호 스왑)
+- 011_timetable_domain.sql 작성 시 `backup/v1_timetable_schema.sql` 을 그대로 복제 + 001 의 `set_updated_at()` 트리거 부착 (시드 010 · 시간표 011 — 003 가입 승인제 삽입으로 한 칸씩 밀림)
 - 데이터: `backup/v1_timetables_data.csv` 의 최신 초안(7/29) `data` JSONB 재주입 시 솔버 재실행 불필요
 
 ---

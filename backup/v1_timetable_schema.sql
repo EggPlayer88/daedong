@@ -3,7 +3,7 @@
 --
 -- 출처: 2026-08-16, v1 프로젝트 초기화(000) 직전 실측
 --       (v1_timetable_columns.csv + v1_timetable_indexes.csv + v1_timetable_constraints.csv)
--- 용도: Phase 2 의 010_timetable_domain.sql 작성 재료. ⚠ 지금 실행하는 파일 아님.
+-- 용도: Phase 2 의 011_timetable_domain.sql 작성 재료. ⚠ 지금 실행하는 파일 아님.
 --
 -- 참고 사항:
 --   - PK 가 uuid 타입 — v2 P2(TEXT PK) 와 다르지만, "v1 스키마 그대로 복제" 결정
