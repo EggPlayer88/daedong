@@ -32,7 +32,7 @@
   "eval_purpose": { "key": "eval_purpose", "label": "평가 목적", "type": "list", "count": 3 },
 
   "exam": {
-    "_comment": "정기시험. count 0/1/2. count 에 따라 서버가 고정 문구 2곳(1회고사와 2회고사 문장, 반영비율 문장)을 조립한다 — 조립 규칙은 generate 쪽 composition_rules 로 확정 예정.",
+    "_comment": "정기시험. count 0/1/2. count 에 따라 서버가 고정 문구 2곳(1회 정기시험과 2회 정기시험 문장, 반영비율 문장)을 조립한다 — 조립 규칙은 generate 쪽 composition_rules 로 확정 예정.",
     "key": "exam",
     "fields": [
       { "key": "count",      "label": "정기시험 횟수", "type": "number", "enum": [0, 1, 2], "required": true },
@@ -43,7 +43,7 @@
     "rounds": {
       "max": 2,
       "item_fields": [
-        { "key": "label",     "label": "회차명 (1차/2차)" },
+        { "key": "label",     "label": "회차명 (1회 정기시험/2회 정기시험)" },
         { "key": "period",    "label": "평가 시기" },
         { "key": "standards", "label": "출제 범위 성취기준" },
         { "key": "mc",        "label": "선택형 만점(반영비율)" },
