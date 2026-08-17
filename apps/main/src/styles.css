@@ -340,3 +340,57 @@ button {
   padding-left: 20px;
   line-height: 1.7;
 }
+
+/* ─── 승인 대기 (D20) ─── */
+.pending .pending-icon {
+  font-size: 34px;
+  margin-bottom: 10px;
+}
+.pending h1 {
+  margin-bottom: 12px;
+}
+.pending p {
+  margin: 0 0 16px;
+  line-height: 1.7;
+}
+.pending-account {
+  padding: 12px 14px;
+  margin: 0 0 18px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+.btn-plain.wide {
+  width: 100%;
+  padding: 10px 16px;
+}
+
+/* ─── 사용자 관리 ─── */
+.sec-title {
+  font-size: 14px;
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sec-title .count {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: #4f8cff20;
+  border: 1px solid #4f8cff35;
+  color: var(--accent);
+  font-size: 11px;
+  text-align: center;
+}
+.btn-google.approve {
+  width: auto;
+  padding: 6px 16px;
+  font-size: 13px;
+}
+.active-badge {
+  color: var(--green);
+  border-color: #34d39940;
+  background: #34d39918;
+}
