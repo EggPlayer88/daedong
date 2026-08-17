@@ -329,3 +329,14 @@ button {
   width: auto;
   padding: 10px 18px;
 }
+
+.warn-card {
+  border-color: #fbbf2455;
+  background: #fbbf240d;
+  max-width: 100%;
+}
+.warn-card ul {
+  margin: 10px 0 6px;
+  padding-left: 20px;
+  line-height: 1.7;
+}

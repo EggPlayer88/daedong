@@ -152,15 +152,6 @@ def derive(plan: dict, manifest: dict) -> dict:
     if not isinstance(areas, list):
         areas = []
 
-    # 합계: 정기 반영비율(=환산 점수) + 수행 영역 만점 합
-    perf_points = sum(first_num(a.get("points"), 0) for a in areas if isinstance(a, dict))
-    perf_pcts = sum(
-        paren_pct(a.get("points"), first_num(a.get("points"), 0))
-        for a in areas if isinstance(a, dict)
-    )
-    points_sum = exam_ratio + perf_points
-    pct_sum = exam_ratio + perf_pcts
-
     # 수행 서·논술형 반영비율 합계
     perf_essay = sum(
         first_num(a.get("essay_ratio"), 0) for a in areas if isinstance(a, dict)
@@ -176,16 +167,148 @@ def derive(plan: dict, manifest: dict) -> dict:
     d = dict(plan)
     d["exam"] = dict(exam)
     d["exam"]["ratio_display"] = pct(exam_ratio)
+
+    # ── 만점 표기 "N점(M%)" — M = N × 해당 반영비율 ÷ 100 (코드가 계산) ──────
+    # 정기시험: 각 회차가 100점 만점이므로 회차 반영비율 = 전체 ÷ 회차 수
+    round_ratio = (exam_ratio / count) if count else 0.0
+    rounds = exam.get("rounds") or []
+    if isinstance(rounds, list):
+        d["exam"]["rounds"] = [
+            {**r, "mc": points_label(r.get("mc"), round_ratio),
+             "essay": points_label(r.get("essay"), round_ratio)}
+            if isinstance(r, dict) else r
+            for r in rounds
+        ]
+    # 수행평가: 영역 만점 합이 100점이므로 영역 반영비율 = 수행 전체 반영비율 기준
+    d["perf_areas"] = [
+        {**a, "points": points_label(a.get("points"), perf_ratio)}
+        if isinstance(a, dict) else a
+        for a in areas
+    ]
+
     d["perf"] = {
         "ratio_display": pct(perf_ratio),
         "essay_ratio_display": pct(perf_essay) if perf_essay else "",
         "standards_combined": ", ".join(combined),
     }
-    d["computed"] = {"points_sum": f"{fmt_num(points_sum)}점({fmt_num(pct_sum)}%)"}
+    # 합계 칸: 최종 성적 척도는 100점. % 는 정기+수행 반영비율 합(정상이면 100).
+    d["computed"] = {"points_sum": f"100점({fmt_num(exam_ratio + perf_ratio)}%)"}
     ess = plan.get("essay_total_ratio")
     d["essay_total_ratio_display"] = pct(ess) if as_text(ess) else ""
     d["_exam_count"] = count
     return d
+
+
+def points_label(raw, ratio) -> str:
+    """만점 표기를 "N점(M%)" 로 정규화한다. M = N × ratio ÷ 100.
+
+    AI 가 준 문자열의 괄호 안 숫자는 신뢰하지 않고 다시 계산한다
+    (교사가 보는 값과 문서에 들어가는 값이 갈라지지 않게).
+    값이 비어 있으면 빈 문자열 그대로 둔다.
+    """
+    if as_text(raw) == "":
+        return ""
+    n = first_num(raw, 0)
+    if n <= 0:
+        return as_text(raw)
+    m = n * first_num(ratio, 0) / 100.0
+    return f"{fmt_num(n)}점({fmt_num(round(m, 1))}%)"
+
+
+# ---------------------------------------------------------------------------
+# 정합성 검증 — 위반 시 "어느 합이 몇 점인지" 를 문장으로 돌려준다
+# ---------------------------------------------------------------------------
+def check_scales(plan: dict) -> list:
+    """정기시험 각 회차 = 선택형+서논술형 100점, 수행 = 영역 만점 합 100점."""
+    problems = []
+    exam = plan.get("exam") or {}
+    count = int(first_num(exam.get("count"), 0))
+    rounds = exam.get("rounds") or []
+    if not isinstance(rounds, list):
+        rounds = []
+
+    for i in range(min(count, len(rounds))):
+        r = rounds[i] if isinstance(rounds[i], dict) else {}
+        mc = first_num(r.get("mc"), 0)
+        essay = first_num(r.get("essay"), 0)
+        if as_text(r.get("mc")) == "" and as_text(r.get("essay")) == "":
+            continue  # 아직 안 정한 회차는 통과 (공란 허용)
+        total = mc + essay
+        if round(total, 3) != 100:
+            label = as_text(r.get("label")) or f"{i + 1}회 정기시험"
+            problems.append(
+                f"{label}: 선택형 {fmt_num(mc)}점 + 서·논술형 {fmt_num(essay)}점 "
+                f"= {fmt_num(total)}점 (100점이어야 합니다)"
+            )
+
+    areas = plan.get("perf_areas") or []
+    if isinstance(areas, list) and areas:
+        vals = [first_num(a.get("points"), 0) for a in areas if isinstance(a, dict)]
+        if any(v > 0 for v in vals):
+            total = sum(vals)
+            if round(total, 3) != 100:
+                detail = " + ".join(
+                    f"{as_text(a.get('name')) or f'영역{i + 1}'} {fmt_num(first_num(a.get('points'), 0))}점"
+                    for i, a in enumerate(areas) if isinstance(a, dict)
+                )
+                problems.append(
+                    f"수행평가 영역 만점 합: {detail} = {fmt_num(total)}점 (100점이어야 합니다)"
+                )
+
+    exam_ratio = 0.0 if count == 0 else first_num(exam.get("ratio"), 0)
+    perf_ratio = first_num(plan.get("perf_ratio"), 100.0 - exam_ratio)
+    if round(exam_ratio + perf_ratio, 3) != 100:
+        problems.append(
+            f"반영비율 합: 정기시험 {fmt_num(exam_ratio)}% + 수행평가 {fmt_num(perf_ratio)}% "
+            f"= {fmt_num(exam_ratio + perf_ratio)}% (100%여야 합니다)"
+        )
+    return problems
+
+
+# ---------------------------------------------------------------------------
+# 양식 수용 한도 — 넘치면 거부하지 않고 수용분만 채우고 안내한다
+# ---------------------------------------------------------------------------
+def apply_capacity(plan: dict, manifest: dict) -> list:
+    """한도를 넘는 항목을 잘라내고, 무엇이 왜 빠졌는지 안내 문구를 돌려준다."""
+    limits = manifest.get("limits") or {}
+    notices = []
+
+    for key, cap, label in (
+        ("perf_areas", limits.get("perf_areas_max"), "수행평가 영역"),
+        ("perf_plans", limits.get("perf_plans_max"), "수행평가 출제 계획"),
+    ):
+        items = plan.get(key)
+        if cap is None or not isinstance(items, list) or len(items) <= cap:
+            continue
+        dropped = items[cap:]
+        plan[key] = items[:cap]
+        names = ", ".join(
+            as_text(x.get("name")) or f"{i + cap + 1}번째"
+            for i, x in enumerate(dropped) if isinstance(x, dict)
+        )
+        notices.append(
+            f"{label} {len(items)}개 중 {cap}개만 문서에 넣었습니다. "
+            f"빠진 항목: {names}. 현재 양식이 {cap}개까지만 담을 수 있어서이며, "
+            f"빠진 내용은 한글에서 직접 편집해 추가해야 합니다."
+        )
+
+    exam = plan.get("exam")
+    if isinstance(exam, dict):
+        allowed = limits.get("exam_count") or [0, 1, 2]
+        count = int(first_num(exam.get("count"), 0))
+        cap = max(allowed)
+        if count > cap:
+            exam["count"] = cap
+            rounds = exam.get("rounds")
+            if isinstance(rounds, list) and len(rounds) > cap:
+                exam["rounds"] = rounds[:cap]
+            notices.append(
+                f"정기시험 {count}회 중 {cap}회분만 문서에 넣었습니다. "
+                f"현재 양식이 {cap}회까지만 담을 수 있어서이며, "
+                f"나머지 회차는 한글에서 직접 편집해 추가해야 합니다."
+            )
+
+    return notices
 
 
 def compose_sentences(plan: dict, manifest: dict) -> dict:

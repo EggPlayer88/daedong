@@ -21,6 +21,7 @@ export default function DocAiPage() {
   const [error, setError] = useState(null)
   const [plan, setPlan] = useState(null) // 확인 카드에 띄울 확정 JSON
   const [notice, setNotice] = useState(null) // 양식 준비 중 등 안내
+  const [notices, setNotices] = useState([]) // 생성 후 "문서에 안 들어간 것" 안내
   const bottomRef = useRef(null)
   const started = useRef(false)
   const fileRef = useRef(null)
@@ -100,6 +101,7 @@ export default function DocAiPage() {
     if (!text || busy) return
     setPlan(null)
     setNotice(null)
+    setNotices([])
     setInput('')
     sendHistory([...messages, { role: 'user', content: text }])
   }
@@ -108,6 +110,7 @@ export default function DocAiPage() {
     setBusy(true)
     setError(null)
     setNotice(null)
+    setNotices([])
     try {
       const r = await fetch('/api/doc-ai/generate', {
         method: 'POST',
@@ -142,6 +145,8 @@ export default function DocAiPage() {
       a.remove()
       URL.revokeObjectURL(url)
       setNotice(`다운로드했습니다: ${data.filename}`)
+      // 양식에 담기지 못한 것이 있으면 숨기지 않고 그대로 알린다 (제0원칙)
+      setNotices(Array.isArray(data.notices) ? data.notices : [])
     } catch (e) {
       setError(e.message)
     } finally {
@@ -231,6 +236,19 @@ export default function DocAiPage() {
 
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
+      {notices.length > 0 && (
+        <div className="card warn-card">
+          <b>문서에 담기지 못한 내용이 있습니다</b>
+          <ul>
+            {notices.map((n, i) => (
+              <li key={i}>{n}</li>
+            ))}
+          </ul>
+          <p className="muted small">
+            내려받은 파일을 한글에서 열어 위 내용을 직접 추가해 주세요.
+          </p>
+        </div>
+      )}
 
       {plan && (
         <PlanCard

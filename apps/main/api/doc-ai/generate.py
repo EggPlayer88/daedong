@@ -250,46 +250,51 @@ def build_filename(manifest: dict, values: dict) -> str:
 
 
 def validate_v2(manifest: dict, plan: dict) -> None:
-    """v2 최소 검증 — 양식 한도를 넘는 입력만 막는다.
-    (내용의 빈칸은 정상이다: '공란은 실패가 아니다' — prompt-rules 제1원칙)
+    """v2 검증.
+
+    막는 것 — 고칠 수 있고 고쳐야 하는 것만:
+      · 교과 누락
+      · 배점 정합성 (각 회차 100점 / 수행 영역 합 100점 / 반영비율 합 100%)
+    막지 않는 것:
+      · 내용의 빈칸 — '공란은 실패가 아니다' (prompt-rules 제1원칙)
+      · 양식 수용 한도 초과 — 거부하지 않고 수용분만 채운 뒤 안내한다 (apply_capacity)
     """
     if not isinstance(plan, dict):
         raise BadRequest("fields 는 객체여야 합니다.")
 
-    limits = manifest.get("limits") or {}
-    exam = plan.get("exam") or {}
-    allowed = limits.get("exam_count", [0, 1, 2])
-    count = int(_v2fill.first_num(exam.get("count"), -1))
-    if count not in allowed:
-        raise BadRequest(f"정기시험 횟수는 {allowed} 중 하나여야 하는데 '{exam.get('count')}' 를 받았습니다.")
-
-    for key, cap, label in (
-        ("perf_areas", limits.get("perf_areas_max", 2), "수행평가 영역"),
-        ("perf_plans", limits.get("perf_plans_max", 2), "수행평가 출제 계획"),
-    ):
-        items = plan.get(key) or []
-        if not isinstance(items, list):
+    for key, label in (("perf_areas", "수행평가 영역"), ("perf_plans", "수행평가 출제 계획")):
+        if key in plan and plan[key] is not None and not isinstance(plan[key], list):
             raise BadRequest(f"'{label}' 은 배열이어야 합니다.")
-        if len(items) > cap:
-            raise BadRequest(
-                f"현재 양식은 {label}를 {cap}개까지만 담을 수 있는데 {len(items)}개를 받았습니다. "
-                "수행 3~4회 교과용 확장 양식은 준비 중입니다."
-            )
 
     if not str(plan.get("subject") or "").strip():
         raise BadRequest("필수 항목 '교과(과목명)' 이 비어 있습니다.")
 
+    problems = _v2fill.check_scales(plan)
+    if problems:
+        raise BadRequest("배점이 맞지 않습니다 — " + " / ".join(problems))
 
-def generate_v2(manifest: dict, plan: dict) -> tuple[str, str]:
+
+def generate_v2(manifest: dict, plan: dict) -> tuple[str, str, list]:
     validate_v2(manifest, plan)
 
     if not TEMPLATE_PATH.exists():
         raise TemplateMissing()
 
+    # 양식이 담을 수 있는 만큼만 채운다. 넘치는 분은 잘라내고 무엇이 왜 빠졌는지 알린다
+    # — 안 되는 걸 되는 것처럼 만들지 않는다.
+    notices = _v2fill.apply_capacity(plan, manifest)
+    for n in notices:
+        print(f"[doc-ai/generate] capacity: {n}", file=sys.stderr)
+
     # 시수/누계는 학사일정 기반 고정표가 진실이다. PLAN_READY 의 hours_cum 은
     # 덮어쓴다 (AI 계산 금지). 교사가 직접 지정했으면 hours_manual 로 보존.
     hours = _v2fill.apply_fixed_hours(plan, load_fixed_hours())
     print(f"[doc-ai/generate] fixed_hours: {hours['reason']} {hours['months']}", file=sys.stderr)
+    if not hours["applied"] and hours["reason"] == "weekly_hours 가 고정표 범위를 벗어남":
+        notices.append(
+            "주당 시수가 고정표 범위를 벗어나 시수/누계가 자동 입력되지 않았습니다. "
+            "표에 들어간 값을 한글에서 확인해 주세요."
+        )
 
     values, data = _v2fill.build_token_values(plan, manifest)
 
@@ -326,7 +331,11 @@ def generate_v2(manifest: dict, plan: dict) -> tuple[str, str]:
         expect = [t for t in (as_str(data.get("subject")), as_str(data.get("year"))) if t]
         verify_hwpx(out, expect_texts=expect, forbid_texts=["{{"])
 
-        return build_filename(manifest, data), base64.b64encode(out.read_bytes()).decode("ascii")
+        return (
+            build_filename(manifest, data),
+            base64.b64encode(out.read_bytes()).decode("ascii"),
+            notices,
+        )
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -335,7 +344,7 @@ def as_str(v) -> str:
     return "" if v is None else str(v).strip()
 
 
-def generate(payload: dict) -> tuple[str, str]:
+def generate(payload: dict) -> tuple[str, str, list]:
     manifest = load_manifest()
 
     if int(manifest.get("manifest_version", 1)) >= 2:
@@ -358,7 +367,7 @@ def generate(payload: dict) -> tuple[str, str]:
         verify_hwpx(out, expect_texts=expect, forbid_texts=["{{"])
 
         data = out.read_bytes()
-        return build_filename(manifest, values), base64.b64encode(data).decode("ascii")
+        return build_filename(manifest, values), base64.b64encode(data).decode("ascii"), []
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -403,7 +412,7 @@ class handler(BaseHTTPRequestHandler):
             return self._send(401, {"error": "로그인이 필요합니다."})
 
         try:
-            filename, b64 = generate(payload)
+            filename, b64, notices = generate(payload)
         except BadRequest as e:
             return self._send(400, {"error": str(e)})
         except TemplateMissing:
@@ -418,4 +427,4 @@ class handler(BaseHTTPRequestHandler):
             print(f"[doc-ai/generate] unexpected: {type(e).__name__}: {e}", file=sys.stderr)
             return self._send(500, {"error": f"문서 생성 중 오류가 발생했습니다: {e}"})
 
-        return self._send(200, {"filename": filename, "base64": b64})
+        return self._send(200, {"filename": filename, "base64": b64, "notices": notices})
