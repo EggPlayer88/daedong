@@ -23,6 +23,14 @@ const constants = JSON.parse(
 )
 const rulesMd = readFileSync(join(ASSETS, 'prompt-rules.v2.md'), 'utf-8')
 
+// 시수/누계 고정표 (없으면 null — 그 경우 예전처럼 AI 가 제안한다)
+let fixedHours = null
+try {
+  fixedHours = JSON.parse(readFileSync(join(ASSETS, 'fixed-hours-2026-2.json'), 'utf-8'))
+} catch {
+  fixedHours = null
+}
+
 // 모델은 env 로 교체 가능 (기본: 현재 Sonnet 세대)
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
@@ -148,6 +156,38 @@ function buildFieldDoc(m) {
 }
 
 /**
+ * 시수/누계는 서버가 학사일정 기반 고정표로 자동 주입한다.
+ * AI 가 계산·제안하면 고정표와 다른 숫자를 교사에게 보여주게 되므로, 계산을 금지하고
+ * "자동 입력된다"는 사실과 실제 값만 안내한다.
+ */
+function buildHoursDoc(table) {
+  if (!table) return ''
+  const variants = table.variants || {}
+  const row = variants[table.default_variant] || {}
+  const keys = Object.keys(row).sort((a, b) => Number(a) - Number(b))
+  if (keys.length === 0) return ''
+
+  const L = ['## 시수/누계 — 자동 입력 (직접 계산하지 말 것)']
+  L.push(
+    '- 월별 시수/누계는 **학사일정 기반 고정표로 서버가 자동 입력**한다.',
+    '  네가 계산하거나 제안하지 않는다. 교사에게 필요한 것은 **주당 시수(weekly_hours)** 하나뿐이다.',
+    '- 주당 시수를 받으면 그 교과의 시수가 어떻게 들어가는지 알려주고 넘어간다. 예:',
+    ...keys.map((k) => {
+      const r = row[k]
+      return `  · 주당 ${k}시간 → ${r.months.join(', ')} (합계 ${r.total}, 최소 기준 ${r.min_required})`
+    }),
+    `- 지원 범위는 주당 ${keys[0]}~${keys[keys.length - 1]}시간이다. 그 밖이면 교사가 직접 값을 정해야 한다.`,
+    '- 교사가 고정표와 다른 시수를 쓰고 싶다고 하면(요일 배정 특수, 분반 등):',
+    '  월별 "시수/누계" 값을 직접 받아 monthly_plan[].hours_cum 에 넣고,',
+    '  최종 JSON 에 **"hours_manual": true** 를 함께 넣는다. 그러면 서버가 교사 값을 그대로 쓴다.',
+    '- hours_manual 이 없으면 monthly_plan[].hours_cum 에 무엇을 넣어도 고정표 값으로 덮어쓰인다.',
+    '  그래도 빈 문자열로 두지 말고 고정표 값을 그대로 적어 교사가 확인 화면에서 보게 한다.',
+    '- 단원명·성취기준·평가 요소는 이 규칙과 무관하다 — 평소대로 교사·참고자료에서 받는다.'
+  )
+  return L.join('\n')
+}
+
+/**
  * 현재 양식(template.hwpx)의 물리 한도.
  * manifest.limits 에서 읽어 프롬프트에 명시한다 — 한도를 넘겨 수집해봐야
  * generate 가 거부하므로, 대화 단계에서 미리 안내하는 편이 교사에게 낫다.
@@ -178,11 +218,14 @@ function buildLimitDoc(m) {
 }
 
 /** 출력 JSON 골격 — manifest v2 에서 생성 */
-function buildSkeleton(m) {
+function buildSkeleton(m, table = fixedHours) {
   const blank = (f) => (f.type === 'number' ? 0 : '')
   const obj = {}
 
   for (const f of m.basic_fields) obj[f.key] = blank(f)
+
+  // 시수 고정표를 쓸 때만 존재하는 제어 플래그 (교사가 직접 시수를 정한 경우 true)
+  if (table) obj.hours_manual = false
 
   const mp = m.monthly_plan
   if (mp) {
@@ -254,24 +297,44 @@ function rulesBody(md) {
   return (i === -1 ? md : md.slice(i + 5)).trim()
 }
 
-export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd) {
+/**
+ * 고정표가 있으면 상수의 hours_calculation_rule 을 대체한다.
+ * 그 규칙은 "공식으로 근사값을 제안하라"고 지시하고 고정표와 다른 예시(9/9, 16/25…)를
+ * 담고 있어, 그대로 주입하면 AI 가 상충하는 두 지시를 받는다.
+ */
+function reconcileConstants(c, table) {
+  if (!table || !c?.hours_calculation_rule) return c
+  const out = { ...c }
+  out.hours_calculation_rule = {
+    _replaced: '시수/누계는 학사일정 기반 고정표로 서버가 자동 입력한다 — 아래 "시수/누계" 절 참조.',
+    _note: 'AI 는 시수를 계산하지 않는다. 교사에게서 주당 시수만 받는다.',
+    source: table.generated ? `fixed-hours (${table.generated})` : 'fixed-hours',
+    algorithm: table.algorithm,
+  }
+  return out
+}
+
+export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, table = fixedHours) {
   let body = rulesBody(md)
 
-  // ① 학교 상수 주입
+  // ① 학교 상수 주입 (고정표와 상충하는 시수 규칙은 대체)
+  const consts = reconcileConstants(c, table)
   if (body.includes(CONSTANTS_MARK)) {
-    body = body.replace(CONSTANTS_MARK, JSON.stringify(c, null, 2))
+    body = body.replace(CONSTANTS_MARK, JSON.stringify(consts, null, 2))
   } else {
-    body += `\n\n## 학교 공통 정보\n${JSON.stringify(c, null, 2)}`
+    body += `\n\n## 학교 공통 정보\n${JSON.stringify(consts, null, 2)}`
   }
 
   // ② 출력 JSON 골격 주입
-  const skeleton = buildSkeleton(m)
+  const skeleton = buildSkeleton(m, table)
   body = body.includes(SKELETON_MARK)
     ? body.replace(SKELETON_MARK, skeleton)
     : `${body}\n\n===PLAN_READY===\n${skeleton}\n===END===`
 
-  // ③ 양식 한도 + 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
-  const inserted = [buildLimitDoc(m), buildFieldDoc(m)].filter(Boolean).join('\n\n')
+  // ③ 시수 자동입력 + 양식 한도 + 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
+  const inserted = [buildHoursDoc(table), buildLimitDoc(m), buildFieldDoc(m)]
+    .filter(Boolean)
+    .join('\n\n')
   const at = body.indexOf('## 완료 절차')
   body =
     at === -1
@@ -284,7 +347,18 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd) {
 const SYSTEM_PROMPT = buildSystemPrompt()
 
 // 테스트용 노출 (Vercel 은 default export 만 핸들러로 쓴다)
-export { buildFieldDoc, buildSkeleton, validateMessages, SYSTEM_PROMPT, manifest, constants }
+export {
+  buildFieldDoc,
+  buildSkeleton,
+  buildHoursDoc,
+  buildLimitDoc,
+  reconcileConstants,
+  validateMessages,
+  SYSTEM_PROMPT,
+  manifest,
+  constants,
+  fixedHours,
+}
 
 // ---------------------------------------------------------------------------
 // 인증 — Supabase 에 검증 위임 (의존성 0)

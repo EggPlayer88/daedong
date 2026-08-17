@@ -23,3 +23,6 @@ build/
 # 로그
 *.log
 npm-debug.log*
+
+# Windows 다운로드 부산물
+*:Zone.Identifier

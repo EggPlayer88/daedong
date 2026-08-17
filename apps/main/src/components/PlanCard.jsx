@@ -5,8 +5,25 @@
 // ⚠ 노드의 key 는 property 이름과 다를 수 있다 (perf_summary → key: "perf_areas").
 
 import constants from '../../api/doc-ai/_assets/school-constants-2026-2.json'
+import fixedHours from '../../api/doc-ai/_assets/fixed-hours-2026-2.json'
 
 const keyOf = (node, fallback) => node?.key || fallback
+
+/**
+ * 서버가 실제로 넣을 시수/누계를 카드에서 미리 보여준다.
+ * generate.py 의 apply_fixed_hours 와 같은 판정이어야 한다 (한쪽만 바뀌면 화면이 거짓말을 한다).
+ */
+function resolveHours(plan) {
+  if (plan?.hours_manual === true) {
+    return { applied: false, reason: 'manual', months: null, row: null }
+  }
+  const n = Number(plan?.weekly_hours)
+  const row = Number.isInteger(n) && n > 0
+    ? fixedHours?.variants?.[fixedHours.default_variant]?.[String(n)]
+    : null
+  if (!row?.months) return { applied: false, reason: 'out_of_range', months: null, row: null }
+  return { applied: true, reason: 'fixed', months: row.months, row }
+}
 
 function Val({ v }) {
   if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) {
@@ -42,6 +59,7 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
   const essayKey = keyOf(m.essay_total_ratio, 'essay_total_ratio')
   const minKey = keyOf(m.min_achievement_plan, 'min_achievement_plan')
 
+  const hours = resolveHours(plan)
   const rows = Array.isArray(plan[monthlyKey]) ? plan[monthlyKey] : []
   const exam = plan[examKey] || {}
   const rounds = Array.isArray(exam.rounds) ? exam.rounds : []
@@ -80,13 +98,46 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
 
       {mp && (
         <Section title={`교수·학습 계획 (${mp.months.length}개월)`}>
+          {hours.applied ? (
+            <p className="muted small">
+              시수/누계는 학사일정 기반 고정표로 <b>자동 입력</b>됩니다 (주당{' '}
+              {plan.weekly_hours}시간 · 합계 {hours.row.total}
+              {hours.row.min_required !== undefined && (
+                <>
+                  {' '}
+                  / 최소 기준 {hours.row.min_required}
+                  {hours.row.ok === false && (
+                    <span className="warn"> ⚠ 최소 기준 미달</span>
+                  )}
+                </>
+              )}
+              ).
+            </p>
+          ) : hours.reason === 'manual' ? (
+            <p className="muted small">
+              시수/누계는 <b>교사가 직접 지정한 값</b>을 사용합니다 (hours_manual).
+            </p>
+          ) : (
+            <p className="warn small">
+              ⚠ 주당 시수(
+              {plan.weekly_hours === undefined || plan.weekly_hours === ''
+                ? '미입력'
+                : String(plan.weekly_hours)}
+              )가 고정표 범위를 벗어나 자동 입력되지 않습니다. 아래 값이 그대로 들어갑니다.
+            </p>
+          )}
           <div className="scroll-x">
             <table className="table">
               <thead>
                 <tr>
                   <th>월</th>
                   {mp.row_fields.map((rf) => (
-                    <th key={rf.key}>{rf.label}</th>
+                    <th key={rf.key}>
+                      {rf.label}
+                      {rf.key === 'hours_cum' && hours.applied && (
+                        <span className="muted small"> (자동)</span>
+                      )}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -96,7 +147,11 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
                     <td>{row.month || mp.months[i]}</td>
                     {mp.row_fields.map((rf) => (
                       <td key={rf.key}>
-                        <Val v={row[rf.key]} />
+                        {rf.key === 'hours_cum' && hours.applied ? (
+                          <b>{hours.months[i] ?? ''}</b>
+                        ) : (
+                          <Val v={row[rf.key]} />
+                        )}
                       </td>
                     ))}
                   </tr>

@@ -72,6 +72,55 @@ def pct(x) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 시수/누계 — 학사일정 기반 고정표로 주입 (AI 계산 금지)
+# ---------------------------------------------------------------------------
+def hours_row(table: dict, weekly_hours, variant: str | None = None) -> dict | None:
+    """고정표에서 주당시수에 해당하는 행을 찾는다. 범위를 벗어나면 None."""
+    if table is None:
+        return None
+    n = first_num(weekly_hours, 0)
+    if n <= 0 or n != int(n):
+        return None
+    key = str(int(n))
+    variants = table.get("variants") or {}
+    var = variant or table.get("default_variant") or "common"
+    row = (variants.get(var) or {}).get(key)
+    return row if isinstance(row, dict) and row.get("months") else None
+
+
+def apply_fixed_hours(plan: dict, table: dict) -> dict:
+    """monthly_plan[].hours_cum 을 고정표 값으로 덮어쓴다.
+
+    - fields.hours_manual 이 참이면 교사가 준 값을 그대로 둔다.
+    - weekly_hours 가 표의 범위(1~5)를 벗어나면 덮어쓰지 않고 교사 값을 둔다
+      (계획서를 못 만드는 것보다 낫다).
+
+    반환: {"applied": bool, "reason": str, "months": [...], "row": {...}|None}
+    """
+    rows = plan.get("monthly_plan")
+    if not isinstance(rows, list) or not rows:
+        return {"applied": False, "reason": "monthly_plan 없음", "months": [], "row": None}
+
+    if plan.get("hours_manual") in (True, "true", "True", 1):
+        return {"applied": False, "reason": "hours_manual", "months": [], "row": None}
+
+    row = hours_row(table, plan.get("weekly_hours"))
+    if row is None:
+        return {
+            "applied": False,
+            "reason": "weekly_hours 가 고정표 범위를 벗어남",
+            "months": [],
+            "row": None,
+        }
+
+    months = row["months"]
+    for i, r in enumerate(rows):
+        if isinstance(r, dict) and i < len(months):
+            r["hours_cum"] = months[i]
+    return {"applied": True, "reason": "fixed_table", "months": months, "row": row}
+
+
+# ---------------------------------------------------------------------------
 # 파생값 — AI 에게 묻지 않고 코드가 계산한다 (composition_rules.computed)
 # ---------------------------------------------------------------------------
 def normalize_method(s: str) -> str:

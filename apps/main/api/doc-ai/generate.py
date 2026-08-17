@@ -30,6 +30,7 @@ HERE = Path(__file__).resolve().parent
 ASSETS = HERE / "_assets"
 MANIFEST_PATH = ASSETS / "template-manifest.json"
 TEMPLATE_PATH = ASSETS / "template.hwpx"
+FIXED_HOURS_PATH = ASSETS / "fixed-hours-2026-2.json"
 
 # 검증된 엔진 (api/_hwpx). 이 폴더는 수정하지 않고 import 만 한다.
 sys.path.insert(0, str(HERE.parent / "_hwpx"))
@@ -91,6 +92,15 @@ def verify_user(authorization: str | None) -> dict | None:
 def load_manifest() -> dict:
     with open(MANIFEST_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_fixed_hours() -> dict | None:
+    """시수/누계 고정표. 없으면 None (그 경우 교사·AI 값을 그대로 쓴다)."""
+    try:
+        with open(FIXED_HOURS_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
 
 
 def _as_number(value, label):
@@ -275,6 +285,11 @@ def generate_v2(manifest: dict, plan: dict) -> tuple[str, str]:
 
     if not TEMPLATE_PATH.exists():
         raise TemplateMissing()
+
+    # 시수/누계는 학사일정 기반 고정표가 진실이다. PLAN_READY 의 hours_cum 은
+    # 덮어쓴다 (AI 계산 금지). 교사가 직접 지정했으면 hours_manual 로 보존.
+    hours = _v2fill.apply_fixed_hours(plan, load_fixed_hours())
+    print(f"[doc-ai/generate] fixed_hours: {hours['reason']} {hours['months']}", file=sys.stderr)
 
     values, data = _v2fill.build_token_values(plan, manifest)
 
