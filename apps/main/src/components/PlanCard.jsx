@@ -228,7 +228,12 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
               <table className="table kv-table">
                 <tbody>
                   {pp.item_fields
-                    .filter((f) => f.key !== 'name' && f.type !== 'table_rows')
+                    .filter(
+                      (f) =>
+                        f.key !== 'name' &&
+                        f.type !== 'table_rows' &&
+                        f.type !== 'element_groups'
+                    )
                     .map((f) => (
                       <tr key={f.key}>
                         <th>{f.label}</th>
@@ -241,34 +246,51 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
               </table>
 
               {pp.item_fields
-                .filter((f) => f.type === 'table_rows')
+                .filter((f) => f.type === 'element_groups')
                 .map((f) => {
-                  const list = Array.isArray(p[f.key]) ? p[f.key] : []
+                  const groups = Array.isArray(p[f.key]) ? p[f.key] : []
                   return (
                     <div key={f.key}>
-                      <div className="sub-label">{f.label}</div>
-                      {list.length === 0 ? (
+                      <div className="sub-label">
+                        {f.label} (요소 {groups.length}/{f.groups}, 수준 {f.levels}단계)
+                      </div>
+                      {groups.length === 0 ? (
                         <p className="blank">(공란)</p>
                       ) : (
                         <div className="scroll-x">
                           <table className="table">
                             <thead>
                               <tr>
-                                {f.row_fields.map((rf) => (
-                                  <th key={rf}>{rf}</th>
+                                <th>평가 요소</th>
+                                {Array.from({ length: f.levels }, (_, k) => (
+                                  <th key={k}>{k + 1}수준</th>
                                 ))}
                               </tr>
                             </thead>
                             <tbody>
-                              {list.map((row, j) => (
-                                <tr key={j}>
-                                  {f.row_fields.map((rf) => (
-                                    <td key={rf}>
-                                      <Val v={row[rf]} />
+                              {groups.slice(0, f.groups).map((g, j) => {
+                                const levels = Array.isArray(g?.levels) ? g.levels : []
+                                return (
+                                  <tr key={j}>
+                                    <td>
+                                      <Val v={g?.name} />
                                     </td>
-                                  ))}
-                                </tr>
-                              ))}
+                                    {Array.from({ length: f.levels }, (_, k) => {
+                                      const lv = levels[k] || {}
+                                      const desc = lv.desc
+                                      const pts = lv.points
+                                      return (
+                                        <td key={k}>
+                                          <Val v={desc} />
+                                          {pts !== undefined && pts !== '' && (
+                                            <span className="muted small"> ({String(pts)}점)</span>
+                                          )}
+                                        </td>
+                                      )
+                                    })}
+                                  </tr>
+                                )
+                              })}
                             </tbody>
                           </table>
                         </div>

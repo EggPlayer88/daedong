@@ -60,6 +60,14 @@ const itemLines = (fields, indent = '  ') =>
     let line = `${indent}- ${f.label} — ${f.key}${typeNote(f)}`
     if (f.options) line += `\n${indent}    선택지: ${f.options.join(' / ')}`
     if (f.row_fields) line += `\n${indent}    각 행: ${f.row_fields.join(', ')} (행 수: ${f.max_rows})`
+    if (f.type === 'element_groups') {
+      const gf = f.group_fields.map((x) => `${x.label}(${x.key})`).join(', ')
+      const lf = f.level_fields.map((x) => `${x.label}(${x.key})`).join(', ')
+      line +=
+        `\n${indent}    최대 ${f.groups}개 요소, 각 요소마다 levels 배열에 ${f.levels}단계` +
+        `\n${indent}    요소: ${gf} / 각 수준: ${lf}` +
+        `\n${indent}    형태: [{ "name": "...", "levels": [{ "desc": "...", "points": "..." }, …] }]`
+    }
     return line
   })
 
@@ -139,6 +147,36 @@ function buildFieldDoc(m) {
   return L.join('\n')
 }
 
+/**
+ * 현재 양식(template.hwpx)의 물리 한도.
+ * manifest.limits 에서 읽어 프롬프트에 명시한다 — 한도를 넘겨 수집해봐야
+ * generate 가 거부하므로, 대화 단계에서 미리 안내하는 편이 교사에게 낫다.
+ */
+function buildLimitDoc(m) {
+  const lim = m.limits
+  if (!lim) return ''
+  const areas = lim.perf_areas_max
+  const plans = lim.perf_plans_max
+  const cap = Math.min(areas ?? Infinity, plans ?? Infinity)
+
+  const L = ['## 현재 양식의 한도 (반드시 지킬 것)']
+  if (lim.exam_count) L.push(`- 정기시험 횟수: ${lim.exam_count.join(' / ')} 회만 가능`)
+  if (Number.isFinite(cap)) {
+    L.push(
+      `- **수행평가는 최대 ${cap}개까지만** 이 양식에 담긴다 (세부 운영 계획 ${areas}열 / 출제 계획 ${plans}블록).`,
+      `- 교사가 수행평가를 ${cap + 1}회 이상 하겠다고 하면, 계획 자체를 반대하지 말고 이렇게 안내한다:`,
+      `  "현재 양식은 수행평가 ${cap}개까지 담을 수 있습니다. ${cap + 1}개 이상을 담는 확장 양식은 준비 중이니,`,
+      `  지금은 ${cap}개까지만 계획서에 넣고 나머지는 양식이 준비된 뒤에 추가하시겠어요?"`,
+      `  그 뒤 교사의 선택에 따라 진행하고, PLAN_READY JSON 에는 ${cap}개까지만 넣는다.`
+    )
+  }
+  L.push(
+    '- 평가 요소는 수행평가마다 최대 3개, 각 요소의 수행수준은 4단계까지 담긴다.',
+    '  더 필요하다고 하면 같은 방식으로 한도를 안내하고 범위 안에서 정리한다.'
+  )
+  return L.join('\n')
+}
+
 /** 출력 JSON 골격 — manifest v2 에서 생성 */
 function buildSkeleton(m) {
   const blank = (f) => (f.type === 'number' ? 0 : '')
@@ -189,7 +227,14 @@ function buildSkeleton(m) {
     const item = {}
     for (const f of pp.item_fields) {
       if (f.type === 'multi_select') item[f.key] = []
-      else if (f.type === 'table_rows') {
+      else if (f.type === 'element_groups') {
+        const level = {}
+        for (const lf of f.level_fields) level[lf.key] = ''
+        const group = {}
+        for (const gf of f.group_fields) group[gf.key] = ''
+        group.levels = Array.from({ length: f.levels }, () => ({ ...level }))
+        item[f.key] = [group]
+      } else if (f.type === 'table_rows') {
         const row = {}
         for (const rf of f.row_fields) row[rf] = ''
         item[f.key] = [row]
@@ -225,13 +270,13 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd) {
     ? body.replace(SKELETON_MARK, skeleton)
     : `${body}\n\n===PLAN_READY===\n${skeleton}\n===END===`
 
-  // ③ 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
-  const fieldDoc = buildFieldDoc(m)
+  // ③ 양식 한도 + 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
+  const inserted = [buildLimitDoc(m), buildFieldDoc(m)].filter(Boolean).join('\n\n')
   const at = body.indexOf('## 완료 절차')
   body =
     at === -1
-      ? `${body}\n\n${fieldDoc}`
-      : `${body.slice(0, at)}${fieldDoc}\n\n${body.slice(at)}`
+      ? `${body}\n\n${inserted}`
+      : `${body.slice(0, at)}${inserted}\n\n${body.slice(at)}`
 
   return body
 }
