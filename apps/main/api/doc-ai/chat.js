@@ -405,6 +405,27 @@ async function verifyUser(authorization) {
   return await r.json()
 }
 
+/**
+ * 승인 확인 (D20) — RLS 와 별개의 API 비용 방어선.
+ *
+ * RLS 는 DB 접근만 막는다. 이 함수들은 Claude API 를 호출하므로,
+ * 미승인 계정이 토큰만 들고 들어와도 비용이 발생하지 않도록 여기서 한 번 더 막는다.
+ * users_select 정책은 "본인 행" 을 예외로 허용하므로 사용자 토큰으로 조회 가능하다.
+ *
+ * @returns true(승인) | false(대기) — 행이 없으면 대기로 본다(안전한 쪽)
+ */
+async function isApproved(authorization, userId) {
+  const url = process.env.VITE_SUPABASE_URL
+  const anonKey = process.env.VITE_SUPABASE_ANON_KEY
+  const r = await fetch(
+    `${url}/rest/v1/users?id=eq.${encodeURIComponent(userId)}&select=is_active`,
+    { headers: { apikey: anonKey, Authorization: authorization } }
+  )
+  if (!r.ok) return false
+  const rows = await r.json()
+  return Array.isArray(rows) && rows.length > 0 && rows[0].is_active === true
+}
+
 // ---------------------------------------------------------------------------
 // 요청 검증
 // ---------------------------------------------------------------------------
@@ -470,6 +491,14 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: e.message })
   }
   if (!user) return res.status(401).json({ error: '로그인이 필요합니다.' })
+
+  // D20 — 승인 전에는 Claude API 를 태우지 않는다 (RLS 와 별개의 비용 방어선)
+  if (!(await isApproved(req.headers.authorization, user.id))) {
+    return res.status(403).json({
+      error: 'PENDING_APPROVAL',
+      message: '승인 대기중입니다. 관리자 승인 후 이용할 수 있습니다.',
+    })
+  }
 
   const parsed = validateMessages(req.body)
   if (parsed.error) return res.status(400).json({ error: parsed.error })

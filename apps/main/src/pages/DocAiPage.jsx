@@ -11,6 +11,14 @@ const OPENING = '평가계획서 작성을 시작하려고 합니다.'
 // 참고자료 삽입 형식 — prompt-rules.v2.md 2단계가 이 블록을 인식한다
 const REF_PREFIX = '[참고자료: '
 
+/** 서버 게이트(D20) 응답이면 안내 문구를 돌려준다 */
+function pendingMessage(status, data) {
+  if (status === 403 && data?.error === 'PENDING_APPROVAL') {
+    return data.message || '승인 대기중입니다. 관리자 승인 후 이용할 수 있습니다.'
+  }
+  return null
+}
+
 export default function DocAiPage() {
   const { session } = useAuth()
   const token = session?.access_token
@@ -59,6 +67,11 @@ export default function DocAiPage() {
         body: JSON.stringify({ messages: history }),
       })
       const data = await r.json()
+      const pending = pendingMessage(r.status, data)
+      if (pending) {
+        setError(pending)
+        return
+      }
       if (!r.ok) throw new Error(data.error || `요청 실패 (${r.status})`)
 
       const reply = data.reply || ''
@@ -128,6 +141,11 @@ export default function DocAiPage() {
         )
         return
       }
+      const pending = pendingMessage(r.status, data)
+      if (pending) {
+        setError(pending)
+        return
+      }
       if (!r.ok) throw new Error(data.error || `생성 실패 (${r.status})`)
 
       // base64 → Blob 다운로드 (한글 파일명 헤더 인코딩 회피)
@@ -178,6 +196,11 @@ export default function DocAiPage() {
         body: JSON.stringify({ filename: file.name, base64: btoa(bin) }),
       })
       const data = await r.json()
+      const pending = pendingMessage(r.status, data)
+      if (pending) {
+        setError(pending)
+        return
+      }
       if (!r.ok) throw new Error(data.error || `추출 실패 (${r.status})`)
 
       setNotice(

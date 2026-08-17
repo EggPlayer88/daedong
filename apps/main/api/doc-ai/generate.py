@@ -22,6 +22,7 @@ import shutil
 import sys
 import tempfile
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -84,6 +85,26 @@ def verify_user(authorization: str | None) -> dict | None:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError:
         return None
+
+
+def is_approved(authorization: str, user_id: str) -> bool:
+    """승인 확인 (D20) — RLS 와 별개의 API 비용/자원 방어선.
+
+    users_select 정책이 "본인 행" 을 예외 허용하므로 사용자 토큰으로 조회된다.
+    행이 없거나 조회에 실패하면 **대기로 본다** (안전한 쪽).
+    """
+    url = os.environ.get("VITE_SUPABASE_URL")
+    anon = os.environ.get("VITE_SUPABASE_ANON_KEY")
+    if not url or not anon or not user_id:
+        return False
+    q = f"{url}/rest/v1/users?id=eq.{urllib.parse.quote(str(user_id))}&select=is_active"
+    req = urllib.request.Request(q, headers={"apikey": anon, "Authorization": authorization})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            rows = json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.HTTPError, urllib.error.URLError, ValueError):
+        return False
+    return bool(rows) and rows[0].get("is_active") is True
 
 
 # ---------------------------------------------------------------------------
@@ -410,6 +431,13 @@ class handler(BaseHTTPRequestHandler):
             return self._send(502, {"error": f"인증 서버에 연결하지 못했습니다: {e}"})
         if not user:
             return self._send(401, {"error": "로그인이 필요합니다."})
+
+        # D20 — 승인 전에는 처리하지 않는다 (RLS 와 별개의 방어선)
+        if not is_approved(self.headers.get("Authorization"), user.get("id")):
+            return self._send(403, {
+                "error": "PENDING_APPROVAL",
+                "message": "승인 대기중입니다. 관리자 승인 후 이용할 수 있습니다.",
+            })
 
         try:
             filename, b64, notices = generate(payload)
