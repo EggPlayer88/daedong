@@ -26,7 +26,7 @@ tests/.venv/bin/pip install lxml
 
 | 파일 | 지키는 것 |
 |---|---|
-| `test_v3.py` | 실제 `template-master.hwpx`·`template-arts.hwpx` 로 hwpx 생성 전 구간. RATIO_BASIS 조립(시험 유무), 예체능판 3수준(D·E 는 버리고 V18 로 알림). 시험 2/1/0회, 수행 3/2/1개, PP3·PP2 블록 삭제, 잔여 `{{` 0, **토큰 169종 전수 대조**, 계약 섹션이 v3 FINAL 원문과 동일, template-master.hwpx sha256 불변, 수행 성취기준 고정 문구 |
+| `test_v4.py` | 실제 양식 6종으로 hwpx 생성 전 구간. **token-map 전수 대조**(맵 ≠ 양식 → 실패), 모르는 토큰은 즉시 실패, short=0 항 생략, 3학년 성취수준 부재, 자유학기 활동 블록, 프롬프트 골격 ↔ 치환 경로 이음매, 양식 sha256 불변 |
 | `test_scales.py` | 배점 정합성 — 회차 100점 / 수행 합 100점 / 반영비율 100%, 만점 표기 `N점(M%)` 서버 계산, 한도 초과 시 거부 대신 안내 |
 | `test_hours.py` | 시수/누계 고정표 주입, `hours_manual` 보존, 범위 밖 처리, 표 자체 무결성(누계 단조·합계·ok) |
 | `test_extract.py` | 참고자료 hwpx 추출, 표→마크다운, 길이 상한, 거부 5종 |
@@ -38,7 +38,7 @@ tests/.venv/bin/pip install lxml
 | `test_terms.mjs` | 사이트 명칭·용어 가드 (옛 용어가 되살아나면 실패) |
 | `test_marker.mjs` | `===PLAN_READY===` 파서 (코드펜스·END 누락·깨진 JSON) |
 | `test_gate.mjs` | D20 승인 게이트 (chat) — **미승인이면 Claude API 를 호출하지 않는지** |
-| `test_variant.py` | 템플릿 패밀리 — 교과·학년 → variant 결정 순서, 유형별 한도, 미배치 유형 안내 |
+| `test_routing.py` | 양식 라우팅 — 학년 × 시험 횟수 → 양식 6종, 한도·성취수준을 token-map 에서 세는지, 없는 조합 처리, 정보·진로 안내가 해당 교과에만 뜨는지 |
 | `test_exam_methods.py` | 정기시험 3분류 — 회차 100점 = 선택형+단답형·완성형+서·논술형, **30% 산입은 서·논술형만**, 현행 양식에 칸 없는 배점의 누락 안내 |
 | `test_count_set.py` | 횟수 세트(시험 0→수행 3 / 1→2 / 2→1~2) — 세트 밖은 **막지 않고 안내**, 작년과 달라진 조합의 전환 안내, 양식 v2 목표치가 현재 한도로 새지 않는지 |
 | `test_regulation.py` | 학업성적관리규정 V01~V18 — 규칙별 위반/통과 한 쌍, 유형 A~D 판정, ERROR 는 생성 차단, WARN·FLAG 는 통과 후 안내, `check_only` 응답 |
