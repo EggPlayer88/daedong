@@ -136,8 +136,10 @@ export default function DocAiPage() {
       const data = await r.json()
 
       if (r.status === 409 && data.error === 'TEMPLATE_MISSING') {
+        // 어느 유형의 양식이 준비 중인지까지 알린다 (템플릿 패밀리)
         setNotice(
-          '양식 준비 중입니다 — 내용은 확정됐으니 양식 등록 후 다시 생성해 주세요.'
+          data.message ||
+            '양식 준비 중입니다 — 내용은 확정됐으니 양식 등록 후 다시 생성해 주세요.'
         )
         return
       }

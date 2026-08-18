@@ -189,14 +189,16 @@ check("교과 누락 거부", t_nosubject)
 
 print("\n[5] 빈칸 허용 (공란은 실패가 아니다)")
 def t_sparse():
-    p = {"year": 2026, "semester": 2, "grade": 1, "subject": "미술",
+    # ⚠ 학년·교과가 양식 유형을 결정한다 — default 유형을 태우려면 2학년 주지교과여야 한다
+    #   (1학년 2학기 → grade1_free, 미술 → arts. 그 유형들은 test_variant.py 가 본다)
+    p = {"year": 2026, "semester": 2, "grade": 2, "subject": "국어",
          "exam": {"count": 0, "rounds": []},
          "perf_areas": [{"name": "포트폴리오", "points": 100, "ratio": 100}],
          "perf_plans": [{"name": "포트폴리오"}]}
     fn, b64, _ = gen.generate({"fields": p})
     b = body_of(b64)
     assert "{{" not in b, "토큰 잔존"
-    assert "미술" in b, "교과 누락"
+    assert "국어" in b, "교과 누락"
     assert fn.endswith("평가계획서(초안).hwpx"), fn
 check("대부분 공란이어도 생성됨", t_sparse)
 

@@ -58,7 +58,15 @@ class BadRequest(Exception):
 
 
 class TemplateMissing(Exception):
-    """409 — 양식 파일이 아직 없음 (오늘은 이 상태가 정상)."""
+    """409 — 해당 유형의 양식 파일이 아직 없음.
+
+    variant/label 을 함께 실어 "어느 유형이 준비 중인지" 를 알린다.
+    """
+
+    def __init__(self, variant: str = "", label: str = ""):
+        super().__init__(label or variant)
+        self.variant = variant
+        self.label = label
 
 
 class TemplateMismatch(Exception):
@@ -270,7 +278,7 @@ def build_filename(manifest: dict, values: dict) -> str:
     return name or "평가계획서.hwpx"
 
 
-def validate_v2(manifest: dict, plan: dict) -> None:
+def validate_v2(manifest: dict, plan: dict, spec: dict | None = None) -> None:
     """v2 검증.
 
     막는 것 — 고칠 수 있고 고쳐야 하는 것만:
@@ -290,20 +298,30 @@ def validate_v2(manifest: dict, plan: dict) -> None:
     if not str(plan.get("subject") or "").strip():
         raise BadRequest("필수 항목 '교과(과목명)' 이 비어 있습니다.")
 
+    # 자유학기형은 점수화하지 않는다 — 배점 검증 자체가 성립하지 않는다
+    if spec is not None and not spec.get("scoring", True):
+        return
+
     problems = _v2fill.check_scales(plan)
     if problems:
         raise BadRequest("배점이 맞지 않습니다 — " + " / ".join(problems))
 
 
 def generate_v2(manifest: dict, plan: dict) -> tuple[str, str, list]:
-    validate_v2(manifest, plan)
+    # 교과·학년으로 양식 유형을 정한다 (템플릿 패밀리)
+    variant = _v2fill.resolve_variant(plan, manifest)
+    spec = _v2fill.variant_spec(manifest, variant)
+    print(f"[doc-ai/generate] variant: {variant} ({spec['label']})", file=sys.stderr)
 
-    if not TEMPLATE_PATH.exists():
-        raise TemplateMissing()
+    validate_v2(manifest, plan, spec)
+
+    template = ASSETS / spec["template_file"]
+    if not template.exists():
+        raise TemplateMissing(variant, spec["label"])
 
     # 양식이 담을 수 있는 만큼만 채운다. 넘치는 분은 잘라내고 무엇이 왜 빠졌는지 알린다
     # — 안 되는 걸 되는 것처럼 만들지 않는다.
-    notices = _v2fill.apply_capacity(plan, manifest)
+    notices = _v2fill.apply_capacity(plan, manifest, spec.get('limits'))
     for n in notices:
         print(f"[doc-ai/generate] capacity: {n}", file=sys.stderr)
 
@@ -323,7 +341,7 @@ def generate_v2(manifest: dict, plan: dict) -> tuple[str, str, list]:
     try:
         work = tmp / "work"
         out = tmp / "out.hwpx"
-        unpack(TEMPLATE_PATH, work)
+        unpack(template, work)
 
         section = work / "Contents" / "section0.xml"
         if not section.exists():
@@ -443,10 +461,17 @@ class handler(BaseHTTPRequestHandler):
             filename, b64, notices = generate(payload)
         except BadRequest as e:
             return self._send(400, {"error": str(e)})
-        except TemplateMissing:
+        except TemplateMissing as e:
+            label = e.label or e.variant
             return self._send(409, {
                 "error": "TEMPLATE_MISSING",
-                "message": "양식(template.hwpx)이 아직 등록되지 않았습니다.",
+                "variant": e.variant,
+                "label": label,
+                "message": (
+                    f"'{label}' 양식이 아직 준비되지 않았습니다. "
+                    "내용은 확정됐으니 양식 등록 후 다시 생성해 주세요."
+                    if label else "양식(template.hwpx)이 아직 등록되지 않았습니다."
+                ),
             })
         except TemplateMismatch as e:
             print(f"[doc-ai/generate] template mismatch: {e}", file=sys.stderr)

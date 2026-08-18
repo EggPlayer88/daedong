@@ -76,6 +76,45 @@ def pct(x) -> str:
 
 
 # ---------------------------------------------------------------------------
+# 템플릿 패밀리 — 교과·학년으로 variant 를 정한다
+# ---------------------------------------------------------------------------
+def resolve_variant(plan: dict, manifest: dict) -> str:
+    """manifest.variants._resolution_order 와 같은 순서로 판정한다.
+
+    1학년 2학기 → grade1_free / 예체능·보건 → arts / 3학년 → grade3 / 그 외 default
+    ⚠ 순서가 의미를 가진다: 1학년 음악은 grade1_free (자유학기가 우선).
+    """
+    v = manifest.get("variants") or {}
+    items = v.get("items") or {}
+    subject = as_text(plan.get("subject"))
+    grade = int(first_num(plan.get("grade"), 0))
+    semester = int(first_num(plan.get("semester"), 0))
+
+    if grade == 1 and semester == 2 and "grade1_free" in items:
+        return "grade1_free"
+    arts = v.get("arts_subjects") or []
+    if subject and any(a and a in subject for a in arts) and "arts" in items:
+        return "arts"
+    if grade == 3 and "grade3" in items:
+        return "grade3"
+    return "default"
+
+
+def variant_spec(manifest: dict, variant: str) -> dict:
+    """variant 정의. 없으면 default, 그것도 없으면 최상위 값으로 되돌린다."""
+    items = (manifest.get("variants") or {}).get("items") or {}
+    spec = items.get(variant) or items.get("default") or {}
+    return {
+        "key": variant,
+        "label": spec.get("label") or variant,
+        "template_file": spec.get("template_file") or manifest.get("template_file") or "template.hwpx",
+        "limits": spec.get("limits") or manifest.get("limits") or {},
+        "scoring": spec.get("scoring", True),
+        "status": spec.get("_status"),
+    }
+
+
+# ---------------------------------------------------------------------------
 # 시수/누계 — 학사일정 기반 고정표로 주입 (AI 계산 금지)
 # ---------------------------------------------------------------------------
 def hours_row(table: dict, weekly_hours, variant: str | None = None) -> dict | None:
@@ -319,9 +358,12 @@ def check_scales(plan: dict) -> list:
 # ---------------------------------------------------------------------------
 # 양식 수용 한도 — 넘치면 거부하지 않고 수용분만 채우고 안내한다
 # ---------------------------------------------------------------------------
-def apply_capacity(plan: dict, manifest: dict) -> list:
-    """한도를 넘는 항목을 잘라내고, 무엇이 왜 빠졌는지 안내 문구를 돌려준다."""
-    limits = manifest.get("limits") or {}
+def apply_capacity(plan: dict, manifest: dict, limits: dict | None = None) -> list:
+    """한도를 넘는 항목을 잘라내고, 무엇이 왜 빠졌는지 안내 문구를 돌려준다.
+
+    limits 를 주면 그것을 쓴다 (양식 유형별 한도). 없으면 manifest 최상위 값.
+    """
+    limits = limits or manifest.get("limits") or {}
     notices = []
 
     for key, cap, label in (
@@ -448,6 +490,9 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
                     values[tok_k] = as_text(lv.get("points") if tok_k.endswith("_PTS}}") else lv.get("desc"))
 
     # 4) unused_handling — 미사용 회차/영역 칸은 UNUSED_MARK 로 채운다.
+    #    ⚠ 출제계획 표(PP 블록)의 요소·수준 미사용 행에는 찍지 않는다 —
+    #      '˙' 관행은 3절 표에서만 실측됐고, 출제계획의 요소 행은 서술 칸이라
+    #      공란이 자연스럽다 (2026-08-18 계란님 확정). 관행이 다르게 실측되면 그때 변경.
     #    ⚠ "교사가 아직 안 정해서 비운 칸(공란)" 과 다르다.
     #      여기 있는 것은 **구조적으로 쓰이지 않는 칸**(시험 1회인데 2회차 칸,
     #      수행 1개인데 2번째 열)이고, 학교 관행상 '˙' 를 찍는다 (실측).

@@ -188,6 +188,61 @@ function buildHoursDoc(table) {
 }
 
 /**
+ * 양식 유형(variant)별 대화 분기.
+ * 서버가 교과·학년으로 유형을 정하므로 너는 고르지 않는다 — 다만 **1학년 2학기(자유학기)는
+ * 물어볼 것 자체가 다르므로** 대화 초반에 분기해야 한다.
+ */
+function buildVariantDoc(m) {
+  const v = m?.variants
+  if (!v) return ''
+  const items = v.items || {}
+  const arts = (v.arts_subjects || []).join(' · ')
+
+  const L = ['## 양식 유형 (서버가 자동 결정 — 너는 대화만 맞춘다)']
+  L.push(
+    '교과와 학년이 정해지면 어떤 양식으로 나갈지는 서버가 정한다:',
+    ...(v._resolution_order || []).map((r) => `  · ${r}`),
+    '- 아직 만들어지지 않은 유형이면 생성 단계에서 "○○ 양식이 아직 준비되지 않았습니다" 안내가 나간다.',
+    '  그 경우에도 대화는 끝까지 진행해 내용을 확정해 둔다 — 양식이 준비되면 바로 생성할 수 있다.',
+    ''
+  )
+
+  if (items.grade1_free) {
+    L.push(
+      '### 1학년 2학기 = 자유학기 — 물어볼 것이 다르다',
+      '실측: 작년 1학년 문서에는 **3절(반영비율) 자체가 없다.** "평정" 0회 / "이수" 48회.',
+      '즉 점수로 매기지 않는다. 따라서 이 경우에만 대화를 이렇게 바꾼다:',
+      '',
+      '**묻지 않는다** (이 항목들은 자유학기 계획서에 없다):',
+      '- 정기시험 횟수·시기·배점',
+      '- 반영비율 (지필 : 수행)',
+      '- 서·논술형 반영비율, 30% 규정',
+      '- 수행평가 영역별 만점·반영비율',
+      '',
+      '**대신 묻는다**:',
+      '- 수행평가(점수화하지 않는 평가) — 무엇을 어떻게 보는지, 시기',
+      '- 성취수준 진술 — 점수가 아니라 도달 정도를 서술로',
+      '- 이수 여부 판단 기준과 피드백 방법',
+      '',
+      '- 교사가 "반영비율은요?" 라고 먼저 물으면, 자유학기라 점수화하지 않는다는 점을 설명한다.',
+      '- ⚠ **이 유형의 상세 수집 항목은 아직 확정 대기 중이다.** 확정 전까지는 위 범위에서',
+      '  교사에게 필요한 것을 묻고, 확정되지 않은 항목을 지어내지 않는다 (제1원칙).',
+      '  교사에게도 "자유학기 양식은 준비 중이라 지금은 내용 정리까지만 됩니다" 라고 미리 알린다.',
+      ''
+    )
+  }
+
+  if (items.arts && arts) {
+    L.push(
+      `### ${arts} — 예체능·보건형`,
+      '- 정기시험 없이 수행 100% 가 실측 관행이다. 지필 관련 질문은 생략하고 확인만 받는다.',
+      ''
+    )
+  }
+  return L.join('\n').trimEnd()
+}
+
+/**
  * 현재 양식(template.hwpx)의 물리 한도.
  * manifest.limits 에서 읽어 프롬프트에 명시한다 — 한도를 넘겨 수집해봐야
  * generate 가 거부하므로, 대화 단계에서 미리 안내하는 편이 교사에게 낫다.
@@ -227,6 +282,67 @@ function buildLimitDoc(m) {
  * 배점 정합성 규칙 — 서버 검증기(check_scales)와 같은 내용이어야 한다.
  * 대화 단계에서 맞춰두지 않으면 생성 버튼에서 막힌다.
  */
+/**
+ * 학년·교과군별 실측 기본값 — **제시하고 확인받는** 흐름으로 쓴다.
+ * 관행이지 규칙이 아니므로 단정하면 제1원칙을 어기게 된다.
+ */
+function buildDefaultsDoc(c = constants) {
+  const d = c?.grade_defaults
+  if (!d) return ''
+
+  const L = ['## 학년·교과군별 기본값 (제시 → 확인. 단정 금지)']
+  L.push(
+    '교과와 학년을 받으면 아래 관행을 **먼저 제시하고 맞는지 확인받은 뒤** 진행한다.',
+    '"보통 이렇게 하시는데, 선생님도 이렇게 할까요?" 형태로 묻고, 다르면 교사 답을 따른다.',
+    ''
+  )
+
+  const g3 = d.grade3
+  if (g3) {
+    const r = g3.ratio || {}
+    const w = g3.written_composition || {}
+    L.push(
+      `### ${g3.applies_to || '3학년'}`,
+      `- 정기시험 ${g3.exams}회, 지필 ${r.written}% : 수행 ${r.performance}%`,
+      `- 지필 구성은 선택형 ${w.mc} + 서·논술형 ${w.essay} 이 다수`,
+      ...(g3.exceptions || []).map(
+        (e) =>
+          `- 예외 실측: ${e.subject} 는 선택형 ${e.written_composition.mc} + 서·논술형 ${e.written_composition.essay}` +
+          ` → 교과마다 다를 수 있으니 반드시 확인한다`
+      )
+    )
+  }
+
+  const ah = d.arts_health
+  if (ah) {
+    const r = ah.ratio || {}
+    L.push(
+      '',
+      `### ${(ah.applies_to || []).join(' · ')}`,
+      `- 정기시험 ${ah.exams}회, 수행 ${r.performance}%`,
+      `- 수행평가 ${ah.perf_count}개를 ${(ah.perf_ratio_pattern || []).join('/')} 로 나누는 패턴이 다수`,
+      '- ⚠ 현재 양식은 수행 2개까지 담긴다. 3개로 하시겠다면 세 번째는 공란으로 남고',
+      '  한글에서 직접 편집해야 한다는 점을 미리 알린다 (제0원칙).'
+    )
+  }
+
+  const g1 = d.grade1_semester2
+  if (g1) {
+    L.push(
+      '',
+      `### ${g1.applies_to || '1학년 2학기'} — 자유학기`,
+      '- 점수화하지 않는다. **반영비율·지필·서·논술형을 묻지 않는다.** (아래 자유학기 절 참조)'
+    )
+  }
+
+  L.push(
+    '',
+    '- 위 값은 전부 **작년 실측에서 나온 관행**이다. 규정이 아니므로 교사가 다르게 하겠다면 그대로 따른다.',
+    '- 기본값을 제시할 때 근거를 함께 밝힌다 ("작년 3학년 계획서 기준입니다").'
+  )
+  return L.join('\n')
+}
+
 function buildScaleDoc(c = constants) {
   const rule = c?.essay_ratio_rule || {}
   const L = [
@@ -387,7 +503,14 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
     : `${body}\n\n===PLAN_READY===\n${skeleton}\n===END===`
 
   // ③ 시수 자동입력 + 양식 한도 + 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
-  const inserted = [buildScaleDoc(consts), buildHoursDoc(table), buildLimitDoc(m), buildFieldDoc(m)]
+  const inserted = [
+    buildVariantDoc(m),
+    buildDefaultsDoc(consts),
+    buildScaleDoc(consts),
+    buildHoursDoc(table),
+    buildLimitDoc(m),
+    buildFieldDoc(m),
+  ]
     .filter(Boolean)
     .join('\n\n')
   const at = body.indexOf('## 완료 절차')
@@ -408,6 +531,8 @@ export {
   buildHoursDoc,
   buildLimitDoc,
   buildScaleDoc,
+  buildDefaultsDoc,
+  buildVariantDoc,
   reconcileConstants,
   validateMessages,
   SYSTEM_PROMPT,

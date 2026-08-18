@@ -78,6 +78,58 @@ ck('분류가 상수에서 파생 (하드코딩 아님)', () => {
   A(p2.includes('테스트교과'), '예외 목록 변경 미반영')
   A(p2.includes('45%'), '기준 변경 미반영')
 })
+console.log('\n[학년·교과군 기본값 — 제시 후 확인]')
+ck('3학년 기본값 (1회 / 40:60 / 80+20)', () => {
+  A(P.includes('정기시험 1회, 지필 40% : 수행 60%'), '3학년 기본값 없음')
+  A(P.includes('선택형 80 + 서·논술형 20'), '지필 구성 없음')
+  A(P.includes('영어') && P.includes('88'), '영어 예외 실측 없음')
+})
+ck('예체능·보건 기본값 (0회 / 100% / 3개 40·30·30)', () => {
+  A(P.includes('정기시험 0회, 수행 100%'), '예체능 기본값 없음')
+  A(P.includes('40/30/30'), '수행 패턴 없음')
+  A(P.includes('현재 양식은 수행 2개까지 담긴다'), '양식 한도 경고 없음')
+})
+ck('단정 금지 — 제시하고 확인받는 흐름', () => {
+  A(P.includes('단정 금지'), '단정 금지 문구 없음')
+  A(P.includes('먼저 제시하고 맞는지 확인받은 뒤'), '확인 절차 없음')
+  A(P.includes('규정이 아니므로'), '관행임을 밝히지 않음')
+})
+ck('기본값이 상수에서 파생', () => {
+  const c2 = JSON.parse(JSON.stringify(mod.constants))
+  c2.grade_defaults.grade3.ratio = { written: 55, performance: 45 }
+  const p2 = mod.buildDefaultsDoc(c2)
+  A(p2.includes('지필 55% : 수행 45%'), '상수 변경 미반영')
+})
+
+console.log('\n[양식 유형 분기]')
+ck('결정 규칙이 프롬프트에 있음', () => {
+  A(P.includes('## 양식 유형'), '유형 절 없음')
+  for (const r of ['grade1_free', 'arts', 'grade3', 'default']) A(P.includes(r), `누락: ${r}`)
+})
+ck('미배치 유형이어도 대화는 끝까지', () => {
+  A(P.includes('대화는 끝까지 진행해 내용을 확정해 둔다'), '안내 없음')
+})
+ck('자유학기: 묻지 않을 것이 명시됨', () => {
+  A(P.includes('자유학기 — 물어볼 것이 다르다'), '자유학기 절 없음')
+  for (const s of ['반영비율 (지필 : 수행)', '서·논술형 반영비율, 30% 규정', '정기시험 횟수·시기·배점']) {
+    A(P.includes(s), `묻지 않을 항목 누락: ${s}`)
+  }
+})
+ck('자유학기: 대신 물을 것 + 실측 근거', () => {
+  A(P.includes('이수 여부 판단 기준과 피드백'), '대체 항목 없음')
+  A(P.includes("'평정' 0회") || P.includes('"평정" 0회'), '실측 근거 없음')
+})
+ck('자유학기: 명세 미확정을 숨기지 않는다', () => {
+  A(P.includes('상세 수집 항목은 아직 확정 대기'), '미확정 고지 없음')
+  A(P.includes('지어내지 않는다'), '제1원칙 연결 없음')
+})
+ck('유형 분기가 manifest 에서 파생', () => {
+  const m2 = JSON.parse(JSON.stringify(mod.manifest))
+  delete m2.variants.items.grade1_free
+  const p2 = mod.buildVariantDoc(m2)
+  A(!p2.includes('자유학기 — 물어볼 것이 다르다'), '유형 제거가 반영 안 됨')
+})
+
 console.log()
 if (fail) { console.log(`${fail}건 실패`); process.exit(1) }
 console.log('전부 통과')

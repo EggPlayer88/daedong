@@ -38,6 +38,7 @@ tests/.venv/bin/pip install lxml
 | `test_terms.mjs` | 사이트 명칭·용어 가드 (옛 용어가 되살아나면 실패) |
 | `test_marker.mjs` | `===PLAN_READY===` 파서 (코드펜스·END 누락·깨진 JSON) |
 | `test_gate.mjs` | D20 승인 게이트 (chat) — **미승인이면 Claude API 를 호출하지 않는지** |
+| `test_variant.py` | 템플릿 패밀리 — 교과·학년 → variant 결정 순서, 유형별 한도, 미배치 유형 안내 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
 
 ## 작성 원칙

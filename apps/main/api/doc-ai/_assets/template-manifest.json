@@ -447,5 +447,68 @@
     "양식 v2(수행 4열) 도착 시 토큰만 확장한 manifest v3 로 교체 — 구조는 그대로",
     "perf_count_rule: 시험 1회 시 수행 상한 — 계란님 답 대기",
     "essay_ratio_rule.exempt_subjects — 예외 교과 목록 대기"
-  ]
+  ],
+  "variants": {
+    "_comment": "템플릿 패밀리. 교과·학년으로 variant 를 정하고 그 template_file 을 채운다. 파일이 아직 없으면 generate 가 'TEMPLATE_MISSING' 계열로 '해당 유형 양식 준비 중' 을 알린다. ⚠ 템플릿 제작·토큰화·배치는 Claude Web 담당.",
+    "_resolution_order": [
+      "grade == 1 and semester == 2  → grade1_free",
+      "subject in arts_subjects       → arts",
+      "grade == 3                     → grade3",
+      "그 외                           → default"
+    ],
+    "arts_subjects": [
+      "음악",
+      "미술",
+      "체육",
+      "보건"
+    ],
+    "items": {
+      "default": {
+        "label": "기본형 (정기시험 2회)",
+        "template_file": "template.hwpx",
+        "limits": {
+          "exam_count": [
+            0,
+            1,
+            2
+          ],
+          "perf_areas_max": 2,
+          "perf_plans_max": 2
+        }
+      },
+      "grade3": {
+        "label": "3학년형 (정기시험 1회)",
+        "template_file": "template.grade3.hwpx",
+        "limits": {
+          "exam_count": [
+            0,
+            1
+          ],
+          "perf_areas_max": 2,
+          "perf_plans_max": 2
+        },
+        "_status": "양식 제작 대기"
+      },
+      "grade1_free": {
+        "label": "1학년 자유학기형 (점수화 없음)",
+        "template_file": "template.grade1_free.hwpx",
+        "scoring": false,
+        "_status": "양식 제작 대기. 별도 양식이 아니라 공통 틀 + 일부 수정 (계란님 확정)",
+        "_note": "반영비율·지필·서·논술형 항목 없음. 상세 수집 명세 확정 대기"
+      },
+      "arts": {
+        "label": "예체능형 (3수준)",
+        "template_file": "template.arts.hwpx",
+        "limits": {
+          "exam_count": [
+            0
+          ],
+          "perf_areas_max": 3,
+          "perf_plans_max": 3
+        },
+        "_status": "양식 제작 대기",
+        "_note": "실측: 지필 0회·수행 100%, 수행 3개 40/30/30 패턴이 다수"
+      }
+    }
+  }
 }
