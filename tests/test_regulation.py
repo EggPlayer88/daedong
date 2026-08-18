@@ -308,7 +308,7 @@ def t_check_only():
                 min_achievement_plan="")
     out = gen.generate({"fields": full, "check_only": True})
     assert isinstance(out, dict) and "findings" in out, out
-    assert out["variant"] == "default" and out["template_ready"] is True, out
+    assert out["variant"] == "grade2_exam2" and out["template_ready"] is True, out
 check("check_only → 문서 없이 판정만 반환", t_check_only)
 
 print()

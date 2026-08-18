@@ -83,8 +83,8 @@ check("AI 가 준 괄호 %가 틀려도 서버가 다시 계산", t_override)
 
 print("\n[3] 한도 초과 — 거부하지 않고 수용분만 + 안내")
 def t_over_areas():
-    """한도는 manifest.limits 가 정한다 — 양식이 바뀌면 이 테스트도 따라간다."""
-    cap = M["limits"]["perf_areas_max"]
+    """한도는 **양식이** 정한다 (v4 routing) — 양식이 바뀌면 이 테스트도 따라간다."""
+    cap = gen._fill.route_spec(M, gen.load_token_map(), "grade2_exam2")["limits"]["perf_areas_max"]
     n = cap + 2
     p = P()
     p["perf_areas"] = [{"name": f"영역{i}", "points": 100, "ratio": 40 / n, "essay_ratio": "5"}
@@ -101,13 +101,21 @@ def t_over_areas():
     assert f"영역{cap + 1}" not in b, "한도 넘은 항목이 들어감"
 check("한도 초과 → 수용분만 생성 + 빠진 항목명·사유 안내", t_over_areas)
 def t_over_exam():
+    """v4 에서는 시험 횟수가 **양식을 고른다** — 3회짜리 양식은 없다.
+
+    v3 까지는 3회를 2회로 잘라 만들었지만, 이제는 회차 수만큼 칸이 있는 양식을
+    고르는 구조라 '자르고 만들기' 가 성립하지 않는다. 없는 조합이라고 그대로 말한다.
+    """
     p = P(); p["exam"]["count"] = 3
     p["exam"]["rounds"].append({"label":"3회","period":"","standards":"","mc":"70","essay":"30","essay_ratio":"9"})
-    fn, b64, notices = gen.generate({"fields": p})
-    joined = " ".join(notices)
-    assert "정기시험 3회 중 2회분" in joined, joined
-    assert "한글에서 직접 편집" in joined
-check("정기시험 3회 → 2회분 생성 + 안내 (거부 아님)", t_over_exam)
+    try:
+        gen.generate({"fields": p})
+    except gen.TemplateMissing as e:
+        assert e.variant == "grade2_exam3", e.variant
+        assert "정기시험 3회" in e.label, e.label
+        return
+    raise AssertionError("없는 조합인데 생성됨")
+check("정기시험 3회 → 없는 조합이라고 밝히며 중단", t_over_exam)
 def t_no_notice():
     fn, b64, notices = gen.generate({"fields": P()})
     assert notices == [], notices
@@ -115,41 +123,58 @@ check("한도 안이면 안내 없음", t_no_notice)
 
 print("\n[4] 미사용 칸 표기 ('˙' U+02D9)")
 MARK = "\u02d9"
+def base_marks(key):
+    """양식에 인쇄돼 있는 '˙' 개수. v4 는 유형별 양식이라 대부분 양식 내장이다."""
+    import re, zipfile
+    f = gen._fill.route_spec(M, gen.load_token_map(), key)["file"]
+    x = zipfile.ZipFile(API / "_assets" / f).read("Contents/section0.xml").decode()
+    return re.sub(r"<[^>]+>", " ", x).count(MARK)
+
+
 def t_mark_exam():
-    """시험 1회 → 2회차 칸은 '˙' (공란이 아니라 '해당 없음')."""
+    """⚠ v4 에서는 회차 칸이 양식별로 갈렸다 — 시험 1회 양식에는 2회차 칸이 아예 없다.
+
+    그래서 '서버가 EX2 에 ˙ 를 찍는' 처리는 사라졌다. 대신 확인할 것은
+    **1회 양식으로 라우팅되고 2회차 흔적이 남지 않는다** 는 것이다.
+    """
     p = P(subject="도덕")
     p["exam"] = {"count":1,"ratio":40,"mc_points":70,"essay_points":30,
         "rounds":[{"label":"정기시험","period":"11.2.","standards":"[9도01]","ratio":40,"mc":"70","essay":"30","essay_ratio":"12"}]}
     p["perf_areas"] = [{"name":"토론 활동","points":100,"ratio":30,"essay_ratio":"10"},
                        {"name":"실천 기록","points":100,"ratio":30,"essay_ratio":"10"}]
-    b = body_of(gen.generate({"fields": p})[1])
-    assert b.count(MARK) >= 5, f"'˙' 가 {b.count(MARK)}개 — EX2 계열 5칸에 찍혀야 한다"
+    fn, b64, _n = gen.generate({"fields": p})
+    b = body_of(b64)
     assert "{{" not in b
-check("시험 1회 → EX2 칸에 '˙'", t_mark_exam)
+    assert "EX2_" not in b, "1회 양식에 2회차 토큰이 남음"
+    assert "12.1." not in b, "2회차 시기가 남음"
+check("시험 1회 → 1회 양식 (2회차 칸 자체가 없다)", t_mark_exam)
 def t_mark_perf():
-    """수행 1개 → 2번째 열(P2_NAME/POINTS/PERIOD)은 '˙'."""
-    # ⚠ 지필 1회 + 수행 1개는 규정상 불가능하다 (지필≤40% → 수행≥60% → 영역>40%).
-    #   그래서 정기 2회(60%) + 수행 1영역(40%) 로 만든다.
-    p = P(); p["perf_areas"] = [{"name":"실험 보고서","points":100,"ratio":40,"essay_ratio":"12"}]
-    p["perf_plans"] = [{"name":"실험 보고서","absentee_points":"대체 과제"}]
+    """수행 1개 → 2번째 열(P2_NAME/POINTS/PERIOD)은 '˙'. 남은 미사용 처리 하나다."""
+    # ⚠ 수행 1개는 영역당 40% 상한 때문에 수행 비율이 40% 이하일 때만 성립한다
+    p = P(); p["exam"]["ratio"] = 60
+    for r in p["exam"]["rounds"]:
+        r["ratio"] = 30
+    p["perf_areas"] = [{"name":"실험 보고서","points":100,"ratio":40,"essay_ratio":"12"}]
+    p["perf_plans"] = [{"name":"실험 보고서","absentee_points":"각 영역당 20점"}]
     b = body_of(gen.generate({"fields": p})[1])
-    # ⚠ 영역명으로 판정하지 말 것 — 평가방법 체크박스에 "구술·발표" 가 있어 오탐한다
-    assert b.count(MARK) >= 3, f"P2 계열 3칸에 '˙' 가 찍혀야 하는데 {b.count(MARK)}개"
-    assert "PP2" not in b and "나. 수행평가명" not in b, "2번째 출제계획 블록이 남음"
-check("수행 1개 → P2 칸에 '˙'", t_mark_perf)
+    assert b.count(MARK) >= base_marks("grade2_exam2") + 3, (
+        f"P2 계열 3칸에 '˙' 가 더 찍혀야 하는데 {b.count(MARK)}개")
+    assert "PP2" not in b, "2번째 출제계획 블록이 남음"
+check("수행 1개 → P2 칸에 '˙' + PP2 블록 삭제", t_mark_perf)
 def t_mark_not_blank():
     """교사가 안 정해 비운 칸(공란)은 '˙' 가 아니라 빈 채로 둔다."""
     p = P(); p["min_achievement_plan"] = ""; p["achievement_levels"]["E"] = ""
     # 양식을 꽉 채운다 — 시험 2회 × 수행 3개면 구조적 미사용 칸이 하나도 없다.
     # (v3 부터 수행 열이 3개라, 2개만 쓰면 3번째 열에 '˙' 가 정상적으로 찍힌다)
+    # 2학년 시험 2회 양식은 수행 2열이다 — 둘 다 채우면 미사용 칸이 없다
     p["perf_areas"] = [
-        {"name": "실험 보고서", "points": 100, "ratio": 20, "essay_ratio": "6", "period": "10월"},
-        {"name": "탐구 발표", "points": 100, "ratio": 10, "essay_ratio": "3", "period": "11월"},
-        {"name": "포트폴리오", "points": 100, "ratio": 10, "essay_ratio": "3", "period": "12월"}]
+        {"name": "실험 보고서", "points": 100, "ratio": 25, "essay_ratio": "8", "period": "10월"},
+        {"name": "탐구 발표", "points": 100, "ratio": 15, "essay_ratio": "4", "period": "11월"}]
     p["perf_plans"] = [{"name": n, "absentee_points": "각 영역당 20점"}
-                       for n in ("실험 보고서", "탐구 발표", "포트폴리오")]
+                       for n in ("실험 보고서", "탐구 발표")]
     b = body_of(gen.generate({"fields": p})[1])
-    assert MARK not in b, f"공란에까지 '˙' 가 찍힘 ({b.count(MARK)}개)"
+    assert b.count(MARK) == base_marks("grade2_exam2"), (
+        f"공란에 '˙' 가 추가됨 ({b.count(MARK)}개, 양식 내장 {base_marks('grade2_exam2')}개)")
 check("공란(교사 미정)에는 '˙' 를 찍지 않는다", t_mark_not_blank)
 check("U+02D9 인지", lambda: (_ for _ in ()).throw(AssertionError("코드포인트 불일치"))
       if MARK != chr(0x02D9) else None)

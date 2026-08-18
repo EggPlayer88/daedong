@@ -140,19 +140,25 @@ check("세트 밖 → check_only 가 ERROR 없이 notices 로 알린다", t_not_
 
 def t_in_set_quiet():
     out = gen.generate_v2(M, full(0, 3), check_only=True)
-    assert out["notices"] == [], out["notices"]
-check("세트 안 → notices 비어 있음", t_in_set_quiet)
+    # ⚠ 이 조합(2학년 시험 0회)은 예체능판을 쓰는데, 정보·진로는 성취 절을 손봐야 한다.
+    #   그 양식 안내는 세트와 무관하므로 빼고 본다.
+    rest = [n for n in out["notices"] if not n.startswith("[양식 안내]")]
+    assert rest == [], rest
+check("세트 안 → 세트 관련 안내 없음", t_in_set_quiet)
 
 print("\n[7] 자르는 기준은 언제나 manifest.limits")
 def t_capacity():
-    cap = M["limits"]["perf_areas_max"]
+    tm = gen.load_token_map()
+    cap = V.route_spec(M, tm, "grade2_exam0")["limits"]["perf_areas_max"]
     # 상수의 요약값과 manifest 한도가 어긋나면 사람이 읽는 문서가 거짓말을 한다
     assert RULE["template_capacity"]["planned"]["perf_columns"] == cap, RULE["template_capacity"]
+    # 양식이 정한다 — 상수는 사람이 읽는 요약일 뿐이다
+    lim = V.route_spec(M, tm, "grade2_exam0")["limits"]
     p = full(0, 3)
-    assert V.apply_capacity(p, M, None) == [], "한도 안인데 잘림"
+    assert V.apply_capacity(p, M, lim) == [], "한도 안인데 잘림"
     assert len(p["perf_areas"]) == 3, p["perf_areas"]
     over = full(0, cap + 1)
-    n = V.apply_capacity(over, M, None)
+    n = V.apply_capacity(over, M, lim)
     assert len(over["perf_areas"]) == cap, over["perf_areas"]
     assert n and "한글에서 직접 편집" in n[0], n
 check("한도 안은 그대로, 넘으면 자르고 안내", t_capacity)

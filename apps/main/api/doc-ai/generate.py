@@ -37,6 +37,7 @@ FIXED_HOURS_PATH = ASSETS / "fixed-hours-2026-2.json"
 REGULATION_PATH = ASSETS / "regulation-2026.json"
 CONSTANTS_PATH = ASSETS / "school-constants-2026-2.json"
 PREFILL_DIR = ASSETS / "prefill"
+TOKEN_MAP_PATH = ASSETS / "token-map.json"
 
 # 검증된 엔진 (api/_hwpx). 이 폴더는 수정하지 않고 import 만 한다.
 sys.path.insert(0, str(HERE.parent / "_hwpx"))
@@ -145,6 +146,12 @@ def load_regulation() -> dict | None:
             return json.load(f)
     except FileNotFoundError:
         return None
+
+
+def load_token_map() -> dict:
+    """양식별 토큰 목록. **어느 칸이 있는지의 유일한 근거** — 없으면 생성할 수 없다."""
+    with open(TOKEN_MAP_PATH, encoding="utf-8") as f:
+        return json.load(f)
 
 
 def load_constants() -> dict:
@@ -356,10 +363,11 @@ def regulation_findings(plan: dict, variant: str) -> list:
 
 
 def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
-    # 교과·학년으로 양식 유형을 정한다 (템플릿 패밀리)
-    variant = _fill.resolve_variant(plan, manifest)
-    spec = _fill.variant_spec(manifest, variant)
-    print(f"[doc-ai/generate] variant: {variant} ({spec['label']})", file=sys.stderr)
+    # 학년 × 시험 횟수로 양식을 정한다 (manifest v4 routing)
+    variant = _fill.route_key(plan, manifest)
+    spec = _fill.route_spec(manifest, load_token_map(), variant)
+    print(f"[doc-ai/generate] route: {variant} ({spec['label']}) → {spec['file'] or '없음'}",
+          file=sys.stderr)
 
     validate_v2(manifest, plan, spec)
 
@@ -376,6 +384,11 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     # 작년 자료에서 그대로 물려받은 값 중 확인이 필요한 것 (예: % 표기 없던 칸)
     count_notes += _prefill.check(plan, load_prefill_index())
 
+    # 이 양식을 쓰지만 성취 관련 절이 교과와 맞지 않는 경우 (정보·진로 → 예체능판).
+    # ⚠ 그 유형의 본래 교과(음악·미술·체육)에는 알릴 것이 없다 — 해당 교과에만 띄운다.
+    if spec["special"] and not _fill.subject_matches(plan.get("subject"), spec["subjects_hint"]):
+        count_notes.append(f"[양식 안내] {spec['special']}")
+
     if check_only:
         # 문서를 만들지 않고 판정만 돌려준다 (확인 카드용)
         return {
@@ -384,13 +397,14 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             "findings": findings,
             "notices": count_notes,
             "levels": spec["levels"],
-            "template_ready": bool(spec["template_file"]) and (ASSETS / spec["template_file"]).exists(),
+            "scoring": spec["scoring"],
+            "template_ready": bool(spec["file"]) and (ASSETS / spec["file"]).exists(),
         }
 
-    if not spec["template_file"]:
-        # uses 가 비어 있다 = 이 유형의 양식이 아직 정해지지 않았다 (자유학기)
+    if not spec["file"]:
+        # 라우팅 표에 없는 조합이다 (예: 3학년 정기시험 2회)
         raise TemplateMissing(variant, spec["label"])
-    template = ASSETS / spec["template_file"]
+    template = ASSETS / spec["file"]
     if not template.exists():
         raise TemplateMissing(variant, spec["label"])
 
@@ -398,7 +412,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     # — 안 되는 걸 되는 것처럼 만들지 않는다.
     notices = ["[확인] " + _regulation.format_line(f) for f in by["FLAG"] + by["WARN"]]
     notices += count_notes
-    notices += _fill.apply_capacity(plan, manifest, spec.get('limits'))
+    notices += _fill.apply_capacity(plan, manifest, spec["limits"])
     for n in notices:
         print(f"[doc-ai/generate] capacity: {n}", file=sys.stderr)
 
@@ -412,7 +426,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             "표에 들어간 값을 한글에서 확인해 주세요."
         )
 
-    values, data = _fill.build_token_values(plan, manifest, spec.get("levels"))
+    values, data = _fill.build_token_values(plan, manifest, spec)
 
     tmp = Path(tempfile.mkdtemp(prefix="hwpx_"))
     try:
@@ -422,11 +436,11 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
 
         section = work / "Contents" / "section0.xml"
         if not section.exists():
-            raise TemplateMismatch("template.hwpx 안에 Contents/section0.xml 이 없습니다.")
+            raise TemplateMismatch(f"{spec['file']} 안에 Contents/section0.xml 이 없습니다.")
         tree, _root, sec = load_section(section)
 
         _fill.fill_document(
-            sec, values, data, manifest,
+            sec, values, data, manifest, spec,
             ln=ln,
             find_text_indices=find_text_indices,
             replace_text_anywhere=replace_text_anywhere,
@@ -555,9 +569,12 @@ class handler(BaseHTTPRequestHandler):
                 "variant": e.variant,
                 "label": label,
                 "message": (
-                    f"'{label}' 양식이 아직 준비되지 않았습니다. "
-                    "내용은 확정됐으니 양식 등록 후 다시 생성해 주세요."
-                    if label else "양식(template.hwpx)이 아직 등록되지 않았습니다."
+                    # v4 는 양식 6종이 학교 최종본이다. "준비 중" 이라고 하면
+                    # 오지 않을 양식을 기다리게 된다 — 조합이 없다고 그대로 말한다.
+                    f"'{label}' 에 해당하는 양식이 없습니다. "
+                    "학년과 정기시험 횟수를 확인해 주세요 "
+                    "(학교 양식은 2학년 0·1·2회 / 3학년 0·1회 / 1학년 2학기 자유학기입니다)."
+                    if label else "양식 파일이 등록되지 않았습니다."
                 ),
             })
         except TemplateMismatch as e:

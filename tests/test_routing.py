@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-"""템플릿 패밀리 — variant 결정과 양식 미배치 안내."""
-import importlib.util, json, sys, tempfile
+"""양식 라우팅 (manifest v4) — 학년 × 시험 횟수 → 양식 6종.
+
+v3 까지의 variant(교과명 기반)를 대체한다. 한도·성취수준 단계는 **token-map 에서
+세어 온다** — routing 표에 적어 두면 양식과 갈라진다.
+"""
+import importlib.util, json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -8,6 +12,7 @@ API = ROOT / "apps/main/api/doc-ai"
 spec = importlib.util.spec_from_file_location("gen", API / "generate.py")
 gen = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen)
 M = gen.load_manifest()
+TM = gen.load_token_map()
 V = gen._fill
 
 FAIL = []
@@ -16,146 +21,163 @@ def check(n, fn):
     except AssertionError as e: FAIL.append(n); print(f"  ✗ {n}: {e}")
     except Exception as e: FAIL.append(n); print(f"  ✗ {n}: {type(e).__name__}: {e}")
 
-def R(**kw):
-    p = {"subject": "수학", "grade": 2, "semester": 2}; p.update(kw)
-    return V.resolve_variant(p, M)
 
-print("\n[1] variant 결정 (순서가 의미를 가진다)")
-check("2학년 수학 → default", lambda: (_ for _ in ()).throw(AssertionError(R())) if R() != "default" else None)
-check("3학년 수학 → grade3", lambda: (_ for _ in ()).throw(AssertionError(R(grade=3))) if R(grade=3) != "grade3" else None)
-def t_arts():
-    for s in M["variants"]["arts"]["subjects"]:
-        got = R(subject=s, grade=2)
-        assert got == "arts", f"{s}: {got}"
-    assert R(subject="체육", grade=3) == "arts", "3학년 체육이 grade3 으로 감 (예체능이 우선)"
-check("음악·미술·체육 → arts (3학년이어도)", t_arts)
+def key(grade, exams=None, semester=2):
+    p = {"grade": grade, "semester": semester}
+    if exams is not None:
+        p["exam"] = {"count": exams}
+    return V.route_key(p, M)
 
-def t_not_arts():
-    """보건·정보는 수행 100% 라도 성취도가 5단계라 마스터를 쓴다 (v3.1)."""
-    for s in ("보건", "정보"):
-        got = R(subject=s, grade=2)
-        assert got == "default", f"{s} 가 예체능판으로 감: {got}"
-        assert V.variant_spec(M, got)["levels"] == ["A", "B", "C", "D", "E"], s
-check("보건·정보는 예체능판이 아니다 (5수준)", t_not_arts)
-def t_free():
-    assert R(grade=1, semester=2) == "grade1_free", R(grade=1, semester=2)
-    # 자유학기가 예체능보다 우선한다 (선언된 순서)
-    assert R(grade=1, semester=2, subject="음악") == "grade1_free", "1학년 음악이 arts 로 감"
-check("1학년 2학기 → grade1_free (예체능보다 우선)", t_free)
+
+def spec_of(k):
+    return V.route_spec(M, TM, k)
+
+
+print("\n[1] 학년 × 시험 횟수 → 양식")
+def t_map():
+    want = {
+        (2, 2): "tpl-g2-exam2.hwpx",
+        (2, 1): "tpl-g2-exam1.hwpx",
+        (2, 0): "tpl-g2-perf3-arts.hwpx",
+        (3, 1): "tpl-g3-exam1.hwpx",
+        (3, 0): "tpl-g3-perf3.hwpx",
+    }
+    for (g, e), f in want.items():
+        k = key(g, e)
+        assert spec_of(k)["file"] == f, f"{g}학년 시험{e}회 → {spec_of(k)['file']}"
+check("2·3학년 5조합이 각자 양식으로", t_map)
+
+def t_free_first():
+    """자유학기는 시험 횟수를 보지 않는다 — 1학년 2학기면 무조건 자유학기 양식."""
+    assert key(1, 0) == "grade1_semester2", key(1, 0)
+    assert key(1, 2) == "grade1_semester2", "시험 횟수가 자유학기를 덮어씀"
+    assert spec_of(key(1, 0))["file"] == "tpl-g1-free.hwpx"
+check("1학년 2학기 → 자유학기 (시험 횟수 무관)", t_free_first)
+
 def t_g1s1():
-    assert R(grade=1, semester=1) == "default", R(grade=1, semester=1)
-check("1학년 1학기는 자유학기 아님 → default", t_g1s1)
-def t_partial():
-    assert R(subject="음악감상") == "arts", "부분 일치 안 됨"
-    assert R(subject="") == "default"
-check("교과명 부분 일치 / 빈 값 처리", t_partial)
+    assert key(1, 2, semester=1) == "grade1_exam2", key(1, 2, semester=1)
+    assert spec_of(key(1, 2, semester=1))["file"] == "", "없는 조합에 양식이 붙음"
+check("1학년 1학기는 자유학기가 아니다 (양식 없음)", t_g1s1)
 
-print("\n[2] variant 명세")
-MASTER = M["template_file"]
-ARTS = M["variants"]["arts"]["template_file"]
-def t_spec():
-    d = V.variant_spec(M, "default")
-    assert d["template_file"] == MASTER, d
-    assert d["scoring"] is True
-    # 주지교과·3학년은 마스터(5수준), 예체능은 전용판(3수준)
-    for key in ("default", "grade3"):
-        v = V.variant_spec(M, key)
-        assert v["template_file"] == MASTER, f"{key} 가 마스터를 안 씀: {v}"
-        assert v["levels"] == ["A", "B", "C", "D", "E"], f"{key} 수준: {v['levels']}"
-    a = V.variant_spec(M, "arts")
-    assert a["template_file"] == ARTS, a
-    assert a["levels"] == ["A", "B", "C"], a["levels"]
-    for key in ("default", "grade3", "arts"):
-        assert V.variant_spec(M, key)["limits"]["perf_areas_max"] == 3, key
-    f = V.variant_spec(M, "grade1_free")
-    assert f["scoring"] is False, "자유학기는 점수화하지 않는다"
-    assert f["template_file"] == "", "양식이 없는데 파일이 지정됨"
-check("유형별 양식·성취수준 (마스터 5수준 / 예체능 3수준)", t_spec)
+def t_missing():
+    """표에 없는 조합은 빈 파일명 → 생성 단계에서 안내로 걸린다."""
+    k = key(3, 2)
+    assert spec_of(k)["file"] == "", spec_of(k)
+    assert spec_of(k)["label"] == "3학년 · 정기시험 2회", spec_of(k)["label"]
+check("3학년 시험 2회는 표에 없다", t_missing)
 
-def t_single_source():
-    """양식 파일과 성취수준은 FINAL variants 한 곳에만 적혀 있어야 한다."""
-    for key, item in M["variant_routing"]["items"].items():
-        assert "template_file" not in item, f"{key} 라우팅에 양식 파일이 중복 기재됨"
-        assert "achievement_levels" not in item, f"{key} 라우팅에 성취수준이 중복 기재됨"
-check("라우팅에 양식·성취수준을 중복 기재하지 않는다", t_single_source)
-check("모르는 유형은 default 로", lambda: (_ for _ in ()).throw(AssertionError("fallback 실패"))
-      if V.variant_spec(M, "없는유형")["template_file"] != MASTER else None)
+def t_no_subject():
+    """교과명은 더 이상 양식을 정하지 않는다 (v3 의 arts 판정 폐기)."""
+    for subj in ("음악", "수학", "보건", "정보"):
+        p = {"grade": 2, "semester": 2, "subject": subj, "exam": {"count": 0}}
+        assert V.route_key(p, M) == "grade2_exam0", subj
+check("교과명은 양식을 바꾸지 않는다 (시험 횟수가 정한다)", t_no_subject)
 
-print("\n[3] 유형별 생성 — 마스터로 나가는 것과 아직 안 나가는 것")
-BASE = {"year":2026,"semester":2,"subject":"수학","teacher_name":"이","weekly_hours":4,
-        "monthly_plan":[{"month":m,"hours_cum":"","units":"","standards":"","eval_elements":""} for m in ["8월","9월","10월","11월","12월"]],
-        "eval_purpose":["","",""],
-        # 규정 적합 유형 A (정기 2회 60% / 수행 2영역 20%씩 / 서논술 33%)
-        "exam":{"count":2,"ratio":60,"mc_points":60,"short_points":10,"essay_points":30,"rounds":[
-            {"label":"1회 정기시험","period":"","standards":"","ratio":30,"mc":"60","short":"10","essay":"30","essay_ratio":"9"},
-            {"label":"2회 정기시험","period":"","standards":"","ratio":30,"mc":"60","short":"10","essay":"30","essay_ratio":"9"}]},
-        "perf_areas":[{"name":"탐구 보고서","points":100,"ratio":20,"essay_ratio":"8"},
-                      {"name":"수행 과정 관찰","points":100,"ratio":20,"essay_ratio":"7"}],
-        "essay_total_ratio":33,"achievement_levels":{"A":"","B":"","C":"","D":"","E":""},
-        "perf_plans":[{"name":"탐구 보고서","absentee_points":"대체 과제"}],"min_achievement_plan":""}
 
-def missing(grade, subject, expect_variant):
-    p = dict(BASE, grade=grade, subject=subject)
-    try:
-        gen.generate({"fields": p})
-    except gen.TemplateMissing as e:
-        assert e.variant == expect_variant, f"{e.variant} != {expect_variant}"
-        assert e.label, "label 이 비었다"
-        return
-    raise AssertionError("TemplateMissing 이 발생하지 않음")
-
-def made(grade, subject, expect_variant, **over):
-    p = dict(BASE, grade=grade, subject=subject, **over)
-    fn, b64, _n = gen.generate({"fields": p})
-    assert V.resolve_variant(p, M) == expect_variant, V.resolve_variant(p, M)
-    assert fn.endswith("(초안).hwpx"), fn
-
-# 3학년·예체능도 이제 마스터로 나간다 — 유형별로 다른 것은 한도와 대화 흐름뿐이다
-check("3학년 → grade3 로 판정되고 마스터로 생성", lambda: made(
-    3, "수학", "grade3",
-    exam={"count": 1, "ratio": 40, "mc_points": 60, "short_points": 10, "essay_points": 30,
-          "rounds": [{"label": "정기시험", "period": "", "standards": "", "ratio": 40,
-                      "mc": "60", "short": "10", "essay": "30", "essay_ratio": "16"}]},
-    perf_areas=[{"name": "탐구 보고서", "points": 100, "ratio": 30, "essay_ratio": "7"},
-                {"name": "수행 과정 관찰", "points": 100, "ratio": 30, "essay_ratio": "7"}]))
-check("음악 → arts 로 판정되고 마스터로 생성", lambda: made(
-    2, "음악", "arts",
-    exam={"count": 0, "ratio": 0, "rounds": []},
-    perf_areas=[{"name": "가창 실기", "points": 100, "ratio": 40, "essay_ratio": "0"},
-                {"name": "기악 실기", "points": 100, "ratio": 30, "essay_ratio": "0"},
-                {"name": "감상 보고서", "points": 100, "ratio": 30, "essay_ratio": "0"}]))
-def t_free_missing():
-    p = dict(BASE, grade=1, semester=2, subject="수학")
-    # 자유학기는 배점 자체가 없다 — 배점 검증에 걸리지 않고 양식 안내까지 가야 한다
-    p.pop("exam"); p["perf_areas"] = [{"name": "관찰"}]
-    try:
-        gen.generate({"fields": p})
-    except gen.TemplateMissing as e:
-        assert e.variant == "grade1_free", e.variant
-        return
-    raise AssertionError("TemplateMissing 이 발생하지 않음")
-# 자유학기만 아직 마스터를 쓰지 않는다 — 그 문서에는 3절(반영비율) 자체가 없다(실측).
-# 점수 칸이 있는 마스터로 뽑으면 없는 표를 있는 것처럼 만드는 셈이다 (제0원칙).
-check("1학년 자유학기 → 배점 검증 건너뛰고 양식 안내", t_free_missing)
-def t_default_ok():
-    p = dict(BASE, grade=2, subject="수학")
-    fn, b64, notices = gen.generate({"fields": p})
-    assert fn.endswith("(초안).hwpx"), fn
-check("default 유형은 그대로 생성된다 (회귀)", t_default_ok)
-
-print("\n[4] 유형별로 다른 것은 한도(시험 횟수)뿐")
+print("\n[2] 한도·성취수준은 token-map 에서 센다")
 def t_caps():
-    a = V.variant_spec(M, "arts")["limits"]
-    g3 = V.variant_spec(M, "grade3")["limits"]
-    d = V.variant_spec(M, "default")["limits"]
-    # 수행 한도는 이제 전부 같다 (마스터가 3열)
-    assert a["perf_areas_max"] == g3["perf_areas_max"] == d["perf_areas_max"] == 3, (a, g3, d)
-    # 다른 것은 시험 횟수다 — 예체능 0회, 3학년 0~1회, 기본 0~2회
-    assert a["exam_count"] == [0], a
-    assert max(g3["exam_count"]) == 1, g3
-    assert max(d["exam_count"]) == 2, d
-check("수행 한도는 동일(3), 시험 횟수만 유형별로 다르다", t_caps)
+    want = {
+        "grade2_exam2": (2, 2, 0), "grade2_exam1": (2, 2, 0), "grade2_exam0": (3, 3, 0),
+        "grade3_exam1": (2, 2, 0), "grade3_exam0": (3, 3, 0), "grade1_semester2": (0, 0, 4),
+    }
+    for k, (pa, pp, fb) in want.items():
+        lim = spec_of(k)["limits"]
+        got = (lim["perf_areas_max"], lim["perf_plans_max"], lim["free_blocks_max"])
+        assert got == (pa, pp, fb), f"{k}: {got} != {(pa, pp, fb)}"
+check("수행 열·출제 블록·활동 블록 수", t_caps)
+
+def t_levels():
+    want = {
+        "grade2_exam2": list("ABCDE"), "grade2_exam1": list("ABCDE"),
+        "grade2_exam0": list("ABC"),
+        "grade3_exam1": [], "grade3_exam0": [],       # 3학년은 성취수준 절 자체가 없다
+        "grade1_semester2": list("ABCDE"),
+    }
+    for k, lv in want.items():
+        assert spec_of(k)["levels"] == lv, f"{k}: {spec_of(k)['levels']}"
+check("성취수준 단계 (3학년은 없음)", t_levels)
+
+def t_derived():
+    """routing 표가 아니라 **토큰 목록**이 근거임을 확인한다."""
+    tm2 = json.loads(json.dumps(TM))
+    tm2["tpl-g2-exam2.hwpx"] = [t for t in tm2["tpl-g2-exam2.hwpx"] if t not in ("LV_D", "LV_E")]
+    s2 = V.route_spec(M, tm2, "grade2_exam2")
+    assert s2["levels"] == list("ABC"), s2["levels"]
+    tm2["tpl-g2-exam2.hwpx"] = [t for t in tm2["tpl-g2-exam2.hwpx"] if not t.startswith("P2_")]
+    s3 = V.route_spec(M, tm2, "grade2_exam2")
+    assert s3["limits"]["perf_areas_max"] == 1, s3["limits"]
+check("토큰이 빠지면 한도·단계가 따라 줄어든다", t_derived)
+
+def t_scoring():
+    assert spec_of("grade1_semester2")["scoring"] is False, "자유학기가 점수형으로 잡힘"
+    for k in ("grade2_exam2", "grade3_exam0"):
+        assert spec_of(k)["scoring"] is True, k
+check("자유학기만 scoring=false", t_scoring)
+
+
+print("\n[3] 정보·진로 — 예체능판을 쓰지만 성취 절이 맞지 않는다")
+def t_special():
+    sp = spec_of("grade2_exam0")["special"]
+    assert sp, "special 안내가 없다"
+    assert "정보" in sp and "진로" in sp, sp
+    assert "교사가 한글에서 수정" in sp, sp
+check("routing 에 special 안내가 있다", t_special)
+
+def t_special_notice():
+    """생성 완료 메시지(notices)에 반드시 실려야 한다 — 교사가 모르면 그대로 결재된다."""
+    p = {
+        "year": 2026, "semester": 2, "grade": 2, "subject": "정보",
+        "teacher_name": "이", "weekly_hours": 2,
+        "monthly_plan": [{"month": m, "hours_cum": "", "units": "", "standards": "", "eval_elements": ""}
+                         for m in ["8월", "9월", "10월", "11월", "12월"]],
+        "eval_purpose": ["", "", ""],
+        "exam": {"count": 0, "ratio": 0, "rounds": []},
+        "perf_ratio": 100,
+        "perf_areas": [{"name": f"영역{i+1}", "points": 100, "ratio": r, "essay_ratio": 0,
+                        "period": ""} for i, r in enumerate((40, 30, 30))],
+        "achievement_levels": {k: "" for k in "ABC"},
+        "perf_plans": [{"name": f"영역{i+1}", "absentee_points": "각 영역당 20점"} for i in range(3)],
+        "min_achievement_plan": "",
+    }
+    out = gen.generate_v2(M, json.loads(json.dumps(p)), check_only=True)
+    assert any("양식 안내" in n for n in out["notices"]), out["notices"]
+    assert any("교사가 한글에서 수정" in n for n in out["notices"]), out["notices"]
+    # 실제 생성 경로에도 실린다
+    _fn, _b64, notices = gen.generate_v2(M, json.loads(json.dumps(p)))
+    assert any("양식 안내" in n for n in notices), notices
+check("정보 2학년 → 생성 안내에 실린다", t_special_notice)
+
+def t_no_special_elsewhere():
+    p = {"grade": 2, "semester": 2, "subject": "수학", "exam": {"count": 2}}
+    assert spec_of(V.route_key(p, M))["special"] == "", "관계없는 유형에 안내가 붙음"
+check("다른 유형에는 붙지 않는다", t_no_special_elsewhere)
+
+def t_special_only_for_outsiders():
+    """이 양식의 본래 교과(음악·미술·체육)에는 알릴 것이 없다 — 소음이 된다."""
+    def notices(subject):
+        p = {
+            "year": 2026, "semester": 2, "grade": 2, "subject": subject,
+            "teacher_name": "이", "weekly_hours": 2,
+            "monthly_plan": [{"month": m, "hours_cum": "", "units": "", "standards": "", "eval_elements": ""}
+                             for m in ["8월", "9월", "10월", "11월", "12월"]],
+            "eval_purpose": ["", "", ""],
+            "exam": {"count": 0, "ratio": 0, "rounds": []},
+            "perf_ratio": 100,
+            "perf_areas": [{"name": f"영역{i+1}", "points": 100, "ratio": r, "essay_ratio": 0,
+                            "period": ""} for i, r in enumerate((40, 30, 30))],
+            "achievement_levels": {k: "" for k in "ABC"},
+            "perf_plans": [{"name": f"영역{i+1}", "absentee_points": "각 영역당 20점"} for i in range(3)],
+            "min_achievement_plan": "",
+        }
+        out = gen.generate_v2(M, json.loads(json.dumps(p)), check_only=True)
+        return [n for n in out["notices"] if n.startswith("[양식 안내]")]
+
+    for s_ in M["routing"]["grade2_exam0"]["subjects_hint"]:
+        assert notices(s_) == [], f"{s_} 에 불필요한 안내: {notices(s_)}"
+    assert notices("정보"), "정보에 안내가 없다"
+check("음악·미술·체육에는 안내하지 않고 정보에만 한다", t_special_only_for_outsiders)
 
 print()
-if FAIL: print(f"{len(FAIL)}건 실패: {', '.join(FAIL)}"); sys.exit(1)
+if FAIL:
+    print(f"실패 {len(FAIL)}건: " + ", ".join(FAIL)); raise SystemExit(1)
 print("전부 통과")
