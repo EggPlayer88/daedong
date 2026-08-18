@@ -1,0 +1,112 @@
+{
+ "_comment": "manifest v3 FINAL (2026-08-18). template-master.hwpx(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)와 쌍. 토큰 170개 검증 완료. 전 유형 공용 마스터 — 미사용 칸 ˙, 미사용 블록 삭제.",
+ "manifest_version": 3,
+ "doc_type": "evaluation_plan",
+ "template_file": "template-master.hwpx",
+ "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서(초안).hwpx",
+ "limits": {
+  "exam_count": [
+   0,
+   1,
+   2
+  ],
+  "perf_areas_max": 3,
+  "perf_plans_max": 3,
+  "count_set": "시험0→수행3 / 시험1→수행2 / 시험2→수행1~2 (안내용 — 물리 한도는 3)"
+ },
+ "exam_method_taxonomy": [
+  "mc(선택형)",
+  "short(단답형·완성형)",
+  "essay(서·논술형)"
+ ],
+ "essay_30_numerator": "essay 만 산입 (short 제외), 분모 = 학기말 총 배점 100%",
+ "direct_tokens": {
+  "{{YEAR}}": "year",
+  "{{SEMESTER}}": "semester",
+  "{{GRADE}}": "grade",
+  "{{SUBJECT}}": "subject",
+  "{{MIN_ACH}}": "min_achievement_plan",
+  "{{PURPOSE1}}": "eval_purpose[0]",
+  "{{PURPOSE2}}": "eval_purpose[1]",
+  "{{PURPOSE3}}": "eval_purpose[2]",
+  "{{EXAM_TOTAL_RATIO}}": "exam.ratio_display",
+  "{{PERF_TOTAL_RATIO}}": "perf.ratio_display",
+  "{{POINTS_SUM}}": "computed",
+  "{{ESSAY_TOTAL_RATIO}}": "computed (서버 재계산)",
+  "{{LV_A}}": "achievement_levels.A",
+  "{{LV_B}}": "achievement_levels.B",
+  "{{LV_C}}": "achievement_levels.C",
+  "{{LV_D}}": "achievement_levels.D",
+  "{{LV_E}}": "achievement_levels.E"
+ },
+ "pattern_tokens": {
+  "월별(1~5)": "{{M{n}_HOURS}}(시수 고정표 서버주입)/{{M{n}_UNITS}}/{{M{n}_STD}}/{{M{n}_EVAL}}",
+  "정기 회차(1~2)": "{{EX{r}_MC}}/{{EX{r}_SHORT}}/{{EX{r}_ESSAY}} (각 점수, 합 100) + {{EX{r}_ESSAY_RATIO}}/{{EX{r}_STD}}/{{EX{r}_PERIOD}}",
+  "수행 영역(1~3)": "{{P{n}_NAME}}/{{P{n}_POINTS}}('100점(N%)' 표기)/{{P{n}_PERIOD}}",
+  "출제계획 블록(1~3)": "{{PP{b}_NAME/TASK/STD/HIGH/MID/LOW/METHODS1/METHODS2/ABSENT}} + {{PP{b}_E{g}_NAME}} + {{PP{b}_E{g}_L{k}}}/{{PP{b}_E{g}_L{k}_PTS}} (g=1~3, k=1~4)"
+ },
+ "fixed_texts": {
+  "수행 성취기준 칸": "'수행평가 세부 기준 참고' 고정 (병합 셀 한계의 관행 해법 — 토큰 아님)",
+  "표 회차 라벨": "'1차/2차' 원본 유지 (계란님 확정)"
+ },
+ "composition_rules": {
+  "EXAM_INTRO": {
+   "2": "성취평가제에 근거한 정기시험 및 서술형·논술형 평가는 교과협의회를 통하여 매학기 1회 정기시험과 2회 정기시험 때 실시한다.",
+   "1": "성취평가제에 근거한 정기시험 및 서술형·논술형 평가는 교과협의회를 통하여 매학기 1회 실시한다.",
+   "0": "정기시험은 실시하지 않는다."
+  },
+  "EXAM_RATIO_SENT": {
+   "ge1": "정기시험의 반영비율은 {exam.ratio}%로 하고 각 회차별 100점 만점에 선택형 {mc}점, 단답형·완성형 {short}점, 서·논술형 {essay}점의 비율로 출제한다.",
+   "0": "정기시험을 실시하지 않으며, 수행평가 100%로 평가한다."
+  },
+  "methods_line1": {
+   "template": " □ 서술·논술     □ 구술·발표      □ 토의･토론       □ 프로젝트 □ 실험･실습    □ 포트폴리오      □ 기타",
+   "options_order": [
+    "서술·논술",
+    "구술·발표",
+    "토의·토론",
+    "프로젝트",
+    "실험·실습",
+    "포트폴리오",
+    "기타"
+   ]
+  },
+  "methods_line2": {
+   "template": "□ 교사 관찰 및 기록      □ 자기평가      □ 동료평가 ",
+   "options_order": [
+    "교사 관찰 및 기록",
+    "자기평가",
+    "동료평가"
+   ]
+  }
+ },
+ "unused_handling": {
+  "˙(구조적 미사용)": {
+   "exam==1": [
+    "EX2_MC",
+    "EX2_SHORT",
+    "EX2_ESSAY",
+    "EX2_ESSAY_RATIO",
+    "EX2_STD",
+    "EX2_PERIOD"
+   ],
+   "exam==0": [
+    "EX1_*",
+    "EX2_* 전부",
+    "EXAM_TOTAL_RATIO='0%'"
+   ],
+   "perf==2": [
+    "P3_NAME",
+    "P3_POINTS",
+    "P3_PERIOD"
+   ],
+   "perf==1": [
+    "P2_*",
+    "P3_*"
+   ]
+  },
+  "블록 삭제": "perf<3 → PP3 블록(빈문단+제목p+표p+결시자p), perf<2 → PP2 블록도. 토큰({{PP3_NAME}} 등) 포함 문단 탐색으로 제거, 잔여 PP 토큰 0 확인",
+  "교사 미정 공란": "빈 문자열 유지 (˙와 구분 — 기존 규칙)"
+ },
+ "final_check": "잔여 '{{' 0 + verify_hwpx + 회차 만점(mc+short+essay=100) + 영역 만점 100 + 비율 합 100"
+}
