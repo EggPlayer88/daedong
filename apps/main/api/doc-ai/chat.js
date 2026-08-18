@@ -9,7 +9,7 @@
 // ⚠ 필드 목록·학교 상수를 이 파일에 하드코딩하지 말 것.
 //   자산 3개 중 무엇이 바뀌어도 프롬프트가 자동으로 따라가야 한다.
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -37,6 +37,61 @@ try {
   fixedHours = JSON.parse(readFileSync(join(ASSETS, 'fixed-hours-2026-2.json'), 'utf-8'))
 } catch {
   fixedHours = null
+}
+
+// ---------------------------------------------------------------------------
+// prefill — 작년(2025-2) 데이터 팩. 교과·학년이 정해지면 그 한 건만 주입한다.
+//   전부 주입하면 프롬프트가 수백 KB 가 되고, 다른 교과 내용이 초안에 섞인다.
+// ---------------------------------------------------------------------------
+const PREFILL_DIR = join(ASSETS, 'prefill')
+
+/** subject|grade → 파일 경로. 파일명이 아니라 **파일 안의 subject/grade** 를 믿는다. */
+function buildPrefillIndex(dir = PREFILL_DIR) {
+  const index = new Map()
+  if (!existsSync(dir)) return index
+  for (const f of readdirSync(dir).filter((x) => x.endsWith('.json')).sort()) {
+    let d
+    try {
+      d = JSON.parse(readFileSync(join(dir, f), 'utf-8'))
+    } catch {
+      continue // 깨진 파일 하나가 전체 주입을 막지 않게 한다
+    }
+    const subject = String(d?.subject || '').trim()
+    const grade = Number.parseInt(d?.grade, 10)
+    if (!subject || !Number.isInteger(grade)) continue
+    const key = `${subject}|${grade}`
+    const prev = index.get(key)
+    // ⚠ 같은 교과·학년 파일이 둘 이상일 수 있다 ('진로와 직업' 띄어쓰기 변형 실측).
+    //   필드가 더 많은 쪽(정보가 더 담긴 쪽)을 쓰고, 같으면 파일명 순서로 정한다.
+    if (!prev || Object.keys(d).length > Object.keys(prev.data).length) {
+      index.set(key, { file: f, data: d })
+    }
+  }
+  return index
+}
+
+const prefillIndex = buildPrefillIndex()
+
+/** 대화에서 교과·학년을 찾아 해당 prefill 을 고른다. 없으면 null (백지 모드) */
+function pickPrefill(messages, index = prefillIndex) {
+  if (index.size === 0) return null
+  const subjects = [...new Set([...index.keys()].map((k) => k.split('|')[0]))]
+    .sort((a, b) => b.length - a.length) // 긴 이름 먼저 ('기술가정' 이 '기술' 에 먹히지 않게)
+  let subject = ''
+  let grade = null
+  for (const m of messages || []) {
+    const text = typeof m?.content === 'string' ? m.content : ''
+    // 참고자료 전문(작년 문서)은 교과명 추측에서 제외 — 다른 교과명이 섞여 있다
+    if (!text || m.role !== 'user' || text.startsWith('[참고자료: ')) continue
+    if (!subject) subject = subjects.find((x) => text.includes(x)) || ''
+    if (grade === null) {
+      const g = /([1-3])\s*학년/.exec(text)
+      if (g) grade = Number(g[1])
+    }
+    if (subject && grade !== null) break
+  }
+  if (!subject || grade === null) return null
+  return index.get(`${subject}|${grade}`) || null
 }
 
 // 모델은 env 로 교체 가능 (기본: 현재 Sonnet 세대)
@@ -120,6 +175,196 @@ function buildGuideDoc(m = manifest) {
       `- 이렇게 묻는다: "${ab.ask}"`,
       `- 형식: **${ab.format}**`,
       `- ${ab.rule}`
+    )
+  }
+  return L.join('\n')
+}
+
+/**
+ * prefill 주입 블록 — "작년 문서 기준으로 달라진 것만 묻는" 모드로 바꾼다.
+ *
+ * 이 프로젝트의 핵심 통찰(마스터플랜): 이것은 생성이 아니라 **변환** 문제다.
+ * 같은 교사가 같은 교과서로 가르치므로 진도·관행은 작년 문서에 이미 검증돼 있다.
+ * 그래서 백지에서 묻지 않고, 작년 것을 보여주고 **다른 것만** 받는다.
+ *
+ * ⚠ 작년 값을 그대로 쓰면 안 되는 것이 셋 있다 (아래 규칙에 명시):
+ *   시험 시기·시수(올해 학사일정) / 2학년 성취기준(교육과정이 바뀌었다) / 배점 3분류
+ */
+const numOf = (v) => {
+  const m = /-?\d+(?:\.\d+)?/.exec(String(v ?? ''))
+  return m ? Number(m[0]) : 0
+}
+
+function buildPrefillDoc(pre, m = manifest, c = constants) {
+  const d = pre?.data
+  if (!d) return ''
+  const L = [
+    `## 작년 자료 (${d.source || '2025-2'}) — ${d.subject} ${d.grade}학년`,
+    '',
+    '**이 대화는 백지에서 시작하지 않는다.** 아래는 작년에 이 교과가 실제로 낸 계획서다.',
+    '',
+    '### 첫 응답에서 할 일 (순서 고정)',
+    '1. 아래 작년 구성을 **요약해서 보여준다** (표 말고 3~5줄).',
+    '2. **"작년과 같나요? 달라진 것만 알려주세요."** 라고 묻는다.',
+    '3. 교사가 "같다" 고 하면 **더 묻지 않고** 작년 값으로 채운 뒤 확인 카드로 넘어간다.',
+    '   달라진 것만 말하면 그 부분만 다시 묻는다. 처음부터 다시 훑지 않는다.',
+    '',
+  ]
+
+  // ── 작년 구성 요약 (기계가 읽을 수 있게 원문 그대로) ──────────────────────
+  const ex = d.exam || {}
+  L.push('### 작년 구성')
+  L.push(`- 정기시험 ${ex.count ?? '?'}회 / 반영비율 ${ex.ratio || '?'} · 수행 ${d.perf_ratio || '?'}`)
+  for (const [i, r] of (ex.rounds || []).entries()) {
+    const comp = (r.composition_2class || []).join(' + ')
+    L.push(`  · ${i + 1}회차 배점(작년 2분류): ${comp || '(없음)'} / 서·논술 ${r.essay_ratio || '?'}`)
+  }
+  L.push(`- 수행평가 ${(d.perf_areas || []).length}개:`)
+  for (const a of d.perf_areas || []) {
+    L.push(`  · ${a.name} — ${a.points_normalized || a.points_last_year || ''} (${a.period || '시기 미상'})`)
+  }
+  L.push(`- 서·논술형 합계(작년): ${d.perf_essay_ratio || '?'} (수행) / 회차별은 위 참조`)
+  L.push(`- 최소 성취수준 미도달 지도 방안: ${d.min_achievement_plan || '(없음)'}`)
+  L.push('')
+
+  L.push('### 작년 교수·학습 계획 (월별)')
+  for (const r of d.monthly_plan || []) {
+    L.push(`- ${r.month}: ${r.units || ''}`)
+    if (r.standards) L.push(`    성취기준: ${r.standards}`)
+    if (r.eval_elements) L.push(`    평가 요소: ${r.eval_elements}`)
+  }
+  L.push('')
+
+  L.push('### 작년 평가 목적')
+  for (const [i, t] of (d.eval_purpose || []).entries()) L.push(`${i + 1}. ${t}`)
+  L.push('')
+
+  // ── 그대로 쓰면 안 되는 것 ────────────────────────────────────────────────
+  L.push('### ⚠ 작년 값을 그대로 쓰면 안 되는 것')
+  L.push(
+    `- **시험 시기**: 작년 값(${(ex.rounds || []).map((r) => r.period_last_year).filter(Boolean).join(', ') || '없음'})은 버린다.`,
+    '  올해 시기는 위 "학교 공통 정보" 의 exam_schedule 을 쓴다.',
+    '- **시수/누계**: 작년 값은 쓰지 않는다. 서버가 올해 학사일정 고정표로 자동 입력한다.',
+    '- **정기시험 배점**: 작년은 2분류(선택형+서·논술형)다. 올해는 3분류라',
+    '  선택형을 선택형/단답형·완성형으로 **나눠 받아야 한다** — 네가 임의로 나누지 않는다.'
+  )
+
+  // ── 작년 값이 올해 규정에 못 미치는 경우 먼저 알린다 ──────────────────────
+  //    생성 버튼에서 막히는 것보다, 요약 단계에서 "이 부분은 손봐야 한다" 고
+  //    말해 주는 편이 낫다. 판정 자체는 서버 검증기가 다시 한다.
+  const need = regulation?.thresholds?.essay_total_min
+  const examEssay = (ex.rounds || []).reduce((t, r) => t + numOf(r.essay_ratio), 0)
+  const essayTotal = examEssay + numOf(d.perf_essay_ratio)
+  if (need && (ex.count ?? 0) > 0) {
+    if (essayTotal <= 0) {
+      L.push(
+        '',
+        '### ⚠ 작년 자료에 서·논술형 반영비율이 없다',
+        '- 파서가 못 읽었을 뿐 작년에도 있었을 수 있다. **0% 로 단정하지 않는다.**',
+        `- 회차별·수행 영역별 서·논술형 반영비율을 교사에게 묻는다 (규정상 합계 ${need}% 이상).`
+      )
+    } else if (essayTotal < need) {
+      L.push(
+        '',
+        `### ⚠ 작년 서·논술형 합계가 ${essayTotal}% — 올해 규정(${need}%)에 못 미친다`,
+        `- 작년 값 그대로는 생성 단계에서 막힌다. 요약할 때 **미리** 알린다:`,
+        `  "작년 기준으로는 서·논술형이 ${essayTotal}% 인데, 규정은 ${need}% 이상입니다. 이 부분만 조정이 필요합니다."`,
+        '- 분모는 학기말 총 배점(지필 환산 + 수행 환산)이다. 얼마를 어디서 올릴지는 교사가 정한다.',
+        '- ⚠ 네가 임의로 숫자를 올려 채우지 않는다. 조정안을 제시하고 확인받는다.'
+      )
+    }
+  }
+
+  // ── 성취기준: 교육과정이 바뀐 학년만 ──────────────────────────────────────
+  const curriculum = (c?.curriculum_by_grade || {})[String(d.grade)] || ''
+  const changed = d.curriculum_note && !String(d.curriculum_note).includes('유지')
+  if (changed || /2022/.test(curriculum)) {
+    L.push(
+      '',
+      `### ⚠ 성취기준 — 교육과정이 바뀌었다 (${d.curriculum_note || curriculum})`,
+      '- 위 월별 성취기준은 **2015 개정 원문**이다. **코드를 그대로 복사하지 않는다.**'
+    )
+    if (Array.isArray(d.standards_2022) && d.standards_2022.length) {
+      // 매칭 결과가 오면 표식대로 3분기한다 (● 확정 / ▲ 후보 / ✗ 미매칭)
+      L.push(
+        '- 아래 재선정 결과를 표식대로 처리한다:',
+        '  · **●** — 확정본이다. 그대로 제시하고 넘어간다.',
+        '  · **▲** — 후보다. 후보를 함께 보여주고 교사에게 확인받는다.',
+        '  · **✗** — 매칭 실패다. 주입된 교과 성취기준 DB **안에서만** 의미가 맞는 것을 제안하고',
+        '    교사 확인을 받는다. DB 밖의 코드를 지어내지 않는다 (제1원칙).',
+        ''
+      )
+      for (const r of d.standards_2022) {
+        L.push(`  ${r.match || '?'} ${r.old || ''} → ${r.new || r.candidates?.join(' / ') || '(미정)'}`)
+      }
+    } else {
+      L.push(
+        '- ⚠ **2022 재선정 결과가 아직 주입되지 않았다.** 작년 코드를 옮겨 적지 말고,',
+        '  단원·내용은 유지하되 **성취기준 코드는 공란으로 두거나 교사에게 받는다.**',
+        '  네가 코드를 지어내면 존재하지 않는 성취기준이 공문서에 들어간다 (제1원칙).'
+      )
+      if (Array.isArray(d.standards_2015_to_replace) && d.standards_2015_to_replace.length) {
+        L.push('- 교체가 필요한 작년 진술 (참고용, 코드 아님):')
+        for (const t of d.standards_2015_to_replace) L.push(`  · ${t}`)
+      }
+    }
+  }
+
+  // ── 파서가 자신 없다고 표시한 부분 ────────────────────────────────────────
+  const warns = d._warnings || []
+  if (warns.length) {
+    L.push(
+      '',
+      '### ⚠ 작년 자료 분리 미완 — 이 부분은 반드시 교사에게 확인',
+      ...warns.map((w) => `- ${w}`),
+      '- "작년 자료에서 이 부분이 깔끔하게 분리되지 않았습니다" 라고 밝히고 물어본다.',
+      '  분리가 안 된 값을 확정처럼 제시하지 않는다.'
+    )
+  }
+  const info = d._info || []
+  if (info.length) L.push('', '### 참고 (파서 메모)', ...info.map((x) => `- ${x}`))
+  const mr = d._match_report || []
+  if (mr.length) {
+    L.push(
+      '',
+      '### 작년 원본에서 보정한 값 (그대로 계승하지 않은 것)',
+      ...mr.map((x) => `- ${typeof x === 'string' ? x : JSON.stringify(x)}`),
+      '- 교사가 물으면 "작년 원본과 다른 이유" 를 위 내용대로 설명한다.'
+    )
+  }
+
+  // ── 수행평가 3분기 ────────────────────────────────────────────────────────
+  const plans = d.perf_plans || []
+  if (plans.length) {
+    L.push(
+      '',
+      '### 수행평가 출제 계획 — 항목마다 [유지 / 변경 / 신규] 를 묻는다',
+      '작년 출제 계획 전문이 아래 raw 에 있다 (셀 좌표 + 원문). 수행평가마다 이렇게 묻는다:',
+      '  "작년 \'○○\' 는 그대로 갈까요, 바꿀까요, 새로 만들까요?"',
+      '',
+      '- **유지** — raw 에서 수행 과제 / 성취기준 / 평가기준 상·중·하 / 평가방법 체크 /',
+      '  평가 요소별 수행수준·배점을 **그대로 뽑아** PLAN_READY 구조에 넣는다.',
+      '  raw 의 "☑" 는 선택된 평가방법이다. 배점 숫자는 원문 그대로 옮긴다.',
+      '  ⚠ 요약하거나 다듬지 않는다. 작년에 결재된 문장이므로 손대면 오히려 위험하다.',
+      '- **변경** — 유지와 같은 방식으로 뽑되, 교사가 말한 부분만 고친다.',
+      '- **신규** — 작년 것을 버리고 평소대로 대화로 만든다.',
+      '',
+      `- 작년 미응시자 점수: ${plans.map((x) => `${x.name}=${x.absent_points || '미상'}`).join(', ')}`,
+      ''
+    )
+    for (const pl of plans) {
+      L.push(`#### raw — ${pl.name}`)
+      for (const line of pl.raw || []) L.push(`  ${line}`)
+      L.push('')
+    }
+  }
+
+  const al = d.achievement_levels || {}
+  if (al._note) {
+    L.push(
+      '### 학기 단위 성취수준',
+      `- 작년 자료 메모: ${al._note}`,
+      '- 초안을 제안하되 **검토가 필요하다는 점을 반드시 알린다.**'
     )
   }
   return L.join('\n')
@@ -763,6 +1008,10 @@ const SYSTEM_PROMPT = buildSystemPrompt()
 export {
   buildFieldDoc,
   buildGuideDoc,
+  buildPrefillDoc,
+  buildPrefillIndex,
+  pickPrefill,
+  prefillIndex,
   buildSkeleton,
   buildHoursDoc,
   buildLimitDoc,
@@ -897,6 +1146,13 @@ export default async function handler(req, res) {
   const parsed = validateMessages(req.body)
   if (parsed.error) return res.status(400).json({ error: parsed.error })
 
+  // 교과·학년이 드러났으면 그 한 건만 붙인다 (없으면 지금까지처럼 백지 모드).
+  // ⚠ 고정부 뒤에 **따로 붙인다** — 앞쪽 고정부는 모든 교사에게 같아 캐시가 살고,
+  //   prefill 은 교과·학년별로 같아 그 교사의 다음 턴에서 다시 캐시된다.
+  const prefill = pickPrefill(parsed.messages)
+  const prefillDoc = prefill ? buildPrefillDoc(prefill) : ''
+  if (prefill) console.log(`[doc-ai/chat] prefill: ${prefill.file}`)
+
   let r
   try {
     r = await fetch('https://api.anthropic.com/v1/messages', {
@@ -913,9 +1169,12 @@ export default async function handler(req, res) {
         // max_tokens 를 사고 토큰이 잠식해 PLAN_READY JSON 이 잘릴 수 있다.
         thinking: { type: 'disabled' },
         output_config: { effort: 'medium' },
-        system: [
-          { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-        ],
+        system: prefillDoc
+          ? [
+              { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+              { type: 'text', text: prefillDoc, cache_control: { type: 'ephemeral' } },
+            ]
+          : [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
         messages: toApiMessages(parsed.messages),
       }),
     })
