@@ -36,6 +36,7 @@ TEMPLATE_PATH = ASSETS / "template.hwpx"
 FIXED_HOURS_PATH = ASSETS / "fixed-hours-2026-2.json"
 REGULATION_PATH = ASSETS / "regulation-2026.json"
 CONSTANTS_PATH = ASSETS / "school-constants-2026-2.json"
+PREFILL_DIR = ASSETS / "prefill"
 
 # 검증된 엔진 (api/_hwpx). 이 폴더는 수정하지 않고 import 만 한다.
 sys.path.insert(0, str(HERE.parent / "_hwpx"))
@@ -54,6 +55,7 @@ from hwpx_zip import pack, unpack  # noqa: E402
 sys.path.insert(0, str(HERE))
 import _fill  # noqa: E402
 import _regulation  # noqa: E402
+import _prefill  # noqa: E402
 
 MAX_REQUEST_BYTES = 1_000_000
 
@@ -152,6 +154,16 @@ def load_constants() -> dict:
             return json.load(f)
     except FileNotFoundError:
         return {}
+
+
+_PREFILL_CACHE = {}
+
+
+def load_prefill_index() -> dict:
+    """작년 데이터 팩. 함수 인스턴스가 살아 있는 동안 한 번만 읽는다."""
+    if "index" not in _PREFILL_CACHE:
+        _PREFILL_CACHE["index"] = _prefill.load_index(PREFILL_DIR)
+    return _PREFILL_CACHE["index"]
 
 
 def load_fixed_hours() -> dict | None:
@@ -361,6 +373,8 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     count_notes = _fill.check_perf_count(plan, (load_constants().get("perf_count_rule")))
     # 3분류 중 현행 양식에 칸이 없는 것(단답형·완성형)이 있으면 숨기지 않고 알린다
     count_notes += _fill.check_exam_categories(plan, manifest)
+    # 작년 자료에서 그대로 물려받은 값 중 확인이 필요한 것 (예: % 표기 없던 칸)
+    count_notes += _prefill.check(plan, load_prefill_index())
 
     if check_only:
         # 문서를 만들지 않고 판정만 돌려준다 (확인 카드용)
