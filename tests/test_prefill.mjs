@@ -27,17 +27,12 @@ ck('파일이 _assets/prefill 에 있다 (배포 번들 포함 경로)', () => {
   A(files.length >= 20, `${files.length}개뿐`)
 })
 ck('색인은 파일명이 아니라 파일 안의 subject/grade 를 믿는다', () => {
-  // '진로와 직업' 은 띄어쓰기 변형 파일이 둘 있다 — 같은 교과로 묶여야 한다
+  // 파일명은 '진로와직업_2.json' 인데 안의 subject 는 '진로와 직업' 이다
   const keys = [...prefillIndex.keys()]
   const jinro = keys.filter((k) => k.startsWith('진로와'))
   A(jinro.length === 1, `같은 교과가 ${jinro.length}건으로 갈림: ${jinro}`)
   A(jinro[0] === '진로와 직업|2', jinro[0])
-})
-ck('중복 파일은 정보가 더 많은 쪽을 쓴다', () => {
-  const hit = prefillIndex.get('진로와 직업|2')
-  A(hit, '진로와 직업 색인 없음')
-  const other = JSON.parse(readFileSync(join(DIR, '진로와직업_2.json'), 'utf-8'))
-  A(Object.keys(hit.data).length >= Object.keys(other).length, '적은 쪽을 골랐다')
+  A(!readdirSync(DIR).includes('진로와 직업_2.json'), '구버전 중복 파일이 남아 있다')
 })
 ck('깨진 파일 하나가 전체를 막지 않는다', () => {
   // 존재하지 않는 폴더 → 빈 색인 (예외 아님)
@@ -89,28 +84,56 @@ ck('배점은 3분류로 나눠 받는다', () => {
   A(doc.includes('작년은 2분류'), '2분류 사실 없음')
   A(doc.includes('네가 임의로 나누지 않는다'), '임의 분배 금지 없음')
 })
+const g2 = docFor('2학년 수학')
 ck('2학년(2022 개정)은 성취기준 복사 금지', () => {
-  const g2 = docFor('2학년 수학')
   A(g2.includes('교육과정이 바뀌었다'), '교육과정 경고 없음')
   A(g2.includes('코드를 그대로 복사하지 않는다'), '복사 금지 없음')
-  A(g2.includes('2022 재선정 결과가 아직 주입되지 않았다'), '미주입 사실을 숨김')
 })
 ck('3학년(2015 유지)은 그 경고가 없다', () => {
   A(!doc.includes('교육과정이 바뀌었다'), '3학년에 불필요한 경고')
 })
-ck('재선정 결과가 오면 ●▲✗ 규칙이 켜진다', () => {
-  const pre = JSON.parse(JSON.stringify(pickPrefill(say('2학년 수학'))))
-  pre.data.standards_2022 = [
-    { match: '●', old: '[9수03-07]', new: '[9수02-01]' },
-    { match: '▲', old: '[9수03-08]', candidates: ['[9수02-02]', '[9수02-03]'] },
-    { match: '✗', old: '[9수03-09]' },
-  ]
-  const p2 = buildPrefillDoc(pre)
-  A(p2.includes('확정본이다'), '● 규칙 없음')
-  A(p2.includes('후보를 함께 보여주고'), '▲ 규칙 없음')
-  A(p2.includes('DB 밖의 코드를 지어내지 않는다'), '✗ 규칙 없음')
-  A(p2.includes('[9수02-02] / [9수02-03]'), '후보 목록 미출력')
-  A(!p2.includes('2022 재선정 결과가 아직 주입되지 않았다'), '미주입 안내가 남음')
+ck('●▲✗ 3분기 규칙', () => {
+  A(g2.includes('**●** — 확정본이다'), '● 규칙 없음')
+  A(g2.includes('**▲** — 후보다'), '▲ 규칙 없음')
+  A(g2.includes('**✗** — 매칭 실패다'), '✗ 규칙 없음')
+  A(g2.includes('DB 밖의 코드를 지어내지 않는다'), 'DB 한정 지시 없음')
+  A(g2.includes('원문 대조 확인 필요'), '확인 표식 지시 없음')
+})
+ck('재선정 결과가 원문 그대로 주입된다 (선정본 + 후보 + 유사도)', () => {
+  const st = pickPrefill(say('2학년 수학')).data.standards_2022
+  const first = st.by_month.flatMap((m) => m.originals)[0]
+  A(g2.includes(first.original_2015), '작년 원문 누락')
+  A(g2.includes(`[${first.selected.code}]`), '선정 코드 누락')
+  const cand = first.candidates.find((c) => c.code !== first.selected.code)
+  A(g2.includes(`[${cand.code}]`), '후보 코드 누락')
+  A(g2.includes(`유사도 ${cand.score}`), '유사도 누락')
+})
+
+console.log('\n[성취기준 DB 주입 — 이 밖에서 고르지 않는다]')
+ck('해당 교과 DB 만 붙는다', () => {
+  const db = mod.dbSubject('수학')
+  A(db && db.items.length > 0, 'DB 조회 실패')
+  A(g2.includes(`수학 성취기준 DB (${db.curriculum}, ${db.items.length}개)`), 'DB 절 없음')
+  for (const it of db.items.slice(0, 5)) A(g2.includes(`[${it.code}]`), `코드 누락: ${it.code}`)
+})
+ck('다른 교과 DB 는 섞이지 않는다', () => {
+  const sci = mod.dbSubject('과학')
+  A(!g2.includes(`[${sci.items[0].code}]`), '과학 코드가 수학 프롬프트에 섞임')
+})
+ck('교과명 표기가 달라도 찾는다 (진로와 직업 ↔ 진로와_직업)', () => {
+  const db = mod.dbSubject('진로와 직업')
+  A(db, 'DB 키 매칭 실패')
+  A(docFor('2학년 진로와 직업').includes('성취기준 DB'), 'DB 미주입')
+})
+ck('재선정에 등장한 코드의 수준별 진술만 붙인다', () => {
+  A(g2.includes('수준별 진술'), '수준 진술 절 없음')
+  const st = pickPrefill(say('2학년 수학')).data.standards_2022
+  const used = st.by_month.flatMap((m) => m.originals).map((o) => o.selected?.code).filter(Boolean)
+  A(used.some((c) => g2.includes(`  [${c}]\n    A:`)), '선정 코드의 수준 진술이 없음')
+  A(g2.includes('그대로 베끼지 말고'), '다듬기 지시 없음')
+})
+ck('3학년(2015 유지)에는 2022 DB 를 붙이지 않는다', () => {
+  A(!doc.includes('성취기준 DB'), '3학년에 2022 DB 가 붙음')
 })
 
 console.log('\n[파서가 자신 없다고 한 것 · 보정한 것]')
@@ -127,20 +150,34 @@ ck('경고가 없는 교과에는 그 절이 없다', () => {
   A(!doc.includes('작년 자료 분리 미완'), '없는 경고가 붙음')
 })
 
-console.log('\n[서·논술형 30% — 작년 값이 못 미칠 때 미리 알린다]')
+console.log('\n[서·논술형 — 칸을 전부 세야 한다]')
 const NEED = mod.regulation?.thresholds?.essay_total_min
-ck('작년이 30% 미만이면 요약 단계에서 알린다', () => {
-  A(doc.includes(`올해 규정(${NEED}%)에 못 미친다`), '미달 안내 없음')
-  A(doc.includes('생성 단계에서 막힌다'), '결과 예고 없음')
-  A(doc.includes('임의로 숫자를 올려 채우지 않는다'), '임의 보정 금지 없음')
+ck('작년 합계는 essay_detail.computed_sum 이다 (첫 칸만 세지 않는다)', () => {
+  const ed = d.essay_detail
+  A(ed, 'essay_detail 없음')
+  A(ed.perf_cells.length > 1, '수행 칸이 하나뿐 — 이 교과로는 회귀를 못 잡는다')
+  A(doc.includes(`### 서·논술형 (작년 합계 ${ed.computed_sum}%)`), '합계 표기 없음')
+  for (const c of [...ed.exam_cells, ...ed.perf_cells]) A(doc.includes(c), `칸 누락: ${c}`)
 })
-ck('작년 자료에 값이 아예 없으면 0% 로 단정하지 않는다', () => {
-  const e3 = docFor('3학년 영어')
-  A(e3.includes('0% 로 단정하지 않는다'), '단정 금지 없음')
+ck('작년 합계 칸과 계산 합을 함께 보여준다 (검산 근거)', () => {
+  A(doc.includes(`작년 문서의 합계 칸: ${d.essay_detail.total_cell_last_year}`), '합계 칸 없음')
 })
-ck('시험 0회(유형 C)는 서·논술 안내를 하지 않는다', () => {
+ck('수학 3학년은 33% 라 규정을 충족한다', () => {
+  A(d.essay_detail.computed_sum >= NEED, `${d.essay_detail.computed_sum}%`)
+  A(!doc.includes('규정(30%)에 못 미친다'), '충족인데 미달 안내가 뜸')
+})
+ck('% 표기가 없으면 "작년 값 확인 필요"', () => {
+  const gt = docFor('2학년 기술가정')
+  A(gt.includes('작년 값 확인 필요'), '확인 안내 없음')
+  A(gt.includes('% 표기가 없다'), '이유 없음')
+  A(gt.includes('확정처럼 제시하지 않는다'), '확정 금지 없음')
+})
+ck('% 표기가 온전한 교과에는 그 안내가 없다', () => {
+  A(!doc.includes('작년 값 확인 필요'), '불필요한 확인 안내')
+})
+ck('시험 0회(유형 C)는 서·논술 절을 만들지 않는다', () => {
   const mus = docFor('2학년 음악')
-  A(!mus.includes('올해 규정'), '수행 100% 교과에 불필요한 안내')
+  A(!mus.includes('### 서·논술형'), '수행 100% 교과에 불필요한 절')
 })
 
 console.log('\n[수행평가 3분기 — 유지/변경/신규]')

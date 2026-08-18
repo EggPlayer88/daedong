@@ -72,6 +72,24 @@ function buildPrefillIndex(dir = PREFILL_DIR) {
 
 const prefillIndex = buildPrefillIndex()
 
+// 성취기준·성취수준 DB (14개 교과). ✗ 미매칭을 메울 때 **이 안에서만** 고르게 한다.
+let standardsDb = null
+try {
+  standardsDb = JSON.parse(readFileSync(join(ASSETS, 'standards-db.json'), 'utf-8'))
+} catch {
+  standardsDb = null
+}
+
+/** 교과명 → DB 키 ('진로와 직업' ↔ '진로와_직업' 처럼 표기가 갈린다) */
+function dbSubject(subject, db = standardsDb) {
+  const subjects = db?.subjects
+  if (!subjects || !subject) return null
+  const norm = (x) => String(x).replace(/[\s_·]/g, '')
+  const want = norm(subject)
+  const key = Object.keys(subjects).find((k) => norm(k) === want)
+  return key ? { key, ...subjects[key] } : null
+}
+
 /** 대화에서 교과·학년을 찾아 해당 prefill 을 고른다. 없으면 null (백지 모드) */
 function pickPrefill(messages, index = prefillIndex) {
   if (index.size === 0) return null
@@ -249,63 +267,102 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
     '  선택형을 선택형/단답형·완성형으로 **나눠 받아야 한다** — 네가 임의로 나누지 않는다.'
   )
 
-  // ── 작년 값이 올해 규정에 못 미치는 경우 먼저 알린다 ──────────────────────
-  //    생성 버튼에서 막히는 것보다, 요약 단계에서 "이 부분은 손봐야 한다" 고
-  //    말해 주는 편이 낫다. 판정 자체는 서버 검증기가 다시 한다.
+  // ── 서·논술형 합계 — 작년 실적(essay_detail)을 그대로 제시한다 ────────────
+  //    ⚠ 회차·영역 칸이 여러 개다. 첫 칸만 보면 실제보다 낮게 나와 멀쩡한 계획이
+  //      규정 위반으로 보인다 (파서 v1 이 그랬다). computed_sum 이 작년 실제 합이다.
   const need = regulation?.thresholds?.essay_total_min
-  const examEssay = (ex.rounds || []).reduce((t, r) => t + numOf(r.essay_ratio), 0)
-  const essayTotal = examEssay + numOf(d.perf_essay_ratio)
-  if (need && (ex.count ?? 0) > 0) {
-    if (essayTotal <= 0) {
+  const ed = d.essay_detail
+  if (ed && (ex.count ?? 0) > 0) {
+    const sum = numOf(ed.computed_sum)
+    const cells = [...(ed.exam_cells || []), ...(ed.perf_cells || [])]
+    const hasPct = [...cells, ed.total_cell_last_year || ''].some((x) => String(x).includes('%'))
+    L.push(
+      '',
+      `### 서·논술형 (작년 합계 ${sum}%)`,
+      `- 지필 칸: ${(ed.exam_cells || []).join(' · ') || '(없음)'}`,
+      `- 수행 칸: ${(ed.perf_cells || []).join(' · ') || '(없음)'}`,
+      `- 작년 문서의 합계 칸: ${ed.total_cell_last_year || '(없음)'} · 계산 합: ${sum}%`,
+      `- 분모는 학기말 총 배점(지필 환산 + 수행 환산)이다. 규정 기준은 ${need}% 이상.`
+    )
+    if (!hasPct && sum > 0) {
+      // 기술가정 2학년 실측 — 원본 칸에 % 표기가 빠져 있어 단위가 불확실하다
       L.push(
-        '',
-        '### ⚠ 작년 자료에 서·논술형 반영비율이 없다',
-        '- 파서가 못 읽었을 뿐 작년에도 있었을 수 있다. **0% 로 단정하지 않는다.**',
-        `- 회차별·수행 영역별 서·논술형 반영비율을 교사에게 묻는다 (규정상 합계 ${need}% 이상).`
+        `- ⚠ **작년 값 확인 필요**: 원본 칸에 % 표기가 없다(${cells.join(', ')}).`,
+        `  숫자의 단위가 불확실하므로 ${sum}% 가 맞는지 교사에게 확인받고 넘어간다.`,
+        '  확인 전까지 이 값을 확정처럼 제시하지 않는다.'
       )
-    } else if (essayTotal < need) {
+    } else if (need && sum < need) {
       L.push(
-        '',
-        `### ⚠ 작년 서·논술형 합계가 ${essayTotal}% — 올해 규정(${need}%)에 못 미친다`,
-        `- 작년 값 그대로는 생성 단계에서 막힌다. 요약할 때 **미리** 알린다:`,
-        `  "작년 기준으로는 서·논술형이 ${essayTotal}% 인데, 규정은 ${need}% 이상입니다. 이 부분만 조정이 필요합니다."`,
-        '- 분모는 학기말 총 배점(지필 환산 + 수행 환산)이다. 얼마를 어디서 올릴지는 교사가 정한다.',
-        '- ⚠ 네가 임의로 숫자를 올려 채우지 않는다. 조정안을 제시하고 확인받는다.'
+        `- ⚠ 작년 합계가 규정(${need}%)에 못 미친다. 요약할 때 **미리** 알리고 조정안을 제시한다.`,
+        '  네가 임의로 숫자를 올려 채우지 않는다.'
       )
     }
   }
 
   // ── 성취기준: 교육과정이 바뀐 학년만 ──────────────────────────────────────
   const curriculum = (c?.curriculum_by_grade || {})[String(d.grade)] || ''
+  const st = d.standards_2022
   const changed = d.curriculum_note && !String(d.curriculum_note).includes('유지')
-  if (changed || /2022/.test(curriculum)) {
+  if (st || changed || /2022/.test(curriculum)) {
     L.push(
       '',
       `### ⚠ 성취기준 — 교육과정이 바뀌었다 (${d.curriculum_note || curriculum})`,
       '- 위 월별 성취기준은 **2015 개정 원문**이다. **코드를 그대로 복사하지 않는다.**'
     )
-    if (Array.isArray(d.standards_2022) && d.standards_2022.length) {
-      // 매칭 결과가 오면 표식대로 3분기한다 (● 확정 / ▲ 후보 / ✗ 미매칭)
-      L.push(
-        '- 아래 재선정 결과를 표식대로 처리한다:',
-        '  · **●** — 확정본이다. 그대로 제시하고 넘어간다.',
-        '  · **▲** — 후보다. 후보를 함께 보여주고 교사에게 확인받는다.',
-        '  · **✗** — 매칭 실패다. 주입된 교과 성취기준 DB **안에서만** 의미가 맞는 것을 제안하고',
-        '    교사 확인을 받는다. DB 밖의 코드를 지어내지 않는다 (제1원칙).',
-        ''
-      )
-      for (const r of d.standards_2022) {
-        L.push(`  ${r.match || '?'} ${r.old || ''} → ${r.new || r.candidates?.join(' / ') || '(미정)'}`)
+  }
+
+  const months = st?.by_month || []
+  const originals = months.flatMap((mo) => (mo.originals || []).map((o) => ({ ...o, month: mo.month })))
+  if (originals.length) {
+    L.push(
+      '- 아래는 2022 재선정 결과다. **표식대로** 처리한다:',
+      '  · **●** — 확정본이다. 그대로 제시하고 넘어간다.',
+      '  · **▲** — 후보다. 후보를 함께 보여주고 교사에게 확인받는다.',
+      '  · **✗** — 매칭 실패다. 아래 교과 DB **안에서만** 의미가 맞는 것을 제안하고',
+      '    교사 확인을 받는다. DB 밖의 코드를 지어내지 않는다 (제1원칙).',
+      '- 어느 경우든 확정 문구는 "⚠ 원문 대조 확인 필요" 를 달아 요약에 넣는다.',
+      ''
+    )
+    for (const o of originals) {
+      L.push(`  ${o.verdict || '?'} [${o.month}] ${o.original_2015 || ''}`)
+      if (o.selected?.code) L.push(`      → [${o.selected.code}] ${o.selected.text || ''}`)
+      for (const cand of o.candidates || []) {
+        if (o.selected && cand.code === o.selected.code) continue
+        L.push(`      후보 [${cand.code}] ${cand.text || ''}${cand.score != null ? ` (유사도 ${cand.score})` : ''}`)
       }
-    } else {
+    }
+  } else if (st) {
+    L.push(`- 재선정 상태: ${st.status || '미상'} — 결과 항목이 없다. 코드는 교사에게 받는다.`)
+  }
+
+  // ── 교과 성취기준 DB — ✗ 를 메울 재료. **이 밖에서 고르지 않는다** ────────
+  //    전 교과를 넣으면 500KB 다. 해당 교과만, 그것도 코드+본문만 넣는다.
+  //    수준별 진술(levels)은 재선정에 등장한 코드에 한해 붙인다.
+  const db = st ? dbSubject(d.subject) : null
+  if (db) {
+    const items = db.items || []
+    const used = new Set(
+      originals.flatMap((o) => [o.selected?.code, ...(o.candidates || []).map((x) => x.code)]).filter(Boolean)
+    )
+    L.push(
+      '',
+      `### ${d.subject} 성취기준 DB (${db.curriculum || ''}, ${items.length}개) — 선택 범위`,
+      '- ✗ 를 메우거나 성취수준 진술을 만들 때 **이 목록 안에서만** 고른다.',
+      '- 여기 없는 코드를 쓰면 존재하지 않는 성취기준이 공문서에 들어간다.',
+      ''
+    )
+    for (const it of items) L.push(`  [${it.code}] ${it.text}`)
+
+    const withLevels = items.filter((it) => used.has(it.code) && it.levels)
+    if (withLevels.length) {
       L.push(
-        '- ⚠ **2022 재선정 결과가 아직 주입되지 않았다.** 작년 코드를 옮겨 적지 말고,',
-        '  단원·내용은 유지하되 **성취기준 코드는 공란으로 두거나 교사에게 받는다.**',
-        '  네가 코드를 지어내면 존재하지 않는 성취기준이 공문서에 들어간다 (제1원칙).'
+        '',
+        `#### 위 재선정에 등장한 코드의 수준별 진술 (학기 단위 성취수준 초안 재료)`,
+        '- 그대로 베끼지 말고 **학기 전체**를 아우르는 문장으로 다듬는다. 검토 필요를 함께 알린다.'
       )
-      if (Array.isArray(d.standards_2015_to_replace) && d.standards_2015_to_replace.length) {
-        L.push('- 교체가 필요한 작년 진술 (참고용, 코드 아님):')
-        for (const t of d.standards_2015_to_replace) L.push(`  · ${t}`)
+      for (const it of withLevels) {
+        L.push(`  [${it.code}]`)
+        for (const [lv, text] of Object.entries(it.levels)) L.push(`    ${lv}: ${text}`)
       }
     }
   }
@@ -1012,6 +1069,8 @@ export {
   buildPrefillIndex,
   pickPrefill,
   prefillIndex,
+  standardsDb,
+  dbSubject,
   buildSkeleton,
   buildHoursDoc,
   buildLimitDoc,
