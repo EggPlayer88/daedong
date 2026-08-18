@@ -20,14 +20,14 @@ def P(**kw):
          "monthly_plan":[{"month":m,"hours_cum":"","units":"","standards":"","eval_elements":""} for m in ["8월","9월","10월","11월","12월"]],
          "eval_purpose":["","",""],
          "exam":{"count":2,"ratio":60,"mc_points":70,"essay_points":30,"rounds":[
-             {"label":"1회 정기시험","period":"9.29.","standards":"","mc":"70","essay":"30","essay_ratio":"9"},
-             {"label":"2회 정기시험","period":"12.1.","standards":"","mc":"70","essay":"30","essay_ratio":"9"}]},
+             {"label":"1회 정기시험","period":"9.29.","standards":"","ratio":30,"mc":"70","essay":"30","essay_ratio":"9"},
+             {"label":"2회 정기시험","period":"12.1.","standards":"","ratio":30,"mc":"70","essay":"30","essay_ratio":"9"}]},
          # 실측 규약: 각 영역 100점 만점, 가중치는 ratio(%)
-         "perf_areas":[{"name":"실험","points":100,"ratio":25,"essay_ratio":"10","standards":"","period":"10월"},
-                       {"name":"발표","points":100,"ratio":15,"essay_ratio":"5","standards":"","period":"11월"}],
+         "perf_areas":[{"name":"실험 보고서","points":100,"ratio":25,"essay_ratio":"10","standards":"","period":"10월"},
+                       {"name":"탐구 발표","points":100,"ratio":15,"essay_ratio":"5","standards":"","period":"11월"}],
          "essay_total_ratio":33,
          "achievement_levels":{"A":"","B":"","C":"","D":"","E":""},
-         "perf_plans":[{"name":"실험"},{"name":"발표"}],
+         "perf_plans":[{"name":"실험 보고서","absentee_rule":"별도 과제로 대체"},{"name":"탐구 발표"}],
          "min_achievement_plan":""}
     p.update(kw); return p
 
@@ -45,7 +45,7 @@ def t_round():
 check("회차 합 90점 → 어느 회차·몇 점인지 명시하며 거부", t_round)
 def t_perf_points():
     p = P(); p["perf_areas"][1]["points"] = 40     # 각각 100점이어야 한다
-    bad(p, "수행평가 '발표' 만점 40점", "각 평가는 100점 만점")
+    bad(p, "수행평가 '탐구 발표' 만점 40점", "각 평가는 100점 만점")
 check("수행 영역 만점이 100 이 아니면 거부", t_perf_points)
 def t_perf_ratio():
     p = P(); p["perf_areas"][1]["ratio"] = 25      # 25+25=50 ≠ 수행 전체 40
@@ -112,16 +112,21 @@ print("\n[4] 미사용 칸 표기 ('˙' U+02D9)")
 MARK = "\u02d9"
 def t_mark_exam():
     """시험 1회 → 2회차 칸은 '˙' (공란이 아니라 '해당 없음')."""
-    p = P(); p["exam"] = {"count":1,"ratio":60,"mc_points":70,"essay_points":30,
-        "rounds":[{"label":"정기시험","period":"11.2.","standards":"[9과01]","mc":"70","essay":"30","essay_ratio":"9"}]}
+    p = P(subject="도덕")
+    p["exam"] = {"count":1,"ratio":40,"mc_points":70,"essay_points":30,
+        "rounds":[{"label":"정기시험","period":"11.2.","standards":"[9도01]","ratio":40,"mc":"70","essay":"30","essay_ratio":"12"}]}
+    p["perf_areas"] = [{"name":"토론 활동","points":100,"ratio":30,"essay_ratio":"10"},
+                       {"name":"실천 기록","points":100,"ratio":30,"essay_ratio":"10"}]
     b = body_of(gen.generate({"fields": p})[1])
     assert b.count(MARK) >= 5, f"'˙' 가 {b.count(MARK)}개 — EX2 계열 5칸에 찍혀야 한다"
     assert "{{" not in b
 check("시험 1회 → EX2 칸에 '˙'", t_mark_exam)
 def t_mark_perf():
     """수행 1개 → 2번째 열(P2_NAME/POINTS/PERIOD)은 '˙'."""
-    p = P(); p["perf_areas"] = [dict(P()["perf_areas"][0], ratio=40)]
-    p["perf_plans"] = [{"name":"실험"}]
+    # ⚠ 지필 1회 + 수행 1개는 규정상 불가능하다 (지필≤40% → 수행≥60% → 영역>40%).
+    #   그래서 정기 2회(60%) + 수행 1영역(40%) 로 만든다.
+    p = P(); p["perf_areas"] = [{"name":"실험 보고서","points":100,"ratio":40,"essay_ratio":"12"}]
+    p["perf_plans"] = [{"name":"실험 보고서","absentee_rule":"대체 과제"}]
     b = body_of(gen.generate({"fields": p})[1])
     # ⚠ 영역명으로 판정하지 말 것 — 평가방법 체크박스에 "구술·발표" 가 있어 오탐한다
     assert b.count(MARK) >= 3, f"P2 계열 3칸에 '˙' 가 찍혀야 하는데 {b.count(MARK)}개"

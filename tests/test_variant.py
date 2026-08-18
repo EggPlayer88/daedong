@@ -59,11 +59,14 @@ print("\n[3] 미배치 유형 → 어느 유형인지 밝히며 중단")
 BASE = {"year":2026,"semester":2,"subject":"수학","teacher_name":"이","weekly_hours":4,
         "monthly_plan":[{"month":m,"hours_cum":"","units":"","standards":"","eval_elements":""} for m in ["8월","9월","10월","11월","12월"]],
         "eval_purpose":["","",""],
-        "exam":{"count":1,"ratio":40,"mc_points":80,"essay_points":20,
-                "rounds":[{"label":"정기시험","period":"","standards":"","mc":"80","essay":"20","essay_ratio":"8"}]},
-        "perf_areas":[{"name":"과제","points":100,"ratio":60,"essay_ratio":"22"}],
-        "essay_total_ratio":30,"achievement_levels":{"A":"","B":"","C":"","D":"","E":""},
-        "perf_plans":[{"name":"과제"}],"min_achievement_plan":""}
+        # 규정 적합 유형 A (정기 2회 60% / 수행 2영역 20%씩 / 서논술 33%)
+        "exam":{"count":2,"ratio":60,"mc_points":70,"essay_points":30,"rounds":[
+            {"label":"1회 정기시험","period":"","standards":"","ratio":30,"mc":"70","essay":"30","essay_ratio":"9"},
+            {"label":"2회 정기시험","period":"","standards":"","ratio":30,"mc":"70","essay":"30","essay_ratio":"9"}]},
+        "perf_areas":[{"name":"탐구 보고서","points":100,"ratio":20,"essay_ratio":"8"},
+                      {"name":"수행 과정 관찰","points":100,"ratio":20,"essay_ratio":"7"}],
+        "essay_total_ratio":33,"achievement_levels":{"A":"","B":"","C":"","D":"","E":""},
+        "perf_plans":[{"name":"탐구 보고서","absentee_rule":"대체 과제"}],"min_achievement_plan":""}
 
 def missing(grade, subject, expect_variant):
     p = dict(BASE, grade=grade, subject=subject)

@@ -32,6 +32,7 @@ ASSETS = HERE / "_assets"
 MANIFEST_PATH = ASSETS / "template-manifest.json"
 TEMPLATE_PATH = ASSETS / "template.hwpx"
 FIXED_HOURS_PATH = ASSETS / "fixed-hours-2026-2.json"
+REGULATION_PATH = ASSETS / "regulation-2026.json"
 
 # 검증된 엔진 (api/_hwpx). 이 폴더는 수정하지 않고 import 만 한다.
 sys.path.insert(0, str(HERE.parent / "_hwpx"))
@@ -49,6 +50,7 @@ from hwpx_zip import pack, unpack  # noqa: E402
 
 sys.path.insert(0, str(HERE))
 import _v2fill  # noqa: E402
+import _regulation  # noqa: E402
 
 MAX_REQUEST_BYTES = 1_000_000
 
@@ -67,6 +69,14 @@ class TemplateMissing(Exception):
         super().__init__(label or variant)
         self.variant = variant
         self.label = label
+
+
+class RegulationViolation(Exception):
+    """400 — 학업성적관리규정 위반 (ERROR). 위반 내용 + 근거 조문을 함께 전달한다."""
+
+    def __init__(self, findings: list):
+        super().__init__("; ".join(f["message"] for f in findings))
+        self.findings = findings
 
 
 class TemplateMismatch(Exception):
@@ -121,6 +131,15 @@ def is_approved(authorization: str, user_id: str) -> bool:
 def load_manifest() -> dict:
     with open(MANIFEST_PATH, encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_regulation() -> dict | None:
+    """학업성적관리규정 룰셋. 없으면 규정 검증을 건너뛴다."""
+    try:
+        with open(REGULATION_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return None
 
 
 def load_fixed_hours() -> dict | None:
@@ -307,7 +326,12 @@ def validate_v2(manifest: dict, plan: dict, spec: dict | None = None) -> None:
         raise BadRequest("배점이 맞지 않습니다 — " + " / ".join(problems))
 
 
-def generate_v2(manifest: dict, plan: dict) -> tuple[str, str, list]:
+def regulation_findings(plan: dict, variant: str) -> list:
+    """학업성적관리규정 검증 (V01~V18). 규정 자산이 없으면 빈 목록."""
+    return _regulation.check(plan, load_regulation() or {}, variant)
+
+
+def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     # 교과·학년으로 양식 유형을 정한다 (템플릿 패밀리)
     variant = _v2fill.resolve_variant(plan, manifest)
     spec = _v2fill.variant_spec(manifest, variant)
@@ -315,13 +339,32 @@ def generate_v2(manifest: dict, plan: dict) -> tuple[str, str, list]:
 
     validate_v2(manifest, plan, spec)
 
+    # 규정 한계선 — ERROR 는 생성을 막고, WARN·FLAG 는 안내로 넘긴다
+    findings = regulation_findings(plan, variant)
+    by = _regulation.split(findings)
+    if by["ERROR"]:
+        raise RegulationViolation(by["ERROR"])
+
+    if check_only:
+        # 문서를 만들지 않고 판정만 돌려준다 (확인 카드용)
+        return {
+            "variant": variant,
+            "variant_label": spec["label"],
+            "findings": findings,
+            "template_ready": (ASSETS / spec["template_file"]).exists(),
+        }
+
     template = ASSETS / spec["template_file"]
     if not template.exists():
         raise TemplateMissing(variant, spec["label"])
 
     # 양식이 담을 수 있는 만큼만 채운다. 넘치는 분은 잘라내고 무엇이 왜 빠졌는지 알린다
     # — 안 되는 걸 되는 것처럼 만들지 않는다.
-    notices = _v2fill.apply_capacity(plan, manifest, spec.get('limits'))
+    notices = [
+        ("[심의 대상] " if f["severity"] == "FLAG" else "[확인] ") + _regulation.format_line(f)
+        for f in by["FLAG"] + by["WARN"]
+    ]
+    notices += _v2fill.apply_capacity(plan, manifest, spec.get('limits'))
     for n in notices:
         print(f"[doc-ai/generate] capacity: {n}", file=sys.stderr)
 
@@ -387,7 +430,8 @@ def generate(payload: dict) -> tuple[str, str, list]:
     manifest = load_manifest()
 
     if int(manifest.get("manifest_version", 1)) >= 2:
-        return generate_v2(manifest, payload.get("fields") or {})
+        return generate_v2(manifest, payload.get("fields") or {},
+                           check_only=bool(payload.get("check_only")))
 
     values = validate_fields(manifest, payload.get("fields"))
 
@@ -458,7 +502,16 @@ class handler(BaseHTTPRequestHandler):
             })
 
         try:
-            filename, b64, notices = generate(payload)
+            result = generate(payload)
+            if isinstance(result, dict):        # check_only
+                return self._send(200, result)
+            filename, b64, notices = result
+        except RegulationViolation as e:
+            return self._send(400, {
+                "error": "REGULATION_VIOLATION",
+                "message": "학업성적관리규정에 어긋나는 항목이 있습니다.",
+                "findings": e.findings,
+            })
         except BadRequest as e:
             return self._send(400, {"error": str(e)})
         except TemplateMissing as e:

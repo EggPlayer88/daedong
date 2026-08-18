@@ -18,9 +18,13 @@ def base_plan(**kw):
          "monthly_plan":[{"month":m,"hours_cum":"AI가_계산한_값","units":f"단원{i}","standards":"","eval_elements":""}
                          for i,m in enumerate(["8월","9월","10월","11월","12월"])],
          "eval_purpose":["","",""],
-         "exam":{"count":0,"ratio":0,"mc_points":0,"essay_points":0,"rounds":[]},
-         "perf_areas":[{"name":"포트폴리오","points":100,"ratio":100}],
-         "perf_plans":[{"name":"포트폴리오"}]}
+         # 규정 적합 유형 A: 정기 2회 60%(회차 30%씩), 수행 2영역 20%씩, 서논술 33%
+         "exam":{"count":2,"ratio":60,"mc_points":70,"essay_points":30,"rounds":[
+             {"label":"1회 정기시험","ratio":30,"mc":70,"essay":30,"essay_ratio":9},
+             {"label":"2회 정기시험","ratio":30,"mc":70,"essay":30,"essay_ratio":9}]},
+         "perf_areas":[{"name":"탐구 보고서","points":100,"ratio":20,"essay_ratio":8},
+                       {"name":"실험 과정 관찰","points":100,"ratio":20,"essay_ratio":7}],
+         "perf_plans":[{"name":"탐구 보고서","absentee_rule":"별도 과제로 대체"}]}
     p.update(kw); return p
 
 def body_of(b64):

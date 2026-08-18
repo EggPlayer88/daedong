@@ -1,0 +1,73 @@
+{
+  "_comment": "학업성적관리규정 검증 룰셋. 근거: docs/평가반영비율_한계선_정리_daedong-v2.md (2026학년도 규정 실측 분석본). 코드(_regulation.py)는 조립만 하고 수치·조문은 전부 여기서 읽는다.",
+  "_source": "docs/평가반영비율_한계선_정리_daedong-v2.md",
+  "version": "2026",
+
+  "thresholds": {
+    "perf_total_min": 30,
+    "perf_area_max": 40,
+    "essay_total_min": 30,
+    "written_max_when_single_round": 40,
+    "written_full_marks": 100,
+    "base_score_max_pct": 40,
+    "decimal_places_max": 2
+  },
+
+  "plan_types": {
+    "_comment": "문서 3장 매트릭스. 임의규정이므로 강제하지 않는다 (7-2) — 교사가 고른다.",
+    "A": { "label": "일반형 (정기시험 2회)", "exam_count": 2, "written_max": 70, "perf_min": 30, "essay_applies": true },
+    "B": { "label": "지필 1회형", "exam_count": 1, "written_max": 40, "perf_min": 60, "essay_applies": true,
+           "requires_review": true },
+    "C": { "label": "수행 100%형", "exam_count": 0, "written_max": 0, "perf_min": 100, "essay_applies": false,
+           "requires_review": true, "_note": "서·논술형 반영 여부·비율은 교과협의회가 정해 위원회 심의" },
+    "D": { "label": "자유학기형", "exam_count": 0, "written_max": 0, "perf_min": 100, "essay_applies": false,
+           "scoring": false, "_note": "성취도 미산출, 원점수·과목평균 공란, 성취도 'P'" }
+  },
+
+  "eligibility": {
+    "_comment": "문서 3장 하단 + 4장. 부분 문자열로 대조한다 ('기술·가정' / '기술가정' 모두 잡히게).",
+    "type_b_subjects": ["도덕", "기술·가정", "기술가정", "기술", "가정"],
+    "type_b_always_allowed_when": "3학년 2학기 (제10조 ⑤(2))",
+    "type_c_subjects": ["정보", "체육", "음악", "미술", "한문", "생활외국어", "학교자율시간", "선택"],
+    "relaxed_area_cap_subjects": ["음악", "미술", "체육"],
+    "_relaxed_note": "주당 1시수 과목도 완화 대상 (제19조 ⑦ ※) — weekly_hours 로 판정",
+    "arts_pe_subjects": ["체육", "음악", "미술"]
+  },
+
+  "achievement_scale": {
+    "default": ["A", "B", "C", "D", "E"],
+    "arts_pe": ["A", "B", "C"],
+    "free_semester": ["P"]
+  },
+
+  "abstract_area_name_hints": ["평가1", "평가2", "평가3", "수행1", "수행2", "수행3", "탐구1", "탐구2", "실험1", "실험2", "활동1", "활동2"],
+  "homework_type_hints": ["과제", "숙제", "가정학습", "집에서", "제출물"],
+
+  "rules": {
+    "V01": { "severity": "ERROR", "article": "제19조 ⑦", "title": "수행평가 반영 합계 30% 미만" },
+    "V02": { "severity": "ERROR", "article": "제19조 ⑦", "title": "수행 단일 영역 40% 초과" },
+    "V03": { "severity": "WARN",  "article": "제19조 ⑦ ※", "title": "영역 40% 초과 — 완화 단서 대상 확인" },
+    "V04": { "severity": "ERROR", "article": "제10조 ④", "title": "서·논술형 총 배점 30% 미만" },
+    "V05": { "severity": "ERROR", "article": "제10조 ④", "title": "서·논술형 미포함 정기시험 회차" },
+    "V06": { "severity": "ERROR", "article": "제10조 ⑤", "title": "지필 1회인데 반영비율 40% 초과" },
+    "V07": { "severity": "ERROR", "article": "제10조 ⑤ 각 호", "title": "지필 1회 선택 자격 없음" },
+    "V08": { "severity": "ERROR", "article": "제10조 ⑥", "title": "수행 100% 선택 자격 없음" },
+    "V09": { "severity": "FLAG",  "article": "제10조 ⑤·⑥, 제24조 ⑥", "title": "학업성적관리위원회 심의 대상" },
+    "V10": { "severity": "ERROR", "article": "제19조 ⑤", "title": "수행평가를 논술형만으로 실시" },
+    "V11": { "severity": "SKIP",  "article": "제19조 ⑧", "title": "기본점수 40% 초과",
+             "_skip_reason": "기본점수는 아직 수집하지 않는다 (양식 내 위치 실측 후 결정)" },
+    "V12": { "severity": "ERROR", "article": "제11조 ③", "title": "자유학기에 정기시험 배정" },
+    "V13": { "severity": "WARN",  "article": "제12조 ③", "title": "지필 만점이 100점이 아님" },
+    "V14": { "severity": "WARN",  "article": "제24조 ②", "title": "환산점수 소수 둘째 자리 초과" },
+    "V15": { "severity": "WARN",  "article": "제19조 ④", "title": "과제형 수행평가로 보이는 영역명" },
+    "V16": { "severity": "WARN",  "article": "제19조 ⑥", "title": "수행 영역명이 추상적" },
+    "V17": { "severity": "WARN",  "article": "제10조 ③, 제19조 ⑬", "title": "결시·학적변동자 처리 기준 누락" },
+    "V18": { "severity": "WARN",  "article": "제10조 ②", "title": "체육·예술인데 성취도 A~E 표기" }
+  },
+
+  "notes": {
+    "essay_denominator": "서·논술형 30% 의 분모는 학기말 총 배점(지필 환산 + 수행 환산 = 100). 정기시험 내 30% 가 아니다 (문서 7-4).",
+    "authority": "규정은 상한·하한만 정한다. 구체 수치 확정 권한은 교과협의회 (제11조). 시스템이 제안하는 값은 '규정 적합 범위 내 예시' 다 (문서 7-1).",
+    "optional": "유형 B·C 는 임의규정('할 수 있다') — 자격이 있어도 A 형을 택할 수 있다. 강제하지 않는다 (문서 7-2)."
+  }
+}

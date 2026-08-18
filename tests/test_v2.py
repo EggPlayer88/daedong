@@ -126,10 +126,14 @@ def t_elements():
 check("elements 3그룹×4수준 (미사용 그룹은 공백)", t_elements)
 
 print("\n[2] 시험 1회 · 수행 1개 (블록 삭제 + 빈칸 처리)")
+# ⚠ 지필 1회는 규정상 도덕·기술가정 또는 3학년 2학기만 가능하고 반영비율 ≤40% 다.
+#   수행이 60% 가 되므로 영역 1개(>40%)로는 만들 수 없어 2영역 30/30 으로 나눈다.
 PLAN1 = json.loads(json.dumps(PLAN2))
+PLAN1["subject"] = "도덕"
 PLAN1["exam"] = {"count": 1, "ratio": 40, "mc_points": 60, "essay_points": 40,
-                 "rounds": [{"label": "정기고사", "period": "11.2.~11.5.", "standards": "[9과01-01]", "mc": "60점", "essay": "40점", "essay_ratio": "16%"}]}
-PLAN1["perf_areas"] = [dict(PLAN2["perf_areas"][0], points=100, ratio=60)]
+                 "rounds": [{"label": "정기시험", "period": "11.2.~11.5.", "standards": "[9도01-01]", "ratio": 40, "mc": "60점", "essay": "40점", "essay_ratio": "16%"}]}
+PLAN1["perf_areas"] = [{"name": "토론 활동", "points": 100, "ratio": 30, "essay_ratio": "8"},
+                       {"name": "실천 기록", "points": 100, "ratio": 30, "essay_ratio": "8"}]
 PLAN1["perf_plans"] = PLAN2["perf_plans"][:1]
 R1 = {}
 check("생성 성공", lambda: R1.update(zip(("fn", "b64", "_n"), gen.generate({"fields": PLAN1}))) or R1.update(body=body_of(R1["b64"])))
@@ -143,10 +147,9 @@ def t_pp2_deleted():
 check("PP2 블록 삭제 (이름+표+결시자+빈문단)", t_pp2_deleted)
 def t_blank():
     b = R1["body"]
-    assert "12.1.~12.3." not in b, "2회고사 시기가 남음"
-    assert "탐구 발표" not in b, "2번째 수행 영역이 남음"
+    assert "12.1.~12.3." not in b, "2회차 시기가 남음"
     assert "11.2.~11.5." in b, "1회차 시기 누락"
-check("EX2_*/P2_* 빈칸 처리", t_blank)
+check("EX2_* 빈칸 처리 (미사용 회차)", t_blank)
 check("EXAM_INTRO(1회) 문구", lambda: (_ for _ in ()).throw(AssertionError("1회 문구 아님"))
       if FINAL["composition_rules"]["EXAM_INTRO"]["1"] not in R1["body"] else None)
 check("합계 칸은 100(100%)", lambda: (_ for _ in ()).throw(AssertionError("합계 오류"))
@@ -155,7 +158,10 @@ check("합계 칸은 100(100%)", lambda: (_ for _ in ()).throw(AssertionError("�
 print("\n[3] 시험 0회 (자유학기)")
 PLAN0 = json.loads(json.dumps(PLAN1))
 PLAN0["exam"] = {"count": 0, "ratio": 0, "mc_points": 0, "essay_points": 0, "rounds": []}
-PLAN0["perf_areas"] = [{"name": "포트폴리오", "points": 100, "ratio": 100, "essay_ratio": "30", "standards": "[9과01-01]", "period": "12월"}]
+PLAN0["subject"] = "정보"   # 수행 100% 는 규정이 정한 교과만 가능 (제10조 ⑥)
+PLAN0["perf_areas"] = [{"name": "프로젝트 산출물", "points": 100, "ratio": 40, "essay_ratio": "0", "standards": "[9정01-01]", "period": "10월"},
+                       {"name": "코드 작성 수행", "points": 100, "ratio": 30, "essay_ratio": "0", "standards": "", "period": "11월"},
+                       {"name": "협업 과정 관찰", "points": 100, "ratio": 30, "essay_ratio": "0", "standards": "", "period": "12월"}]
 R0 = {}
 check("생성 성공", lambda: R0.update(zip(("fn", "b64", "_n"), gen.generate({"fields": PLAN0}))) or R0.update(body=body_of(R0["b64"])))
 check("잔여 '{{' 0", lambda: (_ for _ in ()).throw(AssertionError("토큰 잔존")) if "{{" in R0["body"] else None)
@@ -171,13 +177,13 @@ print("\n[4] 한도 검증 (양식은 수행 2개까지)")
 def t_over():
     """한도 초과는 거부가 아니라 수용분 생성 + 안내 (제0원칙)."""
     p = json.loads(json.dumps(PLAN2))
-    p["perf_areas"] = [{"name": f"영역{i}", "points": 100, "ratio": 10, "essay_ratio": "5"} for i in range(1, 5)]
-    p["perf_plans"] = [{"name": f"영역{i}"} for i in range(1, 5)]
+    p["perf_areas"] = [{"name": f"수행 영역 {i}", "points": 100, "ratio": 10, "essay_ratio": "4"} for i in range(1, 5)]
+    p["perf_plans"] = [{"name": f"수행 영역 {i}", "absentee_rule": "대체"} for i in range(1, 5)]
     fn, b64, notices = gen.generate({"fields": p})
     assert notices, "안내가 없음"
     assert "한글에서 직접 편집" in " ".join(notices), notices
     b = body_of(b64)
-    assert "영역1" in b and "영역3" not in b, "수용분/초과분 처리 오류"
+    assert "수행 영역 1" in b and "수행 영역 3" not in b, "수용분/초과분 처리 오류"
 check("수행 4개 → 2개 생성 + 안내 (거부 아님)", t_over)
 def t_nosubject():
     p = json.loads(json.dumps(PLAN2)); p["subject"] = ""
@@ -191,14 +197,16 @@ print("\n[5] 빈칸 허용 (공란은 실패가 아니다)")
 def t_sparse():
     # ⚠ 학년·교과가 양식 유형을 결정한다 — default 유형을 태우려면 2학년 주지교과여야 한다
     #   (1학년 2학기 → grade1_free, 미술 → arts. 그 유형들은 test_variant.py 가 본다)
-    p = {"year": 2026, "semester": 2, "grade": 2, "subject": "국어",
+    p = {"year": 2026, "semester": 2, "grade": 2, "subject": "정보",
          "exam": {"count": 0, "rounds": []},
-         "perf_areas": [{"name": "포트폴리오", "points": 100, "ratio": 100}],
-         "perf_plans": [{"name": "포트폴리오"}]}
+         "perf_areas": [{"name": "프로젝트 산출물", "points": 100, "ratio": 40},
+                        {"name": "코드 작성 수행", "points": 100, "ratio": 30},
+                        {"name": "협업 과정 관찰", "points": 100, "ratio": 30}],
+         "perf_plans": [{"name": "프로젝트 산출물", "absentee_rule": "추후 평가 기회 부여"}]}
     fn, b64, _ = gen.generate({"fields": p})
     b = body_of(b64)
     assert "{{" not in b, "토큰 잔존"
-    assert "국어" in b, "교과 누락"
+    assert "정보" in b, "교과 누락"
     assert fn.endswith("평가계획서(초안).hwpx"), fn
 check("대부분 공란이어도 생성됨", t_sparse)
 
