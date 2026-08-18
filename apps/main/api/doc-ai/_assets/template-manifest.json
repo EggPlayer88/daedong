@@ -1,53 +1,75 @@
 {
-  "_comment": "manifest v3 FINAL (2026-08-18). template-master.hwpx(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)와 쌍. 토큰 171개(마스터)/169개(예체능판) 검증 완료. 전 유형 공용 마스터 — 미사용 칸 ˙, 미사용 블록 삭제. v3.1: RATIO_BASIS 토큰 + 예체능판(template-arts.hwpx) 추가.",
-  "manifest_version": 3,
+  "_comment": "manifest v4 FINAL (2026-08-18) — 유형별 양식 패밀리 6종. 계란님 한글 제작 양식 기반, Web 일괄 토큰화 (전 판 쪼개짐 0). 이 파일과 6개 hwpx 는 확정본 — 수정 금지.",
+  "manifest_version": 4,
   "doc_type": "evaluation_plan",
-  "template_file": "template-master.hwpx",
   "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서(초안).hwpx",
-  "limits": {
-    "exam_count": [
-      0,
-      1,
-      2
-    ],
-    "perf_areas_max": 3,
-    "perf_plans_max": 3,
-    "count_set": "시험0→수행3 / 시험1→수행2 / 시험2→수행1~2 (안내용 — 물리 한도는 3)"
-  },
-  "exam_method_taxonomy": [
-    "mc(선택형)",
-    "short(단답형·완성형)",
-    "essay(서·논술형)"
-  ],
-  "essay_30_numerator": "essay 만 산입 (short 제외), 분모 = 학기말 총 배점 100%",
-  "direct_tokens": {
-    "{{YEAR}}": "year",
-    "{{SEMESTER}}": "semester",
-    "{{GRADE}}": "grade",
-    "{{SUBJECT}}": "subject",
-    "{{MIN_ACH}}": "min_achievement_plan",
-    "{{PURPOSE1}}": "eval_purpose[0]",
-    "{{PURPOSE2}}": "eval_purpose[1]",
-    "{{PURPOSE3}}": "eval_purpose[2]",
-    "{{EXAM_TOTAL_RATIO}}": "exam.ratio_display",
-    "{{PERF_TOTAL_RATIO}}": "perf.ratio_display",
-    "{{POINTS_SUM}}": "computed",
-    "{{ESSAY_TOTAL_RATIO}}": "computed (서버 재계산)",
-    "{{LV_A}}": "achievement_levels.A",
-    "{{LV_B}}": "achievement_levels.B",
-    "{{LV_C}}": "achievement_levels.C",
-    "{{LV_D}}": "achievement_levels.D",
-    "{{LV_E}}": "achievement_levels.E"
-  },
-  "pattern_tokens": {
-    "월별(1~5)": "{{M{n}_HOURS}}(시수 고정표 서버주입)/{{M{n}_UNITS}}/{{M{n}_STD}}/{{M{n}_EVAL}}",
-    "정기 회차(1~2)": "{{EX{r}_MC}}/{{EX{r}_SHORT}}/{{EX{r}_ESSAY}} (각 점수, 합 100) + {{EX{r}_ESSAY_RATIO}}/{{EX{r}_STD}}/{{EX{r}_PERIOD}}",
-    "수행 영역(1~3)": "{{P{n}_NAME}}/{{P{n}_POINTS}}('100점(N%)' 표기)/{{P{n}_PERIOD}}",
-    "출제계획 블록(1~3)": "{{PP{b}_NAME/TASK/STD/HIGH/MID/LOW/METHODS1/METHODS2/ABSENT(미응시자 점수)}} + {{PP{b}_E{g}_NAME}} + {{PP{b}_E{g}_L{k}}}/{{PP{b}_E{g}_L{k}_PTS}} (g=1~3, k=1~4)"
-  },
-  "fixed_texts": {
-    "수행 성취기준 칸": "'수행평가 세부 기준 참고' 고정 (병합 셀 한계의 관행 해법 — 토큰 아님)",
-    "표 회차 라벨": "'1차/2차' 원본 유지 (계란님 확정)"
+  "routing": {
+    "_rule": "grade × exam_count 로 양식 결정. 학년·학기·회차 라벨·˙·유형 문장 구조는 양식에 내장",
+    "grade2_exam2": {
+      "file": "tpl-g2-exam2.hwpx",
+      "subjects_hint": [
+        "국어",
+        "수학",
+        "영어",
+        "과학",
+        "역사"
+      ],
+      "perf": "1~2 (수행1이면 P2·PP2 미사용)",
+      "levels": "A~E"
+    },
+    "grade2_exam1": {
+      "file": "tpl-g2-exam1.hwpx",
+      "subjects_hint": [
+        "기술·가정",
+        "한문"
+      ],
+      "perf": "2 고정",
+      "levels": "A~E"
+    },
+    "grade2_exam0": {
+      "file": "tpl-g2-perf3-arts.hwpx",
+      "subjects_hint": [
+        "음악",
+        "미술",
+        "체육"
+      ],
+      "perf": "3 고정",
+      "levels": "A~C",
+      "special": "정보·진로도 이 양식 사용 — 단 정보는 5수준(A~E)·진로는 P 체계라 성취 관련 절은 교사가 한글에서 수정 필요. 생성 시 안내 문구 필수 (계란님 결정: 별도 파생 없음)"
+    },
+    "grade3_exam1": {
+      "file": "tpl-g3-exam1.hwpx",
+      "subjects_hint": [
+        "국어",
+        "수학",
+        "영어",
+        "사회",
+        "역사",
+        "과학",
+        "도덕",
+        "기술·가정"
+      ],
+      "perf": "2 고정",
+      "levels": "없음(2015 — 학기단위 성취수준 절 자체가 없음. LV 토큰 없음, 수집 생략)"
+    },
+    "grade3_exam0": {
+      "file": "tpl-g3-perf3.hwpx",
+      "subjects_hint": [
+        "음악",
+        "체육",
+        "보건"
+      ],
+      "perf": "3 고정",
+      "levels": "없음(2015)",
+      "special": "보건은 5수준 관행이나 이 양식엔 성취수준 절 없음(3학년 공통) — 문제 없음"
+    },
+    "grade1_semester2": {
+      "file": "tpl-g1-free.hwpx",
+      "type": "자유학기",
+      "perf_blocks": 4,
+      "scoring": false,
+      "notes": "반영비율·배점·미응시 점수 수집 없음. 블록당 A~E 서술(FPP{n}_LV_*). 미응시 문구 고정"
+    }
   },
   "composition_rules": {
     "EXAM_INTRO": {
@@ -56,180 +78,32 @@
       "0": "정기시험은 실시하지 않는다."
     },
     "EXAM_RATIO_SENT": {
-      "ge1": "정기시험의 반영비율은 {exam.ratio}%로 하고 각 회차별 100점 만점에 선택형 {mc}점, 단답형·완성형 {short}점, 서·논술형 {essay}점의 비율로 출제한다.",
-      "0": "정기시험을 실시하지 않으며, 수행평가 100%로 평가한다."
+      "ge1": "정기시험의 반영비율은 {exam_ratio}%로 하고 각 회차별 100점 만점에 선택형 {mc}점, 단답형·완성형 {short}점, 서·논술형 {essay}점의 비율로 출제한다.",
+      "0": "정기시험을 실시하지 않으며, 수행평가 100%로 평가한다.",
+      "_note": "short=0 이면 해당 항 생략 가능: '선택형 {mc}점, 서·논술형 {essay}점'"
     },
-    "methods_line1": {
-      "template": " □ 서술·논술     □ 구술·발표      □ 토의･토론       □ 프로젝트 □ 실험･실습    □ 포트폴리오      □ 기타",
-      "options_order": [
-        "서술·논술",
-        "구술·발표",
-        "토의·토론",
-        "프로젝트",
-        "실험·실습",
-        "포트폴리오",
-        "기타"
-      ]
-    },
-    "methods_line2": {
-      "template": "□ 교사 관찰 및 기록      □ 자기평가      □ 동료평가 ",
-      "options_order": [
-        "교사 관찰 및 기록",
-        "자기평가",
-        "동료평가"
-      ]
-    },
-    "RATIO_BASIS": {
-      "_comment": "4절 나 항 주어부. 시험 횟수로 조립",
-      "ge1": "정기시험 및 수행평가의",
-      "0": "수행평가의"
-    }
+    "선행공백": "EXAM_INTRO/EXAM_RATIO_SENT/PURPOSE 문단은 '    (n) {{TOKEN}}' 형태 — 치환 시 문단 전체 구조 유지 (내어쓰기 보존 확인됨)"
+  },
+  "token_families": {
+    "공통": "SUBJECT / M{1-5}_HOURS·UNITS·STD·EVAL (시수는 서버 고정표) / MIN_ACH / PURPOSE{1-3}",
+    "점수형": "EXAM_INTRO / EXAM_RATIO_SENT / EXAM_TOTAL_RATIO / PERF_TOTAL_RATIO / POINTS_SUM / ESSAY_TOTAL_RATIO(서버 재계산·essay만 산입) / EX{r}_MC·SHORT·ESSAY·ESSAY_RATIO·STD·PERIOD / P{n}_NAME·POINTS('100점(N%)')·PERIOD / PERF_ESSAY_RATIO / LV_A~E(판별 유무) / PP{n}_NAME·TASK·STD·HIGH·MID·LOW·METHODS1·2·E{g}_NAME·E{g}_L{k}·_PTS·ABSENT",
+    "자유학기": "M{n}_MONTH 추가(12,1월 등 가변) / LV_A~E / FPP{1-4}_NAME·TASK·STD·LV_A~E·METHODS1·2 (배점·ABSENT 토큰 없음)",
+    "성취수준_수준당_셀": "LV_X 는 수준당 첫 셀, 나머지 3셀은 빈칸 처리됨 — 생성은 LV_X 치환만"
   },
   "unused_handling": {
-    "˙(구조적 미사용)": {
-      "exam==1": [
-        "EX2_MC",
-        "EX2_SHORT",
-        "EX2_ESSAY",
-        "EX2_ESSAY_RATIO",
-        "EX2_STD",
-        "EX2_PERIOD"
-      ],
-      "exam==0": [
-        "EX1_*",
-        "EX2_* 전부",
-        "EXAM_TOTAL_RATIO='0%'"
-      ],
-      "perf==2": [
-        "P3_NAME",
-        "P3_POINTS",
-        "P3_PERIOD"
-      ],
-      "perf==1": [
-        "P2_*",
-        "P3_*"
-      ]
-    },
-    "블록 삭제": "perf<3 → PP3 블록(빈문단+제목p+표p+결시자p), perf<2 → PP2 블록도. 토큰({{PP3_NAME}} 등) 포함 문단 탐색으로 제거, 잔여 PP 토큰 0 확인",
-    "교사 미정 공란": "빈 문자열 유지 (˙와 구분 — 기존 규칙)"
+    "원칙": "유형별 양식이라 ˙ 대부분 양식 내장. 남는 경우만 처리:",
+    "g2-exam2 + 수행1": "P2_NAME/POINTS/PERIOD = ˙, PP2 블록 삭제(제목·표·미응시자·빈문단)",
+    "자유학기 + 활동<4": "FPP 뒤 블록부터 삭제",
+    "교사 미정 공란": "빈 문자열 유지 (˙와 구분)"
   },
-  "final_check": "잔여 '{{' 0 + verify_hwpx + 회차 만점(mc+short+essay=100) + 영역 만점 100 + 비율 합 100",
-  "collection_guides": {
-    "MIN_ACH": "관행 문구 '보충학습 및 과제 수행 후 성취 수준 재평가' 를 먼저 제안하고, 이대로 할지 다르게 적을지 물어 답을 받는다. 다르게 원하면 교사 문구 사용",
-    "PP_ABSENT": "라벨 = '* 수행평가 미응시자 :'. 값 = 점수 (예: '각 영역당 20점', '20점'). 수행평가별로 몇 점 처리할지 물어 답을 받는다. 공통이면 한 번 물어 전 블록 적용 가능. 미정이면 공란"
+  "fixed_texts": {
+    "수행 성취기준 칸": "'수행평가 세부 기준 참고' 고정",
+    "자유학기 미응시": "'추후 평가 기회 부여' 고정",
+    "회차 라벨": "'1회/2회' 또는 '1회' 양식 내장"
   },
-  "variants": {
-    "master": {
-      "template_file": "template-master.hwpx",
-      "achievement_levels": [
-        "A",
-        "B",
-        "C",
-        "D",
-        "E"
-      ],
-      "성취율": "5단계(90/80/70/60)"
-    },
-    "arts": {
-      "template_file": "template-arts.hwpx",
-      "subjects": [
-        "음악",
-        "미술",
-        "체육"
-      ],
-      "achievement_levels": [
-        "A",
-        "B",
-        "C"
-      ],
-      "성취율": "3단계(80/60 — 작년 실측 문구)",
-      "_note": "LV_D/LV_E 토큰 없음 — 수집·치환 생략. 그 외 토큰 체계 마스터와 동일(169종). 보건·정보는 5수준이므로 master 사용"
-    }
-  },
+  "final_check": "잔여 '{{' 0 + verify + 회차 만점 mc+short+essay=100 + 비율 합 100 + 서논술 30%(V04, essay만)",
   "doc_title": "교수·학습 및 평가 계획서",
-  "_merge_note": "이 파일 = doc-ai-template-v3/template-manifest.v3.final.json (토큰·조립 계약) + 수집 명세 병합본. FINAL 원문 섹션은 완전히 동일하게 유지한다(테스트로 고정). FINAL 이 사람이 읽는 형태로 적은 것은 기계가 읽는 표로 한 번 더 펼쳐 두었다 — direct_tokens/pattern_tokens → token_paths, collection_guides → collection_guides_fields, variants → variant_routing. 펼친 표가 원문과 어긋나지 않는지는 tests 가 대조한다. 구버전(v2 4열 양식)은 archive/doc-ai-v2/ 에 보존.",
-  "token_paths": {
-    "_comment": "FINAL 의 direct_tokens + pattern_tokens 를 '토큰 → 값 경로' 로 펼친 표. 코드는 이 표만 보고 치환한다. FINAL 쪽은 사람이 읽는 계약이라 'computed (서버 재계산)' 같은 서술이 섞여 있어 그대로 쓸 수 없다. 두 표가 어긋나지 않는지는 tests/test_v3.py 가 token_list_v3.json 과 대조해 고정한다.",
-    "{{YEAR}}": "year",
-    "{{SEMESTER}}": "semester",
-    "{{GRADE}}": "grade",
-    "{{SUBJECT}}": "subject",
-    "{{MIN_ACH}}": "min_achievement_plan",
-    "{{PURPOSE1}}": "eval_purpose[0]",
-    "{{PURPOSE2}}": "eval_purpose[1]",
-    "{{PURPOSE3}}": "eval_purpose[2]",
-    "{{EXAM_TOTAL_RATIO}}": "exam.ratio_display",
-    "{{PERF_TOTAL_RATIO}}": "perf.ratio_display",
-    "{{POINTS_SUM}}": "computed.points_sum",
-    "{{ESSAY_TOTAL_RATIO}}": "essay_total_ratio_display",
-    "{{LV_A}}": "achievement_levels.A",
-    "{{LV_B}}": "achievement_levels.B",
-    "{{LV_C}}": "achievement_levels.C",
-    "{{LV_D}}": "achievement_levels.D",
-    "{{LV_E}}": "achievement_levels.E",
-    "{{PERF_ESSAY_RATIO}}": "perf.essay_ratio_display",
-    "{{M1_HOURS}}": "monthly_plan[0].hours_cum",
-    "{{M1_UNITS}}": "monthly_plan[0].units",
-    "{{M1_STD}}": "monthly_plan[0].standards",
-    "{{M1_EVAL}}": "monthly_plan[0].eval_elements",
-    "{{M2_HOURS}}": "monthly_plan[1].hours_cum",
-    "{{M2_UNITS}}": "monthly_plan[1].units",
-    "{{M2_STD}}": "monthly_plan[1].standards",
-    "{{M2_EVAL}}": "monthly_plan[1].eval_elements",
-    "{{M3_HOURS}}": "monthly_plan[2].hours_cum",
-    "{{M3_UNITS}}": "monthly_plan[2].units",
-    "{{M3_STD}}": "monthly_plan[2].standards",
-    "{{M3_EVAL}}": "monthly_plan[2].eval_elements",
-    "{{M4_HOURS}}": "monthly_plan[3].hours_cum",
-    "{{M4_UNITS}}": "monthly_plan[3].units",
-    "{{M4_STD}}": "monthly_plan[3].standards",
-    "{{M4_EVAL}}": "monthly_plan[3].eval_elements",
-    "{{M5_HOURS}}": "monthly_plan[4].hours_cum",
-    "{{M5_UNITS}}": "monthly_plan[4].units",
-    "{{M5_STD}}": "monthly_plan[4].standards",
-    "{{M5_EVAL}}": "monthly_plan[4].eval_elements",
-    "{{EX1_MC}}": "exam.rounds[0].mc",
-    "{{EX1_SHORT}}": "exam.rounds[0].short",
-    "{{EX1_ESSAY}}": "exam.rounds[0].essay",
-    "{{EX1_ESSAY_RATIO}}": "exam.rounds[0].essay_ratio",
-    "{{EX1_STD}}": "exam.rounds[0].standards",
-    "{{EX1_PERIOD}}": "exam.rounds[0].period",
-    "{{EX2_MC}}": "exam.rounds[1].mc",
-    "{{EX2_SHORT}}": "exam.rounds[1].short",
-    "{{EX2_ESSAY}}": "exam.rounds[1].essay",
-    "{{EX2_ESSAY_RATIO}}": "exam.rounds[1].essay_ratio",
-    "{{EX2_STD}}": "exam.rounds[1].standards",
-    "{{EX2_PERIOD}}": "exam.rounds[1].period",
-    "{{P1_NAME}}": "perf_areas[0].name",
-    "{{P1_POINTS}}": "perf_areas[0].points",
-    "{{P1_PERIOD}}": "perf_areas[0].period",
-    "{{P2_NAME}}": "perf_areas[1].name",
-    "{{P2_POINTS}}": "perf_areas[1].points",
-    "{{P2_PERIOD}}": "perf_areas[1].period",
-    "{{P3_NAME}}": "perf_areas[2].name",
-    "{{P3_POINTS}}": "perf_areas[2].points",
-    "{{P3_PERIOD}}": "perf_areas[2].period"
-  },
-  "perf_plan_block_tokens": {
-    "_comment": "출제계획 블록 b=1..3 (가·나·다). 평가 요소 3그룹(E1~E3) × 수행수준 4단계(L1~L4). METHODS1·2 는 경로가 아니라 composition_rules 로 조립한다.",
-    "max": 3,
-    "pattern": {
-      "{{PP{b}_NAME}}": "perf_plans[b-1].name",
-      "{{PP{b}_TASK}}": "perf_plans[b-1].task",
-      "{{PP{b}_STD}}": "perf_plans[b-1].standards",
-      "{{PP{b}_HIGH}}": "perf_plans[b-1].criteria_high",
-      "{{PP{b}_MID}}": "perf_plans[b-1].criteria_mid",
-      "{{PP{b}_LOW}}": "perf_plans[b-1].criteria_low",
-      "{{PP{b}_METHODS1}}": "composed — methods_line1 규칙",
-      "{{PP{b}_METHODS2}}": "composed — methods_line2 규칙",
-      "{{PP{b}_ABSENT}}": "perf_plans[b-1].absentee_points",
-      "{{PP{b}_E{g}_NAME}}": "perf_plans[b-1].elements[g-1].name",
-      "{{PP{b}_E{g}_L{k}}}": "perf_plans[b-1].elements[g-1].levels[k-1].desc",
-      "{{PP{b}_E{g}_L{k}_PTS}}": "perf_plans[b-1].elements[g-1].levels[k-1].points"
-    },
-    "groups": 3,
-    "levels": 4
-  },
+  "_merge_note": "이 파일 = doc-ai-templates-v4/template-manifest.v4.final.json (양식 계약) + 수집 명세 병합본. FINAL 원문 섹션은 완전히 동일하게 유지한다(테스트로 고정). **양식별 토큰 목록은 token-map.json 이 유일한 근거**이고, 치환표가 그것과 어긋나면 tests/test_v4.py 가 실패한다. 구버전(v3 마스터·예체능판)은 archive/doc-ai-v3/ 에 보존.",
   "basic_fields": [
     {
       "key": "year",
@@ -284,7 +158,7 @@
     }
   ],
   "monthly_plan": {
-    "_comment": "교수·학습 계획 표. 5행 고정 (8~12월). hours_cum 은 '9/9' 형식 문자열.",
+    "_comment": "교수·학습 계획 표. 5행 고정. hours_cum 은 '9/9' 형식 문자열. 자유학기 양식은 월 이름 칸도 토큰(M{n}_MONTH)이라 12월·1월처럼 달라질 수 있다.",
     "rows": 5,
     "months": [
       "8월",
@@ -294,6 +168,11 @@
       "12월"
     ],
     "row_fields": [
+      {
+        "key": "month",
+        "label": "월 (자유학기 양식만 토큰)",
+        "_comment": "점수형 양식은 월 이름이 양식에 인쇄돼 있어 치환하지 않는다"
+      },
       {
         "key": "hours_cum",
         "label": "시수/누계"
@@ -428,10 +307,9 @@
     "_template_categories_comment": "현행 양식이 실제로 칸을 가진 분류. v3 마스터(정기 6열)부터 3분류 전부 담긴다 — 과도기 안내(단답형·완성형 미수록)는 이 목록이 3개가 되면서 자동으로 사라졌다."
   },
   "perf_summary": {
-    "_comment": "평가 세부 운영 계획 표의 수행평가 열 (최대 3). 미사용 열은 '˙' 로 채운다.",
+    "_comment": "평가 세부 운영 계획 표의 수행평가 열. 개수 한도는 **양식이 정한다** (routing).",
     "key": "perf_areas",
     "min": 1,
-    "max": 3,
     "strategy": "fixed_columns_blank_unused",
     "item_fields": [
       {
@@ -480,12 +358,11 @@
       "E"
     ],
     "required": false,
-    "_comment": "레벨 목록은 **양식 유형이 정한다** — variants[uses].achievement_levels 를 따른다. 마스터 5수준(A~E) / 예체능판 3수준(A~C). 여기 levels 는 기본(마스터) 값이다."
+    "_comment": "레벨 목록은 **양식이 정한다** — token-map 의 LV_* 토큰이 근거다. 2학년 주지 A~E / 예체능 A~C / **3학년은 절 자체가 없어 수집하지 않는다** / 자유학기 A~E."
   },
   "perf_plans": {
-    "_comment": "8. 수행평가 출제 계획 블록 (수행평가 개수만큼, 최대 3 — 가·나·다). 미사용 블록은 서버가 통째 삭제한다.",
+    "_comment": "수행평가 출제 계획 블록. 개수 한도는 양식이 정한다 (routing).",
     "key": "perf_plans",
-    "max": 3,
     "strategy": "fixed_blocks_delete_unused",
     "item_fields": [
       {
@@ -567,6 +444,48 @@
     "type": "text",
     "required": false
   },
+  "free_activities": {
+    "_comment": "자유학기 양식 전용. 점수·미응시 점수가 없다 (scoring:false). 블록 수는 양식이 정한다.",
+    "key": "free_activities",
+    "label": "자유학기 활동 계획",
+    "item_fields": [
+      {
+        "key": "name",
+        "label": "활동명"
+      },
+      {
+        "key": "task",
+        "label": "활동 과제·내용"
+      },
+      {
+        "key": "standards",
+        "label": "교육과정 성취기준"
+      },
+      {
+        "key": "levels",
+        "label": "성취수준 서술 (A~E)",
+        "type": "level_map",
+        "_comment": "블록마다 A~E 서술. 점수가 아니라 도달 정도를 문장으로 적는다"
+      },
+      {
+        "key": "methods",
+        "label": "평가방법 체크",
+        "type": "multi_select",
+        "options": [
+          "서술·논술",
+          "구술·발표",
+          "토의·토론",
+          "프로젝트",
+          "실험·실습",
+          "포트폴리오",
+          "기타",
+          "교사 관찰 및 기록",
+          "자기평가",
+          "동료평가"
+        ]
+      }
+    ]
+  },
   "collection_guides_fields": {
     "_comment": "FINAL 의 collection_guides(MIN_ACH / PP_ABSENT) 를 프롬프트·확인 카드가 쓸 수 있게 펼친 표. 문구가 원문과 어긋나지 않는지는 tests/test_principle.mjs 가 대조한다.",
     "min_achievement_plan": {
@@ -584,63 +503,30 @@
       "card_label": "미응시자 점수"
     }
   },
-  "variant_routing": {
-    "_comment": "교과·학년으로 양식 유형을 정한다. **template_file·성취수준은 여기 적지 않는다** — FINAL 의 variants 에서 uses 로 끌어온다 (두 곳에 적으면 갈라진다). 여기 있는 것은 '누가 어떤 유형인지' 와 유형별 한도뿐이다.",
-    "_resolution_order": [
-      "grade == 1 and semester == 2  → grade1_free",
-      "subject in variants.arts.subjects → arts",
-      "grade == 3                     → grade3",
-      "그 외                           → default"
-    ],
-    "arts_subjects_from": "variants.arts.subjects",
-    "items": {
-      "default": {
-        "label": "기본형",
-        "uses": "master",
-        "limits": {
-          "exam_count": [
-            0,
-            1,
-            2
-          ],
-          "perf_areas_max": 3,
-          "perf_plans_max": 3
-        }
-      },
-      "grade3": {
-        "label": "3학년형 (정기시험 1회)",
-        "uses": "master",
-        "limits": {
-          "exam_count": [
-            0,
-            1
-          ],
-          "perf_areas_max": 3,
-          "perf_plans_max": 3
-        }
-      },
-      "arts": {
-        "label": "예체능형 (3수준)",
-        "uses": "arts",
-        "limits": {
-          "exam_count": [
-            0
-          ],
-          "perf_areas_max": 3,
-          "perf_plans_max": 3
-        },
-        "_note": "음악·미술·체육. 보건·정보는 5수준이라 master 를 쓴다 (FINAL variants.arts._note)"
-      },
-      "grade1_free": {
-        "label": "1학년 자유학기형 (점수화 없음)",
-        "scoring": false,
-        "_status": "양식 대기. 마스터를 그대로 쓰지 않는다 — 자유학기 문서에는 3절(반영비율) 자체가 없다(실측). 점수 칸이 있는 마스터로 뽑으면 없는 표를 있는 것처럼 만드는 셈이라, 수집 명세가 확정될 때까지 안내로 남긴다.",
-        "_note": "반영비율·지필·서·논술형 항목 없음. 상세 수집 명세 확정 대기"
-      }
-    }
-  },
   "pending": [
-    "자유학기(grade1_free) 양식·수집 명세 — Claude Web",
-    "기본점수(V11) 수집 위치 실측 후 규정 검사 활성화"
-  ]
+    "없음 — 양식 6종 전부 배치 완료 (2026-08-19)"
+  ],
+  "methods_lines": {
+    "_comment": "평가방법 체크박스 두 줄. v4 FINAL 은 이 규칙을 담지 않지만 양식에는 {{PP{n}_METHODS1/2}}·{{FPP{n}_METHODS1/2}} 칸이 있다 — v3 검증본을 그대로 이어 쓴다. 항목 문자열(반각 ･ 포함)은 원본이라 손대지 않는다.",
+    "line1": {
+      "template": " □ 서술·논술     □ 구술·발표      □ 토의･토론       □ 프로젝트 □ 실험･실습    □ 포트폴리오      □ 기타",
+      "options_order": [
+        "서술·논술",
+        "구술·발표",
+        "토의·토론",
+        "프로젝트",
+        "실험·실습",
+        "포트폴리오",
+        "기타"
+      ]
+    },
+    "line2": {
+      "template": "□ 교사 관찰 및 기록      □ 자기평가      □ 동료평가 ",
+      "options_order": [
+        "교사 관찰 및 기록",
+        "자기평가",
+        "동료평가"
+      ]
+    }
+  }
 }

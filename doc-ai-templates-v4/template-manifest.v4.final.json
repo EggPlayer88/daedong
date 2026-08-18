@@ -1,0 +1,105 @@
+{
+ "_comment": "manifest v4 FINAL (2026-08-18) — 유형별 양식 패밀리 6종. 계란님 한글 제작 양식 기반, Web 일괄 토큰화 (전 판 쪼개짐 0). 이 파일과 6개 hwpx 는 확정본 — 수정 금지.",
+ "manifest_version": 4,
+ "doc_type": "evaluation_plan",
+ "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서(초안).hwpx",
+ "routing": {
+  "_rule": "grade × exam_count 로 양식 결정. 학년·학기·회차 라벨·˙·유형 문장 구조는 양식에 내장",
+  "grade2_exam2": {
+   "file": "tpl-g2-exam2.hwpx",
+   "subjects_hint": [
+    "국어",
+    "수학",
+    "영어",
+    "과학",
+    "역사"
+   ],
+   "perf": "1~2 (수행1이면 P2·PP2 미사용)",
+   "levels": "A~E"
+  },
+  "grade2_exam1": {
+   "file": "tpl-g2-exam1.hwpx",
+   "subjects_hint": [
+    "기술·가정",
+    "한문"
+   ],
+   "perf": "2 고정",
+   "levels": "A~E"
+  },
+  "grade2_exam0": {
+   "file": "tpl-g2-perf3-arts.hwpx",
+   "subjects_hint": [
+    "음악",
+    "미술",
+    "체육"
+   ],
+   "perf": "3 고정",
+   "levels": "A~C",
+   "special": "정보·진로도 이 양식 사용 — 단 정보는 5수준(A~E)·진로는 P 체계라 성취 관련 절은 교사가 한글에서 수정 필요. 생성 시 안내 문구 필수 (계란님 결정: 별도 파생 없음)"
+  },
+  "grade3_exam1": {
+   "file": "tpl-g3-exam1.hwpx",
+   "subjects_hint": [
+    "국어",
+    "수학",
+    "영어",
+    "사회",
+    "역사",
+    "과학",
+    "도덕",
+    "기술·가정"
+   ],
+   "perf": "2 고정",
+   "levels": "없음(2015 — 학기단위 성취수준 절 자체가 없음. LV 토큰 없음, 수집 생략)"
+  },
+  "grade3_exam0": {
+   "file": "tpl-g3-perf3.hwpx",
+   "subjects_hint": [
+    "음악",
+    "체육",
+    "보건"
+   ],
+   "perf": "3 고정",
+   "levels": "없음(2015)",
+   "special": "보건은 5수준 관행이나 이 양식엔 성취수준 절 없음(3학년 공통) — 문제 없음"
+  },
+  "grade1_semester2": {
+   "file": "tpl-g1-free.hwpx",
+   "type": "자유학기",
+   "perf_blocks": 4,
+   "scoring": false,
+   "notes": "반영비율·배점·미응시 점수 수집 없음. 블록당 A~E 서술(FPP{n}_LV_*). 미응시 문구 고정"
+  }
+ },
+ "composition_rules": {
+  "EXAM_INTRO": {
+   "2": "성취평가제에 근거한 정기시험 및 서술형·논술형 평가는 교과협의회를 통하여 매학기 1회 정기시험과 2회 정기시험 때 실시한다.",
+   "1": "성취평가제에 근거한 정기시험 및 서술형·논술형 평가는 교과협의회를 통하여 매학기 1회 실시한다.",
+   "0": "정기시험은 실시하지 않는다."
+  },
+  "EXAM_RATIO_SENT": {
+   "ge1": "정기시험의 반영비율은 {exam_ratio}%로 하고 각 회차별 100점 만점에 선택형 {mc}점, 단답형·완성형 {short}점, 서·논술형 {essay}점의 비율로 출제한다.",
+   "0": "정기시험을 실시하지 않으며, 수행평가 100%로 평가한다.",
+   "_note": "short=0 이면 해당 항 생략 가능: '선택형 {mc}점, 서·논술형 {essay}점'"
+  },
+  "선행공백": "EXAM_INTRO/EXAM_RATIO_SENT/PURPOSE 문단은 '    (n) {{TOKEN}}' 형태 — 치환 시 문단 전체 구조 유지 (내어쓰기 보존 확인됨)"
+ },
+ "token_families": {
+  "공통": "SUBJECT / M{1-5}_HOURS·UNITS·STD·EVAL (시수는 서버 고정표) / MIN_ACH / PURPOSE{1-3}",
+  "점수형": "EXAM_INTRO / EXAM_RATIO_SENT / EXAM_TOTAL_RATIO / PERF_TOTAL_RATIO / POINTS_SUM / ESSAY_TOTAL_RATIO(서버 재계산·essay만 산입) / EX{r}_MC·SHORT·ESSAY·ESSAY_RATIO·STD·PERIOD / P{n}_NAME·POINTS('100점(N%)')·PERIOD / PERF_ESSAY_RATIO / LV_A~E(판별 유무) / PP{n}_NAME·TASK·STD·HIGH·MID·LOW·METHODS1·2·E{g}_NAME·E{g}_L{k}·_PTS·ABSENT",
+  "자유학기": "M{n}_MONTH 추가(12,1월 등 가변) / LV_A~E / FPP{1-4}_NAME·TASK·STD·LV_A~E·METHODS1·2 (배점·ABSENT 토큰 없음)",
+  "성취수준_수준당_셀": "LV_X 는 수준당 첫 셀, 나머지 3셀은 빈칸 처리됨 — 생성은 LV_X 치환만"
+ },
+ "unused_handling": {
+  "원칙": "유형별 양식이라 ˙ 대부분 양식 내장. 남는 경우만 처리:",
+  "g2-exam2 + 수행1": "P2_NAME/POINTS/PERIOD = ˙, PP2 블록 삭제(제목·표·미응시자·빈문단)",
+  "자유학기 + 활동<4": "FPP 뒤 블록부터 삭제",
+  "교사 미정 공란": "빈 문자열 유지 (˙와 구분)"
+ },
+ "fixed_texts": {
+  "수행 성취기준 칸": "'수행평가 세부 기준 참고' 고정",
+  "자유학기 미응시": "'추후 평가 기회 부여' 고정",
+  "회차 라벨": "'1회/2회' 또는 '1회' 양식 내장"
+ },
+ "final_check": "잔여 '{{' 0 + verify + 회차 만점 mc+short+essay=100 + 비율 합 100 + 서논술 30%(V04, essay만)"
+}
