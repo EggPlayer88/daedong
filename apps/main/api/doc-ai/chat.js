@@ -415,6 +415,55 @@ function buildDefaultsDoc(c = constants) {
   return L.join('\n')
 }
 
+/**
+ * 정기시험 횟수 × 수행평가 개수 세트 (2025-2 실측 53블록 + 학교 확정).
+ * 규정이 아니라 학교 관행이라 **막지 않는다** — 세트를 알리고 교사의 선택을 따른다.
+ * 수치·이유·전환 안내는 전부 constants.perf_count_rule 에서 읽는다.
+ */
+function buildCountSetDoc(c = constants) {
+  const rule = c?.perf_count_rule
+  const by = rule?.by_exams
+  if (!by) return ''
+
+  const L = ['## 정기시험 횟수 × 수행평가 개수 (세트)', '']
+  for (const [count, s] of Object.entries(by)) {
+    if (!s || typeof s !== 'object') continue
+    const want = s.min === s.max ? `${s.min}개` : `${s.min}~${s.max}개`
+    const fixed = s.fixed ? ' **(고정)**' : ''
+    L.push(`- 정기시험 ${count}회 → 수행평가 ${want}${fixed}${s.note ? ` — ${s.note}` : ''}`)
+  }
+
+  const ex = rule.excluded || []
+  if (ex.length) {
+    L.push('', '### 이 조합은 쓰지 않는다')
+    for (const e of ex) L.push(`- ${e.set} — ${e.reason}`)
+  }
+
+  L.push(
+    '',
+    '### 세트 밖을 교사가 원할 때 (제0원칙)',
+    `- ${rule.off_set_handling || '거부하지 않는다.'}`,
+    '- 반대하지 말고 알린다: "이 조합은 올해 세트 밖입니다. 그래도 진행할까요?"',
+    '  교사가 진행을 원하면 PLAN_READY 에는 교사가 확정한 대로 **전부** 넣는다.',
+    '  자르고 알리는 일은 서버가 한다.'
+  )
+
+  const notes = rule.transition_notes || []
+  if (notes.length) {
+    L.push('', '### 작년과 달라진 조합 (먼저 짚어 줄 것)')
+    for (const t of notes) {
+      const w = t.was || {}
+      const n = t.now || {}
+      L.push(
+        `- ${t.case}: 작년 시험 ${w.exams}회 × 수행 ${w.perf_areas}개 → 올해는 수행 ${n.perf_areas}개.`,
+        `  ${t.guidance}`,
+        '  어느 영역을 합칠지/뺄지는 **교사에게 묻고** 정한다. 네가 골라 주지 않는다.'
+      )
+    }
+  }
+  return L.join('\n')
+}
+
 function buildScaleDoc(c = constants) {
   const rule = c?.essay_ratio_rule || {}
   const L = [
@@ -579,6 +628,7 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
     buildVariantDoc(m),
     buildRegulationDoc(),
     buildDefaultsDoc(consts),
+    buildCountSetDoc(consts),
     buildScaleDoc(consts),
     buildHoursDoc(table),
     buildLimitDoc(m),
@@ -604,6 +654,7 @@ export {
   buildHoursDoc,
   buildLimitDoc,
   buildScaleDoc,
+  buildCountSetDoc,
   buildDefaultsDoc,
   buildVariantDoc,
   buildRegulationDoc,

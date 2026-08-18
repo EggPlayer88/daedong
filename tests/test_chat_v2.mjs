@@ -45,8 +45,18 @@ check('규칙 상수(시수 공식·서논술 30%·수행 횟수)', () => {
   assert(P.includes('essay_ratio_rule'), '서논술 규칙 누락')
   assert(P.includes('perf_count_rule'), '수행 횟수 규칙 누락')
 })
-check('TBD 는 TBD 그대로 (임의로 채우지 않음)', () => {
-  assert(P.includes('TBD'), 'TBD 가 사라짐 — pending 항목이 채워진 것처럼 보이면 위험')
+check('미도착 양식의 목표치가 현재 한도인 척하지 않는다', () => {
+  // perf_count_rule.template_capacity.planned 는 양식 v2(수행 3열) 목표치다.
+  // 현재 한도는 manifest.limits (2). 목표치가 한도 문구로 새어나오면 교사가
+  // 3개를 담을 수 있다고 믿게 된다 — 제0원칙 위반.
+  const cap = C.perf_count_rule.template_capacity
+  assert(cap.planned.perf_columns > M.limits.perf_areas_max, '전제 붕괴: 목표치가 현재 한도 이하')
+  assert(
+    P.includes(`수행평가는 최대 ${M.limits.perf_areas_max}개까지만`),
+    '한도 문구가 manifest.limits 에서 오지 않음'
+  )
+  assert(!P.includes(`수행평가는 최대 ${cap.planned.perf_columns}개까지만`), '목표치가 한도로 새어나옴')
+  assert(P.includes(cap.status), '양식 v2 대기 상태가 프롬프트에서 사라짐')
 })
 check('학년별 교육과정 매핑', () => {
   assert(P.includes('2022 개정') && P.includes('2015 개정'), '교육과정 매핑 누락')

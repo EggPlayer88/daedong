@@ -160,6 +160,37 @@ ck('유형 분기가 manifest 에서 파생', () => {
   A(!p2.includes('자유학기 — 물어볼 것이 다르다'), '유형 제거가 반영 안 됨')
 })
 
+console.log('\n[횟수 세트 — 시험 횟수 × 수행 개수]')
+ck('확정 세트 3줄이 그대로 있음', () => {
+  A(P.includes('정기시험 0회 → 수행평가 3개 **(고정)**'), '0회 세트 없음')
+  A(P.includes('정기시험 1회 → 수행평가 2개 **(고정)**'), '1회 세트 없음')
+  A(P.includes('정기시험 2회 → 수행평가 1~2개'), '2회 세트 없음')
+})
+ck('제외 조합과 이유', () => {
+  A(P.includes('정기시험 0회 × 수행 4개'), '0×4 제외 없음')
+  A(P.includes('정기시험 1회 × 수행 3개'), '1×3 제외 없음')
+  A(P.includes('유명무실'), '제외 이유 없음')
+})
+ck('세트 밖은 막지 않는다 (제0원칙 경로)', () => {
+  A(P.includes('세트 밖을 교사가 원할 때'), '세트 밖 절 없음')
+  A(P.includes('거부하지 않는다'), '거부 금지 문구 없음')
+  A(P.includes('그래도 진행할까요?'), '확인 질문 없음')
+  A(P.includes('자르고 알리는 일은 서버가 한다'), '역할 분담 없음')
+})
+ck('작년과 달라진 조합을 먼저 짚는다', () => {
+  A(P.includes('2025-2 3학년 영어'), '전환 사례 없음')
+  A(P.includes('작년 시험 1회 × 수행 3개 → 올해는 수행 2개'), '전환 내용 없음')
+  A(P.includes('네가 골라 주지 않는다'), '임의 선택 금지 없음')
+})
+ck('세트가 상수에서 파생 (하드코딩 아님)', () => {
+  const c2 = JSON.parse(JSON.stringify(mod.constants))
+  c2.perf_count_rule.by_exams['2'] = { min: 1, max: 1 }
+  c2.perf_count_rule.transition_notes = []
+  const p2 = mod.buildCountSetDoc(c2)
+  A(p2.includes('정기시험 2회 → 수행평가 1개'), '세트 변경 미반영')
+  A(!p2.includes('작년과 달라진 조합'), '전환 안내 제거 미반영')
+})
+
 console.log()
 if (fail) { console.log(`${fail}건 실패`); process.exit(1) }
 console.log('전부 통과')

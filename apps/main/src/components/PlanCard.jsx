@@ -38,7 +38,8 @@ function Val({ v }) {
  * 판정 자체는 서버 검증기가 한다 (규칙을 화면에 복제하지 않는다).
  */
 function RegulationFindings({ findings }) {
-  if (!findings || findings.length === 0) return null
+  // AI·서버 응답이 배열이 아닐 수도 있다. 화면이 죽는 것보다 안 보이는 편이 낫다
+  if (!Array.isArray(findings) || findings.length === 0) return null
   const groups = [
     ['ERROR', '규정 위반 — 고쳐야 생성됩니다', 'reg-error'],
     ['FLAG', '학업성적관리위원회 심의 대상', 'reg-flag'],
@@ -67,6 +68,26 @@ function RegulationFindings({ findings }) {
   )
 }
 
+/**
+ * 규정 위반은 아니지만 교사가 알아야 하는 것 — 횟수 세트 밖, 작년과 달라진 조합 등.
+ * 막지 않는다. 판정은 서버가 하고 화면은 문장을 그대로 보여줄 뿐이다.
+ */
+function PlanNotices({ notices }) {
+  if (!Array.isArray(notices) || notices.length === 0) return null
+  return (
+    <div className="reg-box">
+      <div className="reg-group reg-warn">
+        <b>알려드립니다</b>
+        <ul>
+          {notices.map((n, i) => (
+            <li key={i}>{n}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 function Section({ title, children }) {
   return (
     <section className="plan-sec">
@@ -76,7 +97,9 @@ function Section({ title, children }) {
   )
 }
 
-export default function PlanCard({ manifest: m, plan, findings = [], busy, onGenerate, onEdit }) {
+export default function PlanCard({
+  manifest: m, plan, findings = [], notices = [], busy, onGenerate, onEdit,
+}) {
   const mp = m.monthly_plan
   const ex = m.exam
   const ps = m.perf_summary
@@ -113,6 +136,7 @@ export default function PlanCard({ manifest: m, plan, findings = [], busy, onGen
       </p>
 
       <RegulationFindings findings={findings} />
+      <PlanNotices notices={notices} />
 
       <Section title="기본 정보">
         <table className="table kv-table">

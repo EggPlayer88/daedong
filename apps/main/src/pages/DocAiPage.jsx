@@ -31,6 +31,7 @@ export default function DocAiPage() {
   const [notice, setNotice] = useState(null) // 양식 준비 중 등 안내
   const [notices, setNotices] = useState([]) // 생성 후 "문서에 안 들어간 것" 안내
   const [findings, setFindings] = useState([]) // 규정 검증 결과 (WARN/FLAG)
+  const [planNotices, setPlanNotices] = useState([]) // 생성 전 안내 (횟수 세트 등)
   const bottomRef = useRef(null)
   const started = useRef(false)
   const fileRef = useRef(null)
@@ -128,6 +129,7 @@ export default function DocAiPage() {
    */
   async function checkRegulation(fields) {
     setFindings([])
+    setPlanNotices([])
     try {
       const r = await fetch('/api/doc-ai/generate', {
         method: 'POST',
@@ -139,7 +141,11 @@ export default function DocAiPage() {
         setFindings(data.findings || [])
         return
       }
-      if (r.ok) setFindings(data.findings || [])
+      if (r.ok) {
+        setFindings(data.findings || [])
+        // 규정 위반은 아니지만 알려야 하는 것 (횟수 세트 밖, 작년과 달라진 조합)
+        setPlanNotices(Array.isArray(data.notices) ? data.notices : [])
+      }
     } catch {
       // 판정을 못 받아도 대화는 계속된다 — 생성 시 서버가 다시 검사한다
     }
@@ -313,6 +319,7 @@ export default function DocAiPage() {
           manifest={manifest}
           plan={plan}
           findings={findings}
+          notices={planNotices}
           busy={busy}
           onGenerate={generate}
           onEdit={() => setPlan(null)}
