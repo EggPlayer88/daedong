@@ -150,11 +150,13 @@
     "template_capacity": {
       "_comment": "양식 v2 목표치. **실제 적용 한도는 template-manifest.json 의 limits 다** — 양식 파일이 오기 전에 이 숫자를 믿고 3개를 담으려 하면 문서가 깨진다.",
       "planned": {
+        "exam_columns": 6,
         "perf_columns": 3,
         "exam_blocks": 3
       },
-      "current_source": "template-manifest.json 의 limits (현행 2/2)",
-      "status": "양식 v2 — 계란님 한글 작업 → Claude Web 토큰화 대기"
+      "_planned_note": "정기 6열 = 2회차 × 3분류(선택형·단답형·완성형·서·논술형). 새 마스터 양식이 전 유형 공용 기반이 된다.",
+      "current_source": "template-manifest.json 의 limits + exam.template_categories (현행 정기 2분류 / 수행 2열 / 블록 2)",
+      "status": "새 마스터 양식 — 계란님 한글 작업 → Claude Web 토큰화·manifest 갱신 대기"
     }
   },
   "curriculum_by_grade": {
@@ -185,7 +187,8 @@
           "_note": "실측 예외. 다른 교과에도 예외가 있을 수 있다"
         }
       ],
-      "_note": "지필:수행 = 40:60 이 주지교과 공통 관행. 지필 구성은 선택 80 + 서·논술 20 이 다수"
+      "_note": "지필:수행 = 40:60 이 주지교과 공통 관행. 지필 구성은 선택 80 + 서·논술 20 이 다수",
+      "_transition_note": "⚠ written_composition 은 작년 **2분류** 값이다. 올해는 3분류라 mc 80 을 선택형/단답형·완성형으로 나눠 받아야 한다 — AI 가 임의로 나누지 않는다"
     },
     "arts_health": {
       "applies_to": [

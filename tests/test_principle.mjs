@@ -29,7 +29,7 @@ ck('한도 초과 시 계획을 축소시키지 않는다', () => {
 
 console.log('\n[배점 규칙 — 프롬프트 ↔ 서버 검증기]')
 ck('각 평가가 각각 100점 만점 (합이 아니다)', () => {
-  A(P.includes('각 회차** — 선택형 만점 + 서·논술형 만점 = 100'), '회차 규칙 없음')
+  A(P.includes('각 회차** — 선택형 + 단답형·완성형 + 서·논술형 = 100'), '회차 규칙 없음')
   A(P.includes('영역마다 만점 100점'), '수행 규칙 없음')
   A(P.includes('나눠 갖지 않는다'), '합 방식이 아님을 명시하지 않음')
   A(!P.includes('영역 만점의 합이 100점'), '옛 규약이 남음')
@@ -158,6 +158,43 @@ ck('유형 분기가 manifest 에서 파생', () => {
   delete m2.variants.items.grade1_free
   const p2 = mod.buildVariantDoc(m2)
   A(!p2.includes('자유학기 — 물어볼 것이 다르다'), '유형 제거가 반영 안 됨')
+})
+
+console.log('\n[정기시험 3분류 — 2026 학교 확정]')
+ck('3분류 명칭이 정확하다', () => {
+  A(P.includes('선택형(객관식)'), 'mc 명칭 없음')
+  A(P.includes('단답형·완성형(주관식)'), 'short 명칭 없음')
+  A(P.includes('서·논술형(주관식)'), 'essay 명칭 없음')
+  A(P.includes('**회차 100점 = 셋의 합**'), '100점 불변식 없음')
+})
+ck('30% 산입은 서·논술형만 (단답형·완성형 제외)', () => {
+  A(P.includes('- 산입: 서·논술형'), '산입 목록 없음')
+  A(P.includes('**미산입**: 선택형 · 단답형·완성형'), '미산입 목록 없음')
+  A(P.includes('30% 계산에 넣지 않는다'), '제외 지시 없음')
+})
+ck('작년 2분류 → 올해 3분류 전환 질문', () => {
+  A(P.includes('작년 자료는 2분류다'), '전환 절 없음')
+  A(P.includes('올해부터 정기시험 배점을 선택형 / 단답형·완성형 / 서·논술형 3가지로 적습니다'), '질문 문구 없음')
+  A(P.includes('네가 임의로 나누지 않는다'), '임의 분배 금지 없음')
+  A(P.includes('모르겠다') && P.includes('공란'), '모를 때 처리 없음')
+})
+ck('현행 양식에 칸이 없다는 사실을 숨기지 않는다', () => {
+  A(P.includes('현행 양식에는 아직 칸이 없다'), '과도기 안내 없음')
+  A(P.includes('문서에 들어가지 못한다'), '누락 사실 없음')
+  A(P.includes('네가 합치지 않는다'), '임의 합산 금지 없음')
+})
+ck('3분류가 manifest 에서 파생 (하드코딩 아님)', () => {
+  const m2 = JSON.parse(JSON.stringify(M))
+  m2.exam.method_categories[1].short_label = '단답형'
+  m2.exam.template_categories = ['mc', 'short', 'essay']
+  const p2 = mod.buildExamMethodDoc(m2)
+  A(p2.includes('**미산입**: 선택형 · 단답형'), '명칭 변경 미반영')
+  A(!p2.includes('현행 양식에는 아직 칸이 없다'), '칸이 생겼는데 과도기 안내가 남음')
+})
+ck('수집 항목에 short 가 들어감', () => {
+  const f = M.exam.rounds.item_fields.find(x => x.key === 'short')
+  A(f, 'manifest 에 short 필드 없음')
+  A(P.includes(f.label), `프롬프트에 라벨 없음: ${f.label}`)
 })
 
 console.log('\n[횟수 세트 — 시험 횟수 × 수행 개수]')

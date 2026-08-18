@@ -416,6 +416,65 @@ function buildDefaultsDoc(c = constants) {
 }
 
 /**
+ * 정기시험 평가방법 3분류 (2026 학교 확정) + 작년 2분류 → 올해 3분류 전환 질문.
+ * 분류·명칭·현행 양식의 칸 목록은 전부 manifest.exam 에서 읽는다.
+ */
+function buildExamMethodDoc(m = manifest) {
+  const spec = m?.exam
+  const cats = spec?.method_categories
+  if (!Array.isArray(cats) || cats.length === 0) return ''
+  const have = Array.isArray(spec.template_categories) ? spec.template_categories : null
+  const nameOf = (c) => c.short_label || c.label
+  const counted = cats.filter((c) => c.essay_countable)
+  const notCounted = cats.filter((c) => !c.essay_countable)
+
+  const L = [
+    '## 정기시험 평가방법 3분류 (2026학년도부터)',
+    '',
+    '정기시험 배점은 다음 셋으로 나눠 받는다. **회차 100점 = 셋의 합**이다.',
+  ]
+  for (const c of cats) {
+    L.push(`- **${c.label}** — key \`${c.key}\`${c._note ? ` · ${c._note}` : ''}`)
+  }
+  L.push(
+    '',
+    '### 서·논술형 30% 에 들어가는 것은 하나뿐이다',
+    `- 산입: ${counted.map(nameOf).join(' · ') || '없음'}`,
+    `- **미산입**: ${notCounted.map(nameOf).join(' · ')}`,
+    `- ${notCounted.filter((c) => c.key !== 'mc').map(nameOf).join('·')}은 주관식이지만 규정이 말하는`,
+    '  서·논술형이 아니다. 30% 계산에 넣지 않는다 — 넣으면 규정 미달을 채운 것처럼 보인다.',
+    '- 합계는 서버가 재계산한다. 회차별 `essay_ratio` 만 정확히 주면 된다.',
+    '',
+    '### 작년 자료는 2분류다 — 반드시 나눠 받는다 (시험 있는 전 교과 공통)',
+    '- 작년 계획서·참고자료의 지필 배점은 "선택형 + 서·논술형" 두 칸뿐이다.',
+    '  그 선택형 안에 올해의 단답형·완성형이 섞여 있다.',
+    '- 그래서 정기시험 배점을 받을 때 이렇게 묻는다:',
+    '  "올해부터 정기시험 배점을 선택형 / 단답형·완성형 / 서·논술형 3가지로 적습니다.',
+    '   작년에는 선택형 N점이었는데, 올해는 이 N점을 선택형과 단답형·완성형으로',
+    '   어떻게 나누실까요?"',
+    '- ⚠ **네가 임의로 나누지 않는다.** "보통 이렇게 하십니다" 도 하지 않는다.',
+    '  작년 값에 근거가 없는 분배는 교사가 정하지 않은 숫자가 문서에 들어가는 것이다.',
+    '  교사가 "잘 모르겠다" 고 하면 나누지 말고 그대로 두거나 공란으로 남긴다.'
+  )
+
+  if (have && cats.some((c) => !have.includes(c.key))) {
+    const missing = cats.filter((c) => !have.includes(c.key))
+    const present = cats.filter((c) => have.includes(c.key))
+    L.push(
+      '',
+      '### 현행 양식에는 아직 칸이 없다 (과도기 — 숨기지 않는다)',
+      `- 지금 쓰는 양식의 정기시험 표는 ${present.map(nameOf).join(' · ')} 칸만 있다.`,
+      `- ${missing.map(nameOf).join(' · ')} 배점은 **문서에 들어가지 못한다.**`,
+      '  그래도 교사에게는 3분류로 받는다 — 값은 확인 카드에 남고, 서버가',
+      '  "무엇이 문서에서 빠졌는지" 를 알린다.',
+      '- 선택형 칸에 합쳐 적을지는 **교사가 정한다.** 네가 합치지 않는다.',
+      '- 새 양식이 배포되면 이 제약은 사라진다고 함께 알려도 좋다.'
+    )
+  }
+  return L.join('\n')
+}
+
+/**
  * 정기시험 횟수 × 수행평가 개수 세트 (2025-2 실측 53블록 + 학교 확정).
  * 규정이 아니라 학교 관행이라 **막지 않는다** — 세트를 알리고 교사의 선택을 따른다.
  * 수치·이유·전환 안내는 전부 constants.perf_count_rule 에서 읽는다.
@@ -470,8 +529,8 @@ function buildScaleDoc(c = constants) {
     '## 배점 정합성 (생성 전 반드시 맞출 것)',
     '',
     '### 각 평가는 각각 100점 만점이다 (학교 관행 실측)',
-    '- **정기시험 각 회차** — 선택형 만점 + 서·논술형 만점 = 100 (예: 70 + 30).',
-    '  회차가 2회면 두 회차 **모두 각각** 100점이다.',
+    '- **정기시험 각 회차** — 선택형 + 단답형·완성형 + 서·논술형 = 100 (예: 60 + 10 + 30).',
+    '  회차가 2회면 두 회차 **모두 각각** 100점이다. 3분류는 위 절을 따른다.',
     '- **수행평가 각 영역** — 영역마다 만점 100점이다. 영역들의 만점을 나눠 갖지 않는다.',
     '  (❌ 영역 2개를 60점 + 40점으로 쪼개는 방식이 아니다)',
     '- 가중치는 점수가 아니라 **반영비율(%)로만** 준다.',
@@ -628,6 +687,7 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
     buildVariantDoc(m),
     buildRegulationDoc(),
     buildDefaultsDoc(consts),
+    buildExamMethodDoc(m),
     buildCountSetDoc(consts),
     buildScaleDoc(consts),
     buildHoursDoc(table),
@@ -654,6 +714,7 @@ export {
   buildHoursDoc,
   buildLimitDoc,
   buildScaleDoc,
+  buildExamMethodDoc,
   buildCountSetDoc,
   buildDefaultsDoc,
   buildVariantDoc,

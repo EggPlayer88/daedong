@@ -70,6 +70,28 @@ ck('배치본 계약 == doc-ai-template FINAL (양쪽 동일하게 교체)', () 
     A(JSON.stringify(M[k]) === JSON.stringify(F[k]), `${k} 불일치`)
   }
 })
+console.log('\n[정기시험 3분류 명칭]')
+// 학교 확정 표기는 '단답형·완성형' 하나뿐이다. 비슷한 변형이 섞이면
+// 교사가 서로 다른 항목으로 읽는다.
+const CAT_BAD = ['단답형/완성형', '단답·완성형', '단답형완성형', '단답형 완성형', '완성형·단답형']
+ck('manifest 분류 명칭이 확정 표기', () => {
+  const cats = M.exam.method_categories
+  A(Array.isArray(cats) && cats.length === 3, '3분류가 아님')
+  A(cats.map(c => c.key).join(',') === 'mc,short,essay', cats.map(c => c.key).join(','))
+  const short = cats.find(c => c.key === 'short')
+  A(short.label === '단답형·완성형(주관식)', short.label)
+  A(short.short_label === '단답형·완성형', short.short_label)
+  A(short.essay_countable === false, 'short 가 서·논술형 산입으로 잡힘')
+  A(cats.filter(c => c.essay_countable).map(c => c.key).join(',') === 'essay', '산입 대상이 essay 하나가 아님')
+})
+ck('프롬프트·라벨에 변형 표기가 없다', () => {
+  const texts = [P, ...M.exam.rounds.item_fields.map(f => f.label)]
+  for (const t of texts) for (const b of CAT_BAD) A(!t.includes(b), `'${b}' 사용됨`)
+})
+ck('서버 안내문도 확정 표기', () => {
+  A(mod.buildExamMethodDoc().includes('단답형·완성형(주관식)'), '3분류 안내 없음')
+})
+
 console.log()
 if (fail) { console.log(`${fail}건 실패`); process.exit(1) }
 console.log('전부 통과')
