@@ -1,5 +1,5 @@
 {
- "_comment": "manifest v3 FINAL (2026-08-18). template-master.hwpx(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)와 쌍. 토큰 170개 검증 완료. 전 유형 공용 마스터 — 미사용 칸 ˙, 미사용 블록 삭제.",
+ "_comment": "manifest v3 FINAL (2026-08-18). template-master.hwpx(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)와 쌍. 토큰 171개(마스터)/169개(예체능판) 검증 완료. 전 유형 공용 마스터 — 미사용 칸 ˙, 미사용 블록 삭제. v3.1: RATIO_BASIS 토큰 + 예체능판(template-arts.hwpx) 추가.",
  "manifest_version": 3,
  "doc_type": "evaluation_plan",
  "template_file": "template-master.hwpx",
@@ -43,7 +43,7 @@
   "월별(1~5)": "{{M{n}_HOURS}}(시수 고정표 서버주입)/{{M{n}_UNITS}}/{{M{n}_STD}}/{{M{n}_EVAL}}",
   "정기 회차(1~2)": "{{EX{r}_MC}}/{{EX{r}_SHORT}}/{{EX{r}_ESSAY}} (각 점수, 합 100) + {{EX{r}_ESSAY_RATIO}}/{{EX{r}_STD}}/{{EX{r}_PERIOD}}",
   "수행 영역(1~3)": "{{P{n}_NAME}}/{{P{n}_POINTS}}('100점(N%)' 표기)/{{P{n}_PERIOD}}",
-  "출제계획 블록(1~3)": "{{PP{b}_NAME/TASK/STD/HIGH/MID/LOW/METHODS1/METHODS2/ABSENT}} + {{PP{b}_E{g}_NAME}} + {{PP{b}_E{g}_L{k}}}/{{PP{b}_E{g}_L{k}_PTS}} (g=1~3, k=1~4)"
+  "출제계획 블록(1~3)": "{{PP{b}_NAME/TASK/STD/HIGH/MID/LOW/METHODS1/METHODS2/ABSENT(미응시자 점수)}} + {{PP{b}_E{g}_NAME}} + {{PP{b}_E{g}_L{k}}}/{{PP{b}_E{g}_L{k}_PTS}} (g=1~3, k=1~4)"
  },
  "fixed_texts": {
   "수행 성취기준 칸": "'수행평가 세부 기준 참고' 고정 (병합 셀 한계의 관행 해법 — 토큰 아님)",
@@ -78,6 +78,11 @@
     "자기평가",
     "동료평가"
    ]
+  },
+  "RATIO_BASIS": {
+   "_comment": "4절 나 항 주어부. 시험 횟수로 조립",
+   "ge1": "정기시험 및 수행평가의",
+   "0": "수행평가의"
   }
  },
  "unused_handling": {
@@ -108,5 +113,37 @@
   "블록 삭제": "perf<3 → PP3 블록(빈문단+제목p+표p+결시자p), perf<2 → PP2 블록도. 토큰({{PP3_NAME}} 등) 포함 문단 탐색으로 제거, 잔여 PP 토큰 0 확인",
   "교사 미정 공란": "빈 문자열 유지 (˙와 구분 — 기존 규칙)"
  },
- "final_check": "잔여 '{{' 0 + verify_hwpx + 회차 만점(mc+short+essay=100) + 영역 만점 100 + 비율 합 100"
+ "final_check": "잔여 '{{' 0 + verify_hwpx + 회차 만점(mc+short+essay=100) + 영역 만점 100 + 비율 합 100",
+ "collection_guides": {
+  "MIN_ACH": "관행 문구 '보충학습 및 과제 수행 후 성취 수준 재평가' 를 먼저 제안하고, 이대로 할지 다르게 적을지 물어 답을 받는다. 다르게 원하면 교사 문구 사용",
+  "PP_ABSENT": "라벨 = '* 수행평가 미응시자 :'. 값 = 점수 (예: '각 영역당 20점', '20점'). 수행평가별로 몇 점 처리할지 물어 답을 받는다. 공통이면 한 번 물어 전 블록 적용 가능. 미정이면 공란"
+ },
+ "variants": {
+  "master": {
+   "template_file": "template-master.hwpx",
+   "achievement_levels": [
+    "A",
+    "B",
+    "C",
+    "D",
+    "E"
+   ],
+   "성취율": "5단계(90/80/70/60)"
+  },
+  "arts": {
+   "template_file": "template-arts.hwpx",
+   "subjects": [
+    "음악",
+    "미술",
+    "체육"
+   ],
+   "achievement_levels": [
+    "A",
+    "B",
+    "C"
+   ],
+   "성취율": "3단계(80/60 — 작년 실측 문구)",
+   "_note": "LV_D/LV_E 토큰 없음 — 수집·치환 생략. 그 외 토큰 체계 마스터와 동일(169종). 보건·정보는 5수준이므로 master 사용"
+  }
+ }
 }

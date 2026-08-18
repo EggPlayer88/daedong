@@ -1,5 +1,5 @@
 {
-  "_comment": "manifest v3 FINAL (2026-08-18). template-master.hwpx(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)와 쌍. 토큰 170개 검증 완료. 전 유형 공용 마스터 — 미사용 칸 ˙, 미사용 블록 삭제.",
+  "_comment": "manifest v3 FINAL (2026-08-18). template-master.hwpx(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)와 쌍. 토큰 171개(마스터)/169개(예체능판) 검증 완료. 전 유형 공용 마스터 — 미사용 칸 ˙, 미사용 블록 삭제. v3.1: RATIO_BASIS 토큰 + 예체능판(template-arts.hwpx) 추가.",
   "manifest_version": 3,
   "doc_type": "evaluation_plan",
   "template_file": "template-master.hwpx",
@@ -43,7 +43,7 @@
     "월별(1~5)": "{{M{n}_HOURS}}(시수 고정표 서버주입)/{{M{n}_UNITS}}/{{M{n}_STD}}/{{M{n}_EVAL}}",
     "정기 회차(1~2)": "{{EX{r}_MC}}/{{EX{r}_SHORT}}/{{EX{r}_ESSAY}} (각 점수, 합 100) + {{EX{r}_ESSAY_RATIO}}/{{EX{r}_STD}}/{{EX{r}_PERIOD}}",
     "수행 영역(1~3)": "{{P{n}_NAME}}/{{P{n}_POINTS}}('100점(N%)' 표기)/{{P{n}_PERIOD}}",
-    "출제계획 블록(1~3)": "{{PP{b}_NAME/TASK/STD/HIGH/MID/LOW/METHODS1/METHODS2/ABSENT}} + {{PP{b}_E{g}_NAME}} + {{PP{b}_E{g}_L{k}}}/{{PP{b}_E{g}_L{k}_PTS}} (g=1~3, k=1~4)"
+    "출제계획 블록(1~3)": "{{PP{b}_NAME/TASK/STD/HIGH/MID/LOW/METHODS1/METHODS2/ABSENT(미응시자 점수)}} + {{PP{b}_E{g}_NAME}} + {{PP{b}_E{g}_L{k}}}/{{PP{b}_E{g}_L{k}_PTS}} (g=1~3, k=1~4)"
   },
   "fixed_texts": {
     "수행 성취기준 칸": "'수행평가 세부 기준 참고' 고정 (병합 셀 한계의 관행 해법 — 토큰 아님)",
@@ -78,6 +78,11 @@
         "자기평가",
         "동료평가"
       ]
+    },
+    "RATIO_BASIS": {
+      "_comment": "4절 나 항 주어부. 시험 횟수로 조립",
+      "ge1": "정기시험 및 수행평가의",
+      "0": "수행평가의"
     }
   },
   "unused_handling": {
@@ -109,8 +114,40 @@
     "교사 미정 공란": "빈 문자열 유지 (˙와 구분 — 기존 규칙)"
   },
   "final_check": "잔여 '{{' 0 + verify_hwpx + 회차 만점(mc+short+essay=100) + 영역 만점 100 + 비율 합 100",
+  "collection_guides": {
+    "MIN_ACH": "관행 문구 '보충학습 및 과제 수행 후 성취 수준 재평가' 를 먼저 제안하고, 이대로 할지 다르게 적을지 물어 답을 받는다. 다르게 원하면 교사 문구 사용",
+    "PP_ABSENT": "라벨 = '* 수행평가 미응시자 :'. 값 = 점수 (예: '각 영역당 20점', '20점'). 수행평가별로 몇 점 처리할지 물어 답을 받는다. 공통이면 한 번 물어 전 블록 적용 가능. 미정이면 공란"
+  },
+  "variants": {
+    "master": {
+      "template_file": "template-master.hwpx",
+      "achievement_levels": [
+        "A",
+        "B",
+        "C",
+        "D",
+        "E"
+      ],
+      "성취율": "5단계(90/80/70/60)"
+    },
+    "arts": {
+      "template_file": "template-arts.hwpx",
+      "subjects": [
+        "음악",
+        "미술",
+        "체육"
+      ],
+      "achievement_levels": [
+        "A",
+        "B",
+        "C"
+      ],
+      "성취율": "3단계(80/60 — 작년 실측 문구)",
+      "_note": "LV_D/LV_E 토큰 없음 — 수집·치환 생략. 그 외 토큰 체계 마스터와 동일(169종). 보건·정보는 5수준이므로 master 사용"
+    }
+  },
   "doc_title": "교수·학습 및 평가 계획서",
-  "_merge_note": "이 파일 = doc-ai-template-v3/template-manifest.v3.final.json (토큰·조립 계약) + 수집 명세(basic_fields 등) 병합본. FINAL 은 '무엇을 어디에 넣을지' 만 담고 '무엇을 물어볼지' 는 담지 않아, 둘 다 있어야 chat(프롬프트)·PlanCard(확인 카드)·generate(치환)가 한 파일을 본다. FINAL 원문 섹션은 완전히 동일하게 유지한다(테스트로 고정). 구버전(v2 4열 양식)은 archive/doc-ai-v2/ 에 보존.",
+  "_merge_note": "이 파일 = doc-ai-template-v3/template-manifest.v3.final.json (토큰·조립 계약) + 수집 명세 병합본. FINAL 원문 섹션은 완전히 동일하게 유지한다(테스트로 고정). FINAL 이 사람이 읽는 형태로 적은 것은 기계가 읽는 표로 한 번 더 펼쳐 두었다 — direct_tokens/pattern_tokens → token_paths, collection_guides → collection_guides_fields, variants → variant_routing. 펼친 표가 원문과 어긋나지 않는지는 tests 가 대조한다. 구버전(v2 4열 양식)은 archive/doc-ai-v2/ 에 보존.",
   "token_paths": {
     "_comment": "FINAL 의 direct_tokens + pattern_tokens 를 '토큰 → 값 경로' 로 펼친 표. 코드는 이 표만 보고 치환한다. FINAL 쪽은 사람이 읽는 계약이라 'computed (서버 재계산)' 같은 서술이 섞여 있어 그대로 쓸 수 없다. 두 표가 어긋나지 않는지는 tests/test_v3.py 가 token_list_v3.json 과 대조해 고정한다.",
     "{{YEAR}}": "year",
@@ -442,7 +479,8 @@
       "D",
       "E"
     ],
-    "required": false
+    "required": false,
+    "_comment": "레벨 목록은 **양식 유형이 정한다** — variants[uses].achievement_levels 를 따른다. 마스터 5수준(A~E) / 예체능판 3수준(A~C). 여기 levels 는 기본(마스터) 값이다."
   },
   "perf_plans": {
     "_comment": "8. 수행평가 출제 계획 블록 (수행평가 개수만큼, 최대 3 — 가·나·다). 미사용 블록은 서버가 통째 삭제한다.",
@@ -529,8 +567,8 @@
     "type": "text",
     "required": false
   },
-  "collection_guides": {
-    "_comment": "특정 칸을 '어떻게 물어볼지'. 프롬프트와 확인 카드가 같은 문구를 쓰도록 자산에 둔다.",
+  "collection_guides_fields": {
+    "_comment": "FINAL 의 collection_guides(MIN_ACH / PP_ABSENT) 를 프롬프트·확인 카드가 쓸 수 있게 펼친 표. 문구가 원문과 어긋나지 않는지는 tests/test_principle.mjs 가 대조한다.",
     "min_achievement_plan": {
       "token": "{{MIN_ACH}}",
       "suggest_first": "보충학습 및 과제 수행 후 성취 수준 재평가",
@@ -546,24 +584,19 @@
       "card_label": "미응시자 점수"
     }
   },
-  "variants": {
-    "_comment": "템플릿 패밀리. v3 마스터(정기 3분류 6열 + 수행 3열 + 출제계획 3블록)가 **전 유형 공용 기반**이라 점수화 유형은 모두 같은 파일을 쓴다. 유형별로 다른 것은 한도와 대화 흐름뿐이다.",
+  "variant_routing": {
+    "_comment": "교과·학년으로 양식 유형을 정한다. **template_file·성취수준은 여기 적지 않는다** — FINAL 의 variants 에서 uses 로 끌어온다 (두 곳에 적으면 갈라진다). 여기 있는 것은 '누가 어떤 유형인지' 와 유형별 한도뿐이다.",
     "_resolution_order": [
       "grade == 1 and semester == 2  → grade1_free",
-      "subject in arts_subjects       → arts",
+      "subject in variants.arts.subjects → arts",
       "grade == 3                     → grade3",
       "그 외                           → default"
     ],
-    "arts_subjects": [
-      "음악",
-      "미술",
-      "체육",
-      "보건"
-    ],
+    "arts_subjects_from": "variants.arts.subjects",
     "items": {
       "default": {
         "label": "기본형",
-        "template_file": "template-master.hwpx",
+        "uses": "master",
         "limits": {
           "exam_count": [
             0,
@@ -576,7 +609,7 @@
       },
       "grade3": {
         "label": "3학년형 (정기시험 1회)",
-        "template_file": "template-master.hwpx",
+        "uses": "master",
         "limits": {
           "exam_count": [
             0,
@@ -586,16 +619,9 @@
           "perf_plans_max": 3
         }
       },
-      "grade1_free": {
-        "label": "1학년 자유학기형 (점수화 없음)",
-        "template_file": "template.grade1_free.hwpx",
-        "scoring": false,
-        "_status": "양식 대기. 마스터를 그대로 쓰지 않는다 — 자유학기 문서에는 3절(반영비율) 자체가 없다(실측). 점수 칸이 있는 마스터로 뽑으면 없는 표를 있는 것처럼 만드는 셈이라, 수집 명세가 확정될 때까지 안내로 남긴다.",
-        "_note": "반영비율·지필·서·논술형 항목 없음. 상세 수집 명세 확정 대기"
-      },
       "arts": {
         "label": "예체능형 (3수준)",
-        "template_file": "template-master.hwpx",
+        "uses": "arts",
         "limits": {
           "exam_count": [
             0
@@ -603,7 +629,13 @@
           "perf_areas_max": 3,
           "perf_plans_max": 3
         },
-        "_note": "실측: 지필 0회·수행 100%, 수행 3개 40/30/30 패턴이 다수"
+        "_note": "음악·미술·체육. 보건·정보는 5수준이라 master 를 쓴다 (FINAL variants.arts._note)"
+      },
+      "grade1_free": {
+        "label": "1학년 자유학기형 (점수화 없음)",
+        "scoring": false,
+        "_status": "양식 대기. 마스터를 그대로 쓰지 않는다 — 자유학기 문서에는 3절(반영비율) 자체가 없다(실측). 점수 칸이 있는 마스터로 뽑으면 없는 표를 있는 것처럼 만드는 셈이라, 수집 명세가 확정될 때까지 안내로 남긴다.",
+        "_note": "반영비율·지필·서·논술형 항목 없음. 상세 수집 명세 확정 대기"
       }
     }
   },
