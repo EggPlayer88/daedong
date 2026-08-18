@@ -33,6 +33,7 @@ MANIFEST_PATH = ASSETS / "template-manifest.json"
 TEMPLATE_PATH = ASSETS / "template.hwpx"
 FIXED_HOURS_PATH = ASSETS / "fixed-hours-2026-2.json"
 REGULATION_PATH = ASSETS / "regulation-2026.json"
+CONSTANTS_PATH = ASSETS / "school-constants-2026-2.json"
 
 # 검증된 엔진 (api/_hwpx). 이 폴더는 수정하지 않고 import 만 한다.
 sys.path.insert(0, str(HERE.parent / "_hwpx"))
@@ -140,6 +141,15 @@ def load_regulation() -> dict | None:
             return json.load(f)
     except FileNotFoundError:
         return None
+
+
+def load_constants() -> dict:
+    """학교 상수 (횟수 세트 등). 없으면 빈 dict — 그 경우 세트 안내를 건너뛴다."""
+    try:
+        with open(CONSTANTS_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 
 def load_fixed_hours() -> dict | None:
@@ -345,12 +355,16 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     if by["ERROR"]:
         raise RegulationViolation(by["ERROR"])
 
+    # 횟수 세트는 규정이 아니라 학교 관행이라 막지 않고 안내만 한다
+    count_notes = _v2fill.check_perf_count(plan, (load_constants().get("perf_count_rule")))
+
     if check_only:
         # 문서를 만들지 않고 판정만 돌려준다 (확인 카드용)
         return {
             "variant": variant,
             "variant_label": spec["label"],
             "findings": findings,
+            "notices": count_notes,
             "template_ready": (ASSETS / spec["template_file"]).exists(),
         }
 
@@ -364,6 +378,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
         ("[심의 대상] " if f["severity"] == "FLAG" else "[확인] ") + _regulation.format_line(f)
         for f in by["FLAG"] + by["WARN"]
     ]
+    notices += count_notes
     notices += _v2fill.apply_capacity(plan, manifest, spec.get('limits'))
     for n in notices:
         print(f"[doc-ai/generate] capacity: {n}", file=sys.stderr)

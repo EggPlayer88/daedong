@@ -103,21 +103,59 @@
     }
   },
   "perf_count_rule": {
+    "_comment": "정기시험 횟수 × 수행평가 개수 세트. 2025-2 실측 53블록 + 2026-08-18 계란님 확정. 세트 밖이어도 생성을 막지 않는다 — 담기는 만큼 만들고 무엇이 빠졌는지 알린다 (제0원칙).",
     "by_exams": {
       "0": {
-        "min": 1,
-        "max": 4
+        "min": 3,
+        "max": 3,
+        "fixed": true,
+        "note": "수행 100% 를 영역당 40% 상한 안에서 나누면 3개가 자연값 (40+40=80<100)"
       },
       "1": {
-        "min": 1,
-        "max": "TBD(계란님 확인 대기)"
+        "min": 2,
+        "max": 2,
+        "fixed": true,
+        "note": "수행 3개면 정기시험 반영 몫이 유명무실해진다"
       },
       "2": {
         "min": 1,
         "max": 2
       }
     },
-    "table_max_columns": 4
+    "excluded": [
+      {
+        "set": "정기시험 0회 × 수행 4개",
+        "reason": "2025-2 실측 0건. 영역당 40% 상한 산수상 3개가 자연값"
+      },
+      {
+        "set": "정기시험 1회 × 수행 3개",
+        "reason": "수행 3개면 정기시험 반영 몫이 유명무실 (계란님 판단)"
+      }
+    ],
+    "off_set_handling": "거부하지 않는다. 세트를 알리고, 교사가 그대로 원하면 담기는 만큼 만든 뒤 무엇이 빠졌는지 알린다.",
+    "transition_notes": [
+      {
+        "case": "2025-2 3학년 영어",
+        "was": {
+          "exams": 1,
+          "perf_areas": 3
+        },
+        "now": {
+          "exams": 1,
+          "perf_areas": 2
+        },
+        "guidance": "작년 수행평가 3개는 올해 세트 밖입니다. 어느 영역을 합치거나 뺄지 교사와 정한 뒤 진행한다 — 임의로 고르지 않는다."
+      }
+    ],
+    "template_capacity": {
+      "_comment": "양식 v2 목표치. **실제 적용 한도는 template-manifest.json 의 limits 다** — 양식 파일이 오기 전에 이 숫자를 믿고 3개를 담으려 하면 문서가 깨진다.",
+      "planned": {
+        "perf_columns": 3,
+        "exam_blocks": 3
+      },
+      "current_source": "template-manifest.json 의 limits (현행 2/2)",
+      "status": "양식 v2 — 계란님 한글 작업 → Claude Web 토큰화 대기"
+    }
   },
   "curriculum_by_grade": {
     "1": "2022 개정 교육과정",

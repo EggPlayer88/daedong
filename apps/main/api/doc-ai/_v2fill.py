@@ -356,6 +356,45 @@ def check_scales(plan: dict) -> list:
 
 
 # ---------------------------------------------------------------------------
+# 횟수 세트 — 시험 횟수 × 수행 개수 (실측 + 학교 확정)
+# ---------------------------------------------------------------------------
+def check_perf_count(plan: dict, rule: dict | None) -> list:
+    """세트(시험 0→수행 3 / 1→2 / 2→1~2)를 벗어나면 안내 문구를 돌려준다.
+
+    **막지 않는다.** 규정 위반(_regulation)과 달리 이건 학교가 정한 관행이라,
+    교사가 그대로 원하면 담기는 만큼 만들고 무엇이 빠졌는지 알린다 (제0원칙).
+    수치·이유·전환 안내는 전부 school-constants 의 perf_count_rule 에서 읽는다.
+    """
+    if not isinstance(rule, dict):
+        return []
+    exam = plan.get("exam")
+    exam = exam if isinstance(exam, dict) else {}
+    count = int(first_num(exam.get("count"), 0))
+    spec = (rule.get("by_exams") or {}).get(str(count))
+    areas = plan.get("perf_areas")
+    n = len(areas) if isinstance(areas, list) else 0
+    if not isinstance(spec, dict) or n == 0:
+        return []
+
+    lo, hi = spec.get("min"), spec.get("max")
+    if not isinstance(lo, int) or not isinstance(hi, int) or lo <= n <= hi:
+        return []
+
+    want = f"{lo}개" if lo == hi else f"{lo}~{hi}개"
+    msg = f"정기시험 {count}회면 수행평가는 {want}입니다 (현재 {n}개)."
+    if as_text(spec.get("note")):
+        msg += f" {as_text(spec['note'])}."
+    msgs = [msg]
+
+    # 작년과 달라진 조합이면 "무엇을 어떻게 정해야 하는지" 까지 알린다
+    for t in rule.get("transition_notes") or []:
+        was = (t or {}).get("was") or {}
+        if int(first_num(was.get("exams"), -1)) == count and int(first_num(was.get("perf_areas"), -1)) == n:
+            msgs.append(f"{as_text(t.get('case'))}: {as_text(t.get('guidance'))}")
+    return msgs
+
+
+# ---------------------------------------------------------------------------
 # 양식 수용 한도 — 넘치면 거부하지 않고 수용분만 채우고 안내한다
 # ---------------------------------------------------------------------------
 def apply_capacity(plan: dict, manifest: dict, limits: dict | None = None) -> list:
