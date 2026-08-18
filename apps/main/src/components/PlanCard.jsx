@@ -68,11 +68,23 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
   const levels = plan[levelsKey] || {}
   const purposes = Array.isArray(plan[purposeKey]) ? plan[purposeKey] : []
 
-  // 서·논술형 30% 규칙 — 기준값은 학교 상수에서 읽는다
-  const minEssay = constants?.essay_ratio_rule?.min_percent
+  // 서·논술형 30% 규칙 — 기준값과 교과 분류를 학교 상수에서 읽는다 (실측 3분류)
+  const essayRule = constants?.essay_ratio_rule || {}
+  const minEssay = essayRule.min_percent
   const essayVal = Number(plan[essayKey])
+  const subject = String(plan.subject || '').trim()
+  const inList = (list) => (list || []).some((s) => subject && subject.includes(s))
+  // 의무 / 예외 / 미확정 — 미확정이면 경고 대신 "확인 필요" 로 알린다 (추정 금지)
+  const essayClass = inList(essayRule.exempt_subjects)
+    ? 'exempt'
+    : inList(essayRule.required_subjects)
+      ? 'required'
+      : 'unknown'
   const essayLow =
-    minEssay !== undefined && Number.isFinite(essayVal) && essayVal < minEssay
+    essayClass !== 'exempt' &&
+    minEssay !== undefined &&
+    Number.isFinite(essayVal) &&
+    essayVal < minEssay
 
   return (
     <div className="card plan">
@@ -246,10 +258,17 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
         <Section title={m.essay_total_ratio.label}>
           <p>
             <Val v={plan[essayKey]} />
-            {essayLow && (
+            {essayClass === 'exempt' && (
+              <span className="muted"> · {subject}는 {minEssay}% 규정 예외 교과입니다.</span>
+            )}
+            {essayLow && essayClass === 'required' && (
+              <span className="warn"> ⚠ {minEssay}% 미만입니다. 조정이 필요합니다.</span>
+            )}
+            {essayLow && essayClass === 'unknown' && (
               <span className="warn">
                 {' '}
-                ⚠ {minEssay}% 미만입니다. 예외 교과가 아니라면 조정이 필요합니다.
+                ⚠ {minEssay}% 미만입니다. {subject || '이 교과'}가 예외 교과인지 확인이 필요합니다
+                (학업성적관리규정).
               </span>
             )}
           </p>

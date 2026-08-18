@@ -28,14 +28,17 @@ ck('한도 초과 시 계획을 축소시키지 않는다', () => {
 })
 
 console.log('\n[배점 규칙 — 프롬프트 ↔ 서버 검증기]')
-ck('각 회차 100점 / 수행 합 100점 명시', () => {
-  A(P.includes('각 회차가 100점 만점'), '회차 규칙 없음')
-  A(P.includes('영역 만점의 합이 100점'), '수행 규칙 없음')
+ck('각 평가가 각각 100점 만점 (합이 아니다)', () => {
+  A(P.includes('각 회차** — 선택형 만점 + 서·논술형 만점 = 100'), '회차 규칙 없음')
+  A(P.includes('영역마다 만점 100점'), '수행 규칙 없음')
+  A(P.includes('나눠 갖지 않는다'), '합 방식이 아님을 명시하지 않음')
+  A(!P.includes('영역 만점의 합이 100점'), '옛 규약이 남음')
 })
 ck('가중치는 반영비율로만', () => A(P.includes('반영비율(%)로만'), '문구 없음'))
-ck('M 은 서버가 계산 (AI 는 N 만)', () => {
-  A(P.includes('M 은 서버가 계산한다'), '계산 주체 명시 없음')
-  A(P.includes('N × 해당 반영비율 ÷ 100'), '공식 없음')
+ck('표기는 서버가 조립 (AI 는 반영비율만)', () => {
+  A(P.includes('서버가 조립한다'), '조립 주체 명시 없음')
+  A(P.includes('100(40%)'), '표기 예시 없음')
+  A(P.includes('반영비율(ratio)** 만'), 'AI 가 줄 것이 명시되지 않음')
 })
 ck('서·논술형 비율 필수 + 30% 검증 유지', () => {
   A(P.includes('반드시 수집'), '필수 수집 문구 없음')
@@ -46,10 +49,34 @@ ck('서·논술형 비율 필수 + 30% 검증 유지', () => {
   A(a?.required === true, 'perf_areas.essay_ratio 필수 아님')
   A(P.includes('서·논술형 반영비율(회차)') && P.includes('필수'), '프롬프트에 필수 표기 없음')
 })
-ck('거부 메시지 형식을 미리 알림', () => A(P.includes('어느 합이 몇 점인지'), '안내 없음'))
-ck('만점 라벨이 N점 형식임을 안내', () => {
-  A(P.includes('선택형 만점(N점)'), 'mc 라벨 미갱신')
-  A(P.includes('영역 만점(N점, 합 100점)'), 'perf points 라벨 미갱신')
+ck('거부 메시지 형식을 미리 알림', () => A(P.includes('어느 합이 몇 점/몇 %인지'), '안내 없음'))
+ck('수집 라벨이 새 규약을 반영', () => {
+  A(P.includes('선택형 만점(N점)'), 'mc 라벨 없음')
+  A(P.includes('영역 만점 (항상 100'), 'perf points 라벨 미갱신')
+  A(P.includes('영역 반영비율(%)'), 'ratio 필드 없음')
+})
+
+console.log('\n[서·논술형 30% — 3분류]')
+ck('의무 교과 6개', () => {
+  for (const s of ['국어', '영어', '수학', '사회', '과학', '역사']) A(P.includes(s), `누락: ${s}`)
+  A(P.includes('30% 이상 의무 교과'), '의무 분류 없음')
+})
+ck('예외 교과 3개', () => {
+  A(P.includes('예외 교과 (30% 규정 미적용)'), '예외 분류 없음')
+  for (const s of ['음악', '미술', '체육']) A(P.includes(s), `누락: ${s}`)
+})
+ck('그 외는 추정 금지 + 교사에게 질문', () => {
+  A(P.includes('예외 여부가 확정되지 않았다'), '미확정 안내 없음')
+  A(P.includes('추정하지 말고 교사에게 직접 묻는다'), '질문 지시 없음')
+  A(!P.includes('TBD — 학업성적관리규정'), '옛 TBD 가 남음')
+})
+ck('분류가 상수에서 파생 (하드코딩 아님)', () => {
+  const c2 = JSON.parse(JSON.stringify(mod.constants))
+  c2.essay_ratio_rule.exempt_subjects = ['테스트교과']
+  c2.essay_ratio_rule.min_percent = 45
+  const p2 = mod.buildScaleDoc(c2)
+  A(p2.includes('테스트교과'), '예외 목록 변경 미반영')
+  A(p2.includes('45%'), '기준 변경 미반영')
 })
 console.log()
 if (fail) { console.log(`${fail}건 실패`); process.exit(1) }

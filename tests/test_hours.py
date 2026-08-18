@@ -19,7 +19,7 @@ def base_plan(**kw):
                          for i,m in enumerate(["8월","9월","10월","11월","12월"])],
          "eval_purpose":["","",""],
          "exam":{"count":0,"ratio":0,"mc_points":0,"essay_points":0,"rounds":[]},
-         "perf_areas":[{"name":"포트폴리오","points":"100점(100%)"}],
+         "perf_areas":[{"name":"포트폴리오","points":100,"ratio":100}],
          "perf_plans":[{"name":"포트폴리오"}]}
     p.update(kw); return p
 

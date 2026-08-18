@@ -14,6 +14,10 @@ import re
 from pathlib import Path
 
 TOKEN_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
+
+# 구조적으로 쓰이지 않는 칸에 찍는 기호 (U+02D9 DOT ABOVE) — 학교 관행 실측.
+# 교사가 아직 안 정해 비워 둔 "공란" 과는 다르다. 공란은 빈 문자열 그대로 둔다.
+UNUSED_MARK = "\u02d9"
 NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
 
@@ -168,20 +172,24 @@ def derive(plan: dict, manifest: dict) -> dict:
     d["exam"] = dict(exam)
     d["exam"]["ratio_display"] = pct(exam_ratio)
 
-    # ── 만점 표기 "N점(M%)" — M = N × 해당 반영비율 ÷ 100 (코드가 계산) ──────
-    # 정기시험: 각 회차가 100점 만점이므로 회차 반영비율 = 전체 ÷ 회차 수
-    round_ratio = (exam_ratio / count) if count else 0.0
+    # ── 만점 표기 "N(M%)" — M = N × 해당 반영비율 ÷ 100 (코드가 계산) ────────
+    # 정기시험 회차: 회차 반영비율이 있으면 그것, 없으면 전체 ÷ 회차 수로 균등 배분
+    even = (exam_ratio / count) if count else 0.0
     rounds = exam.get("rounds") or []
     if isinstance(rounds, list):
         d["exam"]["rounds"] = [
-            {**r, "mc": points_label(r.get("mc"), round_ratio),
-             "essay": points_label(r.get("essay"), round_ratio)}
+            {**r,
+             "mc": points_label(r.get("mc"), first_num(r.get("ratio"), even)),
+             "essay": points_label(r.get("essay"), first_num(r.get("ratio"), even))}
             if isinstance(r, dict) else r
             for r in rounds
         ]
-    # 수행평가: 영역 만점 합이 100점이므로 영역 반영비율 = 수행 전체 반영비율 기준
+    # 수행평가: **각 영역이 100점 만점**이고 가중치는 영역별 반영비율로만 준다.
+    # 영역 비율이 없으면 수행 전체를 영역 수로 균등 배분 (제안값이며 교사가 조정)
+    even_perf = (perf_ratio / len(areas)) if areas else 0.0
     d["perf_areas"] = [
-        {**a, "points": points_label(a.get("points"), perf_ratio)}
+        {**a,
+         "points": points_label(a.get("points") or 100, first_num(a.get("ratio"), even_perf))}
         if isinstance(a, dict) else a
         for a in areas
     ]
@@ -192,7 +200,8 @@ def derive(plan: dict, manifest: dict) -> dict:
         "standards_combined": ", ".join(combined),
     }
     # 합계 칸: 최종 성적 척도는 100점. % 는 정기+수행 반영비율 합(정상이면 100).
-    d["computed"] = {"points_sum": f"100점({fmt_num(exam_ratio + perf_ratio)}%)"}
+    # 표기 관행은 만점 칸과 같은 "N(M%)" 형태다.
+    d["computed"] = {"points_sum": f"100({fmt_num(exam_ratio + perf_ratio)}%)"}
     ess = plan.get("essay_total_ratio")
     d["essay_total_ratio_display"] = pct(ess) if as_text(ess) else ""
     d["_exam_count"] = count
@@ -200,26 +209,39 @@ def derive(plan: dict, manifest: dict) -> dict:
 
 
 def points_label(raw, ratio) -> str:
-    """만점 표기를 "N점(M%)" 로 정규화한다. M = N × ratio ÷ 100.
+    """만점 표기를 학교 관행인 "N(M%)" 로 정규화한다. M = N × ratio ÷ 100.
+
+    실측(2025~2026 원본 3절 표): **각 평가가 각각 100점 만점**이고 가중치는
+    반영비율로만 준다. 수행 영역이면 N=100 이므로 "100(40%)" 가 된다.
+    정기시험 회차의 선택형/서·논술형은 100점 안의 배점이라 "70(21%)" 형태.
 
     AI 가 준 문자열의 괄호 안 숫자는 신뢰하지 않고 다시 계산한다
     (교사가 보는 값과 문서에 들어가는 값이 갈라지지 않게).
-    값이 비어 있으면 빈 문자열 그대로 둔다.
+    반영비율을 모르면 괄호 없이 만점만 적는다 — 0% 같은 거짓 숫자를 넣지 않는다.
     """
     if as_text(raw) == "":
         return ""
     n = first_num(raw, 0)
     if n <= 0:
         return as_text(raw)
-    m = n * first_num(ratio, 0) / 100.0
-    return f"{fmt_num(n)}점({fmt_num(round(m, 1))}%)"
+    r = first_num(ratio, 0)
+    if r <= 0:
+        return fmt_num(n)
+    m = n * r / 100.0
+    return f"{fmt_num(n)}({fmt_num(round(m, 1))}%)"
 
 
 # ---------------------------------------------------------------------------
 # 정합성 검증 — 위반 시 "어느 합이 몇 점인지" 를 문장으로 돌려준다
 # ---------------------------------------------------------------------------
 def check_scales(plan: dict) -> list:
-    """정기시험 각 회차 = 선택형+서논술형 100점, 수행 = 영역 만점 합 100점."""
+    """배점 불변식 (2025~2026 원본 3절 표 실측).
+
+    **각 평가가 각각 100점 만점**이고 가중치는 반영비율로만 준다:
+      · 정기시험 각 회차 — 선택형 + 서·논술형 = 100점
+      · 수행평가 각 영역 — 만점 100점 (영역 합이 아니라 '각각')
+      · 반영비율 합 = 100% (정기 + 수행), 영역별 비율 합 = 수행 전체 비율
+    """
     problems = []
     exam = plan.get("exam") or {}
     count = int(first_num(exam.get("count"), 0))
@@ -238,25 +260,54 @@ def check_scales(plan: dict) -> list:
             label = as_text(r.get("label")) or f"{i + 1}회 정기시험"
             problems.append(
                 f"{label}: 선택형 {fmt_num(mc)}점 + 서·논술형 {fmt_num(essay)}점 "
-                f"= {fmt_num(total)}점 (100점이어야 합니다)"
+                f"= {fmt_num(total)}점 (각 회차는 100점 만점이어야 합니다)"
             )
-
-    areas = plan.get("perf_areas") or []
-    if isinstance(areas, list) and areas:
-        vals = [first_num(a.get("points"), 0) for a in areas if isinstance(a, dict)]
-        if any(v > 0 for v in vals):
-            total = sum(vals)
-            if round(total, 3) != 100:
-                detail = " + ".join(
-                    f"{as_text(a.get('name')) or f'영역{i + 1}'} {fmt_num(first_num(a.get('points'), 0))}점"
-                    for i, a in enumerate(areas) if isinstance(a, dict)
-                )
-                problems.append(
-                    f"수행평가 영역 만점 합: {detail} = {fmt_num(total)}점 (100점이어야 합니다)"
-                )
 
     exam_ratio = 0.0 if count == 0 else first_num(exam.get("ratio"), 0)
     perf_ratio = first_num(plan.get("perf_ratio"), 100.0 - exam_ratio)
+
+    areas = plan.get("perf_areas") or []
+    if isinstance(areas, list) and areas:
+        # 각 영역은 100점 만점 (합이 아니다)
+        for i, a in enumerate(areas):
+            if not isinstance(a, dict):
+                continue
+            if as_text(a.get("points")) == "":
+                continue  # 안 적었으면 100 으로 채워진다
+            n = first_num(a.get("points"), 0)
+            if round(n, 3) != 100:
+                name = as_text(a.get("name")) or f"영역{i + 1}"
+                problems.append(
+                    f"수행평가 '{name}' 만점 {fmt_num(n)}점 — 각 평가는 100점 만점이고 "
+                    f"가중치는 반영비율(%)로만 줍니다"
+                )
+        # 영역별 반영비율 합 = 수행평가 전체 반영비율
+        ratios = [first_num(a.get("ratio"), 0) for a in areas if isinstance(a, dict)]
+        if any(r > 0 for r in ratios):
+            total = sum(ratios)
+            if round(total, 3) != round(perf_ratio, 3):
+                detail = " + ".join(
+                    f"{as_text(a.get('name')) or f'영역{i + 1}'} {fmt_num(first_num(a.get('ratio'), 0))}%"
+                    for i, a in enumerate(areas) if isinstance(a, dict)
+                )
+                problems.append(
+                    f"수행평가 영역 반영비율 합: {detail} = {fmt_num(total)}% "
+                    f"(수행평가 전체 {fmt_num(perf_ratio)}% 와 같아야 합니다)"
+                )
+
+    # 정기시험 회차별 반영비율 합 = 정기시험 전체 반영비율
+    r_ratios = [
+        first_num(rounds[i].get("ratio"), 0)
+        for i in range(min(count, len(rounds))) if isinstance(rounds[i], dict)
+    ]
+    if any(r > 0 for r in r_ratios):
+        total = sum(r_ratios)
+        if round(total, 3) != round(exam_ratio, 3):
+            problems.append(
+                f"정기시험 회차별 반영비율 합: {fmt_num(total)}% "
+                f"(정기시험 전체 {fmt_num(exam_ratio)}% 와 같아야 합니다)"
+            )
+
     if round(exam_ratio + perf_ratio, 3) != 100:
         problems.append(
             f"반영비율 합: 정기시험 {fmt_num(exam_ratio)}% + 수행평가 {fmt_num(perf_ratio)}% "
@@ -396,7 +447,10 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
                     tok_k = tok_g.replace("{k}", str(k))
                     values[tok_k] = as_text(lv.get("points") if tok_k.endswith("_PTS}}") else lv.get("desc"))
 
-    # 4) unused_handling — 미사용 회차/영역은 빈칸
+    # 4) unused_handling — 미사용 회차/영역 칸은 UNUSED_MARK 로 채운다.
+    #    ⚠ "교사가 아직 안 정해서 비운 칸(공란)" 과 다르다.
+    #      여기 있는 것은 **구조적으로 쓰이지 않는 칸**(시험 1회인데 2회차 칸,
+    #      수행 1개인데 2번째 열)이고, 학교 관행상 '˙' 를 찍는다 (실측).
     count = data["_exam_count"]
     blanks = []
     if count <= 1:
@@ -407,7 +461,7 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
     if len(areas) < 2:
         blanks += ["P2_NAME", "P2_POINTS", "P2_PERIOD"]
     for name in blanks:
-        values["{{" + name + "}}"] = ""
+        values["{{" + name + "}}"] = UNUSED_MARK
 
     return values, data
 

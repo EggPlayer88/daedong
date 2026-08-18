@@ -41,8 +41,9 @@ PLAN2 = {  # 2학년 · 시험 2회 · 수행 2개
         {"label": "2회고사", "period": "12.1.~12.3.", "standards": "[9과02-01]~[9과02-04]", "mc": "70점", "essay": "30점", "essay_ratio": "9%"},
     ]},
     "perf_areas": [
-        {"name": "실험 보고서", "points": "60", "essay_ratio": "10", "standards": "[9과01-02]", "period": "10월"},
-        {"name": "탐구 발표", "points": "40", "essay_ratio": "5", "standards": "[9과02-01]", "period": "11월"},
+        # 실측 규약: 각 영역이 100점 만점, 가중치는 반영비율(ratio)로만
+        {"name": "실험 보고서", "points": 100, "ratio": 25, "essay_ratio": "10", "standards": "[9과01-02]", "period": "10월"},
+        {"name": "탐구 발표", "points": 100, "ratio": 15, "essay_ratio": "5", "standards": "[9과02-01]", "period": "11월"},
     ],
     "essay_total_ratio": 33,
     "achievement_levels": {"A": "체계적으로 설계한다.", "B": "대체로 설계한다.", "C": "부분적으로 설계한다.", "D": "도움이 필요하다.", "E": ""},
@@ -98,10 +99,12 @@ check("composition: EXAM_INTRO / EXAM_RATIO_SENT", t_exam_intro)
 def t_computed():
     b = R["body"]
     assert "60%" in b and "40%" in b, "정기/수행 반영비율 표기 누락"
-    assert "100점(100%)" in b, "POINTS_SUM 계산 오류"
+    assert "100(100%)" in b, "POINTS_SUM 계산 오류"
     # 만점 표기 N점(M%) — 서버가 계산 (회차 30%, 수행 40% 기준)
-    assert "70점(21%)" in b and "30점(9%)" in b, "회차 만점 표기 오류"
-    assert "60점(24%)" in b and "40점(16%)" in b, "수행 만점 표기 오류"
+    # 표기 관행 "만점(반영비율%)" — 회차 반영비율 30%, 수행 영역 25%/15%
+    assert "70(21%)" in b and "30(9%)" in b, "회차 만점 표기 오류"
+    assert "100(25%)" in b and "100(15%)" in b, "수행 만점 표기 오류"
+    assert "점(" not in b, "옛 'N점(M%)' 표기가 남음"
     assert "33%" in b, "서·논술 합계 누락"
     assert "15%" in b, "수행 서논술 합계(10+5) 오류"
 check("computed: 반영비율·합계·서논술", t_computed)
@@ -126,7 +129,7 @@ print("\n[2] 시험 1회 · 수행 1개 (블록 삭제 + 빈칸 처리)")
 PLAN1 = json.loads(json.dumps(PLAN2))
 PLAN1["exam"] = {"count": 1, "ratio": 40, "mc_points": 60, "essay_points": 40,
                  "rounds": [{"label": "정기고사", "period": "11.2.~11.5.", "standards": "[9과01-01]", "mc": "60점", "essay": "40점", "essay_ratio": "16%"}]}
-PLAN1["perf_areas"] = [dict(PLAN2["perf_areas"][0], points="100")]
+PLAN1["perf_areas"] = [dict(PLAN2["perf_areas"][0], points=100, ratio=60)]
 PLAN1["perf_plans"] = PLAN2["perf_plans"][:1]
 R1 = {}
 check("생성 성공", lambda: R1.update(zip(("fn", "b64", "_n"), gen.generate({"fields": PLAN1}))) or R1.update(body=body_of(R1["b64"])))
@@ -146,13 +149,13 @@ def t_blank():
 check("EX2_*/P2_* 빈칸 처리", t_blank)
 check("EXAM_INTRO(1회) 문구", lambda: (_ for _ in ()).throw(AssertionError("1회 문구 아님"))
       if FINAL["composition_rules"]["EXAM_INTRO"]["1"] not in R1["body"] else None)
-check("합계 칸은 100점(100%)", lambda: (_ for _ in ()).throw(AssertionError("합계 오류"))
-      if "100점(100%)" not in R1["body"] else None)
+check("합계 칸은 100(100%)", lambda: (_ for _ in ()).throw(AssertionError("합계 오류"))
+      if "100(100%)" not in R1["body"] else None)
 
 print("\n[3] 시험 0회 (자유학기)")
 PLAN0 = json.loads(json.dumps(PLAN1))
 PLAN0["exam"] = {"count": 0, "ratio": 0, "mc_points": 0, "essay_points": 0, "rounds": []}
-PLAN0["perf_areas"] = [{"name": "포트폴리오", "points": "100점(100%)", "essay_ratio": "30", "standards": "[9과01-01]", "period": "12월"}]
+PLAN0["perf_areas"] = [{"name": "포트폴리오", "points": 100, "ratio": 100, "essay_ratio": "30", "standards": "[9과01-01]", "period": "12월"}]
 R0 = {}
 check("생성 성공", lambda: R0.update(zip(("fn", "b64", "_n"), gen.generate({"fields": PLAN0}))) or R0.update(body=body_of(R0["b64"])))
 check("잔여 '{{' 0", lambda: (_ for _ in ()).throw(AssertionError("토큰 잔존")) if "{{" in R0["body"] else None)
@@ -168,7 +171,7 @@ print("\n[4] 한도 검증 (양식은 수행 2개까지)")
 def t_over():
     """한도 초과는 거부가 아니라 수용분 생성 + 안내 (제0원칙)."""
     p = json.loads(json.dumps(PLAN2))
-    p["perf_areas"] = [{"name": f"영역{i}", "points": "25", "essay_ratio": "5"} for i in range(1, 5)]
+    p["perf_areas"] = [{"name": f"영역{i}", "points": 100, "ratio": 10, "essay_ratio": "5"} for i in range(1, 5)]
     p["perf_plans"] = [{"name": f"영역{i}"} for i in range(1, 5)]
     fn, b64, notices = gen.generate({"fields": p})
     assert notices, "안내가 없음"
@@ -188,7 +191,7 @@ print("\n[5] 빈칸 허용 (공란은 실패가 아니다)")
 def t_sparse():
     p = {"year": 2026, "semester": 2, "grade": 1, "subject": "미술",
          "exam": {"count": 0, "rounds": []},
-         "perf_areas": [{"name": "포트폴리오", "points": "100점(100%)"}],
+         "perf_areas": [{"name": "포트폴리오", "points": 100, "ratio": 100}],
          "perf_plans": [{"name": "포트폴리오"}]}
     fn, b64, _ = gen.generate({"fields": p})
     b = body_of(b64)
