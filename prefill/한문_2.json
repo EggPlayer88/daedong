@@ -50,7 +50,11 @@
      "20점(8%)"
     ],
     "essay_ratio": "-",
-    "period_last_year": "12월"
+    "period_last_year": "12월",
+    "essay_ratio_cells": [
+     "-",
+     "8%"
+    ]
    }
   ],
   "ratio": "40%"
@@ -164,5 +168,26 @@
  ],
  "achievement_levels": {
   "_note": "2022 DB levels 재료로 생성 (검토 필수)"
- }
+ },
+ "standards_2022": {
+  "status": "DB_2015만",
+  "note": "한문 등 — 2022 자료 미확보. 코드 공란, 교사 제공 필요"
+ },
+ "essay_detail": {
+  "exam_cells": [
+   "-",
+   "8%"
+  ],
+  "perf_cells": [
+   "30%",
+   "-"
+  ],
+  "total_cell_last_year": null,
+  "computed_sum": 38.0,
+  "_note": "V04 분모 = 학기말 총 배점 100 기준. computed_sum 이 작년 실제 합"
+ },
+ "perf_essay_ratio_cells": [
+  "30%",
+  "-"
+ ]
 }

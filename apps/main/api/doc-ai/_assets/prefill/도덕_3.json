@@ -60,7 +60,11 @@
      "30(12%)"
     ],
     "essay_ratio": "",
-    "period_last_year": "10월"
+    "period_last_year": "10월",
+    "essay_ratio_cells": [
+     "0%",
+     "12%"
+    ]
    }
   ],
   "ratio": "40%"
@@ -175,5 +179,22 @@
  ],
  "achievement_levels": {
   "_note": "소스 없음 — 대화에서 확인/AI 초안(검토 필수)"
- }
+ },
+ "essay_detail": {
+  "exam_cells": [
+   "0%",
+   "12%"
+  ],
+  "perf_cells": [
+   "0%",
+   "30%"
+  ],
+  "total_cell_last_year": "42%",
+  "computed_sum": 42.0,
+  "_note": "V04 분모 = 학기말 총 배점 100 기준. computed_sum 이 작년 실제 합"
+ },
+ "perf_essay_ratio_cells": [
+  "0%",
+  "30%"
+ ]
 }

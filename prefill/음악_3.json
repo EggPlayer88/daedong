@@ -183,5 +183,26 @@
  ],
  "achievement_levels": {
   "_note": "소스 없음 — 대화에서 확인/AI 초안(검토 필수)"
- }
+ },
+ "essay_detail": {
+  "exam_cells": [
+   "˙",
+   "˙",
+   "˙",
+   "˙"
+  ],
+  "perf_cells": [
+   "˙",
+   "˙",
+   "˙"
+  ],
+  "total_cell_last_year": "˙",
+  "computed_sum": 0,
+  "_note": "V04 분모 = 학기말 총 배점 100 기준. computed_sum 이 작년 실제 합"
+ },
+ "perf_essay_ratio_cells": [
+  "˙",
+  "˙",
+  "˙"
+ ]
 }
