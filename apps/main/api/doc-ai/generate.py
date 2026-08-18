@@ -357,6 +357,8 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
 
     # 횟수 세트는 규정이 아니라 학교 관행이라 막지 않고 안내만 한다
     count_notes = _v2fill.check_perf_count(plan, (load_constants().get("perf_count_rule")))
+    # 3분류 중 현행 양식에 칸이 없는 것(단답형·완성형)이 있으면 숨기지 않고 알린다
+    count_notes += _v2fill.check_exam_categories(plan, manifest)
 
     if check_only:
         # 문서를 만들지 않고 판정만 돌려준다 (확인 카드용)

@@ -20,6 +20,11 @@ TOKEN_RE = re.compile(r"\{\{([A-Z0-9_]+)\}\}")
 UNUSED_MARK = "\u02d9"
 NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
+# 정기시험 평가방법 3분류 (2026 학교 확정). 회차 100점 = mc + short + essay.
+# ⚠ 서·논술형 30% 산입은 essay 만이다 — short(단답형·완성형)는 주관식이지만 제외된다.
+EXAM_METHOD_KEYS = ("mc", "short", "essay")
+EXAM_METHOD_LABELS = {"mc": "선택형", "short": "단답형·완성형", "essay": "서·논술형"}
+
 
 # ---------------------------------------------------------------------------
 # 값 조회 — "monthly_plan[0].hours_cum" 같은 경로를 plan JSON 에서 읽는다
@@ -217,9 +222,10 @@ def derive(plan: dict, manifest: dict) -> dict:
     rounds = exam.get("rounds") or []
     if isinstance(rounds, list):
         d["exam"]["rounds"] = [
-            {**r,
-             "mc": points_label(r.get("mc"), first_num(r.get("ratio"), even)),
-             "essay": points_label(r.get("essay"), first_num(r.get("ratio"), even))}
+            {**r, **{
+                k: points_label(r.get(k), first_num(r.get("ratio"), even))
+                for k in EXAM_METHOD_KEYS
+            }}
             if isinstance(r, dict) else r
             for r in rounds
         ]
@@ -290,16 +296,15 @@ def check_scales(plan: dict) -> list:
 
     for i in range(min(count, len(rounds))):
         r = rounds[i] if isinstance(rounds[i], dict) else {}
-        mc = first_num(r.get("mc"), 0)
-        essay = first_num(r.get("essay"), 0)
-        if as_text(r.get("mc")) == "" and as_text(r.get("essay")) == "":
+        if all(as_text(r.get(k)) == "" for k in EXAM_METHOD_KEYS):
             continue  # 아직 안 정한 회차는 통과 (공란 허용)
-        total = mc + essay
+        parts = [(EXAM_METHOD_LABELS[k], first_num(r.get(k), 0)) for k in EXAM_METHOD_KEYS]
+        total = sum(v for _n, v in parts)
         if round(total, 3) != 100:
             label = as_text(r.get("label")) or f"{i + 1}회 정기시험"
+            detail = " + ".join(f"{n} {fmt_num(v)}점" for n, v in parts)
             problems.append(
-                f"{label}: 선택형 {fmt_num(mc)}점 + 서·논술형 {fmt_num(essay)}점 "
-                f"= {fmt_num(total)}점 (각 회차는 100점 만점이어야 합니다)"
+                f"{label}: {detail} = {fmt_num(total)}점 (각 회차는 100점 만점이어야 합니다)"
             )
 
     exam_ratio = 0.0 if count == 0 else first_num(exam.get("ratio"), 0)
@@ -353,6 +358,57 @@ def check_scales(plan: dict) -> list:
             f"= {fmt_num(exam_ratio + perf_ratio)}% (100%여야 합니다)"
         )
     return problems
+
+
+# ---------------------------------------------------------------------------
+# 평가방법 3분류 ↔ 현행 양식의 칸 (과도기)
+# ---------------------------------------------------------------------------
+def check_exam_categories(plan: dict, manifest: dict) -> list:
+    """양식에 칸이 없는 분류에 배점이 들어오면 알린다.
+
+    3분류는 확정됐지만 현행 template.hwpx 의 정기시험 표는 2분류(선택형·서·논술형)
+    뿐이다. 단답형·완성형 배점은 갈 자리가 없다.
+
+    **합치지 않는다.** 선택형에 몰래 더하면 교사가 본 값과 문서 값이 갈라진다.
+    빠졌다는 사실을 알리고 어떻게 할지는 교사가 정한다 (제0원칙).
+    새 마스터 양식이 배치되면 manifest.exam.template_categories 가 3개가 되어
+    이 안내는 저절로 사라진다.
+    """
+    spec = (manifest or {}).get("exam") or {}
+    cats = spec.get("method_categories")
+    have = spec.get("template_categories")
+    if not isinstance(cats, list) or not isinstance(have, list):
+        return []
+    missing = [c for c in cats if isinstance(c, dict) and c.get("key") not in have]
+    if not missing:
+        return []
+
+    exam = plan.get("exam")
+    exam = exam if isinstance(exam, dict) else {}
+    count = int(first_num(exam.get("count"), 0))
+    rounds = exam.get("rounds") if isinstance(exam.get("rounds"), list) else []
+
+    notices = []
+    for i, r in enumerate(rounds[:count]):
+        if not isinstance(r, dict):
+            continue
+        for c in missing:
+            v = first_num(r.get(c["key"]), 0)
+            if v <= 0:
+                continue
+            label = as_text(r.get("label")) or f"{i + 1}회 정기시험"
+            names = " · ".join(
+                as_text(x.get("short_label") or x.get("label"))
+                for x in cats if x.get("key") in have
+            )
+            notices.append(
+                f"{label}의 {as_text(c.get('short_label') or c.get('label'))} "
+                f"{fmt_num(v)}점은 문서에 들어가지 않았습니다. "
+                f"현행 양식의 정기시험 표에는 {names} 칸만 있습니다. "
+                f"새 양식이 배포되기 전까지는 한글에서 직접 편집해 추가해 주세요 "
+                f"(선택형 칸에 합산해 적을지는 교사가 정합니다 — 서버가 임의로 합치지 않습니다)."
+            )
+    return notices
 
 
 # ---------------------------------------------------------------------------

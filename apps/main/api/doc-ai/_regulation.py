@@ -17,7 +17,7 @@ severity:
 """
 import re
 
-from _v2fill import as_text, first_num, fmt_num
+from _v2fill import EXAM_METHOD_KEYS, as_text, first_num, fmt_num
 
 
 def _find(reg: dict, code: str, message: str, **extra) -> dict:
@@ -102,6 +102,8 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
 
     # 서·논술형 환산 합계 — 분모는 **학기말 총 배점**(지필 환산 + 수행 환산 = 100).
     # 정기시험 내 30% 가 아니다 (문서 7-4). AI 가 준 essay_total_ratio 를 믿지 않고 재계산한다.
+    # ⚠ 정기시험 3분류 중 **essay(서·논술형)만** 산입한다. short(단답형·완성형)는
+    #    주관식이지만 규정이 말하는 서·논술형이 아니다 (2026 학교 확정).
     essay_from_exam = sum(first_num(r.get("essay_ratio"), 0) for r in rounds)
     essay_from_perf = sum(first_num(a.get("essay_ratio"), 0) for a in areas)
     essay_total = essay_from_exam + essay_from_perf
@@ -154,7 +156,7 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
 
     # ── V05: 정기시험 매 회차에 서·논술형 포함 ──────────────────────────────
     for i, r in enumerate(rounds):
-        if as_text(r.get("essay")) == "" and as_text(r.get("mc")) == "":
+        if all(as_text(r.get(k)) == "" for k in EXAM_METHOD_KEYS):
             continue  # 아직 안 정한 회차
         if first_num(r.get("essay"), 0) <= 0:
             label = as_text(r.get("label")) or f"{i + 1}회 정기시험"
@@ -208,9 +210,9 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
     # ── V13: 지필 만점 100점 ───────────────────────────────────────────────
     full = th.get("written_full_marks", 100)
     for i, r in enumerate(rounds):
-        if as_text(r.get("mc")) == "" and as_text(r.get("essay")) == "":
+        if all(as_text(r.get(k)) == "" for k in EXAM_METHOD_KEYS):
             continue
-        total = first_num(r.get("mc"), 0) + first_num(r.get("essay"), 0)
+        total = sum(first_num(r.get(k), 0) for k in EXAM_METHOD_KEYS)
         if round(total, 3) != full:
             label = as_text(r.get("label")) or f"{i + 1}회 정기시험"
             findings.append(_find(reg, "V13",
@@ -221,7 +223,7 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
     bad = []
     for i, r in enumerate(rounds):
         rr = first_num(r.get("ratio"), exam_ratio / count if count else 0)
-        for key in ("mc", "essay"):
+        for key in EXAM_METHOD_KEYS:
             v = first_num(r.get(key), 0) * rr / 100.0
             if v and _decimals(v) > maxdec:
                 bad.append(f"{as_text(r.get('label')) or f'{i + 1}회'} {key}")
