@@ -39,6 +39,7 @@ tests/.venv/bin/pip install lxml
 | `test_marker.mjs` | `===PLAN_READY===` 파서 (코드펜스·END 누락·깨진 JSON) |
 | `test_gate.mjs` | D20 승인 게이트 (chat) — **미승인이면 Claude API 를 호출하지 않는지** |
 | `test_variant.py` | 템플릿 패밀리 — 교과·학년 → variant 결정 순서, 유형별 한도, 미배치 유형 안내 |
+| `test_exam_methods.py` | 정기시험 3분류 — 회차 100점 = 선택형+단답형·완성형+서·논술형, **30% 산입은 서·논술형만**, 현행 양식에 칸 없는 배점의 누락 안내 |
 | `test_count_set.py` | 횟수 세트(시험 0→수행 3 / 1→2 / 2→1~2) — 세트 밖은 **막지 않고 안내**, 작년과 달라진 조합의 전환 안내, 양식 v2 목표치가 현재 한도로 새지 않는지 |
 | `test_regulation.py` | 학업성적관리규정 V01~V18 — 규칙별 위반/통과 한 쌍, 유형 A~D 판정, ERROR 는 생성 차단, WARN·FLAG 는 통과 후 안내, `check_only` 응답 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
