@@ -26,7 +26,7 @@ tests/.venv/bin/pip install lxml
 
 | 파일 | 지키는 것 |
 |---|---|
-| `test_v3.py` | 실제 `template-master.hwpx` 로 hwpx 생성 전 구간. 시험 2/1/0회, 수행 3/2/1개, PP3·PP2 블록 삭제, 잔여 `{{` 0, **토큰 169종 전수 대조**, 계약 섹션이 v3 FINAL 원문과 동일, template-master.hwpx sha256 불변, 수행 성취기준 고정 문구 |
+| `test_v3.py` | 실제 `template-master.hwpx`·`template-arts.hwpx` 로 hwpx 생성 전 구간. RATIO_BASIS 조립(시험 유무), 예체능판 3수준(D·E 는 버리고 V18 로 알림). 시험 2/1/0회, 수행 3/2/1개, PP3·PP2 블록 삭제, 잔여 `{{` 0, **토큰 169종 전수 대조**, 계약 섹션이 v3 FINAL 원문과 동일, template-master.hwpx sha256 불변, 수행 성취기준 고정 문구 |
 | `test_scales.py` | 배점 정합성 — 회차 100점 / 수행 합 100점 / 반영비율 100%, 만점 표기 `N점(M%)` 서버 계산, 한도 초과 시 거부 대신 안내 |
 | `test_hours.py` | 시수/누계 고정표 주입, `hours_manual` 보존, 범위 밖 처리, 표 자체 무결성(누계 단조·합계·ok) |
 | `test_extract.py` | 참고자료 hwpx 추출, 표→마크다운, 길이 상한, 거부 5종 |

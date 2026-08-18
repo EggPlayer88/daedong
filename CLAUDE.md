@@ -32,9 +32,9 @@
   | 대상 | 이유 |
   |---|---|
   | `migrations/*.sql` | 실행 기록과 짝이라 사후 수정이 이력을 거짓으로 만든다 |
-  | `apps/main/api/doc-ai/_assets/template-master.hwpx` | 토큰 169개 검증본 (v3 마스터, 전 유형 공용). 재토큰화는 Claude Web. 구버전은 `archive/doc-ai-v2/` 에 보존 |
+  | `_assets/template-master.hwpx` · `_assets/template-arts.hwpx` | v3.1 검증본. 마스터 170토큰(5수준) / 예체능판 168토큰(3수준, LV_D·E 없음). 재토큰화는 Claude Web. 구버전은 `archive/doc-ai-v2/` 에 보존 |
   | `apps/main/api/_hwpx/` | 실전 검증된 hwpx 엔진. import 만 하고 고치지 않는다 |
-  | manifest 의 계약 섹션 | `direct_tokens` / `pattern_tokens` / `composition_rules` / `unused_handling` / `limits` / `fixed_texts` / `final_check` — `doc-ai-template-v3/template-manifest.v3.final.json` 원문과 동일해야 하며 테스트로 고정돼 있다. 코드가 쓰는 `token_paths` 는 이 계약을 펼친 것이라 토큰 전수 대조로 묶여 있다 |
+  | manifest 의 계약 섹션 | `direct_tokens` / `pattern_tokens` / `composition_rules` / `unused_handling` / `limits` / `fixed_texts` / `final_check` / `collection_guides` / `variants` — `doc-ai-template-v3/template-manifest.v3.final.json` 원문과 동일해야 하며 테스트로 고정돼 있다. 코드가 쓰는 `token_paths` · `collection_guides_fields` · `variant_routing` 은 이 계약을 기계가 읽게 펼친 것이라 대조 테스트로 묶여 있다 |
   | `_assets/regulation-2026.json` 의 `thresholds` · `rules` · `article` | 학업성적관리규정 조문에서 온 수치다. 코드 편의로 바꾸면 학교 규정과 어긋난다. 조문 개정 시에만, 계란님 확인 후 |
 - **인증·보안 로직 변경** (승인 게이트, RLS 전제, 토큰 검증 경로)
 - **API 키·비용 구조에 영향 주는 것** (모델 교체, max_tokens·상한, 캐싱 전략)
@@ -97,7 +97,7 @@
 apps/main/
   src/pages, src/components, src/lib   ← 화면
   api/doc-ai/  chat.js generate.py extract.py _fill.py _regulation.py
-  api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·template-master.hwpx
+  api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·template-{master,arts}.hwpx
   api/_hwpx/                           ← hwpx 엔진 (수정 금지)
 packages/shared/                       ← supabase·auth·permissions (DB 단일 접근점)
 migrations/                            ← 001~ SQL + README(실행 기록)
