@@ -1,15 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../lib/AuthContext.jsx'
 import { splitPlan } from '../lib/planMarker.js'
 import PlanCard from '../components/PlanCard.jsx'
+import ConversationList from '../components/ConversationList.jsx'
+import { REF_PREFIX, buildTitle, deriveMeta } from '../lib/docAiMeta.js'
+import {
+  deleteConversation,
+  listConversations,
+  loadConversation,
+  markCompleted,
+  newConversationId,
+  saveConversation,
+} from '../lib/docAiStore.js'
 // 필드 라벨의 진실의 원천은 manifest 하나 (P5). 서버(chat/generate)와 같은 파일을 읽는다.
 import manifest from '../../api/doc-ai/_assets/template-manifest.json'
 
 // 대화 시작용 첫 사용자 메시지 (API 는 첫 메시지가 user 여야 한다)
 const OPENING = '평가계획서 작성을 시작하려고 합니다.'
-
-// 참고자료 삽입 형식 — prompt-rules.v2.md 2단계가 이 블록을 인식한다
-const REF_PREFIX = '[참고자료: '
 
 /** 서버 게이트(D20) 응답이면 안내 문구를 돌려준다 */
 function pendingMessage(status, data) {
@@ -35,6 +42,59 @@ export default function DocAiPage() {
   const bottomRef = useRef(null)
   const started = useRef(false)
   const fileRef = useRef(null)
+
+  // 대화 저장 (004). 저장은 보조 기능이라 실패해도 대화를 막지 않는다.
+  const [convId, setConvId] = useState(newConversationId)
+  const [convs, setConvs] = useState([])
+  const [convError, setConvError] = useState(null)
+  // 확정 plan 은 제목·교과·학년의 우선 출처다. 저장 시점의 최신값이 필요해 ref 로도 든다
+  const planRef = useRef(null)
+  const userId = session?.user?.id
+
+  const refreshConvs = useCallback(async () => {
+    if (!userId) return
+    const { rows, error } = await listConversations()
+    if (error) setConvError(error.message)
+    else {
+      setConvs(rows)
+      setConvError(null)
+    }
+  }, [userId])
+
+  useEffect(() => {
+    refreshConvs()
+  }, [refreshConvs])
+
+  /**
+   * 매 교환 후 자동 저장. 제목·교과·학년은 대화에서 뽑되 확정 plan 이 있으면 그쪽이 이긴다.
+   * ⚠ 실패해도 조용히 넘긴다 — 저장 오류 배너가 작성 흐름을 끊는 것이 더 나쁘다.
+   *   대신 목록 갱신이 안 되므로 교사가 눈으로 알 수 있다.
+   */
+  const persist = useCallback(
+    async (history, { status } = {}) => {
+      if (!userId || !Array.isArray(history) || history.length === 0) return
+      // 인사만 오간 대화는 저장하지 않는다 — /doc-ai 를 열 때마다 빈 행이 쌓인다
+      const said = history.some((m) => m.role === 'user' && m.content !== OPENING)
+      if (!said) return
+      const meta = deriveMeta(history, planRef.current)
+      const { error } = await saveConversation({
+        id: convId,
+        userId,
+        messages: history,
+        subject: meta.subject,
+        grade: meta.grade,
+        title: buildTitle(meta),
+        status,
+      })
+      if (error) {
+        setConvError(error.message)
+        return
+      }
+      setConvError(null)
+      refreshConvs()
+    },
+    [convId, userId, refreshConvs]
+  )
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -83,6 +143,7 @@ export default function DocAiPage() {
       const { text: visible, json, broken } = splitPlan(reply)
 
       if (json) {
+        planRef.current = json
         setPlan(json)
         checkRegulation(json)
       } else if (broken && retry < 1) {
@@ -104,11 +165,75 @@ export default function DocAiPage() {
       } else if (!visible) {
         setError('응답이 비어 있습니다. 다시 시도해 주세요.')
       }
+
+      persist(withReply)
     } catch (e) {
       setError(e.message) // 보낸 메시지는 남겨두어 그대로 재시도할 수 있게 한다
     } finally {
       setBusy(false)
     }
+  }
+
+  /** 화면을 비운다 (새 대화·다른 대화 열기 공통) */
+  function resetView() {
+    setPlan(null)
+    planRef.current = null
+    setNotice(null)
+    setNotices([])
+    setFindings([])
+    setPlanNotices([])
+    setError(null)
+    setInput('')
+  }
+
+  function startNew() {
+    if (busy) return
+    resetView()
+    setConvId(newConversationId())
+    setMessages([])
+    started.current = true
+    sendHistory([{ role: 'user', content: OPENING }])
+  }
+
+  /** 저장된 대화를 그대로 되살린다. 서버를 다시 부르지 않는다 — 마지막 답변이 이미 있다 */
+  async function openConversation(id) {
+    if (busy || id === convId) return
+    setBusy(true)
+    resetView()
+    try {
+      const { row, error: e } = await loadConversation(id)
+      if (e || !row) throw new Error(e?.message || '대화를 찾지 못했습니다.')
+      const history = Array.isArray(row.messages) ? row.messages : []
+      setConvId(row.id)
+      setMessages(history)
+      started.current = true
+      // 마지막 assistant 응답에 확정 JSON 이 있으면 확인 카드도 되살린다
+      const last = [...history].reverse().find((m) => m.role === 'assistant')
+      const json = last ? splitPlan(last.content).json : null
+      if (json) {
+        planRef.current = json
+        setPlan(json)
+        checkRegulation(json)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function removeConversation(c) {
+    if (busy) return
+    const label = c.title || '이 대화'
+    // 되돌릴 수 없는 삭제라 한 번 묻는다
+    if (!window.confirm(`'${label}' 을(를) 삭제할까요? 되돌릴 수 없습니다.`)) return
+    const { error: e } = await deleteConversation(c.id)
+    if (e) {
+      setConvError(e.message)
+      return
+    }
+    if (c.id === convId) startNew()
+    else refreshConvs()
   }
 
   function onSubmit(e) {
@@ -204,6 +329,8 @@ export default function DocAiPage() {
       a.remove()
       URL.revokeObjectURL(url)
       setNotice(`다운로드했습니다: ${data.filename}`)
+      // 목록에서 "생성 완료" 로 구분되게 표시 (대화는 그대로 남아 다시 열 수 있다)
+      markCompleted(convId).then(refreshConvs)
       // 양식에 담기지 못한 것이 있으면 숨기지 않고 그대로 알린다 (제0원칙)
       setNotices(Array.isArray(data.notices) ? data.notices : [])
     } catch (e) {
@@ -270,9 +397,21 @@ export default function DocAiPage() {
       <h2>문서 작성 AI — {manifest.doc_title}</h2>
       <p className="muted small">
         대화로 내용을 확정하면 통일된 양식의 한글 파일(.hwpx)을 만들어 드립니다.
-        대화는 저장되지 않습니다 — 새로고침하면 처음부터 시작합니다.
+        대화는 자동 저장되며 <b>본인만</b> 볼 수 있습니다 — 나중에 이어서 작성할 수 있습니다.
       </p>
 
+      <div className="docai-body">
+      <ConversationList
+        rows={convs}
+        currentId={convId}
+        busy={busy}
+        error={convError}
+        onOpen={openConversation}
+        onNew={startNew}
+        onDelete={removeConversation}
+      />
+
+      <div className="docai-main">
       <div className="chat">
         {visible.map((m, i) => {
           if (!m.content) return null
@@ -356,6 +495,8 @@ export default function DocAiPage() {
           전송
         </button>
       </form>
+      </div>
+      </div>
     </div>
   )
 }
