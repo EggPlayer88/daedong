@@ -686,6 +686,17 @@ function buildLimitDoc(m = manifest) {
  * 학업성적관리규정 한계선 — 대화 중에 미리 맞추게 한다.
  * 판정은 서버 검증기(V01~V18)가 하지만, 생성 단계에서 막히기 전에 대화에서 잡는 편이 낫다.
  */
+/** 표기 변형('진로와 직업'/'진로와직업')은 안내에서 하나로 묶는다 — 대조는 둘 다 쓴다 */
+function dedupeNames(names) {
+  const seen = new Set()
+  return (names || []).filter((n) => {
+    const key = String(n).replace(/[\s·・･ㆍ]/g, '')
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 function buildRegulationDoc(reg = regulation) {
   if (!reg) return ''
   const th = reg.thresholds || {}
@@ -710,8 +721,8 @@ function buildRegulationDoc(reg = regulation) {
   L.push(
     '- 유형 B·C 는 **"할 수 있다"** 는 임의규정이다. 자격이 있어도 A 형을 택할 수 있으므로',
     '  **유형을 단정해 밀어붙이지 않는다.** 교과·학년으로 가능한 유형을 제시하고 교사가 고르게 한다.',
-    `- 지필 1회(B) 가능: ${(el.type_b_subjects || []).slice(0, 3).join(' · ')} 또는 3학년 2학기 편성 교과`,
-    `- 수행 100%(C) 가능: ${(el.type_c_subjects || []).join(' · ')}, 주당 1시수 과목`,
+    `- 지필 1회(B) 가능: ${dedupeNames(el.type_b_subjects).slice(0, 3).join(' · ')} 또는 3학년 2학기 편성 교과`,
+    `- 수행 100%(C) 가능: ${dedupeNames(el.type_c_subjects).join(' · ')}, 주당 1시수 과목`,
     ''
   )
 

@@ -44,6 +44,21 @@ def _find(reg: dict, code: str, message: str, **extra) -> dict:
     return out
 
 
+def _display(names) -> str:
+    """안내 문구에 쓸 교과 목록. 표기 변형('진로와 직업'/'진로와직업')은 하나로 묶는다.
+
+    목록은 자산(regulation-2026.json)이 진실이다 — 메시지에 교과명을 적어 두면
+    조문이 개정될 때 자산만 고쳐지고 문구는 옛말을 하게 된다.
+    """
+    seen, out = set(), []
+    for n in names or []:
+        key = re.sub(r"\s", "", as_text(n))
+        if key and key not in seen:
+            seen.add(key)
+            out.append(as_text(n))
+    return "·".join(out)
+
+
 def _has(subject: str, names) -> bool:
     """교과명 부분 일치 ('기술·가정' 과 '기술가정' 을 모두 잡기 위해)."""
     s = as_text(subject)
@@ -191,7 +206,9 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
         if not eligible:
             findings.append(_find(reg, "V07",
                 f"{subject or '이 교과'}는 정기시험 1회 실시 대상이 아닙니다. "
-                f"규정이 정한 대상은 도덕·기술가정, 3학년 2학기 편성 교과, 수행 100% 가능 교과입니다."))
+                f"규정이 정한 대상은 {_display(el.get('type_b_subjects'))}, "
+                f"{el.get('type_b_always_allowed_when', '3학년 2학기 편성 교과')}, "
+                f"그리고 수행 100% 가능 교과입니다."))
 
     # ── V08: 수행 100% 선택 자격 ───────────────────────────────────────────
     if count == 0:
@@ -199,7 +216,8 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
         if not eligible:
             findings.append(_find(reg, "V08",
                 f"{subject or '이 교과'}는 수행평가 100% 대상이 아닙니다. "
-                f"규정이 정한 대상은 정보·선택교과·체육·음악·미술·학교자율시간 과목과 주당 1시수 과목입니다."))
+                f"규정이 정한 대상은 {_display(el.get('type_c_subjects'))} 과목과 "
+                f"주당 1시수 과목입니다."))
 
     # ── V09: 심의 대상 표식 — 기본 비활성 (자산의 severity 가 DISABLED) ─────
     #    횟수 선택은 교과 교사 재량이고 최종 검토는 관리자 단계에서 한다.

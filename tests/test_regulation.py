@@ -147,14 +147,39 @@ def t_v08():
                        {"name": "포트폴리오", "points": 100, "ratio": 30, "essay_ratio": 0}]
     f = sev(p, "V08"); assert f and f["severity"] == "ERROR", f
 check("V08 수학 수행 100% → ERROR (자격 없음)", t_v08)
+def perf100(subj):
+    p = P(subject=subj); p["exam"] = {"count": 0, "ratio": 0, "rounds": []}
+    p["perf_areas"] = [{"name": "실기 수행", "points": 100, "ratio": 40, "essay_ratio": 0},
+                       {"name": "활동 관찰 기록", "points": 100, "ratio": 30, "essay_ratio": 0},
+                       {"name": "포트폴리오", "points": 100, "ratio": 30, "essay_ratio": 0}]
+    return p
+
 def t_v08_ok():
-    for subj in ("정보", "체육", "음악", "미술", "한문"):
-        p = P(subject=subj); p["exam"] = {"count": 0, "ratio": 0, "rounds": []}
-        p["perf_areas"] = [{"name": "실기 수행", "points": 100, "ratio": 40, "essay_ratio": 0},
-                           {"name": "활동 관찰 기록", "points": 100, "ratio": 30, "essay_ratio": 0},
-                           {"name": "포트폴리오", "points": 100, "ratio": 30, "essay_ratio": 0}]
-        assert "V08" not in codes(p), f"{subj} 가 자격 없음으로 잡힘"
-check("V08 정보·체육·음악·미술·한문은 허용", t_v08_ok)
+    """자격 목록은 자산이 정한다 — 목록 전체를 돌려 확인한다."""
+    for subj in REG["eligibility"]["type_c_subjects"]:
+        assert "V08" not in codes(perf100(subj)), f"{subj} 가 자격 없음으로 잡힘"
+check("V08 — type_c_subjects 전 교과 허용", t_v08_ok)
+
+def t_v08_elective():
+    """진로와 직업·보건은 선택 교과라 대상이다 (제10조 ⑥ (1), 2026-08-19 승인).
+
+    ⚠ 주당 1시수 완화(weekly==1)로 통과하는 것과 구분해야 한다 — 2시수여도 통과해야
+      비로소 '선택 교과라서' 통과하는 것이다.
+    """
+    for subj in ("진로와 직업", "진로와직업", "보건"):
+        p = perf100(subj); p["weekly_hours"] = 2
+        assert "V08" not in codes(p), f"{subj} 가 2시수에서 걸림 (완화 단서로만 통과 중)"
+check("V08 진로와 직업·보건 허용 (1시수 완화와 무관하게)", t_v08_elective)
+
+def t_v08_message_from_asset():
+    """안내 문구를 코드에 적어 두면 자산이 바뀔 때 옛말을 하게 된다."""
+    p = perf100("수학"); p["weekly_hours"] = 2
+    f = sev(p, "V08")
+    assert f, "수학이 통과됨"
+    for subj in ("정보", "진로와 직업", "보건"):
+        assert subj in f["message"], f"안내에 {subj} 누락: {f['message']}"
+    assert "진로와직업" not in f["message"].replace("진로와 직업", ""), "표기 변형이 중복 노출됨"
+check("V08 안내 문구가 자산 목록에서 나온다", t_v08_message_from_asset)
 
 print("\n[4] V09 심의 표식 — 비활성 (2026-08-18)")
 # 횟수 선택은 교과 교사 재량이고 최종 검토는 관리자 단계에서 한다.
