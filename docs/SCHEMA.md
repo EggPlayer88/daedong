@@ -295,11 +295,30 @@ CREATE TABLE user_dashboard_config (
 
 ---
 
+## 17. doc_ai_conversations — 문서작성 AI 대화 (004, 실행 완료)
+
+```sql
+CREATE TABLE doc_ai_conversations (
+  id         TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  doc_type   TEXT NOT NULL DEFAULT 'evaluation_plan',
+  subject    TEXT,
+  grade      INT,
+  title      TEXT,                          -- 목록 표시용. 교과·학년에서 자동 생성
+  messages   JSONB NOT NULL DEFAULT '[]',   -- [{role, content}, ...] 전문
+  status     TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','completed')),
+  created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ
+);
+```
+- **RLS: personal — 본인 행만. admin 열람도 없다.** 작성 중인 평가계획서는 교사의
+  사적 공간이라 권한 상승으로도 열지 않는다. insert 에만 `is_approved()` 를 함께 건다(D20)
+- id 는 **클라이언트가 만든다** — 첫 교환부터 upsert 하기 위해서다
+- 인사만 오간 대화는 저장하지 않는다 (/doc-ai 를 열 때마다 빈 행이 쌓이지 않게)
+- 문서 생성이 끝나면 `status='completed'` 로 표시. 대화는 남아 다시 열 수 있다
+- 다른 AI(업무 비서)의 대화는 이 표에 넣지 않는다. `doc_type` 은 평가계획서 외
+  문서 종류가 늘어날 때를 위한 자리다
+
 ## AI 관련 (Phase 2 에서 추가 검토)
 
-- ai_conversations 테이블은 P1 원칙에 따라 Phase 1 에서 생략. 대화 저장 필요성이 확정되면 추가.
-  ```sql
-  -- (참고용, 아직 생성 안 함)
-  -- ai_conversations: id, user_id, ai_type ('assistant'|'doc_writer'), messages JSONB, created_at
-  -- RLS: personal
-  ```
+- 업무 비서(assistant) 대화 저장은 아직 없다. 필요해지면 별도 테이블로 —
+  문서작성 AI 와 수명·삭제 정책이 다르므로 한 표에 섞지 않는다.

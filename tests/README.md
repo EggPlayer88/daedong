@@ -42,6 +42,7 @@ tests/.venv/bin/pip install lxml
 | `test_exam_methods.py` | 정기시험 3분류 — 회차 100점 = 선택형+단답형·완성형+서·논술형, **30% 산입은 서·논술형만**, 현행 양식에 칸 없는 배점의 누락 안내 |
 | `test_count_set.py` | 횟수 세트(시험 0→수행 3 / 1→2 / 2→1~2) — 세트 밖은 **막지 않고 안내**, 작년과 달라진 조합의 전환 안내, 양식 v2 목표치가 현재 한도로 새지 않는지 |
 | `test_regulation.py` | 학업성적관리규정 V01~V18 — 규칙별 위반/통과 한 쌍, 유형 A~D 판정, ERROR 는 생성 차단, WARN·FLAG 는 통과 후 안내, `check_only` 응답 |
+| `test_conversations.mjs` | 대화 저장(004) — 제목 자동 생성(참고자료 오염 방지·plan 우선), 목록 화면, **RLS personal(admin 열람 경로 없음)**, 저장 실패가 대화를 끊지 않는지 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
 
 ## 작성 원칙

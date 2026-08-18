@@ -64,14 +64,19 @@ daedong-v2/
 001_users_departments.sql      -- users, departments + RLS + handle_new_user 트리거
 002_schedules_tasks.sql        -- schedules, tasks + RLS
 003_signup_approval.sql        -- 가입 승인제 (D20, 임시) — is_active 기본 false + RLS 게이트
-004_documents.sql              -- documents, labels, label_map + Storage 버킷 + RLS
-005_handover.sql               -- handover_docs + RLS
-006_students.sql               -- students, class_groups, enrollments + RLS
-007_observations.sql           -- observation_records + RLS (personal!)
-008_academic.sql               -- academic_terms, academic_events + RLS
-009_dashboard.sql              -- user_dashboard_config + RLS
-010_seed.sql                   -- 부서 6개 + 2026-2 term (확정본 있음. Phase 1 말 실행. 업무종류는 샘플 판정으로 폐기, 계정은 D17)
-011_timetable_domain.sql       -- v1 시간표 스키마 복제 (timetables, timetable_changes) — Phase 2
+004_doc_ai_conversations.sql   -- 문서작성 AI 대화 저장 (이어서 작성) — RLS personal
+005_documents.sql              -- documents, labels, label_map + Storage 버킷 + RLS
+006_handover.sql               -- handover_docs + RLS
+007_students.sql               -- students, class_groups, enrollments + RLS
+008_observations.sql           -- observation_records + RLS (personal!)
+009_academic.sql               -- academic_terms, academic_events + RLS
+010_seed.sql                   -- 부서 6개 + 2026-2 term (확정본 있음. Phase 1 말 실행)
+011_dashboard.sql              -- user_dashboard_config + RLS
+012_timetable_domain.sql       -- v1 시간표 스키마 복제 (timetables, timetable_changes) — Phase 2
+
+⚠ 번호는 **실행 순서가 아니라 식별자**다. 004 가 doc-ai 대화로 들어가면서 이후 계획이
+   한 칸씩 밀렸지만, 확정본인 010_seed.sql 은 다시 개명하지 않았다 (파일명을 흔들면
+   실행 기록과 어긋난다). seed 는 번호와 무관하게 **Phase 1 말**에 실행한다.
 ```
 
 ---
@@ -102,7 +107,9 @@ Phase 0 완료 직후 삽입. Phase 1 과 **병행 가능**(순연 아님). 상�
 - [x] 시수/누계 학사일정 고정표 자동 주입, 배점 정합성 검증, 한도 초과 시 안내
 - [x] 학업성적관리규정 검증기 (V01~V18) — ERROR 는 근거 조문과 함께 생성 거부,
       WARN·FLAG(위원회 심의 대상)는 안내. 유형 A~D 는 임의규정이라 강제하지 않는다
-      ※ V09 심의 안건 자동 집계 · 기본점수(V11)는 백로그 (마스터플랜 7절)
+      ※ V09(심의 표식)은 2026-08-18 비활성 — 횟수 선택은 교과 교사 재량.
+        기본점수(V11)는 백로그 (마스터플랜 7절)
+- [x] 대화 자동 저장 + 이어서 작성 (004) — 본인만 열람 (RLS personal)
 - [ ] prefill 모드 (교과·학년별 작년 문서 기반 "달라진 것만 질문") — 마스터플랜 Phase B
 - [x] 정기시험 평가방법 3분류 (선택형 / 단답형·완성형 / 서·논술형) — 30% 산입은
       서·논술형만. 작년 2분류 자료는 대화에서 나눠 받는다 (AI 임의 분배 금지)
@@ -115,8 +122,9 @@ Phase 0 완료 직후 삽입. Phase 1 과 **병행 가능**(순연 아님). 상�
 
 ## Phase 1 — 일상 코어 (2~3세션)
 
-- [ ] 004, 005, 008, 009 마이그레이션 + 010 시드 실행 (010 확정본 migrations/ 에 있음)
-      ※ 003(가입 승인제)은 D20 으로 Phase 0 뒤에 삽입되어 번호가 한 칸씩 밀렸다
+- [ ] 005, 006, 009, 011 마이그레이션 + 010 시드 실행 (010 확정본 migrations/ 에 있음)
+      ※ 003(가입 승인제, D20)·004(doc-ai 대화)가 Phase 0~1.5 에서 삽입되어
+        이후 계획 번호가 두 칸 밀렸다. 010_seed 는 개명하지 않았다 (위 표 참조)
 - [ ] 일정 관리 (스프레드시트형 UI, 담당자 지정)
 - [ ] tasks + 나의 할 일 위젯 (schedules 합성)
 - [ ] 업무 문서 총정리 (업로드/라벨/다운로드, admin 업로드 제한)

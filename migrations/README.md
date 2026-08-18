@@ -12,6 +12,7 @@
 | 001_users_departments.sql | ✅ 완료 | 2026-08-16 | 계란 | [검증] 통과: users·departments `rowsecurity = t`, 정책 users 2 + departments 4, 함수 8개. D17 부트스트랩(승격 UPDATE)은 **첫 로그인 뒤** 별도 1회 — 아래 행 참조 |
 | 002_schedules_tasks.sql | ✅ 완료 | 2026-08-16 | 계란 | [검증] 통과: 정책 schedules 4 + tasks 4 |
 | 003_signup_approval.sql | ✅ 완료 | 2026-08-18 | 계란 | **가입 승인제 (D20, 임시)**. [검증] 통과: `is_approved` 함수 1행 + 정책 5개 재생성(users_select / departments_select / schedules_select·insert / tasks_insert). 이후 신규 가입은 `is_active=false`(승인 대기)로 생성되고 admin+ 가 `/admin/users` 에서 승인해야 사용 가능. 기존 승인 사용자는 영향 없음 |
+| 004_doc_ai_conversations.sql | ✅ 완료 | 2026-08-18 | 계란 | **문서작성 AI 대화 저장 (이어서 작성)**. [검증] 통과: 정책 4개(select/insert/update/delete). RLS 는 **personal 패턴 — 본인 행만, admin 열람도 없다**. 작성 중인 평가계획서는 교사의 사적 공간이라 권한 상승으로도 열지 않는다. insert 만 `is_approved()` 를 함께 건다(D20) |
 | 010_seed.sql | ⬜ 미실행 | | | **Phase 1 말 실행** (001~009 선행). 부서 6개 + 2026-2 term. 1회만 실행 |
 | (D17) superadmin 승격 UPDATE | ✅ 완료 | 2026-08-16 | 계란 | 001 파일 맨 아래 블록. 첫 Google 로그인 후 1회 실행. 배포 사이트(https://daedong-school.vercel.app)에서 superadmin 확인 완료 = **Phase 0 완료 기준 충족** |
 
