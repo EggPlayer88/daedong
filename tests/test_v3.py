@@ -230,11 +230,99 @@ def t_sparse():
     assert fn.endswith("평가계획서(초안).hwpx"), fn
 check("대부분 공란이어도 생성됨", t_sparse)
 
-print("\n[6] 계약 원문 보존")
+print("\n[6] RATIO_BASIS — 4절 나 항 주어부 (v3.1)")
+def t_basis_ge1():
+    """시험이 있으면 '정기시험 및 수행평가의'."""
+    rules = FINAL["composition_rules"]["RATIO_BASIS"]
+    out = gen._fill.compose_sentences(gen._fill.derive(json.loads(json.dumps(PLAN2)), M), M)
+    assert out["RATIO_BASIS"] == rules["ge1"], out["RATIO_BASIS"]
+    assert rules["ge1"] in R["body"], "문서에 ge1 문구가 없음"
+check("시험 2회 → '정기시험 및 수행평가의'", t_basis_ge1)
+
+def t_basis_zero():
+    """시험이 없는데 '정기시험 및' 이 붙으면 없는 시험을 있는 것처럼 적는 셈이다."""
+    rules = FINAL["composition_rules"]["RATIO_BASIS"]
+    out = gen._fill.compose_sentences(gen._fill.derive(json.loads(json.dumps(PLAN0)), M), M)
+    assert out["RATIO_BASIS"] == rules["0"], out["RATIO_BASIS"]
+    assert rules["ge1"] not in R0["body"], "0회인데 '정기시험 및' 이 붙음"
+check("시험 0회 → '수행평가의'", t_basis_zero)
+
+def t_basis_derived():
+    """문구는 자산에서 온다 — 코드에 적어 두면 계약과 갈라진다."""
+    m2 = json.loads(json.dumps(M))
+    m2["composition_rules"]["RATIO_BASIS"] = {"ge1": "가나다의", "0": "라마바의"}
+    plan = json.loads(json.dumps(PLAN2))
+    out = gen._fill.compose_sentences(gen._fill.derive(plan, m2), m2)
+    assert out["RATIO_BASIS"] == "가나다의", out
+    plan["exam"] = {"count": 0, "ratio": 0, "rounds": []}
+    out0 = gen._fill.compose_sentences(gen._fill.derive(plan, m2), m2)
+    assert out0["RATIO_BASIS"] == "라마바의", out0
+check("RATIO_BASIS 문구가 composition_rules 에서 파생", t_basis_derived)
+
+print("\n[7] 예체능판 — 성취수준 3단계 (v3.1)")
+ARTS_PLAN = json.loads(json.dumps(PLAN0))
+ARTS_PLAN["subject"] = "음악"
+ARTS_PLAN["achievement_levels"] = {
+    "A": "A 진술", "B": "B 진술", "C": "C 진술",
+    "D": "D 진술은 예체능판에 없어야 한다", "E": "E 진술은 예체능판에 없어야 한다"}
+RA = {}
+check("생성 성공 (음악 0회 × 수행 3개)", lambda: RA.update(
+    zip(("fn", "b64", "notices"), gen.generate({"fields": json.loads(json.dumps(ARTS_PLAN))})))
+    or RA.update(body=body_of(RA["b64"])))
+
+def t_arts_template():
+    v = gen._fill.resolve_variant(ARTS_PLAN, M)
+    spec = gen._fill.variant_spec(M, v)
+    assert v == "arts", v
+    assert spec["template_file"] == M["variants"]["arts"]["template_file"], spec
+    assert spec["levels"] == ["A", "B", "C"], spec["levels"]
+check("음악 → arts 유형 / 예체능판 양식 / A~C", t_arts_template)
+
+def t_arts_levels():
+    b = RA["body"]
+    for lv in ("A 진술", "B 진술", "C 진술"):
+        assert lv in b, f"{lv} 누락"
+    assert "D 진술" not in b and "E 진술" not in b, "D·E 진술이 문서에 새어 들어감"
+    assert "LV_D" not in b and "LV_E" not in b, "LV_D/E 토큰 잔존"
+check("A~C 만 들어가고 D·E 는 버려진다", t_arts_levels)
+
+def t_arts_no_leftover():
+    assert "{{" not in RA["body"], "토큰 잔존"
+    assert RA["fn"].startswith("2026학년도_2학기_음악"), RA["fn"]
+check("잔여 '{{' 0 + 파일명", t_arts_no_leftover)
+
+def t_arts_v18():
+    """D·E 를 실어 보낸 것 자체는 규정 확인 대상이다 (V18) — 버리되 알린다."""
+    assert any("V18" in n for n in RA["notices"]), RA["notices"]
+check("D·E 를 받으면 버리고 알린다 (V18)", t_arts_v18)
+
+def t_arts_tokens():
+    """예체능판 토큰 = 마스터 - LV_D - LV_E."""
+    import re as _re
+    def toks(path):
+        with zipfile.ZipFile(path) as z:
+            return set(_re.findall(r"\{\{([A-Z0-9_]+)\}\}",
+                                   z.read("Contents/section0.xml").decode("utf-8")))
+    m = toks(API / "_assets" / M["template_file"])
+    a = toks(API / "_assets" / M["variants"]["arts"]["template_file"])
+    assert m - a == {"LV_D", "LV_E"}, sorted(m - a)
+    assert not (a - m), sorted(a - m)
+check("예체능판 토큰 = 마스터 − LV_D·LV_E", t_arts_tokens)
+
+def t_arts_same_sha():
+    import hashlib
+    f = M["variants"]["arts"]["template_file"]
+    a = hashlib.sha256((ROOT / "doc-ai-template-v3" / f).read_bytes()).hexdigest()
+    b = hashlib.sha256((API / "_assets" / f).read_bytes()).hexdigest()
+    assert a == b, "template-arts.hwpx 가 변형됨"
+check("template-arts.hwpx 무수정 (sha256 일치)", t_arts_same_sha)
+
+print("\n[8] 계약 원문 보존")
 def t_contract():
     cur = gen.load_manifest()
     for k in ("direct_tokens", "pattern_tokens", "composition_rules", "unused_handling",
-              "limits", "filename_pattern", "fixed_texts", "final_check", "template_file"):
+              "limits", "filename_pattern", "fixed_texts", "final_check", "template_file",
+              "collection_guides", "variants"):
         assert cur[k] == FINAL[k], f"{k} 가 FINAL 과 다름"
 check("배치본의 계약 섹션이 v3 FINAL 원문과 동일", t_contract)
 
@@ -243,7 +331,7 @@ def t_token_coverage():
     치환되지 않은 '{{' 가 남거나 값이 빈 채로 나간다 — 여기가 계약의 이음매다."""
     cur = gen.load_manifest()
     names = {t.strip("{}") for t in cur["token_paths"] if t.startswith("{{")}
-    names |= {"EXAM_INTRO", "EXAM_RATIO_SENT"}
+    names |= {"EXAM_INTRO", "EXAM_RATIO_SENT", "RATIO_BASIS"}   # composition_rules 로 조립
     blk = cur["perf_plan_block_tokens"]
     for b in range(1, blk["max"] + 1):
         for t in blk["pattern"]:

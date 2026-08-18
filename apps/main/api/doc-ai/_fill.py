@@ -84,21 +84,29 @@ def pct(x) -> str:
 # ---------------------------------------------------------------------------
 # 템플릿 패밀리 — 교과·학년으로 variant 를 정한다
 # ---------------------------------------------------------------------------
-def resolve_variant(plan: dict, manifest: dict) -> str:
-    """manifest.variants._resolution_order 와 같은 순서로 판정한다.
+def arts_subjects(manifest: dict) -> list:
+    """예체능판을 쓰는 교과 — FINAL 의 variants.arts.subjects 가 유일한 근거.
 
-    1학년 2학기 → grade1_free / 예체능·보건 → arts / 3학년 → grade3 / 그 외 default
+    ⚠ 보건·정보는 여기 없다. 수행 100% 인 점은 같지만 성취도는 5수준이라
+      마스터를 쓴다 (FINAL variants.arts._note).
+    """
+    return ((manifest.get("variants") or {}).get("arts") or {}).get("subjects") or []
+
+
+def resolve_variant(plan: dict, manifest: dict) -> str:
+    """variant_routing._resolution_order 와 같은 순서로 판정한다.
+
+    1학년 2학기 → grade1_free / 음악·미술·체육 → arts / 3학년 → grade3 / 그 외 default
     ⚠ 순서가 의미를 가진다: 1학년 음악은 grade1_free (자유학기가 우선).
     """
-    v = manifest.get("variants") or {}
-    items = v.get("items") or {}
+    items = (manifest.get("variant_routing") or {}).get("items") or {}
     subject = as_text(plan.get("subject"))
     grade = int(first_num(plan.get("grade"), 0))
     semester = int(first_num(plan.get("semester"), 0))
 
     if grade == 1 and semester == 2 and "grade1_free" in items:
         return "grade1_free"
-    arts = v.get("arts_subjects") or []
+    arts = arts_subjects(manifest)
     if subject and any(a and a in subject for a in arts) and "arts" in items:
         return "arts"
     if grade == 3 and "grade3" in items:
@@ -107,13 +115,22 @@ def resolve_variant(plan: dict, manifest: dict) -> str:
 
 
 def variant_spec(manifest: dict, variant: str) -> dict:
-    """variant 정의. 없으면 default, 그것도 없으면 최상위 값으로 되돌린다."""
-    items = (manifest.get("variants") or {}).get("items") or {}
-    spec = items.get(variant) or items.get("default") or {}
+    """양식 유형의 실제 명세.
+
+    라우팅(누가 어떤 유형인지·한도)은 variant_routing 에서, 양식 파일과 성취수준은
+    FINAL 의 variants[uses] 에서 가져온다. 한 값을 두 곳에 적지 않기 위함이다.
+    """
+    routing = (manifest.get("variant_routing") or {}).get("items") or {}
+    spec = routing.get(variant) or routing.get("default") or {}
+    fam = manifest.get("variants") or {}
+    used = fam.get(spec.get("uses")) or {}
     return {
         "key": variant,
         "label": spec.get("label") or variant,
-        "template_file": spec.get("template_file") or manifest.get("template_file") or "template.hwpx",
+        "uses": spec.get("uses"),
+        # uses 가 없으면 양식이 아직 없다는 뜻이다 (자유학기) — 빈 문자열이면 생성 단계에서 안내로 걸린다
+        "template_file": used.get("template_file", ""),
+        "levels": used.get("achievement_levels") or [],
         "limits": spec.get("limits") or manifest.get("limits") or {},
         "scoring": spec.get("scoring", True),
         "status": spec.get("_status"),
@@ -558,20 +575,39 @@ def compose_sentences(plan: dict, manifest: dict) -> dict:
         for key, val in subs.items():
             ratio_sent = ratio_sent.replace(key, val)
 
-    return {"EXAM_INTRO": intro, "EXAM_RATIO_SENT": ratio_sent}
+    out = {"EXAM_INTRO": intro, "EXAM_RATIO_SENT": ratio_sent}
+
+    # RATIO_BASIS — 4절 나 항의 주어부. 시험이 없으면 "정기시험 및" 이 붙으면 안 된다.
+    basis = rules.get("RATIO_BASIS")
+    if isinstance(basis, dict):
+        out["RATIO_BASIS"] = basis.get("0" if count == 0 else "ge1", "")
+    return out
 
 
 # ---------------------------------------------------------------------------
 # 토큰 → 값 표 만들기
 # ---------------------------------------------------------------------------
-def build_token_values(plan: dict, manifest: dict) -> dict:
+LV_RE = re.compile(r"^\{\{LV_([A-E])\}\}$")
+
+
+def build_token_values(plan: dict, manifest: dict, levels: list | None = None) -> dict:
+    """토큰 → 값 표. levels 를 주면 그 단계의 성취수준만 채운다 (예체능판 A~C).
+
+    ⚠ 범위 밖 단계는 **치환 목록에서 빼는 것으로 끝낸다.** 예체능판에는 LV_D/LV_E
+      토큰 자체가 없으므로 값을 만들어 봐야 갈 곳이 없고, 교사가 실수로 D·E 진술을
+      적어 보내도 문서에 새어 들어가지 않는다.
+    """
     data = derive(plan, manifest)
     values = {}
+    allowed = {str(x).upper() for x in (levels or [])}
 
     # 1) token_paths (FINAL 의 direct_tokens + pattern_tokens 를 펼친 표)
     for token, path in manifest["token_paths"].items():
         if not token.startswith("{{"):
             continue  # _comment
+        lv = LV_RE.match(token)
+        if lv and allowed and lv.group(1) not in allowed:
+            continue
         values[token] = as_text(get_path(data, path))
 
     # 2) 조립 문구

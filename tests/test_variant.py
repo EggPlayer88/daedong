@@ -24,11 +24,19 @@ print("\n[1] variant 결정 (순서가 의미를 가진다)")
 check("2학년 수학 → default", lambda: (_ for _ in ()).throw(AssertionError(R())) if R() != "default" else None)
 check("3학년 수학 → grade3", lambda: (_ for _ in ()).throw(AssertionError(R(grade=3))) if R(grade=3) != "grade3" else None)
 def t_arts():
-    for s in ("음악", "미술", "체육", "보건"):
+    for s in M["variants"]["arts"]["subjects"]:
         got = R(subject=s, grade=2)
         assert got == "arts", f"{s}: {got}"
     assert R(subject="체육", grade=3) == "arts", "3학년 체육이 grade3 으로 감 (예체능이 우선)"
-check("음악·미술·체육·보건 → arts (3학년이어도)", t_arts)
+check("음악·미술·체육 → arts (3학년이어도)", t_arts)
+
+def t_not_arts():
+    """보건·정보는 수행 100% 라도 성취도가 5단계라 마스터를 쓴다 (v3.1)."""
+    for s in ("보건", "정보"):
+        got = R(subject=s, grade=2)
+        assert got == "default", f"{s} 가 예체능판으로 감: {got}"
+        assert V.variant_spec(M, got)["levels"] == ["A", "B", "C", "D", "E"], s
+check("보건·정보는 예체능판이 아니다 (5수준)", t_not_arts)
 def t_free():
     assert R(grade=1, semester=2) == "grade1_free", R(grade=1, semester=2)
     # 자유학기가 예체능보다 우선한다 (선언된 순서)
@@ -43,18 +51,33 @@ def t_partial():
 check("교과명 부분 일치 / 빈 값 처리", t_partial)
 
 print("\n[2] variant 명세")
-MASTER = M["template_file"]   # v3 마스터는 전 유형 공용 기반이다
+MASTER = M["template_file"]
+ARTS = M["variants"]["arts"]["template_file"]
 def t_spec():
     d = V.variant_spec(M, "default")
     assert d["template_file"] == MASTER, d
     assert d["scoring"] is True
-    for key in ("default", "grade3", "arts"):
+    # 주지교과·3학년은 마스터(5수준), 예체능은 전용판(3수준)
+    for key in ("default", "grade3"):
         v = V.variant_spec(M, key)
         assert v["template_file"] == MASTER, f"{key} 가 마스터를 안 씀: {v}"
-        assert v["limits"]["perf_areas_max"] == 3, f"{key} 한도: {v['limits']}"
+        assert v["levels"] == ["A", "B", "C", "D", "E"], f"{key} 수준: {v['levels']}"
+    a = V.variant_spec(M, "arts")
+    assert a["template_file"] == ARTS, a
+    assert a["levels"] == ["A", "B", "C"], a["levels"]
+    for key in ("default", "grade3", "arts"):
+        assert V.variant_spec(M, key)["limits"]["perf_areas_max"] == 3, key
     f = V.variant_spec(M, "grade1_free")
     assert f["scoring"] is False, "자유학기는 점수화하지 않는다"
-check("점수화 유형은 모두 마스터 양식 / 한도 3", t_spec)
+    assert f["template_file"] == "", "양식이 없는데 파일이 지정됨"
+check("유형별 양식·성취수준 (마스터 5수준 / 예체능 3수준)", t_spec)
+
+def t_single_source():
+    """양식 파일과 성취수준은 FINAL variants 한 곳에만 적혀 있어야 한다."""
+    for key, item in M["variant_routing"]["items"].items():
+        assert "template_file" not in item, f"{key} 라우팅에 양식 파일이 중복 기재됨"
+        assert "achievement_levels" not in item, f"{key} 라우팅에 성취수준이 중복 기재됨"
+check("라우팅에 양식·성취수준을 중복 기재하지 않는다", t_single_source)
 check("모르는 유형은 default 로", lambda: (_ for _ in ()).throw(AssertionError("fallback 실패"))
       if V.variant_spec(M, "없는유형")["template_file"] != MASTER else None)
 

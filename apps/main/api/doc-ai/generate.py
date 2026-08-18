@@ -369,9 +369,13 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             "variant_label": spec["label"],
             "findings": findings,
             "notices": count_notes,
-            "template_ready": (ASSETS / spec["template_file"]).exists(),
+            "levels": spec["levels"],
+            "template_ready": bool(spec["template_file"]) and (ASSETS / spec["template_file"]).exists(),
         }
 
+    if not spec["template_file"]:
+        # uses 가 비어 있다 = 이 유형의 양식이 아직 정해지지 않았다 (자유학기)
+        raise TemplateMissing(variant, spec["label"])
     template = ASSETS / spec["template_file"]
     if not template.exists():
         raise TemplateMissing(variant, spec["label"])
@@ -394,7 +398,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             "표에 들어간 값을 한글에서 확인해 주세요."
         )
 
-    values, data = _fill.build_token_values(plan, manifest)
+    values, data = _fill.build_token_values(plan, manifest, spec.get("levels"))
 
     tmp = Path(tempfile.mkdtemp(prefix="hwpx_"))
     try:
