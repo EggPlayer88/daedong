@@ -56,28 +56,58 @@ ck('수집 라벨이 새 규약을 반영', () => {
   A(P.includes('영역 반영비율(%)'), 'ratio 필드 없음')
 })
 
-console.log('\n[서·논술형 30% — 3분류]')
-ck('의무 교과 6개', () => {
-  for (const s of ['국어', '영어', '수학', '사회', '과학', '역사']) A(P.includes(s), `누락: ${s}`)
-  A(P.includes('30% 이상 의무 교과'), '의무 분류 없음')
+console.log('\n[서·논술형 30% — 유형 기반 (교과명 분류는 강등)]')
+ck('적용 여부는 유형이 정한다', () => {
+  A(P.includes('교과명이 아니라 평가 유형'), '유형 기준 문구 없음')
+  A(P.includes('유형 C(수행 100%)·D(자유학기)는 제외'), '제외 유형 없음')
 })
-ck('예외 교과 3개', () => {
-  A(P.includes('예외 교과 (30% 규정 미적용)'), '예외 분류 없음')
-  for (const s of ['음악', '미술', '체육']) A(P.includes(s), `누락: ${s}`)
+ck('교과 목록은 "작년 선택 유형" 짐작용으로만', () => {
+  A(P.includes('작년 선택 유형 (짐작용 — 확정 아님)'), '강등 표기 없음')
+  A(P.includes('올해 유형은 교사가 고른다'), '단정 금지 없음')
+  A(!P.includes('30% 이상 의무 교과'), '옛 의무/예외 분류가 남음')
 })
-ck('그 외는 추정 금지 + 교사에게 질문', () => {
-  A(P.includes('예외 여부가 확정되지 않았다'), '미확정 안내 없음')
-  A(P.includes('추정하지 말고 교사에게 직접 묻는다'), '질문 지시 없음')
-  A(!P.includes('TBD — 학업성적관리규정'), '옛 TBD 가 남음')
+ck('합계는 서버가 재계산', () => {
+  A(P.includes('합계는 서버가 재계산'), '재계산 명시 없음')
 })
-ck('분류가 상수에서 파생 (하드코딩 아님)', () => {
-  const c2 = JSON.parse(JSON.stringify(mod.constants))
-  c2.essay_ratio_rule.exempt_subjects = ['테스트교과']
-  c2.essay_ratio_rule.min_percent = 45
-  const p2 = mod.buildScaleDoc(c2)
-  A(p2.includes('테스트교과'), '예외 목록 변경 미반영')
-  A(p2.includes('45%'), '기준 변경 미반영')
+
+console.log('\n[규정 한계선 — V01~V18 근거]')
+ck('유형 A~D 와 한계선', () => {
+  for (const t of ['A. 일반형', 'B. 지필 1회형', 'C. 수행 100%형', 'D. 자유학기형']) {
+    A(P.includes(t), `유형 누락: ${t}`)
+  }
+  A(P.includes('임의규정'), '임의규정 명시 없음')
+  A(P.includes('유형을 단정해 밀어붙이지 않는다'), '강제 금지 없음')
 })
+ck('수치 제안 시 권한 고지 (7-1)', () => {
+  A(P.includes('규정 적합 범위 내 예시이며, 확정 권한은 교과협의회에 있습니다'), '권한 고지 없음')
+})
+ck('수행 100% → 최소 3개 영역 산수 안내 (R3)', () => {
+  A(P.includes('최소 3개 영역이 필요하다'), '산수 안내 없음')
+  A(P.includes('40 + 40 = 80 < 100'), '근거 산수 없음')
+})
+ck('서논술 30% 분모 = 학기말 총 배점 (7-4)', () => {
+  A(P.includes('학기말 총 배점(지필 환산 + 수행 환산)'), '분모 설명 없음')
+  A(P.includes('정기시험 안에서 30% 가 아니다'), '오해 방지 문구 없음')
+  A(P.includes('9+9=18%'), '예시 없음')
+})
+ck('V16·V17 을 대화 중 부드럽게 (지적 아닌 제안)', () => {
+  A(P.includes('영역명이 추상적일 때'), 'V16 안내 없음')
+  A(P.includes('결시자·학적변동자 처리 기준이 비었을 때'), 'V17 안내 없음')
+  A(P.includes('지적이 아니라 제안으로 말한다'), '어조 지시 없음')
+})
+ck('심의 대상 고지 (V09)', () => {
+  A(P.includes('학업성적관리위원회 심의 대상'), '심의 안내 없음')
+})
+ck('한계선이 규정 자산에서 파생', () => {
+  const r2 = JSON.parse(JSON.stringify(mod.regulation))
+  r2.thresholds.perf_area_max = 25
+  r2.thresholds.essay_total_min = 45
+  const p2 = mod.buildRegulationDoc(r2)
+  A(p2.includes('한 영역 ≤ 25%'), '상한 변경 미반영')
+  A(p2.includes('서·논술형 **≥ 45%**'), '기준 변경 미반영')
+  A(p2.includes('최소 4개 영역'), '산수가 상수를 따라가지 않음')
+})
+
 console.log('\n[학년·교과군 기본값 — 제시 후 확인]')
 ck('3학년 기본값 (1회 / 40:60 / 80+20)', () => {
   A(P.includes('정기시험 1회, 지필 40% : 수행 60%'), '3학년 기본값 없음')

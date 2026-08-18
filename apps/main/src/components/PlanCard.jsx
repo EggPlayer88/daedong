@@ -4,7 +4,6 @@
 //   양식이 바뀌면 manifest 만 갈아끼우면 이 화면도 따라간다.
 // ⚠ 노드의 key 는 property 이름과 다를 수 있다 (perf_summary → key: "perf_areas").
 
-import constants from '../../api/doc-ai/_assets/school-constants-2026-2.json'
 import fixedHours from '../../api/doc-ai/_assets/fixed-hours-2026-2.json'
 
 const keyOf = (node, fallback) => node?.key || fallback
@@ -33,6 +32,41 @@ function Val({ v }) {
   return <>{String(v)}</>
 }
 
+/**
+ * 학업성적관리규정 판정 (V01~V18).
+ * ERROR — 이 상태로는 생성되지 않는다 / WARN — 확인 권고 / FLAG — 위원회 심의 대상.
+ * 판정 자체는 서버 검증기가 한다 (규칙을 화면에 복제하지 않는다).
+ */
+function RegulationFindings({ findings }) {
+  if (!findings || findings.length === 0) return null
+  const groups = [
+    ['ERROR', '규정 위반 — 고쳐야 생성됩니다', 'reg-error'],
+    ['FLAG', '학업성적관리위원회 심의 대상', 'reg-flag'],
+    ['WARN', '확인이 필요합니다', 'reg-warn'],
+  ]
+  return (
+    <div className="reg-box">
+      {groups.map(([sev, title, cls]) => {
+        const list = findings.filter((f) => f.severity === sev)
+        if (list.length === 0) return null
+        return (
+          <div key={sev} className={`reg-group ${cls}`}>
+            <b>{title}</b>
+            <ul>
+              {list.map((f, i) => (
+                <li key={i}>
+                  {f.message}
+                  {f.article && <span className="muted small"> ({f.article})</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function Section({ title, children }) {
   return (
     <section className="plan-sec">
@@ -42,7 +76,7 @@ function Section({ title, children }) {
   )
 }
 
-export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }) {
+export default function PlanCard({ manifest: m, plan, findings = [], busy, onGenerate, onEdit }) {
   const mp = m.monthly_plan
   const ex = m.exam
   const ps = m.perf_summary
@@ -68,23 +102,8 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
   const levels = plan[levelsKey] || {}
   const purposes = Array.isArray(plan[purposeKey]) ? plan[purposeKey] : []
 
-  // 서·논술형 30% 규칙 — 기준값과 교과 분류를 학교 상수에서 읽는다 (실측 3분류)
-  const essayRule = constants?.essay_ratio_rule || {}
-  const minEssay = essayRule.min_percent
-  const essayVal = Number(plan[essayKey])
-  const subject = String(plan.subject || '').trim()
-  const inList = (list) => (list || []).some((s) => subject && subject.includes(s))
-  // 의무 / 예외 / 미확정 — 미확정이면 경고 대신 "확인 필요" 로 알린다 (추정 금지)
-  const essayClass = inList(essayRule.exempt_subjects)
-    ? 'exempt'
-    : inList(essayRule.required_subjects)
-      ? 'required'
-      : 'unknown'
-  const essayLow =
-    essayClass !== 'exempt' &&
-    minEssay !== undefined &&
-    Number.isFinite(essayVal) &&
-    essayVal < minEssay
+  // ⚠ 서·논술형 30% 판정은 서버 검증기(V04)가 한다. 규칙을 화면에 복제하지 않는다
+  //   — 규정이 바뀌면 한쪽만 고쳐져 화면이 거짓말을 하게 된다.
 
   return (
     <div className="card plan">
@@ -92,6 +111,8 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
       <p className="muted small">
         결재 전 반드시 검토가 필요한 <b>초안</b>입니다. 공란은 양식에 빈칸으로 들어갑니다.
       </p>
+
+      <RegulationFindings findings={findings} />
 
       <Section title="기본 정보">
         <table className="table kv-table">
@@ -258,19 +279,6 @@ export default function PlanCard({ manifest: m, plan, busy, onGenerate, onEdit }
         <Section title={m.essay_total_ratio.label}>
           <p>
             <Val v={plan[essayKey]} />
-            {essayClass === 'exempt' && (
-              <span className="muted"> · {subject}는 {minEssay}% 규정 예외 교과입니다.</span>
-            )}
-            {essayLow && essayClass === 'required' && (
-              <span className="warn"> ⚠ {minEssay}% 미만입니다. 조정이 필요합니다.</span>
-            )}
-            {essayLow && essayClass === 'unknown' && (
-              <span className="warn">
-                {' '}
-                ⚠ {minEssay}% 미만입니다. {subject || '이 교과'}가 예외 교과인지 확인이 필요합니다
-                (학업성적관리규정).
-              </span>
-            )}
           </p>
         </Section>
       )}

@@ -54,6 +54,19 @@
       "label": "주당 시수",
       "type": "number",
       "required": true
+    },
+    {
+      "key": "plan_type",
+      "label": "평가 유형 (A/B/C/D)",
+      "type": "text",
+      "enum": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ],
+      "required": false,
+      "_comment": "교사가 고른다. 비우면 서버가 데이터로 추정한다. 강제 금지 (임의규정)"
     }
   ],
   "monthly_plan": {

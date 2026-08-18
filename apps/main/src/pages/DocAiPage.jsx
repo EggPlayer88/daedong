@@ -30,6 +30,7 @@ export default function DocAiPage() {
   const [plan, setPlan] = useState(null) // 확인 카드에 띄울 확정 JSON
   const [notice, setNotice] = useState(null) // 양식 준비 중 등 안내
   const [notices, setNotices] = useState([]) // 생성 후 "문서에 안 들어간 것" 안내
+  const [findings, setFindings] = useState([]) // 규정 검증 결과 (WARN/FLAG)
   const bottomRef = useRef(null)
   const started = useRef(false)
   const fileRef = useRef(null)
@@ -82,6 +83,7 @@ export default function DocAiPage() {
 
       if (json) {
         setPlan(json)
+        checkRegulation(json)
       } else if (broken && retry < 1) {
         setError('내용 정리 중 형식 오류가 생겼습니다. 다시 확정하는 중입니다…')
         await sendHistory(
@@ -115,8 +117,32 @@ export default function DocAiPage() {
     setPlan(null)
     setNotice(null)
     setNotices([])
+    setFindings([])
     setInput('')
     sendHistory([...messages, { role: 'user', content: text }])
+  }
+
+  /**
+   * 규정 검증만 돌린다 (check_only) — 문서를 만들지 않고 확인 카드에 표시할 판정을 받는다.
+   * ⚠ 규칙을 프론트에 복제하지 않는다. 서버 검증기 하나가 유일한 근거다.
+   */
+  async function checkRegulation(fields) {
+    setFindings([])
+    try {
+      const r = await fetch('/api/doc-ai/generate', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ fields, check_only: true }),
+      })
+      const data = await r.json()
+      if (r.status === 400 && data.error === 'REGULATION_VIOLATION') {
+        setFindings(data.findings || [])
+        return
+      }
+      if (r.ok) setFindings(data.findings || [])
+    } catch {
+      // 판정을 못 받아도 대화는 계속된다 — 생성 시 서버가 다시 검사한다
+    }
   }
 
   async function generate() {
@@ -146,6 +172,13 @@ export default function DocAiPage() {
       const pending = pendingMessage(r.status, data)
       if (pending) {
         setError(pending)
+        return
+      }
+      if (r.status === 400 && data.error === 'REGULATION_VIOLATION') {
+        setFindings(data.findings || [])
+        setError(
+          '학업성적관리규정에 어긋나는 항목이 있어 생성하지 못했습니다. 아래 내용을 고쳐 주세요.'
+        )
         return
       }
       if (!r.ok) throw new Error(data.error || `생성 실패 (${r.status})`)
@@ -279,6 +312,7 @@ export default function DocAiPage() {
         <PlanCard
           manifest={manifest}
           plan={plan}
+          findings={findings}
           busy={busy}
           onGenerate={generate}
           onEdit={() => setPlan(null)}

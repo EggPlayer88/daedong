@@ -394,3 +394,31 @@ button {
   border-color: #34d39940;
   background: #34d39918;
 }
+
+/* ─── 학업성적관리규정 판정 ─── */
+.reg-box {
+  margin: 14px 0 4px;
+}
+.reg-group {
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  border-radius: 9px;
+  border: 1px solid;
+}
+.reg-group ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.7;
+}
+.reg-error {
+  border-color: #f8717155;
+  background: #f871710d;
+}
+.reg-flag {
+  border-color: #a78bfa55;
+  background: #a78bfa0d;
+}
+.reg-warn {
+  border-color: #fbbf2455;
+  background: #fbbf240d;
+}

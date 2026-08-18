@@ -23,6 +23,14 @@ const constants = JSON.parse(
 )
 const rulesMd = readFileSync(join(ASSETS, 'prompt-rules.v2.md'), 'utf-8')
 
+// 학업성적관리규정 룰셋 (없으면 규정 안내를 생략한다)
+let regulation = null
+try {
+  regulation = JSON.parse(readFileSync(join(ASSETS, 'regulation-2026.json'), 'utf-8'))
+} catch {
+  regulation = null
+}
+
 // 시수/누계 고정표 (없으면 null — 그 경우 예전처럼 AI 가 제안한다)
 let fixedHours = null
 try {
@@ -283,6 +291,70 @@ function buildLimitDoc(m) {
  * 대화 단계에서 맞춰두지 않으면 생성 버튼에서 막힌다.
  */
 /**
+ * 학업성적관리규정 한계선 — 대화 중에 미리 맞추게 한다.
+ * 판정은 서버 검증기(V01~V18)가 하지만, 생성 단계에서 막히기 전에 대화에서 잡는 편이 낫다.
+ */
+function buildRegulationDoc(reg = regulation) {
+  if (!reg) return ''
+  const th = reg.thresholds || {}
+  const el = reg.eligibility || {}
+  const types = reg.plan_types || {}
+
+  const L = ['## 학업성적관리규정 한계선 (근거: 학교 학업성적관리규정)']
+  L.push(
+    '- 규정은 **상한·하한만** 정한다. 구체 수치를 정할 권한은 교과협의회에 있다.',
+    '  수치를 제안할 때는 반드시 이렇게 밝힌다: **"규정 적합 범위 내 예시이며, 확정 권한은 교과협의회에 있습니다."**',
+    ''
+  )
+
+  L.push('### 평가 유형 — 교사가 고른다 (강제하지 않는다)')
+  for (const [k, t] of Object.entries(types)) {
+    if (k.startsWith('_')) continue
+    const bits = [`정기시험 ${t.exam_count}회`]
+    if (t.written_max) bits.push(`지필 ≤${t.written_max}%`)
+    if (t.perf_min) bits.push(`수행 ≥${t.perf_min}%`)
+    if (t.requires_review) bits.push('위원회 심의 필요')
+    L.push(`- **${k}. ${t.label}** — ${bits.join(' / ')}`)
+  }
+  L.push(
+    '- 유형 B·C 는 **"할 수 있다"** 는 임의규정이다. 자격이 있어도 A 형을 택할 수 있으므로',
+    '  **유형을 단정해 밀어붙이지 않는다.** 교과·학년으로 가능한 유형을 제시하고 교사가 고르게 한다.',
+    `- 지필 1회(B) 가능: ${(el.type_b_subjects || []).slice(0, 3).join(' · ')} 또는 3학년 2학기 편성 교과`,
+    `- 수행 100%(C) 가능: ${(el.type_c_subjects || []).join(' · ')}, 주당 1시수 과목`,
+    ''
+  )
+
+  L.push('### 반드시 지켜야 하는 수치')
+  L.push(
+    `- 수행평가 반영 합계 **≥ ${th.perf_total_min}%**`,
+    `- 수행평가 **한 영역 ≤ ${th.perf_area_max}%** (음악·미술·체육·주당1시수는 완화 단서 대상)`,
+    `  → **수행 100% 로 하면 영역당 ${th.perf_area_max}% 상한 때문에 최소 ${Math.ceil(100 / th.perf_area_max)}개 영역이 필요하다.**`,
+    `     (${th.perf_area_max} + ${th.perf_area_max} = ${th.perf_area_max * 2} < 100 이므로 2개로는 불가능하다.)`,
+    `     교사가 수행 100% 를 택하면 이 산수를 먼저 알려주고 영역 수를 함께 정한다.`,
+    `- 서·논술형 **≥ ${th.essay_total_min}%** — ⚠ 분모는 **학기말 총 배점(지필 환산 + 수행 환산)** 이다.`,
+    `     정기시험 안에서 30% 가 아니다. 예: 정기 60%(회차 30%씩)에서 서논술 30점이면 기여는 9+9=18% 뿐이다.`,
+    `- 정기시험은 **매 회차 서·논술형을 포함**한다.`,
+    `- 정기시험 1회면 반영비율 **≤ ${th.written_max_when_single_round}%**`,
+    `- 지필은 특별한 사유가 없으면 **${th.written_full_marks}점 만점**`,
+    ''
+  )
+
+  L.push('### 대화 중에 부드럽게 짚을 것')
+  L.push(
+    '- **영역명이 추상적일 때** ("수행1", "탐구2") — 무엇을 평가하는지 드러나는 이름을 함께 제안한다.',
+    '  ("\'수행1\' 보다 \'실험 설계 보고서\' 처럼 적으시면 학생 안내와 기록에 좋습니다. 어떻게 할까요?")',
+    '- **결시자·학적변동자 처리 기준이 비었을 때** — 평가계획서 필수 기재 항목임을 알리고 한 줄 초안을 제안한다.',
+    '- 지적이 아니라 제안으로 말한다. 교사가 그대로 두겠다고 하면 그대로 진행한다.',
+    ''
+  )
+  L.push(
+    '- 위 한계선을 어기면 생성 단계에서 **근거 조문과 함께 거부**된다. 요약 단계에서 미리 확인시킨다.',
+    '- 정기시험 1회·수행 100% 는 **학업성적관리위원회 심의 대상**이라는 점을 교사에게 알린다.'
+  )
+  return L.join('\n')
+}
+
+/**
  * 학년·교과군별 실측 기본값 — **제시하고 확인받는** 흐름으로 쓴다.
  * 관행이지 규칙이 아니므로 단정하면 제1원칙을 어기게 된다.
  */
@@ -361,22 +433,22 @@ function buildScaleDoc(c = constants) {
     '  너는 각 영역의 **반영비율(ratio)** 만 정확히 주면 된다. 괄호 안 숫자를 직접 계산하지 않는다.',
     '',
     '### 서·논술형 반영비율',
-    '- 회차별·수행 영역별로 **반드시 수집**하고, 전체 합계를 essay_total_ratio 에 넣는다.',
+    '- 회차별·수행 영역별로 **반드시 수집**한다. 합계는 서버가 재계산하므로 네가 더할 필요는 없다.',
+    '- 적용 여부는 **교과명이 아니라 평가 유형**이 정한다 — 유형 C(수행 100%)·D(자유학기)는 제외.',
+    '  자세한 한계선은 위 "학업성적관리규정 한계선" 절을 따른다.',
   ]
 
-  const req = rule.required_subjects || []
-  const exempt = rule.exempt_subjects || []
-  const min = rule.min_percent
-  if (min !== undefined) {
-    L.push(`- **${min}% 이상 의무 교과**: ${req.join(' · ')}`)
-    L.push(`  → 합계가 ${min}% 미만이면 지적하고 조정을 요청한다.`)
-    L.push(`- **예외 교과 (${min}% 규정 미적용)**: ${exempt.join(' · ')}`)
-    L.push(`  → 서·논술형이 없으면 해당 칸은 비워 두면 된다. 억지로 만들지 않는다.`)
+  const hint = rule.last_year_type_hint || {}
+  const req = hint.typically_A || []
+  const exempt = hint.typically_C || []
+  if (req.length || exempt.length) {
     L.push(
-      '- **그 외 교과는 예외 여부가 확정되지 않았다.** 추정하지 말고 교사에게 직접 묻는다:',
-      `  "[교과명] 은(는) 서·논술형 ${min}% 규정 적용 대상인지 확인이 필요합니다.`,
-      '  학업성적관리규정상 예외 교과인가요?" — 교사 답에 따라 진행하고,',
-      '  교사도 모른다고 하면 그 사실을 요약에 남긴다 (제1원칙: 모르면 공란, 추정 금지).'
+      '',
+      '### 작년 선택 유형 (짐작용 — 확정 아님)',
+      `- 보통 유형 A 를 택한 교과: ${req.join(' · ')}`,
+      `- 보통 유형 C(수행 100%)를 택한 교과: ${exempt.join(' · ')}`,
+      '- ⚠ 작년 관행일 뿐이다. **올해 유형은 교사가 고른다** — 이 목록으로 단정하지 않는다.',
+      `  "작년에는 ${exempt[0] || '이 교과'}가 수행 100% 로 하셨던데 올해도 그렇게 할까요?" 처럼 묻는다.`
     )
   }
 
@@ -505,6 +577,7 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
   // ③ 시수 자동입력 + 양식 한도 + 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
   const inserted = [
     buildVariantDoc(m),
+    buildRegulationDoc(),
     buildDefaultsDoc(consts),
     buildScaleDoc(consts),
     buildHoursDoc(table),
@@ -533,6 +606,8 @@ export {
   buildScaleDoc,
   buildDefaultsDoc,
   buildVariantDoc,
+  buildRegulationDoc,
+  regulation,
   reconcileConstants,
   validateMessages,
   SYSTEM_PROMPT,
