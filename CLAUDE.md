@@ -28,13 +28,14 @@
 
 - **DB 마이그레이션·스키마·RLS 변경**
   SQL 확정본은 Claude Web 이 작성하고, 실행은 계란님이 SQL Editor 에서 한다.
-- **확정본 수정** — 아래 4종은 읽기 전용으로 취급한다:
+- **확정본 수정** — 아래 5종은 읽기 전용으로 취급한다:
   | 대상 | 이유 |
   |---|---|
   | `migrations/*.sql` | 실행 기록과 짝이라 사후 수정이 이력을 거짓으로 만든다 |
   | `apps/main/api/doc-ai/_assets/template.hwpx` | 토큰 129개 실측 검증본. 재토큰화는 Claude Web |
   | `apps/main/api/_hwpx/` | 실전 검증된 hwpx 엔진. import 만 하고 고치지 않는다 |
   | manifest 의 계약 섹션 | `direct_tokens` / `perf_plan_block_tokens` / `composition_rules` / `unused_handling` / `limits` — `doc-ai-template/…final.json` 원문과 동일해야 하며 테스트로 고정돼 있다 |
+  | `_assets/regulation-2026.json` 의 `thresholds` · `rules` · `article` | 학업성적관리규정 조문에서 온 수치다. 코드 편의로 바꾸면 학교 규정과 어긋난다. 조문 개정 시에만, 계란님 확인 후 |
 - **인증·보안 로직 변경** (승인 게이트, RLS 전제, 토큰 검증 경로)
 - **API 키·비용 구조에 영향 주는 것** (모델 교체, max_tokens·상한, 캐싱 전략)
 - **파괴적 작업** — 데이터 삭제, 파일 대량 삭제, force push 류
@@ -76,6 +77,9 @@
 - **AI 는 내용만, 서식·계산은 코드가** (D19). 시수·만점 표기·합계는 서버가 계산하고
   AI 가 준 값이 달라도 덮어쓴다 — 교사가 본 값과 문서 값이 갈라지지 않게.
 - 실패는 **안전한 쪽으로** — 승인 조회 실패는 "대기", 배점 불일치는 거부.
+- **규정 위반은 근거를 붙여 거부** — `_regulation.py` 의 ERROR 는 생성을 막고 조문을
+  같이 보여준다. WARN·FLAG 는 막지 않고 `notices` 로 알린다. 수치는 상한·하한만
+  제안하고, 확정 권한은 교과협의회에 있다고 명시한다 (임의규정을 강제하지 않는다).
 - **안 되는 걸 되는 것처럼 하지 않는다** (프롬프트 제0원칙). 양식이 못 담으면
   담은 척하지 말고, 만들되 무엇이 빠졌는지 알린다.
 
@@ -92,8 +96,8 @@
 ```
 apps/main/
   src/pages, src/components, src/lib   ← 화면
-  api/doc-ai/  chat.js generate.py extract.py _v2fill.py
-  api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·template.hwpx
+  api/doc-ai/  chat.js generate.py extract.py _v2fill.py _regulation.py
+  api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·template.hwpx
   api/_hwpx/                           ← hwpx 엔진 (수정 금지)
 packages/shared/                       ← supabase·auth·permissions (DB 단일 접근점)
 migrations/                            ← 001~ SQL + README(실행 기록)

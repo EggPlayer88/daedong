@@ -34,11 +34,12 @@ tests/.venv/bin/pip install lxml
 | `test_chat_v2.mjs` | 시스템 프롬프트 조립 — 고정부·상수 주입·manifest 파생, TBD 유지, 하드코딩 아님 |
 | `test_contract.mjs` | 프롬프트 JSON 골격 ↔ `direct_tokens` 경로 정합 (프롬프트와 generate 의 이음매) |
 | `test_hours.mjs` | 시수 안내가 표에서 파생되는지, 옛 시수 공식이 프롬프트에 남지 않는지 |
-| `test_principle.mjs` | 제0원칙 위치·문구, 배점 규칙이 서버 검증기와 일치 |
+| `test_principle.mjs` | 제0원칙 위치·문구, 배점 규칙이 서버 검증기와 일치, 규정 한계선이 `regulation-2026.json` 에서 파생 |
 | `test_terms.mjs` | 사이트 명칭·용어 가드 (옛 용어가 되살아나면 실패) |
 | `test_marker.mjs` | `===PLAN_READY===` 파서 (코드펜스·END 누락·깨진 JSON) |
 | `test_gate.mjs` | D20 승인 게이트 (chat) — **미승인이면 Claude API 를 호출하지 않는지** |
 | `test_variant.py` | 템플릿 패밀리 — 교과·학년 → variant 결정 순서, 유형별 한도, 미배치 유형 안내 |
+| `test_regulation.py` | 학업성적관리규정 V01~V18 — 규칙별 위반/통과 한 쌍, 유형 A~D 판정, ERROR 는 생성 차단, WARN·FLAG 는 통과 후 안내, `check_only` 응답 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
 
 ## 작성 원칙
