@@ -45,21 +45,16 @@ check('규칙 상수(시수 공식·서논술 30%·수행 횟수)', () => {
   assert(P.includes('essay_ratio_rule'), '서논술 규칙 누락')
   assert(P.includes('perf_count_rule'), '수행 횟수 규칙 누락')
 })
-check('한도 문구는 언제나 manifest.limits 에서 온다', () => {
-  // 상수의 template_capacity.planned 는 사람이 읽는 요약이고, 실제 한도는 manifest 다.
-  // v3 마스터가 배치되면서 둘이 같아졌지만, **참조하는 곳은 여전히 하나뿐**이어야 한다.
-  const cap = C.perf_count_rule.template_capacity
-  assert(cap.planned.perf_columns === M.limits.perf_areas_max, `요약(${cap.planned.perf_columns}) != 한도(${M.limits.perf_areas_max})`)
-  assert(
-    P.includes(`수행평가는 최대 ${M.limits.perf_areas_max}개까지만`),
-    '한도 문구가 manifest.limits 에서 오지 않음'
-  )
-  // manifest 만 줄여도 프롬프트가 따라가야 한다 (상수를 보고 있으면 안 따라간다)
-  const m2 = JSON.parse(JSON.stringify(M))
-  m2.limits.perf_areas_max = 2
-  m2.limits.perf_plans_max = 2
-  const p2 = mod.buildLimitDoc(m2)
-  assert(p2.includes('수행평가는 최대 2개까지만'), '한도 변경 미반영')
+check('한도는 양식(token-map)이 정한다', () => {
+  // v4 는 유형마다 한도가 다르다. 상수의 template_capacity 는 사람이 읽는 요약일 뿐
+  // 코드가 참조하는 곳은 token-map 하나여야 한다.
+  const arts = mod.routeCaps(M.routing.grade2_exam0)
+  assert(arts.perf === 3 && arts.plans === 3, JSON.stringify(arts))
+  assert(P.includes('- grade2_exam0: 수행평가 3개'), '유형별 한도 문구 없음')
+  // 토큰이 빠지면 프롬프트도 따라간다
+  const tm2 = JSON.parse(JSON.stringify(mod.tokenMap))
+  tm2['tpl-g2-perf3-arts.hwpx'] = tm2['tpl-g2-perf3-arts.hwpx'].filter((t) => !t.startsWith('P3_'))
+  assert(mod.routeCaps(M.routing.grade2_exam0, tm2).perf === 2, '토큰 변경 미반영')
 })
 check('학년별 교육과정 매핑', () => {
   assert(P.includes('2022 개정') && P.includes('2015 개정'), '교육과정 매핑 누락')

@@ -72,6 +72,27 @@ function buildPrefillIndex(dir = PREFILL_DIR) {
 
 const prefillIndex = buildPrefillIndex()
 
+// 양식별 토큰 목록 — 어느 양식에 어떤 칸이 있는지의 유일한 근거 (v4)
+let tokenMap = {}
+try {
+  tokenMap = JSON.parse(readFileSync(join(ASSETS, 'token-map.json'), 'utf-8'))
+} catch {
+  tokenMap = {}
+}
+
+/** 그 양식이 가진 성취수준 단계 (LV_* 토큰이 있는 것만) */
+function routeLevels(entry, map = tokenMap) {
+  const toks = new Set(map[entry?.file] || [])
+  return ['A', 'B', 'C', 'D', 'E'].filter((lv) => toks.has(`LV_${lv}`))
+}
+
+/** 그 양식이 담는 수행평가 열 수 / 자유학기 활동 블록 수 */
+function routeCaps(entry, map = tokenMap) {
+  const toks = new Set(map[entry?.file] || [])
+  const count = (pre) => [1, 2, 3, 4, 5].filter((n) => toks.has(`${pre}${n}_NAME`)).length
+  return { perf: count('P'), plans: count('PP'), free: count('FPP') }
+}
+
 // 성취기준·성취수준 DB (14개 교과). ✗ 미매칭을 메울 때 **이 안에서만** 고르게 한다.
 let standardsDb = null
 try {
@@ -496,6 +517,17 @@ function buildFieldDoc(m) {
     L.push(...itemLines(pp.item_fields, ''))
   }
 
+  const fa = m.free_activities
+  if (fa) {
+    L.push(
+      '',
+      `### ${fa.label} — key: ${keyOf(fa, 'free_activities')} (배열, 자유학기 양식 전용)`,
+      '⚠ 점수·미응시 점수가 없다. 배열 자체를 자유학기가 아닐 때는 비워 둔다.'
+    )
+    L.push(...itemLines(fa.item_fields, ''))
+    L.push('  levels 형태: { "A": "...", "B": "...", "C": "...", "D": "...", "E": "..." }')
+  }
+
   const mip = m.min_achievement_plan
   if (mip) {
     L.push('', `### ${mip.label} — key: ${keyOf(mip, 'min_achievement_plan')}${typeNote(mip)}`)
@@ -537,101 +569,109 @@ function buildHoursDoc(table) {
 }
 
 /**
- * 양식 유형(variant)별 대화 분기.
- * 서버가 교과·학년으로 유형을 정하므로 너는 고르지 않는다 — 다만 **1학년 2학기(자유학기)는
- * 물어볼 것 자체가 다르므로** 대화 초반에 분기해야 한다.
+ * 양식 라우팅 (manifest v4) — 학년 × 시험 횟수로 양식이 정해진다.
+ *
+ * 학년·회차 라벨·'˙'·유형 문장 구조가 **양식에 인쇄돼 있어서**, 어떤 칸을 채울지가
+ * 양식마다 다르다. 그래서 대화도 유형에 따라 물어볼 것이 달라진다.
+ * 단계 수·수행 개수는 token-map 에서 세어 온다 — 여기 적어 두면 갈라진다.
  */
-function buildVariantDoc(m) {
-  const v = m?.variant_routing
-  if (!v) return ''
-  const items = v.items || {}
-  const fam = m.variants || {}
-  const artsList = fam.arts?.subjects || []
-  const arts = artsList.join(' · ')
-
+function buildRoutingDoc(m = manifest) {
+  const routing = m?.routing
+  if (!routing) return ''
   const L = ['## 양식 유형 (서버가 자동 결정 — 너는 대화만 맞춘다)']
   L.push(
-    '교과와 학년이 정해지면 어떤 양식으로 나갈지는 서버가 정한다:',
-    ...(v._resolution_order || []).map((r) => `  · ${r}`),
-    '- 아직 만들어지지 않은 유형이면 생성 단계에서 "○○ 양식이 아직 준비되지 않았습니다" 안내가 나간다.',
-    '  그 경우에도 대화는 끝까지 진행해 내용을 확정해 둔다 — 양식이 준비되면 바로 생성할 수 있다.',
+    `- ${routing._rule || '학년 × 시험 횟수로 정해진다.'}`,
+    '- 교과와 학년, 정기시험 횟수가 정해지면 어떤 양식으로 나갈지 서버가 정한다.',
+    '- 표에 없는 조합이면 생성 단계에서 "해당 유형 양식이 없습니다" 안내가 나간다.',
+    '  그 경우에도 대화는 끝까지 진행해 내용을 확정해 둔다.',
     ''
   )
 
-  if (items.grade1_free) {
+  for (const [key, e] of Object.entries(routing)) {
+    if (key.startsWith('_') || !e?.file) continue
+    const lv = routeLevels(e)
+    const cap = routeCaps(e)
+    const bits = []
+    if (cap.perf) bits.push(`수행 ${cap.perf}열`)
+    if (cap.free) bits.push(`활동 ${cap.free}블록`)
+    bits.push(lv.length ? `성취수준 ${lv.join('·')}` : '**성취수준 절 없음**')
+    L.push(`- **${key}** — ${bits.join(' / ')}${e.subjects_hint ? ` (예: ${e.subjects_hint.join('·')})` : ''}`)
+    if (e.special) L.push(`  ⚠ ${e.special}`)
+  }
+
+  // 3학년 — 학기 단위 성취수준 절 자체가 없다
+  const g3 = Object.entries(routing).filter(([k, e]) => k.startsWith('grade3') && e?.file)
+  if (g3.length && g3.every(([, e]) => routeLevels(e).length === 0)) {
     L.push(
-      '### 1학년 2학기 = 자유학기 — 물어볼 것이 다르다',
-      '실측: 작년 1학년 문서에는 **3절(반영비율) 자체가 없다.** "평정" 0회 / "이수" 48회.',
-      '즉 점수로 매기지 않는다. 따라서 이 경우에만 대화를 이렇게 바꾼다:',
       '',
-      '**묻지 않는다** (이 항목들은 자유학기 계획서에 없다):',
-      '- 정기시험 횟수·시기·배점',
-      '- 반영비율 (지필 : 수행)',
-      '- 서·논술형 반영비율, 30% 규정',
-      '- 수행평가 영역별 만점·반영비율',
-      '',
-      '**대신 묻는다**:',
-      '- 수행평가(점수화하지 않는 평가) — 무엇을 어떻게 보는지, 시기',
-      '- 성취수준 진술 — 점수가 아니라 도달 정도를 서술로',
-      '- 이수 여부 판단 기준과 피드백 방법',
-      '',
-      '- 교사가 "반영비율은요?" 라고 먼저 물으면, 자유학기라 점수화하지 않는다는 점을 설명한다.',
-      '- ⚠ **이 유형의 상세 수집 항목은 아직 확정 대기 중이다.** 확정 전까지는 위 범위에서',
-      '  교사에게 필요한 것을 묻고, 확정되지 않은 항목을 지어내지 않는다 (제1원칙).',
-      '  교사에게도 "자유학기 양식은 준비 중이라 지금은 내용 정리까지만 됩니다" 라고 미리 알린다.',
-      ''
+      '### 3학년 — 학기 단위 성취수준을 묻지 않는다',
+      '- 3학년 양식에는 **학기 단위 성취수준 절 자체가 없다** (2015 개정 양식).',
+      '- A~E 진술을 **묻지도, 만들지도 않는다.** achievement_levels 는 비워 둔다.',
+      '  물어봐야 들어갈 칸이 없고, 교사에게는 답할 이유 없는 질문이 된다.'
     )
   }
 
-  if (items.arts && arts) {
-    const lv = fam.arts?.achievement_levels || []
-    const base = fam[items.default?.uses]?.achievement_levels || []
+  // 자유학기 — 물어볼 것이 아예 다르다
+  const free = Object.entries(routing).find(([, e]) => e?.scoring === false)
+  if (free) {
+    const [, e] = free
+    const cap = routeCaps(e)
+    const lv = routeLevels(e)
     L.push(
-      `### ${arts} — 예체능형 (성취수준 ${lv.length}단계)`,
-      '- 정기시험 없이 수행 100% 가 실측 관행이다. 지필 관련 질문은 생략하고 확인만 받는다.',
-      `- **성취수준은 ${lv.join('·')} ${lv.length}단계만 받는다.** 예체능판 양식에는`,
-      `  ${base.filter((x) => !lv.includes(x)).join('·')} 칸 자체가 없다.`,
-      `  ${base.filter((x) => !lv.includes(x)).join('·')} 진술을 묻지 말고, achievement_levels 에도 넣지 않는다.`,
-      '  (실수로 넣어도 서버가 버리지만, 교사에게 쓸데없는 질문을 하는 셈이 된다)',
-      `- ⚠ **보건·정보는 여기 해당하지 않는다.** 수행 100% 인 점은 같아도 성취도는`,
-      `  ${base.length}단계라 기본 양식을 쓴다. 교과명을 정확히 확인하고 넘어간다.`,
-      ''
+      '',
+      '### 1학년 2학기 = 자유학기 — 점수화하지 않는다',
+      '실측: 자유학기 문서에는 3절(반영비율) 자체가 없다. 점수로 매기지 않는다.',
+      '',
+      '**묻지 않는다** (이 항목들은 자유학기 계획서에 없다):',
+      '- 정기시험 횟수·시기·배점 / 반영비율(지필:수행) / 서·논술형 30%',
+      '- 수행평가 영역별 만점·반영비율 / **미응시자 점수** (양식에 고정 문구가 들어 있다)',
+      '',
+      '**대신 묻는다**:',
+      `- 월별 교수·학습 계획 — 이 양식은 **월 이름도 칸**이다 (12월·1월처럼 달라질 수 있다).`,
+      '  monthly_plan[].month 를 반드시 채운다.',
+      '- 평가 목적 3개 / 최소 성취수준 미도달 지도 방안',
+      `- 학기 단위 성취수준 ${lv.join('·')} 서술`,
+      `- **활동 계획 최대 ${cap.free}개** — key: free_activities`,
+      '  각 활동마다: 활동명(name) / 활동 과제·내용(task) / 교육과정 성취기준(standards)',
+      `  / 성취수준 서술 levels{${lv.join(',')}} / 평가방법 체크(methods)`,
+      '  ⚠ 배점·미응시 점수는 없다. 점수 대신 **도달 정도를 문장으로** 받는다.',
+      '- 교사가 "반영비율은요?" 라고 먼저 물으면, 자유학기라 점수화하지 않는다고 설명한다.'
     )
   }
   return L.join('\n').trimEnd()
 }
 
 /**
- * 현재 양식(template.hwpx)의 물리 한도.
- * manifest.limits 에서 읽어 프롬프트에 명시한다 — 한도를 넘겨 수집해봐야
- * generate 가 거부하므로, 대화 단계에서 미리 안내하는 편이 교사에게 낫다.
+ * 양식이 담는 수·한도. v4 는 유형마다 달라서 라우팅 표에서 읽는다.
+ * 한도를 넘겨 수집해봐야 서버가 잘라내므로, 대화 단계에서 미리 안내하는 편이 낫다.
  */
-function buildLimitDoc(m) {
-  const lim = m.limits
-  if (!lim) return ''
-  const areas = lim.perf_areas_max
-  const plans = lim.perf_plans_max
-  const cap = Math.min(areas ?? Infinity, plans ?? Infinity)
+function buildLimitDoc(m = manifest) {
+  const routing = m?.routing
+  if (!routing) return ''
+  const caps = Object.entries(routing)
+    .filter(([k, e]) => !k.startsWith('_') && e?.file)
+    .map(([k, e]) => [k, routeCaps(e)])
+  const perfCaps = caps.map(([, c]) => c.perf).filter(Boolean)
+  const maxPerf = perfCaps.length ? Math.max(...perfCaps) : 0
 
-  const L = ['## 현재 양식의 한도 (반드시 지킬 것)']
-  if (lim.exam_count) L.push(`- 정기시험 횟수: ${lim.exam_count.join(' / ')} 회만 가능`)
-  if (Number.isFinite(cap)) {
-    L.push(
-      `- **수행평가는 최대 ${cap}개까지만** 이 양식에 담긴다 (세부 운영 계획 ${areas}열 / 출제 계획 ${plans}블록).`,
-      `- 교사가 수행평가를 ${cap + 1}회 이상 하겠다고 하면, 계획 자체를 반대하지 않는다.`,
-      `  "현재 양식은 수행평가 ${cap}개까지 담깁니다. ${cap + 1}번째부터는 공란으로 남고`,
-      `  한글에서 직접 편집해 추가하셔야 합니다. 그대로 진행할까요?" 라고 알리고 교사의 선택을 따른다.`,
-      `  ⚠ "확장 양식이 준비 중" 이라고 말하지 않는다. 지금 양식이 학교 공용 마스터이고,`,
-      `     ${cap}개를 넘기는 확장 계획은 없다 — 없는 예정을 만들지 않는다.`
-    )
+  const L = ['## 양식이 담는 개수 (반드시 지킬 것)']
+  for (const [k, c] of caps) {
+    const bits = []
+    if (c.perf) bits.push(`수행평가 ${c.perf}개 (세부 운영 ${c.perf}열 / 출제 계획 ${c.plans}블록)`)
+    if (c.free) bits.push(`활동 ${c.free}개`)
+    L.push(`- ${k}: ${bits.join(' · ')}`)
   }
   L.push(
+    '',
+    `- 교사가 양식 한도보다 많이 하겠다고 하면 **계획 자체를 반대하지 않는다.**`,
+    `  "이 유형 양식은 N개까지 담깁니다. 나머지는 공란으로 남고 한글에서 직접 편집해`,
+    `  추가하셔야 합니다. 그대로 진행할까요?" 라고 알리고 교사의 선택을 따른다.`,
+    `  ⚠ "확장 양식이 준비 중" 이라고 말하지 않는다. 유형별 양식 ${caps.length}종이 학교 최종본이고,`,
+    `     ${maxPerf}개를 넘기는 확장 계획은 없다 — 없는 예정을 만들지 않는다.`,
     '- 평가 요소는 수행평가마다 최대 3개, 각 요소의 수행수준은 4단계까지 담긴다.',
-    '  더 필요하다고 하면 같은 방식으로 한도를 안내하고 범위 안에서 정리한다.',
     '',
     '### 한도를 넘는 계획을 교사가 그대로 원할 때 (제0원칙)',
-    '- 계획을 축소시키지 않는다. 문서는 만들되, 다음을 분명히 알린다:',
-    `  "${cap}개까지는 문서에 들어가고, 나머지는 공란으로 남습니다. 빠진 내용은 한글에서 직접 편집해 추가하셔야 합니다."`,
+    '- 계획을 축소시키지 않는다. 문서는 만들되 무엇이 빠지는지 분명히 알린다.',
     '- PLAN_READY JSON 에는 교사가 확정한 항목을 **전부** 넣는다. 잘라내는 일은 서버가 하고,',
     '  무엇이 빠졌는지도 서버가 다시 알려준다. 네가 임의로 버리지 않는다.'
   )
@@ -935,7 +975,8 @@ function buildSkeleton(m, table = fixedHours) {
   if (mp) {
     obj[keyOf(mp, 'monthly_plan')] = mp.months.map((month) => {
       const row = { month }
-      for (const rf of mp.row_fields) row[rf.key] = ''
+      // month 는 위에서 실제 월 이름으로 채웠다 — 다시 빈 문자열로 덮지 않는다
+      for (const rf of mp.row_fields) if (rf.key !== 'month') row[rf.key] = ''
       return row
     })
   }
@@ -990,6 +1031,9 @@ function buildSkeleton(m, table = fixedHours) {
     obj[keyOf(pp, 'perf_plans')] = [item]
   }
 
+  const fa2 = m.free_activities
+  if (fa2) obj[keyOf(fa2, 'free_activities')] = []
+
   if (m.min_achievement_plan) obj[keyOf(m.min_achievement_plan, 'min_achievement_plan')] = ''
 
   return JSON.stringify(obj, null, 2)
@@ -1037,7 +1081,7 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
 
   // ③ 시수 자동입력 + 양식 한도 + 수집 항목 문서를 "완료 절차" 바로 앞에 끼운다
   const inserted = [
-    buildVariantDoc(m),
+    buildRoutingDoc(m),
     buildRegulationDoc(),
     buildDefaultsDoc(consts),
     buildExamMethodDoc(m),
@@ -1078,7 +1122,10 @@ export {
   buildExamMethodDoc,
   buildCountSetDoc,
   buildDefaultsDoc,
-  buildVariantDoc,
+  buildRoutingDoc,
+  routeLevels,
+  routeCaps,
+  tokenMap,
   buildRegulationDoc,
   regulation,
   reconcileConstants,

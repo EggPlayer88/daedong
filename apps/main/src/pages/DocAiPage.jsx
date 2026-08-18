@@ -40,6 +40,7 @@ export default function DocAiPage() {
   const [findings, setFindings] = useState([]) // 규정 검증 결과 (WARN/FLAG)
   const [planNotices, setPlanNotices] = useState([]) // 생성 전 안내 (횟수 세트 등)
   const [levels, setLevels] = useState(null) // 양식 유형이 정한 성취수준 단계 (서버 판정)
+  const [scoring, setScoring] = useState(true) // 자유학기면 false — 배점 절을 그리지 않는다
   const bottomRef = useRef(null)
   const started = useRef(false)
   const fileRef = useRef(null)
@@ -180,6 +181,7 @@ export default function DocAiPage() {
     setPlan(null)
     planRef.current = null
     setLevels(null)
+    setScoring(true)
     setNotice(null)
     setNotices([])
     setFindings([])
@@ -258,6 +260,7 @@ export default function DocAiPage() {
     setFindings([])
     setPlanNotices([])
     setLevels(null)
+    setScoring(true)
     try {
       const r = await fetch('/api/doc-ai/generate', {
         method: 'POST',
@@ -275,6 +278,7 @@ export default function DocAiPage() {
         setPlanNotices(Array.isArray(data.notices) ? data.notices : [])
         // 예체능판은 A~C 3단계 — 어느 유형인지는 서버가 정한다
         setLevels(Array.isArray(data.levels) ? data.levels : null)
+        setScoring(data.scoring !== false)
       }
     } catch {
       // 판정을 못 받아도 대화는 계속된다 — 생성 시 서버가 다시 검사한다
@@ -465,6 +469,7 @@ export default function DocAiPage() {
           findings={findings}
           notices={planNotices}
           levels={levels}
+          scoring={scoring}
           busy={busy}
           onGenerate={generate}
           onEdit={() => setPlan(null)}

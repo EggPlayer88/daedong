@@ -144,133 +144,53 @@ ck('기본값이 상수에서 파생', () => {
   A(p2.includes('지필 55% : 수행 45%'), '상수 변경 미반영')
 })
 
-console.log('\n[양식 유형 분기]')
-ck('결정 규칙이 프롬프트에 있음', () => {
-  A(P.includes('## 양식 유형'), '유형 절 없음')
-  for (const r of ['grade1_free', 'arts', 'grade3', 'default']) A(P.includes(r), `누락: ${r}`)
+console.log('\n[양식 라우팅 — 학년 × 시험 횟수 (v4)]')
+ck('결정 규칙과 유형 목록', () => {
+  A(P.includes('grade × exam_count 로 양식 결정'), '결정 규칙 없음')
+  for (const [k, e] of Object.entries(M.routing)) {
+    if (k.startsWith('_') || !e.file) continue
+    A(P.includes(`**${k}**`), `유형 누락: ${k}`)
+  }
 })
-ck('미배치 유형이어도 대화는 끝까지', () => {
-  A(P.includes('대화는 끝까지 진행해 내용을 확정해 둔다'), '안내 없음')
+ck('표에 없는 조합도 대화는 끝까지', () => {
+  A(P.includes('해당 유형 양식이 없습니다'), '미배치 안내 없음')
+  A(P.includes('대화는 끝까지 진행해 내용을 확정'), '진행 지시 없음')
 })
-ck('자유학기: 묻지 않을 것이 명시됨', () => {
-  A(P.includes('자유학기 — 물어볼 것이 다르다'), '자유학기 절 없음')
-  for (const s of ['반영비율 (지필 : 수행)', '서·논술형 반영비율, 30% 규정', '정기시험 횟수·시기·배점']) {
+ck('예체능판 성취수준 3단계 + 정보·진로 예외', () => {
+  A(P.includes('성취수준 A·B·C'), '3단계 표기 없음')
+  A(P.includes('정보·진로도 이 양식 사용'), '예외 안내 없음')
+  A(P.includes('교사가 한글에서 수정 필요'), '수정 필요 고지 없음')
+})
+ck('3학년은 성취수준을 묻지 않는다', () => {
+  A(P.includes('3학년 — 학기 단위 성취수준을 묻지 않는다'), '3학년 절 없음')
+  A(P.includes('묻지도, 만들지도 않는다'), '수집 생략 지시 없음')
+  A(P.includes('achievement_levels 는 비워 둔다'), '비우기 지시 없음')
+})
+ck('자유학기: 묻지 않을 것', () => {
+  A(P.includes('자유학기 — 점수화하지 않는다'), '자유학기 절 없음')
+  for (const s of ['정기시험 횟수·시기·배점', '반영비율', '미응시자 점수']) {
     A(P.includes(s), `묻지 않을 항목 누락: ${s}`)
   }
 })
-ck('자유학기: 대신 물을 것 + 실측 근거', () => {
-  A(P.includes('이수 여부 판단 기준과 피드백'), '대체 항목 없음')
-  A(P.includes("'평정' 0회") || P.includes('"평정" 0회'), '실측 근거 없음')
+ck('자유학기: 대신 물을 것', () => {
+  A(P.includes('월 이름도 칸'), '월 토큰 안내 없음')
+  A(P.includes('monthly_plan[].month 를 반드시 채운다'), 'month 수집 지시 없음')
+  A(P.includes('활동 계획 최대 4개'), '활동 블록 수 없음')
+  A(P.includes('도달 정도를 문장으로'), '점수 대신 서술 지시 없음')
 })
-ck('자유학기: 명세 미확정을 숨기지 않는다', () => {
-  A(P.includes('상세 수집 항목은 아직 확정 대기'), '미확정 고지 없음')
-  A(P.includes('지어내지 않는다'), '제1원칙 연결 없음')
-})
-ck('유형 분기가 manifest 에서 파생', () => {
-  const m2 = JSON.parse(JSON.stringify(mod.manifest))
-  delete m2.variant_routing.items.grade1_free
-  const p2 = mod.buildVariantDoc(m2)
-  A(!p2.includes('자유학기 — 물어볼 것이 다르다'), '유형 제거가 반영 안 됨')
-})
-
-console.log('\n[예체능판 3수준 — v3.1]')
-ck('예체능 교과 목록은 FINAL variants 에서 온다', () => {
-  const subs = M.variants.arts.subjects
-  A(subs.join(' · ') === '음악 · 미술 · 체육', subs.join(','))
-  A(!subs.includes('보건'), '보건이 예체능판으로 들어감 (성취도 5단계다)')
-})
-ck('A~C 만 수집한다고 명시', () => {
-  A(P.includes('성취수준 3단계'), '단계 수 표기 없음')
-  A(P.includes('**성취수준은 A·B·C 3단계만 받는다.**'), '수집 범위 지시 없음')
-  A(P.includes('D·E 진술을 묻지 말고'), '질문 금지 없음')
-})
-ck('보건·정보는 예외임을 못박는다', () => {
-  A(P.includes('보건·정보는 여기 해당하지 않는다'), '예외 안내 없음')
-  A(P.includes('5단계라 기본 양식을 쓴다'), '이유 없음')
-})
-ck('단계 수가 자산에서 파생 (하드코딩 아님)', () => {
+ck('라우팅이 자산에서 파생', () => {
   const m2 = JSON.parse(JSON.stringify(M))
-  m2.variants.arts.achievement_levels = ['A', 'B']
-  const p2 = mod.buildVariantDoc(m2)
-  A(p2.includes('성취수준 2단계'), '단계 수 변경 미반영')
-  A(p2.includes('A·B 2단계만 받는다'), '수집 범위 미반영')
+  delete m2.routing.grade1_semester2
+  const p2 = mod.buildRoutingDoc(m2)
+  A(!p2.includes('자유학기 — 점수화하지 않는다'), '유형 제거가 반영 안 됨')
+  const m3 = JSON.parse(JSON.stringify(M))
+  m3.routing.grade2_exam0.special = '테스트 안내 문구'
+  A(mod.buildRoutingDoc(m3).includes('테스트 안내 문구'), 'special 변경 미반영')
 })
-ck('성취수준 수집 항목이 유형 의존임을 밝힌다', () => {
-  A(P.includes('단계 수는 양식 유형이 정한다'), '유형 의존 안내 없음')
-})
-
-console.log('\n[정기시험 3분류 — 2026 학교 확정]')
-ck('3분류 명칭이 정확하다', () => {
-  A(P.includes('선택형(객관식)'), 'mc 명칭 없음')
-  A(P.includes('단답형·완성형(주관식)'), 'short 명칭 없음')
-  A(P.includes('서·논술형(주관식)'), 'essay 명칭 없음')
-  A(P.includes('**회차 100점 = 셋의 합**'), '100점 불변식 없음')
-})
-ck('30% 산입은 서·논술형만 (단답형·완성형 제외)', () => {
-  A(P.includes('- 산입: 서·논술형'), '산입 목록 없음')
-  A(P.includes('**미산입**: 선택형 · 단답형·완성형'), '미산입 목록 없음')
-  A(P.includes('30% 계산에 넣지 않는다'), '제외 지시 없음')
-})
-ck('작년 2분류 → 올해 3분류 전환 질문', () => {
-  A(P.includes('작년 자료는 2분류다'), '전환 절 없음')
-  A(P.includes('올해부터 정기시험 배점을 선택형 / 단답형·완성형 / 서·논술형 3가지로 적습니다'), '질문 문구 없음')
-  A(P.includes('네가 임의로 나누지 않는다'), '임의 분배 금지 없음')
-  A(P.includes('모르겠다') && P.includes('공란'), '모를 때 처리 없음')
-})
-ck('3분류가 다 담기므로 과도기 안내는 없다 (v3 마스터)', () => {
-  A(!P.includes('현행 양식에는 아직 칸이 없다'), '끝난 과도기 안내가 남음')
-  A(!P.includes('문서에 들어가지 못한다'), '누락 안내가 남음')
-})
-ck('칸이 빠지면 안내가 되살아난다 (자산 파생)', () => {
-  const m2 = JSON.parse(JSON.stringify(M))
-  m2.exam.template_categories = ['mc', 'essay']
-  const p2 = mod.buildExamMethodDoc(m2)
-  A(p2.includes('현행 양식에는 아직 칸이 없다'), '되살아나지 않음')
-  A(p2.includes('네가 합치지 않는다'), '임의 합산 금지 없음')
-})
-ck('3분류가 manifest 에서 파생 (하드코딩 아님)', () => {
-  const m2 = JSON.parse(JSON.stringify(M))
-  m2.exam.method_categories[1].short_label = '단답형'
-  m2.exam.template_categories = ['mc', 'short', 'essay']
-  const p2 = mod.buildExamMethodDoc(m2)
-  A(p2.includes('**미산입**: 선택형 · 단답형'), '명칭 변경 미반영')
-  A(!p2.includes('현행 양식에는 아직 칸이 없다'), '칸이 생겼는데 과도기 안내가 남음')
-})
-ck('수집 항목에 short 가 들어감', () => {
-  const f = M.exam.rounds.item_fields.find(x => x.key === 'short')
-  A(f, 'manifest 에 short 필드 없음')
-  A(P.includes(f.label), `프롬프트에 라벨 없음: ${f.label}`)
-})
-
-console.log('\n[횟수 세트 — 시험 횟수 × 수행 개수]')
-ck('확정 세트 3줄이 그대로 있음', () => {
-  A(P.includes('정기시험 0회 → 수행평가 3개 **(고정)**'), '0회 세트 없음')
-  A(P.includes('정기시험 1회 → 수행평가 2개 **(고정)**'), '1회 세트 없음')
-  A(P.includes('정기시험 2회 → 수행평가 1~2개'), '2회 세트 없음')
-})
-ck('제외 조합과 이유', () => {
-  A(P.includes('정기시험 0회 × 수행 4개'), '0×4 제외 없음')
-  A(P.includes('정기시험 1회 × 수행 3개'), '1×3 제외 없음')
-  A(P.includes('유명무실'), '제외 이유 없음')
-})
-ck('세트 밖은 막지 않는다 (제0원칙 경로)', () => {
-  A(P.includes('세트 밖을 교사가 원할 때'), '세트 밖 절 없음')
-  A(P.includes('거부하지 않는다'), '거부 금지 문구 없음')
-  A(P.includes('그래도 진행할까요?'), '확인 질문 없음')
-  A(P.includes('자르고 알리는 일은 서버가 한다'), '역할 분담 없음')
-})
-ck('작년과 달라진 조합을 먼저 짚는다', () => {
-  A(P.includes('2025-2 3학년 영어'), '전환 사례 없음')
-  A(P.includes('작년 시험 1회 × 수행 3개 → 올해는 수행 2개'), '전환 내용 없음')
-  A(P.includes('네가 골라 주지 않는다'), '임의 선택 금지 없음')
-})
-ck('세트가 상수에서 파생 (하드코딩 아님)', () => {
-  const c2 = JSON.parse(JSON.stringify(mod.constants))
-  c2.perf_count_rule.by_exams['2'] = { min: 1, max: 1 }
-  c2.perf_count_rule.transition_notes = []
-  const p2 = mod.buildCountSetDoc(c2)
-  A(p2.includes('정기시험 2회 → 수행평가 1개'), '세트 변경 미반영')
-  A(!p2.includes('작년과 달라진 조합'), '전환 안내 제거 미반영')
+ck('성취수준 단계가 token-map 에서 파생', () => {
+  const tm2 = JSON.parse(JSON.stringify(mod.tokenMap))
+  tm2['tpl-g2-perf3-arts.hwpx'] = tm2['tpl-g2-perf3-arts.hwpx'].filter((t) => t !== 'LV_C')
+  A(mod.routeLevels(M.routing.grade2_exam0, tm2).join('') === 'AB', '토큰 변경 미반영')
 })
 
 console.log('\n[물어보는 방식이 정해진 칸 — collection_guides]')
@@ -296,20 +216,10 @@ ck('수집 필드도 "미응시자 점수" 로 바뀌었다', () => {
   A(!M.perf_plans.item_fields.some(x => x.key === 'absentee_rule'), '옛 필드가 남음')
   A(P.includes('미응시자 점수'), '프롬프트 수집 목록에 없음')
 })
-ck('펼친 표가 FINAL 원문과 같은 것을 말한다', () => {
-  // FINAL 의 collection_guides 는 산문, 우리 collection_guides_fields 는 구조화본이다.
-  // 둘이 갈라지면 계약과 구현이 다른 말을 하게 되므로 핵심 문구를 대조한다.
-  const prose = M.collection_guides
-  const f = M.collection_guides_fields
-  A(prose.MIN_ACH.includes(f.min_achievement_plan.suggest_first), '관행 문구 불일치')
-  const ab = f['perf_plans.absentee_points']
-  A(prose.PP_ABSENT.includes('점수'), 'FINAL 이 점수라고 말하지 않음')
-  // FINAL 이 든 예시("각 영역당 20점")를 우리 질문 문구가 그대로 쓴다
-  const example = /'([^']*각 영역당[^']*)'/.exec(prose.PP_ABSENT)?.[1]
-  A(example, 'FINAL 에 예시가 없음')
-  A(ab.ask.includes(example), `질문 문구가 FINAL 예시(${example})를 안 씀`)
-  A(prose.PP_ABSENT.includes('미정이면 공란'), 'FINAL 의 미정 처리와 어긋남')
-  A(ab.rule.includes('미정이면 공란'), '우리 규칙에 미정 처리 없음')
+ck('미응시자 점수는 자유학기에서 묻지 않는다', () => {
+  // v4 자유학기 양식은 미응시 문구가 고정 텍스트다 — 물어봐야 갈 칸이 없다
+  A(M.fixed_texts['자유학기 미응시'], 'FINAL 에 고정 문구가 없음')
+  A(P.includes('**미응시자 점수** (양식에 고정 문구가 들어 있다)'), '자유학기 예외 안내 없음')
 })
 ck('안내 문구가 자산에서 파생 (하드코딩 아님)', () => {
   const m2 = JSON.parse(JSON.stringify(M))

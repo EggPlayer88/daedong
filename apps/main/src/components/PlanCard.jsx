@@ -101,7 +101,8 @@ function Section({ title, children }) {
 }
 
 export default function PlanCard({
-  manifest: m, plan, findings = [], notices = [], levels: levelKeys, busy, onGenerate, onEdit,
+  manifest: m, plan, findings = [], notices = [], levels: levelKeys,
+  scoring = true, busy, onGenerate, onEdit,
 }) {
   const mp = m.monthly_plan
   const ex = m.exam
@@ -118,7 +119,12 @@ export default function PlanCard({
   // 성취수준 단계 수는 양식 유형이 정한다 (예체능판 A~C / 마스터 A~E).
   // ⚠ 판정은 서버가 한다 — 여기서 교과명으로 다시 고르지 않는다 (규칙을 화면에 복제하지 않는다).
   //   서버 응답이 아직 없으면 manifest 기본값으로 그린다.
-  const shownLevels = Array.isArray(levelKeys) && levelKeys.length ? levelKeys : al?.levels || []
+  // ⚠ 빈 배열도 서버의 답이다 — 3학년 양식에는 성취수준 절이 아예 없다.
+  //   "아직 못 받음(null)" 과 "없음([])" 을 구분하지 않으면 없는 절을 그리게 된다.
+  const shownLevels = Array.isArray(levelKeys) ? levelKeys : al?.levels || []
+  // 자유학기(scoring=false)는 배점·반영비율 절 자체가 없다 — 없는 표를 그리지 않는다
+  const fa = m.free_activities
+  const acts = Array.isArray(plan[keyOf(fa, 'free_activities')]) ? plan[keyOf(fa, 'free_activities')] : []
   const purposeKey = keyOf(ep, 'eval_purpose')
   const essayKey = keyOf(m.essay_total_ratio, 'essay_total_ratio')
   const minKey = keyOf(m.min_achievement_plan, 'min_achievement_plan')
@@ -240,7 +246,7 @@ export default function PlanCard({
         </Section>
       )}
 
-      {ex && (
+      {scoring && ex && (
         <Section title="정기시험">
           <table className="table kv-table">
             <tbody>
@@ -281,7 +287,7 @@ export default function PlanCard({
         </Section>
       )}
 
-      {ps && (
+      {scoring && ps && (
         <Section title={`수행평가 (${areas.length}개 / 최대 ${ps.max})`}>
           <div className="scroll-x">
             <table className="table">
@@ -316,7 +322,8 @@ export default function PlanCard({
         </Section>
       )}
 
-      {al && (
+      {/* 3학년 양식에는 학기 단위 성취수준 절 자체가 없다 → 단계가 0이면 그리지 않는다 */}
+      {al && shownLevels.length > 0 && (
         <Section title={`${al.label} (${shownLevels.length}단계)`}>
           <table className="table kv-table">
             <tbody>
@@ -333,7 +340,7 @@ export default function PlanCard({
         </Section>
       )}
 
-      {pp && plans.length > 0 && (
+      {scoring && pp && plans.length > 0 && (
         <Section title={`수행평가 출제 계획 (${plans.length}개 / 최대 ${pp.max})`}>
           {plans.map((p, i) => (
             <div className="subblock" key={i}>
@@ -415,6 +422,47 @@ export default function PlanCard({
                 })}
             </div>
           ))}
+        </Section>
+      )}
+
+      {!scoring && fa && (
+        <Section title={`${fa.label} (${acts.length}개)`}>
+          {acts.length === 0 ? (
+            <p className="blank">(공란)</p>
+          ) : (
+            acts.map((a, i) => (
+              <div className="subblock" key={i}>
+                <h5>
+                  {i + 1}. <Val v={a?.name} />
+                </h5>
+                <table className="table kv-table">
+                  <tbody>
+                    {fa.item_fields
+                      .filter((f) => f.key !== 'name' && f.key !== 'levels')
+                      .map((f) => (
+                        <tr key={f.key}>
+                          <th>{f.label}</th>
+                          <td>
+                            <Val v={a?.[f.key]} />
+                          </td>
+                        </tr>
+                      ))}
+                    {shownLevels.map((lv) => (
+                      <tr key={lv}>
+                        <th>성취수준 {lv}</th>
+                        <td>
+                          <Val v={a?.levels?.[lv]} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))
+          )}
+          <p className="muted small">
+            자유학기라 배점·미응시 점수는 받지 않습니다 — 도달 정도를 문장으로 적습니다.
+          </p>
         </Section>
       )}
 
