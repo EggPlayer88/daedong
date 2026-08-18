@@ -101,7 +101,7 @@ function Section({ title, children }) {
 }
 
 export default function PlanCard({
-  manifest: m, plan, findings = [], notices = [], busy, onGenerate, onEdit,
+  manifest: m, plan, findings = [], notices = [], levels: levelKeys, busy, onGenerate, onEdit,
 }) {
   const mp = m.monthly_plan
   const ex = m.exam
@@ -115,11 +115,15 @@ export default function PlanCard({
   const perfKey = keyOf(ps, 'perf_areas')
   const plansKey = keyOf(pp, 'perf_plans')
   const levelsKey = keyOf(al, 'achievement_levels')
+  // 성취수준 단계 수는 양식 유형이 정한다 (예체능판 A~C / 마스터 A~E).
+  // ⚠ 판정은 서버가 한다 — 여기서 교과명으로 다시 고르지 않는다 (규칙을 화면에 복제하지 않는다).
+  //   서버 응답이 아직 없으면 manifest 기본값으로 그린다.
+  const shownLevels = Array.isArray(levelKeys) && levelKeys.length ? levelKeys : al?.levels || []
   const purposeKey = keyOf(ep, 'eval_purpose')
   const essayKey = keyOf(m.essay_total_ratio, 'essay_total_ratio')
   const minKey = keyOf(m.min_achievement_plan, 'min_achievement_plan')
   // 물어보는 방식이 정해진 칸들 (manifest.collection_guides) — 프롬프트와 같은 문구를 쓴다
-  const guides = m.collection_guides
+  const guides = m.collection_guides_fields
 
   const hours = resolveHours(plan)
   const rows = Array.isArray(plan[monthlyKey]) ? plan[monthlyKey] : []
@@ -313,10 +317,10 @@ export default function PlanCard({
       )}
 
       {al && (
-        <Section title={al.label}>
+        <Section title={`${al.label} (${shownLevels.length}단계)`}>
           <table className="table kv-table">
             <tbody>
-              {al.levels.map((lv) => (
+              {shownLevels.map((lv) => (
                 <tr key={lv}>
                   <th>{lv}</th>
                   <td>

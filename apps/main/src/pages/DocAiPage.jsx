@@ -39,6 +39,7 @@ export default function DocAiPage() {
   const [notices, setNotices] = useState([]) // 생성 후 "문서에 안 들어간 것" 안내
   const [findings, setFindings] = useState([]) // 규정 검증 결과 (WARN/FLAG)
   const [planNotices, setPlanNotices] = useState([]) // 생성 전 안내 (횟수 세트 등)
+  const [levels, setLevels] = useState(null) // 양식 유형이 정한 성취수준 단계 (서버 판정)
   const bottomRef = useRef(null)
   const started = useRef(false)
   const fileRef = useRef(null)
@@ -178,6 +179,7 @@ export default function DocAiPage() {
   function resetView() {
     setPlan(null)
     planRef.current = null
+    setLevels(null)
     setNotice(null)
     setNotices([])
     setFindings([])
@@ -255,6 +257,7 @@ export default function DocAiPage() {
   async function checkRegulation(fields) {
     setFindings([])
     setPlanNotices([])
+    setLevels(null)
     try {
       const r = await fetch('/api/doc-ai/generate', {
         method: 'POST',
@@ -270,6 +273,8 @@ export default function DocAiPage() {
         setFindings(data.findings || [])
         // 규정 위반은 아니지만 알려야 하는 것 (횟수 세트 밖, 작년과 달라진 조합)
         setPlanNotices(Array.isArray(data.notices) ? data.notices : [])
+        // 예체능판은 A~C 3단계 — 어느 유형인지는 서버가 정한다
+        setLevels(Array.isArray(data.levels) ? data.levels : null)
       }
     } catch {
       // 판정을 못 받아도 대화는 계속된다 — 생성 시 서버가 다시 검사한다
@@ -459,6 +464,7 @@ export default function DocAiPage() {
           plan={plan}
           findings={findings}
           notices={planNotices}
+          levels={levels}
           busy={busy}
           onGenerate={generate}
           onEdit={() => setPlan(null)}

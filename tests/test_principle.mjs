@@ -168,9 +168,35 @@ ck('자유학기: 명세 미확정을 숨기지 않는다', () => {
 })
 ck('유형 분기가 manifest 에서 파생', () => {
   const m2 = JSON.parse(JSON.stringify(mod.manifest))
-  delete m2.variants.items.grade1_free
+  delete m2.variant_routing.items.grade1_free
   const p2 = mod.buildVariantDoc(m2)
   A(!p2.includes('자유학기 — 물어볼 것이 다르다'), '유형 제거가 반영 안 됨')
+})
+
+console.log('\n[예체능판 3수준 — v3.1]')
+ck('예체능 교과 목록은 FINAL variants 에서 온다', () => {
+  const subs = M.variants.arts.subjects
+  A(subs.join(' · ') === '음악 · 미술 · 체육', subs.join(','))
+  A(!subs.includes('보건'), '보건이 예체능판으로 들어감 (성취도 5단계다)')
+})
+ck('A~C 만 수집한다고 명시', () => {
+  A(P.includes('성취수준 3단계'), '단계 수 표기 없음')
+  A(P.includes('**성취수준은 A·B·C 3단계만 받는다.**'), '수집 범위 지시 없음')
+  A(P.includes('D·E 진술을 묻지 말고'), '질문 금지 없음')
+})
+ck('보건·정보는 예외임을 못박는다', () => {
+  A(P.includes('보건·정보는 여기 해당하지 않는다'), '예외 안내 없음')
+  A(P.includes('5단계라 기본 양식을 쓴다'), '이유 없음')
+})
+ck('단계 수가 자산에서 파생 (하드코딩 아님)', () => {
+  const m2 = JSON.parse(JSON.stringify(M))
+  m2.variants.arts.achievement_levels = ['A', 'B']
+  const p2 = mod.buildVariantDoc(m2)
+  A(p2.includes('성취수준 2단계'), '단계 수 변경 미반영')
+  A(p2.includes('A·B 2단계만 받는다'), '수집 범위 미반영')
+})
+ck('성취수준 수집 항목이 유형 의존임을 밝힌다', () => {
+  A(P.includes('단계 수는 양식 유형이 정한다'), '유형 의존 안내 없음')
 })
 
 console.log('\n[정기시험 3분류 — 2026 학교 확정]')
@@ -249,14 +275,14 @@ ck('세트가 상수에서 파생 (하드코딩 아님)', () => {
 
 console.log('\n[물어보는 방식이 정해진 칸 — collection_guides]')
 ck('지도 방안: 관행 문구를 먼저 제안한다', () => {
-  const g = M.collection_guides.min_achievement_plan
+  const g = M.collection_guides_fields.min_achievement_plan
   A(P.includes(g.suggest_first), '관행 문구 없음')
   A(P.includes(g.ask), '질문 문구 없음')
   A(P.includes('먼저 제안하고 확인받는다'), '제안-확인 흐름 없음')
   A(P.includes('묻지 않고 넣지 않는다'), '무단 기재 금지 없음')
 })
 ck('미응시자 칸: 기준 문장이 아니라 점수', () => {
-  const g = M.collection_guides['perf_plans.absentee_points']
+  const g = M.collection_guides_fields['perf_plans.absentee_points']
   A(P.includes('이 칸에 들어가는 것은 **점수**다'), '의미 명시 없음')
   A(P.includes(g.ask), '질문 문구 없음')
   A(P.includes(g.format), '형식 안내 없음')
@@ -270,10 +296,25 @@ ck('수집 필드도 "미응시자 점수" 로 바뀌었다', () => {
   A(!M.perf_plans.item_fields.some(x => x.key === 'absentee_rule'), '옛 필드가 남음')
   A(P.includes('미응시자 점수'), '프롬프트 수집 목록에 없음')
 })
+ck('펼친 표가 FINAL 원문과 같은 것을 말한다', () => {
+  // FINAL 의 collection_guides 는 산문, 우리 collection_guides_fields 는 구조화본이다.
+  // 둘이 갈라지면 계약과 구현이 다른 말을 하게 되므로 핵심 문구를 대조한다.
+  const prose = M.collection_guides
+  const f = M.collection_guides_fields
+  A(prose.MIN_ACH.includes(f.min_achievement_plan.suggest_first), '관행 문구 불일치')
+  const ab = f['perf_plans.absentee_points']
+  A(prose.PP_ABSENT.includes('점수'), 'FINAL 이 점수라고 말하지 않음')
+  // FINAL 이 든 예시("각 영역당 20점")를 우리 질문 문구가 그대로 쓴다
+  const example = /'([^']*각 영역당[^']*)'/.exec(prose.PP_ABSENT)?.[1]
+  A(example, 'FINAL 에 예시가 없음')
+  A(ab.ask.includes(example), `질문 문구가 FINAL 예시(${example})를 안 씀`)
+  A(prose.PP_ABSENT.includes('미정이면 공란'), 'FINAL 의 미정 처리와 어긋남')
+  A(ab.rule.includes('미정이면 공란'), '우리 규칙에 미정 처리 없음')
+})
 ck('안내 문구가 자산에서 파생 (하드코딩 아님)', () => {
   const m2 = JSON.parse(JSON.stringify(M))
-  m2.collection_guides.min_achievement_plan.suggest_first = '개별 상담 후 재평가'
-  delete m2.collection_guides['perf_plans.absentee_points']
+  m2.collection_guides_fields.min_achievement_plan.suggest_first = '개별 상담 후 재평가'
+  delete m2.collection_guides_fields['perf_plans.absentee_points']
   const p2 = mod.buildGuideDoc(m2)
   A(p2.includes('개별 상담 후 재평가'), '관행 문구 변경 미반영')
   A(!p2.includes('미응시자'), '삭제한 안내가 남음')

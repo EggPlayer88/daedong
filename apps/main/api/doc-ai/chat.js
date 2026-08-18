@@ -92,7 +92,8 @@ const itemLines = (fields, indent = '  ') =>
  * 문구를 프롬프트에 적어 두면 확인 카드와 갈라진다. 자산 한 곳에서 읽는다.
  */
 function buildGuideDoc(m = manifest) {
-  const g = m?.collection_guides
+  // FINAL 의 collection_guides 는 사람이 읽는 산문이라, 기계가 읽게 펼친 쪽을 쓴다
+  const g = m?.collection_guides_fields
   if (!g) return ''
   const L = ['## 이 두 칸은 물어보는 방식이 정해져 있다']
 
@@ -179,7 +180,8 @@ function buildFieldDoc(m) {
   if (al) {
     L.push(
       '',
-      `### ${al.label} — key: ${keyOf(al, 'achievement_levels')} (객체, key 는 ${al.levels.join('/')})`
+      `### ${al.label} — key: ${keyOf(al, 'achievement_levels')} (객체, key 는 ${al.levels.join('/')})`,
+      '  ⚠ 단계 수는 양식 유형이 정한다 — 위 "양식 유형" 절을 따른다.'
     )
   }
 
@@ -238,10 +240,12 @@ function buildHoursDoc(table) {
  * 물어볼 것 자체가 다르므로** 대화 초반에 분기해야 한다.
  */
 function buildVariantDoc(m) {
-  const v = m?.variants
+  const v = m?.variant_routing
   if (!v) return ''
   const items = v.items || {}
-  const arts = (v.arts_subjects || []).join(' · ')
+  const fam = m.variants || {}
+  const artsList = fam.arts?.subjects || []
+  const arts = artsList.join(' · ')
 
   const L = ['## 양식 유형 (서버가 자동 결정 — 너는 대화만 맞춘다)']
   L.push(
@@ -278,9 +282,17 @@ function buildVariantDoc(m) {
   }
 
   if (items.arts && arts) {
+    const lv = fam.arts?.achievement_levels || []
+    const base = fam[items.default?.uses]?.achievement_levels || []
     L.push(
-      `### ${arts} — 예체능·보건형`,
+      `### ${arts} — 예체능형 (성취수준 ${lv.length}단계)`,
       '- 정기시험 없이 수행 100% 가 실측 관행이다. 지필 관련 질문은 생략하고 확인만 받는다.',
+      `- **성취수준은 ${lv.join('·')} ${lv.length}단계만 받는다.** 예체능판 양식에는`,
+      `  ${base.filter((x) => !lv.includes(x)).join('·')} 칸 자체가 없다.`,
+      `  ${base.filter((x) => !lv.includes(x)).join('·')} 진술을 묻지 말고, achievement_levels 에도 넣지 않는다.`,
+      '  (실수로 넣어도 서버가 버리지만, 교사에게 쓸데없는 질문을 하는 셈이 된다)',
+      `- ⚠ **보건·정보는 여기 해당하지 않는다.** 수행 100% 인 점은 같아도 성취도는`,
+      `  ${base.length}단계라 기본 양식을 쓴다. 교과명을 정확히 확인하고 넘어간다.`,
       ''
     )
   }
