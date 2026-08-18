@@ -98,6 +98,7 @@ apps/main/
   src/pages, src/components, src/lib   ← 화면
   api/doc-ai/  chat.js generate.py extract.py _fill.py _regulation.py
   api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·template-{master,arts}.hwpx
+  api/doc-ai/_assets/prefill/          ← 작년(2025-2) 교과·학년별 데이터 팩 23건
   api/_hwpx/                           ← hwpx 엔진 (수정 금지)
 packages/shared/                       ← supabase·auth·permissions (DB 단일 접근점)
 migrations/                            ← 001~ SQL + README(실행 기록)
