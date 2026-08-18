@@ -9,7 +9,13 @@ import { RoleBadge } from '../components/Layout.jsx'
 // ⚠ is_active 는 D20 이후 이중 의미다 (승인 대기 / 퇴직·전출).
 //   승인 UPDATE 자체는 001 의 protect_privileged_columns 트리거가 admin+ 로 강제한다.
 
-const COLUMNS = 'id, email, name, role, extra_permissions, is_active, created_at, departments(name)'
+// ⚠ users ↔ departments 에는 FK 가 2개다 (users.department_id / departments.head_id, 001).
+//   그냥 `departments(name)` 로 embed 하면 PostgREST 가 어느 관계인지 몰라
+//   "more than one relationship was found" 로 실패한다.
+//   → `대상!FK제약이름` 으로 명시한다. 제약 이름은 001 의 컬럼 정의에서 나온
+//     PostgreSQL 기본 규칙 `users_department_id_fkey` 다.
+const DEPT_EMBED = 'departments!users_department_id_fkey(name)'
+const COLUMNS = `id, email, name, role, extra_permissions, is_active, created_at, ${DEPT_EMBED}`
 
 function fmtDate(s) {
   if (!s) return '—'
