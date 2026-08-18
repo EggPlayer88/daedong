@@ -32,9 +32,9 @@
   | 대상 | 이유 |
   |---|---|
   | `migrations/*.sql` | 실행 기록과 짝이라 사후 수정이 이력을 거짓으로 만든다 |
-  | `apps/main/api/doc-ai/_assets/template.hwpx` | 토큰 129개 실측 검증본. 재토큰화는 Claude Web |
+  | `apps/main/api/doc-ai/_assets/template-master.hwpx` | 토큰 169개 검증본 (v3 마스터, 전 유형 공용). 재토큰화는 Claude Web. 구버전은 `archive/doc-ai-v2/` 에 보존 |
   | `apps/main/api/_hwpx/` | 실전 검증된 hwpx 엔진. import 만 하고 고치지 않는다 |
-  | manifest 의 계약 섹션 | `direct_tokens` / `perf_plan_block_tokens` / `composition_rules` / `unused_handling` / `limits` — `doc-ai-template/…final.json` 원문과 동일해야 하며 테스트로 고정돼 있다 |
+  | manifest 의 계약 섹션 | `direct_tokens` / `pattern_tokens` / `composition_rules` / `unused_handling` / `limits` / `fixed_texts` / `final_check` — `doc-ai-template-v3/template-manifest.v3.final.json` 원문과 동일해야 하며 테스트로 고정돼 있다. 코드가 쓰는 `token_paths` 는 이 계약을 펼친 것이라 토큰 전수 대조로 묶여 있다 |
   | `_assets/regulation-2026.json` 의 `thresholds` · `rules` · `article` | 학업성적관리규정 조문에서 온 수치다. 코드 편의로 바꾸면 학교 규정과 어긋난다. 조문 개정 시에만, 계란님 확인 후 |
 - **인증·보안 로직 변경** (승인 게이트, RLS 전제, 토큰 검증 경로)
 - **API 키·비용 구조에 영향 주는 것** (모델 교체, max_tokens·상한, 캐싱 전략)
@@ -96,12 +96,14 @@
 ```
 apps/main/
   src/pages, src/components, src/lib   ← 화면
-  api/doc-ai/  chat.js generate.py extract.py _v2fill.py _regulation.py
-  api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·template.hwpx
+  api/doc-ai/  chat.js generate.py extract.py _fill.py _regulation.py
+  api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·template-master.hwpx
   api/_hwpx/                           ← hwpx 엔진 (수정 금지)
 packages/shared/                       ← supabase·auth·permissions (DB 단일 접근점)
 migrations/                            ← 001~ SQL + README(실행 기록)
 docs/                                  ← DECISIONS · ROADMAP · SCHEMA · PHASE0_GUIDE
                                          DOC_AI_MASTER_PLAN
+doc-ai-template-v3/                    ← Web 이 넘긴 마스터 양식 원본 + FINAL manifest
+archive/doc-ai-v2/                     ← 구버전 양식·manifest (삭제 금지)
 tests/                                 ← 검증 스크립트
 ```
