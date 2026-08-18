@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""manifest v2 계약대로 template.hwpx 를 채우는 로직 (generate.py 가 import).
+"""manifest v3 계약대로 template-master.hwpx 를 채우는 로직 (generate.py 가 import).
 
-계약 출처: _assets/template-manifest.json
-  direct_tokens          — 토큰 → 값 경로 (점/인덱스 표기)
-  perf_plan_block_tokens — 출제계획 블록 b=1,2 × 요소 g=1..3 × 수준 k=1..4
-  composition_rules      — EXAM_INTRO / EXAM_RATIO_SENT / methods 2줄 / computed
-  unused_handling        — 미사용 토큰 공백 처리 + PP2 블록 삭제
-  final_check            — 잔여 '{{' 0 + verify_hwpx
+계약 출처: _assets/template-manifest.json (= doc-ai-template-v3 FINAL + 수집 명세)
+  token_paths            — 토큰 → 값 경로. FINAL 의 direct_tokens + pattern_tokens 를
+                           기계가 읽을 수 있게 펼친 표 (170개 전수 대조는 tests/test_v3.py)
+  perf_plan_block_tokens — 출제계획 블록 b=1..3(가·나·다) × 요소 g=1..3 × 수준 k=1..4
+  composition_rules      — EXAM_INTRO / EXAM_RATIO_SENT(3분류) / methods 2줄
+  unused_handling        — 미사용 칸 '˙' + PP3·PP2 블록 삭제
+  final_check            — 잔여 '{{' 0 + verify_hwpx + 회차 100점 + 비율 합 100
 
-⚠ _hwpx 엔진과 template.hwpx 는 수정하지 않는다. 이 파일만 고친다.
+⚠ _hwpx 엔진과 template-master.hwpx 는 수정하지 않는다. 이 파일만 고친다.
 """
 import re
 from pathlib import Path
@@ -176,15 +177,33 @@ def normalize_method(s: str) -> str:
     return re.sub(r"[\s·･・.ㆍ]", "", str(s or ""))
 
 
+UNCHECKED, CHECKED = "\u25a1", "\u25a0"   # □ / ■
+
+
 def compose_methods(rule: dict, chosen) -> str:
+    """평가방법 체크박스 줄을 만든다. 선택된 항목만 ■ 로 바꾼다.
+
+    템플릿 표기가 두 가지다:
+      · v2 — "{c1} 서술·논술 …"  (자리표시자)
+      · v3 — "□ 서술·논술 …"     (원본 그대로. 계란님 한글 원본을 살린 형태)
+    둘 다 지원한다. 항목 문자열(반각 ･ 포함)은 원본을 건드리지 않는다.
+    """
     picked = {normalize_method(x) for x in (chosen or []) if x}
-    marks = {}
-    for i, opt in enumerate(rule["options_order"], start=1):
-        marks[f"c{i}"] = "■" if normalize_method(opt) in picked else "□"
+    order = rule["options_order"]
+    marks = [CHECKED if normalize_method(o) in picked else UNCHECKED for o in order]
     out = rule["template"]
-    for k, v in marks.items():
-        out = out.replace("{" + k + "}", v)
-    return out
+
+    if "{c1}" in out:                      # v2 자리표시자
+        for i, m in enumerate(marks, start=1):
+            out = out.replace("{c" + str(i) + "}", m)
+        return out
+
+    # v3 — n번째 □ 를 순서대로 교체한다. options_order 와 □ 개수가 맞아야 하며,
+    # 어긋나면 원본을 그대로 둔다 (체크가 엉뚱한 항목에 붙는 것보다 낫다).
+    if out.count(UNCHECKED) != len(marks):
+        return out
+    parts = out.split(UNCHECKED)
+    return "".join(parts[i] + marks[i] for i in range(len(marks))) + parts[-1]
 
 
 def derive(plan: dict, manifest: dict) -> dict:
@@ -247,8 +266,18 @@ def derive(plan: dict, manifest: dict) -> dict:
     # 합계 칸: 최종 성적 척도는 100점. % 는 정기+수행 반영비율 합(정상이면 100).
     # 표기 관행은 만점 칸과 같은 "N(M%)" 형태다.
     d["computed"] = {"points_sum": f"100({fmt_num(exam_ratio + perf_ratio)}%)"}
-    ess = plan.get("essay_total_ratio")
-    d["essay_total_ratio_display"] = pct(ess) if as_text(ess) else ""
+
+    # 서·논술형 전체 반영비율 — **서버가 재계산한다.** AI 가 준 essay_total_ratio 는
+    # 쓰지 않는다. 분모는 학기말 총 배점(지필 환산 + 수행 환산 = 100)이고,
+    # 분자는 essay 만이다 — 단답형·완성형(short)은 주관식이지만 산입하지 않는다.
+    exam_essay = sum(
+        first_num(r.get("essay_ratio"), 0)
+        for r in (rounds if isinstance(rounds, list) else [])[:count]
+        if isinstance(r, dict)
+    )
+    essay_total = exam_essay + perf_essay
+    d["essay_total_ratio_display"] = pct(essay_total) if essay_total else ""
+    d["_essay_total"] = essay_total
     d["_exam_count"] = count
     return d
 
@@ -500,10 +529,17 @@ def apply_capacity(plan: dict, manifest: dict, limits: dict | None = None) -> li
 
 
 def compose_sentences(plan: dict, manifest: dict) -> dict:
-    """EXAM_INTRO / EXAM_RATIO_SENT — count 에 따라 고정 문구를 고른다."""
+    """EXAM_INTRO / EXAM_RATIO_SENT — count 에 따라 고정 문구를 고른다.
+
+    v3 의 배점 문장은 3분류다: "선택형 {mc}점, 단답형·완성형 {short}점, 서·논술형 {essay}점".
+    대표값은 exam.{k}_points 를 쓰되, 없으면 **1회차 값**으로 채운다 — 교사가 회차별로만
+    적었을 때 문장이 0점으로 나가는 것을 막는다 (문서에 거짓 숫자를 넣지 않는다).
+    """
     rules = manifest["composition_rules"]
     count = plan["_exam_count"]
     exam = plan.get("exam") or {}
+    rounds = exam.get("rounds") if isinstance(exam.get("rounds"), list) else []
+    first = rounds[0] if rounds and isinstance(rounds[0], dict) else {}
 
     intro = rules["EXAM_INTRO"].get(str(count), "")
 
@@ -511,11 +547,15 @@ def compose_sentences(plan: dict, manifest: dict) -> dict:
         ratio_sent = rules["EXAM_RATIO_SENT"]["0"]
     else:
         ratio_sent = rules["EXAM_RATIO_SENT"]["ge1"]
-        for key, val in (
-            ("{exam.ratio}", fmt_num(first_num(exam.get("ratio"), 0))),
-            ("{exam.mc_points}", fmt_num(first_num(exam.get("mc_points"), 0))),
-            ("{exam.essay_points}", fmt_num(first_num(exam.get("essay_points"), 0))),
-        ):
+        subs = {"{exam.ratio}": fmt_num(first_num(exam.get("ratio"), 0))}
+        for k in EXAM_METHOD_KEYS:
+            raw = exam.get(f"{k}_points")
+            if as_text(raw) == "":
+                raw = first.get(k)
+            # 표기 문자열("60(24%)")이 와도 앞의 점수만 쓴다
+            subs["{" + k + "}"] = fmt_num(first_num(raw, 0))
+            subs["{exam." + k + "_points}"] = subs["{" + k + "}"]   # v2 표기 호환
+        for key, val in subs.items():
             ratio_sent = ratio_sent.replace(key, val)
 
     return {"EXAM_INTRO": intro, "EXAM_RATIO_SENT": ratio_sent}
@@ -528,8 +568,8 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
     data = derive(plan, manifest)
     values = {}
 
-    # 1) direct_tokens
-    for token, path in manifest["direct_tokens"].items():
+    # 1) token_paths (FINAL 의 direct_tokens + pattern_tokens 를 펼친 표)
+    for token, path in manifest["token_paths"].items():
         if not token.startswith("{{"):
             continue  # _comment
         values[token] = as_text(get_path(data, path))
@@ -542,12 +582,13 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
     block = manifest["perf_plan_block_tokens"]
     pattern = dict(block["pattern"])
     pattern.pop("_comment", None)
-    extra = {k: v for k, v in block.items() if k.startswith("{{")}
 
     plans = data.get("perf_plans") or []
     if not isinstance(plans, list):
         plans = []
-    max_b = int(manifest.get("limits", {}).get("perf_plans_max", 2))
+    max_b = int(block.get("max") or manifest.get("limits", {}).get("perf_plans_max", 3))
+    n_groups = int(block.get("groups", 3))
+    n_levels = int(block.get("levels", 4))
 
     m_line1 = manifest["composition_rules"]["methods_line1"]
     m_line2 = manifest["composition_rules"]["methods_line2"]
@@ -558,7 +599,7 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
         if not isinstance(elements, list):
             elements = []
 
-        for tpl, path in list(pattern.items()) + list(extra.items()):
+        for tpl, path in pattern.items():
             tok = tpl.replace("{b}", str(b))
             if "{g}" not in tok:
                 if "METHODS1" in tok:
@@ -570,7 +611,7 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
                     values[tok] = as_text(item.get(field))
                 continue
 
-            for g in range(1, 4):
+            for g in range(1, n_groups + 1):
                 grp = elements[g - 1] if g - 1 < len(elements) and isinstance(elements[g - 1], dict) else {}
                 levels = grp.get("levels") or []
                 if not isinstance(levels, list):
@@ -579,31 +620,57 @@ def build_token_values(plan: dict, manifest: dict) -> dict:
                 if "{k}" not in tok_g:
                     values[tok_g] = as_text(grp.get("name"))
                     continue
-                for k in range(1, 5):
+                for k in range(1, n_levels + 1):
                     lv = levels[k - 1] if k - 1 < len(levels) and isinstance(levels[k - 1], dict) else {}
                     tok_k = tok_g.replace("{k}", str(k))
                     values[tok_k] = as_text(lv.get("points") if tok_k.endswith("_PTS}}") else lv.get("desc"))
 
-    # 4) unused_handling — 미사용 회차/영역 칸은 UNUSED_MARK 로 채운다.
-    #    ⚠ 출제계획 표(PP 블록)의 요소·수준 미사용 행에는 찍지 않는다 —
-    #      '˙' 관행은 3절 표에서만 실측됐고, 출제계획의 요소 행은 서술 칸이라
-    #      공란이 자연스럽다 (2026-08-18 계란님 확정). 관행이 다르게 실측되면 그때 변경.
-    #    ⚠ "교사가 아직 안 정해서 비운 칸(공란)" 과 다르다.
-    #      여기 있는 것은 **구조적으로 쓰이지 않는 칸**(시험 1회인데 2회차 칸,
-    #      수행 1개인데 2번째 열)이고, 학교 관행상 '˙' 를 찍는다 (실측).
-    count = data["_exam_count"]
-    blanks = []
-    if count <= 1:
-        blanks += ["EX2_MC", "EX2_ESSAY", "EX2_ESSAY_RATIO", "EX2_STD", "EX2_PERIOD"]
-    if count == 0:
-        blanks += ["EX1_MC", "EX1_ESSAY", "EX1_ESSAY_RATIO", "EX1_STD", "EX1_PERIOD"]
+    # 4) unused_handling — 구조적으로 쓰이지 않는 칸에 '˙' 를 찍는다.
     areas = data.get("perf_areas") or []
-    if len(areas) < 2:
-        blanks += ["P2_NAME", "P2_POINTS", "P2_PERIOD"]
-    for name in blanks:
-        values["{{" + name + "}}"] = UNUSED_MARK
+    for token in unused_tokens(manifest, data["_exam_count"],
+                               len(areas) if isinstance(areas, list) else 0):
+        values[token] = UNUSED_MARK
 
     return values, data
+
+
+def unused_tokens(manifest: dict, exam_count: int, perf_count: int) -> list:
+    """'˙' 를 찍을 토큰 목록을 manifest.unused_handling 표에서 읽는다.
+
+    ⚠ "교사가 아직 안 정해서 비운 칸(공란)" 과 다르다. 여기 있는 것은 **구조적으로
+      쓰이지 않는 칸**(시험 1회인데 2회차 칸, 수행 2개인데 3번째 열)이고 학교 관행상
+      '˙' 를 찍는다 (실측).
+    ⚠ 출제계획 표(PP 블록)의 요소·수준 미사용 행에는 찍지 않는다 — '˙' 관행은 3절
+      표에서만 실측됐고, 출제계획의 요소 행은 서술 칸이라 공란이 자연스럽다
+      (2026-08-18 계란님 확정). 그래서 표에 PP 항목이 없다.
+
+    표의 조건은 "exam==1" / "perf==2" 같은 **정확 일치**다 (누적이 아니다 —
+    exam==0 줄이 EX1·EX2 를 모두 적고 있다).
+    """
+    table = (manifest.get("unused_handling") or {}).get("˙(구조적 미사용)") or {}
+    known = [t for t in manifest.get("token_paths", {}) if t.startswith("{{")]
+    out = []
+    for cond, names in table.items():
+        if not isinstance(names, list):
+            continue
+        m = re.fullmatch(r"(exam|perf)==(\d+)", str(cond).strip())
+        if not m:
+            continue
+        got = exam_count if m.group(1) == "exam" else perf_count
+        if got != int(m.group(2)):
+            continue
+        for raw in names:
+            name = str(raw).split("=")[0].replace(" 전부", "").strip()
+            if not name or "=" in str(raw):
+                continue  # "EXAM_TOTAL_RATIO='0%'" 류는 값이 따로 계산된다
+            if name.endswith("_*"):
+                pre = "{{" + name[:-1]        # "EX1_*" → "{{EX1_"
+                out += [t for t in known if t.startswith(pre)]
+            else:
+                tok = "{{" + name + "}}"
+                if tok in known:
+                    out.append(tok)
+    return sorted(set(out))
 
 
 # ---------------------------------------------------------------------------
@@ -613,10 +680,13 @@ def fill_document(sec, values: dict, data: dict, manifest: dict, *, ln, find_tex
                   replace_text_anywhere, para_text):
     """토큰 치환 + 미사용 블록 삭제. 엔진 함수는 인자로 주입받는다(_hwpx 무수정)."""
     plans = data.get("perf_plans") or []
-    used_blocks = sum(
-        1 for p in plans if isinstance(p, dict) and as_text(p.get("name"))
-    )
-    max_b = int(manifest.get("limits", {}).get("perf_plans_max", 2))
+    areas = data.get("perf_areas") or []
+    named = sum(1 for p in plans if isinstance(p, dict) and as_text(p.get("name")))
+    # 블록 수는 **수행평가 개수**를 따른다. 출제 계획을 아직 안 쓴 수행평가도
+    # 자리는 남겨야 교사가 한글에서 채울 수 있다 (v3: perf<3 → PP3 삭제, perf<2 → PP2 도).
+    used_blocks = max(named, len(areas) if isinstance(areas, list) else 0)
+    max_b = int(manifest.get("limits", {}).get("perf_plans_max", 3))
+    used_blocks = max(1, min(used_blocks, max_b))
 
     # (1) 미사용 출제계획 블록 삭제 — 치환 전에 먼저 (인덱스 흔들림 최소화)
     deleted = []

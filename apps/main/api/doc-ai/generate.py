@@ -30,6 +30,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ASSETS = HERE / "_assets"
 MANIFEST_PATH = ASSETS / "template-manifest.json"
+# v1 경로(단일 필드 치환) 전용. v2 부터는 variant 가 정한 파일을 쓴다 —
+# 지금 배치된 것은 template-master.hwpx (v3) 뿐이라 이 경로는 사실상 죽어 있다.
 TEMPLATE_PATH = ASSETS / "template.hwpx"
 FIXED_HOURS_PATH = ASSETS / "fixed-hours-2026-2.json"
 REGULATION_PATH = ASSETS / "regulation-2026.json"
@@ -50,7 +52,7 @@ from hwpx_lib import (  # noqa: E402
 from hwpx_zip import pack, unpack  # noqa: E402
 
 sys.path.insert(0, str(HERE))
-import _v2fill  # noqa: E402
+import _fill  # noqa: E402
 import _regulation  # noqa: E402
 
 MAX_REQUEST_BYTES = 1_000_000
@@ -331,7 +333,7 @@ def validate_v2(manifest: dict, plan: dict, spec: dict | None = None) -> None:
     if spec is not None and not spec.get("scoring", True):
         return
 
-    problems = _v2fill.check_scales(plan)
+    problems = _fill.check_scales(plan)
     if problems:
         raise BadRequest("배점이 맞지 않습니다 — " + " / ".join(problems))
 
@@ -343,8 +345,8 @@ def regulation_findings(plan: dict, variant: str) -> list:
 
 def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     # 교과·학년으로 양식 유형을 정한다 (템플릿 패밀리)
-    variant = _v2fill.resolve_variant(plan, manifest)
-    spec = _v2fill.variant_spec(manifest, variant)
+    variant = _fill.resolve_variant(plan, manifest)
+    spec = _fill.variant_spec(manifest, variant)
     print(f"[doc-ai/generate] variant: {variant} ({spec['label']})", file=sys.stderr)
 
     validate_v2(manifest, plan, spec)
@@ -356,9 +358,9 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
         raise RegulationViolation(by["ERROR"])
 
     # 횟수 세트는 규정이 아니라 학교 관행이라 막지 않고 안내만 한다
-    count_notes = _v2fill.check_perf_count(plan, (load_constants().get("perf_count_rule")))
+    count_notes = _fill.check_perf_count(plan, (load_constants().get("perf_count_rule")))
     # 3분류 중 현행 양식에 칸이 없는 것(단답형·완성형)이 있으면 숨기지 않고 알린다
-    count_notes += _v2fill.check_exam_categories(plan, manifest)
+    count_notes += _fill.check_exam_categories(plan, manifest)
 
     if check_only:
         # 문서를 만들지 않고 판정만 돌려준다 (확인 카드용)
@@ -378,13 +380,13 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     # — 안 되는 걸 되는 것처럼 만들지 않는다.
     notices = ["[확인] " + _regulation.format_line(f) for f in by["FLAG"] + by["WARN"]]
     notices += count_notes
-    notices += _v2fill.apply_capacity(plan, manifest, spec.get('limits'))
+    notices += _fill.apply_capacity(plan, manifest, spec.get('limits'))
     for n in notices:
         print(f"[doc-ai/generate] capacity: {n}", file=sys.stderr)
 
     # 시수/누계는 학사일정 기반 고정표가 진실이다. PLAN_READY 의 hours_cum 은
     # 덮어쓴다 (AI 계산 금지). 교사가 직접 지정했으면 hours_manual 로 보존.
-    hours = _v2fill.apply_fixed_hours(plan, load_fixed_hours())
+    hours = _fill.apply_fixed_hours(plan, load_fixed_hours())
     print(f"[doc-ai/generate] fixed_hours: {hours['reason']} {hours['months']}", file=sys.stderr)
     if not hours["applied"] and hours["reason"] == "weekly_hours 가 고정표 범위를 벗어남":
         notices.append(
@@ -392,7 +394,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             "표에 들어간 값을 한글에서 확인해 주세요."
         )
 
-    values, data = _v2fill.build_token_values(plan, manifest)
+    values, data = _fill.build_token_values(plan, manifest)
 
     tmp = Path(tempfile.mkdtemp(prefix="hwpx_"))
     try:
@@ -405,7 +407,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             raise TemplateMismatch("template.hwpx 안에 Contents/section0.xml 이 없습니다.")
         tree, _root, sec = load_section(section)
 
-        _v2fill.fill_document(
+        _fill.fill_document(
             sec, values, data, manifest,
             ln=ln,
             find_text_indices=find_text_indices,
@@ -414,7 +416,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
         )
 
         # final_check ① 잔여 토큰 0
-        leftover = _v2fill.leftover_tokens(sec, ln=ln)
+        leftover = _fill.leftover_tokens(sec, ln=ln)
         if leftover:
             raise TemplateMismatch(
                 f"치환되지 않은 토큰이 남았습니다: {', '.join(leftover[:8])}"

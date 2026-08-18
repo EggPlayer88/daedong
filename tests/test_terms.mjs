@@ -64,9 +64,9 @@ ck('회차명 수집 라벨 교체', () => {
   A(!f.label.includes('1차/2차'), f.label)
   A(f.label.includes('1회 정기시험'), f.label)
 })
-ck('배치본 계약 == doc-ai-template FINAL (양쪽 동일하게 교체)', () => {
-  const F = JSON.parse(readFileSync(`${ROOT}/doc-ai-template/template-manifest.v2.final.json`, 'utf-8'))
-  for (const k of ['direct_tokens', 'perf_plan_block_tokens', 'composition_rules', 'unused_handling', 'limits']) {
+ck('배치본 계약 == doc-ai-template-v3 FINAL', () => {
+  const F = JSON.parse(readFileSync(`${ROOT}/doc-ai-template-v3/template-manifest.v3.final.json`, 'utf-8'))
+  for (const k of ['direct_tokens', 'pattern_tokens', 'composition_rules', 'unused_handling', 'limits']) {
     A(JSON.stringify(M[k]) === JSON.stringify(F[k]), `${k} 불일치`)
   }
 })

@@ -148,15 +148,15 @@
       }
     ],
     "template_capacity": {
-      "_comment": "양식 v2 목표치. **실제 적용 한도는 template-manifest.json 의 limits 다** — 양식 파일이 오기 전에 이 숫자를 믿고 3개를 담으려 하면 문서가 깨진다.",
+      "_comment": "**실제 적용 한도는 언제나 template-manifest.json 의 limits 다.** 여기 숫자는 사람이 읽는 요약이며, 코드는 이 값을 보지 않는다.",
       "planned": {
         "exam_columns": 6,
         "perf_columns": 3,
         "exam_blocks": 3
       },
-      "_planned_note": "정기 6열 = 2회차 × 3분류(선택형·단답형·완성형·서·논술형). 새 마스터 양식이 전 유형 공용 기반이 된다.",
-      "current_source": "template-manifest.json 의 limits + exam.template_categories (현행 정기 2분류 / 수행 2열 / 블록 2)",
-      "status": "새 마스터 양식 — 계란님 한글 작업 → Claude Web 토큰화·manifest 갱신 대기"
+      "_planned_note": "정기 6열 = 2회차 × 3분류(선택형·단답형·완성형·서·논술형).",
+      "current_source": "template-manifest.json 의 limits + exam.template_categories",
+      "status": "마스터 양식 v3 배치 완료 (2026-08-18) — 전 유형 공용 기반. 자유학기형만 수집 명세 확정 대기"
     }
   },
   "curriculum_by_grade": {

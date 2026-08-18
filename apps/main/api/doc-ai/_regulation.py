@@ -5,7 +5,7 @@
 수치·조문·교과 목록은 전부 _assets/regulation-2026.json 에서 읽는다 — 이 파일은 조립만 한다.
 규정이 개정되면 자산만 갈아끼운다.
 
-check_scales(_v2fill) 와 역할이 다르다:
+check_scales(_fill) 와 역할이 다르다:
   · check_scales — 문서가 성립하려면 맞아야 하는 **산수** (회차 100점, 비율 합 100%)
   · 이 파일     — 규정이 정한 **한계선** (수행 ≥30%, 영역 ≤40%, 서논술 ≥30% …)
 
@@ -17,7 +17,7 @@ severity:
 """
 import re
 
-from _v2fill import EXAM_METHOD_KEYS, as_text, first_num, fmt_num
+from _fill import EXAM_METHOD_KEYS, as_text, first_num, fmt_num
 
 
 # 검사하지 않는 severity — 규칙 정의는 자산에 남기되 판정은 만들지 않는다.
@@ -278,11 +278,14 @@ def _soft_checks(plan: dict, reg: dict, areas: list, subject: str) -> list:
             f"무엇을 평가하는지 드러나는 이름이면 학생 안내와 기록에 좋습니다."))
 
     # V17: 결시·학적변동자 처리 기준 누락
+    #  ⚠ v3 양식에서 이 칸의 의미는 **점수**다 ("각 영역당 20점"). 기준 문장이 아니라
+    #    미응시 시 몇 점을 주는지를 적는다 — 필드명도 absentee_points 로 바뀌었다.
     plans = plan.get("perf_plans") if isinstance(plan.get("perf_plans"), list) else []
     named = [p for p in plans if isinstance(p, dict) and as_text(p.get("name"))]
-    if named and not any(as_text(p.get("absentee_rule")) for p in named):
+    if named and not any(as_text(p.get("absentee_points")) for p in named):
         findings.append(_find(reg, "V17",
-            "결시자·학적변동자 처리 기준이 비어 있습니다. 평가계획서 필수 기재 항목입니다."))
+            "수행평가 미응시자 점수가 비어 있습니다 (예: 각 영역당 20점). "
+            "평가계획서 필수 기재 항목입니다."))
 
     # V18: 체육·예술인데 성취도 A~E 표기
     if _has(subject, el.get("arts_pe_subjects")):

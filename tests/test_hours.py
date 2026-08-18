@@ -24,7 +24,7 @@ def base_plan(**kw):
              {"label":"2회 정기시험","ratio":30,"mc":70,"essay":30,"essay_ratio":9}]},
          "perf_areas":[{"name":"탐구 보고서","points":100,"ratio":20,"essay_ratio":8},
                        {"name":"실험 과정 관찰","points":100,"ratio":20,"essay_ratio":7}],
-         "perf_plans":[{"name":"탐구 보고서","absentee_rule":"별도 과제로 대체"}]}
+         "perf_plans":[{"name":"탐구 보고서","absentee_points":"별도 과제로 대체"}]}
     p.update(kw); return p
 
 def body_of(b64):
@@ -34,7 +34,7 @@ def body_of(b64):
 print("\n[1] 고정표 주입 (apply_fixed_hours)")
 def t_default():
     p = base_plan()
-    r = gen._v2fill.apply_fixed_hours(p, TBL)
+    r = gen._fill.apply_fixed_hours(p, TBL)
     assert r["applied"] and r["reason"]=="fixed_table", r
     assert [x["hours_cum"] for x in p["monthly_plan"]] == ["8/8","16/24","16/40","16/56","16/72"], p["monthly_plan"]
 check("주당 4 → 8/8, 16/24, 16/40, 16/56, 16/72 (AI 값 덮어씀)", t_default)
@@ -42,30 +42,30 @@ def t_all():
     exp = TBL["variants"][TBL["default_variant"]]
     for k in ("1","2","3","4","5"):
         p = base_plan(weekly_hours=int(k))
-        gen._v2fill.apply_fixed_hours(p, TBL)
+        gen._fill.apply_fixed_hours(p, TBL)
         got = [x["hours_cum"] for x in p["monthly_plan"]]
         assert got == exp[k]["months"], f"주당 {k}: {got}"
 check("주당 1~5 전부 표와 일치", t_all)
 def t_manual():
     p = base_plan(hours_manual=True)
-    r = gen._v2fill.apply_fixed_hours(p, TBL)
+    r = gen._fill.apply_fixed_hours(p, TBL)
     assert not r["applied"] and r["reason"]=="hours_manual", r
     assert all(x["hours_cum"]=="AI가_계산한_값" for x in p["monthly_plan"]), "교사 값이 덮어써짐"
 check("hours_manual=true → 교사 값 보존", t_manual)
 def t_manual_str():
     p = base_plan(hours_manual="true")
-    assert not gen._v2fill.apply_fixed_hours(p, TBL)["applied"], "문자열 true 를 못 알아봄"
+    assert not gen._fill.apply_fixed_hours(p, TBL)["applied"], "문자열 true 를 못 알아봄"
 check("hours_manual 이 문자열 'true' 여도 인식", t_manual_str)
 def t_range():
     for wh in (0, 6, 4.5, "", None, "네시간"):
         p = base_plan(weekly_hours=wh)
-        r = gen._v2fill.apply_fixed_hours(p, TBL)
+        r = gen._fill.apply_fixed_hours(p, TBL)
         assert not r["applied"], f"weekly_hours={wh!r} 인데 주입됨"
         assert all(x["hours_cum"]=="AI가_계산한_값" for x in p["monthly_plan"]), f"{wh!r}: 값 손실"
 check("범위 밖(0/6/4.5/빈값/문자)은 주입 안 함 + 교사 값 보존", t_range)
 def t_str_num():
     p = base_plan(weekly_hours="4")
-    assert gen._v2fill.apply_fixed_hours(p, TBL)["applied"], "문자열 '4' 미인식"
+    assert gen._fill.apply_fixed_hours(p, TBL)["applied"], "문자열 '4' 미인식"
 check("weekly_hours 가 문자열 '4' 여도 주입", t_str_num)
 
 print("\n[2] 실제 문서에 반영")

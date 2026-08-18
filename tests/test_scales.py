@@ -27,7 +27,7 @@ def P(**kw):
                        {"name":"탐구 발표","points":100,"ratio":15,"essay_ratio":"5","standards":"","period":"11월"}],
          "essay_total_ratio":33,
          "achievement_levels":{"A":"","B":"","C":"","D":"","E":""},
-         "perf_plans":[{"name":"실험 보고서","absentee_rule":"별도 과제로 대체"},{"name":"탐구 발표"}],
+         "perf_plans":[{"name":"실험 보고서","absentee_points":"별도 과제로 대체"},{"name":"탐구 발표"}],
          "min_achievement_plan":""}
     p.update(kw); return p
 
@@ -83,18 +83,23 @@ check("AI 가 준 괄호 %가 틀려도 서버가 다시 계산", t_override)
 
 print("\n[3] 한도 초과 — 거부하지 않고 수용분만 + 안내")
 def t_over_areas():
-    p = P(); p["perf_areas"] = [{"name":f"영역{i}","points":100,"ratio":10,"essay_ratio":"5"} for i in range(1,5)]
-    p["perf_plans"] = [{"name":f"영역{i}"} for i in range(1,5)]
+    """한도는 manifest.limits 가 정한다 — 양식이 바뀌면 이 테스트도 따라간다."""
+    cap = M["limits"]["perf_areas_max"]
+    n = cap + 2
+    p = P()
+    p["perf_areas"] = [{"name": f"영역{i}", "points": 100, "ratio": 40 / n, "essay_ratio": "5"}
+                       for i in range(1, n + 1)]
+    p["perf_plans"] = [{"name": f"영역{i}", "absentee_points": "각 영역당 20점"} for i in range(1, n + 1)]
     fn, b64, notices = gen.generate({"fields": p})
     b = body_of(b64)
     assert "{{" not in b, "토큰 잔존"
-    assert len(notices) >= 2, notices
     joined = " ".join(notices)
-    assert "영역3" in joined and "영역4" in joined, f"빠진 항목명 없음: {joined}"
+    assert f"영역{cap + 1}" in joined and f"영역{n}" in joined, f"빠진 항목명 없음: {joined}"
     assert "한글에서 직접 편집" in joined, "편집 안내 없음"
-    assert "영역1" in b and "영역2" in b, "수용분이 안 들어감"
-    assert "영역3" not in b, "한도 넘은 항목이 들어감"
-check("수행 4개 → 2개 생성 + 빠진 항목명·사유 안내", t_over_areas)
+    for i in range(1, cap + 1):
+        assert f"영역{i}" in b, f"수용분 영역{i} 이 안 들어감"
+    assert f"영역{cap + 1}" not in b, "한도 넘은 항목이 들어감"
+check("한도 초과 → 수용분만 생성 + 빠진 항목명·사유 안내", t_over_areas)
 def t_over_exam():
     p = P(); p["exam"]["count"] = 3
     p["exam"]["rounds"].append({"label":"3회","period":"","standards":"","mc":"70","essay":"30","essay_ratio":"9"})
@@ -126,7 +131,7 @@ def t_mark_perf():
     # ⚠ 지필 1회 + 수행 1개는 규정상 불가능하다 (지필≤40% → 수행≥60% → 영역>40%).
     #   그래서 정기 2회(60%) + 수행 1영역(40%) 로 만든다.
     p = P(); p["perf_areas"] = [{"name":"실험 보고서","points":100,"ratio":40,"essay_ratio":"12"}]
-    p["perf_plans"] = [{"name":"실험 보고서","absentee_rule":"대체 과제"}]
+    p["perf_plans"] = [{"name":"실험 보고서","absentee_points":"대체 과제"}]
     b = body_of(gen.generate({"fields": p})[1])
     # ⚠ 영역명으로 판정하지 말 것 — 평가방법 체크박스에 "구술·발표" 가 있어 오탐한다
     assert b.count(MARK) >= 3, f"P2 계열 3칸에 '˙' 가 찍혀야 하는데 {b.count(MARK)}개"
@@ -135,8 +140,15 @@ check("수행 1개 → P2 칸에 '˙'", t_mark_perf)
 def t_mark_not_blank():
     """교사가 안 정해 비운 칸(공란)은 '˙' 가 아니라 빈 채로 둔다."""
     p = P(); p["min_achievement_plan"] = ""; p["achievement_levels"]["E"] = ""
+    # 양식을 꽉 채운다 — 시험 2회 × 수행 3개면 구조적 미사용 칸이 하나도 없다.
+    # (v3 부터 수행 열이 3개라, 2개만 쓰면 3번째 열에 '˙' 가 정상적으로 찍힌다)
+    p["perf_areas"] = [
+        {"name": "실험 보고서", "points": 100, "ratio": 20, "essay_ratio": "6", "period": "10월"},
+        {"name": "탐구 발표", "points": 100, "ratio": 10, "essay_ratio": "3", "period": "11월"},
+        {"name": "포트폴리오", "points": 100, "ratio": 10, "essay_ratio": "3", "period": "12월"}]
+    p["perf_plans"] = [{"name": n, "absentee_points": "각 영역당 20점"}
+                       for n in ("실험 보고서", "탐구 발표", "포트폴리오")]
     b = body_of(gen.generate({"fields": p})[1])
-    # 시험 2회·수행 2개라 구조적 미사용 칸이 없다 → '˙' 도 없어야 한다
     assert MARK not in b, f"공란에까지 '˙' 가 찍힘 ({b.count(MARK)}개)"
 check("공란(교사 미정)에는 '˙' 를 찍지 않는다", t_mark_not_blank)
 check("U+02D9 인지", lambda: (_ for _ in ()).throw(AssertionError("코드포인트 불일치"))

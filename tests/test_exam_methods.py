@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 API = ROOT / "apps/main/api/doc-ai"
 spec = importlib.util.spec_from_file_location("gen", API / "generate.py")
 gen = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen)
-V = gen._v2fill
+V = gen._fill
 M = gen.load_manifest()
 REG = gen.load_regulation()
 
@@ -89,23 +89,24 @@ def t_essay_excludes_short():
     assert "28%" in f[0]["message"], f[0]["message"]
 check("V04 분모에 단답형·완성형이 섞이지 않는다", t_essay_excludes_short)
 
-print("\n[2] 현행 양식에 칸 없는 분류 — 숨기지 않고 알린다 (제0원칙)")
-def t_gap():
-    n = V.check_exam_categories(R(mc=60, short=10, essay=30), M)
-    assert n, "단답형 배점이 있는데 안내가 없다"
+print("\n[2] 3분류가 전부 담긴다 — 과도기 안내는 사라졌다 (v3 마스터)")
+def t_no_gap_now():
+    """v3 마스터는 정기 6열이라 단답형·완성형도 문서에 들어간다.
+    manifest.exam.template_categories 가 3개가 되면서 안내가 저절로 사라졌다 —
+    코드를 고친 게 아니라 자산이 바뀐 것이다."""
+    assert M["exam"]["template_categories"] == ["mc", "short", "essay"], M["exam"]["template_categories"]
+    assert V.check_exam_categories(R(mc=60, short=10, essay=30), M) == [], "안내가 아직 나간다"
+check("단답형 배점이 있어도 안내가 나가지 않는다", t_no_gap_now)
+
+def t_gap_still_works():
+    """장치는 살아 있다 — 양식이 뒤로 가면(칸이 빠지면) 다시 알린다."""
+    m2 = json.loads(json.dumps(M))
+    m2["exam"]["template_categories"] = ["mc", "essay"]
+    n = V.check_exam_categories(R(mc=60, short=10, essay=30), m2)
+    assert n, "칸이 없는데도 안내가 없다"
     assert "단답형·완성형 10점은 문서에 들어가지 않았습니다" in n[0], n[0]
     assert "서버가 임의로 합치지 않습니다" in n[0], n[0]
-check("단답형 배점이 있으면 누락 사실을 알린다", t_gap)
-
-def t_no_gap():
-    assert V.check_exam_categories(R(mc=70, essay=30), M) == [], "단답형 0인데 안내가 나감"
-check("단답형이 없으면 조용하다", t_no_gap)
-
-def t_gap_disappears():
-    m2 = json.loads(json.dumps(M))
-    m2["exam"]["template_categories"] = ["mc", "short", "essay"]
-    assert V.check_exam_categories(R(mc=60, short=10, essay=30), m2) == [], "새 양식인데 안내가 남음"
-check("새 마스터 양식이 배치되면 안내가 저절로 사라진다", t_gap_disappears)
+check("칸이 빠지면 다시 알린다 (장치는 살아 있다)", t_gap_still_works)
 
 def t_gap_generate():
     p = full(2, 2)
@@ -120,8 +121,31 @@ def t_gap_generate():
          "method": "서술·논술", "absent_rule": "인정점"},
     ]
     out = gen.generate_v2(M, p, check_only=True)
-    assert any("단답형·완성형" in n for n in out["notices"]), out["notices"]
-check("check_only 응답에도 누락 안내가 실린다", t_gap_generate)
+    assert out["notices"] == [], f"불필요한 안내가 남음: {out['notices']}"
+check("check_only 응답도 조용하다", t_gap_generate)
+
+def t_short_in_doc():
+    """실제로 단답형 점수가 문서에 들어가는지 — 안내가 사라진 진짜 이유."""
+    import base64, io, zipfile
+    p = full(2, 2)
+    p["exam"]["rounds"] = [
+        {"label": "1회 정기시험", "ratio": 20, "mc": 55, "short": 15, "essay": 30, "essay_ratio": 6},
+        {"label": "2회 정기시험", "ratio": 20, "mc": 55, "short": 15, "essay": 30, "essay_ratio": 6},
+    ]
+    p["exam"]["mc_points"], p["exam"]["short_points"], p["exam"]["essay_points"] = 55, 15, 30
+    p["perf_areas"] = [
+        {"name": "말하기", "points": 100, "ratio": 30, "essay_ratio": 9},
+        {"name": "쓰기", "points": 100, "ratio": 30, "essay_ratio": 9},
+    ]
+    p["perf_plans"] = [{"name": n, "absentee_points": "각 영역당 20점"} for n in ("말하기", "쓰기")]
+    p.update({"year": 2026, "semester": 2, "teacher_name": "이"})
+    _fn, b64, notices = gen.generate_v2(M, json.loads(json.dumps(p)))
+    with zipfile.ZipFile(io.BytesIO(base64.b64decode(b64))) as z:
+        body = z.read("Contents/section0.xml").decode("utf-8")
+    assert "단답형·완성형 15점" in body, "조립 문장에 단답형 배점이 없다"
+    assert "15(3%)" in body, "회차 표에 단답형 만점 표기가 없다"
+    assert not [n for n in notices if "단답형" in n], notices
+check("단답형 배점이 실제로 문서에 들어간다", t_short_in_doc)
 
 
 print()

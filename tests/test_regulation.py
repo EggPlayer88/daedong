@@ -35,7 +35,7 @@ def P(**kw):
         "perf_areas": [
             {"name": "탐구 보고서", "points": 100, "ratio": 20, "essay_ratio": 8},
             {"name": "문제해결 과정 관찰", "points": 100, "ratio": 20, "essay_ratio": 7}],
-        "perf_plans": [{"name": "탐구 보고서", "absentee_rule": "별도 과제로 대체"}],
+        "perf_plans": [{"name": "탐구 보고서", "absentee_points": "별도 과제로 대체"}],
         "achievement_levels": {"A": "x", "B": "", "C": "", "D": "", "E": ""},
     }
     p.update(kw); return p
@@ -249,7 +249,7 @@ def t_v16_ok():
     assert "V16" not in codes(P()), "구체적 이름이 걸림"
 check("V16 통과 — '탐구 보고서' 는 구체적", t_v16_ok)
 def t_v17():
-    p = P(); p["perf_plans"] = [{"name": "탐구 보고서", "absentee_rule": ""}]
+    p = P(); p["perf_plans"] = [{"name": "탐구 보고서", "absentee_points": ""}]
     f = sev(p, "V17"); assert f and f["severity"] == "WARN", f
 check("V17 결시 기준 누락 → WARN", t_v17)
 def t_v17_ok():
@@ -291,7 +291,7 @@ def t_block():
     full = dict(p, year=2026, teacher_name="이", weekly_hours=4,
                 monthly_plan=[{"month": m} for m in ["8월","9월","10월","11월","12월"]],
                 eval_purpose=["","",""], essay_total_ratio=40,
-                perf_plans=[{"name": "탐구 보고서", "absentee_rule": "대체"}],
+                perf_plans=[{"name": "탐구 보고서", "absentee_points": "대체"}],
                 min_achievement_plan="")
     try:
         gen.generate({"fields": full})

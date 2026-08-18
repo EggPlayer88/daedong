@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""generate.py v2 — 실제 template.hwpx 로 전 구간 검증."""
+"""generate.py v3 — 실제 template-master.hwpx 로 전 구간 검증.
+
+v3 = 정기 3분류 6열 + 수행 3열 + 출제계획 3블록(가·나·다), 토큰 169종.
+"""
 import base64, importlib.util, io, json, re, sys, zipfile
 from pathlib import Path
 
@@ -10,7 +13,8 @@ API = ROOT / "apps/main/api/doc-ai"
 spec = importlib.util.spec_from_file_location("gen", API / "generate.py")
 gen = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen)
 M = gen.load_manifest()
-FINAL = json.loads((ROOT / "doc-ai-template/template-manifest.v2.final.json").read_text())
+FINAL = json.loads((ROOT / "doc-ai-template-v3/template-manifest.v3.final.json").read_text())
+TOKENS = set(json.loads((ROOT / "doc-ai-template-v3/token_list_v3.json").read_text()))
 
 FAIL = []
 def check(n, fn):
@@ -36,9 +40,11 @@ PLAN2 = {  # 2학년 · 시험 2회 · 수행 2개
         {"month": "12월", "hours_cum": "18/76", "units": "Ⅲ. 태양계", "standards": "", "eval_elements": ""},
     ],
     "eval_purpose": ["탐구 능력을 기른다.", "과학적 태도를 함양한다.", "협력적 문제해결력을 기른다."],
-    "exam": {"count": 2, "ratio": 60, "mc_points": 70, "essay_points": 30, "rounds": [
-        {"label": "1회고사", "period": "9.29.~10.1.", "standards": "[9과01-01]~[9과01-03]", "mc": "70점", "essay": "30점", "essay_ratio": "9%"},
-        {"label": "2회고사", "period": "12.1.~12.3.", "standards": "[9과02-01]~[9과02-04]", "mc": "70점", "essay": "30점", "essay_ratio": "9%"},
+    "exam": {"count": 2, "ratio": 60, "mc_points": 60, "short_points": 10, "essay_points": 30, "rounds": [
+        {"label": "1회 정기시험", "period": "9.29.~10.1.", "standards": "[9과01-01]~[9과01-03]",
+         "mc": "60", "short": "10", "essay": "30", "essay_ratio": "9"},
+        {"label": "2회 정기시험", "period": "12.1.~12.3.", "standards": "[9과02-01]~[9과02-04]",
+         "mc": "60", "short": "10", "essay": "30", "essay_ratio": "9"},
     ]},
     "perf_areas": [
         # 실측 규약: 각 영역이 100점 만점, 가중치는 반영비율(ratio)로만
@@ -55,12 +61,12 @@ PLAN2 = {  # 2학년 · 시험 2회 · 수행 2개
              el("실험 설계", ("변인을 모두 통제", "10"), ("일부 통제", "8"), ("미흡", "6"), ("무응답", "4")),
              el("결과 해석", ("근거 제시 충실", "10"), ("근거 일부", "8"), ("근거 미흡", "6"), ("무응답", "4")),
          ],
-         "absentee_rule": "결시자는 별도 과제로 대체한다."},
+         "absentee_points": "결시자는 별도 과제로 대체한다."},
         {"name": "탐구 발표", "task": "주제 탐구 발표", "standards": "[9과02-01]",
          "criteria_high": "논리적이다.", "criteria_mid": "보통이다.", "criteria_low": "미흡하다.",
          "methods": ["구술·발표", "동료평가"],
          "elements": [el("발표 내용", ("충실", "10"), ("보통", "8"), ("미흡", "6"), ("무응답", "4"))],
-         "absentee_rule": "추후 평가 기회를 부여한다."},
+         "absentee_points": "추후 평가 기회를 부여한다."},
     ],
     "min_achievement_plan": "방과후 보충 지도를 실시한다.",
 }
@@ -93,7 +99,7 @@ def t_exam_intro():
     b = R["body"]
     assert FINAL["composition_rules"]["EXAM_INTRO"]["2"] in b, "EXAM_INTRO(2회) 미조립"
     assert "정기시험의 반영비율은 60%로 하고" in b, "EXAM_RATIO_SENT 미조립"
-    assert "선택형 70점, 서술형 30점" in b, "배점 치환 실패"
+    assert "선택형 60점, 단답형·완성형 10점, 서·논술형 30점" in b, "3분류 배점 치환 실패"
 check("composition: EXAM_INTRO / EXAM_RATIO_SENT", t_exam_intro)
 
 def t_computed():
@@ -102,10 +108,11 @@ def t_computed():
     assert "100(100%)" in b, "POINTS_SUM 계산 오류"
     # 만점 표기 N점(M%) — 서버가 계산 (회차 30%, 수행 40% 기준)
     # 표기 관행 "만점(반영비율%)" — 회차 반영비율 30%, 수행 영역 25%/15%
-    assert "70(21%)" in b and "30(9%)" in b, "회차 만점 표기 오류"
+    assert "60(18%)" in b and "10(3%)" in b and "30(9%)" in b, "회차 3분류 만점 표기 오류"
     assert "100(25%)" in b and "100(15%)" in b, "수행 만점 표기 오류"
     assert "점(" not in b, "옛 'N점(M%)' 표기가 남음"
-    assert "33%" in b, "서·논술 합계 누락"
+    # 서·논술 합계는 **서버 재계산**: 회차 9+9 + 수행 10+5 = 33% (AI 값 33 과 우연히 같아도 근거가 다르다)
+    assert "33%" in b, "서·논술 합계(9+9+10+5) 누락"
     assert "15%" in b, "수행 서논술 합계(10+5) 오류"
 check("computed: 반영비율·합계·서논술", t_computed)
 
@@ -125,26 +132,37 @@ def t_elements():
     assert "발표 내용" in b, "2번 블록 요소명 누락"
 check("elements 3그룹×4수준 (미사용 그룹은 공백)", t_elements)
 
-print("\n[2] 시험 1회 · 수행 1개 (블록 삭제 + 빈칸 처리)")
+print("\n[2] 시험 1회 · 수행 2개 (PP3 블록 삭제 + 빈칸 처리)")
 # ⚠ 지필 1회는 규정상 도덕·기술가정 또는 3학년 2학기만 가능하고 반영비율 ≤40% 다.
 #   수행이 60% 가 되므로 영역 1개(>40%)로는 만들 수 없어 2영역 30/30 으로 나눈다.
 PLAN1 = json.loads(json.dumps(PLAN2))
 PLAN1["subject"] = "도덕"
-PLAN1["exam"] = {"count": 1, "ratio": 40, "mc_points": 60, "essay_points": 40,
-                 "rounds": [{"label": "정기시험", "period": "11.2.~11.5.", "standards": "[9도01-01]", "ratio": 40, "mc": "60점", "essay": "40점", "essay_ratio": "16%"}]}
+PLAN1["exam"] = {"count": 1, "ratio": 40, "mc_points": 50, "short_points": 10, "essay_points": 40,
+                 "rounds": [{"label": "정기시험", "period": "11.2.~11.5.", "standards": "[9도01-01]",
+                             "ratio": 40, "mc": "50", "short": "10", "essay": "40", "essay_ratio": "16"}]}
 PLAN1["perf_areas"] = [{"name": "토론 활동", "points": 100, "ratio": 30, "essay_ratio": "8"},
                        {"name": "실천 기록", "points": 100, "ratio": 30, "essay_ratio": "8"}]
-PLAN1["perf_plans"] = PLAN2["perf_plans"][:1]
+PLAN1["perf_plans"] = PLAN2["perf_plans"]
 R1 = {}
 check("생성 성공", lambda: R1.update(zip(("fn", "b64", "_n"), gen.generate({"fields": PLAN1}))) or R1.update(body=body_of(R1["b64"])))
 check("잔여 '{{' 0", lambda: (_ for _ in ()).throw(AssertionError("토큰 잔존")) if "{{" in R1["body"] else None)
-def t_pp2_deleted():
+def t_pp3_deleted():
+    """수행 2개 → 다(PP3) 블록만 사라지고 가·나는 남는다."""
     b = R1["body"]
-    assert "PP2" not in b, "PP2 토큰 잔존"
-    assert "나. 수행평가명" not in b, "2번째 출제계획 블록이 남음"
+    for tok in ("PP1", "PP2", "PP3"):
+        assert tok not in b, f"{tok} 토큰 잔존"
+    assert "다. 수행평가명" not in b, "3번째 출제계획 블록이 남음"
+    assert "가. 수행평가명" in b and "나. 수행평가명" in b, "쓰는 블록까지 지워짐"
+check("PP3 블록 삭제 (수행 2개)", t_pp3_deleted)
+def t_pp_one():
+    """수행 1개면 나·다 둘 다 사라진다 (규정상 지필 2회 + 수행 1영역으로 만든다)."""
+    p = json.loads(json.dumps(PLAN2))
+    p["perf_areas"] = [{"name": "실험 보고서", "points": 100, "ratio": 40, "essay_ratio": "12"}]
+    p["perf_plans"] = PLAN2["perf_plans"][:1]
+    b = body_of(gen.generate({"fields": p})[1])
     assert "가. 수행평가명" in b, "1번째 블록까지 지워짐"
-    assert "※ 수행평가는 평가 방법과" in b, "말미 안내문이 지워짐"
-check("PP2 블록 삭제 (이름+표+결시자+빈문단)", t_pp2_deleted)
+    assert "나. 수행평가명" not in b and "다. 수행평가명" not in b, "미사용 블록이 남음"
+check("수행 1개 → PP2·PP3 블록 삭제", t_pp_one)
 def t_blank():
     b = R1["body"]
     assert "12.1.~12.3." not in b, "2회차 시기가 남음"
@@ -157,7 +175,7 @@ check("합계 칸은 100(100%)", lambda: (_ for _ in ()).throw(AssertionError("�
 
 print("\n[3] 시험 0회 (자유학기)")
 PLAN0 = json.loads(json.dumps(PLAN1))
-PLAN0["exam"] = {"count": 0, "ratio": 0, "mc_points": 0, "essay_points": 0, "rounds": []}
+PLAN0["exam"] = {"count": 0, "ratio": 0, "mc_points": 0, "short_points": 0, "essay_points": 0, "rounds": []}
 PLAN0["subject"] = "정보"   # 수행 100% 는 규정이 정한 교과만 가능 (제10조 ⑥)
 PLAN0["perf_areas"] = [{"name": "프로젝트 산출물", "points": 100, "ratio": 40, "essay_ratio": "0", "standards": "[9정01-01]", "period": "10월"},
                        {"name": "코드 작성 수행", "points": 100, "ratio": 30, "essay_ratio": "0", "standards": "", "period": "11월"},
@@ -173,18 +191,20 @@ def t_zero():
     assert "9.29." not in b and "11.2." not in b, "시험 회차 정보가 남음"
 check("정기 0% / 수행 100% + 회차 전부 공백", t_zero)
 
-print("\n[4] 한도 검증 (양식은 수행 2개까지)")
+print("\n[4] 한도 검증 (양식이 담는 만큼만)")
 def t_over():
     """한도 초과는 거부가 아니라 수용분 생성 + 안내 (제0원칙)."""
     p = json.loads(json.dumps(PLAN2))
-    p["perf_areas"] = [{"name": f"수행 영역 {i}", "points": 100, "ratio": 10, "essay_ratio": "4"} for i in range(1, 5)]
-    p["perf_plans"] = [{"name": f"수행 영역 {i}", "absentee_rule": "대체"} for i in range(1, 5)]
+    cap = M["limits"]["perf_areas_max"]
+    n = cap + 2
+    p["perf_areas"] = [{"name": f"수행 영역 {i}", "points": 100, "ratio": 40 / n, "essay_ratio": "4"} for i in range(1, n + 1)]
+    p["perf_plans"] = [{"name": f"수행 영역 {i}", "absentee_points": "각 영역당 20점"} for i in range(1, n + 1)]
     fn, b64, notices = gen.generate({"fields": p})
     assert notices, "안내가 없음"
     assert "한글에서 직접 편집" in " ".join(notices), notices
     b = body_of(b64)
-    assert "수행 영역 1" in b and "수행 영역 3" not in b, "수용분/초과분 처리 오류"
-check("수행 4개 → 2개 생성 + 안내 (거부 아님)", t_over)
+    assert "수행 영역 1" in b and f"수행 영역 {cap + 1}" not in b, "수용분/초과분 처리 오류"
+check(f"수행 한도 초과 → 수용분만 생성 + 안내 (거부 아님)", t_over)
 def t_nosubject():
     p = json.loads(json.dumps(PLAN2)); p["subject"] = ""
     try: gen.generate({"fields": p})
@@ -202,7 +222,7 @@ def t_sparse():
          "perf_areas": [{"name": "프로젝트 산출물", "points": 100, "ratio": 40},
                         {"name": "코드 작성 수행", "points": 100, "ratio": 30},
                         {"name": "협업 과정 관찰", "points": 100, "ratio": 30}],
-         "perf_plans": [{"name": "프로젝트 산출물", "absentee_rule": "추후 평가 기회 부여"}]}
+         "perf_plans": [{"name": "프로젝트 산출물", "absentee_points": "추후 평가 기회 부여"}]}
     fn, b64, _ = gen.generate({"fields": p})
     b = body_of(b64)
     assert "{{" not in b, "토큰 잔존"
@@ -213,16 +233,45 @@ check("대부분 공란이어도 생성됨", t_sparse)
 print("\n[6] 계약 원문 보존")
 def t_contract():
     cur = gen.load_manifest()
-    for k in ("direct_tokens", "perf_plan_block_tokens", "composition_rules", "unused_handling",
-              "limits", "filename_pattern"):
+    for k in ("direct_tokens", "pattern_tokens", "composition_rules", "unused_handling",
+              "limits", "filename_pattern", "fixed_texts", "final_check", "template_file"):
         assert cur[k] == FINAL[k], f"{k} 가 FINAL 과 다름"
-check("배치본의 계약 4+2 섹션이 FINAL 원문과 동일", t_contract)
+check("배치본의 계약 섹션이 v3 FINAL 원문과 동일", t_contract)
+
+def t_token_coverage():
+    """token_paths + 블록 패턴 + 조립 문구 = 템플릿의 토큰 전부. 하나라도 어긋나면
+    치환되지 않은 '{{' 가 남거나 값이 빈 채로 나간다 — 여기가 계약의 이음매다."""
+    cur = gen.load_manifest()
+    names = {t.strip("{}") for t in cur["token_paths"] if t.startswith("{{")}
+    names |= {"EXAM_INTRO", "EXAM_RATIO_SENT"}
+    blk = cur["perf_plan_block_tokens"]
+    for b in range(1, blk["max"] + 1):
+        for t in blk["pattern"]:
+            t2 = t.replace("{b}", str(b))
+            if "{g}" not in t2:
+                names.add(t2.strip("{}")); continue
+            for g in range(1, blk["groups"] + 1):
+                t3 = t2.replace("{g}", str(g))
+                if "{k}" not in t3:
+                    names.add(t3.strip("{}")); continue
+                for k in range(1, blk["levels"] + 1):
+                    names.add(t3.replace("{k}", str(k)).strip("{}"))
+    assert not (TOKENS - names), f"매핑 없는 토큰: {sorted(TOKENS - names)}"
+    assert not (names - TOKENS), f"템플릿에 없는 토큰을 매핑함: {sorted(names - TOKENS)}"
+check(f"토큰 전수 대조 ({len(TOKENS)}종) — 누락·초과 0", t_token_coverage)
+
 def t_template_same():
     import hashlib
-    a = hashlib.sha256((ROOT/"doc-ai-template/template.hwpx").read_bytes()).hexdigest()
-    b = hashlib.sha256((API/"_assets/template.hwpx").read_bytes()).hexdigest()
-    assert a == b, "template.hwpx 가 변형됨"
-check("template.hwpx 무수정 (sha256 일치)", t_template_same)
+    a = hashlib.sha256((ROOT / "doc-ai-template-v3/template-master.hwpx").read_bytes()).hexdigest()
+    b = hashlib.sha256((API / "_assets/template-master.hwpx").read_bytes()).hexdigest()
+    assert a == b, "template-master.hwpx 가 변형됨"
+check("template-master.hwpx 무수정 (sha256 일치)", t_template_same)
+
+def t_fixed_text():
+    """수행 성취기준 칸은 토큰이 아니라 고정 문구다 (병합 셀 한계의 관행 해법)."""
+    assert "수행평가 세부 기준 참고" in R["body"], "고정 문구가 사라짐"
+    assert "PERF_STD" not in R["body"], "옛 토큰이 남음"
+check("수행 성취기준 칸 고정 문구 유지", t_fixed_text)
 
 print()
 if FAIL: print(f"{len(FAIL)}건 실패: {', '.join(FAIL)}"); sys.exit(1)

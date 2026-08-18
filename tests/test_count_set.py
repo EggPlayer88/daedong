@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 API = ROOT / "apps/main/api/doc-ai"
 spec = importlib.util.spec_from_file_location("gen", API / "generate.py")
 gen = importlib.util.module_from_spec(spec); spec.loader.exec_module(gen)
-V = gen._v2fill
+V = gen._fill
 M = gen.load_manifest()
 C = gen.load_constants()
 RULE = C["perf_count_rule"]
@@ -143,16 +143,19 @@ def t_in_set_quiet():
     assert out["notices"] == [], out["notices"]
 check("세트 안 → notices 비어 있음", t_in_set_quiet)
 
-print("\n[7] 양식 목표치(3열)를 현재 한도인 척하지 않는다")
+print("\n[7] 자르는 기준은 언제나 manifest.limits")
 def t_capacity():
-    cap = RULE["template_capacity"]
-    assert cap["planned"]["perf_columns"] == 3 and cap["planned"]["exam_blocks"] == 3, cap
-    # 실제로 자르는 기준은 manifest.limits 여야 한다 (양식 v2 도착 전까지 2)
+    cap = M["limits"]["perf_areas_max"]
+    # 상수의 요약값과 manifest 한도가 어긋나면 사람이 읽는 문서가 거짓말을 한다
+    assert RULE["template_capacity"]["planned"]["perf_columns"] == cap, RULE["template_capacity"]
     p = full(0, 3)
-    n = V.apply_capacity(p, M, None)
-    assert len(p["perf_areas"]) == M["limits"]["perf_areas_max"], p["perf_areas"]
+    assert V.apply_capacity(p, M, None) == [], "한도 안인데 잘림"
+    assert len(p["perf_areas"]) == 3, p["perf_areas"]
+    over = full(0, cap + 1)
+    n = V.apply_capacity(over, M, None)
+    assert len(over["perf_areas"]) == cap, over["perf_areas"]
     assert n and "한글에서 직접 편집" in n[0], n
-check("한도는 manifest.limits 가 정한다 (상수의 planned 가 아니라)", t_capacity)
+check("한도 안은 그대로, 넘으면 자르고 안내", t_capacity)
 
 print()
 if FAIL:
