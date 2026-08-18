@@ -313,7 +313,6 @@ function buildRegulationDoc(reg = regulation) {
     const bits = [`정기시험 ${t.exam_count}회`]
     if (t.written_max) bits.push(`지필 ≤${t.written_max}%`)
     if (t.perf_min) bits.push(`수행 ≥${t.perf_min}%`)
-    if (t.requires_review) bits.push('위원회 심의 필요')
     L.push(`- **${k}. ${t.label}** — ${bits.join(' / ')}`)
   }
   L.push(
@@ -349,7 +348,9 @@ function buildRegulationDoc(reg = regulation) {
   )
   L.push(
     '- 위 한계선을 어기면 생성 단계에서 **근거 조문과 함께 거부**된다. 요약 단계에서 미리 확인시킨다.',
-    '- 정기시험 1회·수행 100% 는 **학업성적관리위원회 심의 대상**이라는 점을 교사에게 알린다.'
+    '- ⚠ 횟수 선택(정기시험 1회 / 수행 100%)은 **교과 교사의 재량**이다.',
+    '  심의·결재 절차를 되묻지 않는다. 교사가 이미 아는 일이고, 최종 검토는 관리자 단계에서 한다.',
+    '- 규정 안내는 **한 줄**로 한다. 조문 번호를 늘어놓지 않는다 — 필요한 조문은 서버가 붙인다.'
   )
   return L.join('\n')
 }

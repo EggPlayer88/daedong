@@ -156,23 +156,54 @@ def t_v08_ok():
         assert "V08" not in codes(p), f"{subj} 가 자격 없음으로 잡힘"
 check("V08 정보·체육·음악·미술·한문은 허용", t_v08_ok)
 
-print("\n[4] V09 심의 표식 (위반 아님)")
-def t_v09():
+print("\n[4] V09 심의 표식 — 비활성 (2026-08-18)")
+# 횟수 선택은 교과 교사 재량이고 최종 검토는 관리자 단계에서 한다.
+# 규칙 정의는 자산에 남아 있지만 판정은 만들어지지 않아야 한다.
+def t_v09_off_b():
     p = P(subject="도덕"); p["exam"] = {"count": 1, "ratio": 40, "rounds": [
         {"label": "정기시험", "ratio": 40, "mc": 70, "essay": 30, "essay_ratio": 12}]}
     p["perf_areas"] = [{"name": "토론 활동", "points": 100, "ratio": 30, "essay_ratio": 10},
                        {"name": "실천 기록", "points": 100, "ratio": 30, "essay_ratio": 10}]
-    f = sev(p, "V09"); assert f and f["severity"] == "FLAG", f
-    assert "학업성적관리위원회" in f["message"], f["message"]
-    assert f.get("review_reason") == "정기시험 1회", f
-check("V09 지필 1회 → FLAG", t_v09)
-def t_v09_c():
+    assert sev(p, "V09") is None, "지필 1회에 심의 표식이 다시 뜬다"
+check("지필 1회 → 심의 표식 없음", t_v09_off_b)
+
+def t_v09_off_c():
     p = P(subject="음악"); p["exam"] = {"count": 0, "ratio": 0, "rounds": []}
     p["perf_areas"] = [{"name": "가창 실기", "points": 100, "ratio": 40, "essay_ratio": 0},
                        {"name": "기악 실기", "points": 100, "ratio": 30, "essay_ratio": 0},
                        {"name": "감상 활동 기록", "points": 100, "ratio": 30, "essay_ratio": 0}]
-    f = sev(p, "V09"); assert f and f.get("review_reason") == "수행평가 100%", f
-check("V09 수행 100% → FLAG", t_v09_c)
+    assert sev(p, "V09") is None, "수행 100% 에 심의 표식이 다시 뜬다"
+check("수행 100% → 심의 표식 없음", t_v09_off_c)
+
+def t_v09_asset():
+    """규칙 정의는 남아 있어야 한다 — 되살릴 때의 근거(조문·사유)가 자산에 있다."""
+    r = REG["rules"]["V09"]
+    assert r["severity"] == "DISABLED", r["severity"]
+    assert r.get("_disabled_reason"), "비활성 사유가 없다"
+    assert r["article"], "조문 근거가 지워졌다"
+check("규칙 정의와 비활성 사유는 자산에 남는다", t_v09_asset)
+
+def t_v09_revive():
+    """severity 를 FLAG 로 되돌리면 그대로 되살아난다 (코드 수정 없이)."""
+    r2 = json.loads(json.dumps(REG))
+    r2["rules"]["V09"]["severity"] = "FLAG"
+    p = P(subject="도덕"); p["exam"] = {"count": 1, "ratio": 40, "rounds": [
+        {"label": "정기시험", "ratio": 40, "mc": 70, "essay": 30, "essay_ratio": 12}]}
+    p["perf_areas"] = [{"name": "토론 활동", "points": 100, "ratio": 30, "essay_ratio": 10},
+                       {"name": "실천 기록", "points": 100, "ratio": 30, "essay_ratio": 10}]
+    f = [x for x in R.check(p, r2) if x["code"] == "V09"]
+    assert f and f[0].get("review_reason") == "정기시험 1회", f
+check("자산에서 되살릴 수 있다 (코드 수정 없이)", t_v09_revive)
+
+def t_errors_stay():
+    """산수 오류 차단은 그대로 — 심의와 범주가 다르다 (오타 방지)."""
+    p = P(subject="도덕"); p["exam"] = {"count": 1, "ratio": 40, "rounds": [
+        {"label": "정기시험", "ratio": 40, "mc": 70, "essay": 30, "essay_ratio": 1}]}
+    p["perf_areas"] = [{"name": "토론 활동", "points": 100, "ratio": 30, "essay_ratio": 1},
+                       {"name": "실천 기록", "points": 100, "ratio": 30, "essay_ratio": 1}]
+    c = codes(p)
+    assert "V04" in c, f"서논술 30% 미달이 안 잡힌다: {c}"
+check("ERROR 류(V04 등)는 그대로 막는다", t_errors_stay)
 
 print("\n[5] 나머지 규칙")
 def t_v10():

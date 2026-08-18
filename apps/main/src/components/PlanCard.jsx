@@ -34,15 +34,18 @@ function Val({ v }) {
 
 /**
  * 학업성적관리규정 판정 (V01~V18).
- * ERROR — 이 상태로는 생성되지 않는다 / WARN — 확인 권고 / FLAG — 위원회 심의 대상.
+ * ERROR — 이 상태로는 생성되지 않는다 / WARN — 확인 권고.
  * 판정 자체는 서버 검증기가 한다 (규칙을 화면에 복제하지 않는다).
+ *
+ * ⚠ '학업성적관리위원회 심의 대상' 표식(V09)은 2026-08-18 비활성됐다 —
+ *   횟수 선택은 교과 교사 재량이고 최종 검토는 관리자 단계에서 한다.
+ *   되살릴 때는 regulation-2026.json 의 V09 severity 와 함께 이 그룹도 되돌린다.
  */
 function RegulationFindings({ findings }) {
   // AI·서버 응답이 배열이 아닐 수도 있다. 화면이 죽는 것보다 안 보이는 편이 낫다
   if (!Array.isArray(findings) || findings.length === 0) return null
   const groups = [
     ['ERROR', '규정 위반 — 고쳐야 생성됩니다', 'reg-error'],
-    ['FLAG', '학업성적관리위원회 심의 대상', 'reg-flag'],
     ['WARN', '확인이 필요합니다', 'reg-warn'],
   ]
   return (

@@ -376,10 +376,7 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
 
     # 양식이 담을 수 있는 만큼만 채운다. 넘치는 분은 잘라내고 무엇이 왜 빠졌는지 알린다
     # — 안 되는 걸 되는 것처럼 만들지 않는다.
-    notices = [
-        ("[심의 대상] " if f["severity"] == "FLAG" else "[확인] ") + _regulation.format_line(f)
-        for f in by["FLAG"] + by["WARN"]
-    ]
+    notices = ["[확인] " + _regulation.format_line(f) for f in by["FLAG"] + by["WARN"]]
     notices += count_notes
     notices += _v2fill.apply_capacity(plan, manifest, spec.get('limits'))
     for n in notices:

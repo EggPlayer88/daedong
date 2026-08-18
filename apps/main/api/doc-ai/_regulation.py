@@ -20,6 +20,17 @@ import re
 from _v2fill import EXAM_METHOD_KEYS, as_text, first_num, fmt_num
 
 
+# 검사하지 않는 severity — 규칙 정의는 자산에 남기되 판정은 만들지 않는다.
+#   SKIP     — 수집 항목이 아직 없어 검사할 수 없다 (기본점수 V11)
+#   DISABLED — 학교가 "이 단계에서는 보지 않는다" 고 정했다 (심의 표식 V09)
+OFF = ("SKIP", "DISABLED")
+
+
+def enabled(reg: dict, code: str) -> bool:
+    spec = (reg.get("rules") or {}).get(code) or {}
+    return spec.get("severity") not in OFF
+
+
 def _find(reg: dict, code: str, message: str, **extra) -> dict:
     spec = (reg.get("rules") or {}).get(code) or {}
     out = {
@@ -119,7 +130,7 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
     if not scoring:
         # 자유학기는 점수화하지 않으므로 비율 규칙이 성립하지 않는다
         findings += _soft_checks(plan, reg, areas, subject)
-        return findings
+        return [f for f in findings if f.get("severity") not in OFF]
 
     # ── V01: 수행 반영 합계 ≥ 30% ──────────────────────────────────────────
     if round(perf_total, 3) < th.get("perf_total_min", 30):
@@ -190,8 +201,9 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
                 f"{subject or '이 교과'}는 수행평가 100% 대상이 아닙니다. "
                 f"규정이 정한 대상은 정보·선택교과·체육·음악·미술·학교자율시간 과목과 주당 1시수 과목입니다."))
 
-    # ── V09: 심의 대상 표식 (위반 아님) ────────────────────────────────────
-    if count <= 1:
+    # ── V09: 심의 대상 표식 — 기본 비활성 (자산의 severity 가 DISABLED) ─────
+    #    횟수 선택은 교과 교사 재량이고 최종 검토는 관리자 단계에서 한다.
+    if count <= 1 and enabled(reg, "V09"):
         why = "정기시험 1회" if count == 1 else "수행평가 100%"
         findings.append(_find(reg, "V09",
             f"{why} 는 학업성적관리위원회 심의와 학교장 결정이 필요합니다. "
@@ -236,7 +248,7 @@ def check(plan: dict, reg: dict, variant: str = "") -> list:
             f"배점·비율을 조정하면 성적 처리가 깔끔해집니다."))
 
     findings += _soft_checks(plan, reg, areas, subject)
-    return findings
+    return [f for f in findings if f.get("severity") not in OFF]
 
 
 def _soft_checks(plan: dict, reg: dict, areas: list, subject: str) -> list:

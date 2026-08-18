@@ -190,7 +190,7 @@ button {
 
 /* ─── 문서 작성 AI ─── */
 .docai {
-  max-width: 780px;
+  max-width: 1060px;
 }
 .notice {
   color: var(--yellow);
@@ -414,11 +414,83 @@ button {
   border-color: #f8717155;
   background: #f871710d;
 }
-.reg-flag {
-  border-color: #a78bfa55;
-  background: #a78bfa0d;
-}
 .reg-warn {
   border-color: #fbbf2455;
   background: #fbbf240d;
+}
+
+/* ── 문서작성 AI: 대화 목록 + 본문 2단 ───────────────────────────────────── */
+.docai-body {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.docai-main {
+  min-width: 0; /* 긴 문장이 그리드를 밀어내지 않게 */
+}
+.conv-list {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 12px;
+  padding: 12px;
+}
+.conv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.conv-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.conv-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 2px;
+}
+.conv-item.on {
+  background: #4f8cff18;
+}
+.conv-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  background: none;
+  border: 0;
+  color: inherit;
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.conv-open:hover:not(:disabled) {
+  background: var(--card-hover);
+}
+.conv-open:disabled {
+  cursor: default;
+}
+.conv-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.conv-del {
+  flex: none;
+  font-size: 12px;
+  padding: 4px 6px;
+}
+
+@media (max-width: 720px) {
+  .docai-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
