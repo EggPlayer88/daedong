@@ -118,6 +118,8 @@ export default function PlanCard({
   const purposeKey = keyOf(ep, 'eval_purpose')
   const essayKey = keyOf(m.essay_total_ratio, 'essay_total_ratio')
   const minKey = keyOf(m.min_achievement_plan, 'min_achievement_plan')
+  // 물어보는 방식이 정해진 칸들 (manifest.collection_guides) — 프롬프트와 같은 문구를 쓴다
+  const guides = m.collection_guides
 
   const hours = resolveHours(plan)
   const rows = Array.isArray(plan[monthlyKey]) ? plan[monthlyKey] : []
@@ -417,6 +419,14 @@ export default function PlanCard({
           <p>
             <Val v={plan[minKey]} />
           </p>
+          {/* 비어 있으면 관행 문구를 보여준다 — 자동으로 넣지는 않는다.
+              교사가 확인하지 않은 문장이 문서에 들어가면 안 된다 (제1원칙). */}
+          {!plan[minKey] && guides?.min_achievement_plan?.suggest_first && (
+            <p className="muted small">
+              학교 관행 문구: “{guides.min_achievement_plan.suggest_first}” — 대화에서
+              이대로 할지 정해 주세요.
+            </p>
+          )}
         </Section>
       )}
 

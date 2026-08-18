@@ -10,10 +10,15 @@ const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail
 const A = (c, m) => { if (!c) throw new Error(m) }
 
 console.log('\n[프롬프트 — 양식 한도]')
-ck('수행 최대 2 명시', () => A(P.includes('수행평가는 최대 2개까지만'), '한도 문구 없음'))
-ck('3개 이상 요청 시 안내 문구 (확장 양식 준비 중)', () => {
-  A(P.includes('확장 양식은 준비 중'), '안내 문구 없음')
-  A(P.includes('3개 이상을 담는'), '3개 케이스 안내 없음')
+const CAP = Math.min(M.limits.perf_areas_max, M.limits.perf_plans_max)
+ck('양식 한도 명시 (manifest.limits 파생)', () =>
+  A(P.includes(`수행평가는 최대 ${CAP}개까지만`), '한도 문구 없음'))
+ck('한도 초과 요청 시 안내 (없는 예정을 만들지 않는다)', () => {
+  A(P.includes(`${CAP + 1}회 이상 하겠다고 하면`), '초과 케이스 안내 없음')
+  A(P.includes('그대로 진행할까요?'), '교사 선택 문구 없음')
+  // v3 마스터가 학교 공용 최종본이다 — "확장 양식 준비 중" 은 이제 거짓말이다
+  A(P.includes('"확장 양식이 준비 중" 이라고 말하지 않는다'), '허위 예정 금지 없음')
+  A(!P.includes('확장 양식은 준비 중임'), '옛 문구가 남음')
 })
 ck('정기시험 횟수 0/1/2 명시', () => A(P.includes('0 / 1 / 2 회만 가능'), '횟수 한도 없음'))
 ck('요소 3개·수준 4단계 명시', () => A(P.includes('최대 3개') && P.includes('4단계'), '요소/수준 한도 없음'))
@@ -22,7 +27,8 @@ ck('manifest.limits 에서 파생 (하드코딩 아님)', () => {
   m2.limits.perf_areas_max = 4; m2.limits.perf_plans_max = 4
   const p2 = mod.buildSystemPrompt(m2)
   A(p2.includes('수행평가는 최대 4개까지만'), '한도 변경 미반영')
-  A(p2.includes('5개 이상을 담는'), '안내 문구 미갱신')
+  A(p2.includes('5회 이상 하겠다고 하면'), '안내 문구 미갱신')
+  A(p2.includes('4개를 넘기는 확장 계획은 없다'), '한도 문장 미갱신')
 })
 
 console.log('\n[프롬프트 — elements 3그룹×4수준]')
@@ -42,7 +48,7 @@ ck('exam.rounds 에 essay_ratio 포함', () => A('essay_ratio' in skel.exam.roun
 
 console.log('\n[골격 key ↔ generate 가 읽는 경로]')
 // 골격은 배열마다 샘플 1개만 보여준다 (개수는 프롬프트 문구가 지시) → [n] 은 [0] 으로 정규화
-const paths = Object.entries(M.direct_tokens)
+const paths = Object.entries(M.token_paths)
   .filter(([k]) => k.startsWith('{{'))
   .map(([, v]) => v)
 const norm = p => p.replace(/\[\d+\]/g, '[0]')

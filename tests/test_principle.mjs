@@ -191,10 +191,16 @@ ck('작년 2분류 → 올해 3분류 전환 질문', () => {
   A(P.includes('네가 임의로 나누지 않는다'), '임의 분배 금지 없음')
   A(P.includes('모르겠다') && P.includes('공란'), '모를 때 처리 없음')
 })
-ck('현행 양식에 칸이 없다는 사실을 숨기지 않는다', () => {
-  A(P.includes('현행 양식에는 아직 칸이 없다'), '과도기 안내 없음')
-  A(P.includes('문서에 들어가지 못한다'), '누락 사실 없음')
-  A(P.includes('네가 합치지 않는다'), '임의 합산 금지 없음')
+ck('3분류가 다 담기므로 과도기 안내는 없다 (v3 마스터)', () => {
+  A(!P.includes('현행 양식에는 아직 칸이 없다'), '끝난 과도기 안내가 남음')
+  A(!P.includes('문서에 들어가지 못한다'), '누락 안내가 남음')
+})
+ck('칸이 빠지면 안내가 되살아난다 (자산 파생)', () => {
+  const m2 = JSON.parse(JSON.stringify(M))
+  m2.exam.template_categories = ['mc', 'essay']
+  const p2 = mod.buildExamMethodDoc(m2)
+  A(p2.includes('현행 양식에는 아직 칸이 없다'), '되살아나지 않음')
+  A(p2.includes('네가 합치지 않는다'), '임의 합산 금지 없음')
 })
 ck('3분류가 manifest 에서 파생 (하드코딩 아님)', () => {
   const m2 = JSON.parse(JSON.stringify(M))
@@ -239,6 +245,44 @@ ck('세트가 상수에서 파생 (하드코딩 아님)', () => {
   const p2 = mod.buildCountSetDoc(c2)
   A(p2.includes('정기시험 2회 → 수행평가 1개'), '세트 변경 미반영')
   A(!p2.includes('작년과 달라진 조합'), '전환 안내 제거 미반영')
+})
+
+console.log('\n[물어보는 방식이 정해진 칸 — collection_guides]')
+ck('지도 방안: 관행 문구를 먼저 제안한다', () => {
+  const g = M.collection_guides.min_achievement_plan
+  A(P.includes(g.suggest_first), '관행 문구 없음')
+  A(P.includes(g.ask), '질문 문구 없음')
+  A(P.includes('먼저 제안하고 확인받는다'), '제안-확인 흐름 없음')
+  A(P.includes('묻지 않고 넣지 않는다'), '무단 기재 금지 없음')
+})
+ck('미응시자 칸: 기준 문장이 아니라 점수', () => {
+  const g = M.collection_guides['perf_plans.absentee_points']
+  A(P.includes('이 칸에 들어가는 것은 **점수**다'), '의미 명시 없음')
+  A(P.includes(g.ask), '질문 문구 없음')
+  A(P.includes(g.format), '형식 안내 없음')
+  A(P.includes('공통이면 한 번만 묻고'), '공통 처리 없음')
+  A(P.includes('미정이면 공란'), '미정 처리 없음')
+})
+ck('수집 필드도 "미응시자 점수" 로 바뀌었다', () => {
+  const f = M.perf_plans.item_fields.find(x => x.key === 'absentee_points')
+  A(f, 'absentee_points 필드 없음')
+  A(f.label === '미응시자 점수', f.label)
+  A(!M.perf_plans.item_fields.some(x => x.key === 'absentee_rule'), '옛 필드가 남음')
+  A(P.includes('미응시자 점수'), '프롬프트 수집 목록에 없음')
+})
+ck('안내 문구가 자산에서 파생 (하드코딩 아님)', () => {
+  const m2 = JSON.parse(JSON.stringify(M))
+  m2.collection_guides.min_achievement_plan.suggest_first = '개별 상담 후 재평가'
+  delete m2.collection_guides['perf_plans.absentee_points']
+  const p2 = mod.buildGuideDoc(m2)
+  A(p2.includes('개별 상담 후 재평가'), '관행 문구 변경 미반영')
+  A(!p2.includes('미응시자'), '삭제한 안내가 남음')
+})
+
+console.log('\n[v3 마스터 — 수행 성취기준 칸은 고정 문구]')
+ck('영역별 성취기준을 따로 묻지 않는다', () => {
+  A(!M.perf_summary.item_fields.some(f => f.key === 'standards'), '영역 성취기준 필드가 남음')
+  A(M.perf_summary._standards_note.includes('수행평가 세부 기준 참고'), '고정 문구 근거 없음')
 })
 
 console.log()

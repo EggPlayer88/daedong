@@ -87,7 +87,44 @@ const itemLines = (fields, indent = '  ') =>
     return line
   })
 
-/** 수집 항목 문서 — manifest v2 구조를 그대로 서술한다 */
+/**
+ * 특정 칸을 "어떻게 물어볼지" — manifest.collection_guides.
+ * 문구를 프롬프트에 적어 두면 확인 카드와 갈라진다. 자산 한 곳에서 읽는다.
+ */
+function buildGuideDoc(m = manifest) {
+  const g = m?.collection_guides
+  if (!g) return ''
+  const L = ['## 이 두 칸은 물어보는 방식이 정해져 있다']
+
+  const ma = g.min_achievement_plan
+  if (ma) {
+    L.push(
+      '',
+      '### 최소 성취수준 미도달 학생 지도 방안',
+      `- 학교 관행 문구가 있다: **"${ma.suggest_first}"**`,
+      '- **먼저 제안하고 확인받는다.** 백지에서 물어보면 교사가 매번 새로 지어내야 한다.',
+      `  "${ma.ask}"`,
+      `- ${ma.rule}`
+    )
+  }
+
+  const ab = g['perf_plans.absentee_points']
+  if (ab) {
+    L.push(
+      '',
+      '### 수행평가 미응시자 (결시) 칸',
+      `- ⚠ 이 칸에 들어가는 것은 **점수**다. ${ab.meaning}`,
+      '  기준 문장("추후 평가 기회 부여" 같은 것)이 아니라 숫자를 받는다.',
+      `  확인 카드에도 "${ab.card_label}" 로 표시된다.`,
+      `- 이렇게 묻는다: "${ab.ask}"`,
+      `- 형식: **${ab.format}**`,
+      `- ${ab.rule}`
+    )
+  }
+  return L.join('\n')
+}
+
+/** 수집 항목 문서 — manifest 구조를 그대로 서술한다 */
 function buildFieldDoc(m) {
   const L = [`## 수집 항목과 출력 key (manifest v${m.manifest_version})`]
   L.push(
@@ -270,7 +307,8 @@ function buildLimitDoc(m) {
       `- 교사가 수행평가를 ${cap + 1}회 이상 하겠다고 하면, 계획 자체를 반대하지 않는다.`,
       `  "현재 양식은 수행평가 ${cap}개까지 담깁니다. ${cap + 1}번째부터는 공란으로 남고`,
       `  한글에서 직접 편집해 추가하셔야 합니다. 그대로 진행할까요?" 라고 알리고 교사의 선택을 따른다.`,
-      `  (${cap + 1}개 이상을 담는 확장 양식은 준비 중임을 함께 알려도 좋다.)`
+      `  ⚠ "확장 양식이 준비 중" 이라고 말하지 않는다. 지금 양식이 학교 공용 마스터이고,`,
+      `     ${cap}개를 넘기는 확장 계획은 없다 — 없는 예정을 만들지 않는다.`
     )
   }
   L.push(
@@ -693,6 +731,7 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
     buildScaleDoc(consts),
     buildHoursDoc(table),
     buildLimitDoc(m),
+    buildGuideDoc(m),
     buildFieldDoc(m),
   ]
     .filter(Boolean)
@@ -711,6 +750,7 @@ const SYSTEM_PROMPT = buildSystemPrompt()
 // 테스트용 노출 (Vercel 은 default export 만 핸들러로 쓴다)
 export {
   buildFieldDoc,
+  buildGuideDoc,
   buildSkeleton,
   buildHoursDoc,
   buildLimitDoc,
