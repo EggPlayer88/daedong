@@ -255,21 +255,27 @@ function buildFreePrefillDoc(d, L, m = manifest) {
   L.push('### 작년 자유학기 구성')
   L.push(
     `- 점수·반영비율·미응시 점수는 **작년에도 없었다** (자유학기).`,
+    '- ⚠ 다만 **주당 시수는 받는다.** 시수는 점수가 아니라 수업 계획이라 다른 학년과 같다.',
     `- 활동 ${(d.activities || []).length}개 / 최소 성취수준 미도달 지도 방안: ${d.min_achievement_plan || '(없음)'}`,
     ''
   )
 
-  L.push('### 작년 교수·학습 계획 (월별) — **월 이름을 그대로 쓴다**')
+  L.push('### 작년 교수·학습 계획 (월별)')
   for (const r of d.monthly_plan || []) {
     L.push(`- ${r.month}: ${r.units || ''}`)
     if (r.standards) L.push(`    성취기준: ${r.standards}`)
     if (r.eval_elements) L.push(`    평가 요소: ${r.eval_elements}`)
   }
-  L.push(
-    `- ⚠ 월 표기가 "${(d.monthly_plan || []).at(-1)?.month || '12, 1월'}" 처럼 합쳐진 달이 있다.`,
-    '  이 양식은 월 이름도 칸이므로 **작년 표기를 그대로** monthly_plan[].month 에 넣는다.',
-    ''
-  )
+  const lastMonth = (d.monthly_plan || []).at(-1)?.month || ''
+  if (lastMonth.includes(',')) {
+    L.push(
+      `- ⚠ 작년 표기에 "${lastMonth}" 처럼 합쳐진 달이 있다. **계승하지 않는다.**`,
+      `  올해는 어느 학년이든 ${(m.monthly_plan?.months || []).join('·')} 5행이고 1월 행이 없다.`,
+      '  월 라벨은 서버가 행 순서로 넣는다 — 위 작년 내용은 **단원·성취기준·평가 요소를',
+      '  어느 행에 넣을지** 정하는 참고로만 쓴다.'
+    )
+  }
+  L.push('')
 
   const purposes = d.eval_purpose || []
   if (purposes.length) {
@@ -696,8 +702,10 @@ function buildHoursDoc(table) {
   const keys = Object.keys(row).sort((a, b) => Number(a) - Number(b))
   if (keys.length === 0) return ''
 
-  const L = ['## 시수/누계 — 자동 입력 (직접 계산하지 말 것)']
+  const L = ['## 월·시수/누계 — 자동 입력 (직접 계산하지 말 것)']
   L.push(
+    `- **월 이름은 ${(manifest.monthly_plan?.months || []).join('·')} 5행 고정**이다 (학년 무관).`,
+    '  서버가 행 순서대로 넣으므로 네가 월 라벨을 만들지 않는다. 1월 행은 없다.',
     '- 월별 시수/누계는 **학사일정 기반 고정표로 서버가 자동 입력**한다.',
     '  네가 계산하거나 제안하지 않는다. 교사에게 필요한 것은 **주당 시수(weekly_hours)** 하나뿐이다.',
     '- 주당 시수를 받으면 그 교과의 시수가 어떻게 들어가는지 알려주고 넘어간다. 예:',
@@ -711,7 +719,8 @@ function buildHoursDoc(table) {
     '  최종 JSON 에 **"hours_manual": true** 를 함께 넣는다. 그러면 서버가 교사 값을 그대로 쓴다.',
     '- hours_manual 이 없으면 monthly_plan[].hours_cum 에 무엇을 넣어도 고정표 값으로 덮어쓰인다.',
     '  그래도 빈 문자열로 두지 말고 고정표 값을 그대로 적어 교사가 확인 화면에서 보게 한다.',
-    '- 단원명·성취기준·평가 요소는 이 규칙과 무관하다 — 평소대로 교사·참고자료에서 받는다.'
+    '- 단원명·성취기준·평가 요소는 이 규칙과 무관하다 — 평소대로 교사·참고자료에서 받는다.',
+    '- ⚠ **자유학기(1학년)도 똑같다.** 점수를 매기지 않을 뿐 수업 시수는 다른 학년과 같다.'
   )
   return L.join('\n')
 }
@@ -775,8 +784,10 @@ function buildRoutingDoc(m = manifest) {
       '- 수행평가 영역별 만점·반영비율 / **미응시자 점수** (양식에 고정 문구가 들어 있다)',
       '',
       '**대신 묻는다**:',
-      `- 월별 교수·학습 계획 — 이 양식은 **월 이름도 칸**이다 (12월·1월처럼 달라질 수 있다).`,
-      '  monthly_plan[].month 를 반드시 채운다.',
+      '- **주당 시수(weekly_hours)** — ⚠ 자유학기라도 **반드시 받는다.**',
+      '  시수는 점수가 아니라 수업 계획이라, 다른 학년과 똑같이 표에 들어간다.',
+      '  받지 못하면 시수/누계 칸이 비어 나가고 교사는 양식 오류로 오해한다.',
+      '- 월별 교수·학습 계획 (단원·성취기준·평가 요소)',
       '- 평가 목적 3개 / 최소 성취수준 미도달 지도 방안',
       `- 학기 단위 성취수준 ${lv.join('·')} 서술`,
       `- **활동 계획 최대 ${cap.free}개** — key: free_activities`,

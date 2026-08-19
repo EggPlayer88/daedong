@@ -134,6 +134,15 @@ def t_zip_rules():
     assert z.getinfo("mimetype").compress_type == zipfile.ZIP_STORED, "mimetype 압축됨"
 check("ZIP 규칙 (mimetype 첫 엔트리·무압축)", t_zip_rules)
 
+def t_months_scored():
+    """점수형 학년도 월은 서버 고정이다 (기존 동작 유지 — 회귀 확인)."""
+    for key in ("grade2_exam2", "grade3_exam1"):
+        t = text_of(OUT[key])
+        row = gen.load_fixed_hours()["variants"]["common"]["4"]
+        for cell in row["months"]:
+            assert cell in t, f"{key}: 시수 칸 누락 {cell}"
+check("점수형 학년 시수 주입 영향 없음", t_months_scored)
+
 def t_common():
     t = text_of(OUT["grade2_exam2"])
     for s in ("수학", "1단원", "목적 하나.", "보충학습 및 과제 수행 후 성취 수준 재평가",
@@ -302,11 +311,48 @@ def t_free_gen():
 check("생성 성공 (활동 3개)", t_free_gen)
 
 def t_free_months():
-    """자유학기 양식은 월 이름도 칸이다 — 12월·1월처럼 달라진다."""
-    for m in ("9월", "10월", "11월", "12월", "1월"):
+    """월 이름은 **서버가 행 순서로** 넣는다 — 학년 무관 8~12월 5행 고정.
+
+    자유학기 양식은 월 이름도 칸이라 교사·AI 값이 들어갈 수 있었지만,
+    2026-08-19 확정으로 서버 고정값을 쓴다 (작년 "12, 1월" 병합 표기 미계승).
+    """
+    want = M["monthly_plan"]["months"]
+    for m in want:
         assert m in FR["t"], f"월 누락: {m}"
-    assert "8월" not in FR["t"], "쓰지 않는 월이 남음"
-check("M{n}_MONTH 치환 (1월까지)", t_free_months)
+    assert "1월" not in FR["t"].replace("11월", "").replace("12월", ""), "1월 행이 생김"
+check("M{n}_MONTH = 서버 고정 (8~12월 5행)", t_free_months)
+
+def t_free_months_ignore_input():
+    """교사·prefill 이 준 월 라벨은 쓰지 않는다 (행 순서가 곧 월이다)."""
+    p = json.loads(json.dumps(FREE))
+    for r in p["monthly_plan"]:
+        r["month"] = "12, 1월"
+    t = text_of(gen.generate_v2(M, p)[1])
+    assert "12, 1월" not in t, "작년 병합 표기가 계승됨"
+    for m in M["monthly_plan"]["months"]:
+        assert m in t, f"서버 고정 월 누락: {m}"
+check("입력 월 라벨을 무시하고 고정값을 쓴다", t_free_months_ignore_input)
+
+def t_free_hours():
+    """자유학기도 시수·누계는 다른 학년과 똑같이 서버 고정표로 채운다."""
+    p = json.loads(json.dumps(FREE))
+    p["weekly_hours"] = 4
+    fn, b64, notices = gen.generate_v2(M, p)
+    t = text_of(b64)
+    row = gen.load_fixed_hours()["variants"]["common"]["4"]
+    for cell in row["months"]:
+        assert cell in t, f"시수 칸 누락: {cell}"
+    assert row["months"][-1].endswith("/72"), row["months"]
+    assert not [n for n in notices if "시수" in n], notices
+check("시수 5행 전부 + 누계 끝값 72 (주당 4)", t_free_hours)
+
+def t_free_hours_missing():
+    """시수를 못 받았으면 **왜 비었는지** 말해 준다 — 양식 오류로 오해하지 않게."""
+    p = json.loads(json.dumps(FREE))
+    p.pop("weekly_hours", None)
+    fn, b64, notices = gen.generate_v2(M, p)
+    assert any("주당 시수를 받지 못해" in n for n in notices), notices
+check("시수 미입력 → 이유를 알린다", t_free_hours_missing)
 
 def t_free_blocks():
     for i in (1, 2, 3):

@@ -195,6 +195,10 @@ def apply_fixed_hours(plan: dict, table: dict) -> dict:
     if plan.get("hours_manual") in (True, "true", "True", 1):
         return {"applied": False, "reason": "hours_manual", "months": [], "row": None}
 
+    if as_text(plan.get("weekly_hours")) == "":
+        # 자유학기라도 시수는 받아야 한다 — 시수는 점수가 아니라 수업 계획이다
+        return {"applied": False, "reason": "weekly_hours 미입력", "months": [], "row": None}
+
     row = hours_row(table, plan.get("weekly_hours"))
     if row is None:
         return {
@@ -329,6 +333,10 @@ def derive(plan: dict, manifest: dict) -> dict:
     d["essay_total_ratio_display"] = pct(essay_total) if essay_total else ""
     d["_essay_total"] = essay_total
     d["_exam_count"] = count
+    # 월 이름은 **행 순서로 서버가 정한다** (학년 무관 8~12월 5행 고정).
+    # 작년 1학년 자료에 "12, 1월" 처럼 병합된 표기가 있지만 계승하지 않는다 —
+    # 올해 양식은 어느 학년이든 5행이고 1월 행이 없다 (2026-08-19 계란님 확정).
+    d["_months"] = list(((manifest.get("monthly_plan") or {}).get("months")) or [])
     return d
 
 
@@ -680,7 +688,11 @@ def token_value(name: str, data: dict, manifest: dict, composed: dict) -> str:
 
     m = MONTH_RE.match(name)
     if m:
-        return as_text(_at(data.get("monthly_plan"), int(m.group(1)) - 1).get(MONTH_FIELD[m.group(2)]))
+        i, kind = int(m.group(1)) - 1, m.group(2)
+        if kind == "MONTH":
+            # 서버 고정값. 교사·AI 가 준 월 라벨은 쓰지 않는다 (행 순서가 곧 월이다)
+            return as_text(_seq(data.get("_months"), i))
+        return as_text(_at(data.get("monthly_plan"), i).get(MONTH_FIELD[kind]))
     m = EXAM_RE.match(name)
     if m:
         rounds = (data.get("exam") or {}).get("rounds")

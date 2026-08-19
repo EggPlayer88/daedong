@@ -173,10 +173,20 @@ ck('자유학기: 묻지 않을 것', () => {
   }
 })
 ck('자유학기: 대신 물을 것', () => {
-  A(P.includes('월 이름도 칸'), '월 토큰 안내 없음')
-  A(P.includes('monthly_plan[].month 를 반드시 채운다'), 'month 수집 지시 없음')
   A(P.includes('활동 계획 최대 4개'), '활동 블록 수 없음')
   A(P.includes('도달 정도를 문장으로'), '점수 대신 서술 지시 없음')
+})
+ck('자유학기도 시수는 받는다 (시수는 점수가 아니다)', () => {
+  A(P.includes('자유학기라도 **반드시 받는다.**'), '시수 수집 지시 없음')
+  A(P.includes('시수는 점수가 아니라 수업 계획'), '이유 없음')
+  A(P.includes('자유학기(1학년)도 똑같다'), '시수 절에 자유학기 언급 없음')
+})
+ck('월 이름은 서버가 정한다 (학년 무관 5행)', () => {
+  const months = M.monthly_plan.months
+  A(P.includes(`**월 이름은 ${months.join('·')} 5행 고정**`), '월 고정 안내 없음')
+  A(P.includes('네가 월 라벨을 만들지 않는다'), '월 생성 금지 없음')
+  A(P.includes('1월 행은 없다'), '1월 부재 명시 없음')
+  A(!P.includes('monthly_plan[].month 를 반드시 채운다'), '옛 지시가 남음')
 })
 ck('라우팅이 자산에서 파생', () => {
   const m2 = JSON.parse(JSON.stringify(M))

@@ -425,6 +425,12 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
             "주당 시수가 고정표 범위를 벗어나 시수/누계가 자동 입력되지 않았습니다. "
             "표에 들어간 값을 한글에서 확인해 주세요."
         )
+    elif not hours["applied"] and hours["reason"] == "weekly_hours 미입력":
+        # 빈 칸으로 나간 이유를 말해 주지 않으면 교사는 양식 오류로 오해한다
+        notices.append(
+            "주당 시수를 받지 못해 시수/누계 칸이 비어 있습니다. "
+            "주당 시수를 알려주시면 학사일정 기준으로 자동 입력됩니다."
+        )
 
     values, data = _fill.build_token_values(plan, manifest, spec)
 
