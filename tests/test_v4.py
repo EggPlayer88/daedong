@@ -287,6 +287,75 @@ def t_over_capacity():
 check("한도 초과 → 수용분만 + 안내", t_over_capacity)
 
 
+print("\n[5-1] 출제 계획 블록 — 유령 블록을 남기지 않는다 (실사용 신고)")
+def t_ghost_block():
+    """수행 3개 양식에서 계획이 2개면 3번째 블록은 **지운다.**
+
+    예전에는 영역 수만큼 빈 블록을 남겨, 제목·표가 비고 "* 수행평가 미응시자 :"
+    줄만 찍혔다 — 앞 블록의 같은 줄과 나란히 보여 중복으로 읽혔다.
+    """
+    p = scored(2, 0, 3, subject="음악", levels="ABC")
+    p["perf_plans"] = p["perf_plans"][:2]
+    fn, b64, notices = gen.generate_v2(M, p)
+    t = text_of(b64)
+    assert t.count("수행평가 미응시자") == 2, f"미응시자 줄 {t.count('수행평가 미응시자')}회 (기대 2)"
+    assert t.count("수행평가명") == 2, f"수행평가명 {t.count('수행평가명')}회"
+    assert "{{" not in body_of(b64), "토큰 잔존"
+    assert any("출제 계획은 2개만" in n for n in notices), notices
+check("수행 3 · 계획 2 → 블록 2개 + 안내", t_ghost_block)
+
+def t_ghost_none():
+    """계획이 하나도 없어도 블록 하나는 남긴다 (표가 통째로 사라지면 양식이 깨진다)."""
+    p = scored(2, 0, 3, subject="음악", levels="ABC")
+    p["perf_plans"] = []
+    fn, b64, notices = gen.generate_v2(M, p)
+    t = text_of(b64)
+    assert t.count("수행평가 미응시자") == 1, t.count("수행평가 미응시자")
+    assert any("출제 계획" in n for n in notices), notices
+check("계획 0개 → 블록 1개 + 안내", t_ghost_none)
+
+def t_no_ghost_when_matched():
+    for n in (1, 2, 3):
+        p = scored(2, 0, 3, subject="음악", levels="ABC")
+        p["perf_areas"] = p["perf_areas"][:n]
+        for i, a in enumerate(p["perf_areas"]):
+            a["ratio"] = round(100 / n, 4)
+        p["perf_plans"] = p["perf_plans"][:n]
+        t = text_of(gen.generate_v2(M, p)[1])
+        assert t.count("수행평가 미응시자") == n, f"{n}개인데 {t.count('수행평가 미응시자')}회"
+check("영역·계획 수가 같으면 그 수만큼", t_no_ghost_when_matched)
+
+
+print("\n[5-2] 검토 표식(⚠)은 문서에 인쇄되지 않는다")
+def t_review_mark_stripped():
+    """AI 가 붙인 '⚠ 원문 대조 확인 필요' 는 대화·확인 카드 전용이다.
+
+    결재 문서에 ⚠ 가 찍히면 그대로 결재선을 타고 올라간다.
+    """
+    p = scored(2, 2, 2)
+    p["exam"]["rounds"][0]["standards"] = "[9수02-17] ⚠ 원문 대조 확인 필요"
+    p["achievement_levels"]["A"] = ["A 진술 ⚠ 검토 필요"]
+    p["monthly_plan"][0]["standards"] = "[9수02-18] ⚠ 원문 대조 확인 필요"
+    fn, b64, notices = gen.generate_v2(M, p)
+    t = text_of(b64)
+    assert "⚠" not in t, "문서에 ⚠ 가 인쇄됨"
+    assert "원문 대조 확인 필요" not in t, "표식 문구가 남음"
+    # 문장 자체는 살린다 — 표식만 걷어낸다
+    assert "[9수02-17]" in t and "A 진술" in t, "본문까지 지워짐"
+    assert any("검토 표식" in n for n in notices), notices
+check("표식은 걷어내고 문장은 살린다 + 안내", t_review_mark_stripped)
+
+def t_no_mark_no_notice():
+    assert not [n for n in gen.generate_v2(M, scored(2, 2, 2))[2] if "검토 표식" in n]
+check("표식이 없으면 안내하지 않는다", t_no_mark_no_notice)
+
+def t_all_forms_no_mark():
+    """어느 양식이든 마찬가지다."""
+    for key, b64 in OUT.items():
+        assert "⚠" not in text_of(b64), f"{key} 문서에 ⚠"
+check("생성한 모든 양식에 ⚠ 없음", t_all_forms_no_mark)
+
+
 print("\n[6] 자유학기 — 점수 없는 양식")
 FREE = {
     "year": 2026, "semester": 2, "grade": 1, "subject": "과학",

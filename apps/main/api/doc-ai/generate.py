@@ -383,6 +383,8 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
     count_notes += _fill.check_exam_categories(plan, manifest)
     # 작년 자료에서 그대로 물려받은 값 중 확인이 필요한 것 (예: % 표기 없던 칸)
     count_notes += _prefill.check(plan, load_prefill_index())
+    # 출제 계획이 모자라면 그 블록은 문서에서 빠진다 — 빈 블록을 남기지 않는다
+    count_notes += _fill.check_plan_blocks(plan, spec["limits"])
 
     # 이 양식을 쓰지만 성취 관련 절이 교과와 맞지 않는 경우 (정보·진로 → 예체능판).
     # ⚠ 그 유형의 본래 교과(음악·미술·체육)에는 알릴 것이 없다 — 해당 교과에만 띄운다.
@@ -433,6 +435,12 @@ def generate_v2(manifest: dict, plan: dict, check_only: bool = False):
         )
 
     values, data = _fill.build_token_values(plan, manifest, spec)
+    if data.get("_review_marked"):
+        # 표식은 걷어냈지만 "확인이 필요한 칸" 이라는 사실까지 지우면 안 된다
+        notices.append(
+            "검토 표식(⚠)이 붙은 칸이 있어 문서에서는 표식을 제외했습니다: "
+            f"{', '.join(data['_review_marked'][:6])}. 해당 칸의 내용을 확인해 주세요."
+        )
 
     tmp = Path(tempfile.mkdtemp(prefix="hwpx_"))
     try:

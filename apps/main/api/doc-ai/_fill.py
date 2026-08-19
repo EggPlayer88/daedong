@@ -23,6 +23,11 @@ NUM_RE = re.compile(r"-?\d+(?:\.\d+)?")
 
 # 정기시험 평가방법 3분류 (2026 학교 확정). 회차 100점 = mc + short + essay.
 # ⚠ 서·논술형 30% 산입은 essay 만이다 — short(단답형·완성형)는 주관식이지만 제외된다.
+# 검토 표식 — **대화·확인 카드 전용**이다. 결재 문서에 ⚠ 가 인쇄되면 안 된다.
+# AI 가 성취기준 코드를 제안하면 "⚠ 원문 대조 확인 필요" 를 붙이는데, 그 표식이
+# 필드 값에 섞여 들어오는 일이 있다. 문서로 나가기 직전에 걷어낸다.
+REVIEW_MARK_RE = re.compile(r"\s*[⚠※]\s*원문\s*대조\s*확인\s*필요\s*|\s*⚠\s*검토\s*필요\s*|⚠")
+
 EXAM_METHOD_KEYS = ("mc", "short", "essay")
 EXAM_METHOD_LABELS = {"mc": "선택형", "short": "단답형·완성형", "essay": "서·논술형"}
 
@@ -540,6 +545,32 @@ def check_perf_count(plan: dict, rule: dict | None) -> list:
 # ---------------------------------------------------------------------------
 # 양식 수용 한도 — 넘치면 거부하지 않고 수용분만 채우고 안내한다
 # ---------------------------------------------------------------------------
+def check_plan_blocks(plan: dict, limits: dict | None = None) -> list:
+    """수행평가 영역 수와 출제 계획 수가 다르면 알린다.
+
+    문서에는 **내용이 있는 계획만큼만** 블록이 들어간다. 빈 블록을 남기면
+    "* 수행평가 미응시자 :" 줄만 덩그러니 찍혀 앞 블록과 중복처럼 보인다.
+    """
+    limits = limits or {}
+    areas = plan.get("perf_areas")
+    plans = plan.get("perf_plans")
+    n_areas = len(areas) if isinstance(areas, list) else 0
+    named = sum(1 for p in (plans or []) if isinstance(p, dict) and as_text(p.get("name")))
+    cap = int(limits.get("perf_plans_max") or 0)
+    n_areas = min(n_areas, cap) if cap else n_areas
+    if not n_areas or named >= n_areas:
+        return []
+    missing = [
+        as_text(a.get("name")) or f"{i + 1}번째"
+        for i, a in enumerate(areas[:n_areas]) if isinstance(a, dict)
+    ][named:]
+    return [
+        f"수행평가는 {n_areas}개인데 출제 계획은 {named}개만 받았습니다. "
+        f"계획이 없는 항목({', '.join(missing)})은 출제 계획 블록이 문서에 들어가지 않았습니다. "
+        f"한글에서 직접 추가하거나, 대화로 계획을 채운 뒤 다시 생성해 주세요."
+    ]
+
+
 def apply_capacity(plan: dict, manifest: dict, limits: dict | None = None) -> list:
     """한도를 넘는 항목을 잘라내고, 무엇이 왜 빠졌는지 안내 문구를 돌려준다.
 
@@ -753,6 +784,18 @@ def level_cells(levels, key) -> list:
     return [v] if as_text(v) else []
 
 
+def strip_review_marks(text: str) -> str:
+    """문서용 문자열에서 검토 표식을 걷어낸다. 문장 자체는 살린다."""
+    if not text or ("⚠" not in text and "※ 원문" not in text):
+        return text
+    return REVIEW_MARK_RE.sub(" ", text).strip()
+
+
+def review_marked_fields(values: dict) -> list:
+    """검토 표식이 섞여 있던 토큰 이름 (교사에게 알리기 위해)."""
+    return sorted(t.strip("{}") for t, v in values.items() if isinstance(v, str) and "⚠" in v)
+
+
 def build_token_values(plan: dict, manifest: dict, spec: dict) -> tuple:
     """이 양식이 가진 토큰만 채운다. 모르는 토큰이 있으면 즉시 알린다.
 
@@ -771,6 +814,11 @@ def build_token_values(plan: dict, manifest: dict, spec: dict) -> tuple:
     if unknown:
         raise KeyError(f"치환 규칙이 없는 토큰: {', '.join(unknown[:8])}")
 
+    # 검토 표식은 여기서 끝난다 — 결재 문서에 ⚠ 를 인쇄하지 않는다
+    marked = review_marked_fields(values)
+    for tok in values:
+        values[tok] = strip_review_marks(values[tok])
+
     # unused_handling — v4 는 대부분 양식에 내장돼 있고 남는 것은 아래 한 가지다.
     #   "수행 1개인데 2열 양식" → P2 계열에 '˙'. (블록 삭제는 fill_document 가 한다)
     areas = data.get("perf_areas")
@@ -780,6 +828,7 @@ def build_token_values(plan: dict, manifest: dict, spec: dict) -> tuple:
             tok = "{{" + f"P{n}_{suffix}" + "}}"
             if tok in values:
                 values[tok] = UNUSED_MARK
+    data["_review_marked"] = marked
     return values, data
 
 
@@ -796,10 +845,13 @@ def fill_document(sec, values: dict, data: dict, manifest: dict, spec: dict, *, 
         prefix, cap = "FPP", lim["free_blocks_max"]
     else:
         plans = data.get("perf_plans")
-        areas = data.get("perf_areas")
         named = sum(1 for p in (plans or []) if isinstance(p, dict) and as_text(p.get("name")))
-        # 출제 계획을 아직 안 쓴 수행평가도 자리는 남긴다 (교사가 한글에서 채운다)
-        used = max(named, len(areas) if isinstance(areas, list) else 0)
+        # ⚠ **내용이 있는 출제 계획만큼만** 블록을 남긴다.
+        #   예전에는 수행평가 영역 수까지 세어 "교사가 한글에서 채우도록" 빈 블록을
+        #   남겼는데, 그 블록은 제목·표가 비고 "* 수행평가 미응시자 :" 줄만 보여서
+        #   앞 블록의 같은 줄과 나란히 찍힌 것처럼 읽혔다 (실사용 신고).
+        #   빠진 계획은 notices 로 알린다 — 유령 블록보다 문장 한 줄이 낫다.
+        used = named
         prefix, cap = "PP", lim["perf_plans_max"]
     used = max(1, min(used, cap)) if cap else 0
 

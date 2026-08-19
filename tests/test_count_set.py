@@ -141,8 +141,9 @@ check("세트 밖 → check_only 가 ERROR 없이 notices 로 알린다", t_not_
 def t_in_set_quiet():
     out = gen.generate_v2(M, full(0, 3), check_only=True)
     # ⚠ 이 조합(2학년 시험 0회)은 예체능판을 쓰는데, 정보·진로는 성취 절을 손봐야 한다.
-    #   그 양식 안내는 세트와 무관하므로 빼고 본다.
-    rest = [n for n in out["notices"] if not n.startswith("[양식 안내]")]
+    #   그 양식 안내와 "출제 계획 없음" 안내는 세트와 무관하므로 빼고 본다.
+    rest = [n for n in out["notices"]
+            if not n.startswith("[양식 안내]") and "출제 계획" not in n]
     assert rest == [], rest
 check("세트 안 → 세트 관련 안내 없음", t_in_set_quiet)
 

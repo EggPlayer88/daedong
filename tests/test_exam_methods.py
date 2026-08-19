@@ -121,8 +121,10 @@ def t_gap_generate():
          "method": "서술·논술", "absent_rule": "인정점"},
     ]
     out = gen.generate_v2(M, p, check_only=True)
-    assert out["notices"] == [], f"불필요한 안내가 남음: {out['notices']}"
-check("check_only 응답도 조용하다", t_gap_generate)
+    # 이 픽스처는 출제 계획을 안 넣으므로 그 안내는 나온다 — 3분류 안내만 본다
+    rest = [n for n in out["notices"] if "단답형" in n]
+    assert rest == [], f"불필요한 3분류 안내가 남음: {rest}"
+check("check_only 응답에 3분류 안내가 없다", t_gap_generate)
 
 def t_short_in_doc():
     """실제로 단답형 점수가 문서에 들어가는지 — 안내가 사라진 진짜 이유."""
