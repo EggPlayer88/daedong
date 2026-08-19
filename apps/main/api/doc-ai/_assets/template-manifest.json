@@ -1,6 +1,6 @@
 {
-  "_comment": "manifest v4 FINAL (2026-08-18) — 유형별 양식 패밀리 6종. 계란님 한글 제작 양식 기반, Web 일괄 토큰화 (전 판 쪼개짐 0). 이 파일과 6개 hwpx 는 확정본 — 수정 금지. v4.2: 토큰 셀 잉여 빈 문단 제거(세로 쏠림 수정) + 교수학습 표 헤더 우측 테두리 통일.",
-  "manifest_version": 4.2,
+  "_comment": "manifest v4 FINAL (2026-08-18) — 유형별 양식 패밀리 6종. 계란님 한글 제작 양식 기반, Web 일괄 토큰화 (전 판 쪼개짐 0). 이 파일과 6개 hwpx 는 확정본 — 수정 금지. v4.2: 토큰 셀 잉여 빈 문단 제거(세로 쏠림 수정) + 교수학습 표 헤더 우측 테두리 통일. v4.2.1: 헤더 우측 테두리 수정 재수술 (원 스타일 유지 + 우측만 NONE — 이전 4.2 방식은 선 위계 꼬임). v4.3: g2-exam2·g3-exam1·g1-free 는 계란님 한글 테두리 수정본 기반 재토큰화. 나머지 3종은 테두리 수술 완전 원복(원본 상태).",
+  "manifest_version": "4.3",
   "doc_type": "evaluation_plan",
   "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서(초안).hwpx",
   "routing": {
