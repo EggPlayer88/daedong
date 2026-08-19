@@ -1,0 +1,142 @@
+[
+  {
+    "subject": "과학",
+    "grade": 1
+  },
+  {
+    "subject": "국어",
+    "grade": 1
+  },
+  {
+    "subject": "도덕",
+    "grade": 1
+  },
+  {
+    "subject": "디지털 리터러시",
+    "grade": 1
+  },
+  {
+    "subject": "미술",
+    "grade": 1
+  },
+  {
+    "subject": "사회",
+    "grade": 1
+  },
+  {
+    "subject": "수학",
+    "grade": 1
+  },
+  {
+    "subject": "영어",
+    "grade": 1
+  },
+  {
+    "subject": "음악",
+    "grade": 1
+  },
+  {
+    "subject": "진로와 직업",
+    "grade": 1
+  },
+  {
+    "subject": "체육",
+    "grade": 1
+  },
+  {
+    "subject": "한문",
+    "grade": 1
+  },
+  {
+    "subject": "과학",
+    "grade": 2
+  },
+  {
+    "subject": "국어",
+    "grade": 2
+  },
+  {
+    "subject": "기술가정",
+    "grade": 2
+  },
+  {
+    "subject": "미술",
+    "grade": 2
+  },
+  {
+    "subject": "수학",
+    "grade": 2
+  },
+  {
+    "subject": "역사",
+    "grade": 2
+  },
+  {
+    "subject": "영어",
+    "grade": 2
+  },
+  {
+    "subject": "음악",
+    "grade": 2
+  },
+  {
+    "subject": "정보",
+    "grade": 2
+  },
+  {
+    "subject": "진로와 직업",
+    "grade": 2
+  },
+  {
+    "subject": "체육",
+    "grade": 2
+  },
+  {
+    "subject": "한문",
+    "grade": 2
+  },
+  {
+    "subject": "과학",
+    "grade": 3
+  },
+  {
+    "subject": "국어",
+    "grade": 3
+  },
+  {
+    "subject": "기술가정",
+    "grade": 3
+  },
+  {
+    "subject": "도덕",
+    "grade": 3
+  },
+  {
+    "subject": "보건",
+    "grade": 3
+  },
+  {
+    "subject": "사회",
+    "grade": 3
+  },
+  {
+    "subject": "수학",
+    "grade": 3
+  },
+  {
+    "subject": "역사",
+    "grade": 3
+  },
+  {
+    "subject": "영어",
+    "grade": 3
+  },
+  {
+    "subject": "음악",
+    "grade": 3
+  },
+  {
+    "subject": "체육",
+    "grade": 3
+  }
+]
