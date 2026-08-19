@@ -126,7 +126,9 @@ def route_spec(manifest: dict, token_map: dict, key: str) -> dict:
         "label": route_label(key, entry),
         "file": entry.get("file", ""),
         "tokens": toks,
-        "levels": [lv for lv in LEVEL_KEYS if f"LV_{lv}" in toks],
+        "levels": [lv for lv in LEVEL_KEYS if f"LV_{lv}_1" in toks],
+        "level_cells": max((c for lv in LEVEL_KEYS for c in range(1, 9)
+                            if f"LV_{lv}_{c}" in toks), default=0),
         "scoring": entry.get("scoring", True),
         "special": entry.get("special", ""),
         "subjects_hint": entry.get("subjects_hint") or [],
@@ -630,7 +632,8 @@ def compose_sentences(plan: dict, manifest: dict) -> dict:
 MONTH_RE = re.compile(r"^M([1-9])_(MONTH|HOURS|UNITS|STD|EVAL)$")
 EXAM_RE = re.compile(r"^EX([1-9])_(MC|SHORT|ESSAY|ESSAY_RATIO|STD|PERIOD)$")
 AREA_RE = re.compile(r"^P([1-9])_(NAME|POINTS|PERIOD)$")
-LV_RE = re.compile(r"^LV_([A-E])$")
+# v4.1 — 성취수준은 수준당 4칸이다. 칸마다 성취기준 하나의 진술이 들어간다.
+LV_RE = re.compile(r"^LV_([A-E])_([1-4])$")
 PLAN_RE = re.compile(r"^PP([1-9])_(NAME|TASK|STD|HIGH|MID|LOW|METHODS1|METHODS2|ABSENT)$")
 ELEM_RE = re.compile(r"^PP([1-9])_E([1-9])_(NAME|L([1-9])(_PTS)?)$")
 FREE_RE = re.compile(r"^FPP([1-9])_(NAME|TASK|STD|METHODS1|METHODS2|LV_([A-E]))$")
@@ -687,8 +690,7 @@ def token_value(name: str, data: dict, manifest: dict, composed: dict) -> str:
         return as_text(_at(data.get("perf_areas"), int(m.group(1)) - 1).get(AREA_FIELD[m.group(2)]))
     m = LV_RE.match(name)
     if m:
-        levels = data.get("achievement_levels")
-        return as_text(levels.get(m.group(1))) if isinstance(levels, dict) else ""
+        return as_text(_seq(level_cells(data.get("achievement_levels"), m.group(1)), int(m.group(2)) - 1))
 
     m = ELEM_RE.match(name)
     if m:
@@ -723,6 +725,20 @@ def token_value(name: str, data: dict, manifest: dict, composed: dict) -> str:
 
 def _seq(seq, i):
     return seq[i] if isinstance(seq, list) and 0 <= i < len(seq) else ""
+
+
+def level_cells(levels, key) -> list:
+    """한 수준(A~E)의 칸 목록. 문자열 하나만 와도 1칸짜리로 받는다.
+
+    v4.1 부터 수준마다 칸이 4개다. AI 가 예전처럼 문장 하나만 주더라도 문서가
+    깨지지 않게 하되, **여러 기준을 한 줄로 압축하는 것**은 프롬프트가 막는다.
+    """
+    if not isinstance(levels, dict):
+        return []
+    v = levels.get(key)
+    if isinstance(v, list):
+        return v
+    return [v] if as_text(v) else []
 
 
 def build_token_values(plan: dict, manifest: dict, spec: dict) -> tuple:

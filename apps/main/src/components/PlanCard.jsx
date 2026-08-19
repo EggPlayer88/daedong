@@ -324,19 +324,41 @@ export default function PlanCard({
 
       {/* 3학년 양식에는 학기 단위 성취수준 절 자체가 없다 → 단계가 0이면 그리지 않는다 */}
       {al && shownLevels.length > 0 && (
-        <Section title={`${al.label} (${shownLevels.length}단계)`}>
+        <Section title={`${al.label} (${shownLevels.length}단계 × ${al.cells || 1}칸)`}>
           <table className="table kv-table">
             <tbody>
-              {shownLevels.map((lv) => (
-                <tr key={lv}>
-                  <th>{lv}</th>
-                  <td>
-                    <Val v={levels[lv]} />
-                  </td>
-                </tr>
-              ))}
+              {shownLevels.map((lv) => {
+                // v4.1 — 수준마다 칸이 여러 개다. 칸별로 보여야 교사가 "뭉뚱그린 한 줄"
+                // 인지 "기준별 진술"인지 눈으로 구분할 수 있다.
+                const cells = Array.isArray(levels[lv])
+                  ? levels[lv]
+                  : levels[lv]
+                    ? [levels[lv]]
+                    : []
+                return (
+                  <tr key={lv}>
+                    <th>{lv}</th>
+                    <td>
+                      {cells.length === 0 ? (
+                        <span className="blank">(공란)</span>
+                      ) : (
+                        <ol className="plain-list">
+                          {cells.map((c, i) => (
+                            <li key={i}>
+                              <Val v={c} />
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+          <p className="muted small">
+            칸마다 성취기준 하나의 진술이 들어갑니다. 남는 칸은 공란으로 둡니다.
+          </p>
         </Section>
       )}
 

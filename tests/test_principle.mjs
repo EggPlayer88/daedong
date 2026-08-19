@@ -187,10 +187,43 @@ ck('라우팅이 자산에서 파생', () => {
   m3.routing.grade2_exam0.special = '테스트 안내 문구'
   A(mod.buildRoutingDoc(m3).includes('테스트 안내 문구'), 'special 변경 미반영')
 })
-ck('성취수준 단계가 token-map 에서 파생', () => {
+ck('성취수준 단계·칸 수가 token-map 에서 파생', () => {
   const tm2 = JSON.parse(JSON.stringify(mod.tokenMap))
-  tm2['tpl-g2-perf3-arts.hwpx'] = tm2['tpl-g2-perf3-arts.hwpx'].filter((t) => t !== 'LV_C')
-  A(mod.routeLevels(M.routing.grade2_exam0, tm2).join('') === 'AB', '토큰 변경 미반영')
+  tm2['tpl-g2-perf3-arts.hwpx'] = tm2['tpl-g2-perf3-arts.hwpx'].filter((t) => !t.startsWith('LV_C_'))
+  A(mod.routeLevels(M.routing.grade2_exam0, tm2).join('') === 'AB', '단계 변경 미반영')
+  A(mod.routeLevelCells(M.routing.grade2_exam0) === 4, '칸 수가 4가 아님')
+  A(mod.routeLevelCells(M.routing.grade3_exam1) === 0, '3학년에 칸이 있다')
+})
+
+console.log('\n[학기 성취수준 — 칸별로 채운다 (v4.1)]')
+ck('칸 하나 = 성취기준 하나', () => {
+  A(P.includes('칸 하나 = 성취기준 하나의 그 수준 진술'), '칸 정의 없음')
+  A(P.includes('압축·종합 한 줄은 금지'), '압축 금지 없음')
+  A(P.includes('무엇을 보고 판단했는지 알 수 없다'), '이유 없음')
+})
+ck('재료는 DB 원문 우선 (AI 작문 최소)', () => {
+  A(P.includes('교과 DB 의 성취기준별 수준 진술 원문**을 우선'), 'DB 우선 없음')
+  A(P.includes('네가 새로 짓는 것은 최소로'), '작문 최소화 없음')
+  A(P.includes('"⚠ 검토 필요" 를 요약에 함께 알린다'), '검토 표시 없음')
+})
+ck('기준 개수에 따른 배분 규칙', () => {
+  A(P.includes('4개 이하** — 기준 하나당 한 칸씩'), '≤4 규칙 없음')
+  A(P.includes('남는 칸은 **빈칸으로 둔다.**'), '빈칸 규칙 없음')
+  A(P.includes('4개 초과** — 성격이 비슷한 기준끼리 묶어'), '>4 규칙 없음')
+  A(P.includes('학기 전체의 요약이 아니다'), '묶음 주의 없음')
+})
+ck('출력 형태가 배열임을 명시', () => {
+  A(P.includes('"A": ["...", "...", "...", "..."]'), '배열 형태 없음')
+  const skel = JSON.parse(P.split('===PLAN_READY===')[1].split('===END===')[0])
+  A(Array.isArray(skel.achievement_levels.A), '골격이 배열이 아님')
+  A(skel.achievement_levels.A.length === M.achievement_levels.cells, '골격 칸 수 불일치')
+})
+ck('칸 수가 자산에서 파생', () => {
+  const m2 = JSON.parse(JSON.stringify(M))
+  m2.achievement_levels.cells = 3
+  A(mod.buildLevelDoc(m2).includes('수준당 3칸'), '칸 수 변경 미반영')
+  m2.achievement_levels.cells = 1
+  A(mod.buildLevelDoc(m2) === '', '칸이 1개면 이 절이 필요 없다')
 })
 
 console.log('\n[물어보는 방식이 정해진 칸 — collection_guides]')

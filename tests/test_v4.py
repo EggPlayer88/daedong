@@ -194,7 +194,6 @@ def t_levels_g3():
 check("3학년 → 성취수준이 문서에 없다", t_levels_g3)
 
 
-print("\n[5] 미사용 처리 — v4 는 2가지만 남았다")
 def base_marks(key):
     """양식에 인쇄돼 있는 '˙' 개수 — v4 는 대부분 양식 내장이라 기준선이 0이 아니다."""
     f = V.route_spec(M, TM, key)["file"]
@@ -218,6 +217,47 @@ def t_perf_one():
     assert "수행2" not in t, "쓰지 않는 블록이 남음"
 check("수행 1개 → P2 는 '˙', PP2 블록 삭제", t_perf_one)
 
+def t_level_cells():
+    """v4.1 — 수준마다 칸이 4개. 칸마다 성취기준 하나의 진술이 따로 들어간다."""
+    p = scored(2, 2, 2)
+    p["achievement_levels"] = {
+        lv: [f"{lv} 기준{i+1} 진술" for i in range(4)] for lv in "ABCDE"}
+    t = text_of(gen.generate_v2(M, p)[1])
+    for lv in "ABCDE":
+        for i in range(4):
+            assert f"{lv} 기준{i+1} 진술" in t, f"{lv} {i+1}번 칸 누락"
+check("수준당 4칸이 각각 들어간다", t_level_cells)
+
+def t_level_cells_partial():
+    """성취기준이 4개 미만이면 남는 칸은 빈칸으로 둔다 (억지로 채우지 않는다)."""
+    p = scored(2, 2, 2)
+    p["achievement_levels"] = {lv: [f"{lv} 하나", f"{lv} 둘"] for lv in "ABCDE"}
+    b64 = gen.generate_v2(M, p)[1]
+    b, t = body_of(b64), text_of(b64)
+    assert "{{" not in b, "빈 칸 토큰이 남음"
+    assert "A 하나" in t and "A 둘" in t, "채운 칸이 안 들어감"
+    assert t.count(MARK) == base_marks("grade2_exam2"), "빈 칸에 '˙' 가 찍힘 (공란이어야 한다)"
+check("칸이 모자라면 빈칸 (˙ 가 아니다)", t_level_cells_partial)
+
+def t_level_string_ok():
+    """AI 가 예전처럼 문장 하나만 줘도 문서가 깨지지 않는다 (1칸으로 받는다)."""
+    p = scored(2, 2, 2)
+    p["achievement_levels"] = {lv: f"{lv} 한 줄" for lv in "ABCDE"}
+    t = text_of(gen.generate_v2(M, p)[1])
+    assert "A 한 줄" in t, "문자열 하나를 못 받음"
+check("문자열 하나도 1칸으로 받는다", t_level_string_ok)
+
+def t_arts_cells():
+    p = scored(2, 0, 3, subject="음악", levels="ABC")
+    p["achievement_levels"] = {lv: [f"{lv} 실기{i+1}" for i in range(4)] for lv in "ABCDE"}
+    t = text_of(gen.generate_v2(M, p)[1])
+    for lv in "ABC":
+        assert all(f"{lv} 실기{i+1}" in t for i in range(4)), f"{lv} 칸 누락"
+    assert "D 실기1" not in t and "E 실기1" not in t, "예체능판에 D·E 가 들어감"
+check("예체능(A~C)도 칸별로 채운다", t_arts_cells)
+
+
+print("\n[5] 미사용 처리 — v4 는 2가지만 남았다")
 def t_no_mark_when_full():
     """칸을 다 쓰면 서버가 '˙' 를 **더** 찍지 않는다 (공란과 구분)."""
     p = scored(2, 2, 2)

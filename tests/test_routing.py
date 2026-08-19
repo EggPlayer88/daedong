@@ -86,6 +86,14 @@ def t_caps():
         assert got == (pa, pp, fb), f"{k}: {got} != {(pa, pp, fb)}"
 check("수행 열·출제 블록·활동 블록 수", t_caps)
 
+def t_level_cells():
+    """v4.1 — 수준마다 칸이 4개다. 칸 수도 token-map 이 정한다."""
+    for k in ("grade2_exam2", "grade2_exam1", "grade2_exam0", "grade1_semester2"):
+        assert spec_of(k)["level_cells"] == 4, f"{k}: {spec_of(k)['level_cells']}"
+    for k in ("grade3_exam1", "grade3_exam0"):
+        assert spec_of(k)["level_cells"] == 0, k
+check("성취수준 칸 수 (수준당 4칸 / 3학년 0)", t_level_cells)
+
 def t_levels():
     want = {
         "grade2_exam2": list("ABCDE"), "grade2_exam1": list("ABCDE"),
@@ -100,7 +108,8 @@ check("성취수준 단계 (3학년은 없음)", t_levels)
 def t_derived():
     """routing 표가 아니라 **토큰 목록**이 근거임을 확인한다."""
     tm2 = json.loads(json.dumps(TM))
-    tm2["tpl-g2-exam2.hwpx"] = [t for t in tm2["tpl-g2-exam2.hwpx"] if t not in ("LV_D", "LV_E")]
+    tm2["tpl-g2-exam2.hwpx"] = [t for t in tm2["tpl-g2-exam2.hwpx"]
+                                if not t.startswith(("LV_D_", "LV_E_"))]
     s2 = V.route_spec(M, tm2, "grade2_exam2")
     assert s2["levels"] == list("ABC"), s2["levels"]
     tm2["tpl-g2-exam2.hwpx"] = [t for t in tm2["tpl-g2-exam2.hwpx"] if not t.startswith("P2_")]

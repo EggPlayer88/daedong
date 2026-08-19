@@ -83,7 +83,15 @@ try {
 /** 그 양식이 가진 성취수준 단계 (LV_* 토큰이 있는 것만) */
 function routeLevels(entry, map = tokenMap) {
   const toks = new Set(map[entry?.file] || [])
-  return ['A', 'B', 'C', 'D', 'E'].filter((lv) => toks.has(`LV_${lv}`))
+  return ['A', 'B', 'C', 'D', 'E'].filter((lv) => toks.has(`LV_${lv}_1`))
+}
+
+/** 수준 하나에 칸이 몇 개인가 (v4.1 = 4) */
+function routeLevelCells(entry, map = tokenMap) {
+  const toks = new Set(map[entry?.file] || [])
+  let n = 0
+  while (toks.has(`LV_A_${n + 1}`)) n += 1
+  return n
 }
 
 /** 그 양식이 담는 수행평가 열 수 / 자유학기 활동 블록 수 */
@@ -448,6 +456,39 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
   return L.join('\n')
 }
 
+/**
+ * 학기 단위 성취수준 — v4.1 부터 수준마다 칸이 여러 개다.
+ *
+ * 왜 나눴나: 한 줄로 압축하면 "여러 성취기준을 뭉뚱그린 문장" 이 되어 학생·학부모가
+ * 무엇을 보고 판단했는지 알 수 없다. 칸마다 성취기준 하나의 진술을 넣는다.
+ */
+function buildLevelDoc(m = manifest) {
+  const al = m?.achievement_levels
+  if (!al?.cells || al.cells < 2) return ''
+  const rule = m?.token_families?.['성취수준_수준당_셀'] || ''
+  const L = [
+    `## 학기 단위 성취수준 — 칸별로 채운다 (수준당 ${al.cells}칸)`,
+    '',
+    `- 수준(${al.levels.join('·')})마다 칸이 ${al.cells}개다. **칸 하나 = 성취기준 하나의 그 수준 진술.**`,
+    '- ❌ 여러 성취기준을 한 문장으로 뭉쳐 쓰지 않는다. 압축·종합 한 줄은 금지다.',
+    '  뭉치면 학생·학부모가 무엇을 보고 판단했는지 알 수 없다.',
+    '- ✅ 재료는 **주입된 교과 DB 의 성취기준별 수준 진술 원문**을 우선한다.',
+    '  DB 문장을 옮겨 쓰고, 네가 새로 짓는 것은 최소로 한다.',
+    '',
+    '### 성취기준 개수에 따라',
+    `- **${al.cells}개 이하** — 기준 하나당 한 칸씩 넣고, 남는 칸은 **빈칸으로 둔다.**`,
+    '  억지로 채우려고 문장을 만들어내지 않는다 (공란은 실패가 아니다).',
+    `- **${al.cells}개 초과** — 성격이 비슷한 기준끼리 묶어 ${al.cells}칸에 나눠 담는다.`,
+    '  묶을 때도 각 칸은 그 묶음의 진술이지, 학기 전체의 요약이 아니다.',
+    '',
+    '- 출력 형태: `"achievement_levels": { "A": ["...", "...", "...", "..."], "B": [...] }`',
+    '  칸이 비면 빈 문자열 "" 로 두거나 배열을 짧게 준다.',
+    '- DB 원문이 없어 네가 초안을 지은 칸은 **"⚠ 검토 필요" 를 요약에 함께 알린다.**',
+  ]
+  if (rule) L.push('', `- (양식 계약 원문) ${rule}`)
+  return L.join('\n')
+}
+
 /** 수집 항목 문서 — manifest 구조를 그대로 서술한다 */
 function buildFieldDoc(m) {
   const L = [`## 수집 항목과 출력 key (manifest v${m.manifest_version})`]
@@ -504,7 +545,9 @@ function buildFieldDoc(m) {
     L.push(
       '',
       `### ${al.label} — key: ${keyOf(al, 'achievement_levels')} (객체, key 는 ${al.levels.join('/')})`,
-      '  ⚠ 단계 수는 양식 유형이 정한다 — 위 "양식 유형" 절을 따른다.'
+      `  값은 **수준마다 최대 ${al.cells}칸짜리 배열**이다: { "A": ["…", "…"], "B": [...] }`,
+      '  ⚠ 단계 수는 양식 유형이 정한다 — 위 "양식 유형" 절을 따른다.',
+      '  ⚠ 칸을 채우는 방법은 아래 "학기 단위 성취수준 — 칸별로 채운다" 절을 따른다.'
     )
   }
 
@@ -1016,8 +1059,10 @@ function buildSkeleton(m, table = fixedHours) {
 
   const al = m.achievement_levels
   if (al) {
+    // v4.1 — 수준마다 칸이 여러 개다. 골격에도 칸 수만큼 빈 문자열을 보여준다
+    const cells = al.cells || 1
     const levels = {}
-    for (const lv of al.levels) levels[lv] = ''
+    for (const lv of al.levels) levels[lv] = Array.from({ length: cells }, () => '')
     obj[keyOf(al, 'achievement_levels')] = levels
   }
 
@@ -1101,6 +1146,7 @@ export function buildSystemPrompt(m = manifest, c = constants, md = rulesMd, tab
     buildHoursDoc(table),
     buildLimitDoc(m),
     buildGuideDoc(m),
+    buildLevelDoc(m),
     buildFieldDoc(m),
   ]
     .filter(Boolean)
@@ -1120,6 +1166,7 @@ const SYSTEM_PROMPT = buildSystemPrompt()
 export {
   buildFieldDoc,
   buildGuideDoc,
+  buildLevelDoc,
   buildPrefillDoc,
   buildPrefillIndex,
   pickPrefill,
@@ -1135,6 +1182,7 @@ export {
   buildDefaultsDoc,
   buildRoutingDoc,
   routeLevels,
+  routeLevelCells,
   routeCaps,
   tokenMap,
   buildRegulationDoc,
