@@ -318,6 +318,21 @@ CREATE TABLE doc_ai_conversations (
 - 다른 AI(업무 비서)의 대화는 이 표에 넣지 않는다. `doc_type` 은 평가계획서 외
   문서 종류가 늘어날 때를 위한 자리다
 
+## 18. doc_submissions — 평가계획서 제출·수합 (005, 실행 완료)
+
+```sql
+CREATE TABLE doc_submissions (
+  id, user_id → users(id), year, semester, subject, grade CHECK (1,2,3),
+  file_name, file_path,           -- storage: {user_id}/{uuid}_{원본파일명}
+  note, status CHECK ('submitted','replaced'), submitted_at
+);
+```
+- Storage 비공개 버킷 `submissions`. hwpx 만, 30MB 상한 (화면에서 검사)
+- **RLS: 교사는 본인 것만 / admin·superadmin 은 전체** (수합 담당자). insert 는 `is_approved()`
+- ⚠ **DELETE 정책이 없다.** 재제출은 옛 행을 지우지 않고 `status='replaced'` 로 넘긴다 —
+  무엇을 언제 냈는지가 곧 수합 기록이다
+- 제출 현황 매트릭스의 교과 목록은 `_assets/prefill-catalog.json` (prefill 색인에서 파생)
+
 ## AI 관련 (Phase 2 에서 추가 검토)
 
 - 업무 비서(assistant) 대화 저장은 아직 없다. 필요해지면 별도 테이블로 —

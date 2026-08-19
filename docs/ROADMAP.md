@@ -50,6 +50,7 @@ daedong-v2/
 | /handover | 업무 인수인계 | handover_docs | 전체 (편집: owner+admin) |
 | /records | 생활기록부 도우미 | students, enrollments, observation_records | teacher+ |
 | /doc-ai | 문서 작성 AI | documents(참조) | 전체 |
+| /submissions | 평가계획 제출 | doc_submissions + storage | 전체 (전체 열람: admin+) |
 | /calendar | 학사일정 | academic_terms, academic_events | 전체 (편집: admin+) |
 | /admin/users | 사용자 관리 | users, departments | admin+ |
 | /admin/students | 학생 관리 | students, enrollments, class_groups | admin+ |
@@ -119,6 +120,8 @@ Phase 0 완료 직후 삽입. Phase 1 과 **병행 가능**(순연 아님). 상�
 - [x] **양식 패밀리 v4 — 유형별 6종** (학년 × 시험 횟수). 학년·회차 라벨·˙·유형 문장이
       양식에 내장돼 코드가 만들 것이 줄었다. 3학년은 성취수준 절 자체가 없어 수집도 생략
 - [x] 자유학기형(1학년 2학기) 활성화 — 활동 4블록, 점수·미응시 점수 수집 없음
+- [x] 평가계획 제출·수합 (/submissions, 005) — 교사 업로드·재제출 / 담당자 전체 목록·현황 매트릭스
+      ※ 전체 zip 내려받기는 백로그
 - [ ] 교사 2~3명 시범 → 프롬프트 다듬기 → 전체 안내
 
 **완료 기준: 교사 수정 5~15% 수준의 초안이 나오고, 시범 교사가 실사용**
