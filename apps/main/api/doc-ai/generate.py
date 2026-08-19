@@ -491,7 +491,9 @@ def as_str(v) -> str:
 def generate(payload: dict) -> tuple[str, str, list]:
     manifest = load_manifest()
 
-    if int(manifest.get("manifest_version", 1)) >= 2:
+    # ⚠ manifest_version 은 4 / 4.1 / "4.3" 처럼 형이 갈린다 (Web 이 손으로 적는 값).
+    #   int() 로 바로 읽으면 "4.3" 에서 터진다 — 숫자만 뽑아 비교한다.
+    if _fill.first_num(manifest.get("manifest_version"), 1) >= 2:
         return generate_v2(manifest, payload.get("fields") or {},
                            check_only=bool(payload.get("check_only")))
 
