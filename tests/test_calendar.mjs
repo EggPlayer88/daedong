@@ -243,10 +243,11 @@ ck('삭제는 한 번 묻고 복구 가능함을 알린다', () => {
   A(page.includes('휴지통에서 되돌릴 수 있습니다'), '복구 안내 없음')
 })
 ck('메뉴·라우트 등록', () => {
-  const layout = readFileSync(join(ROOT, 'apps/main/src/components/Layout.jsx'), 'utf-8')
-  A(layout.includes("to: '/calendar', label: '학사일정·캘린더'"), '메뉴 없음')
+  // 메뉴·라우트는 lib/modules.js 한 표에서 나온다 (공개 범위 게이팅)
+  const mods = readFileSync(join(ROOT, 'apps/main/src/lib/modules.js'), 'utf-8')
+  A(mods.includes("to: '/calendar', label: '학사일정·캘린더'"), '모듈 표에 없음')
   const app = readFileSync(join(ROOT, 'apps/main/src/App.jsx'), 'utf-8')
-  A(app.includes('path="calendar"'), '라우트 없음')
+  A(new RegExp(`['"]?calendar['"]?:`).test(app), 'SCREENS 에 화면이 없음')
 })
 
 console.log('\n[시드 스크립트 — 자산에 있는 것만]')

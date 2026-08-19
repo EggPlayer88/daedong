@@ -186,10 +186,11 @@ ck('교과·학년은 고칠 수 있다 (제안일 뿐)', () => {
   A(page.includes('파일명에서 교과·학년을 다 읽지 못했습니다'), '못 읽었을 때 안내 없음')
 })
 ck('메뉴에 등록돼 있다', () => {
-  const layout = readFileSync(join(ROOT, 'apps/main/src/components/Layout.jsx'), 'utf-8')
-  A(layout.includes("to: '/submissions', label: '평가계획 제출'"), '메뉴 없음')
+  // 메뉴·라우트는 lib/modules.js 한 표에서 나온다 (공개 범위 게이팅)
+  const mods = readFileSync(join(ROOT, 'apps/main/src/lib/modules.js'), 'utf-8')
+  A(mods.includes("to: '/submissions', label: '평가계획 제출'"), '모듈 표에 없음')
   const app = readFileSync(join(ROOT, 'apps/main/src/App.jsx'), 'utf-8')
-  A(app.includes('path="submissions"'), '라우트 없음')
+  A(new RegExp(`['"]?submissions['"]?:`).test(app), 'SCREENS 에 화면이 없음')
 })
 
 console.log()

@@ -1,20 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { can, signOut, ROLE_LABELS, ROLE_COLORS } from '@daedong/shared'
+import { signOut, ROLE_LABELS, ROLE_COLORS } from '@daedong/shared'
 import { useAuth } from '../lib/AuthContext.jsx'
-
-// 메뉴 정의 — action 이 null 이면 로그인만 하면 보인다.
-// ROADMAP 의 라우트 표를 따르되, P1 에 맞춰 지금 있는 화면만 등록한다.
-const MENU = [
-  { to: '/', label: '대시보드', end: true, action: null },
-  { to: '/doc-ai', label: '문서 작성 AI', end: false, action: null },
-  { to: '/submissions', label: '평가계획 제출', end: false, action: null },
-  { to: '/calendar', label: '학사일정·캘린더', end: false, action: null },
-  { to: '/admin/users', label: '사용자 관리', end: false, action: 'users.manage' },
-]
+// 메뉴와 라우트는 **같은 표**를 본다 (lib/modules.js). 한쪽만 고치면 메뉴에 없는
+// 화면이 주소로는 열리거나, 그 반대가 된다.
+import { visibleModules } from '../lib/modules.js'
 
 export default function Layout() {
   const { profile } = useAuth()
-  const menu = MENU.filter((m) => !m.action || can(profile, m.action))
+  const menu = visibleModules(profile)
 
   return (
     <div className="app">
