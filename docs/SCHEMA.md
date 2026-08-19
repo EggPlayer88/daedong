@@ -333,6 +333,23 @@ CREATE TABLE doc_submissions (
   무엇을 언제 냈는지가 곧 수합 기록이다
 - 제출 현황 매트릭스의 교과 목록은 `_assets/prefill-catalog.json` (prefill 색인에서 파생)
 
+## 19. academic_terms · calendar_events — 학사일정 + 공유 캘린더 (006, 실행 완료)
+
+```sql
+academic_terms   (year, semester, start_date, end_date, is_current)
+calendar_events  (term_id, scope, title, event_type, labels[], start_date, end_date,
+                  grades[], no_class, description, created_by/at, updated_by/at, deleted_at)
+```
+- **scope 2계층**
+  - `official` — 학사일정. **admin 만 쓰기.** `no_class` 등 **파생 계산(시수·수업일수)의 유일한 원천**
+  - `shared` — 공유 캘린더. 승인 교사 **전원 편집** (구글시트 은유). `updated_by` 로 이력
+- ⚠ **`no_class` 는 official 에서만 의미가 있다.** 코드가 세 겹으로 막는다:
+  화면에서 체크박스를 감추고 → `validate` 가 거부하고 → 저장 직전에 `false` 로 강제.
+  `noClassDates()` 는 `officialOnly()` 만 본다. 이 경계가 무너지면 공유 칸에 적은
+  메모가 시수를 흔든다
+- ⚠ **물리 DELETE 정책이 없다.** 삭제 = `deleted_at` 갱신, 복구는 admin 휴지통
+- 시드: `scripts/seed-calendar-2026-2.mjs` (school-constants 에 적힌 것만 SQL 로 옮긴다)
+
 ## AI 관련 (Phase 2 에서 추가 검토)
 
 - 업무 비서(assistant) 대화 저장은 아직 없다. 필요해지면 별도 테이블로 —

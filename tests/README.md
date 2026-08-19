@@ -46,6 +46,7 @@ tests/.venv/bin/pip install lxml
 | `test_prefill.mjs` | prefill 주입 — 교과·학년 **한 건만** 선택, 작년 값 중 그대로 쓰면 안 되는 것(시험 시기·시수·3분류·2022 성취기준), `_warnings`·보정 내역 노출, ●▲✗ 3분기 + 교과 DB 한정 주입, 수행 [유지/변경/신규], **1학년 자유학기 팩**(월 표기·작년 성취수준 원문 계승·활동 3분기·활동 미검출 처리), 팩 없으면 백지 모드 |
 | `test_conversations.mjs` | 대화 저장(004) — 제목 자동 생성(참고자료 오염 방지·plan 우선), 목록 화면, **RLS personal(admin 열람 경로 없음)**, 저장 실패가 대화를 끊지 않는지 |
 | `test_examples.mjs` | 배포용 예시 3종 — 원본과 배포본 sha 동일(수정 금지), 화면 링크 ↔ 실제 파일 일치, 학년 표기 |
+| `test_calendar.mjs` | 학사일정·공유 캘린더(006) — **파생 계산은 official 만**(shared 의 no_class 는 안 센다), 월간 격자·KST 날짜, soft delete·복구, 라벨 자동완성, RLS 정책 대조 + 정책을 흉내 낸 CRUD 흐름, 시드 SQL |
 | `test_submissions.mjs` | 제출·수합(005) — 파일 규칙(hwpx·30MB)·storage 경로 규약, 파일명에서 교과·학년 제안, 재제출은 지우지 않고 `replaced`, 현황 매트릭스, **RLS(교사 본인 / 담당자 전체·삭제 경로 없음)**, prefill 목록과 catalog 동기화 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
 

@@ -14,6 +14,7 @@
 | 003_signup_approval.sql | ✅ 완료 | 2026-08-18 | 계란 | **가입 승인제 (D20, 임시)**. [검증] 통과: `is_approved` 함수 1행 + 정책 5개 재생성(users_select / departments_select / schedules_select·insert / tasks_insert). 이후 신규 가입은 `is_active=false`(승인 대기)로 생성되고 admin+ 가 `/admin/users` 에서 승인해야 사용 가능. 기존 승인 사용자는 영향 없음 |
 | 004_doc_ai_conversations.sql | ✅ 완료 | 2026-08-18 | 계란 | **문서작성 AI 대화 저장 (이어서 작성)**. [검증] 통과: 정책 4개(select/insert/update/delete). RLS 는 **personal 패턴 — 본인 행만, admin 열람도 없다**. 작성 중인 평가계획서는 교사의 사적 공간이라 권한 상승으로도 열지 않는다. insert 만 `is_approved()` 를 함께 건다(D20) |
 | 005_doc_submissions.sql | ✅ 완료 | 2026-08-19 | 계란 | **평가계획서 제출·수합**. Storage 비공개 버킷(submissions) + doc_submissions. RLS: 교사는 **본인 것만**, admin·superadmin 은 전체 열람(수합 담당자). insert 에 `is_approved()`(D20). ⚠ **DELETE 정책을 두지 않았다** — 제출 기록은 지우지 않고 재제출 시 `status='replaced'` 로 넘긴다 |
+| 006_calendar.sql | ✅ 완료 | 2026-08-20 | 계란 | **모듈 C — 학사일정 + 공유 캘린더**. academic_terms + calendar_events(scope 2계층). official=학사일정(admin 만 쓰기, **파생 계산의 유일한 원천**) / shared=공유(승인 교사 전원 편집). ⚠ **물리 DELETE 정책이 없다** — 삭제는 `deleted_at` 갱신(soft delete), 복구는 admin 휴지통 |
 | 010_seed.sql | ⬜ 미실행 | | | **Phase 1 말 실행** (001~009 선행). 부서 6개 + 2026-2 term. 1회만 실행 |
 | (D17) superadmin 승격 UPDATE | ✅ 완료 | 2026-08-16 | 계란 | 001 파일 맨 아래 블록. 첫 Google 로그인 후 1회 실행. 배포 사이트(https://daedong-school.vercel.app)에서 superadmin 확인 완료 = **Phase 0 완료 기준 충족** |
 

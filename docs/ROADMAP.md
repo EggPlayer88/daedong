@@ -51,7 +51,7 @@ daedong-v2/
 | /records | 생활기록부 도우미 | students, enrollments, observation_records | teacher+ |
 | /doc-ai | 문서 작성 AI | documents(참조) | 전체 |
 | /submissions | 평가계획 제출 | doc_submissions + storage | 전체 (전체 열람: admin+) |
-| /calendar | 학사일정 | academic_terms, academic_events | 전체 (편집: admin+) |
+| /calendar | 학사일정·캘린더 | academic_terms, calendar_events | 전체 (공유 편집: 전원 / 학사일정 편집: admin+) |
 | /admin/users | 사용자 관리 | users, departments | admin+ |
 | /admin/students | 학생 관리 | students, enrollments, class_groups | admin+ |
 | (토글 오버레이) | AI 업무 비서 | — | 전체 |
@@ -134,7 +134,8 @@ Phase 0 완료 직후 삽입. Phase 1 과 **병행 가능**(순연 아님). 상�
 - [ ] 일정 관리 (스프레드시트형 UI, 담당자 지정)
 - [ ] tasks + 나의 할 일 위젯 (schedules 합성)
 - [ ] 업무 문서 총정리 (업로드/라벨/다운로드, admin 업로드 제한)
-- [ ] 학사일정 (학기 표 UI)
+- [x] **모듈 C-1 학사일정·공유 캘린더** (/calendar, 006) — 월간·목록·휴지통,
+      official/shared 2계층, soft delete·복구. 대시보드 연동은 C-3
 - [ ] 대시보드 위젯 4종 (my_tasks, today_timetable 자리만, upcoming_events, recent_documents)
 
 **완료 기준: 계란님 혼자 일상 업무에 실사용 시작 가능**
