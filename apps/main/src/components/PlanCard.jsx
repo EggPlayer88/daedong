@@ -24,12 +24,34 @@ function resolveHours(plan) {
   return { applied: true, reason: 'fixed', months: row.months, row }
 }
 
+// AI 가 제안한 성취기준 코드에 붙는 검토 표식. **화면 전용**이다 —
+// 서버가 문서로 나가기 전에 걷어내므로 결재 문서에는 인쇄되지 않는다.
+const REVIEW_MARK = /(⚠[^⚠]*?(?:원문 대조 확인 필요|검토 필요))/g
+
+function Marked({ text }) {
+  const parts = String(text).split(REVIEW_MARK)
+  if (parts.length === 1) return <>{text}</>
+  return (
+    <>
+      {parts.map((part, i) =>
+        REVIEW_MARK.test(part) ? (
+          <span className="review-mark" key={i}>
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  )
+}
+
 function Val({ v }) {
   if (v === null || v === undefined || v === '' || (Array.isArray(v) && v.length === 0)) {
     return <span className="blank">(공란)</span>
   }
-  if (Array.isArray(v)) return <>{v.join(', ')}</>
-  return <>{String(v)}</>
+  const text = Array.isArray(v) ? v.join(', ') : String(v)
+  return text.includes('⚠') ? <Marked text={text} /> : <>{text}</>
 }
 
 /**

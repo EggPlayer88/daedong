@@ -494,3 +494,57 @@ button {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* 검토 표식 — 확인 카드에서만 눈에 띄게. 문서에는 들어가지 않는다 */
+.review-mark {
+  color: var(--red);
+  font-weight: 600;
+}
+
+/* ─── 평가계획 제출 ─── */
+.submissions {
+  max-width: 1060px;
+}
+.submit-form {
+  max-width: 100%;
+}
+.row-field {
+  margin-bottom: 12px;
+}
+.row-field.two {
+  display: grid;
+  grid-template-columns: 1fr 160px;
+  gap: 12px;
+}
+.row-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+}
+.row-field input[type='text'],
+.row-field input:not([type]),
+.row-field select,
+.row-field input[type='file'] {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+}
+.submit-form .btn-google {
+  width: auto;
+  padding: 10px 20px;
+}
+.table.matrix td {
+  text-align: center;
+}
+.cell-done {
+  color: var(--green);
+}
+.cell-todo {
+  color: var(--text-dim);
+}
