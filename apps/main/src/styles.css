@@ -569,3 +569,110 @@ button {
 .example-link:hover {
   background: var(--card-hover);
 }
+
+/* ─── 학사일정 · 캘린더 ─── */
+.calendar {
+  max-width: 1180px;
+}
+.cal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.cal-move {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cal-views {
+  display: flex;
+  gap: 4px;
+}
+.cal-views .btn-plain.on {
+  color: var(--accent);
+  border-color: #4f8cff55;
+  background: #4f8cff18;
+}
+.cal-add {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.cal-add .btn-google {
+  width: auto;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.table.cal-grid {
+  table-layout: fixed;
+  min-width: 860px;
+}
+.cal-grid td {
+  vertical-align: top;
+  height: 92px;
+  padding: 6px;
+}
+.cal-grid td.cal-out {
+  background: #ffffff06;
+}
+.cal-out .cal-day {
+  color: var(--text-dim);
+}
+.cal-day {
+  font-size: 12px;
+  color: var(--text-mid);
+  margin-bottom: 4px;
+}
+.cal-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  margin-bottom: 3px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: inherit;
+}
+/* 공식/공유는 색 + 아이콘 둘 다로 가른다 (색만으로는 흑백·색각에서 사라진다) */
+.cal-chip.official {
+  border-color: #4f8cff55;
+  background: #4f8cff20;
+  color: var(--text);
+}
+.cal-chip.shared {
+  border-color: #34d39955;
+  background: #34d39918;
+  color: var(--text);
+}
+.cal-form {
+  max-width: 100%;
+}
+.grade-picks {
+  display: flex;
+  gap: 12px;
+  padding-top: 6px;
+}
+.grade-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: var(--text);
+}
+.cal-form input[type='date'] {
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+}

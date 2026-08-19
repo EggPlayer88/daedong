@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './lib/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
+import CalendarPage from './pages/CalendarPage.jsx'
 import SubmissionsPage from './pages/SubmissionsPage.jsx'
 import DocAiPage from './pages/DocAiPage.jsx'
 import AdminUsersPage from './pages/AdminUsersPage.jsx'
@@ -29,6 +30,7 @@ function Gate() {
         <Route index element={<DashboardPage />} />
         <Route path="doc-ai" element={<DocAiPage />} />
         <Route path="submissions" element={<SubmissionsPage />} />
+        <Route path="calendar" element={<CalendarPage />} />
         <Route path="admin/users" element={<AdminUsersPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

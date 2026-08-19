@@ -8,6 +8,7 @@ const MENU = [
   { to: '/', label: '대시보드', end: true, action: null },
   { to: '/doc-ai', label: '문서 작성 AI', end: false, action: null },
   { to: '/submissions', label: '평가계획 제출', end: false, action: null },
+  { to: '/calendar', label: '학사일정·캘린더', end: false, action: null },
   { to: '/admin/users', label: '사용자 관리', end: false, action: 'users.manage' },
 ]
 
