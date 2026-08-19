@@ -18,6 +18,14 @@ import manifest from '../../api/doc-ai/_assets/template-manifest.json'
 // 대화 시작용 첫 사용자 메시지 (API 는 첫 메시지가 user 여야 한다)
 const OPENING = '평가계획서 작성을 시작하려고 합니다.'
 
+// 배포용 예시 (계란님 최종본). public/examples 에 그대로 있고 브라우저가 바로 받는다.
+// 대화를 시작하기 전에 완성 모습을 보면 무엇을 물어볼지 교사가 미리 안다.
+const EXAMPLES = [
+  { grade: 1, label: '1학년 (자유학기)', file: '예시_2026학년도_2학기_1학년_수학_평가계획서_자유학기.hwpx' },
+  { grade: 2, label: '2학년', file: '예시_2026학년도_2학기_2학년_수학_평가계획서.hwpx' },
+  { grade: 3, label: '3학년', file: '예시_2026학년도_2학기_3학년_수학_평가계획서.hwpx' },
+]
+
 /** 서버 게이트(D20) 응답이면 안내 문구를 돌려준다 */
 function pendingMessage(status, data) {
   if (status === 403 && data?.error === 'PENDING_APPROVAL') {
@@ -407,6 +415,21 @@ export default function DocAiPage() {
       <p className="muted small">
         대화로 내용을 확정하면 통일된 양식의 한글 파일(.hwpx)을 만들어 드립니다.
         대화는 자동 저장되며 <b>본인만</b> 볼 수 있습니다 — 나중에 이어서 작성할 수 있습니다.
+      </p>
+
+      <p className="examples">
+        <span className="muted small">예시 파일 보기 (수학):</span>
+        {EXAMPLES.map((e) => (
+          <a
+            key={e.grade}
+            className="example-link"
+            href={`/examples/${encodeURIComponent(e.file)}`}
+            download={e.file}
+          >
+            {e.label}
+          </a>
+        ))}
+        <span className="muted small">완성 모습을 먼저 보시면 무엇을 정해야 하는지 감이 잡힙니다.</span>
       </p>
 
       <div className="docai-body">

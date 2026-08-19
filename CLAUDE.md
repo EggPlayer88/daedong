@@ -100,13 +100,15 @@ apps/main/
   api/doc-ai/_assets/                  ← 프롬프트·상수·manifest·규정·tpl-*.hwpx(6종)·token-map
   api/doc-ai/_assets/prefill/          ← 작년(2025-2) 교과·학년별 데이터 팩 35건 + 매칭리포트
   api/doc-ai/_assets/prefill-catalog.json ← 교과·학년 목록 (제출 현황 매트릭스용, scripts/ 로 재생성)
+  public/examples/                     ← 배포용 예시 hwpx 3종 (examples/ 원본과 동일, 수정 금지)
   api/doc-ai/_assets/standards-db.json ← 성취기준·성취수준 DB 14개 교과 (✗ 를 메울 유일한 출처)
   api/_hwpx/                           ← hwpx 엔진 (수정 금지)
 packages/shared/                       ← supabase·auth·permissions (DB 단일 접근점)
 migrations/                            ← 001~ SQL + README(실행 기록)
 docs/                                  ← DECISIONS · ROADMAP · SCHEMA · PHASE0_GUIDE
                                          DOC_AI_MASTER_PLAN
-doc-ai-template-v3/                    ← Web 이 넘긴 마스터 양식 원본 + FINAL manifest
+doc-ai-templates-v4/                   ← Web 이 넘긴 양식 원본 6종 + FINAL manifest + token-map
+examples/                              ← 배포용 예시 hwpx 원본 (계란님 최종본)
 archive/doc-ai-v2/                     ← 구버전 양식·manifest (삭제 금지)
 tests/                                 ← 검증 스크립트
 ```

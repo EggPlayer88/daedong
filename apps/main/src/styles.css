@@ -548,3 +548,24 @@ button {
 .cell-todo {
   color: var(--text-dim);
 }
+
+/* 예시 파일 링크 (doc-ai 머리말) */
+.examples {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+.example-link {
+  padding: 4px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 12px;
+}
+.example-link:hover {
+  background: var(--card-hover);
+}
