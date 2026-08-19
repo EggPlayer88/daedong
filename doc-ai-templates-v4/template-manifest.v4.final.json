@@ -1,6 +1,6 @@
 {
  "_comment": "manifest v4 FINAL (2026-08-18) — 유형별 양식 패밀리 6종. 계란님 한글 제작 양식 기반, Web 일괄 토큰화 (전 판 쪼개짐 0). 이 파일과 6개 hwpx 는 확정본 — 수정 금지.",
- "manifest_version": 4,
+ "manifest_version": 4.1,
  "doc_type": "evaluation_plan",
  "filename_pattern": "{year}학년도_{semester}학기_{subject}_{grade}학년_평가계획서(초안).hwpx",
  "routing": {
@@ -88,7 +88,7 @@
   "공통": "SUBJECT / M{1-5}_HOURS·UNITS·STD·EVAL (시수는 서버 고정표) / MIN_ACH / PURPOSE{1-3}",
   "점수형": "EXAM_INTRO / EXAM_RATIO_SENT / EXAM_TOTAL_RATIO / PERF_TOTAL_RATIO / POINTS_SUM / ESSAY_TOTAL_RATIO(서버 재계산·essay만 산입) / EX{r}_MC·SHORT·ESSAY·ESSAY_RATIO·STD·PERIOD / P{n}_NAME·POINTS('100점(N%)')·PERIOD / PERF_ESSAY_RATIO / LV_A~E(판별 유무) / PP{n}_NAME·TASK·STD·HIGH·MID·LOW·METHODS1·2·E{g}_NAME·E{g}_L{k}·_PTS·ABSENT",
   "자유학기": "M{n}_MONTH 추가(12,1월 등 가변) / LV_A~E / FPP{1-4}_NAME·TASK·STD·LV_A~E·METHODS1·2 (배점·ABSENT 토큰 없음)",
-  "성취수준_수준당_셀": "LV_X 는 수준당 첫 셀, 나머지 3셀은 빈칸 처리됨 — 생성은 LV_X 치환만"
+  "성취수준_수준당_셀": "v4.1 변경: LV_{X}_{1~4} — 수준당 4칸, 칸마다 성취기준별 진술 1개 (압축 금지). 학기 성취기준 수 ≤4 면 하나씩 + 남는 칸 빈칸. >4 면 유사 기준을 묶어 4칸에 배분. 재료는 2022 DB 수준별 진술 원문 우선, 종합 작문 최소화. 교사 검토 표시 유지"
  },
  "unused_handling": {
   "원칙": "유형별 양식이라 ˙ 대부분 양식 내장. 남는 경우만 처리:",
