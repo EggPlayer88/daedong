@@ -242,6 +242,108 @@ const numOf = (v) => {
   return m ? Number(m[0]) : 0
 }
 
+/**
+ * 자유학기(1학년) 작년 자료 — 점수·배점이 없는 대신 활동과 성취수준이 전부다.
+ *
+ * 두 가지가 점수형과 다르다:
+ *  · 성취수준은 작년 **원문이 이미 칸 단위 배열**이라 그대로 계승한다 (1학년은 2022
+ *    코드라 재선정이 필요 없다). DB 생성 경로는 작년 자료가 없을 때만.
+ *  · 월 표기가 "12, 1월" 처럼 합쳐진 달이 있다 — 이 양식은 월 이름도 칸이라 그대로 쓴다.
+ */
+function buildFreePrefillDoc(d, L, m = manifest) {
+  const cells = m?.achievement_levels?.cells || 1
+  L.push('### 작년 자유학기 구성')
+  L.push(
+    `- 점수·반영비율·미응시 점수는 **작년에도 없었다** (자유학기).`,
+    `- 활동 ${(d.activities || []).length}개 / 최소 성취수준 미도달 지도 방안: ${d.min_achievement_plan || '(없음)'}`,
+    ''
+  )
+
+  L.push('### 작년 교수·학습 계획 (월별) — **월 이름을 그대로 쓴다**')
+  for (const r of d.monthly_plan || []) {
+    L.push(`- ${r.month}: ${r.units || ''}`)
+    if (r.standards) L.push(`    성취기준: ${r.standards}`)
+    if (r.eval_elements) L.push(`    평가 요소: ${r.eval_elements}`)
+  }
+  L.push(
+    `- ⚠ 월 표기가 "${(d.monthly_plan || []).at(-1)?.month || '12, 1월'}" 처럼 합쳐진 달이 있다.`,
+    '  이 양식은 월 이름도 칸이므로 **작년 표기를 그대로** monthly_plan[].month 에 넣는다.',
+    ''
+  )
+
+  const purposes = d.eval_purpose || []
+  if (purposes.length) {
+    L.push('### 작년 평가 목적')
+    for (const [i, t] of purposes.entries()) L.push(`${i + 1}. ${t}`)
+  } else {
+    L.push('### 평가 목적', '- 작년 자료에 없다. 교사에게 받는다 (지어내지 않는다).')
+  }
+  L.push('')
+
+  // ── 학기 성취수준 — 작년 원문을 칸 재료로 우선 계승 ────────────────────────
+  const alv = d.achievement_levels_last_year
+  if (alv && Object.keys(alv).length) {
+    L.push(
+      `### 작년 학기 성취수준 — **원문 그대로 계승한다** (칸 재료)`,
+      `- 1학년은 2022 개정이라 성취기준 코드가 그대로 유효하다. 재선정이 필요 없다.`,
+      `- 아래 진술을 achievement_levels 의 칸(최대 ${cells}칸)에 **그대로** 넣는다.`,
+      '  교사가 바꾸겠다고 할 때만 손댄다. DB 로 새로 짓는 것은 작년 자료가 없을 때다.',
+      ''
+    )
+    for (const [lv, arr] of Object.entries(alv)) {
+      const list = Array.isArray(arr) ? arr : [arr]
+      L.push(`  [${lv}] ${list.length}칸`)
+      for (const t of list) L.push(`    · ${t}`)
+    }
+    L.push('')
+  } else {
+    L.push(
+      '### 학기 성취수준',
+      '- 작년 자료에 없다. 교과 DB 의 수준별 진술로 초안을 만들고 **검토 필요를 알린다.**',
+      ''
+    )
+  }
+
+  // ── 활동 계획 — 유지/변경/신규 ────────────────────────────────────────────
+  const acts = d.activities || []
+  if (acts.length) {
+    L.push(
+      '### 작년 활동 계획 — 항목마다 [유지 / 변경 / 신규] 를 묻는다',
+      '  "작년 \'○○\' 는 그대로 갈까요, 바꿀까요, 새로 만들까요?"',
+      '',
+      '- **유지** — 아래 내용을 **그대로** free_activities 에 넣는다. 요약하거나 다듬지 않는다',
+      '  (작년에 결재된 문장이다). 평가방법의 "☑" 가 선택된 항목이다.',
+      '- **변경** — 같은 방식으로 옮기되 교사가 말한 부분만 고친다.',
+      '- **신규** — 작년 것을 버리고 평소대로 대화로 만든다.',
+      ''
+    )
+    for (const [i, a] of acts.entries()) {
+      L.push(`#### 활동 ${i + 1}${a.name ? ` — ${a.name}` : ' — (작년 문서에 이름 칸이 비어 있음)'}`)
+      if (a.task) L.push(`  과제·내용: ${a.task}`)
+      if (a.standards) L.push(`  성취기준: ${a.standards}`)
+      for (const [lv, t] of Object.entries(a.levels || {})) L.push(`  ${lv}: ${t}`)
+      if (a.methods1) L.push(`  평가방법1: ${a.methods1}`)
+      if (a.methods2) L.push(`  평가방법2: ${a.methods2}`)
+      if (!a.name) L.push('  ⚠ 이름이 비어 있다 — 교사에게 활동명을 받아 채운다. 네가 짓지 않는다.')
+      L.push('')
+    }
+  } else {
+    L.push(
+      '### ⚠ 작년 활동 자료가 없다 (분리 미완)',
+      '- 작년 문서에서 활동 블록이 깔끔하게 분리되지 않았다.',
+      '- "작년 활동 자료가 분리되지 않아 이 부분은 처음부터 여쭙겠습니다" 라고 밝히고,',
+      '  활동을 하나씩 교사에게 받는다. **없는 활동을 지어내지 않는다.**',
+      ''
+    )
+  }
+
+  const warns = d._warnings || []
+  if (warns.length) {
+    L.push('### ⚠ 작년 자료 분리 미완 — 교사 확인', ...warns.map((w) => `- ${w}`))
+  }
+  return L.join('\n').trimEnd()
+}
+
 function buildPrefillDoc(pre, m = manifest, c = constants) {
   const d = pre?.data
   if (!d) return ''
@@ -257,6 +359,9 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
     '   달라진 것만 말하면 그 부분만 다시 묻는다. 처음부터 다시 훑지 않는다.',
     '',
   ]
+
+  // 자유학기(1학년)는 점수화하지 않는다 — 물어볼 것 자체가 다르므로 갈라 쓴다
+  if (d.type === 'free_semester') return buildFreePrefillDoc(d, L, m)
 
   // ── 작년 구성 요약 (기계가 읽을 수 있게 원문 그대로) ──────────────────────
   const ex = d.exam || {}

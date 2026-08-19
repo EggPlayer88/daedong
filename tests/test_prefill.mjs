@@ -29,9 +29,10 @@ ck('파일이 _assets/prefill 에 있다 (배포 번들 포함 경로)', () => {
 ck('색인은 파일명이 아니라 파일 안의 subject/grade 를 믿는다', () => {
   // 파일명은 '진로와직업_2.json' 인데 안의 subject 는 '진로와 직업' 이다
   const keys = [...prefillIndex.keys()]
+  // 학년별로 한 건씩만 있어야 한다 (파일명 띄어쓰기 변형으로 갈리면 두 건이 된다)
   const jinro = keys.filter((k) => k.startsWith('진로와'))
-  A(jinro.length === 1, `같은 교과가 ${jinro.length}건으로 갈림: ${jinro}`)
-  A(jinro[0] === '진로와 직업|2', jinro[0])
+  A(jinro.length === 2, `학년별 1건이 아님: ${jinro}`)
+  A(jinro.every((k) => k.startsWith('진로와 직업|')), jinro.join(','))
   A(!readdirSync(DIR).includes('진로와 직업_2.json'), '구버전 중복 파일이 남아 있다')
 })
 ck('깨진 파일 하나가 전체를 막지 않는다', () => {
@@ -43,7 +44,8 @@ console.log('\n[선택 — 교과·학년이 드러날 때만]')
 ck('"3학년 수학" → 수학_3', () => A(pickPrefill(say('3학년 수학이요')).file === '수학_3.json'))
 ck('학년만 있으면 안 고른다', () => A(pickPrefill(say('3학년이요')) === null, '교과 없이 골랐다'))
 ck('교과만 있으면 안 고른다', () => A(pickPrefill(say('수학입니다')) === null, '학년 없이 골랐다'))
-ck('팩이 없는 조합은 백지 모드', () => A(pickPrefill(say('1학년 수학')) === null, '없는 팩을 골랐다'))
+// ⚠ 전 학년 35블록이 들어와 '1학년 수학' 도 이제 팩이 있다 — 진짜 없는 조합으로 본다
+ck('팩이 없는 조합은 백지 모드', () => A(pickPrefill(say('3학년 정보')) === null, '없는 팩을 골랐다'))
 ck('참고자료 전문은 교과 추측에서 제외', () => {
   const ref = { role: 'user', content: '[참고자료: 2025-2 전교.hwpx]\n국어 영어 수학 3학년 …' }
   A(pickPrefill([ref]) === null, '참고자료가 교과를 정해버림')
@@ -205,10 +207,79 @@ ck('작년 소스가 없다는 사실과 검토 필요를 함께 알린다', () 
   A(doc.includes('검토가 필요하다는 점을 반드시 알린다'), '검토 안내 없음')
 })
 
+console.log('\n[1학년 자유학기 팩 (type: free_semester)]')
+const free = pickPrefill(say('1학년 과학'))
+const fdoc = buildPrefillDoc(free)
+ck('1학년 12블록이 색인에 있다', () => {
+  const g1 = [...prefillIndex.keys()].filter((k) => k.endsWith('|1'))
+  A(g1.length >= 12, `1학년 ${g1.length}건`)
+  A(free?.data?.type === 'free_semester', free?.data?.type)
+})
+ck('점수형 절이 아예 없다', () => {
+  // 절 제목으로 본다 — '작년 구성'·'반영비율' 은 "그런 것이 없다" 는 문장에도 나온다
+  for (const s of ['### 작년 구성', '### 서·논술형', '정기시험 ', '수행평가 출제 계획',
+                   '작년 미응시자 점수']) {
+    A(!fdoc.includes(s), `자유학기에 점수형 항목이 섞임: ${s}`)
+  }
+  A(fdoc.includes('점수·반영비율·미응시 점수는 **작년에도 없었다**'), '자유학기 명시 없음')
+})
+ck('월 표기를 작년 그대로 쓴다 ("12, 1월")', () => {
+  const last = free.data.monthly_plan.at(-1).month
+  A(last.includes(','), `이 교과로는 합쳐진 달을 확인할 수 없다: ${last}`)
+  A(fdoc.includes(`- ${last}:`), '월 표기 누락')
+  A(fdoc.includes('작년 표기를 그대로** monthly_plan[].month'), '월 계승 지시 없음')
+})
+ck('성취수준은 작년 원문을 칸 재료로 계승', () => {
+  const alv = free.data.achievement_levels_last_year
+  A(alv && alv.A.length, '작년 성취수준이 없다')
+  A(fdoc.includes('원문 그대로 계승한다'), '계승 지시 없음')
+  A(fdoc.includes('재선정이 필요 없다'), '2022 코드 근거 없음')
+  A(fdoc.includes(`[A] ${alv.A.length}칸`), '칸 수 표기 없음')
+  for (const t of alv.A) A(fdoc.includes(t), '작년 진술 누락')
+  A(fdoc.includes(`최대 ${M.achievement_levels.cells}칸`), '칸 수가 manifest 에서 안 옴')
+})
+ck('작년 성취수준이 없으면 DB 경로로 넘긴다', () => {
+  const pre = JSON.parse(JSON.stringify(free))
+  delete pre.data.achievement_levels_last_year
+  const d2 = buildPrefillDoc(pre)
+  A(d2.includes('교과 DB 의 수준별 진술로 초안'), 'DB 경로 없음')
+  A(d2.includes('검토 필요를 알린다'), '검토 안내 없음')
+})
+ck('활동은 [유지/변경/신규] 3분기', () => {
+  A(fdoc.includes('[유지 / 변경 / 신규]'), '분기 없음')
+  A(fdoc.includes('그대로 갈까요, 바꿀까요, 새로 만들까요?'), '질문 문구 없음')
+  A(fdoc.includes('요약하거나 다듬지 않는다'), '요약 금지 없음')
+  A(fdoc.includes('"☑" 가 선택된 항목'), '체크 해석 없음')
+})
+ck('활동 원문(과제·성취기준·A~E·방법)이 주입된다', () => {
+  for (const a of free.data.activities) {
+    A(fdoc.includes(a.task), `과제 누락: ${a.task.slice(0, 20)}`)
+    A(fdoc.includes(a.standards), '성취기준 누락')
+    for (const [lv, t] of Object.entries(a.levels)) A(fdoc.includes(`${lv}: ${t}`), `${lv} 누락`)
+    if (a.methods1) A(fdoc.includes(a.methods1), '평가방법1 누락')
+  }
+})
+ck('이름 빈 활동은 교사에게 받는다 (AI 가 짓지 않는다)', () => {
+  const blank = free.data.activities.some((a) => !a.name)
+  A(blank, '이 교과로는 확인할 수 없다 (이름이 다 있음)')
+  A(fdoc.includes('작년 문서에 이름 칸이 비어 있음'), '빈 이름 표시 없음')
+  A(fdoc.includes('네가 짓지 않는다'), '작명 금지 없음')
+})
+ck('활동 자료가 없는 교과는 처음부터 묻는다 (진로와 직업)', () => {
+  const j = buildPrefillDoc(pickPrefill(say('1학년 진로와 직업')))
+  A(j.includes('작년 활동 자료가 없다'), '미검출 안내 없음')
+  A(j.includes('없는 활동을 지어내지 않는다'), '지어내기 금지 없음')
+  A(j.includes('활동 블록 미검출'), '_warnings 원문 없음')
+})
+ck('2·3학년 팩은 점수형 흐름 그대로', () => {
+  A(doc.includes('### 작년 구성'), '점수형 요약이 사라짐')
+  A(!doc.includes('작년 자유학기 구성'), '자유학기 절이 섞임')
+})
+
 console.log('\n[백지 모드 보존]')
 ck('prefill 이 없으면 빈 문자열 (프롬프트 그대로)', () => {
   A(buildPrefillDoc(null) === '', '없는데 무언가 붙음')
-  A(docFor('1학년 수학') === '', '팩 없는 조합에 붙음')
+  A(docFor('3학년 정보') === '', '팩 없는 조합에 붙음')
 })
 
 console.log()
