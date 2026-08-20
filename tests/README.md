@@ -46,6 +46,7 @@ tests/.venv/bin/pip install lxml
 | `test_prefill.mjs` | prefill 주입 — 교과·학년 **한 건만** 선택, 작년 값 중 그대로 쓰면 안 되는 것(시험 시기·시수·3분류·2022 성취기준), `_warnings`·보정 내역 노출, ●▲✗ 3분기 + 교과 DB 한정 주입, 수행 [유지/변경/신규], **1학년 자유학기 팩**(월 표기·작년 성취수준 원문 계승·활동 3분기·활동 미검출 처리), 팩 없으면 백지 모드 |
 | `test_conversations.mjs` | 대화 저장(004) — 제목 자동 생성(참고자료 오염 방지·plan 우선), 목록 화면, **RLS personal(admin 열람 경로 없음)**, 저장 실패가 대화를 끊지 않는지 |
 | `test_examples.mjs` | 배포용 예시 3종 — 원본과 배포본 sha 동일(수정 금지), 화면 링크 ↔ 실제 파일 일치, 학년 표기 |
+| `test_school_days.mjs` | 수업일수·시수 파생 — official 경계, 5행 고정·1월 흡수, 누계 산식, **기존 고정표 재현**(감산 규칙 반영 시 자산과 일치), **자산 stale 대조**(KNOWN_DIFF 밖의 차이면 실패), 깨진 입력 방어, 화면 렌더 |
 | `test_visibility.mjs` | 모듈 공개 범위 — 역할별 메뉴 노출, **URL 직접 접근 차단**(라우트 미등록), 신규 모듈 기본값 superadmin, 실사용 화면(평가계획서·제출)이 이전과 동일한지 |
 | `test_calendar.mjs` | 학사일정·공유 캘린더(006) — **파생 계산은 official 만**(shared 의 no_class 는 안 센다), 월간 격자·KST 날짜, soft delete·복구, 라벨 자동완성, RLS 정책 대조 + 정책을 흉내 낸 CRUD 흐름, 시드 SQL |
 | `test_submissions.mjs` | 제출·수합(005) — 파일 규칙(hwpx·30MB)·storage 경로 규약, 파일명에서 교과·학년 제안, 재제출은 지우지 않고 `replaced`, 현황 매트릭스, **RLS(교사 본인 / 담당자 전체·삭제 경로 없음)**, prefill 목록과 catalog 동기화 |
