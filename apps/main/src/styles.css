@@ -501,6 +501,21 @@ button {
   font-weight: 600;
 }
 
+/* 수업일수·시수 파생 뷰 — 표가 여럿이라 제목으로 끊어 준다 */
+.cal-hours h3 {
+  margin: 18px 0 6px;
+  font-size: 15px;
+}
+.cal-hours .table td,
+.cal-hours .table th {
+  white-space: nowrap;
+}
+.cal-hours code {
+  background: var(--bg-soft, #f4f4f5);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 /* ─── 평가계획 제출 ─── */
 .submissions {
   max-width: 1060px;

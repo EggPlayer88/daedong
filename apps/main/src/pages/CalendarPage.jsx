@@ -17,6 +17,7 @@ import {
   update,
   validate,
 } from '../lib/calendar.js'
+import { WEEKLY_RANGE, hoursTable, noClassBreakdown } from '../lib/school-days.js'
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
 // ⚠ toISOString() 은 UTC 라 한국 시간 기준으로 하루 밀린다 (calendar.js 의 iso 사용)
@@ -37,7 +38,7 @@ export default function CalendarPage() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
-  const [view, setView] = useState('month') // month | list | trash
+  const [view, setView] = useState('month') // month | list | hours | trash
   const [rows, setRows] = useState([])
   const [term, setTerm] = useState(null)
   const [editing, setEditing] = useState(null)
@@ -68,6 +69,9 @@ export default function CalendarPage() {
     () => rows.filter((r) => !r.deleted_at).sort((a, b) => a.start_date.localeCompare(b.start_date)),
     [rows]
   )
+  // 파생 계산 — 원천은 official 뿐 (school-days.js 가 그 경계를 지킨다)
+  const hours = useMemo(() => (term ? hoursTable(rows, term) : null), [rows, term])
+  const skipped = useMemo(() => (term ? noClassBreakdown(rows, term) : []), [rows, term])
 
   function move(delta) {
     const d = new Date(year, month - 1 + delta, 1)
@@ -167,6 +171,7 @@ export default function CalendarPage() {
           {[
             ['month', '월간'],
             ['list', '목록'],
+            ['hours', '수업일수·시수'],
             ...(isAdmin ? [['trash', `휴지통 (${trash.length})`]] : []),
           ].map(([v, label]) => (
             <button
@@ -282,6 +287,149 @@ export default function CalendarPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {view === 'hours' && (
+        <div className="cal-hours">
+          {!term && <p className="muted small">학기(academic_terms)가 없어 계산할 수 없습니다.</p>}
+          {term && hours && (
+            <>
+              <p className="muted small">
+                <b>학사일정(📌)만</b> 계산에 씁니다 — 공유 칸(🗒️)에 무엇을 적어도 시수는 흔들리지
+                않습니다. 수업일 = {term.start_date} ~ {term.end_date} 안의 평일 − &lsquo;수업
+                없음&rsquo; 으로 표시된 학사일정.
+              </p>
+
+              <h3>월별 수업일수</h3>
+              <div className="scroll-x">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      {hours.monthly.map((m) => (
+                        <th key={m.ym}>{m.label}</th>
+                      ))}
+                      <th>합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      {hours.monthly.map((m) => (
+                        <td key={m.ym}>
+                          {m.days}일
+                          {m.absorbed.length > 0 && (
+                            <span className="muted small">
+                              {' '}
+                              (
+                              {m.absorbed.map((a) => `${a.label} ${a.days}일 포함`).join(', ')})
+                            </span>
+                          )}
+                        </td>
+                      ))}
+                      <td>
+                        <b>{hours.total_class_days}일</b>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted small">
+                표는 <b>5행 고정</b>입니다 (학년 무관). 학기 마지막 달 뒤에 남는 달(1월)은 행을
+                만들지 않고 마지막 칸에 합칩니다 — 양식에 6번째 행이 없기 때문입니다.
+              </p>
+
+              <h3>주당 시수별 월 시수 / 누계</h3>
+              <div className="scroll-x">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>주당</th>
+                      {hours.months.map((m) => (
+                        <th key={m}>{m}</th>
+                      ))}
+                      <th>합계</th>
+                      <th>최소 기준</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {WEEKLY_RANGE.map((w) => {
+                      const r = hours.variants[String(w)]
+                      return (
+                        <tr key={w}>
+                          <td>{w}시간</td>
+                          {r.months.map((cell, i) => (
+                            <td key={hours.months[i]}>{cell}</td>
+                          ))}
+                          <td>
+                            <b>{r.total}</b>
+                          </td>
+                          <td className={r.ok ? 'muted small' : 'review-mark small'}>
+                            {r.min_required}
+                            {r.ok ? '' : ' ⚠ 미달'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="muted small">
+                누계 = ⌊주당시수 × 누적 수업일수 ÷ 5⌋. 달마다 남는 소수는 버리지 않고 다음 달로
+                넘깁니다. 실제 시수는 교과의 요일 배정에 따라 달라질 수 있어, 이 표는{' '}
+                <b>제안값</b>입니다.
+              </p>
+
+              <h3>수업이 빠진 날 ({skipped.length}건)</h3>
+              <p className="muted small">
+                위 숫자가 어떻게 나왔는지 눈으로 확인하는 칸입니다. 빠져야 할 날이 없거나 빠지면 안
+                되는 날이 있으면 <b>목록</b> 뷰에서 해당 일정의 &lsquo;수업 없음&rsquo; 을 고치면
+                이 표가 따라 바뀝니다.
+              </p>
+              <div className="scroll-x">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>기간</th>
+                      <th>제목</th>
+                      <th>유형</th>
+                      <th>빠진 평일</th>
+                      <th>해당 날짜</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {skipped.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="muted small">
+                          &lsquo;수업 없음&rsquo; 으로 표시된 학사일정이 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                    {skipped.map((s) => (
+                      <tr key={s.id || `${s.start_date}-${s.title}`}>
+                        <td>
+                          {s.start_date}
+                          {s.end_date !== s.start_date ? ` ~ ${s.end_date}` : ''}
+                        </td>
+                        <td>{s.title}</td>
+                        <td>{s.event_type}</td>
+                        <td>{s.weekdays}일</td>
+                        <td className="muted small">
+                          {s.dates.length ? s.dates.join(', ') : '주말·학기 밖 — 영향 없음'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="muted small">
+                ⚠ 평가계획서에 실제로 들어가는 시수는 <b>자산 파일</b>(fixed-hours)에서 나옵니다.
+                이 화면은 캘린더에서 지금 계산한 값이라, 자산과 다를 수 있습니다. 자산을 다시 찍는
+                것은 <code>node scripts/build-fixed-hours.mjs</code> 이며, 차이가 있으면 그
+                스크립트가 어느 칸이 왜 다른지 보고합니다.
+              </p>
+            </>
+          )}
         </div>
       )}
 
