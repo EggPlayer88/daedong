@@ -8,6 +8,11 @@
 // 권한 판정은 RLS 가 한다. 화면은 버튼을 가릴 뿐이고, 데이터는 정책이 막는다.
 
 import { supabase } from '@daedong/shared'
+// 날짜 계산과 파생(수업일수·시수)은 school-days.js 가 홀로 맡는다 — 두 곳에
+// 같은 산식이 있으면 한쪽만 고쳐지고 조용히 갈라진다. 여기서는 조회만 한다.
+import { eachDate, iso, noClassDates } from './school-days.js'
+
+export { eachDate, iso, noClassDates }
 
 const TABLE = 'calendar_events'
 const COLUMNS =
@@ -20,45 +25,11 @@ export const SCOPE_LABEL = { official: '학사일정', shared: '공유' }
 // 공식/공유를 한눈에 가르는 표식 — 색만으로 구분하면 흑백 인쇄·색각에서 사라진다
 export const SCOPE_ICON = { official: '📌', shared: '🗒️' }
 
-/**
- * 날짜 → 'YYYY-MM-DD'.
- * ⚠ toISOString() 을 쓰면 안 된다 — UTC 로 바꾸면서 한국 시간 기준 날짜가 하루
- *   밀린다 (KST 자정은 UTC 전날 15시). 지역 시간 요소로 직접 조립한다.
- */
-export function iso(d) {
-  if (!(d instanceof Date)) return String(d || '')
-  if (Number.isNaN(d.getTime())) return ''
-  const p = (n) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
-
 /** 살아 있는 일정만 (soft delete 제외) */
 export const alive = (rows) => (rows || []).filter((r) => r && !r.deleted_at)
 
 /** 파생 계산용 — **official 만.** shared 는 절대 섞지 않는다 */
 export const officialOnly = (rows) => alive(rows).filter((r) => r.scope === 'official')
-
-/**
- * 수업 없는 날짜 집합 (시수·수업일수 계산의 재료).
- * official 의 no_class 만 센다 — shared 에 누가 "체험학습" 을 적어도 시수는 그대로다.
- */
-export function noClassDates(rows) {
-  const out = new Set()
-  for (const r of officialOnly(rows)) {
-    if (!r.no_class) continue
-    for (const d of eachDate(r.start_date, r.end_date)) out.add(d)
-  }
-  return out
-}
-
-export function eachDate(start, end) {
-  const s = new Date(`${iso(start)}T00:00:00`)
-  const e = new Date(`${iso(end || start)}T00:00:00`)
-  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) return []
-  const out = []
-  for (const d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) out.push(iso(d))
-  return out
-}
 
 /** 그 달에 걸치는 일정 (기간 일정 포함) */
 export function inMonth(rows, year, month) {
