@@ -5,10 +5,13 @@ import {
   ACCEPT,
   MAX_BYTES,
   buildMatrix,
+  cancelSubmission,
   downloadUrl,
   guessFromFilename,
+  isLive,
   listAll,
   listMine,
+  removeFile,
   submit,
   validateFile,
 } from '../lib/submissions.js'
@@ -20,6 +23,15 @@ const SEMESTER = 2
 const CATALOG = Array.isArray(catalogRaw) ? catalogRaw : []
 const SUBJECTS = [...new Set(CATALOG.map((c) => c.subject))].sort((a, b) => a.localeCompare(b, 'ko'))
 
+// 확인 문구는 한 곳에서만 쓴다 — 교사와 담당자가 같은 말을 보게
+const CONFIRM_CANCEL = '파일이 삭제되며 미제출 상태가 됩니다. 계속할까요?'
+
+function statusLabel(status) {
+  if (status === 'replaced') return '이전 제출'
+  if (status === 'deleted') return '취소됨'
+  return '제출됨'
+}
+
 function fmt(s) {
   if (!s) return '—'
   const d = new Date(s)
@@ -27,6 +39,47 @@ function fmt(s) {
   return d.toLocaleString('ko-KR', {
     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
   })
+}
+
+/**
+ * 제출 한 줄. 내 제출·전체 제출이 같은 행을 쓴다 —
+ * 두 벌로 두면 한쪽만 고쳐져 교사와 담당자가 다른 화면을 보게 된다.
+ */
+export function SubmissionRow({ row, busy, orphan, cancelLabel = '제출 취소', onOpen, onCancel, onRetryRemove }) {
+  const deleted = row.status === 'deleted'
+  const cls = deleted ? 'row-deleted' : row.status === 'replaced' ? 'muted' : ''
+  return (
+    <tr className={cls}>
+      <td>
+        {row.subject} {row.grade}학년
+      </td>
+      <td>
+        {deleted ? (
+          // 실물이 없으므로 누를 수 없다 — 이름만 이력으로 남긴다
+          <span title="파일이 삭제되었습니다">{row.file_name}</span>
+        ) : (
+          <button type="button" className="btn-plain" onClick={() => onOpen(row)}>
+            {row.file_name}
+          </button>
+        )}
+      </td>
+      <td>{row.note || '—'}</td>
+      <td>{fmt(row.submitted_at)}</td>
+      <td>{statusLabel(row.status)}</td>
+      <td>
+        {row.status === 'submitted' && (
+          <button type="button" className="btn-danger" onClick={() => onCancel(row)} disabled={busy}>
+            {cancelLabel}
+          </button>
+        )}
+        {deleted && orphan && (
+          <button type="button" className="btn-danger" onClick={() => onRetryRemove(row)} disabled={busy}>
+            파일 삭제 재시도
+          </button>
+        )}
+      </td>
+    </tr>
+  )
 }
 
 export default function SubmissionsPage() {
@@ -43,6 +96,8 @@ export default function SubmissionsPage() {
   const [notice, setNotice] = useState(null)
   const [mine, setMine] = useState([])
   const [all, setAll] = useState([])
+  // 고아 파일(행은 취소됐는데 실물이 남은 것) — DB 에 표시가 없으므로 이 화면에서만 기억한다
+  const [orphans, setOrphans] = useState([])
   const fileRef = useRef(null)
 
   const load = useCallback(async () => {
@@ -95,6 +150,42 @@ export default function SubmissionsPage() {
       setNote('')
       if (fileRef.current) fileRef.current.value = ''
       await load()
+    }
+    setBusy(false)
+  }
+
+  async function onCancel(row) {
+    if (busy) return
+    // 되돌릴 수 없다 — 파일이 실제로 지워진다. 묻고 나서 지운다
+    if (typeof window !== 'undefined' && !window.confirm(CONFIRM_CANCEL)) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    const { error: err, orphan, fileError } = await cancelSubmission(row)
+    if (err) setError(err.message)
+    else {
+      // 행은 남는다 (수합 이력) — 목록에서 사라지지 않고 '취소됨' 으로 보인다
+      setNotice(
+        orphan
+          ? `제출을 취소했습니다. 다만 파일을 지우지 못했습니다 (${fileError?.message || '원인 미상'}) — 재시도해 주세요.`
+          : `제출을 취소했습니다: ${row.file_name}`
+      )
+      setOrphans((prev) => (orphan ? [...new Set([...prev, row.id])] : prev.filter((id) => id !== row.id)))
+      await load()
+    }
+    setBusy(false)
+  }
+
+  async function onRetryRemove(row) {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    const { orphan, error: err } = await removeFile(row.file_path)
+    if (orphan) setError(`파일을 지우지 못했습니다: ${err?.message || '원인 미상'}`)
+    else {
+      setNotice('남아 있던 파일을 지웠습니다.')
+      setOrphans((prev) => prev.filter((id) => id !== row.id))
     }
     setBusy(false)
   }
@@ -199,23 +290,20 @@ export default function SubmissionsPage() {
                   <th>메모</th>
                   <th>제출 시각</th>
                   <th>상태</th>
+                  <th>취소</th>
                 </tr>
               </thead>
               <tbody>
                 {mine.map((r) => (
-                  <tr key={r.id} className={r.status === 'replaced' ? 'muted' : ''}>
-                    <td>
-                      {r.subject} {r.grade}학년
-                    </td>
-                    <td>
-                      <button type="button" className="btn-plain" onClick={() => open(r)}>
-                        {r.file_name}
-                      </button>
-                    </td>
-                    <td>{r.note || '—'}</td>
-                    <td>{fmt(r.submitted_at)}</td>
-                    <td>{r.status === 'replaced' ? '이전 제출' : '제출됨'}</td>
-                  </tr>
+                  <SubmissionRow
+                    key={r.id}
+                    row={r}
+                    busy={busy}
+                    orphan={orphans.includes(r.id)}
+                    onOpen={open}
+                    onCancel={onCancel}
+                    onRetryRemove={onRetryRemove}
+                  />
                 ))}
               </tbody>
             </table>
@@ -264,7 +352,10 @@ export default function SubmissionsPage() {
           </section>
 
           <section className="plan-sec">
-            <h4>전체 제출 ({all.filter((r) => r.status === 'submitted').length}건)</h4>
+            <h4>
+              전체 제출 ({all.filter(isLive).length}건)
+              <span className="muted small"> · 취소·이전 제출도 이력으로 함께 보입니다</span>
+            </h4>
             <div className="scroll-x">
               <table className="table">
                 <thead>
@@ -274,23 +365,21 @@ export default function SubmissionsPage() {
                     <th>메모</th>
                     <th>제출 시각</th>
                     <th>상태</th>
+                    <th>삭제</th>
                   </tr>
                 </thead>
                 <tbody>
                   {all.map((r) => (
-                    <tr key={r.id} className={r.status === 'replaced' ? 'muted' : ''}>
-                      <td>
-                        {r.subject} {r.grade}학년
-                      </td>
-                      <td>
-                        <button type="button" className="btn-plain" onClick={() => open(r)}>
-                          {r.file_name}
-                        </button>
-                      </td>
-                      <td>{r.note || '—'}</td>
-                      <td>{fmt(r.submitted_at)}</td>
-                      <td>{r.status === 'replaced' ? '이전 제출' : '제출됨'}</td>
-                    </tr>
+                    <SubmissionRow
+                      key={r.id}
+                      row={r}
+                      busy={busy}
+                      orphan={orphans.includes(r.id)}
+                      onOpen={open}
+                      cancelLabel="삭제"
+                      onCancel={onCancel}
+                      onRetryRemove={onRetryRemove}
+                    />
                   ))}
                 </tbody>
               </table>

@@ -563,6 +563,28 @@ button {
 .cell-todo {
   color: var(--text-dim);
 }
+/* 취소된 제출 — 숨기지 않고 회색 취소선으로 남긴다 (수합 이력이다) */
+.row-deleted td,
+.row-deleted th {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+.row-deleted .btn-plain {
+  text-decoration: line-through;
+}
+.btn-danger {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--red, #c0392b);
+  cursor: pointer;
+  text-decoration: underline;
+}
+.btn-danger:disabled {
+  color: var(--text-dim);
+  cursor: default;
+}
 
 /* 예시 파일 링크 (doc-ai 머리말) */
 .examples {
