@@ -2,7 +2,7 @@
 
 | 파일 | 원본 | 내용 | 처리 |
 |------|------|------|------|
-| v1_departments.csv | v1 public.departments | 부서 6개 | **실제 부서 명단 → 010_seed.sql 로 이관 완료** |
+| v1_departments.csv | v1 public.departments | 부서 6개 | **실제 부서 명단.** 구 `010_seed.sql` 로 옮겨 적었으나 그 시드는 **미실행 상태로 접혔다** (`migrations/archive/010_seed.sql`, 2026-08-26). 부서 모듈 착수 시 새 번호로 재설계 — 이 CSV 가 여전히 원본이다 |
 | v1_tasks_duty_catalog.csv | v1 public.tasks | 업무 종류 5건 | **샘플로 판정 → 폐기** (2026-08-16, 계란). 근거: 5건 동일 시각 생성, 수정 이력 없음, 일반론적 내용. Phase 3 인수인계 양식 참고용으로만 보존 |
 | v1_timetable_schema.sql | 아래 3개 CSV 재구성 | timetables / timetable_changes 실측 DDL | **Phase 2 `011_timetable_domain.sql` 의 정본 재료.** ⚠ 지금 실행하는 파일 아님 |
 | v1_timetable_columns.csv | information_schema.columns | 두 테이블 컬럼 36개 (타입/NULL/기본값) | 실측 원본 |

@@ -71,13 +71,16 @@ daedong-v2/
 007_students.sql               -- students, class_groups, enrollments + RLS
 008_observations.sql           -- observation_records + RLS (personal!)
 009_academic.sql               -- academic_terms, academic_events + RLS
-010_seed.sql                   -- 부서 6개 + 2026-2 term (확정본 있음. Phase 1 말 실행)
+(폐기) 010_seed.sql            -- 구 시드 → migrations/archive/ 로 접었다 (미실행 확정)
 011_dashboard.sql              -- user_dashboard_config + RLS
 012_timetable_domain.sql       -- v1 시간표 스키마 복제 (timetables, timetable_changes) — Phase 2
 
 ⚠ 번호는 **실행 순서가 아니라 식별자**다. 004 가 doc-ai 대화로 들어가면서 이후 계획이
-   한 칸씩 밀렸지만, 확정본인 010_seed.sql 은 다시 개명하지 않았다 (파일명을 흔들면
-   실행 기록과 어긋난다). seed 는 번호와 무관하게 **Phase 1 말**에 실행한다.
+   한 칸씩 밀렸다.
+⚠ 2026-08-26: 010_seed.sql 은 `migrations/archive/` 로 접었다 — 8/16 설계 세션의
+   선행 가정(008=academic_terms)이 현 번호 체계(006=calendar)와 어긋나고, DB 확인 결과
+   **미실행 확정**(departments 0행)이다. 부서 시드는 **부서 모듈 착수 시 새 번호로
+   재설계**한다. 파일은 부서 명단 원본으로서 보존.
 ```
 
 ---
@@ -128,9 +131,11 @@ Phase 0 완료 직후 삽입. Phase 1 과 **병행 가능**(순연 아님). 상�
 
 ## Phase 1 — 일상 코어 (2~3세션)
 
-- [ ] 005, 006, 009, 011 마이그레이션 + 010 시드 실행 (010 확정본 migrations/ 에 있음)
+- [ ] 005, 006, 009, 011 마이그레이션 실행
+- [ ] 부서 시드 **새 번호로 재설계** 후 실행 (구 010_seed 는 미실행·접힘 — `migrations/archive/`,
+      명단 원본은 그 파일과 `backup/v1_departments.csv` 에 있다)
       ※ 003(가입 승인제, D20)·004(doc-ai 대화)가 Phase 0~1.5 에서 삽입되어
-        이후 계획 번호가 두 칸 밀렸다. 010_seed 는 개명하지 않았다 (위 표 참조)
+        이후 계획 번호가 두 칸 밀렸다 (위 표 참조)
 - [ ] 일정 관리 (스프레드시트형 UI, 담당자 지정)
 - [ ] tasks + 나의 할 일 위젯 (schedules 합성)
 - [ ] 업무 문서 총정리 (업로드/라벨/다운로드, admin 업로드 제한)
