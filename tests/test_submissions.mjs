@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SQL = join(ROOT, 'migrations/005_doc_submissions.sql')
+const SQL7 = join(ROOT, 'migrations/007_submission_delete.sql')
 const ASSETS = join(ROOT, 'apps/main/api/doc-ai/_assets')
 
 let fail = 0
@@ -26,7 +27,8 @@ writeFileSync(entry, `
 import { renderToStaticMarkup } from 'react-dom/server'
 import SubmissionsPage, { SubmissionRow } from '../apps/main/src/pages/SubmissionsPage.jsx'
 import * as lib from '../apps/main/src/lib/submissions.js'
-export { renderToStaticMarkup, SubmissionsPage, SubmissionRow, lib }
+import { can } from '@daedong/shared'
+export { renderToStaticMarkup, SubmissionsPage, SubmissionRow, lib, can }
 `)
 const bundle = join(work, 'b.cjs')
 try {
@@ -38,7 +40,7 @@ try {
 } finally {
   rmSync(entry, { force: true })
 }
-const { lib, renderToStaticMarkup, SubmissionRow } = await import(bundle)
+const { lib, renderToStaticMarkup, SubmissionRow, can } = await import(bundle)
 const catalog = JSON.parse(readFileSync(join(ASSETS, 'prefill-catalog.json'), 'utf-8'))
 
 console.log('\n[교과 목록 — prefill 색인에서 파생]')
@@ -189,6 +191,54 @@ ck('삭제 정책이 없다 (제출 기록은 지우지 않는다)', () => {
   // doc_submissions 에 DELETE 정책이 없다는 뜻이다 (005). 007 의 제출 취소는
   // 행을 UPDATE 로 'deleted' 로 넘기고 Storage 실물만 지우므로 여기와 충돌하지 않는다
   A(!/FOR DELETE/.test(sql), '삭제 경로가 열려 있음')
+})
+
+console.log('\n[007 — 삭제 계약: 클라이언트 전제와 SQL 을 대조한다]')
+// 화면은 "행 UPDATE + 파일 실물 삭제" 를 전제로 만들어져 있다.
+// 그 전제가 실제 정책에 없으면 관리자 삭제는 0행으로, 파일 삭제는 0건으로 조용히 막힌다
+const sql7 = readFileSync(SQL7, 'utf-8')
+ck("status 에 'deleted' 가 허용된다", () => {
+  A(/CHECK \(status IN \('submitted','replaced','deleted'\)\)/.test(sql7), "CHECK 에 deleted 없음")
+})
+ck('담당자(admin)가 남의 행을 갱신할 수 있다', () => {
+  // 없으면 관리자 '삭제' 가 에러 없이 0행 — 화면만 지워지고 DB 는 그대로가 된다
+  A(/CREATE POLICY subm_update_admin ON public\.doc_submissions[\s\S]*FOR UPDATE[\s\S]*is_admin\(\)/.test(sql7),
+    'admin UPDATE 정책 없음')
+})
+ck('Storage 실물 삭제 권한이 본인 + 담당자 두 갈래로 있다', () => {
+  // 없으면 파일이 안 지워지고 전부 고아로 남는다 (005 에는 DELETE 정책이 없었다)
+  A(/subm_storage_delete_own[\s\S]*FOR DELETE[\s\S]*foldername\(name\)\)\[1\] = auth\.uid\(\)::text/.test(sql7),
+    '본인 파일 삭제 정책 없음')
+  A(/subm_storage_delete_admin[\s\S]*FOR DELETE[\s\S]*is_admin\(\)/.test(sql7), '담당자 파일 삭제 정책 없음')
+  A(/subm_storage_delete_own[\s\S]*bucket_id = 'submissions'/.test(sql7), '버킷 한정 없음')
+})
+ck('삭제 정책이 새 키 규약과 맞물린다 ({uid}/{uuid}.hwpx)', () => {
+  // 정책은 첫 조각만 본다 — 파일명을 뺀 키에서도 본인 폴더 판정이 그대로 성립한다
+  const p = lib.storagePath('uid-9')
+  A(p.split('/')[0] === 'uid-9' && ASCII_SAFE.test(p), p)
+  A(sql7.includes('(storage.foldername(name))[1] = auth.uid()::text'), '폴더 판정이 바뀌었다')
+})
+ck('doc_submissions 에는 여전히 DELETE 정책이 없다 (005 + 007 통틀어)', () => {
+  // 007 의 FOR DELETE 는 storage.objects 것뿐이어야 한다 — 제출 행은 지우지 않는다
+  const rowDelete = /CREATE POLICY[^;]*ON public\.doc_submissions[^;]*FOR DELETE/i.test(sql + sql7)
+  A(!rowDelete, '제출 행을 지우는 정책이 생겼다 (수합 이력이 사라질 수 있다)')
+})
+ck('정책 개수가 실행 기록과 맞는다 (doc_submissions 5 · storage subm_ 5)', () => {
+  const both = sql + sql7
+  const rows = [...both.matchAll(/CREATE POLICY (\w+) ON public\.doc_submissions/g)].map((m) => m[1])
+  const store = [...both.matchAll(/CREATE POLICY (subm_storage\w+) ON storage\.objects/g)].map((m) => m[1])
+  A(rows.length === 5, `doc_submissions 정책 ${rows.length}개: ${rows.join(', ')}`)
+  A(store.length === 5, `storage 정책 ${store.length}개: ${store.join(', ')}`)
+})
+ck('화면 게이트와 DB 판정이 같은 역할 집합이다', () => {
+  // 화면: can(profile,'users.manage') / DB: is_admin(). 갈라지면 버튼은 보이는데 막힌다
+  A(can({ role: 'admin' }, 'users.manage') === true, 'admin 이 담당자가 아니다')
+  A(can({ role: 'superadmin' }, 'users.manage') === true, 'superadmin 이 담당자가 아니다')
+  A(can({ role: 'teacher' }, 'users.manage') === false, '교사가 담당자로 잡힌다')
+  A(sql7.includes('public.is_admin()'), '007 이 is_admin() 을 쓰지 않는다')
+  const sql1 = readFileSync(join(ROOT, 'migrations/001_users_departments.sql'), 'utf-8')
+  A(/FUNCTION public\.is_admin\(\)[\s\S]{0,300}?IN \('admin','superadmin'\)/.test(sql1),
+    "is_admin() 이 admin·superadmin 이 아니다")
 })
 
 console.log('\n[재제출 — 옛 행을 지우지 않는다]')
