@@ -12,6 +12,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+// ⚠ 마커 프로토콜의 진실의 원천은 planMarker.js 하나다 — 프론트와 **같은 파일**을 쓴다.
+//   (화면이 manifest 를 api/ 에서 읽는 것과 같은 이유: 파서가 둘이면 반드시 갈라진다)
+import { splitPlan, MARK_START, MARK_END } from '../../src/lib/planMarker.js'
 
 // ESM 에는 __dirname 이 없다. import.meta.url 로 파생시킨다.
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -220,6 +223,320 @@ function pickPrefill(messages, index = prefillIndex) {
   return findPrefill(subject, grade, index)
 }
 
+// ---------------------------------------------------------------------------
+// 작년 그대로 계승 — **참조로 받고 서버가 원문을 넣는다** (2026-08-26)
+//
+// 왜 바꿨나: 모델이 작년 원문을 통째로 PLAN_READY JSON 에 되받아썼다. 그래서 출력이
+//   교과 크기에 비례했고(사회 1학년 9,816자 · 디지털 리터러시 8,980자), 큰 교과만
+//   응답이 vercel.json 의 maxDuration 60초를 넘겨 504 로 죽었다. 작은 교과(수학
+//   3학년 3,377자)는 멀쩡했다 — 교과 특이 크래시로 보였던 것의 정체다.
+//
+// 참조로 바꾸면 두 가지가 동시에 해결된다:
+//   1. 출력 길이가 **교과 크기와 무관해진다** (carry 는 경로 문자열 몇 줄이다)
+//   2. 9천 자를 옮겨 적다 한 글자 틀릴 위험 자체가 사라진다 —
+//      계승 충실도는 오히려 올라간다. 제1원칙("추정으로 채우지 않는다")의 구조화다.
+//
+// 계약: PLAN_READY JSON 의 "carry" 는 **계획서 필드 경로 배열**이다.
+//   ["free_activities", "monthly_plan[2].units", "achievement_levels"]
+//   서버가 그 자리에 작년 원문을 넣고 carry 키를 지운 뒤 프론트로 내보낸다.
+//   → 확인 카드·generate 가 보는 계획은 지금까지와 똑같이 **완성된 계획**이다.
+// ---------------------------------------------------------------------------
+
+/** '토의･토론' / '토의·토론' 을 같은 것으로 본다 (_fill.normalize_method 와 같은 규칙) */
+const normMethod = (x) => String(x ?? '').replace(/[\s·･・.ㆍ]/g, '')
+
+/**
+ * 작년 활동의 체크박스 줄(☑ 표기 원문) → 평가방법 이름 배열.
+ *
+ * ⚠ 이름은 **manifest 의 options_order 에서 가져온다.** 원문에서 잘라 오면 구분자
+ *   표기가 갈려(･ vs ·) 서버 치환이 못 알아본다. 자리로 세는 것이 먼저고,
+ *   표식 개수가 어긋나면 라벨 바로 앞의 표식을 본다 — 체크가 엉뚱한 항목에
+ *   붙느니 못 읽었다고 하는 편이 낫다.
+ *
+ * @returns {{methods: string[], failed: string[]}} failed — 못 읽은 줄 이름
+ */
+function carriedMethods(activity, m = manifest) {
+  const methods = []
+  const failed = []
+  for (const n of [1, 2]) {
+    const line = activity?.[`methods${n}`]
+    const opts = m?.methods_lines?.[`line${n}`]?.options_order
+    if (typeof line !== 'string' || !line.trim() || !Array.isArray(opts)) continue
+    const marks = line.match(/[☑■□]/g) || []
+    if (marks.length === opts.length) {
+      opts.forEach((o, i) => {
+        if (marks[i] !== '□') methods.push(o)
+      })
+      continue
+    }
+    // 자리로 셀 수 없다 — 라벨 앞의 표식을 본다 (공백·구분자를 지우면 표식이 바로 앞이다)
+    const flat = normMethod(line)
+    let read = 0
+    for (const o of opts) {
+      const at = flat.indexOf(normMethod(o))
+      if (at <= 0) continue
+      read += 1
+      if (flat[at - 1] !== '□') methods.push(o)
+    }
+    if (!read) failed.push(`평가방법${n}`)
+  }
+  return { methods, failed }
+}
+
+/** 작년 월별 계획 → 계획서 행. **월 라벨·시수는 계승하지 않는다** — 서버가 올해 값으로 넣는다. */
+function carryMonthly(rows) {
+  if (!Array.isArray(rows) || !rows.length) return undefined
+  return rows.map((r) => ({
+    units: String(r?.units ?? ''),
+    standards: String(r?.standards ?? ''),
+    eval_elements: String(r?.eval_elements ?? ''),
+  }))
+}
+
+/** 작년 활동 → free_activities. 체크박스 원문만 이름 배열로 옮기고 나머지는 그대로다. */
+function carryActivities(acts, m = manifest, notes = []) {
+  if (!Array.isArray(acts) || !acts.length) return undefined
+  return acts.map((a, i) => {
+    const { methods, failed } = carriedMethods(a, m)
+    if (failed.length) {
+      notes.push(`활동 ${i + 1}${a?.name ? ` '${a.name}'` : ''} 의 ${failed.join('·')} 표기를 읽지 못했습니다`)
+    }
+    return {
+      name: String(a?.name ?? ''),
+      task: String(a?.task ?? ''),
+      standards: String(a?.standards ?? ''),
+      levels: a?.levels && typeof a.levels === 'object' ? { ...a.levels } : {},
+      methods,
+    }
+  })
+}
+
+/** 학기 성취수준 — A~E 키가 실제로 있는 것만 계승한다 (파서 메모만 든 것은 원본이 아니다) */
+function carryLevels(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined
+  const has = ['A', 'B', 'C', 'D', 'E'].some((k) => v[k] != null)
+  return has ? { ...v } : undefined
+}
+
+/** 손댈 것 없이 그대로 옮기는 값 (빈 값은 계승할 것이 없는 것으로 본다) */
+function carryAsIs(v) {
+  if (v == null) return undefined
+  if (Array.isArray(v)) return v.length ? [...v] : undefined
+  if (typeof v === 'string') return v.trim() ? v : undefined
+  return v
+}
+
+/**
+ * 계승 가능한 필드 — 계획서 필드 → 작년 자료의 어디에서 오는가.
+ *
+ * ⚠ **perf_plans 는 없다.** prefill 의 수행 출제 계획은 셀 좌표 raw 덤프라
+ *   구조화된 원본이 아예 없다. raw → 양식 구조 변환은 모델만 할 수 있으므로
+ *   그 필드만은 지금까지처럼 모델이 직접 쓴다 (있는 척하지 않는다).
+ * 되돌리려면: 이 표를 비우면 carry 가 전부 "알 수 없는 대상" 으로 떨어진다.
+ */
+const CARRY_SOURCES = {
+  monthly_plan: { from: 'monthly_plan', label: '월별 교수·학습 계획 (단원·성취기준·평가요소)', convert: carryMonthly },
+  free_activities: { from: 'activities', label: '자유학기 활동', convert: carryActivities },
+  achievement_levels: { from: 'achievement_levels_last_year', label: '학기 성취수준 A~E', convert: carryLevels },
+  eval_purpose: { from: 'eval_purpose', label: '평가 목적', convert: carryAsIs },
+  min_achievement_plan: { from: 'min_achievement_plan', label: '최소 성취수준 미도달 지도 방안', convert: carryAsIs },
+}
+
+/** "free_activities[0].levels" → {field, index, sub}. 문법 밖이면 null */
+function parseCarryPath(ref) {
+  const m = /^([A-Za-z_][A-Za-z0-9_]*)(?:\[(\d+)\])?(?:\.([A-Za-z_][A-Za-z0-9_]*))?$/.exec(
+    String(ref ?? '').trim()
+  )
+  if (!m) return null
+  return { field: m[1], index: m[2] == null ? null : Number(m[2]), sub: m[3] ?? null }
+}
+
+/** 이 작년 자료로 실제 계승할 수 있는 필드만 (있지도 않은 것을 프롬프트에 적지 않는다) */
+function carryable(pre, m = manifest) {
+  const d = pre?.data
+  const out = []
+  if (!d) return out
+  for (const [field, src] of Object.entries(CARRY_SOURCES)) {
+    const value = src.convert(d[src.from], m, [])
+    if (value === undefined) continue
+    out.push({ field, label: src.label, value, count: Array.isArray(value) ? value.length : 0 })
+  }
+  return out
+}
+
+/**
+ * carry 참조를 작년 원문으로 펼친다.
+ *
+ * **못 펼친 참조는 조용히 버리지 않는다** — 그 칸이 공란이 된다는 사실을 그대로 알린다
+ * (제0원칙: 안 되는 걸 되는 것처럼 하지 않는다).
+ *
+ * @returns {{plan, applied: string[], unresolved: string[], notes: string[]}}
+ */
+function expandCarry(plan, pre, m = manifest) {
+  const refs = Array.isArray(plan?.carry) ? plan.carry : []
+  const applied = []
+  const unresolved = []
+  const notes = []
+  if (!refs.length) return { plan, applied, unresolved, notes }
+
+  const out = { ...plan }
+  delete out.carry
+  const d = pre?.data
+  const cache = new Map()
+  const whole = (field) => {
+    if (!cache.has(field)) {
+      const src = CARRY_SOURCES[field]
+      cache.set(field, src && d ? src.convert(d[src.from], m, notes) : undefined)
+    }
+    return cache.get(field)
+  }
+
+  // 순서대로 적용한다 — 뒤에 오는 참조가 앞을 덮는다
+  for (const ref of refs) {
+    const path = parseCarryPath(ref)
+    if (!path || !CARRY_SOURCES[path.field]) {
+      unresolved.push(`${ref} (계승할 수 없는 항목)`)
+      continue
+    }
+    if (!d) {
+      unresolved.push(`${ref} (이 대화에 작년 자료가 없습니다)`)
+      continue
+    }
+    const src = whole(path.field)
+    if (src === undefined) {
+      unresolved.push(`${ref} (작년 자료에 그 내용이 없습니다)`)
+      continue
+    }
+    // 필드 통째로
+    if (path.index === null && path.sub === null) {
+      out[path.field] = src
+      applied.push(ref)
+      continue
+    }
+    // 배열의 한 칸 / 그 칸의 한 항목
+    if (path.index !== null) {
+      if (!Array.isArray(src) || src[path.index] === undefined) {
+        unresolved.push(`${ref} (작년 자료에 ${path.index + 1}번째가 없습니다)`)
+        continue
+      }
+      const item = src[path.index]
+      const list = Array.isArray(out[path.field]) ? [...out[path.field]] : []
+      while (list.length <= path.index) list.push(null)
+      if (path.sub === null) {
+        list[path.index] = item
+      } else {
+        if (!item || typeof item !== 'object' || item[path.sub] === undefined) {
+          unresolved.push(`${ref} (작년 자료의 그 칸이 비어 있습니다)`)
+          continue
+        }
+        const row = list[path.index] && typeof list[path.index] === 'object' ? { ...list[path.index] } : {}
+        row[path.sub] = item[path.sub]
+        list[path.index] = row
+      }
+      out[path.field] = list
+      applied.push(ref)
+      continue
+    }
+    // 객체의 한 항목 (예: achievement_levels.A)
+    if (!src || typeof src !== 'object' || src[path.sub] === undefined) {
+      unresolved.push(`${ref} (작년 자료에 그 항목이 없습니다)`)
+      continue
+    }
+    const obj = out[path.field] && typeof out[path.field] === 'object' ? { ...out[path.field] } : {}
+    obj[path.sub] = src[path.sub]
+    out[path.field] = obj
+    applied.push(ref)
+  }
+  return { plan: out, applied, unresolved, notes }
+}
+
+/**
+ * 모델 응답 안의 PLAN_READY 블록을 **작년 원문으로 펼친 것**으로 바꿔 돌려준다.
+ *
+ * 펼치는 자리가 여기인 이유: 응답이 서버를 떠나기 전에 완성되므로 프론트·확인 카드·
+ * generate 는 지금까지와 **똑같은 완성된 계획**을 본다 (입력 계약을 바꾸지 않는다).
+ * 저장되는 대화에도 완성된 계획이 남아, 나중에 다시 열어도 그대로 생성된다.
+ *
+ * 못 펼친 참조는 **대화 본문에 그대로 적어 교사에게 보인다.** 조용히 지나가면
+ * 그 칸이 왜 비었는지 아무도 모른 채 결재로 올라간다.
+ */
+function expandReply(raw, pre, m = manifest) {
+  const { text, json } = splitPlan(raw)
+  if (!json || !Array.isArray(json.carry) || !json.carry.length) return { reply: raw, carry: null }
+
+  const { plan, applied, unresolved, notes } = expandCarry(json, pre, m)
+  const lines = [text]
+  if (unresolved.length) {
+    lines.push(
+      '',
+      '⚠ 작년 자료에서 가져오지 못한 항목이 있습니다 — **아래 칸은 공란으로 나갑니다.**',
+      ...unresolved.map((u) => `- ${u}`),
+      '내용을 직접 알려주시면 채워 넣겠습니다.'
+    )
+  }
+  if (notes.length) {
+    lines.push('', '⚠ 작년 자료를 옮기며 확인이 필요한 것:', ...notes.map((n) => `- ${n}`))
+  }
+  const body = `${lines.join('\n').trim()}\n\n${MARK_START}\n${JSON.stringify(plan)}\n${MARK_END}`
+  return { reply: body, carry: { applied, unresolved, notes } }
+}
+
+/**
+ * 프롬프트에 붙일 계승 규약 — **이 교과에 실제로 있는 대상만** 적는다.
+ * 없는 것을 목록에 넣으면 모델이 그것을 참조하고, 그 칸이 조용히 비게 된다.
+ */
+function buildCarryDoc(pre, m = manifest) {
+  const items = carryable(pre, m)
+  if (!items.length) return []
+  const L = [
+    '### 작년 그대로 계승 — **원문을 다시 옮겨 적지 않는다**',
+    'PLAN_READY JSON 에 `"carry"` 배열을 넣어 **참조로** 계승한다. 서버가 그 자리에',
+    '작년 원문을 그대로 넣는다.',
+    '',
+    '- 왜: 작년 원문을 통째로 옮겨 적으면 (1) 응답이 시간 제한을 넘겨 생성 자체가 실패하고',
+    '  (2) 옮기다 한 글자가 틀어진다. 참조는 둘 다 없앤다.',
+    '  **원문 충실도는 옮겨 적는 것보다 참조가 높다.**',
+    '',
+    '- 이 교과에서 쓸 수 있는 참조:',
+  ]
+  for (const it of items) {
+    const paths = [`"${it.field}"`]
+    if (it.count) {
+      paths.push(`"${it.field}[0]"`)
+      if (it.field === 'monthly_plan') paths.push(`"${it.field}[0].units"`)
+    }
+    L.push(`  · ${paths.join(' · ')} — ${it.label}${it.count ? ` (${it.count}개)` : ''}`)
+  }
+  // 예시는 **이 교과에 실제로 있는 배열 필드**로 만든다 —
+  // 없는 필드를 예시로 보여주면 모델이 그것을 참조하고 그 칸이 조용히 빈다.
+  const arr = items.find((x) => x.count >= 2)
+  L.push(
+    '',
+    '- **바꾸는 것만 JSON 에 직접 쓴다.**',
+    '- 배열은 **올해 최종 길이·순서 그대로** 쓰고, 계승할 자리는 `null` 로 둔다.',
+    ...(arr
+      ? [
+          `  예) ${arr.label} 중 2번째만 새로 만들 때 (전부 ${arr.count}개)`,
+          `      "${arr.field}": [null, { …새로 쓴 것… }${', null'.repeat(arr.count - 2)}]`,
+          `      "carry": [${[...Array(arr.count).keys()]
+            .filter((i) => i !== 1)
+            .map((i) => `"${arr.field}[${i}]"`)
+            .join(', ')}]`,
+        ]
+      : []),
+    '- 필드를 통째로 계승하면 그 필드는 JSON 에서 아예 빼고 carry 에만 적는다.',
+    '- carry 와 직접 쓴 값이 겹치면 **carry 가 이긴다.**',
+    '',
+    '- ⚠ **`perf_plans`(수행 출제 계획)는 carry 대상이 아니다.** 작년 자료가 셀 좌표',
+    '  덤프라 구조화된 원본이 없다 — raw 를 읽어 네가 구조로 옮겨야 한다.',
+    '- ⚠ 월 라벨(`month`)·시수(`hours_cum`)는 계승하지 않는다. 서버가 올해 값으로 넣는다.',
+    '- ⚠ 목록에 없는 경로를 적지 않는다. 못 펼친 참조는 그 칸이 **공란**이 되고,',
+    '  서버가 교사에게 그 사실을 알린다.',
+    ''
+  )
+  return L
+}
+
 // 모델은 env 로 교체 가능 (기본: 현재 Sonnet 세대)
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
@@ -340,6 +657,8 @@ function buildFreePrefillDoc(d, L, m = manifest) {
   )
 
   L.push('### 작년 교수·학습 계획 (월별)')
+  L.push('- 그대로 가는 행은 `carry: ["monthly_plan"]` / 행 단위 `"monthly_plan[2]"` /')
+  L.push('  칸 단위 `"monthly_plan[2].units"` 로 참조한다. **옮겨 적지 않는다.**')
   for (const r of d.monthly_plan || []) {
     L.push(`- ${r.month}: ${r.units || ''}`)
     if (r.standards) L.push(`    성취기준: ${r.standards}`)
@@ -371,8 +690,10 @@ function buildFreePrefillDoc(d, L, m = manifest) {
     L.push(
       `### 작년 학기 성취수준 — **원문 그대로 계승한다** (칸 재료)`,
       `- 1학년은 2022 개정이라 성취기준 코드가 그대로 유효하다. 재선정이 필요 없다.`,
-      `- 아래 진술을 achievement_levels 의 칸(최대 ${cells}칸)에 **그대로** 넣는다.`,
-      '  교사가 바꾸겠다고 할 때만 손댄다. DB 로 새로 짓는 것은 작년 자료가 없을 때다.',
+      `- 그대로 간다면 **옮겨 적지 말고** \`carry: ["achievement_levels"]\` 로 참조한다`,
+      `  (칸은 수준마다 최대 ${cells}칸이고, 서버가 작년 원문을 그 구조로 넣는다).`,
+      '  교사가 바꾸겠다고 한 수준만 JSON 에 직접 쓴다. DB 로 새로 짓는 것은 작년 자료가 없을 때다.',
+      '- 아래 내용은 **교사에게 요약해 보여주기 위한 것**이지 옮겨 적을 원고가 아니다.',
       ''
     )
     for (const [lv, arr] of Object.entries(alv)) {
@@ -400,10 +721,12 @@ function buildFreePrefillDoc(d, L, m = manifest) {
       '### 작년 활동 계획 — 항목마다 [유지 / 변경 / 신규] 를 묻는다',
       '  "작년 \'○○\' 는 그대로 갈까요, 바꿀까요, 새로 만들까요?"',
       '',
-      '- **유지** — 아래 내용을 **그대로** free_activities 에 넣는다. 요약하거나 다듬지 않는다',
-      '  (작년에 결재된 문장이다). 평가방법의 "☑" 가 선택된 항목이다.',
-      '- **변경** — 같은 방식으로 옮기되 교사가 말한 부분만 고친다.',
+      '- **유지** — **옮겨 적지 않는다.** `carry: ["free_activities[0]"]` 처럼 참조만 적으면',
+      '  서버가 작년 원문을 그대로 넣는다 (평가방법 "☑" 도 서버가 읽는다).',
+      '- **변경** — 그 활동은 JSON 에 직접 쓰고 carry 에는 적지 않는다.',
+      '  ⚠ 한 칸만 바뀌어도 그 활동은 **통째로** 직접 쓴다 — 활동 안의 일부만 참조할 수는 없다.',
       '- **신규** — 작년 것을 버리고 평소대로 대화로 만든다.',
+      '- 아래 원문은 **교사에게 요약해 보여주기 위한 것**이다. 옮겨 적을 원고가 아니다.',
       ''
     )
     for (const [i, a] of acts.entries()) {
@@ -453,6 +776,9 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
   // ⚠ DB **자산 자체가** 없으면(로드 실패) 교과 탓이 아니므로 이 안내를 붙이지 않는다.
   if (standardsDb?.subjects && !dbSubject(d.subject)) L.push(...buildNoDbDoc(d.subject))
 
+  // 계승 규약 — 아래 작년 원문을 읽기 전에 **참조로 받는다는 것**을 먼저 못 박는다
+  L.push(...buildCarryDoc(pre, m))
+
   // 자유학기(1학년)는 점수화하지 않는다 — 물어볼 것 자체가 다르므로 갈라 쓴다
   if (d.type === 'free_semester') return buildFreePrefillDoc(d, L, m)
 
@@ -473,6 +799,7 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
   L.push('')
 
   L.push('### 작년 교수·학습 계획 (월별)')
+  L.push('- 그대로 가는 행은 `carry` 로 참조한다 (아래 계승 규약). **옮겨 적지 않는다.**')
   for (const r of d.monthly_plan || []) {
     L.push(`- ${r.month}: ${r.units || ''}`)
     if (r.standards) L.push(`    성취기준: ${r.standards}`)
@@ -628,6 +955,8 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
       '',
       '- **유지** — raw 에서 수행 과제 / 성취기준 / 평가기준 상·중·하 / 평가방법 체크 /',
       '  평가 요소별 수행수준·배점을 **그대로 뽑아** PLAN_READY 구조에 넣는다.',
+      '  ⚠ 이 필드만은 carry 참조가 없다 — 작년 자료가 셀 좌표 덤프라 구조화된 원본이',
+      '  없기 때문이다. perf_plans 는 네가 직접 써야 한다.',
       '  raw 의 "☑" 는 선택된 평가방법이다. 배점 숫자는 원문 그대로 옮긴다.',
       '  ⚠ 요약하거나 다듬지 않는다. 작년에 결재된 문장이므로 손대면 오히려 위험하다.',
       '- **변경** — 유지와 같은 방식으로 뽑되, 교사가 말한 부분만 고친다.',
@@ -1381,6 +1710,12 @@ export {
   buildLevelDoc,
   buildPrefillDoc,
   buildNoDbDoc,
+  buildCarryDoc,
+  carryable,
+  expandCarry,
+  expandReply,
+  parseCarryPath,
+  CARRY_SOURCES,
   buildPrefillIndex,
   pickPrefill,
   prefillIndex,
@@ -1580,10 +1915,21 @@ export default async function handler(req, res) {
     })
   }
 
-  const reply = (data.content || [])
+  const raw = (data.content || [])
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
     .join('')
+
+  // 작년 계승 참조를 **서버에서** 원문으로 펼친다.
+  //   여기서 펼치므로 프론트·확인 카드·generate 는 지금까지와 똑같이 완성된 계획을 본다
+  //   (generate 입력 계약은 그대로다). 모델은 참조만 쓰므로 출력이 교과 크기와 무관해진다.
+  const { reply, carry } = expandReply(raw, prefill)
+  if (carry) {
+    console.log(
+      `[doc-ai/chat] carry: 적용 ${carry.applied.length}건` +
+        (carry.unresolved.length ? ` / 미해결 ${carry.unresolved.length}건: ${carry.unresolved.join(' | ')}` : '')
+    )
+  }
 
   // max_tokens 로 잘렸으면 프론트가 알아야 한다 (PLAN_READY JSON 이 깨질 수 있음)
   return res.status(200).json({
@@ -1591,5 +1937,6 @@ export default async function handler(req, res) {
     stop_reason: data.stop_reason,
     truncated: data.stop_reason === 'max_tokens',
     usage: data.usage,
+    ...(carry ? { carry } : {}),
   })
 }

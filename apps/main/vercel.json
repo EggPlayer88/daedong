@@ -9,7 +9,7 @@
       "maxDuration": 60
     },
     "api/doc-ai/chat.js": {
-      "includeFiles": "api/doc-ai/_assets/**",
+      "includeFiles": "{api/doc-ai/_assets/**,src/lib/planMarker.js}",
       "maxDuration": 60
     }
   },
