@@ -9,6 +9,16 @@ const TABLE = 'doc_submissions'
 const BUCKET = 'submissions'
 const COLUMNS = 'id, user_id, year, semester, subject, grade, file_name, file_path, note, status, submitted_at'
 
+// 수합 대상에서 빠지는 상태. 행은 남지만 '낸 것'으로 세지 않는다 (007).
+//   replaced = 같은 교과·학년을 다시 냈다 / deleted = 제출을 취소해 파일을 지웠다
+// ⚠ 목록에서 숨기지 않는다 — 무엇을 언제 냈다 물렸는지가 곧 수합 이력이다
+export const GONE_STATUSES = ['replaced', 'deleted']
+
+/** 지금 수합 대상인 제출인가 (status NOT IN ('replaced','deleted')) */
+export function isLive(row) {
+  return !GONE_STATUSES.includes(row?.status)
+}
+
 // hwpx 만. 30MB — 참고자료 첨부(extract)와 같은 상한이면 교사가 규칙을 하나만 기억한다
 export const MAX_BYTES = 30 * 1024 * 1024
 export const ACCEPT = '.hwpx'
@@ -148,11 +158,67 @@ export async function downloadUrl(path, fileName, seconds = 60) {
 }
 
 /**
+ * 제출 취소 / 담당자 삭제 — 행은 남기고 파일 실물만 지운다 (007).
+ *
+ * 순서: 행을 deleted 로 먼저 넘기고 그 다음 파일을 지운다.
+ * 파일 삭제가 실패해도 목록상 취소는 이미 성립하고, 남은 고아 파일은 재시도로 치운다.
+ * 반대 순서면 파일은 없는데 목록엔 '제출됨' 으로 남는 구간이 생긴다 — 그쪽이 더 나쁘다.
+ *
+ * ⚠ 행을 지우지 않는다 (UPDATE 다). 005 의 "물리 DELETE 금지" 와 충돌하지 않는다.
+ */
+export async function cancelSubmission(row) {
+  if (!row?.id) return { error: new Error('취소할 제출을 찾지 못했습니다.') }
+
+  // .select() 로 되돌아온 행을 센다 — RLS 가 막으면 postgrest 는 에러 없이 0행을 준다.
+  // 그걸 성공으로 보면 화면만 지워지고 DB 는 그대로인 조용한 거짓말이 된다
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ status: 'deleted' })
+    .eq('id', row.id)
+    .select('id')
+  if (error) return { error }
+  if (!data?.length) {
+    return { error: new Error('삭제 권한이 없습니다 (본인 제출 또는 수합 담당자만 가능합니다).') }
+  }
+
+  const rm = await removeFile(row.file_path)
+  return { error: null, orphan: rm.orphan, fileError: rm.error }
+}
+
+/**
+ * 파일 실물 삭제. 지워졌는지까지 확인한다 —
+ * Storage 는 정책에 막혀도 에러 없이 0건을 돌려주므로 결과 건수만 믿으면 안 된다.
+ */
+export async function removeFile(path) {
+  if (!path) return { orphan: false, error: null }
+  const { data, error } = await supabase.storage.from(BUCKET).remove([path])
+  if (!error && data?.length) return { orphan: false, error: null }
+
+  // 0건일 때: 이미 없어서인지, 못 지운 것인지 목록으로 확인한다 (추측하지 않는다)
+  const still = await fileExists(path)
+  if (still === false) return { orphan: false, error: null }
+  return {
+    orphan: true,
+    error: error || new Error('파일을 지우지 못했습니다. 잠시 뒤 재시도해 주세요.'),
+  }
+}
+
+/** 실물이 남아 있는가. 확인 자체가 실패하면 null — 모르면 모른다고 한다 */
+async function fileExists(path) {
+  const cut = String(path).lastIndexOf('/')
+  const folder = cut > 0 ? path.slice(0, cut) : ''
+  const name = cut > 0 ? path.slice(cut + 1) : path
+  const { data, error } = await supabase.storage.from(BUCKET).list(folder, { search: name })
+  if (error) return null
+  return (data || []).some((o) => o?.name === name)
+}
+
+/**
  * 제출 현황 매트릭스 — 학년 × 교과.
  * 교과 목록은 prefill 색인에서 온다 (학교가 실제로 내는 과목이 거기 있다).
  */
 export function buildMatrix(rows, catalog) {
-  const live = (rows || []).filter((r) => r?.status === 'submitted')
+  const live = (rows || []).filter((r) => r && isLive(r))
   const key = (g, s) => `${g}|${s}`
   const byKey = new Map(live.map((r) => [key(r.grade, r.subject), r]))
   const grades = [...new Set(catalog.map((c) => c.grade))].sort((a, b) => a - b)
