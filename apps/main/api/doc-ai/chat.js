@@ -131,6 +131,43 @@ function dbSubject(subject, db = standardsDb) {
   return key ? { key, ...subjects[key] } : null
 }
 
+/** 한글 받침에 맞춘 은/는 — 교과명이 자산에서 오므로 문장에서 골라 붙인다. */
+function josaEunNeun(word) {
+  const last = String(word || '').trim().at(-1) || ''
+  const code = last.charCodeAt(0)
+  if (!(code >= 0xac00 && code <= 0xd7a3)) return '는' // 한글이 아니면 기본형
+  return (code - 0xac00) % 28 === 0 ? '는' : '은'
+}
+
+/**
+ * 성취기준 DB 에 없는 교과에 붙이는 안내 — **DB 경로를 명시적으로 닫는다.**
+ *
+ * DB 는 2022 개정 교육과정 교과다. 학교자율시간 과목('디지털 리터러시')이나 학교 개설
+ * 과목('보건')은 그 밖에 있다. 없는 것을 없다고 말하지 않으면 모델은 있지도 않은
+ * 코드를 그럴듯하게 지어낸다 — 제1원칙이 막으려는 바로 그 실패다.
+ *
+ * 막지는 않는다. 작년 자료와 교사 입력으로 가는 길은 그대로 열어 둔다.
+ * 되돌리려면: buildPrefillDoc 의 호출 한 줄을 지운다.
+ */
+function buildNoDbDoc(subject, db = standardsDb) {
+  const n = Object.keys(db?.subjects || {}).length
+  // 교과명은 자산에서 오므로 받침이 제각각이다 ('디지털 리터러시'는 / '보건'은).
+  // 이 문장은 AI 가 교사에게 그대로 말하는 문장이라 조사를 맞춰 준다.
+  const s = `${subject}${josaEunNeun(subject)}`
+  return [
+    `### ⚠ ${s} 성취기준 DB 에 없다`,
+    `- 이 시스템의 성취기준 DB 는 2022 개정 ${n}개 교과다. ${s} 그 밖의 과목이다`,
+    '  (학교자율시간·학교 개설 과목 등). **DB 가 없는 것이지, 못 만드는 것이 아니다.**',
+    '- 첫 응답에서 이 사실을 먼저 밝힌다:',
+    `  "${s} 성취기준 DB 에 없어, 작년 자료와 선생님 입력으로 진행합니다."`,
+    '- 성취기준·성취수준 진술은 **① 아래 작년 자료의 원문 ② 교사가 준 내용** 에서만 온다.',
+    '  DB 에서 고르는 경로, DB 진술을 다듬는 경로는 이 교과에 없다.',
+    '- 코드를 네가 지어내지 않는다. 작년 원문에 없고 교사도 주지 않으면 **공란**으로 둔다',
+    '  (공란은 실패가 아니다 — 잘못된 코드가 담긴 공문서가 실패다).',
+    '',
+  ]
+}
+
 /** 교과·학년으로 prefill 을 찾는다. 정확일치가 없으면 **표기 정규화 후** 한 번 더 본다. */
 function findPrefill(subject, grade, index = prefillIndex) {
   if (!subject || !Number.isInteger(grade)) return null
@@ -345,9 +382,13 @@ function buildFreePrefillDoc(d, L, m = manifest) {
     }
     L.push('')
   } else {
+    // ⚠ 이 교과가 DB 에 없으면 "DB 로 초안" 은 존재하지 않는 경로다 — 교사에게 받는다
     L.push(
       '### 학기 성취수준',
-      '- 작년 자료에 없다. 교과 DB 의 수준별 진술로 초안을 만들고 **검토 필요를 알린다.**',
+      dbSubject(d.subject)
+        ? '- 작년 자료에 없다. 교과 DB 의 수준별 진술로 초안을 만들고 **검토 필요를 알린다.**'
+        : '- 작년 자료에 없고, 이 교과는 성취기준 DB 에도 없다. **교사에게 받는다.**\n' +
+          '  받지 못하면 공란으로 둔다 — 지어내지 않는다.',
       ''
     )
   }
@@ -407,6 +448,10 @@ function buildPrefillDoc(pre, m = manifest, c = constants) {
     '   달라진 것만 말하면 그 부분만 다시 묻는다. 처음부터 다시 훑지 않는다.',
     '',
   ]
+
+  // 성취기준 DB 밖의 교과면 DB 경로를 닫고 시작한다 (자유학기·점수형 공통).
+  // ⚠ DB **자산 자체가** 없으면(로드 실패) 교과 탓이 아니므로 이 안내를 붙이지 않는다.
+  if (standardsDb?.subjects && !dbSubject(d.subject)) L.push(...buildNoDbDoc(d.subject))
 
   // 자유학기(1학년)는 점수화하지 않는다 — 물어볼 것 자체가 다르므로 갈라 쓴다
   if (d.type === 'free_semester') return buildFreePrefillDoc(d, L, m)
@@ -1335,6 +1380,7 @@ export {
   buildGuideDoc,
   buildLevelDoc,
   buildPrefillDoc,
+  buildNoDbDoc,
   buildPrefillIndex,
   pickPrefill,
   prefillIndex,
