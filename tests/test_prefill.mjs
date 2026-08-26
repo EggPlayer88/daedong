@@ -13,7 +13,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
 const DIR = `${API}/_assets/prefill`
 const mod = await import(`${API}/chat.js`)
-const { pickPrefill, buildPrefillDoc, buildPrefillIndex, prefillIndex, manifest: M } = mod
+const {
+  pickPrefill, buildPrefillDoc, buildPrefillIndex, prefillIndex, manifest: M,
+  findPrefill, normSubject, dbSubject, standardsDb,
+} = mod
 
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }
@@ -279,6 +282,94 @@ ck('활동 자료가 없는 교과는 처음부터 묻는다 (진로와 직업)'
 ck('2·3학년 팩은 점수형 흐름 그대로', () => {
   A(doc.includes('### 작년 구성'), '점수형 요약이 사라짐')
   A(!doc.includes('작년 자유학기 구성'), '자유학기 절이 섞임')
+})
+
+console.log('\n[교과명 표기 — 공백·가운뎃점이 갈려도 같은 교과다]')
+// 2026-08-26: 교사가 '디지털리터러시' 라고 붙여 쓰면 작년 자료가 있는데도 백지로 시작했다.
+//   prefill '디지털 리터러시' · 파일명 '디지털리터러시' · DB '진로와_직업' 처럼
+//   같은 교과가 자리마다 다르게 적혀 있다.
+ck('정규화는 공백·가운뎃점·밑줄만 지운다', () => {
+  A(normSubject('디지털 리터러시') === '디지털리터러시', '공백')
+  A(normSubject('기술·가정') === '기술가정', '가운뎃점')
+  A(normSubject('진로와_직업') === '진로와직업', '밑줄')
+  A(normSubject('수학') === '수학', '멀쩡한 이름을 건드림')
+  A(normSubject(null) === '', 'null')
+})
+ck('붙여 쓴 교과명으로도 작년 자료를 찾는다', () => {
+  for (const [typed, grade, want] of [
+    ['디지털리터러시', 1, '디지털 리터러시'],
+    ['디지털 리터러시', 1, '디지털 리터러시'],
+    ['진로와직업', 2, '진로와 직업'],
+    ['진로와·직업', 1, '진로와 직업'],
+  ]) {
+    const hit = pickPrefill(say(`${grade}학년 ${typed} 계획서 만들어줘`))
+    A(hit, `${typed} ${grade}학년 미검출`)
+    A(hit.data.subject === want, `${typed} → ${hit.data.subject}`)
+    A(hit.data.grade === grade, `${typed} 학년 어긋남`)
+  }
+})
+ck('표기를 지운 대조가 없던 일치를 만들지 않는다', () => {
+  // 문장 전체에서 공백을 지우면 '한 문장' 이 '한문' 이 된다 — 구분자가 든 교과명에만 쓴다
+  A(pickPrefill(say('1학년 이 한 문장을 평가에 넣고 싶습니다')) === null, "'한 문장' → 한문")
+  A(pickPrefill(say('2학년 정 보고서 형식으로')) === null, "'정 보고서' → 정보")
+  // 그래도 제대로 쓴 교과명은 찾는다
+  A(pickPrefill(say('1학년 한문'))?.data.subject === '한문', '한문 미검출')
+})
+ck('findPrefill 은 정확일치를 먼저 본다', () => {
+  A(findPrefill('디지털 리터러시', 1).file === '디지털리터러시_1.json', '정확일치')
+  A(findPrefill('디지털리터러시', 1).file === '디지털리터러시_1.json', '정규화 일치')
+  A(findPrefill('디지털 리터러시', 3) === null, '없는 학년에서 아무거나 집음')
+  A(findPrefill('', 1) === null, '빈 교과명')
+})
+ck('DB 조회도 같은 정규화를 쓴다', () => {
+  A(dbSubject('진로와 직업')?.key === '진로와_직업', 'DB 표기 변형')
+  A(dbSubject('진로와직업')?.key === '진로와_직업', 'DB 붙여쓰기')
+  A(dbSubject('디지털 리터러시') === null, 'DB 에 없는 교과가 잡힘')
+})
+
+console.log('\n[성취기준 DB 에 없는 교과 — 정직 경로]')
+// 학교자율시간 과목(디지털 리터러시)·학교 개설 과목(보건)은 2022 개정 14개 교과 DB 밖이다.
+// 없는 것을 없다고 말해야 모델이 코드를 지어내지 않는다 (제1원칙).
+const DB_NAMES = new Set(Object.keys(standardsDb?.subjects || {}).map(normSubject))
+const OUTSIDE = [...prefillIndex.values()]
+  .map((e) => e.data.subject)
+  .filter((s2, i, arr) => arr.indexOf(s2) === i && !DB_NAMES.has(normSubject(s2)))
+ck('DB 밖 교과가 실제로 있다 (이 테스트의 전제)', () => {
+  A(OUTSIDE.length > 0, 'DB 밖 교과가 하나도 없다')
+  A(OUTSIDE.includes('디지털 리터러시'), `디지털 리터러시가 빠짐: ${OUTSIDE}`)
+})
+ck('DB 밖 교과에는 "DB 에 없다" 를 먼저 밝힌다', () => {
+  const dl = docFor('1학년 디지털 리터러시')
+  A(dl.includes('성취기준 DB 에 없다'), 'DB 부재 안내 없음')
+  A(dl.includes('작년 자료와 선생님 입력으로 진행합니다'), '교사에게 할 말이 없음')
+  A(dl.includes('DB 에서 고르는 경로'), 'DB 경로를 닫지 않음')
+  A(dl.includes('공란은 실패가 아니다'), '제1원칙 연결 없음')
+})
+ck('DB 부재 안내는 대화를 막지 않는다 (작년 계승 경로는 그대로)', () => {
+  const dl = docFor('1학년 디지털 리터러시')
+  A(dl.includes('작년 활동 계획'), '작년 활동 계승 절이 사라짐')
+  A(dl.includes('원문 그대로 계승한다'), '작년 성취수준 계승 절이 사라짐')
+  const acts = findPrefill('디지털 리터러시', 1).data.activities
+  A(acts.length === 3, `작년 활동 3건이 아님: ${acts.length}`)
+  for (const a of acts) A(dl.includes(a.name), `활동 누락: ${a.name}`)
+})
+ck('DB 안의 교과에는 그 안내가 붙지 않는다', () => {
+  for (const t of ['1학년 수학', '3학년 수학', '2학년 정보']) {
+    A(!docFor(t).includes('성취기준 DB 에 없다'), `${t} 에 불필요한 안내`)
+  }
+})
+ck('DB 밖 교과에게 "교과 DB 로 초안" 을 시키지 않는다', () => {
+  // 자유학기 성취수준 분기 — DB 가 없으면 교사에게 받아야 한다
+  const nodb = buildPrefillDoc({
+    file: 'x.json',
+    data: { subject: '없는교과', grade: 1, type: 'free_semester', monthly_plan: [], activities: [] },
+  })
+  A(nodb.includes('성취기준 DB 에도 없다'), 'DB 없는데 DB 초안을 지시')
+  A(!nodb.includes('교과 DB 의 수준별 진술로 초안'), 'DB 초안 지시가 남음')
+})
+ck('DB 도 prefill 도 없으면 백지 모드 (크래시 아님)', () => {
+  A(docFor('1학년 학교자율시간탐구') === '', '없는 교과에 무언가 붙음')
+  A(pickPrefill(say('1학년 학교자율시간탐구')) === null, '엉뚱한 팩을 집음')
 })
 
 console.log('\n[백지 모드 보존]')
