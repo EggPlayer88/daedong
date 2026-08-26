@@ -336,6 +336,14 @@ CREATE TABLE doc_submissions (
 - **RLS: 교사는 본인 것만 / admin·superadmin 은 전체** (수합 담당자). insert 는 `is_approved()`
 - ⚠ **DELETE 정책이 없다.** 재제출은 옛 행을 지우지 않고 `status='replaced'` 로 넘긴다 —
   무엇을 언제 냈는지가 곧 수합 기록이다
+- **제출 취소·삭제 (007)** — 행은 영원히 남기고 **파일 실물만** 지운다.
+  `status='deleted'` 로 UPDATE + `storage.remove` 이므로 위 "물리 DELETE 금지" 와 충돌하지 않는다.
+  순서는 **행 먼저, 파일 나중** — 파일 삭제가 실패해도 목록상 취소는 성립하고, 남은 고아 파일은
+  화면의 재시도로 치운다. 반대 순서면 파일은 없는데 '제출됨' 으로 남는 구간이 생긴다
+- 수합 판정은 `status NOT IN ('replaced','deleted')`. 취소하면 그 칸은 **미제출로 복귀**한다.
+  목록에서는 숨기지 않고 회색 취소선으로 남긴다 (이력)
+- ⚠ 클라이언트는 UPDATE 결과를 `.select()` 로 **되돌아온 행 수까지 확인**한다 —
+  RLS 가 막으면 postgrest 는 에러 없이 0행을 주므로, 그걸 성공으로 보면 화면만 지워진다
 - 제출 현황 매트릭스의 교과 목록은 `_assets/prefill-catalog.json` (prefill 색인에서 파생)
 
 ## 19. academic_terms · calendar_events — 학사일정 + 공유 캘린더 (006, 실행 완료)

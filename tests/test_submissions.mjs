@@ -24,9 +24,9 @@ const work = mkdtempSync(join(tmpdir(), 'subm-'))
 const entry = join(ROOT, 'tests', '.subm-entry.jsx')
 writeFileSync(entry, `
 import { renderToStaticMarkup } from 'react-dom/server'
-import SubmissionsPage from '../apps/main/src/pages/SubmissionsPage.jsx'
+import SubmissionsPage, { SubmissionRow } from '../apps/main/src/pages/SubmissionsPage.jsx'
 import * as lib from '../apps/main/src/lib/submissions.js'
-export { renderToStaticMarkup, SubmissionsPage, lib }
+export { renderToStaticMarkup, SubmissionsPage, SubmissionRow, lib }
 `)
 const bundle = join(work, 'b.cjs')
 try {
@@ -38,7 +38,7 @@ try {
 } finally {
   rmSync(entry, { force: true })
 }
-const { lib } = await import(bundle)
+const { lib, renderToStaticMarkup, SubmissionRow } = await import(bundle)
 const catalog = JSON.parse(readFileSync(join(ASSETS, 'prefill-catalog.json'), 'utf-8'))
 
 console.log('\n[교과 목록 — prefill 색인에서 파생]')
@@ -186,6 +186,8 @@ ck('버킷은 비공개', () => {
   A(sql.includes('REVOKE ALL ON public.doc_submissions FROM anon'), 'anon REVOKE 없음')
 })
 ck('삭제 정책이 없다 (제출 기록은 지우지 않는다)', () => {
+  // doc_submissions 에 DELETE 정책이 없다는 뜻이다 (005). 007 의 제출 취소는
+  // 행을 UPDATE 로 'deleted' 로 넘기고 Storage 실물만 지우므로 여기와 충돌하지 않는다
   A(!/FOR DELETE/.test(sql), '삭제 경로가 열려 있음')
 })
 
@@ -193,6 +195,8 @@ console.log('\n[재제출 — 옛 행을 지우지 않는다]')
 const src = readFileSync(join(ROOT, 'apps/main/src/lib/submissions.js'), 'utf-8')
 ck("status='replaced' 로 넘긴다", () => {
   A(/update\(\{ status: 'replaced' \}\)/.test(src), 'replaced 처리 없음')
+  // 자물쇠: 행을 지우는 경로가 있으면 실패한다.
+  // 007 의 제출 취소도 이 자물쇠를 건드리지 않는다 — UPDATE(status='deleted') + storage.remove 다
   A(!/\.delete\(\)/.test(src), '행 삭제 경로가 있음')
 })
 ck('새 행을 만든 뒤에 옛 행을 넘긴다', () => {
@@ -269,6 +273,125 @@ ck('서명 URL 자체는 키만 담는다 (한글 없음)', () => {
   A(ASCII_SAFE.test(signed.url.split('?')[0].replace('http://', '')), signed.url)
 })
 
+console.log('\n[제출 취소 — 행은 남기고 파일 실물만 지운다 (007)]')
+// 판정 기준: status NOT IN ('replaced','deleted'). 취소하면 그 칸은 미제출로 돌아간다
+ck('취소된 제출은 수합 대상에서 빠진다', () => {
+  A(lib.isLive({ status: 'submitted' }) === true, 'submitted 가 빠졌다')
+  A(lib.isLive({ status: 'replaced' }) === false, 'replaced 가 남았다')
+  A(lib.isLive({ status: 'deleted' }) === false, 'deleted 가 남았다')
+  A(lib.GONE_STATUSES.includes('deleted') && lib.GONE_STATUSES.includes('replaced'),
+    JSON.stringify(lib.GONE_STATUSES))
+})
+ck('취소하면 매트릭스가 미제출로 돌아간다', () => {
+  const before = lib.buildMatrix([{ subject: '수학', grade: 2, status: 'submitted' }], catalog)
+  A(before.done === 1, `done=${before.done}`)
+  const after = lib.buildMatrix([{ subject: '수학', grade: 2, status: 'deleted' }], catalog)
+  A(after.done === 0, `취소했는데 제출로 세고 있다 (done=${after.done})`)
+  const cell = after.cells.find((c) => c.subject === '수학').byGrade.find((g) => g.grade === 2)
+  A(cell.expected === true && cell.row === null, JSON.stringify(cell))
+})
+ck('취소한 뒤 다시 내면 제출로 돌아온다', () => {
+  const rows = [
+    { subject: '수학', grade: 2, status: 'deleted', file_name: 'old.hwpx' },
+    { subject: '수학', grade: 2, status: 'submitted', file_name: 'new.hwpx' },
+  ]
+  const mx = lib.buildMatrix(rows, catalog)
+  A(mx.done === 1, `done=${mx.done}`)
+  const cell = mx.cells.find((c) => c.subject === '수학').byGrade.find((g) => g.grade === 2)
+  A(cell.row?.file_name === 'new.hwpx', JSON.stringify(cell.row))
+})
+ck('취소 행도 목록에는 남는다 (숨기지 않는다)', () => {
+  // buildMatrix 는 판정에서만 뺀다 — 화면 목록은 rows 를 그대로 그린다 (아래 [화면] 참조)
+  A(!/status.*!==.*'deleted'/.test(src), '목록에서 deleted 를 걸러내는 코드가 있다')
+})
+
+console.log('\n[취소 E2E — 실제 요청 순서·본문을 본다]')
+// 요구된 순서: 행을 deleted 로 먼저, 파일은 그 다음.
+// 파일 삭제가 실패해도 목록상 취소는 성립하고 고아 파일은 재시도로 치운다.
+async function withFetch(handler, fn) {
+  const orig = globalThis.fetch
+  const seen = []
+  globalThis.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : input.url
+    const method = String(init.method || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase()
+    let body = init.body
+    if (body && typeof body !== 'string' && typeof body.text === 'function' && !(body instanceof FormData)) {
+      body = await body.text()
+    }
+    seen.push({ url, method, body })
+    return (await handler({ url, method, body })) || new Response(null, { status: 204 })
+  }
+  try {
+    return { out: await fn(), seen }
+  } finally {
+    globalThis.fetch = orig
+  }
+}
+const ROW = { id: 'r1', file_path: 'uid-9/abc.hwpx', file_name: HANGUL, status: 'submitted' }
+const isPatch = (c) => c.method === 'PATCH' && c.url.includes('doc_submissions')
+const isRemove = (c) => c.method === 'DELETE' && /\/storage\/v1\/object\/submissions$/.test(c.url)
+
+const okCancel = await withFetch(({ url, method }) => {
+  if (method === 'PATCH') return json([{ id: 'r1' }])
+  if (method === 'DELETE' && url.includes('/storage/')) return json([{ name: 'abc.hwpx' }])
+  return null
+}, () => lib.cancelSubmission(ROW))
+
+ck('취소: 행을 deleted 로 넘기고 파일을 지운다', () => {
+  A(!okCancel.out.error, `실패: ${okCancel.out.error?.message}`)
+  A(!okCancel.out.orphan, '고아로 판정됐다')
+  const patch = okCancel.seen.find(isPatch)
+  A(patch, '행 갱신 요청이 없다')
+  A(JSON.parse(patch.body).status === 'deleted', patch.body)
+  A(patch.url.includes('id=eq.r1'), patch.url)
+  const rm = okCancel.seen.find(isRemove)
+  A(rm && JSON.parse(rm.body).prefixes[0] === ROW.file_path, `파일 삭제 요청이 없다: ${rm?.body}`)
+})
+ck('행을 물리 삭제하지 않는다 (005 자물쇠와 충돌하지 않는 이유)', () => {
+  // 이번 삭제는 UPDATE(status='deleted') + storage.remove 다.
+  // doc_submissions 에 대한 DELETE 요청이 나가면 그건 이력을 지우는 것이므로 실패로 본다
+  const rowDelete = okCancel.seen.find((c) => c.method === 'DELETE' && c.url.includes('doc_submissions'))
+  A(!rowDelete, `행 DELETE 요청이 나갔다: ${rowDelete?.url}`)
+})
+ck('행이 먼저, 파일이 나중 (반대면 파일 없는 제출됨 구간이 생긴다)', () => {
+  const i = okCancel.seen.findIndex(isPatch)
+  const j = okCancel.seen.findIndex(isRemove)
+  A(i >= 0 && j >= 0 && i < j, `순서가 반대: patch=${i} remove=${j}`)
+})
+
+const orphaned = await withFetch(({ url, method }) => {
+  if (method === 'PATCH') return json([{ id: 'r1' }])
+  if (method === 'DELETE' && url.includes('/storage/')) return json([])          // 정책에 막혀 0건
+  if (url.includes('/object/list/')) return json([{ name: 'abc.hwpx' }])         // 실물이 남아 있다
+  return null
+}, () => lib.cancelSubmission(ROW))
+ck('파일 삭제가 막혀도 취소는 성립하고, 고아로 알린다', () => {
+  A(!orphaned.out.error, `취소가 실패로 잡혔다: ${orphaned.out.error?.message}`)
+  A(orphaned.out.orphan === true, '고아 파일을 놓쳤다 (0건을 성공으로 봤다)')
+  A(orphaned.out.fileError?.message, '재시도 안내에 쓸 사유가 없다')
+})
+// ⚠ ck 는 동기다 — 요청은 ck 밖에서 await 해 둔다 (안 그러면 다음 테스트의 스텁에 섞인다)
+const gone = await withFetch(({ url, method }) => {
+  if (method === 'DELETE' && url.includes('/storage/')) return json([])
+  if (url.includes('/object/list/')) return json([])   // 실물이 없다
+  return null
+}, () => lib.removeFile(ROW.file_path))
+ck('이미 없는 파일은 고아가 아니다 (재시도가 성공으로 끝난다)', () => {
+  A(gone.out.orphan === false, '이미 지워진 파일을 고아로 봤다')
+})
+
+const denied = await withFetch(({ method }) => {
+  if (method === 'PATCH') return json([])   // RLS: 남의 행은 0행이 돌아온다 (에러가 아니다)
+  return null
+}, () => lib.cancelSubmission({ ...ROW, id: 'someone-else' }))
+ck('타인 제출 취소는 거부된다 (RLS 0행을 성공으로 보지 않는다)', () => {
+  A(denied.out.error, '조용히 성공했다 — 화면만 지워지고 DB 는 그대로가 된다')
+  A(denied.out.error.message.includes('권한'), denied.out.error.message)
+})
+ck('권한이 없으면 파일도 건드리지 않는다', () => {
+  A(!denied.seen.find(isRemove), '행을 못 지웠는데 파일부터 지우려 들었다')
+})
+
 console.log('\n[화면]')
 const page = readFileSync(join(ROOT, 'apps/main/src/pages/SubmissionsPage.jsx'), 'utf-8')
 ck('담당자 화면은 권한으로 가린다', () => {
@@ -282,6 +405,41 @@ ck('교과·학년은 고칠 수 있다 (제안일 뿐)', () => {
 ck('다운로드에 원본 파일명을 넘긴다', () => {
   A(/downloadUrl\(row\.file_path, row\.file_name\)/.test(page),
     '파일명 없이 서명 URL 을 만들면 uuid.hwpx 로 내려간다')
+})
+ck('취소·삭제 동작이 한 벌이다 (교사·담당자가 같은 행을 쓴다)', () => {
+  A(page.includes('function SubmissionRow('), '공통 행 컴포넌트가 없다')
+  A((page.match(/<SubmissionRow/g) || []).length === 2, '두 표가 같은 행을 쓰지 않는다')
+  A(page.includes('파일이 삭제되며 미제출 상태가 됩니다'), '확인 문구가 없다')
+})
+ck('취소된 행은 회색 취소선으로 남는다 (렌더 확인)', () => {
+  const html = renderToStaticMarkup(
+    SubmissionRow({ row: { id: 'a', subject: '수학', grade: 2, file_name: '계획.hwpx', status: 'deleted' },
+                    busy: false, orphan: false, onOpen() {}, onCancel() {}, onRetryRemove() {} })
+  )
+  A(html.includes('row-deleted'), html)
+  A(html.includes('취소됨'), html)
+  A(html.includes('계획.hwpx'), '파일명이 이력으로 남지 않았다')
+  A(!/<button[^>]*btn-plain/.test(html), '실물이 없는데 내려받기 버튼이 있다')
+  const css = readFileSync(join(ROOT, 'apps/main/src/styles.css'), 'utf-8')
+  A(/\.row-deleted[\s\S]*line-through/.test(css), '취소선 스타일이 없다')
+})
+ck('제출된 행에만 취소 버튼 (담당자 표는 "삭제")', () => {
+  const mk = (status, cancelLabel) => renderToStaticMarkup(
+    SubmissionRow({ row: { id: 'a', subject: '수학', grade: 2, file_name: 'a.hwpx', status },
+                    busy: false, orphan: false, cancelLabel, onOpen() {}, onCancel() {}, onRetryRemove() {} })
+  )
+  A(mk('submitted').includes('제출 취소'), '교사 취소 버튼이 없다')
+  A(mk('submitted', '삭제').includes('삭제'), '담당자 삭제 버튼이 없다')
+  A(!mk('replaced').includes('제출 취소'), '이전 제출에 취소 버튼이 있다')
+  A(!mk('deleted').includes('제출 취소'), '이미 취소된 행에 취소 버튼이 있다')
+})
+ck('고아 파일이 있는 행에만 재시도 버튼', () => {
+  const mk = (orphan) => renderToStaticMarkup(
+    SubmissionRow({ row: { id: 'a', subject: '수학', grade: 2, file_name: 'a.hwpx', status: 'deleted' },
+                    busy: false, orphan, onOpen() {}, onCancel() {}, onRetryRemove() {} })
+  )
+  A(mk(true).includes('파일 삭제 재시도'), '재시도 버튼이 없다')
+  A(!mk(false).includes('파일 삭제 재시도'), '지워진 파일에 재시도 버튼이 뜬다')
 })
 ck('메뉴에 등록돼 있다', () => {
   // 메뉴·라우트는 lib/modules.js 한 표에서 나온다 (공개 범위 게이팅)
