@@ -100,7 +100,7 @@ export default function SubmissionsPage() {
   }
 
   async function open(row) {
-    const { url, error: err } = await downloadUrl(row.file_path)
+    const { url, error: err } = await downloadUrl(row.file_path, row.file_name)
     if (err || !url) {
       setError(err?.message || '파일 주소를 만들지 못했습니다.')
       return

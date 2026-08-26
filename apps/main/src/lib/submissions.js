@@ -25,15 +25,32 @@ export function guessFromFilename(name, subjects = []) {
   return { subject, grade: grade ? Number(grade) : null }
 }
 
-/** storage 경로 규약: {user_id}/{uuid}_{원본파일명} */
-export function storagePath(userId, fileName) {
+/**
+ * storage 경로 규약: {user_id}/{uuid}.hwpx
+ *
+ * ⚠ 키에 원본 파일명을 넣지 않는다. Supabase Storage 키는 ASCII 안전 문자만 받아
+ * 한글 파일명이 들어가면 "Invalid key" 로 업로드 자체가 막힌다 — 평가계획서 파일명은
+ * 전부 한글이므로 그게 곧 제출 기능 전체의 차단이었다.
+ * 원본 이름은 doc_submissions.file_name 에 남고, 표시·다운로드는 그 값으로 한다.
+ */
+export function storagePath(userId) {
   const uuid =
     typeof crypto !== 'undefined' && crypto.randomUUID
       ? crypto.randomUUID()
       : `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`
-  // 경로 조작·인코딩 사고를 막는다 (슬래시가 들어오면 폴더가 갈린다)
-  const safe = String(fileName || 'plan.hwpx').replace(/[\\/\x00-\x1f]/g, '_')
-  return `${userId}/${uuid}_${safe}`
+  return `${userId}/${uuid}${ACCEPT}`
+}
+
+/**
+ * 다운로드 시 붙일 파일명 — 원본 한글 이름 그대로 내려받게 한다.
+ * 헤더(Content-Disposition)를 깨뜨리는 문자만 걷어낸다. 이름을 못 쓰겠으면 null 을
+ * 돌려주고 기본 이름으로 내려받게 둔다 (지어내지 않는다).
+ */
+export function downloadName(fileName) {
+  const safe = String(fileName || '')
+    .replace(/[\\/\x00-\x1f\x7f"]/g, '')
+    .trim()
+  return safe || null
 }
 
 export function validateFile(file) {
@@ -77,7 +94,7 @@ export async function submit({ userId, file, subject, grade, note, year = 2026, 
   if (!subject?.trim()) return { error: new Error('교과를 입력해 주세요.') }
   if (![1, 2, 3].includes(Number(grade))) return { error: new Error('학년을 1~3 중에서 골라 주세요.') }
 
-  const path = storagePath(userId, file.name)
+  const path = storagePath(userId)
   const up = await supabase.storage
     .from(BUCKET)
     .upload(path, file, { contentType: 'application/haansofthwpx', upsert: false })
@@ -114,10 +131,20 @@ export async function submit({ userId, file, subject, grade, note, year = 2026, 
   return { error: repErr || null }
 }
 
-/** 다운로드용 임시 URL (비공개 버킷) */
-export async function downloadUrl(path, seconds = 60) {
+/**
+ * 다운로드용 임시 URL (비공개 버킷).
+ * 키에는 파일명이 없으므로 download 옵션으로 원본 이름을 붙인다 — 그러지 않으면
+ * 교사가 받는 파일이 uuid.hwpx 가 된다.
+ */
+export async function downloadUrl(path, fileName, seconds = 60) {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, seconds)
-  return { url: data?.signedUrl || null, error }
+  let url = data?.signedUrl || null
+  const name = downloadName(fileName)
+  // ⚠ createSignedUrl 의 download 옵션을 쓰지 않는다 — storage-js 가 URLSearchParams 로
+  // 인코딩한 뒤 URL 전체에 encodeURI 를 한 번 더 걸어 '%' 가 '%25' 가 된다.
+  // 그러면 한글 이름이 '%EC%88%98...hwpx' 라는 글자 그대로 내려온다. 한 번만 인코딩해 붙인다.
+  if (url && name) url += `${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(name)}`
+  return { url, error }
 }
 
 /**
