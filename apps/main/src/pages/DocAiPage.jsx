@@ -4,6 +4,8 @@ import { splitPlan } from '../lib/planMarker.js'
 import PlanCard from '../components/PlanCard.jsx'
 import ConversationList from '../components/ConversationList.jsx'
 import { REF_PREFIX, buildTitle, deriveMeta } from '../lib/docAiMeta.js'
+// 서버가 JSON 이 아닌 오류 페이지를 돌려줄 때를 한 자리에서 처리한다 (lib/api.js 주석 참조)
+import { postJson } from '../lib/api.js'
 import {
   deleteConversation,
   listConversations,
@@ -130,15 +132,8 @@ export default function DocAiPage() {
     setError(null)
 
     try {
-      const r = await fetch('/api/doc-ai/chat', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ messages: history }),
-      })
-      const data = await r.json()
+      const r = await postJson('/api/doc-ai/chat', { messages: history }, token)
+      const { data } = r
       const pending = pendingMessage(r.status, data)
       if (pending) {
         setError(pending)
@@ -270,12 +265,8 @@ export default function DocAiPage() {
     setLevels(null)
     setScoring(true)
     try {
-      const r = await fetch('/api/doc-ai/generate', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ fields, check_only: true }),
-      })
-      const data = await r.json()
+      const r = await postJson('/api/doc-ai/generate', { fields, check_only: true }, token)
+      const { data } = r
       if (r.status === 400 && data.error === 'REGULATION_VIOLATION') {
         setFindings(data.findings || [])
         return
@@ -299,15 +290,8 @@ export default function DocAiPage() {
     setNotice(null)
     setNotices([])
     try {
-      const r = await fetch('/api/doc-ai/generate', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ fields: plan }),
-      })
-      const data = await r.json()
+      const r = await postJson('/api/doc-ai/generate', { fields: plan }, token)
+      const { data } = r
 
       if (r.status === 409 && data.error === 'TEMPLATE_MISSING') {
         // 어느 유형의 양식이 준비 중인지까지 알린다 (템플릿 패밀리)
@@ -372,15 +356,12 @@ export default function DocAiPage() {
         bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000))
       }
 
-      const r = await fetch('/api/doc-ai/extract', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ filename: file.name, base64: btoa(bin) }),
-      })
-      const data = await r.json()
+      const r = await postJson(
+        '/api/doc-ai/extract',
+        { filename: file.name, base64: btoa(bin) },
+        token
+      )
+      const { data } = r
       const pending = pendingMessage(r.status, data)
       if (pending) {
         setError(pending)
