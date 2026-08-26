@@ -69,6 +69,20 @@ check('한글 값 보존', () => {
   assert(r.json.perf_areas[0].name === '실험', '한글 깨짐')
 })
 
+// 2026-08-26: 서버(chat.js)도 계승 참조를 펼치려고 이 블록을 읽고 다시 쓴다.
+// 파서가 둘이 되면 반드시 갈라진다 — **같은 파일**을 쓰는지 여기서 못 박는다.
+check('서버와 화면이 같은 마커 파서를 쓴다', async () => {
+  const { readFileSync } = await import('node:fs')
+  const chat = readFileSync(`${ROOT}/apps/main/api/doc-ai/chat.js`, 'utf-8')
+  assert(/import \{[^}]*splitPlan[^}]*\} from '\.\.\/\.\.\/src\/lib\/planMarker\.js'/.test(chat),
+    'chat.js 가 planMarker.js 를 쓰지 않는다 (파서를 따로 만들었나?)')
+  assert(!/===PLAN_READY===['"`]/.test(chat.replace(/MARK_START|MARK_END/g, '')),
+    'chat.js 에 마커 문자열이 직접 박혀 있다 — 상수를 쓴다')
+  // 배포 번들에도 실려야 한다 (includeFiles 에서 빠지면 런타임에만 터진다)
+  const vc = readFileSync(`${ROOT}/apps/main/vercel.json`, 'utf-8')
+  assert(vc.includes('src/lib/planMarker.js'), 'vercel.json includeFiles 에 없다')
+})
+
 console.log()
 if (fail) { console.log(`${fail}건 실패`); process.exit(1) }
 console.log('전부 통과')
