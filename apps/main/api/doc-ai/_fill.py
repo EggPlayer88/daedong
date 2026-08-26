@@ -142,6 +142,9 @@ def route_spec(manifest: dict, token_map: dict, key: str) -> dict:
             "perf_areas_max": perf_areas,
             "perf_plans_max": perf_plans,
             "free_blocks_max": free_blocks,
+            # 수준당 칸 수도 한도다 — 넘치면 조용히 사라지므로 apply_capacity 가 알린다
+            "level_cells_max": max((c for lv in LEVEL_KEYS for c in range(1, 9)
+                                    if f"LV_{lv}_{c}" in toks), default=0),
         },
     }
 
@@ -582,6 +585,7 @@ def apply_capacity(plan: dict, manifest: dict, limits: dict | None = None) -> li
     for key, cap, label in (
         ("perf_areas", limits.get("perf_areas_max"), "수행평가 영역"),
         ("perf_plans", limits.get("perf_plans_max"), "수행평가 출제 계획"),
+        ("free_activities", limits.get("free_blocks_max"), "자유학기 활동"),
     ):
         items = plan.get(key)
         if cap is None or not isinstance(items, list) or len(items) <= cap:
@@ -597,6 +601,27 @@ def apply_capacity(plan: dict, manifest: dict, limits: dict | None = None) -> li
             f"빠진 항목: {names}. 현재 양식이 {cap}개까지만 담을 수 있어서이며, "
             f"빠진 내용은 한글에서 직접 편집해 추가해야 합니다."
         )
+
+    # ── 학기 성취수준 — 수준당 칸이 넘치면 **조용히 사라진다** ─────────────────
+    #    양식에 LV_A_1..4 만 있으므로 5번째 칸부터는 넣을 자리가 없다. 작년 자료를
+    #    그대로 계승하면 8칸짜리 교과(실측: 사회 1학년)가 절반을 잃는다.
+    #    자르는 것 자체는 어쩔 수 없다 — **말없이 자르지 않는 것**이 규칙이다 (제0원칙).
+    lv_cap = int(first_num(limits.get("level_cells_max"), 0))
+    levels = plan.get("achievement_levels")
+    if lv_cap and isinstance(levels, dict):
+        over = {}
+        for lv, cells in levels.items():
+            if isinstance(cells, list) and len(cells) > lv_cap:
+                over[lv] = len(cells)
+                levels[lv] = cells[:lv_cap]
+        if over:
+            worst = max(over.values())
+            notices.append(
+                f"학기 성취수준 {'·'.join(sorted(over))} — 최대 {worst}칸이 들어왔는데 "
+                f"현재 양식은 수준당 {lv_cap}칸까지만 담을 수 있습니다. "
+                f"{lv_cap + 1}번째 칸부터는 문서에 들어가지 않았습니다 — "
+                f"한글에서 직접 편집해 추가하거나, 대화에서 {lv_cap}칸으로 줄여 주세요."
+            )
 
     exam = plan.get("exam")
     if isinstance(exam, dict):
