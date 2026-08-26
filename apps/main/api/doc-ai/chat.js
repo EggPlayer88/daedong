@@ -45,6 +45,19 @@ try {
 // ---------------------------------------------------------------------------
 const PREFILL_DIR = join(ASSETS, 'prefill')
 
+/**
+ * 교과명 표기 정규화 — 공백·가운뎃점·밑줄만 지운다.
+ *
+ * 같은 교과가 자리마다 다르게 적혀 있다 (실측):
+ *   prefill '디지털 리터러시' · 파일명 '디지털리터러시' · 교사 입력 '디지털리터러시'
+ *   prefill '진로와 직업'     · standards-db '진로와_직업'
+ *   '기술·가정' · '기술가정'
+ * 표기가 갈리면 작년 자료가 있는데도 백지에서 시작하게 된다 (2026-08-26 실측).
+ * **색인·대화 매칭·DB 조회가 모두 이 함수 하나를 쓴다.**
+ * 되돌리려면: 이 함수를 지우고 pickPrefill/dbSubject 를 원래의 정확일치로 되돌린다.
+ */
+const normSubject = (x) => String(x ?? '').replace(/[\s_·・･ㆍ]/g, '')
+
 /** subject|grade → 파일 경로. 파일명이 아니라 **파일 안의 subject/grade** 를 믿는다. */
 function buildPrefillIndex(dir = PREFILL_DIR) {
   const index = new Map()
@@ -113,32 +126,61 @@ try {
 function dbSubject(subject, db = standardsDb) {
   const subjects = db?.subjects
   if (!subjects || !subject) return null
-  const norm = (x) => String(x).replace(/[\s_·]/g, '')
-  const want = norm(subject)
-  const key = Object.keys(subjects).find((k) => norm(k) === want)
+  const want = normSubject(subject)
+  const key = Object.keys(subjects).find((k) => normSubject(k) === want)
   return key ? { key, ...subjects[key] } : null
+}
+
+/** 교과·학년으로 prefill 을 찾는다. 정확일치가 없으면 **표기 정규화 후** 한 번 더 본다. */
+function findPrefill(subject, grade, index = prefillIndex) {
+  if (!subject || !Number.isInteger(grade)) return null
+  const exact = index.get(`${subject}|${grade}`)
+  if (exact) return exact
+  const want = normSubject(subject)
+  if (!want) return null
+  for (const [key, entry] of index) {
+    const at = key.lastIndexOf('|')
+    if (Number(key.slice(at + 1)) === grade && normSubject(key.slice(0, at)) === want) {
+      return entry
+    }
+  }
+  return null
 }
 
 /** 대화에서 교과·학년을 찾아 해당 prefill 을 고른다. 없으면 null (백지 모드) */
 function pickPrefill(messages, index = prefillIndex) {
   if (index.size === 0) return null
-  const subjects = [...new Set([...index.keys()].map((k) => k.split('|')[0]))]
-    .sort((a, b) => b.length - a.length) // 긴 이름 먼저 ('기술가정' 이 '기술' 에 먹히지 않게)
+  // 긴 이름 먼저 봐서 '기술가정' 이 '기술' 에 먹히지 않게 한다.
+  const subjects = [...new Set([...index.keys()].map((k) => k.slice(0, k.lastIndexOf('|'))))]
+    .map((raw) => ({ raw, flat: normSubject(raw) }))
+    .filter((x) => x.flat)
+    .sort((a, b) => b.raw.length - a.raw.length)
+  // ⚠ 표기를 지운 대조는 **구분자가 실제로 든 교과명에만** 쓴다.
+  //   문장 전체에서 공백을 지우면 없던 일치가 생긴다 ('한 문장' → '한문장' ⊃ '한문').
+  //   '디지털 리터러시' · '진로와 직업' · '기술·가정' 처럼 구분자가 든 이름만 이 대조가 필요하다.
+  const loose = subjects.filter((x) => x.flat !== x.raw)
   let subject = ''
+  let fallback = ''
   let grade = null
   for (const m of messages || []) {
     const text = typeof m?.content === 'string' ? m.content : ''
     // 참고자료 전문(작년 문서)은 교과명 추측에서 제외 — 다른 교과명이 섞여 있다
     if (!text || m.role !== 'user' || text.startsWith('[참고자료: ')) continue
-    if (!subject) subject = subjects.find((x) => text.includes(x)) || ''
+    if (!subject) subject = subjects.find((x) => text.includes(x.raw))?.raw || ''
+    if (!subject && !fallback && loose.length) {
+      // 정확일치가 없을 때만 표기를 지우고 다시 본다 (교사가 '디지털리터러시' 라고 친 경우)
+      const flat = normSubject(text)
+      fallback = loose.find((x) => flat.includes(x.flat))?.raw || ''
+    }
     if (grade === null) {
       const g = /([1-3])\s*학년/.exec(text)
       if (g) grade = Number(g[1])
     }
     if (subject && grade !== null) break
   }
+  subject = subject || fallback
   if (!subject || grade === null) return null
-  return index.get(`${subject}|${grade}`) || null
+  return findPrefill(subject, grade, index)
 }
 
 // 모델은 env 로 교체 가능 (기본: 현재 Sonnet 세대)
@@ -1296,6 +1338,8 @@ export {
   buildPrefillIndex,
   pickPrefill,
   prefillIndex,
+  findPrefill,
+  normSubject,
   standardsDb,
   dbSubject,
   buildSkeleton,
