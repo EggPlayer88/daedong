@@ -348,6 +348,15 @@ def validate_v2(manifest: dict, plan: dict, spec: dict | None = None) -> None:
     if not str(plan.get("subject") or "").strip():
         raise BadRequest("필수 항목 '교과(과목명)' 이 비어 있습니다.")
 
+    # 작년 계승 참조(carry)는 chat.js 가 응답을 내보내기 전에 원문으로 펼친다.
+    # 여기까지 남아 왔다면 그 펼침이 일어나지 않은 것이다 — **무시하면 그 칸이 조용히
+    # 빈 채로 결재까지 간다.** 무시하지 않고 막고, 무엇을 해야 하는지 알린다.
+    if plan.get("carry"):
+        raise BadRequest(
+            "작년 계승 참조가 펼쳐지지 않은 계획입니다. "
+            "대화에서 한 번 더 확정해 주세요 (그래도 같으면 관리자에게 알려 주세요)."
+        )
+
     # 자유학기형은 점수화하지 않는다 — 배점 검증 자체가 성립하지 않는다
     if spec is not None and not spec.get("scoring", True):
         return
