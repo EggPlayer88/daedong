@@ -318,7 +318,7 @@ CREATE TABLE doc_ai_conversations (
 - 다른 AI(업무 비서)의 대화는 이 표에 넣지 않는다. `doc_type` 은 평가계획서 외
   문서 종류가 늘어날 때를 위한 자리다
 
-## 18. doc_submissions — 평가계획서 제출·수합 (005, 실행 완료)
+## 18. doc_submissions — 평가계획서 제출·수합 (005 + 007, 실행 완료)
 
 ```sql
 CREATE TABLE doc_submissions (
@@ -336,7 +336,8 @@ CREATE TABLE doc_submissions (
 - **RLS: 교사는 본인 것만 / admin·superadmin 은 전체** (수합 담당자). insert 는 `is_approved()`
 - ⚠ **DELETE 정책이 없다.** 재제출은 옛 행을 지우지 않고 `status='replaced'` 로 넘긴다 —
   무엇을 언제 냈는지가 곧 수합 기록이다
-- **제출 취소·삭제 (007)** — 행은 영원히 남기고 **파일 실물만** 지운다.
+- **제출 취소·삭제 (007, 2026-08-26 실행)** — 행은 영원히 남기고 **파일 실물만** 지운다.
+  정책: `subm_update_admin`(담당자가 남의 행 갱신) + storage DELETE 2개(본인 폴더·담당자).
   `status='deleted'` 로 UPDATE + `storage.remove` 이므로 위 "물리 DELETE 금지" 와 충돌하지 않는다.
   순서는 **행 먼저, 파일 나중** — 파일 삭제가 실패해도 목록상 취소는 성립하고, 남은 고아 파일은
   화면의 재시도로 치운다. 반대 순서면 파일은 없는데 '제출됨' 으로 남는 구간이 생긴다
