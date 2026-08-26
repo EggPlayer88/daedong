@@ -323,11 +323,16 @@ CREATE TABLE doc_ai_conversations (
 ```sql
 CREATE TABLE doc_submissions (
   id, user_id → users(id), year, semester, subject, grade CHECK (1,2,3),
-  file_name, file_path,           -- storage: {user_id}/{uuid}_{원본파일명}
+  file_name, file_path,           -- storage: {user_id}/{uuid}.hwpx (키에 파일명 없음)
   note, status CHECK ('submitted','replaced'), submitted_at
 );
 ```
 - Storage 비공개 버킷 `submissions`. hwpx 만, 30MB 상한 (화면에서 검사)
+- ⚠ **키에 원본 파일명을 넣지 않는다** (2026-08-26 수정). Storage 키는 ASCII 안전 문자만
+  받아 한글 파일명이 키에 들어가면 `Invalid key` 로 업로드가 막혔다 — 평가계획서 파일명은
+  전부 한글이라 제출 기능 전체가 차단됐다. 원본 이름은 `file_name` 에 남고, 다운로드는
+  서명 URL 의 `download` 파라미터(Content-Disposition)로 원본 이름을 붙인다.
+  005 SQL 의 `file_path` 주석은 실행 기록이라 고치지 않았다 (규약은 이 문서가 최신)
 - **RLS: 교사는 본인 것만 / admin·superadmin 은 전체** (수합 담당자). insert 는 `is_approved()`
 - ⚠ **DELETE 정책이 없다.** 재제출은 옛 행을 지우지 않고 `status='replaced'` 로 넘긴다 —
   무엇을 언제 냈는지가 곧 수합 기록이다

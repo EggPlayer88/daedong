@@ -66,19 +66,46 @@ ck('30MB 상한', () => {
 })
 ck('파일 없이 제출 불가', () => A(lib.validateFile(null).includes('선택'), '빈 제출이 통과'))
 
-console.log('\n[storage 경로 규약: {user_id}/{uuid}_{원본파일명}]')
-ck('사용자 폴더 아래 uuid 접두', () => {
-  const p = lib.storagePath('u-1', '2026학년도_2학기_수학_2학년_평가계획서(초안).hwpx')
+console.log('\n[storage 경로 규약: {user_id}/{uuid}.hwpx — 키에 파일명을 넣지 않는다]')
+// Supabase Storage 키는 ASCII 안전 문자만 받는다. 한글 파일명이 키에 들어가면
+// "Invalid key" 로 업로드가 통째로 막힌다 (평가계획서 파일명은 전부 한글이다).
+const ASCII_SAFE = /^[A-Za-z0-9!\-_.*'()/]+$/
+ck('사용자 폴더 아래 uuid.hwpx', () => {
+  const p = lib.storagePath('u-1')
   A(p.startsWith('u-1/'), p)
-  A(p.endsWith('_2026학년도_2학기_수학_2학년_평가계획서(초안).hwpx'), p)
-  A(p.split('/')[1].split('_')[0].length >= 8, 'uuid 가 너무 짧다')
+  A(p.endsWith('.hwpx'), p)
+  A(p.split('/').length === 2, `폴더가 갈렸다: ${p}`)
+  A(p.split('/')[1].replace(/\.hwpx$/, '').length >= 8, 'uuid 가 너무 짧다')
+})
+ck('키에 원본 파일명이 남지 않는다 (한글·괄호·공백)', () => {
+  const p = lib.storagePath('u-1')
+  A(ASCII_SAFE.test(p), `ASCII 안전 문자가 아니다: ${p}`)
+  A(!/[가-힣()\s]/.test(p), `파일명 흔적이 남았다: ${p}`)
+})
+ck('storagePath 는 파일명을 받지 않는다 (넘겨도 키에 안 섞인다)', () => {
+  const p = lib.storagePath('u-1', '2026학년도_수학_2학년_평가계획서(초안).hwpx')
+  A(ASCII_SAFE.test(p), `파일명이 키로 새어 들어갔다: ${p}`)
 })
 ck('같은 파일을 두 번 올려도 경로가 다르다', () => {
-  A(lib.storagePath('u-1', 'a.hwpx') !== lib.storagePath('u-1', 'a.hwpx'), '경로가 겹친다')
+  A(lib.storagePath('u-1') !== lib.storagePath('u-1'), '경로가 겹친다')
 })
-ck('경로 조작 문자를 걷어낸다', () => {
-  const p = lib.storagePath('u-1', '../../etc/passwd.hwpx')
-  A(p.split('/').length === 2, `폴더가 갈렸다: ${p}`)
+ck('Storage 정책((foldername)[1]=uid) 이 새 키에서도 성립', () => {
+  // storage.foldername(name)[1] = 첫 슬래시 앞 조각
+  const p = lib.storagePath('a1b2-uid')
+  A(p.split('/')[0] === 'a1b2-uid', p)
+})
+
+console.log('\n[다운로드 파일명 — 원본 한글 이름 그대로]')
+ck('원본 이름을 그대로 쓴다', () => {
+  const n = '2026학년도 2학기_수학(2학년) 평가계획서.hwpx'
+  A(lib.downloadName(n) === n, lib.downloadName(n))
+})
+ck('헤더를 깨뜨리는 문자만 걷어낸다', () => {
+  A(lib.downloadName('a"b\nc/d.hwpx') === 'abcd.hwpx', lib.downloadName('a"b\nc/d.hwpx'))
+})
+ck('쓸 이름이 없으면 null (지어내지 않는다)', () => {
+  A(lib.downloadName('') === null, '빈 이름이 통과')
+  A(lib.downloadName(null) === null, 'null 이 통과')
 })
 
 console.log('\n[파일명에서 교과·학년 제안]')
@@ -175,6 +202,73 @@ ck('행을 못 만들면 올린 파일을 치운다', () => {
   A(/if \(insErr\)[\s\S]*storage[\s\S]*remove\(\[path\]\)/.test(src), '고아 파일 방지 없음')
 })
 
+console.log('\n[회귀 E2E — 한글 파일명 업로드·다운로드 (fetch 를 가로채 실제 요청을 본다)]')
+// Supabase 클라이언트를 그대로 태우고 네트워크만 가짜로 받는다.
+// 라이브러리가 실제로 만드는 URL·본문을 보는 것이라, 규약을 되돌리면 여기서 걸린다.
+const HANGUL = '2026학년도_2학기_수학 (2학년) 평가계획서(초안).hwpx'
+const calls = []
+const origFetch = globalThis.fetch
+const json = (o, status = 200) =>
+  new Response(JSON.stringify(o), { status, headers: { 'content-type': 'application/json' } })
+globalThis.fetch = async (input, init = {}) => {
+  const url = typeof input === 'string' ? input : input.url
+  const method = String(init.method || (typeof input === 'string' ? 'GET' : input.method) || 'GET').toUpperCase()
+  let body = init.body
+  if (body && typeof body !== 'string' && typeof body.text === 'function' && !(body instanceof FormData)) {
+    body = await body.text()
+  }
+  calls.push({ url, method, body })
+  if (url.includes('/storage/v1/object/sign/')) {
+    return json({ signedURL: '/object/sign/submissions/k.hwpx?token=tok' })
+  }
+  if (url.includes('/storage/v1/object/')) return json({ Id: 'id', Key: 'submissions/k.hwpx' })
+  return new Response(null, { status: 201 })   // postgrest insert/update (반환 없음)
+}
+
+let subm, signed
+try {
+  const file = new File([new Uint8Array([1, 2, 3])], HANGUL, { type: 'application/haansofthwpx' })
+  subm = await lib.submit({ userId: 'uid-9', file, subject: '수학', grade: 2, note: '' })
+  signed = await lib.downloadUrl('uid-9/abc.hwpx', HANGUL)
+} finally {
+  globalThis.fetch = origFetch
+}
+
+const upload = calls.find((c) => c.method === 'POST' && /\/storage\/v1\/object\/submissions\//.test(c.url))
+const insert = calls.find((c) => c.method === 'POST' && c.url.includes('doc_submissions'))
+const sign = calls.find((c) => c.url.includes('/storage/v1/object/sign/'))
+
+ck('한글 파일명 제출이 성공한다', () => {
+  A(!subm?.error, `제출 실패: ${subm?.error?.message}`)
+})
+ck('업로드 요청 URL 이 ASCII 안전 (Invalid key 재발 방지)', () => {
+  A(upload, `업로드 요청이 없다: ${calls.map((c) => c.url).join(' | ')}`)
+  const key = upload.url.split('/storage/v1/object/submissions/')[1]
+  A(ASCII_SAFE.test(key), `키가 ASCII 안전하지 않다: ${key}`)
+  A(!/%/.test(key), `키에 인코딩된 문자가 있다 (파일명이 새어 들어감): ${key}`)
+  A(/^uid-9\/[^/]+\.hwpx$/.test(key), key)
+})
+ck('원본 한글 파일명은 doc_submissions.file_name 에 남는다', () => {
+  A(insert, '행 생성 요청이 없다')
+  const row = JSON.parse(insert.body)
+  A(row.file_name === HANGUL, row.file_name)
+  A(row.file_path.startsWith('uid-9/') && ASCII_SAFE.test(row.file_path), row.file_path)
+  A(!row.file_path.includes(HANGUL), '경로에 파일명이 들어갔다')
+})
+ck('다운로드는 원본 이름으로 내려온다 (Content-Disposition)', () => {
+  A(sign, '서명 URL 요청이 없다')
+  A(signed?.url, `서명 URL 없음: ${signed?.error?.message}`)
+  const q = signed.url.split('?')[1] || ''
+  const raw = /(?:^|&)download=([^&]*)/.exec(q)?.[1]
+  A(raw, `download 파라미터가 없다: ${signed.url}`)
+  // 서버는 쿼리를 한 번만 디코드한다 — 이중 인코딩(%25)이면 '%EC%88%98...' 이 파일명이 된다
+  A(!raw.includes('%25'), `이중 인코딩됐다 (storage-js download 옵션 회귀): ${raw}`)
+  A(decodeURIComponent(raw) === HANGUL, `다운로드 이름이 원본과 다르다: ${decodeURIComponent(raw)}`)
+})
+ck('서명 URL 자체는 키만 담는다 (한글 없음)', () => {
+  A(ASCII_SAFE.test(signed.url.split('?')[0].replace('http://', '')), signed.url)
+})
+
 console.log('\n[화면]')
 const page = readFileSync(join(ROOT, 'apps/main/src/pages/SubmissionsPage.jsx'), 'utf-8')
 ck('담당자 화면은 권한으로 가린다', () => {
@@ -184,6 +278,10 @@ ck('담당자 화면은 권한으로 가린다', () => {
 ck('교과·학년은 고칠 수 있다 (제안일 뿐)', () => {
   A(page.includes('setSubject(e.target.value)'), '교과 수정 불가')
   A(page.includes('파일명에서 교과·학년을 다 읽지 못했습니다'), '못 읽었을 때 안내 없음')
+})
+ck('다운로드에 원본 파일명을 넘긴다', () => {
+  A(/downloadUrl\(row\.file_path, row\.file_name\)/.test(page),
+    '파일명 없이 서명 URL 을 만들면 uuid.hwpx 로 내려간다')
 })
 ck('메뉴에 등록돼 있다', () => {
   // 메뉴·라우트는 lib/modules.js 한 표에서 나온다 (공개 범위 게이팅)
