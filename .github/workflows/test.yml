@@ -1,0 +1,28 @@
+# PR 자동 검사 — main 에 합치기 전에 npm test 전체가 통과해야 한다.
+# GitHub 보호 규칙에서 이 검사(test)를 "필수"로 지정해 빨간불이면 병합 버튼이 막히게 한다.
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Python 테스트(generate.py·extract.py)는 lxml 이 필요하다.
+      # 러너는 lxml 이 없으면 Python 몫을 건너뛰므로, 여기서 반드시 설치해 건너뛰는 일이 없게 한다.
+      - run: pip install lxml
+      - run: npm ci
+      - run: npm test
+        env:
+          PYTHON: python
