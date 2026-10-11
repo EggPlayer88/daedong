@@ -1,9 +1,9 @@
 // 프롬프트 ↔ 확인 카드 ↔ generate 가 같은 계약(manifest FINAL)을 보는지
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const { SYSTEM_PROMPT: P, manifest: M } = mod
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }

@@ -1,9 +1,9 @@
 // 제0원칙 + 배점 규칙이 프롬프트에 들어갔는지, 서버 검증기와 어긋나지 않는지
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const P = mod.SYSTEM_PROMPT, M = mod.manifest
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }

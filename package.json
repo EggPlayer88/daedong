@@ -13,5 +13,8 @@
     "build": "npm run build -w apps/main",
     "preview": "npm run preview -w apps/main",
     "test": "node tests/run.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12"
   }
 }

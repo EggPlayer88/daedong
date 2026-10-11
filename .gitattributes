@@ -1,0 +1,2 @@
+# 프롬프트 본문 구분자는 LF 기준이다. 체크아웃 OS에 따라 내용이 달라지지 않게 한다.
+apps/main/api/doc-ai/_assets/prompt-rules.v2.md text eol=lf

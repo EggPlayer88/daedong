@@ -1,6 +1,6 @@
 # tests/ — 검증 스크립트
 
-의존성 없는 순수 스크립트다 (테스트 프레임워크를 쓰지 않는다).
+테스트 프레임워크 없이 실행하는 스크립트다. JSX 검사는 esbuild와 React를 사용하므로 먼저 `npm ci`를 실행한다.
 각 파일은 단독 실행 가능하고, 성공하면 `✓` 줄과 `전부 통과`, 실패하면 `✗` 와 종료코드 1.
 
 ```bash
@@ -18,14 +18,30 @@ python3 -m venv tests/.venv
 tests/.venv/bin/pip install lxml
 ```
 
-러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` 순으로 lxml 이 있는
+Windows PowerShell에서는 다음과 같이 준비한다.
+
+```powershell
+python -m venv tests/.venv
+tests/.venv/Scripts/python.exe -m pip install lxml
+npm test
+```
+
+러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` → `python` 순으로 lxml 이 있는
 인터프리터를 찾는다. 못 찾으면 **Python 몫을 건너뛰고 그 사실을 출력한다**
 (조용히 통과시키지 않는다).
+가상환경의 Windows `Scripts/python.exe`와 POSIX `bin/python` 경로를 모두 지원한다.
+`PYTHON`에는 실행 파일 경로 하나만 지정한다(공백·한글 허용). `py -3` 같은 명령문은 넣지 않는다.
+러너는 자식 프로세스의 작업 폴더를 저장소 루트로 고정하고 Python 출력을 UTF-8로 받는다.
+
+브라우저 모듈 검사는 `helpers/load-browser-module.mjs`의 가상 JSX 진입점을 사용한다.
+임시 번들은 파일 URL로 불러오며, 빌드·로딩 성공 여부와 관계없이 전용 임시 폴더를 정리한다.
+프롬프트 원문은 `.gitattributes`로 LF 체크아웃을 고정한다(본문 구분자 `\n---\n` 보존).
 
 ## 무엇을 지키는 테스트인가
 
 | 파일 | 지키는 것 |
 |---|---|
+| `test_browser_loader.mjs` | 공백·한글·`#`가 있는 경로에서 실제 JSX 렌더, 빌드 실패·모듈 실행 실패 시 임시 폴더 정리 |
 | `test_v4.py` | 실제 양식 6종으로 hwpx 생성 전 구간. **token-map 전수 대조**(맵 ≠ 양식 → 실패), 모르는 토큰은 즉시 실패, short=0 항 생략, **성취수준 수준당 4칸**(모자라면 공란·문자열 하나도 수용), 3학년 성취수준 부재, 자유학기 활동 블록, 프롬프트 골격 ↔ 치환 경로 이음매, 양식 sha256 불변 |
 | `test_scales.py` | 배점 정합성 — 회차 100점 / 수행 합 100점 / 반영비율 100%, 만점 표기 `N점(M%)` 서버 계산, 한도 초과 시 거부 대신 안내 |
 | `test_hours.py` | 시수/누계 고정표 주입, `hours_manual` 보존, 범위 밖 처리, 표 자체 무결성(누계 단조·합계·ok) |

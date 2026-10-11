@@ -11,7 +11,7 @@
 //   · 성취기준 DB 에 없는 교과도 같은 경로를 끝까지 가는가
 //
 // 짝: tests/test_smoke_subjects.py (생성 완료 쪽 — 실제 hwpx 까지)
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -39,7 +39,7 @@ globalThis.fetch = async (url, opts) => {
   throw new Error(`예상하지 못한 외부 호출: ${u}`)
 }
 
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const { default: handler, prefillIndex, normSubject, standardsDb } = mod
 
 let fail = 0
