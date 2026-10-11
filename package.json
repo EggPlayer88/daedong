@@ -12,7 +12,10 @@
     "dev": "npm run dev -w apps/main",
     "build": "npm run build -w apps/main",
     "preview": "npm run preview -w apps/main",
-    "test": "node tests/run.mjs"
+    "test": "node tests/run.mjs",
+    "dev:workhub": "npm run dev -w apps/workhub",
+    "build:workhub": "npm run build -w apps/workhub",
+    "check:workhub": "npm run check -w apps/workhub"
   },
   "devDependencies": {
     "esbuild": "0.25.12"
