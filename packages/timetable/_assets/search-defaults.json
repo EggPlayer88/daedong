@@ -1,0 +1,15 @@
+{
+  "timeLimitSeconds": 60,
+  "adaptiveMinActivities": 24,
+  "initialFraction": 0.48,
+  "qualityFraction": 0.80,
+  "roundSeconds": 5,
+  "verificationReserveSeconds": 1.5,
+  "poolCapacity": 64,
+  "neighborhoodFractions": [0.25, 0.45, 0.65],
+  "profiles": {
+    "공강": ["teacherGaps"],
+    "부담균형": ["teacherDailyLoad", "teacherFairness"],
+    "과목분산": ["subjectDaily", "subjectAdjacency"]
+  }
+}
