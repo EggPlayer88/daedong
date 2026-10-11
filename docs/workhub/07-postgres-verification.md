@@ -1,4 +1,4 @@
-# 독립 PostgreSQL 연결의 일정 저장 경쟁 검증
+# 독립 PostgreSQL 연결의 일정·개인 업무 저장 경쟁 검증
 
 이 문서는 tests/integration/workhub-postgres.mjs의 실행 조건과 판정 기준이다. 기존 PGlite 단일 연결 회귀와 별도로, 실제 PostgreSQL 서버의 독립 backend에서 row lock·advisory lock 대기를 관측한다. 운영 DB·실제 회원·Supabase 설정에 접근하는 시험이 아니다. 제안 SQL의 운영 확정·실행 절차도 대신하지 않는다.
 
@@ -27,7 +27,7 @@ WORKHUB_TEST_DATABASE_URL과 WORKHUB_TEST_ALLOW_FIXTURES는 CI 서비스 연결 
 
 ## 2. 실제로 적용하는 범위
 
-빈 인스턴스에 최소 auth/storage mock 스키마와 authenticated/anon 역할을 만든다. auth.uid는 연결별 request.jwt.claim.sub를 읽는다. 이후 원본 migrations/001~007을 파일 그대로 실행하고 database/workhub/001-calendar-foundation.proposed.sql을 적용한다.
+빈 인스턴스에 최소 auth/storage mock 스키마와 authenticated/anon 역할을 만든다. auth.uid는 연결별 request.jwt.claim.sub를 읽는다. 이후 원본 migrations/001~007을 파일 그대로 실행하고 database/workhub/001-calendar-foundation.proposed.sql과 004-personal-tasks.proposed.sql을 적용한다.
 
 회원은 example.invalid 주소의 합성 UUID만 생성한다. 기존 가입 트리거로 생성된 합성 프로필을 테스트 준비 과정에서 승인 superadmin으로 설정한다. 학교 소속 teacher/calendar_manager는 이 합성 회원에 연결한다. workhub_settings의 기본 superadmin 공개 게이트는 유지한다.
 
@@ -45,6 +45,11 @@ WORKHUB_TEST_DATABASE_URL과 WORKHUB_TEST_ALLOW_FIXTURES는 CI 서비스 연결 
 | 회원 승인 철회 선행 | is_active=false UPDATE의 회원 행 잠금 | 대기한 저장은 FORBIDDEN. 일정·receipt·감사 증가 없음 |
 | 학교 소속 종료 선행 | active=false UPDATE의 소속 행 잠금 | 대기한 저장은 INACTIVE_MEMBERSHIP. 일정·receipt·감사 증가 없음 |
 | 같은 학교·회원의 겹친 활성 소속 INSERT | 첫 INSERT의 학교·회원별 advisory lock | OVERLAPPING_MEMBERSHIP. 활성 소속은 1행만 남음 |
+| 개인 업무 같은 키·같은 입력 | 첫 생성의 본인 소속 행 잠금 | 같은 업무 ID·버전·응답, 업무·receipt·감사 각각 한 번 |
+| 개인 업무 같은 키·다른 입력 | 첫 생성의 본인 소속 행 잠금 | IDEMPOTENCY_CONFLICT, 두 번째 입력 미반영 |
+| 같은 개인 업무의 같은 원본 버전 수정 | 첫 수정의 본인 소속·업무 잠금 | CONFLICT, 최신 업무만 반환하고 버전 한 번 증가 |
+| 개인 업무 저장 전 승인 철회 | is_active=false UPDATE의 회원 행 잠금 | FORBIDDEN, 업무·receipt·감사 증가 없음 |
+| 개인 업무 저장 전 소속 종료 | active=false UPDATE의 소속 행 잠금 | INACTIVE_MEMBERSHIP, 업무·receipt·감사 증가 없음 |
 
 각 경쟁에서 첫 트랜잭션은 쓰기를 수행한 후 커밋하지 않는다. 두 번째 요청을 시작하고 관측 연결로 pg_stat_activity.wait_event_type=Lock 및 pg_blocking_pids에 첫 backend가 포함되는지 확인한다. 기간 중첩은 wait_event=advisory까지 확인한다. 이 관측이 성공한 다음 첫 트랜잭션을 커밋한다.
 

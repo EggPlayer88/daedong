@@ -70,6 +70,10 @@ npm test
 | `test_calendar.mjs` | 학사일정·공유 캘린더(006) — **파생 계산은 official 만**(shared 의 no_class 는 안 센다), 월간 격자·KST 날짜, soft delete·복구, 라벨 자동완성, RLS 정책 대조 + 정책을 흉내 낸 CRUD 흐름, 시드 SQL |
 | `test_submissions.mjs` | 제출·수합(005) — 파일 규칙(hwpx·30MB)·storage 경로 규약, 파일명에서 교과·학년 제안, 재제출은 지우지 않고 `replaced`, 현황 매트릭스, **RLS(교사 본인 / 담당자 전체·삭제 경로 없음)**, prefill 목록과 catalog 동기화 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
+| `test_workhub_tasks.mjs` | 개인 업무 RPC 어댑터 — 입력 정규화·응답 학교/소유자/업무 ID·잘못된 충돌 본문·계정 변경·미확정 저장 처리 |
+| `test_workhub_tasks_database.mjs` | 개인 업무 추가 SQL — 회원/함수/권한 보존, RLS·타인 거부·직접 쓰기 금지·원자적 감사/접수·실제 어댑터와 DB 왕복 |
+
+개인 업무 화면의 실제 브라우저 검증은 `node tests/browser/workhub-tasks.mjs`, 앱 내 연결 회귀는 `node tests/browser/workhub-connection.mjs`로 실행한다. Playwright 경로는 `PLAYWRIGHT_MODULE`로 지정할 수 있다. 합성 전송 계층을 사용하며 실제 학교 서버에 접속하지 않는다. 독립 PostgreSQL 16 연결의 일정·개인 업무 경합 11개는 CI의 `npm run test:workhub:postgres`에서 실행하며, [전용 DB 실행 조건](../docs/workhub/07-postgres-verification.md)을 먼저 확인한다.
 
 ## 작성 원칙
 
