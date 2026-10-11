@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 import sys
 import time
+import math
 
 sys.stdout.reconfigure(encoding="utf-8")
 sys.stderr.reconfigure(encoding="utf-8")
@@ -12,7 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages/timetable"))
 from ortools.sat.python import cp_model
 from engine.solver import solve_timetable, ScheduleModel, parse_options, pick_diverse_candidates
-from engine.search import Search, restrict_neighborhood
+from engine.search import Search, restrict_neighborhood, NeighborhoodPolicy
+from engine.connected import MoveGraph
 from engine.model import normalize, inspect_schedule, expand_cells
 from engine.quality import read_quality, evaluate_quality
 
@@ -37,19 +39,22 @@ def frozen_score_and_local_proof():
     raw = problem()
     q = read_quality(weights(morningBalance=1))
     p = normalize(raw, q)
-    search = Search(p, {"timeLimitSeconds": 1, "workers": 1, "quality": weights(morningBalance=1)}, time.monotonic(), None)
     places = [{"unitId": "a@0", "day": "d", "start": 1},
               {"unitId": "b@0", "day": "d", "start": 3}, {"unitId": "b@1", "day": "d", "start": 4}]
-    record = search.keep(places, None)
-    assert record["score"] == 4
-    model = search.bounded_model(record)
-    restrict_neighborhood(search.sm, model, places, set())
-    status = search.run(model, time.monotonic() + .5, "neighborhood")
-    assert status == cp_model.OPTIMAL and search.best()["score"] == 4
-    result = search.finish()
-    c = result["candidates"][0]
-    assert c["evaluation"]["totalPenalty"] == 4 and c["hardValidation"]["valid"]
-    assert not c["optimality"]["provenOptimal"] and c["optimality"]["lowerBound"] == 0
+    for stage in ("neighborhood", "diversity_local", "profile:공강"):
+        search = Search(p, {"timeLimitSeconds": 1, "workers": 1, "quality": weights(morningBalance=1)}, time.monotonic(), None)
+        record = search.keep(places, None)
+        assert record["score"] == 4
+        model = search.bounded_model(record)
+        restrict_neighborhood(search.sm, model, places, set())
+        profile = stage.startswith("profile:")
+        if profile:
+            model.minimize(0)
+        status = search.run(model, time.monotonic() + .5, stage, "profile" if profile else "base")
+        assert status == cp_model.OPTIMAL and search.best()["score"] == 4
+        c = search.finish()["candidates"][0]
+        assert c["evaluation"]["totalPenalty"] == 4 and c["hardValidation"]["valid"]
+        assert not c["optimality"]["provenOptimal"] and c["optimality"]["lowerBound"] == 0
 
 
 def same_cells_better_block():
@@ -155,7 +160,7 @@ def retry_diversity_for_new_anchors():
     p = normalize(raw, read_quality())
     search = Search(p, {"timeLimitSeconds": 1, "workers": 1}, time.monotonic(), None)
     def record(score, positions):
-        return {"score": score, "_cells": {i: int(i in positions) for i in range(24)}}
+        return {"score": score, "placements": [], "_cells": {i: int(i in positions) for i in range(24)}}
     best = record(100, set())
     trap = record(101, set(range(12)))
     alternative = record(102, (set(range(12)) - {0, 1, 2}) | {12, 13, 14})
@@ -163,22 +168,181 @@ def retry_diversity_for_new_anchors():
     search.pool = {"stub": best}
     def fake_run(model, until, stage, objective="base", original=False):
         stages.append(stage)
-        if stage == "diversity" and stages.count(stage) == 1:
+        if stage.startswith("diversity"):
+            if chosen[1] is alternative:
+                search.search_end = time.monotonic() - 1
             return cp_model.INFEASIBLE
         if stage.startswith("profile:"):
             chosen[1] = alternative
-        if stages.count("diversity") == 2:
-            search.search_end = time.monotonic() - 1
-        assert len(stages) < 5
+        assert len(stages) < 6
         return cp_model.FEASIBLE
     with patch.object(search, "selected", side_effect=lambda: chosen[:]), \
          patch.object(search, "best", return_value=best), \
          patch.object(search, "bounded_model", return_value=Mock()), \
          patch.object(search, "eligible", return_value=[]), \
+         patch.object(search, "evaluate", return_value={}), \
+         patch("engine.search.neighborhood", return_value=set()), \
          patch.object(search.sm, "distance", return_value=0), \
          patch.object(search, "run", side_effect=fake_run):
         search.candidates_search()
-    assert stages[0] == stages[2] == "diversity" and stages[1].startswith("profile:")
+    assert stages[:3] == ["diversity_local", "diversity_local", "diversity"]
+    assert stages[3].startswith("profile:") and stages[4] == "diversity_local"
+
+
+def adaptive_policy_measurements():
+    p = normalize(problem(), read_quality())
+    search = Search(p, {"timeLimitSeconds": 1}, time.monotonic(), None)
+    controller = NeighborhoodPolicy(search.policy)
+    for i, name in enumerate(controller.names):
+        assert controller.choose() == name
+        controller.observe(name, i + 1, 2, cp_model.FEASIBLE)
+    assert controller.choose() == "connected"
+    assert controller.stats["connected"]["rate"] == 2.5
+    controller.observe("connected", 0, 2, cp_model.OPTIMAL)
+    assert controller.choose() == "cross"
+    controller.observe("cross", -10, 0, cp_model.UNKNOWN)
+    assert math.isfinite(controller.stats["cross"]["rate"])
+    controller.observe("teacher", 1, 100, cp_model.OPTIMAL)
+    assert controller.stats["teacher"]["duration"] <= search.policy["maxRoundSeconds"]
+    for _ in range(20):
+        name = controller.choose()
+        controller.observe(name, 0, 1, cp_model.OPTIMAL)
+    assert all(row["calls"] >= 2 for row in controller.stats.values())
+
+
+def shared_move_blockers():
+    raw = {"version": 1, "morningEnd": 2, "days": [{"id": "d", "periods": 3}],
+           "classes": [{"id": f"c{i}"} for i in range(4)], "teachers": [{"id": "native"}],
+           "subjects": [{"id": "s"}], "resources": [{"id": "room", "capacity": 2}], "lessons": [],
+           "hardConstraints": [{"type": "sameTime", "lessonIds": ["c0a", "c3a"]}]}
+    places = []
+    for c in range(4):
+        for start, letter in enumerate("abc", 1):
+            uid = f"c{c}{letter}"
+            raw["teachers"].append({"id": uid})
+            raw["lessons"].append({"id": uid, "classId": f"c{c}", "subjectId": "s", "hours": 1,
+                                    "teacherIds": [uid] + (["native"] if uid in ("c0a", "c1b") else []),
+                                    "resourceIds": ["room"] if uid in ("c0a", "c1a", "c2b") else []})
+            places.append({"unitId": uid + "@0", "day": "d", "start": start})
+    def graph(data, positions):
+        p = normalize(data, read_quality())
+        assert inspect_schedule(p, positions)["valid"]
+        return MoveGraph(ScheduleModel(p, read_quality(), parse_options(p, {})), positions)
+    g = graph(raw, places)
+    blocked = g.blockers("c0a@0", "d", 2)
+    assert {"c0a@0", "c3a@0", "c0b@0", "c3b@0", "c1b@0"} <= blocked
+    assert "c2b@0" not in blocked
+    limited = deepcopy(raw)
+    limited["resources"][0]["capacity"] = 1
+    next(l for l in limited["lessons"] if l["id"] == "c1a")["resourceIds"] = []
+    assert "c2b@0" in graph(limited, places).blockers("c0a@0", "d", 2)
+    reserved = deepcopy(raw)
+    reserved["lessons"] = [l for l in reserved["lessons"] if l["id"] != "c2c"]
+    reserved["reservations"] = [{"classId": "c2", "day": "d", "period": 3, "teacherIds": ["native"]}]
+    assert graph(reserved, [p for p in places if p["unitId"] != "c2c@0"]).blockers("c0a@0", "d", 3) is None
+
+
+def profile_representatives_survive():
+    p = normalize(problem(), read_quality())
+    search = Search(p, {"timeLimitSeconds": 1}, time.monotonic(), None)
+    search.policy = {**search.policy, "poolCapacity": 8}
+    def add(label, score, costs):
+        breakdown = {k: {"penalty": 0} for k in read_quality()["weights"]}
+        for key, value in zip(("teacherGaps", "teacherDailyLoad", "subjectDaily"), costs):
+            breakdown[key]["penalty"] = value
+        breakdown["morningBalance"]["penalty"] = score - sum(costs)
+        cells = {("c", "d", 1): (label, ("t",))}
+        fingerprint = tuple(sorted(cells.items()))
+        search.pool[fingerprint] = {"score": score, "_cells": cells, "evaluation": {"breakdown": breakdown}}
+        search.prune()
+        assert len(search.pool) <= 8
+        return fingerprint
+    protected = {add("best", 100, [20, 20, 20]), add("gaps", 103, [2, 50, 20]),
+                 add("load", 104, [25, 1, 35]), add("subjects", 105, [25, 30, 0])}
+    for i in range(100):
+        add(str(i), 101 + i % 2, [21, 21, 21])
+    assert protected <= search.pool.keys()
+    extreme = add("too_expensive", 120, [0, 0, 0])
+    assert extreme not in search.pool
+    for row in search.pool.values():
+        for cost in row["evaluation"]["breakdown"].values():
+            cost["penalty"] = 0
+    for i in range(100):
+        add("zero" + str(i), 101, [0, 0, 0])
+    assert search.best()["score"] == 100
+
+
+def adaptive_deadline_and_recovery():
+    raw = problem()
+    p = normalize(raw, read_quality())
+    places = [{"unitId": "a@0", "day": "d", "start": 1},
+              {"unitId": "b@0", "day": "d", "start": 3}, {"unitId": "b@1", "day": "d", "start": 4}]
+    clock = [1000.0]
+    search = Search(p, {"timeLimitSeconds": 60, "previous": places, "changeMode": "quality"}, clock[0], None)
+    calls = []
+    def timeout(model, options, seconds, seed, progress, capture):
+        assert 0 < seconds <= search.search_end - clock[0] + 1e-8
+        calls.append(seconds)
+        clock[0] += seconds + .01
+        return None, cp_model.UNKNOWN
+    with patch("engine.search.time.monotonic", side_effect=lambda: clock[0]), patch("engine.solver.cp_run", side_effect=timeout):
+        search.quality_search()
+        search.candidates_search()
+        before = len(calls)
+        search.quality_search()
+        search.candidates_search()
+        assert len(calls) == before
+        assert search.finish()["candidates"][0]["changedCells"] == 0
+    assert clock[0] - search.started < 60
+    clock[0] = 1000.0
+    search = Search(p, {"timeLimitSeconds": 60}, clock[0], None)
+    selected = {search.sm.x[search.sm.representative[x["unitId"]], x["day"], x["start"]].index for x in places}
+    class Solution:
+        stopped = False
+        objective_value = evaluate_quality(p, places, search.q, search.sm.baselines)["totalPenalty"]
+        best_objective_bound = 0
+        def value(self, expression): return self.objective_value
+        def boolean_value(self, flag): return flag.index in selected
+        def stop_search(self): self.stopped = True
+        def status_name(self, status): return "FEASIBLE"
+    solution = Solution()
+    calls.clear()
+    def recover(model, options, seconds, seed, progress, capture):
+        calls.append(seconds)
+        if len(calls) == 1:
+            clock[0] += seconds
+            return None, cp_model.UNKNOWN
+        capture(solution)
+        clock[0] = search.search_end
+        return solution, cp_model.FEASIBLE
+    with patch("engine.search.time.monotonic", side_effect=lambda: clock[0]), patch("engine.solver.cp_run", side_effect=recover):
+        search.quality_search()
+        result = search.finish()
+    assert solution.stopped and len(calls) == 2
+    assert calls[1] > calls[0] and result["status"] == "feasible"
+    assert not result["candidates"][0]["optimality"]["provenOptimal"]
+    clock[0] = 1000.0
+    search = Search(p, {"timeLimitSeconds": 60, "previous": places, "changeMode": "quality"}, clock[0], None)
+    evaluate = search.evaluate
+    def slow_evaluation(record):
+        clock[0] += 20
+        return evaluate(record)
+    with patch("engine.search.time.monotonic", side_effect=lambda: clock[0]), \
+         patch.object(search, "evaluate", side_effect=slow_evaluation), patch("engine.solver.cp_run") as cp:
+        assert search.run(search.sm.m, 1010, "profile:공강", "profile") is None
+        assert cp.call_count == 0
+
+
+def benchmark_korean_input():
+    from benchmark_search import run as compare_run, HERE
+    raw = problem()
+    raw["days"][0]["id"] = "월요일"
+    raw["metadata"] = {"source": "대동여중", "notes": ["원어민·창체 입력의 유니코드 전달"]}
+    q = read_quality()
+    p = normalize(raw, q)
+    sm = ScheduleModel(p, q, parse_options(p, {}))
+    result = compare_run(HERE, raw, {"timeLimitSeconds": .5, "maxCandidates": 1, "workers": 1}, p, q, sm.baselines)
+    assert result["status"] == "feasible" and result["candidates"][0]["hardValidation"]["valid"]
 
 
 checks = 0
@@ -189,7 +353,12 @@ for name, fn in [("부분 고정 전후 품질 기준 불변·국소 증명 격�
                  ("실패 후 최고안 보존·단일 전체 시간 예산", failed_search_preserves_best),
                  ("반복 블록·분리 하드조건·변경 최소화 우선", repeated_blocks_and_hard_limits),
                  ("최고안과 다른 품질 장점의 대안 선별", strengths_and_tradeoffs),
-                 ("동점 후보 조합 변경 뒤 다양성 탐색 재시도", retry_diversity_for_new_anchors)]:
+                 ("동점 후보 조합 변경 뒤 다양성 탐색 재시도", retry_diversity_for_new_anchors),
+                 ("실측 개선 효율·정체·회차 시간 상한", adaptive_policy_measurements),
+                 ("공동교사·동시수업·자원 용량·예약의 이동 연결", shared_move_blockers),
+                 ("품질 상한 안의 방향별 대표와 최고안 보존", profile_representatives_survive),
+                 ("모든 탐색의 단일 마감·첫 해 복구·시간 초과 보존", adaptive_deadline_and_recovery),
+                 ("별도 프로세스 비교의 한국어 입력·출력", benchmark_korean_input)]:
     fn()
     checks += 1
     print("  ✓ " + name)
