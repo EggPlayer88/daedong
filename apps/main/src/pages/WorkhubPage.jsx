@@ -1,3 +1,4 @@
+import '../../../workhub/src/app/navigation'
 import { Component, lazy, Suspense } from 'react'
 import { useAuth } from '../lib/AuthContext.jsx'
 

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
 import { TaskError, type PersonalTask, type TaskAdapter, type TaskCommand, type TaskFailureCode, type TaskInput, type TaskStatus } from './contracts'
@@ -57,7 +57,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, r
   const enabled = activeAt(member, date)
   const locked = !!busy || !!pending || !!conflict || !!denied || !enabled
   const navigationLocked = !!editor || !!busy || !!pending || !!conflict
-  useEffect(() => {
+  useLayoutEffect(() => {
     onNavigationLockChange?.(navigationLocked)
     return () => { onNavigationLockChange?.(false) }
   }, [navigationLocked, onNavigationLockChange])
