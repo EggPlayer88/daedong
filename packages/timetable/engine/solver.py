@@ -245,12 +245,18 @@ class ScheduleModel:
             groups[l["classId"], l["subjectId"]].append(u)
         for (c, s), units in groups.items():
             count = len(units)
-            acts = []
+            acts, daily = [], []
             for d in self.p["days"]:
                 expr = sum(self.sessions[c, s, d["id"]])
-                raw["subjectDaily"].append(self.mapped_cost(expr, [i * (i - 1) // 2 for i in range(count + 1)], "subject_daily"))
+                daily.append(self.mapped_cost(expr, [i * (i - 1) // 2 for i in range(count + 1)], "subject_daily"))
                 acts.append(self.active_var(expr, "subject_active"))
-            raw["subjectAdjacency"] += [self.and_var([a, b], "subject_adjacent") for a, b in zip(acts, acts[1:])]
+            adjacent = [self.and_var([a, b], "subject_adjacent") for a, b in zip(acts, acts[1:])]
+            raw["subjectDaily"] += daily
+            raw["subjectAdjacency"] += adjacent
+            # 활동 수와 활성 요일 수가 강제하는 손실을 선형식으로도 드러낸다.
+            # n(n-1)/2 >= n-1, 인접 a*b >= a+b-1이므로 배치·평가값은 바뀌지 않는다.
+            self.m.add(sum(daily) + sum(acts) >= count)
+            self.m.add(sum(adjacent) >= 2 * sum(acts) - acts[0] - acts[-1] - len(acts) + 1)
             hours = sum(u["length"] for u in units)
             absolute = self.m.new_int_var(0, hours, "morning_absolute")
             self.m.add_abs_equality(absolute, 2 * sum(self.am[c, s]) - hours)

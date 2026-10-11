@@ -21,7 +21,9 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 RUNNER = """
 import json,sys,time
+sys.stdin.reconfigure(encoding='utf-8')
 sys.stdout.reconfigure(encoding='utf-8')
+sys.stderr.reconfigure(encoding='utf-8')
 sys.path.insert(0,sys.argv[1])
 from engine.solver import solve_timetable
 request=json.load(sys.stdin)

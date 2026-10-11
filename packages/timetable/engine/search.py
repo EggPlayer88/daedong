@@ -11,6 +11,7 @@ from ortools.sat.python import cp_model
 from .model import inspect_schedule, expand_cells
 from .quality import read_quality, evaluate_quality
 from . import solver as core
+from .connected import connected_neighborhood
 
 
 def cell_distance(a, b):
@@ -19,6 +20,44 @@ def cell_distance(a, b):
 
 def selection_key(best, chosen):
     return best["score"], tuple(sorted(tuple(sorted(r["_cells"].items())) for r in chosen))
+
+
+class NeighborhoodPolicy:
+    """개선량/실측초를 기록하되 모든 종류를 주기적으로 다시 탐색한다."""
+    names = ("teacher", "class", "days", "cross", "connected")
+
+    def __init__(self, policy):
+        self.policy = policy
+        self.stats = {name: {"calls": 0, "gain": 0, "seconds": 0, "rate": 0,
+                             "last": -1, "stalls": 0, "duration": policy["roundSeconds"]} for name in self.names}
+        self.turn = 0
+
+    def choose(self):
+        untried = [name for name, row in self.stats.items() if row["calls"] == 0]
+        if untried:
+            return untried[0]
+        if self.turn % self.policy["explorationEvery"] == 0:
+            return min(self.names, key=lambda name: self.stats[name]["last"])
+        return max(self.names, key=lambda name: (self.stats[name]["rate"] / (1 + self.stats[name]["stalls"]), -self.stats[name]["last"]))
+
+    def observe(self, name, gain, seconds, status):
+        row = self.stats[name]
+        gain = max(0, gain)
+        row["calls"] += 1
+        row["gain"] += gain
+        row["seconds"] += max(0, seconds)
+        rate = gain / seconds if seconds > 0 else 0
+        alpha = self.policy["rewardSmoothing"]
+        row["rate"] = rate if row["calls"] == 1 else alpha * rate + (1 - alpha) * row["rate"]
+        row["stalls"] = 0 if gain else row["stalls"] + 1
+        row["last"] = self.turn
+        self.turn += 1
+        if status == cp_model.OPTIMAL:
+            row["duration"] = min(self.policy["maxRoundSeconds"], max(self.policy["minRoundSeconds"], seconds * 1.25))
+        elif gain:
+            row["duration"] = min(self.policy["maxRoundSeconds"], row["duration"] * 1.25)
+        else:
+            row["duration"] = self.policy["roundSeconds"]
 
 
 def neighborhood(sm, placements, evaluation, step, rng, fraction):
@@ -93,6 +132,7 @@ class Search:
         self.last_original_status = None
         self.rng = random.Random(self.o["seed"])
         self.notes = []
+        self.controller = NeighborhoodPolicy(self.policy)
         if self.o.get("previous") is not None:
             old = inspect_schedule(problem, self.o["previous"], self.o["fixed"])
             if old["valid"]:
@@ -122,17 +162,29 @@ class Search:
             self.pool[key] = record
         if protect:
             self.protected.add(key)
+        self.prune()
+        return self.pool.get(key, record)
+
+    def prune(self):
         if len(self.pool) > self.policy["poolCapacity"]:
-            # 이미 확보한 우수 대안이 가까운 중간 해들에 밀려 사라지지 않게 보호한다.
-            expendable = [k for k in self.pool if k not in self.protected]
+            # 선택된 대안과 품질 상한 안의 방향별 대표가 비슷한 중간 해에 밀리지 않게 한다.
+            protected = set(self.protected)
+            eligible = self.eligible()
+            for kinds in self.policy["profiles"].values():
+                representative = min(eligible, key=lambda r: (sum(self.evaluate(r)["breakdown"][k]["penalty"] for k in kinds), r["score"]))
+                protected.add(tuple(sorted(representative["_cells"].items())))
+            best = self.best()
+            protected.add(tuple(sorted(best["_cells"].items())))
+            expendable = [k for k in self.pool if k not in protected]
+            if not expendable:
+                expendable = [k for k in self.pool if self.pool[k] is not best]
             worst = max(expendable, key=lambda k: self.pool[k]["score"])
             del self.pool[worst]
-        return self.pool.get(key, record)
 
     def best(self):
         return min(self.pool.values(), key=lambda r: r["score"]) if self.pool else None
 
-    def run(self, model, until, stage, objective="base", original=False):
+    def run(self, model, until, stage, objective="base", original=False, stop_after_first=False, details=None):
         remaining = min(until, self.search_end) - time.monotonic()
         if remaining <= 0:
             return None
@@ -141,11 +193,21 @@ class Search:
             self.progress({"event": "stage", "stage": stage, "remainingSeconds": remaining, "bestPenalty": score_before})
         seed = (self.o["seed"] + len(self.stages) * 104729) % (2**31)
         start = time.monotonic()
+        profile_kinds = self.policy["profiles"].get(stage.removeprefix("profile:")) if objective == "profile" else None
+        def profile_minimum():
+            return min((sum(self.evaluate(r)["breakdown"][k]["penalty"] for k in profile_kinds) for r in self.eligible()), default=None)
+        profile_before = profile_minimum() if profile_kinds else None
         def capture(solution):
             score = int(solution.value(self.sm.penalty))
             self.keep(self.sm.placements(solution), score)
             if self.progress:
                 self.progress({"event": "incumbent", "stage": stage, "objective": score, "bestPenalty": self.best()["score"]})
+            if stop_after_first:
+                solution.stop_search()
+        # 후보 평가와 진행 콜백이 소비한 시간도 전체 예산에 포함한다.
+        remaining = min(until, self.search_end) - time.monotonic()
+        if remaining <= 0:
+            return None
         solver, status = core.cp_run(model, self.o, remaining, seed, None, capture)
         if status == cp_model.MODEL_INVALID:
             raise RuntimeError(model.validate())
@@ -165,9 +227,15 @@ class Search:
                              "scope": "diversity_and_change_constraints", "solverStatus": "OPTIMAL"}
             record = self.keep(self.sm.placements(solver), score, proof, protect=True)
             self.evaluate(record)
+        score_after = self.best()["score"] if self.pool else None
+        chosen = self.selected()
         self.stages.append({"stage": stage, "status": "UNKNOWN" if solver is None else solver.status_name(status),
-                            "elapsedSeconds": time.monotonic() - start, "bestPenalty": self.best()["score"] if self.pool else None})
-        self.protected = {tuple(sorted(c["_cells"].items())) for c in self.selected()}
+                            "elapsedSeconds": time.monotonic() - start, "bestPenalty": score_after,
+                            "improvement": 0 if score_before is None or score_after is None else max(0, score_before - score_after),
+                            "candidateCount": len(chosen), **(details or {})})
+        if profile_kinds:
+            self.stages[-1].update(profileBefore=profile_before, profileAfter=profile_minimum())
+        self.protected = {tuple(sorted(c["_cells"].items())) for c in chosen}
         return status
 
     def bounded_model(self, hint, ceiling=None):
@@ -179,23 +247,42 @@ class Search:
 
     def quality_search(self):
         # 최고안 모델은 끝까지 원문제의 전체 배치를 허용한다.
-        initial_end = self.started + self.o["timeLimitSeconds"] * self.policy["initialFraction"]
+        initial_fraction = self.policy["warmInitialFraction"] if self.best() else self.policy["initialFraction"]
+        initial_end = self.started + self.o["timeLimitSeconds"] * initial_fraction
         status = self.run(self.bounded_model(self.best()), initial_end, "initial", original=True)
         if status == cp_model.INFEASIBLE and not self.pool:
             return
-        quality_end = self.search_end if self.o["maxCandidates"] == 1 else min(self.search_end, self.started + self.o["timeLimitSeconds"] * self.policy["qualityFraction"])
+        if not self.pool:
+            # 짧은 회차의 재시작을 반복하지 않고 남은 시간으로 첫 유효해를 확보한다.
+            self.run(self.bounded_model(None), self.search_end, "recovery", original=True, stop_after_first=True)
         step = 0
-        while time.monotonic() < quality_end and self.proved_value is None:
+        while self.pool and self.proved_value is None:
+            chosen = self.selected()
+            reserve = 0 if self.o["maxCandidates"] == 1 else min(self.o["timeLimitSeconds"] * self.policy["candidateReserveFraction"],
+                      self.policy["candidateReserveSeconds"] + self.policy["missingCandidateSeconds"] * (self.o["maxCandidates"] - len(chosen)))
+            quality_end = self.search_end - reserve
+            if time.monotonic() >= quality_end:
+                break
             best = self.best()
             model = self.bounded_model(best)
-            stage = "restart" if best is None or step % 5 == 4 else "neighborhood"
+            stage = "restart" if step and step % self.policy["restartEvery"] == 0 else "neighborhood"
+            action = self.controller.choose()
+            row = self.controller.stats[action]
+            duration = row["duration"]
+            details = {}
             if stage == "neighborhood":
-                fraction = self.policy["neighborhoodFractions"][min(step // 4, len(self.policy["neighborhoodFractions"]) - 1)]
-                free = neighborhood(self.sm, best["placements"], self.evaluate(best), step, self.rng, fraction)
+                fraction = self.policy["neighborhoodFractions"][min(row["stalls"], len(self.policy["neighborhoodFractions"]) - 1)]
+                if action == "connected":
+                    free = connected_neighborhood(self.sm, best["placements"], self.evaluate(best), self.rng, row["calls"], fraction, self.policy)
+                else:
+                    cursor = self.controller.names.index(action) + 4 * row["calls"]
+                    free = neighborhood(self.sm, best["placements"], self.evaluate(best), cursor, self.rng, fraction)
                 restrict_neighborhood(self.sm, model, best["placements"], free)
-            status = self.run(model, min(quality_end, time.monotonic() + self.policy["roundSeconds"]), stage, original=stage == "restart")
-            if status == cp_model.INFEASIBLE and not self.pool:
-                break
+                details = {"operator": action, "freeActivities": len(free)}
+            status = self.run(model, min(quality_end, time.monotonic() + duration), stage, original=stage == "restart", details=details)
+            if status is not None and stage == "neighborhood":
+                result = self.stages[-1]
+                self.controller.observe(action, result["improvement"], result["elapsedSeconds"], status)
             step += 1
 
     def eligible(self):
@@ -221,6 +308,7 @@ class Search:
         profiles = list(self.policy["profiles"].items())
         diversity_failed_for = None
         tried_profiles = set()
+        diversity_attempts = 0
         # 각 회차는 원본 복제로 시작해 이전 대안의 거리 조건이 최고안 개선을 제한하지 않는다.
         while self.pool and time.monotonic() < self.search_end and self.o["maxCandidates"] > 1:
             chosen = self.selected()
@@ -242,13 +330,22 @@ class Search:
                 else:
                     model.clear_hints()
                 stage, objective = "diversity", "base"
+                if diversity_attempts % 3 != 2:
+                    # 새 최고안 때문에 대안이 상한 밖으로 밀려도 작은 영역부터 빠르게 보충한다.
+                    fraction = self.policy["neighborhoodFractions"][min(diversity_attempts // 3, len(self.policy["neighborhoodFractions"]) - 1)]
+                    cursor = 3 + 4 * diversity_attempts
+                    free = neighborhood(self.sm, best["placements"], self.evaluate(best), cursor, self.rng, fraction)
+                    restrict_neighborhood(self.sm, model, best["placements"], free)
+                    stage = "diversity_local"
+                diversity_attempts += 1
             else:
                 profile, kinds = profiles[step % len(profiles)]
                 tried_profiles.add(profile)
                 expression = sum(v * self.q["weights"][k] for k in kinds for v in self.sm.raw_terms[k])
                 model.minimize(expression)
                 stage, objective = "profile:" + profile, "profile"
-            status = self.run(model, min(self.search_end, time.monotonic() + self.policy["roundSeconds"]), stage, objective)
+            duration = self.policy["localDiversitySeconds"] if stage == "diversity_local" else self.policy["roundSeconds"]
+            status = self.run(model, min(self.search_end, time.monotonic() + duration), stage, objective)
             if status == cp_model.INFEASIBLE and stage == "diversity":
                 diversity_failed_for = anchors_key
             if diversity_failed_for == selection_key(self.best(), self.selected()) and len(tried_profiles) == len(profiles):
@@ -287,6 +384,7 @@ class Search:
                            "workers": self.o["workers"], "requestedCandidates": self.o["maxCandidates"],
                            "minDifferentCells": self.o["minDifferentCells"], "qualityTolerance": self.o["qualityTolerance"],
                            "intermediateCandidates": len(self.pool), "stages": self.stages,
+                           "operators": deepcopy(self.controller.stats),
                            "modelVariables": len(self.sm.m.proto.variables), "startVariables": len(self.sm.x)}}
 
 
