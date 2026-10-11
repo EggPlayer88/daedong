@@ -16,7 +16,7 @@ export async function loadBrowserModule(contents, { env = { MODE: 'test' }, temp
       platform: 'node',
       format: 'cjs',
       jsx: 'automatic',
-      loader: { '.jsx': 'jsx' },
+      loader: { '.jsx': 'jsx', '.css': 'text' },
       define: { 'import.meta.env': JSON.stringify(env) },
       outfile,
       logLevel: 'silent',

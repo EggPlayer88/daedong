@@ -45,17 +45,18 @@ function validDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value
 }
 
+// PostgreSQL length(text)와 같은 유니코드 코드포인트 수로 입력 한도를 검사한다.
 export function normalizeDraft(draft: EventDraft, member: Membership, members: Membership[]): EventDraft {
   const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string')
   const audience = draft?.audience
   if (!draft || typeof draft !== 'object' || ['title', 'description', 'location', 'startDate', 'endDate', 'startTime', 'endTime', 'visibility'].some(field => typeof (draft as unknown as Record<string, unknown>)[field] !== 'string') || typeof draft.allDay !== 'boolean' || !audience || typeof audience !== 'object' || typeof audience.all !== 'boolean' || !Array.isArray(audience.groups) || !strings(audience.includeMemberIds) || !strings(audience.excludeMemberIds) || audience.groups.some(group => !group || typeof group !== 'object' || !strings(group.departmentIds) || !strings(group.gradeIds) || !strings(group.subjectIds))) {
     throw new ContractError('INVALID_INPUT', '입력 형식이 올바르지 않습니다. 필수 항목과 관련 대상 조건을 확인해 주세요.')
   }
-  if (typeof draft.title !== 'string' || !draft.title.trim() || draft.title.trim().length > 100) throw new ContractError('INVALID_INPUT', '제목은 1~100자로 입력해 주세요.')
+  if (typeof draft.title !== 'string' || !draft.title.trim() || Array.from(draft.title.trim()).length > 100) throw new ContractError('INVALID_INPUT', '제목은 1~100자로 입력해 주세요.')
   if (!validDate(draft.startDate) || !validDate(draft.endDate) || draft.startDate > draft.endDate) throw new ContractError('INVALID_INPUT', '종료일은 시작일 이후여야 합니다.')
   if (!draft.allDay && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(draft.endTime) || (draft.startDate === draft.endDate && draft.startTime >= draft.endTime))) throw new ContractError('INVALID_INPUT', '시작·종료 시간을 확인해 주세요.')
   if (!['school', 'audience', 'private'].includes(draft.visibility)) throw new ContractError('INVALID_INPUT', '열람 범위를 선택해 주세요.')
-  if (draft.description.length > 2000 || draft.location.length > 100) throw new ContractError('INVALID_INPUT', '설명은 2,000자, 장소는 100자까지 입력할 수 있습니다.')
+  if (Array.from(draft.description).length > 2000 || Array.from(draft.location).length > 100) throw new ContractError('INVALID_INPUT', '설명은 2,000자, 장소는 100자까지 입력할 수 있습니다.')
   const permitted = new Set(members.filter(item => item.schoolId === member.schoolId).map(item => item.id))
   if ([...draft.audience.includeMemberIds, ...draft.audience.excludeMemberIds].some(id => !permitted.has(id))) throw new ContractError('INVALID_INPUT', '다른 학교의 교사를 관련 대상으로 지정할 수 없습니다.')
   if (!draft.audience.all && !draft.audience.groups.some(group => group.departmentIds.length + group.gradeIds.length + group.subjectIds.length > 0) && !draft.audience.includeMemberIds.length && draft.visibility !== 'private') throw new ContractError('INVALID_INPUT', '관련 대상 조건 또는 직접 포함할 교사를 선택해 주세요.')
