@@ -1,0 +1,2423 @@
+{
+  "version": 1,
+  "morningEnd": 4,
+  "metadata": {
+    "source": "origin/v1-final@e8ddf6e96166231577497170770c18a627c6f882",
+    "notes": [
+      "2026-10-11 계란님 확인: 영어(원어민)는 담당 영어교사와 모든 반이 공유하는 원어민교사 1명이 함께 참여.",
+      "2026-10-11 계란님 확인: 창체에는 각 반 담임이 반드시 참여. 담임 ID는 v1 스포츠 동행 표에서 이식.",
+      "2026-10-11 계란님 확인: 점심 경계를 가로지르는 4~5교시 블록도 허용하되 품질 페널티로 가급적 회피."
+    ]
+  },
+  "days": [
+    {
+      "id": "월",
+      "periods": 6,
+      "breaksAfter": [
+        4
+      ]
+    },
+    {
+      "id": "화",
+      "periods": 7,
+      "breaksAfter": [
+        4
+      ]
+    },
+    {
+      "id": "수",
+      "periods": 6,
+      "breaksAfter": [
+        4
+      ]
+    },
+    {
+      "id": "목",
+      "periods": 7,
+      "breaksAfter": [
+        4
+      ]
+    },
+    {
+      "id": "금",
+      "periods": 6,
+      "breaksAfter": [
+        4
+      ]
+    }
+  ],
+  "classes": [
+    {
+      "id": "c1",
+      "name": "1-1반",
+      "grade": 1
+    },
+    {
+      "id": "c2",
+      "name": "1-2반",
+      "grade": 1
+    },
+    {
+      "id": "c3",
+      "name": "1-3반",
+      "grade": 1
+    },
+    {
+      "id": "c4",
+      "name": "2-1반",
+      "grade": 2
+    },
+    {
+      "id": "c5",
+      "name": "2-2반",
+      "grade": 2
+    },
+    {
+      "id": "c6",
+      "name": "2-3반",
+      "grade": 2
+    },
+    {
+      "id": "c7",
+      "name": "3-1반",
+      "grade": 3
+    },
+    {
+      "id": "c8",
+      "name": "3-2반",
+      "grade": 3
+    },
+    {
+      "id": "c9",
+      "name": "3-3반",
+      "grade": 3
+    }
+  ],
+  "teachers": [
+    {
+      "id": "t1",
+      "name": "t1",
+      "availability": {}
+    },
+    {
+      "id": "t2",
+      "name": "t2",
+      "availability": {}
+    },
+    {
+      "id": "t3",
+      "name": "t3",
+      "availability": {
+        "blockedSlots": [
+          {
+            "day": "월",
+            "period": 1
+          },
+          {
+            "day": "월",
+            "period": 2
+          },
+          {
+            "day": "월",
+            "period": 3
+          },
+          {
+            "day": "월",
+            "period": 4
+          },
+          {
+            "day": "수",
+            "period": 1
+          },
+          {
+            "day": "수",
+            "period": 2
+          },
+          {
+            "day": "수",
+            "period": 3
+          },
+          {
+            "day": "수",
+            "period": 4
+          },
+          {
+            "day": "목",
+            "period": 1
+          },
+          {
+            "day": "목",
+            "period": 2
+          },
+          {
+            "day": "목",
+            "period": 3
+          },
+          {
+            "day": "목",
+            "period": 4
+          }
+        ]
+      }
+    },
+    {
+      "id": "t4",
+      "name": "t4",
+      "availability": {}
+    },
+    {
+      "id": "t5",
+      "name": "t5",
+      "availability": {}
+    },
+    {
+      "id": "t6",
+      "name": "t6",
+      "availability": {}
+    },
+    {
+      "id": "t7",
+      "name": "t7",
+      "availability": {}
+    },
+    {
+      "id": "t8",
+      "name": "t8",
+      "availability": {}
+    },
+    {
+      "id": "t9",
+      "name": "t9",
+      "availability": {}
+    },
+    {
+      "id": "t10",
+      "name": "t10",
+      "availability": {}
+    },
+    {
+      "id": "t11",
+      "name": "t11",
+      "availability": {}
+    },
+    {
+      "id": "t12",
+      "name": "t12",
+      "availability": {}
+    },
+    {
+      "id": "t13",
+      "name": "t13",
+      "availability": {}
+    },
+    {
+      "id": "t14",
+      "name": "t14",
+      "availability": {}
+    },
+    {
+      "id": "t15",
+      "name": "t15",
+      "availability": {}
+    },
+    {
+      "id": "t16",
+      "name": "t16",
+      "availability": {
+        "maxPeriod": 3
+      }
+    },
+    {
+      "id": "t17",
+      "name": "t17",
+      "availability": {}
+    },
+    {
+      "id": "t18",
+      "name": "t18",
+      "availability": {
+        "maxPeriodPerDay": {
+          "화": 5,
+          "목": 5
+        }
+      }
+    },
+    {
+      "id": "t19",
+      "name": "t19",
+      "availability": {}
+    },
+    {
+      "id": "t20",
+      "name": "t20",
+      "availability": {}
+    },
+    {
+      "id": "t21",
+      "name": "t21",
+      "availability": {}
+    },
+    {
+      "id": "t22",
+      "name": "t22",
+      "availability": {
+        "morningOnly": true
+      }
+    },
+    {
+      "id": "native-1",
+      "name": "원어민교사1",
+      "availability": {}
+    }
+  ],
+  "subjects": [
+    {
+      "id": "s1",
+      "name": "국어",
+      "availability": {}
+    },
+    {
+      "id": "s2",
+      "name": "사회",
+      "availability": {}
+    },
+    {
+      "id": "s3",
+      "name": "역사",
+      "availability": {}
+    },
+    {
+      "id": "s4",
+      "name": "도덕",
+      "availability": {}
+    },
+    {
+      "id": "s5",
+      "name": "수학",
+      "availability": {}
+    },
+    {
+      "id": "s6",
+      "name": "리터러시",
+      "availability": {}
+    },
+    {
+      "id": "s7",
+      "name": "정보",
+      "availability": {}
+    },
+    {
+      "id": "s8",
+      "name": "기술가정",
+      "availability": {}
+    },
+    {
+      "id": "s9",
+      "name": "과학",
+      "availability": {}
+    },
+    {
+      "id": "s10",
+      "name": "체육",
+      "availability": {}
+    },
+    {
+      "id": "s11",
+      "name": "스포츠",
+      "availability": {}
+    },
+    {
+      "id": "s12",
+      "name": "음악",
+      "availability": {}
+    },
+    {
+      "id": "s13",
+      "name": "미술",
+      "availability": {}
+    },
+    {
+      "id": "s14",
+      "name": "진로",
+      "availability": {}
+    },
+    {
+      "id": "s15",
+      "name": "영어",
+      "availability": {}
+    },
+    {
+      "id": "s16",
+      "name": "보건",
+      "availability": {}
+    },
+    {
+      "id": "s17",
+      "name": "한문",
+      "availability": {}
+    },
+    {
+      "id": "s18",
+      "name": "국어(주)",
+      "availability": {}
+    },
+    {
+      "id": "s19",
+      "name": "사회(주)",
+      "availability": {}
+    },
+    {
+      "id": "s20",
+      "name": "도덕(주)",
+      "availability": {}
+    },
+    {
+      "id": "s21",
+      "name": "수학(주)",
+      "availability": {}
+    },
+    {
+      "id": "s22",
+      "name": "과학(주)",
+      "availability": {}
+    },
+    {
+      "id": "s23",
+      "name": "진로(주)",
+      "availability": {}
+    },
+    {
+      "id": "s24",
+      "name": "영원",
+      "availability": {
+        "allowedDays": [
+          "월",
+          "화",
+          "수"
+        ]
+      }
+    }
+  ],
+  "resources": [
+    {
+      "id": "shared-0",
+      "name": "v1 체육관 공유",
+      "capacity": 1
+    }
+  ],
+  "lessons": [
+    {
+      "id": "t1-c3-s1",
+      "classId": "c3",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t1"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t1-c7-s1",
+      "classId": "c7",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t1"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t1-c8-s1",
+      "classId": "c8",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t1"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t1-c9-s1",
+      "classId": "c9",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t1"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t2-c1-s1",
+      "classId": "c1",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t2"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t2-c2-s1",
+      "classId": "c2",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t2"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t2-c4-s1",
+      "classId": "c4",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t2"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t2-c5-s1",
+      "classId": "c5",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t2"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t2-c6-s1",
+      "classId": "c6",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t2"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c4-s1",
+      "classId": "c4",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c5-s1",
+      "classId": "c5",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c6-s1",
+      "classId": "c6",
+      "subjectId": "s1",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c1-s18",
+      "classId": "c1",
+      "subjectId": "s18",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c2-s18",
+      "classId": "c2",
+      "subjectId": "s18",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c3-s18",
+      "classId": "c3",
+      "subjectId": "s18",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c4-s17",
+      "classId": "c4",
+      "subjectId": "s17",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c5-s17",
+      "classId": "c5",
+      "subjectId": "s17",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t3-c6-s17",
+      "classId": "c6",
+      "subjectId": "s17",
+      "teacherIds": [
+        "t3"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c1-s2",
+      "classId": "c1",
+      "subjectId": "s2",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c2-s2",
+      "classId": "c2",
+      "subjectId": "s2",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c3-s2",
+      "classId": "c3",
+      "subjectId": "s2",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c7-s2",
+      "classId": "c7",
+      "subjectId": "s2",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c8-s2",
+      "classId": "c8",
+      "subjectId": "s2",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c9-s2",
+      "classId": "c9",
+      "subjectId": "s2",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c1-s19",
+      "classId": "c1",
+      "subjectId": "s19",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c2-s19",
+      "classId": "c2",
+      "subjectId": "s19",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t4-c3-s19",
+      "classId": "c3",
+      "subjectId": "s19",
+      "teacherIds": [
+        "t4"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t5-c4-s3",
+      "classId": "c4",
+      "subjectId": "s3",
+      "teacherIds": [
+        "t5"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t5-c5-s3",
+      "classId": "c5",
+      "subjectId": "s3",
+      "teacherIds": [
+        "t5"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t5-c6-s3",
+      "classId": "c6",
+      "subjectId": "s3",
+      "teacherIds": [
+        "t5"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t5-c7-s3",
+      "classId": "c7",
+      "subjectId": "s3",
+      "teacherIds": [
+        "t5"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t5-c8-s3",
+      "classId": "c8",
+      "subjectId": "s3",
+      "teacherIds": [
+        "t5"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t5-c9-s3",
+      "classId": "c9",
+      "subjectId": "s3",
+      "teacherIds": [
+        "t5"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c1-s4",
+      "classId": "c1",
+      "subjectId": "s4",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c2-s4",
+      "classId": "c2",
+      "subjectId": "s4",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c3-s4",
+      "classId": "c3",
+      "subjectId": "s4",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c7-s4",
+      "classId": "c7",
+      "subjectId": "s4",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c8-s4",
+      "classId": "c8",
+      "subjectId": "s4",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c9-s4",
+      "classId": "c9",
+      "subjectId": "s4",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c1-s20",
+      "classId": "c1",
+      "subjectId": "s20",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c2-s20",
+      "classId": "c2",
+      "subjectId": "s20",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t6-c3-s20",
+      "classId": "c3",
+      "subjectId": "s20",
+      "teacherIds": [
+        "t6"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t7-c1-s5",
+      "classId": "c1",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t7"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t7-c2-s5",
+      "classId": "c2",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t7"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t7-c3-s5",
+      "classId": "c3",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t7"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t7-c1-s21",
+      "classId": "c1",
+      "subjectId": "s21",
+      "teacherIds": [
+        "t7"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t7-c2-s21",
+      "classId": "c2",
+      "subjectId": "s21",
+      "teacherIds": [
+        "t7"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t7-c3-s21",
+      "classId": "c3",
+      "subjectId": "s21",
+      "teacherIds": [
+        "t7"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t8-c4-s5",
+      "classId": "c4",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t8"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t8-c5-s5",
+      "classId": "c5",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t8"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t8-c6-s5",
+      "classId": "c6",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t8"
+      ],
+      "hours": 4,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t8-c7-s5",
+      "classId": "c7",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t8"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t8-c8-s5",
+      "classId": "c8",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t8"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t8-c9-s5",
+      "classId": "c9",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t8"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t9-c7-s5",
+      "classId": "c7",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t9"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t9-c8-s5",
+      "classId": "c8",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t9"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t9-c9-s5",
+      "classId": "c9",
+      "subjectId": "s5",
+      "teacherIds": [
+        "t9"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t9-c1-s6",
+      "classId": "c1",
+      "subjectId": "s6",
+      "teacherIds": [
+        "t9"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t9-c2-s6",
+      "classId": "c2",
+      "subjectId": "s6",
+      "teacherIds": [
+        "t9"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t9-c3-s6",
+      "classId": "c3",
+      "subjectId": "s6",
+      "teacherIds": [
+        "t9"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t10-c4-s7",
+      "classId": "c4",
+      "subjectId": "s7",
+      "teacherIds": [
+        "t10"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t10-c5-s7",
+      "classId": "c5",
+      "subjectId": "s7",
+      "teacherIds": [
+        "t10"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t10-c6-s7",
+      "classId": "c6",
+      "subjectId": "s7",
+      "teacherIds": [
+        "t10"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t11-c4-s8",
+      "classId": "c4",
+      "subjectId": "s8",
+      "teacherIds": [
+        "t11"
+      ],
+      "hours": 4,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t11-c5-s8",
+      "classId": "c5",
+      "subjectId": "s8",
+      "teacherIds": [
+        "t11"
+      ],
+      "hours": 4,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t11-c6-s8",
+      "classId": "c6",
+      "subjectId": "s8",
+      "teacherIds": [
+        "t11"
+      ],
+      "hours": 4,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t11-c7-s8",
+      "classId": "c7",
+      "subjectId": "s8",
+      "teacherIds": [
+        "t11"
+      ],
+      "hours": 2,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t11-c8-s8",
+      "classId": "c8",
+      "subjectId": "s8",
+      "teacherIds": [
+        "t11"
+      ],
+      "hours": 2,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t11-c9-s8",
+      "classId": "c9",
+      "subjectId": "s8",
+      "teacherIds": [
+        "t11"
+      ],
+      "hours": 2,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t12-c1-s9",
+      "classId": "c1",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t12"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t12-c2-s9",
+      "classId": "c2",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t12"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t12-c3-s9",
+      "classId": "c3",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t12"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t12-c7-s9",
+      "classId": "c7",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t12"
+      ],
+      "hours": 4,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t12-c8-s9",
+      "classId": "c8",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t12"
+      ],
+      "hours": 4,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t12-c9-s9",
+      "classId": "c9",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t12"
+      ],
+      "hours": 4,
+      "blocks": [
+        2
+      ],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c1-s9",
+      "classId": "c1",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c2-s9",
+      "classId": "c2",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c3-s9",
+      "classId": "c3",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c4-s9",
+      "classId": "c4",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c5-s9",
+      "classId": "c5",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c6-s9",
+      "classId": "c6",
+      "subjectId": "s9",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c1-s22",
+      "classId": "c1",
+      "subjectId": "s22",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c2-s22",
+      "classId": "c2",
+      "subjectId": "s22",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t13-c3-s22",
+      "classId": "c3",
+      "subjectId": "s22",
+      "teacherIds": [
+        "t13"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c1-s10",
+      "classId": "c1",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c2-s10",
+      "classId": "c2",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c3-s10",
+      "classId": "c3",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c6-s10",
+      "classId": "c6",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c7-s10",
+      "classId": "c7",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c8-s10",
+      "classId": "c8",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t14-c9-s10",
+      "classId": "c9",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t14"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t15-c1-s10",
+      "classId": "c1",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t15"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t15-c2-s10",
+      "classId": "c2",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t15"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t15-c3-s10",
+      "classId": "c3",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t15"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t15-c4-s10",
+      "classId": "c4",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t15"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t15-c5-s10",
+      "classId": "c5",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t15"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t15-c6-s10",
+      "classId": "c6",
+      "subjectId": "s10",
+      "teacherIds": [
+        "t15"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [
+        "shared-0"
+      ],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c1-s11",
+      "classId": "c1",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t7"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c2-s11",
+      "classId": "c2",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c3-s11",
+      "classId": "c3",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t4"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c4-s11",
+      "classId": "c4",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t15"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c5-s11",
+      "classId": "c5",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t5"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c6-s11",
+      "classId": "c6",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t2"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c7-s11",
+      "classId": "c7",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t11"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c8-s11",
+      "classId": "c8",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t9"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t16-c9-s11",
+      "classId": "c9",
+      "subjectId": "s11",
+      "teacherIds": [
+        "t16",
+        "t12"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c1-s12",
+      "classId": "c1",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c2-s12",
+      "classId": "c2",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c3-s12",
+      "classId": "c3",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c4-s12",
+      "classId": "c4",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c5-s12",
+      "classId": "c5",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c6-s12",
+      "classId": "c6",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c7-s12",
+      "classId": "c7",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c8-s12",
+      "classId": "c8",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t17-c9-s12",
+      "classId": "c9",
+      "subjectId": "s12",
+      "teacherIds": [
+        "t17"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t18-c1-s13",
+      "classId": "c1",
+      "subjectId": "s13",
+      "teacherIds": [
+        "t18"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t18-c2-s13",
+      "classId": "c2",
+      "subjectId": "s13",
+      "teacherIds": [
+        "t18"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t18-c3-s13",
+      "classId": "c3",
+      "subjectId": "s13",
+      "teacherIds": [
+        "t18"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t18-c4-s13",
+      "classId": "c4",
+      "subjectId": "s13",
+      "teacherIds": [
+        "t18"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t18-c5-s13",
+      "classId": "c5",
+      "subjectId": "s13",
+      "teacherIds": [
+        "t18"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t18-c6-s13",
+      "classId": "c6",
+      "subjectId": "s13",
+      "teacherIds": [
+        "t18"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t19-c4-s14",
+      "classId": "c4",
+      "subjectId": "s14",
+      "teacherIds": [
+        "t19"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t19-c5-s14",
+      "classId": "c5",
+      "subjectId": "s14",
+      "teacherIds": [
+        "t19"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t19-c6-s14",
+      "classId": "c6",
+      "subjectId": "s14",
+      "teacherIds": [
+        "t19"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t19-c1-s23",
+      "classId": "c1",
+      "subjectId": "s23",
+      "teacherIds": [
+        "t19"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t19-c2-s23",
+      "classId": "c2",
+      "subjectId": "s23",
+      "teacherIds": [
+        "t19"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t19-c3-s23",
+      "classId": "c3",
+      "subjectId": "s23",
+      "teacherIds": [
+        "t19"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c2-s15",
+      "classId": "c2",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t20"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c3-s15",
+      "classId": "c3",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t20"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c4-s15",
+      "classId": "c4",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t20"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c5-s15",
+      "classId": "c5",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t20"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c6-s15",
+      "classId": "c6",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t20"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c2-s24",
+      "classId": "c2",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t20",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c3-s24",
+      "classId": "c3",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t20",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c4-s24",
+      "classId": "c4",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t20",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c5-s24",
+      "classId": "c5",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t20",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t20-c6-s24",
+      "classId": "c6",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t20",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c1-s15",
+      "classId": "c1",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t21"
+      ],
+      "hours": 2,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c7-s15",
+      "classId": "c7",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t21"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c8-s15",
+      "classId": "c8",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t21"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c9-s15",
+      "classId": "c9",
+      "subjectId": "s15",
+      "teacherIds": [
+        "t21"
+      ],
+      "hours": 3,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c1-s24",
+      "classId": "c1",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t21",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c7-s24",
+      "classId": "c7",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t21",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c8-s24",
+      "classId": "c8",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t21",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t21-c9-s24",
+      "classId": "c9",
+      "subjectId": "s24",
+      "teacherIds": [
+        "t21",
+        "native-1"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t22-c7-s16",
+      "classId": "c7",
+      "subjectId": "s16",
+      "teacherIds": [
+        "t22"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t22-c8-s16",
+      "classId": "c8",
+      "subjectId": "s16",
+      "teacherIds": [
+        "t22"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    },
+    {
+      "id": "t22-c9-s16",
+      "classId": "c9",
+      "subjectId": "s16",
+      "teacherIds": [
+        "t22"
+      ],
+      "hours": 1,
+      "blocks": [],
+      "resourceIds": [],
+      "allowAcrossBreak": true
+    }
+  ],
+  "reservations": [
+    {
+      "classId": "c1",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t7"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c2",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t17"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c3",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t4"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c4",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t15"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c5",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t5"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c6",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t2"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c7",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t11"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c8",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t9"
+      ],
+      "resourceIds": []
+    },
+    {
+      "classId": "c9",
+      "day": "목",
+      "period": 7,
+      "name": "창체",
+      "teacherIds": [
+        "t12"
+      ],
+      "resourceIds": []
+    }
+  ],
+  "fixed": [
+    {
+      "classId": "c4",
+      "subjectId": "s7",
+      "day": "목",
+      "period": 2
+    },
+    {
+      "classId": "c5",
+      "subjectId": "s7",
+      "day": "목",
+      "period": 3
+    },
+    {
+      "classId": "c6",
+      "subjectId": "s7",
+      "day": "목",
+      "period": 4
+    }
+  ],
+  "subjectWindows": [
+    {
+      "classIds": [
+        "c1",
+        "c2",
+        "c3"
+      ],
+      "subjectIds": [
+        "s18",
+        "s19",
+        "s20",
+        "s21",
+        "s22",
+        "s23"
+      ],
+      "slots": [
+        {
+          "day": "월",
+          "period": 5
+        },
+        {
+          "day": "월",
+          "period": 6
+        },
+        {
+          "day": "화",
+          "period": 6
+        },
+        {
+          "day": "화",
+          "period": 7
+        },
+        {
+          "day": "수",
+          "period": 5
+        },
+        {
+          "day": "수",
+          "period": 6
+        }
+      ]
+    }
+  ],
+  "hardConstraints": [
+    {
+      "type": "subjectDailyLimit",
+      "classId": "c1",
+      "subjectId": "s5",
+      "max": 1
+    },
+    {
+      "type": "subjectDailyLimit",
+      "classId": "c2",
+      "subjectId": "s5",
+      "max": 1
+    },
+    {
+      "type": "subjectDailyLimit",
+      "classId": "c3",
+      "subjectId": "s5",
+      "max": 1
+    }
+  ]
+}

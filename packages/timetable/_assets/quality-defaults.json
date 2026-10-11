@@ -1,0 +1,15 @@
+{
+  "preferredMaxConsecutive": 3,
+  "consecutiveAcrossBreak": false,
+  "weights": {
+    "subjectDaily": 10,
+    "subjectAdjacency": 2,
+    "teacherDailyLoad": 4,
+    "teacherGaps": 2,
+    "teacherConsecutive": 3,
+    "morningBalance": 1,
+    "lateSpread": 1,
+    "teacherFairness": 2,
+    "blockBreakCrossing": 3
+  }
+}

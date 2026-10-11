@@ -15,7 +15,7 @@ node tests/test_gate.mjs # 단독 실행
 
 ```bash
 python3 -m venv tests/.venv
-tests/.venv/bin/pip install lxml
+tests/.venv/bin/pip install lxml -r packages/timetable/requirements.txt
 ```
 
 러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` 순으로 lxml 이 있는
@@ -54,6 +54,9 @@ tests/.venv/bin/pip install lxml
 | `test_calendar.mjs` | 학사일정·공유 캘린더(006) — **파생 계산은 official 만**(shared 의 no_class 는 안 센다), 월간 격자·KST 날짜, soft delete·복구, 라벨 자동완성, RLS 정책 대조 + 정책을 흉내 낸 CRUD 흐름, 시드 SQL |
 | `test_submissions.mjs` | 제출·수합(005) — 파일 규칙(hwpx·30MB)·storage 경로 규약, 파일명에서 교과·학년 제안, 재제출은 지우지 않고 `replaced`, 현황 매트릭스, **RLS(교사 본인 / 담당자 전체·삭제 경로 없음)**, prefill 목록과 catalog 동기화 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
+| `test_timetable.py` · `.mjs` | CP-SAT 완전 배정·동반교사·공유 자원·가용시간·예약·블록·잠금·하드 상한, 작은 문제 전수탐색과 점수 일치, 후보 실제 배치 다양성, 시간 초과 해 보존, 화면 전달용 후보 변환 |
+| `test_timetable_exhaustive.py` | 고정 시드의 48개 작은 문제·31,475배정 조합에서 표준·적응형 전략 모두의 가능·불가능, 최저 패널티, 부분 수정 최소 변경량과 최적성 증명을 대조 |
+| `test_timetable_search.py` | 부분 탐색의 원래 평가 기준·국소/방향별 증명 격리, 공강·그룹 변수·블록, 공동교사·동시수업·자원·예약의 이동 연결, 실측 효율에 따른 시간 배분, 준비 시간을 포함한 마감·첫 해 복구, 최고안·방향별 대표 보존, 대안 재시도, 한국어 입력의 별도 프로세스 비교 |
 
 ## 작성 원칙
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "시간표 도메인 (Phase 2 에서 v1 코드 이식). P8: shared 만 import 가능.",
+  "description": "하드조건 독립 검증과 품질 최적화를 수행하는 시간표 엔진. P8: shared 만 import 가능.",
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js"
