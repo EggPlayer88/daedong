@@ -64,7 +64,7 @@ WORKHUB_TEST_DATABASE_URL과 WORKHUB_TEST_ALLOW_FIXTURES는 CI 서비스 연결 
 
 ## 5. 검증 기록과 남은 범위
 
-작성 시점에 JavaScript 구문 검사와 DB 미접속 안전 게이트 12조건을 통과했다. 독립 PostgreSQL 16에서의 여섯 경쟁 실측 결과는 CI 실행 후 해당 실행 링크와 HEAD를 함께 기록해야 한다. 이 문서 작성만으로 통과했다고 주장하지 않는다.
+2026-10-11 JavaScript 구문 검사와 DB 미접속 안전 게이트 12조건을 통과했다. 이어서 실제 PostgreSQL 16 독립 연결의 여섯 경쟁이 모두 통과했다. [GitHub Actions 실행 기록](https://github.com/EggPlayer88/daedong/actions/runs/38131909355)에서 `npm run test:workhub:postgres` 단계와 전체 `test` job이 성공했다. 검증한 코드 커밋은 `0c0c1d07ba992c0e4f5d2f90a28c9d55256e4447`이다. 같은 실행에서 전체 회귀 868건과 기존/신규 앱 빌드도 통과했다.
 
 PGlite 38개 회귀는 기존 회원·가입 트리거 보존, RLS·private·대상 범위, malformed 응답, 브라우저 연결 계약 등을 검사한다. 이번 여섯 경쟁은 그중 실제 독립 연결 잠금과 가시성 문제를 보강한다. 둘의 성공을 합쳐도 다음을 자동 승인하지 않는다.
 

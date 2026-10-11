@@ -1,5 +1,7 @@
 # 신축 업무실
 
+작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 최신 연결 진단은 [3차 개발 인계](../../docs/workhub/08-activation-readiness.md)를 기준으로 확인합니다.
+
 기존 로그인·회원 프로필을 재사용하는 일정 연결 기반과 별도의 가상 자료 미리보기를 제공합니다. 실제 Supabase에는 이번 SQL을 적용하지 않았습니다.
 
 ## 기존 앱에서 연결
@@ -57,3 +59,5 @@ npm test
 실제 PostgreSQL 독립 연결 경합 시험은 `npm run test:workhub:postgres`입니다. GitHub Actions의 일회용 PostgreSQL 16 서비스에서 필수 `test` 검사에 포함됩니다. 로컬 실행 시 전용 빈 DB와 명시적 테스트 환경변수가 필요하며, 설정이 없다고 건너뛰어 성공 처리하지 않습니다. [실행 조건과 범위](../../docs/workhub/07-postgres-verification.md)를 먼저 확인해 주세요.
 
 독립 실행 HTML은 `node scripts/export-workhub-preview.mjs [저장할 절대 경로]`로 만듭니다. 생략하면 `dist/workhub-preview.html`에 생성합니다. 번들 안에 합성 자료와 스타일을 포함해 외부 네트워크 없이 열 수 있으며 실제 Supabase 연결은 포함하지 않습니다.
+
+연결 진단만 시연하는 HTML은 `node scripts/export-workhub-readiness-preview.mjs [저장할 절대 경로]`로 만듭니다. 8개 합성 상황을 선택해서 진단 화면을 확인하며 실제 접속 증빙으로 사용하지 않습니다.
