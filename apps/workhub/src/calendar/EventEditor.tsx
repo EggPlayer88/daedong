@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ContractError, type AudienceGroup, type CalendarEvent, type EventDraft, type Membership } from '../contracts'
+import { ContractError, type AudienceGroup, type CalendarEvent, type EventDraft, type Membership, type SaveCommand } from '../contracts'
 import { activeAt, canRead, matchesAudience, recommendationReason } from '../domain'
 import type { CalendarAdapter, RelationOptions } from './contracts'
 
@@ -26,6 +26,7 @@ export function EventEditor({ original, member, members, date, adapter, onClose,
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [conflict, setConflict] = useState<CalendarEvent>()
+  const [pending, setPending] = useState<SaveCommand>()
   const dialog = useRef<HTMLDialogElement>(null)
   const titleInput = useRef<HTMLInputElement>(null)
   const alive = useRef(true)
@@ -54,30 +55,41 @@ export function EventEditor({ original, member, members, date, adapter, onClose,
   function groupValue(index: number, field: keyof AudienceGroup, id: string, checked: boolean) {
     change('audience', { ...draft.audience, groups: draft.audience.groups.map((group, i) => i !== index ? group : { ...group, [field]: checked ? [...group[field], id] : group[field].filter(value => value !== id) }) })
   }
-  async function save(event: FormEvent) {
-    event.preventDefault()
+  async function perform(command: SaveCommand) {
     if (inFlight.current || conflict) return
     inFlight.current = true; setSaving(true); setError('')
     try {
-      const payload = JSON.stringify({ draft, id: original?.id, expectedVersion: version })
-      if (saveRequest.current?.payload !== payload) saveRequest.current = { payload, key: crypto.randomUUID() }
-      const result = await adapter.save(member.id, { draft, id: original?.id, expectedVersion: version, idempotencyKey: saveRequest.current.key })
-      if (alive.current) onSaved(result)
+      const result = await adapter.save(member.id, command)
+      if (alive.current) { setPending(undefined); onSaved(result) }
     } catch (failure) {
       if (!alive.current) return
-      if (failure instanceof ContractError && failure.code === 'CONFLICT') setConflict(failure.current)
+      if (failure instanceof ContractError && ['INVALID_INPUT', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'CONFLICT'].includes(failure.code)) {
+        setPending(undefined)
+        if (failure.code === 'CONFLICT') setConflict(failure.current)
+      } else {
+        // 응답만 사라진 경우 새 요청을 만들면 중복될 수 있어 원래 명령을 고정한다.
+        setPending(command)
+      }
       setError(failure instanceof Error ? failure.message : '저장 중 오류가 발생했습니다. 입력은 유지했습니다.')
     } finally { inFlight.current = false; if (alive.current) setSaving(false) }
   }
-  return <dialog ref={dialog} className="editor-dialog" aria-labelledby="editor-title" onCancel={event => { event.preventDefault(); if (!saving) onClose() }}>
+  function save(event: FormEvent) {
+    event.preventDefault()
+    if (pending || inFlight.current || conflict) return
+    const payload = JSON.stringify({ draft, id: original?.id, expectedVersion: version })
+    if (saveRequest.current?.payload !== payload) saveRequest.current = { payload, key: crypto.randomUUID() }
+    void perform({ draft: structuredClone(draft), id: original?.id, expectedVersion: version, idempotencyKey: saveRequest.current.key })
+  }
+  return <dialog ref={dialog} className="editor-dialog" aria-labelledby="editor-title" onCancel={event => { event.preventDefault(); if (!saving && !pending) onClose() }}>
     <form onSubmit={save}>
-      <header className="dialog-header"><div><p className="eyebrow">학교 일정 · {original ? `원본 v${version}` : '새 일정'}</p><h2 id="editor-title">{original ? '일정 수정' : '일정 등록'}</h2></div><button type="button" className="icon-button" aria-label="일정 편집 닫기" disabled={saving} onClick={onClose}>✕</button></header>
+      <header className="dialog-header"><div><p className="eyebrow">학교 일정 · {original ? `원본 v${version}` : '새 일정'}</p><h2 id="editor-title">{original ? '일정 수정' : '일정 등록'}</h2></div><button type="button" className="icon-button" aria-label="일정 편집 닫기" disabled={saving || Boolean(pending)} onClick={onClose}>✕</button></header>
       <div className="dialog-body">
         <p className="subtle-note">{demo ? '합성 자료로 등록 흐름을 확인합니다. 실제 학교나 학생의 개인정보는 입력하지 마세요.' : '현재 선택한 학교의 일정입니다. 저장된 변경은 같은 학교의 열람 대상에게 반영됩니다.'}</p>
         {error && <div ref={errorRef} className="error-box" role="alert" tabIndex={-1}>{error}</div>}
         {notice && <p className="notice-box" role="status">{notice}</p>}
+        {pending && <section className="notice-box" aria-label="일정 저장 결과 확인 필요"><h3>먼저 이전 저장 결과를 확인해 주세요</h3><p>저장이 처리된 뒤 응답만 끊겼을 수 있습니다. 중복 등록을 막기 위해 입력과 요청 번호를 유지합니다.</p><button type="button" className="primary" disabled={saving} onClick={() => { void perform(pending) }}>같은 요청으로 저장 결과 확인</button></section>}
         {conflict && <section className="conflict-box" aria-labelledby="conflict-title"><h3 id="conflict-title">원본이 v{conflict.version}으로 바뀌었습니다</h3><p>다른 교사가 저장한 제목: <strong>{conflict.title}</strong></p><p>현재 원본: {conflict.startDate} ~ {conflict.endDate}, {eventTime(conflict)} / {visibilityLabels[conflict.visibility]}</p><p>내 입력은 아래에 그대로 남아 있습니다. 현재 원본을 확인한 뒤 다시 저장해 주세요.</p><details><summary>현재 원본의 전체 내용 확인</summary><dl className="event-detail"><div><dt>장소</dt><dd>{conflict.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{conflict.description || '등록된 안내 없음'}</dd></div><div><dt>관련 대상</dt><dd>{audienceLabel(conflict, members, relationLabels)}</dd></div></dl></details><div className="button-row"><button type="button" className="secondary" onClick={() => { setVersion(conflict.version); setConflict(undefined); setError(''); setNotice('변경된 원본을 확인했습니다. 내 입력으로 바꾸려면 다시 저장해 주세요.') }}>변경 확인 · 내 입력 유지</button><button type="button" className="text-button" onClick={() => { setDraft(structuredClone(conflict)); setVersion(conflict.version); setConflict(undefined); setError(''); setNotice('현재 원본을 불러왔습니다. 이전 입력은 이 양식에서 대체되었습니다.') }}>현재 원본으로 입력 바꾸기</button></div></section>}
-        <fieldset disabled={saving} className="form-fields"><legend className="sr-only">일정 기본 정보</legend>
+        <fieldset disabled={saving || Boolean(pending)} className="form-fields"><legend className="sr-only">일정 기본 정보</legend>
           <label>일정 제목 <span className="required">필수</span><input ref={titleInput} name="title" required maxLength={100} value={draft.title} placeholder="예: 2학년 체험학습 준비 협의" onChange={event => change('title', event.target.value)} /></label>
           <div className="form-grid"><label>시작일 <span className="required">필수</span><input name="startDate" required type="date" value={draft.startDate} onChange={event => { const startDate = event.target.value; setDraft(current => ({ ...current, startDate, endDate: current.endDate < startDate ? startDate : current.endDate })) }} /></label><label>종료일 <span className="required">필수</span><input name="endDate" required type="date" min={draft.startDate} value={draft.endDate} onChange={event => change('endDate', event.target.value)} /></label></div>
           <label className="check-label"><input type="checkbox" checked={draft.allDay} onChange={event => change('allDay', event.target.checked)} />종일 일정</label>
@@ -92,9 +104,9 @@ export function EventEditor({ original, member, members, date, adapter, onClose,
           </section>
         </fieldset>
         <section className="audience-preview" aria-labelledby="preview-title"><h3 id="preview-title">대상 미리보기</h3><dl><div><dt>관련 대상 · {targetDate} 기준</dt><dd>{targetMembers.length}명 <span>{targetMembers.map(item => item.name).join(', ') || '해당 없음'}</span></dd></div><div><dt>원본 열람 · 현재 기준일 기준</dt><dd>{readMembers.length}명 <span>{readMembers.map(item => item.name).join(', ') || '해당 없음'}</span></dd></div><div><dt>홈 추천 후보 · 열람 가능한 교사 중</dt><dd>{homeMembers.length}명 <span>{homeMembers.map(item => item.name).join(', ') || '해당 없음'}</span></dd></div></dl><p className="hint">진행 중인 일정은 현재 기준일, 미래 일정은 시작일의 소속 관계로 추천합니다. 작성자는 본인 일정을 확인하며 지난 일정은 홈에 나타나지 않습니다.</p></section>
-        {demo && original && adapter.simulateConcurrentEdit && adapter.failNextSave && <details className="developer-inline"><summary>개발 시험 · 동시 수정 / 저장 실패</summary><div className="button-row"><button type="button" className="secondary small" disabled={saving} onClick={() => { try { adapter.simulateConcurrentEdit?.(member.id, original.id); setNotice('가상 원본을 다른 교사가 수정했습니다. 저장을 눌러 충돌과 입력 보존을 확인하세요.') } catch (failure) { setError((failure as Error).message) } }}>다른 교사 수정 발생</button><button type="button" className="secondary small" disabled={saving} onClick={() => { adapter.failNextSave?.(); setNotice('다음 저장이 한 번 실패합니다. 입력을 유지한 재시도를 확인하세요.') }}>다음 저장 실패</button></div></details>}
+        {demo && original && adapter.simulateConcurrentEdit && adapter.failNextSave && <details className="developer-inline"><summary>개발 시험 · 동시 수정 / 저장 실패</summary><div className="button-row"><button type="button" className="secondary small" disabled={saving || Boolean(pending)} onClick={() => { try { adapter.simulateConcurrentEdit?.(member.id, original.id); setNotice('가상 원본을 다른 교사가 수정했습니다. 저장을 눌러 충돌과 입력 보존을 확인하세요.') } catch (failure) { setError((failure as Error).message) } }}>다른 교사 수정 발생</button><button type="button" className="secondary small" disabled={saving || Boolean(pending)} onClick={() => { adapter.failNextSave?.(); setNotice('다음 저장이 한 번 실패합니다. 입력을 유지한 재시도를 확인하세요.') }}>다음 저장 실패</button></div></details>}
       </div>
-      <footer className="dialog-footer"><p className="hint">{original ? `확인한 원본 v${version} · ${storageLabel}` : storageLabel}</p><div className="button-row"><button type="button" className="secondary" disabled={saving} onClick={onClose}>취소</button><button className="primary" type="submit" disabled={saving || Boolean(conflict)}>{saving ? '저장 중…' : original ? '수정 저장' : '일정 등록'}</button></div></footer>
+      <footer className="dialog-footer"><p className="hint">{original ? `확인한 원본 v${version} · ${storageLabel}` : storageLabel}</p><div className="button-row"><button type="button" className="secondary" disabled={saving || Boolean(pending)} onClick={onClose}>취소</button><button className="primary" type="submit" disabled={saving || Boolean(pending) || Boolean(conflict)}>{saving ? '저장 중…' : original ? '수정 저장' : '일정 등록'}</button></div></footer>
     </form>
   </dialog>
 }

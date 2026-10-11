@@ -1,5 +1,6 @@
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
+import { normalizeTaskInput } from '../tasks/validation'
 import { WorkflowError, type AnswerInput, type CollectionDraft, type CollectionInput, type CollectionRequest, type CollectionUnit, type CommandReceipt, type PersonalTask, type Submission, type TaskInput, type TaskStatus, type WorkflowContext, type WorkflowSnapshot } from './types'
 
 const clone = <T,>(value: T): T => structuredClone(value)
@@ -25,7 +26,9 @@ function contextValue(value: WorkflowContext): WorkflowContext {
 }
 function taskInput(input: unknown): TaskInput {
   if (!object(input)) return fail('INVALID_INPUT', '할 일 입력 형식이 올바르지 않습니다.')
-  return { title: text(input.title, '제목', 120, true), notes: text(input.notes, '메모', 2000), dueDate: dateValue(input.dueDate, false) }
+  // 실제 개인 업무 화면과 같은 코드포인트·날짜·공백 규칙을 사용한다.
+  try { return normalizeTaskInput({ title: input.title, notes: input.notes, dueDate: input.dueDate }) }
+  catch (error) { return fail('INVALID_INPUT', error instanceof Error ? error.message : '할 일 입력을 확인해 주세요.') }
 }
 function collectionInput(input: unknown): CollectionInput {
   if (!object(input) || !['none', 'required'].includes(String(input.reviewMode)) || typeof input.textRequired !== 'boolean' || typeof input.numberRequired !== 'boolean' || !Array.isArray(input.units) || input.units.length < 1 || input.units.length > 100) return fail('INVALID_INPUT', '수합 설정과 제출 단위를 확인해 주세요.')

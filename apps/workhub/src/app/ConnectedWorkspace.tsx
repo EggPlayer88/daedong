@@ -9,6 +9,12 @@ import theme from '../style.css?inline'
 import { ConnectionReadinessPanel } from './ConnectionReadinessPanel'
 import { createSupabaseTaskAdapter } from '../tasks/supabase-task-adapter'
 import { TaskPanel } from '../tasks/TaskPanel'
+import { WorkspaceShell } from './WorkspaceShell'
+import { ModuleBoundary } from './ModuleBoundary'
+import { useWorkspaceNavigation } from './navigation'
+import { enabledModules, type PageId } from '../modules'
+
+const connectedPages = enabledModules('connected').map(module => module.id)
 
 // 기존 앱의 전역 CSS와 신축 화면을 격리한다. 같은 origin·같은 인증 인스턴스를 사용한다.
 function StyleBoundary({ children }: { children: ReactNode }) {
@@ -26,7 +32,6 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
   const [context, setContext] = useState<ConnectionContext>()
   const [memberId, setMemberId] = useState('')
-  const [page, setPage] = useState<'home' | 'calendar' | 'tasks'>('home')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
   const [attempt, setAttempt] = useState(0)
@@ -34,6 +39,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [scopeEpoch, setScopeEpoch] = useState(0)
   const [diagnosticEpoch, setDiagnosticEpoch] = useState(0)
   const [taskNavigationLocked, setTaskNavigationLocked] = useState(false)
+  const [calendarNavigationLocked, setCalendarNavigationLocked] = useState(false)
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
   const scopeFingerprint = useRef('')
@@ -65,7 +71,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       if (!alive) return
       generation.current += 1
       setDiagnosticEpoch(value => value + 1)
-      setTaskNavigationLocked(false)
+      setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
     })
     // 다른 창의 로그아웃·승인 변경 후에는 이전 학교 화면을 다시 그대로 쓰지 않는다.
@@ -75,13 +81,29 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   }, [connection, expectedUserId, attempt])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
+  const navigationLocked = taskNavigationLocked || calendarNavigationLocked
+  const navigation = useWorkspaceNavigation({
+    allowedPages: connectedPages,
+    scopeKey: member ? `${expectedUserId}:${memberId}:${scopeEpoch}` : undefined,
+    locked: navigationLocked,
+  })
+  const page = navigation.page as PageId
+  const navigate = (next: PageId) => { navigation.requestNavigate(next) }
+  const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
   return <StyleBoundary>
     <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
-    {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : <>
-      <header className="connected-top"><label>사용할 학교<select disabled={taskNavigationLocked} value={memberId} onChange={event => { setMemberId(event.target.value); setPage('home') }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label><nav aria-label="신축 업무 메뉴"><button className="secondary" disabled={taskNavigationLocked} aria-current={page === 'home' ? 'page' : undefined} onClick={() => setPage('home')}>오늘</button><button className="secondary" disabled={taskNavigationLocked} aria-current={page === 'calendar' ? 'page' : undefined} onClick={() => setPage('calendar')}>학교 일정</button><button className="secondary" disabled={taskNavigationLocked} aria-current={page === 'tasks' ? 'page' : undefined} onClick={() => setPage('tasks')}>내 업무</button></nav></header>
-      {taskNavigationLocked && <p className="connection-notice" role="status">업무 편집을 마치거나 이전 저장 결과를 확인한 뒤 메뉴·학교를 이동할 수 있습니다.</p>}
-      {page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={`${memberId}:${attempt}:${scopeEpoch}`} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} /></main> : <CalendarPanel key={`${memberId}:${attempt}:${scopeEpoch}`} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch} page={page} onPageChange={setPage} relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장" homeExtras={<TaskPanel key={`${memberId}:${attempt}:${scopeEpoch}`} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={() => setPage('tasks')} />} />}
-    </>}
+    {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> :
+      <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
+        storageLabel="현재 학교 서버에 저장" locked={navigationLocked} notice={navigation.announcement}
+        contextControls={<label>사용할 학교<select disabled={navigationLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => setMemberId(value)) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
+        <ModuleBoundary moduleName={page === 'tasks' ? '내 업무' : '학교 일정'} resetKey={`${resetKey}:${page}`}>
+          {page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} /></main> :
+            <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
+              page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked}
+              relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장"
+              homeExtras={<ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={() => navigate('tasks')} /></ModuleBoundary>} />}
+        </ModuleBoundary>
+      </WorkspaceShell>}
     <ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} />
   </StyleBoundary>
 }
