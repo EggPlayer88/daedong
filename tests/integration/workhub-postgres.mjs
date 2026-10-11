@@ -108,6 +108,7 @@ async function run() {
     }
   }
   const save = (client, memberId, command) => client.query('SELECT public.workhub_calendar_save($1,$2::jsonb) AS value', [memberId, JSON.stringify(command)])
+  const taskMutate = (client, memberId, command, key) => client.query('SELECT public.workhub_task_mutate($1,$2::jsonb,$3) AS value', [memberId, JSON.stringify(command), key])
   const start = promise => {
     const pending = { settled: false, promise: undefined }
     pending.promise = promise.then(result => { pending.settled = true; return { ok: true, result } }, error => { pending.settled = true; return { ok: false, error } })
@@ -141,6 +142,7 @@ async function run() {
     return outcome.result.rows[0].value
   }
   const counts = () => value("SELECT jsonb_build_object('events',(SELECT count(*) FROM public.workhub_calendar_events),'receipts',(SELECT count(*) FROM public.workhub_calendar_receipts),'audit',(SELECT count(*) FROM public.workhub_calendar_audit)) AS value")
+  const taskCounts = () => value("SELECT jsonb_build_object('tasks',(SELECT count(*) FROM public.workhub_personal_tasks),'receipts',(SELECT count(*) FROM public.workhub_task_receipts),'audit',(SELECT count(*) FROM public.workhub_task_audit)) AS value")
   const delta = (before, after, expected) => {
     assert.deepEqual(Object.fromEntries(Object.keys(before).map(key => [key, after[key] - before[key]])), expected)
   }
@@ -149,6 +151,10 @@ async function run() {
     assert.equal(await value('SELECT count(*)::int AS value FROM public.workhub_calendar_events e WHERE e.version<>(SELECT count(*) FROM public.workhub_calendar_audit a WHERE a.event_id=e.id) OR e.version<>(SELECT count(*) FROM public.workhub_calendar_receipts r WHERE r.event_id=e.id)'), 0)
     const total = await counts()
     assert.equal(total.receipts, total.audit)
+    assert.equal(await value("SELECT count(*)::int AS value FROM public.workhub_task_receipts r JOIN public.workhub_personal_tasks t ON t.id=r.task_id WHERE r.school_id<>t.school_id OR r.member_id<>t.owner_member_id OR r.result->>'id'<>t.id OR r.result->>'schoolId'<>t.school_id OR r.result->>'ownerMemberId'<>t.owner_member_id OR NOT EXISTS (SELECT 1 FROM public.workhub_task_audit a WHERE a.task_id=r.task_id AND a.actor_member_id=r.member_id AND a.task_version=(r.result->>'version')::int)"), 0)
+    assert.equal(await value('SELECT count(*)::int AS value FROM public.workhub_personal_tasks t WHERE t.version<>(SELECT count(*) FROM public.workhub_task_audit a WHERE a.task_id=t.id) OR t.version<>(SELECT count(*) FROM public.workhub_task_receipts r WHERE r.task_id=t.id)'), 0)
+    const taskTotal = await taskCounts()
+    assert.equal(taskTotal.receipts, taskTotal.audit)
   }
   const check = async (name, fn) => {
     stage = name
@@ -181,11 +187,12 @@ async function run() {
     }
     await observer.query('COMMIT')
     await observer.query(readFileSync(join(ROOT, 'database/workhub/001-calendar-foundation.proposed.sql'), 'utf8'))
-    const ids = Object.fromEntries(['owner', 'manager', 'revoked', 'ended', 'overlap'].map((name, i) => [name, '10000000-0000-4000-8000-' + String(i + 1).padStart(12, '0')]))
+    await observer.query(readFileSync(join(ROOT, 'database/workhub/004-personal-tasks.proposed.sql'), 'utf8'))
+    const ids = Object.fromEntries(['owner', 'manager', 'revoked', 'ended', 'overlap', 'task-revoked', 'task-ended'].map((name, i) => [name, '10000000-0000-4000-8000-' + String(i + 1).padStart(12, '0')]))
     for (const [name, id] of Object.entries(ids)) await observer.query("INSERT INTO auth.users(id,email,raw_user_meta_data) VALUES($1,$2,jsonb_build_object('name',$3::text))", [id, name + '@example.invalid', '합성 ' + name])
     await observer.query("UPDATE public.users SET is_active=true,role='superadmin'")
     await observer.query("INSERT INTO public.workhub_schools(id,name) VALUES('race-school','합성 경합 학교')")
-    for (const name of ['owner', 'manager', 'revoked', 'ended']) await observer.query("INSERT INTO public.workhub_memberships(id,school_id,user_id,role,active,valid_from,valid_through) VALUES($1,'race-school',$2,$3,true,public.workhub_today()-1,public.workhub_today()+30)", [name, ids[name], name === 'manager' ? 'calendar_manager' : 'teacher'])
+    for (const name of ['owner', 'manager', 'revoked', 'ended', 'task-revoked', 'task-ended']) await observer.query("INSERT INTO public.workhub_memberships(id,school_id,user_id,role,active,valid_from,valid_through) VALUES($1,'race-school',$2,$3,true,public.workhub_today()-1,public.workhub_today()+30)", [name, ids[name], name === 'manager' ? 'calendar_manager' : 'teacher'])
     const today = await value('SELECT public.workhub_today()::text AS value')
     const draft = title => ({ title, description: '', location: '', startDate: today, endDate: today, allDay: true, startTime: '', endTime: '', visibility: 'school', audience: { all: true, groups: [], includeMemberIds: [], excludeMemberIds: [] } })
     console.log('  ✓ 원본 001~007 + 신축 제안 적용, 합성 회원만 생성, 기본 superadmin 게이트 유지')
@@ -285,6 +292,82 @@ async function run() {
       })
       delta(before, await counts(), { events: 0, receipts: 0, audit: 0 })
     })
+
+    const taskInput = title => ({ title, notes: '', dueDate: '' })
+    await check('개인 업무 같은 키·같은 입력: 실제 잠금 대기 후 결과 1건', async () => {
+      const before = await taskCounts()
+      await withTwo('task-same-key-same-input', async (first, second) => {
+        const command = { kind: 'create', input: taskInput('합성 동일 개인 업무') }
+        await begin(first, ids.owner)
+        const winner = (await taskMutate(first, 'owner', command, 'task-same')).rows[0].value
+        await begin(second, ids.owner)
+        const follower = start(taskMutate(second, 'owner', command, 'task-same'))
+        await blockedBy(second, first, follower, '개인 업무 동일 키·동일 입력')
+        await first.query('COMMIT')
+        assert.deepEqual(await finish(second, follower), winner)
+      })
+      delta(before, await taskCounts(), { tasks: 1, receipts: 1, audit: 1 })
+    })
+    await check('개인 업무 같은 키·다른 입력: 첫 업무만 저장하고 멱등 충돌', async () => {
+      const before = await taskCounts()
+      await withTwo('task-same-key-different-input', async (first, second) => {
+        await begin(first, ids.owner)
+        const winner = (await taskMutate(first, 'owner', { kind: 'create', input: taskInput('합성 먼저 입력') }, 'task-different')).rows[0].value
+        await begin(second, ids.owner)
+        const follower = start(taskMutate(second, 'owner', { kind: 'create', input: taskInput('합성 늦게 입력') }, 'task-different'))
+        await blockedBy(second, first, follower, '개인 업무 동일 키·다른 입력')
+        await first.query('COMMIT')
+        await finish(second, follower, 'IDEMPOTENCY_CONFLICT')
+        assert.equal(await value('SELECT title AS value FROM public.workhub_personal_tasks WHERE id=$1', [winner.id]), winner.title)
+      })
+      delta(before, await taskCounts(), { tasks: 1, receipts: 1, audit: 1 })
+    })
+    await check('개인 업무 두 연결의 상태·내용 수정 경합: 최신 버전 충돌 반환', async () => {
+      await withTwo('task-version-race', async (first, second) => {
+        await begin(first, ids.owner)
+        const original = (await taskMutate(first, 'owner', { kind: 'create', input: taskInput('합성 상태 경합') }, 'task-version-create')).rows[0].value
+        await first.query('COMMIT')
+        const before = await taskCounts()
+        await begin(first, ids.owner)
+        const winner = (await taskMutate(first, 'owner', { kind: 'status', taskId: original.id, status: 'done', expectedVersion: 1 }, 'task-version-first')).rows[0].value
+        await begin(second, ids.owner)
+        const follower = start(taskMutate(second, 'owner', { kind: 'update', taskId: original.id, input: taskInput('합성 늦은 내용'), expectedVersion: 1 }, 'task-version-second'))
+        await blockedBy(second, first, follower, '본인 두 연결의 개인 업무 수정')
+        await first.query('COMMIT')
+        const conflict = await finish(second, follower, 'CONFLICT')
+        assert.deepEqual(JSON.parse(conflict.detail), winner)
+        assert.equal(winner.status, 'done'); assert.equal(winner.version, 2)
+        assert.deepEqual((await observer.query('SELECT title,status,version FROM public.workhub_personal_tasks WHERE id=$1', [original.id])).rows[0], { title: original.title, status: 'done', version: 2 })
+        delta(before, await taskCounts(), { tasks: 0, receipts: 1, audit: 1 })
+      })
+    })
+    await check('개인 업무 승인 철회 선행: 대기한 저장과 접수·감사 모두 차단', async () => {
+      const before = await taskCounts()
+      await withTwo('task-approval-revoked-first', async (first, second) => {
+        await begin(first)
+        await first.query('UPDATE public.users SET is_active=false WHERE id=$1', [ids['task-revoked']])
+        await begin(second, ids['task-revoked'])
+        const follower = start(taskMutate(second, 'task-revoked', { kind: 'create', input: taskInput('합성 승인 철회') }, 'task-revoked-save'))
+        await blockedBy(second, first, follower, '개인 업무 회원 승인 행 잠금')
+        await first.query('COMMIT')
+        await finish(second, follower, 'FORBIDDEN')
+      })
+      delta(before, await taskCounts(), { tasks: 0, receipts: 0, audit: 0 })
+    })
+    await check('개인 업무 소속 종료 선행: 대기한 저장과 접수·감사 모두 차단', async () => {
+      const before = await taskCounts()
+      await withTwo('task-membership-ended-first', async (first, second) => {
+        await begin(first)
+        await first.query("UPDATE public.workhub_memberships SET active=false WHERE id='task-ended'")
+        await begin(second, ids['task-ended'])
+        const follower = start(taskMutate(second, 'task-ended', { kind: 'create', input: taskInput('합성 소속 종료') }, 'task-ended-save'))
+        await blockedBy(second, first, follower, '개인 업무 소속 행 잠금')
+        await first.query('COMMIT')
+        await finish(second, follower, 'INACTIVE_MEMBERSHIP')
+      })
+      delta(before, await taskCounts(), { tasks: 0, receipts: 0, audit: 0 })
+    })
+
     console.log('\nPostgreSQL 독립 연결 경쟁 검증 ' + passed + '개 통과. receipt·audit 일관성 매번 확인.')
   } catch (error) {
     console.error('  ✗ 단계: ' + stage)
