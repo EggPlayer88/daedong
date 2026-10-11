@@ -311,17 +311,26 @@ def pick_diverse_candidates(candidates, minimum, maximum):
         if key not in distances:
             distances[key] = sum(ordered[i]["_cells"][k] != ordered[j]["_cells"][k] for k in ordered[i]["_cells"])
         return distances[key]
-    alternatives = [i for i in range(1, len(ordered)) if distance(0, i) >= minimum]
-    if maximum == 3:
-        pairs = [(i, j) for n, i in enumerate(alternatives) for j in alternatives[n+1:] if distance(i, j) >= minimum]
+    def rank(group):
+        scores = [ordered[i]["evaluation"]["totalPenalty"] for i in group]
+        proofs = sum(ordered[i]["optimality"]["provenOptimal"] for i in group)
+        spacing = min((distance(i, j) for n, i in enumerate(group) for j in group[n+1:]), default=0)
+        return -len(group), sum(scores), max(scores), -proofs, -spacing
+    groups = []
+    # 최고 점수가 동점이면 어느 최고안을 고르는지도 함께 비교한다.
+    anchors = [i for i, c in enumerate(ordered) if c["evaluation"]["totalPenalty"] == ordered[0]["evaluation"]["totalPenalty"]]
+    for anchor in anchors:
+        alternatives = [i for i in range(len(ordered)) if i != anchor and distance(anchor, i) >= minimum]
+        pairs = [(anchor, i, j) for n, i in enumerate(alternatives) for j in alternatives[n+1:]
+                 if maximum == 3 and distance(i, j) >= minimum]
         if pairs:
-            def rank(pair):
-                i, j = pair
-                scores = [ordered[i]["evaluation"]["totalPenalty"], ordered[j]["evaluation"]["totalPenalty"]]
-                return sum(scores), max(scores), -min(distance(0, i), distance(0, j), distance(i, j))
-            i, j = min(pairs, key=rank)
-            return [ordered[0], ordered[i], ordered[j]]
-    return [ordered[0]] + ([ordered[alternatives[0]]] if alternatives else [])
+            groups.append(min(pairs, key=rank))
+        elif alternatives:
+            groups.append(min(((anchor, i) for i in alternatives), key=rank))
+        else:
+            groups.append((anchor,))
+    chosen = min(groups, key=rank)
+    return [ordered[i] for i in chosen]
 
 
 def solve_timetable(raw, options=None, progress=None):
