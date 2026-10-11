@@ -55,7 +55,8 @@ tests/.venv/bin/pip install lxml -r packages/timetable/requirements.txt
 | `test_submissions.mjs` | 제출·수합(005) — 파일 규칙(hwpx·30MB)·storage 경로 규약, 파일명에서 교과·학년 제안, 재제출은 지우지 않고 `replaced`, 현황 매트릭스, **RLS(교사 본인 / 담당자 전체·삭제 경로 없음)**, prefill 목록과 catalog 동기화 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
 | `test_timetable.py` · `.mjs` | CP-SAT 완전 배정·동반교사·공유 자원·가용시간·예약·블록·잠금·하드 상한, 작은 문제 전수탐색과 점수 일치, 후보 실제 배치 다양성, 시간 초과 해 보존, 화면 전달용 후보 변환 |
-| `test_timetable_exhaustive.py` | 고정 시드의 48개 작은 문제·31,475배정 조합에서 가능·불가능, 최저 패널티, 부분 수정 최소 변경량과 최적성 증명을 대조 |
+| `test_timetable_exhaustive.py` | 고정 시드의 48개 작은 문제·31,475배정 조합에서 표준·적응형 전략 모두의 가능·불가능, 최저 패널티, 부분 수정 최소 변경량과 최적성 증명을 대조 |
+| `test_timetable_search.py` | 부분 탐색의 원래 평가 기준·최적성 증명 범위, 단절된 가용시간 공강, 그룹 변수·블록, 시간 초과 최고안 보존, 품질·배치 차이를 지키는 장점별 후보 선택, 동점 후보 조합 변경 뒤 재탐색 |
 
 ## 작성 원칙
 
