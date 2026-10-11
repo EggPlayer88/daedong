@@ -24,6 +24,7 @@ export const MODULES = [
   { key: 'doc-ai', to: '/doc-ai', label: '문서 작성 AI', visibility: 'all' },
   { key: 'submissions', to: '/submissions', label: '평가계획 제출', visibility: 'all' },
   // 모듈 C-1 — 실운영 전. 당분간 계란님만 보고 다듬는다
+  { key: 'workhub', to: '/workhub', label: '신축 업무실 · 시험', visibility: 'superadmin' },
   { key: 'calendar', to: '/calendar', label: '학사일정·캘린더', visibility: 'superadmin' },
   {
     key: 'admin-users', to: '/admin/users', label: '사용자 관리',
