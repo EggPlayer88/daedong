@@ -1,6 +1,7 @@
 import { ContractError, type CalendarEvent, type FailureCode } from '../contracts'
 import type { ConnectionContext, LegacyIdentity, LegacyServices, RpcError } from './contracts'
 import { contextResponse, profileResponse } from './validation'
+import { runReadinessCheck, type ReadinessReport } from './readiness'
 
 const emptyContext = (): ConnectionContext => ({ schools: [], memberships: [], basisDate: '', relationLabels: {departmentIds:[],gradeIds:[],subjectIds:[]}, schoolLabels: {} })
 const messages: Partial<Record<FailureCode, string>> = {
@@ -86,6 +87,12 @@ export function createSupabaseConnection(provided?: LegacyServices) {
   }
   return {
     getIdentity,
+    async checkReadiness(options?: { timeoutMs?: number; signal?: AbortSignal }): Promise<ReadinessReport> {
+      // 설정이 없는 경우 공용 클라이언트를 만들지 않는다. 진단도 같은 인증 인스턴스만 읽는다.
+      if (!provided && (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY)) return runReadinessCheck(undefined, options)
+      try { return await runReadinessCheck(await services(), options) }
+      catch { return { stage: 'unavailable', code: 'UNAVAILABLE', checkedAt: new Date().toISOString(), readySchoolCount: 0 } }
+    },
     async signIn() { await (await services()).signInWithGoogle() },
     async signOut() { invalidate(new ContractError('CANCELLED','로그인 연결이 종료되었습니다.')); await (await services()).signOut() },
     subscribeInvalidation(callback: (reason: ContractError) => void) {

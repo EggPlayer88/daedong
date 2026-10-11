@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { activeAt } from '../domain'
@@ -6,6 +6,7 @@ import { createSupabaseConnection, type SupabaseConnection } from '../connection
 import { createSupabaseCalendarAdapter } from '../connection/supabase-calendar'
 import type { ConnectionContext } from '../connection/contracts'
 import theme from '../style.css?inline'
+import { ConnectionReadinessPanel } from './ConnectionReadinessPanel'
 
 // 기존 앱의 전역 CSS와 신축 화면을 격리한다. 같은 origin·같은 인증 인스턴스를 사용한다.
 function StyleBoundary({ children }: { children: ReactNode }) {
@@ -28,6 +29,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [attempt, setAttempt] = useState(0)
   const [refreshEpoch, setRefreshEpoch] = useState(0)
   const [scopeEpoch, setScopeEpoch] = useState(0)
+  const [diagnosticEpoch, setDiagnosticEpoch] = useState(0)
+  const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
   const scopeFingerprint = useRef('')
   useEffect(() => {
@@ -57,6 +60,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
     const stopInvalidation = connection.subscribeInvalidation(reason => {
       if (!alive) return
       generation.current += 1
+      setDiagnosticEpoch(value => value + 1)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
     })
     // 다른 창의 로그아웃·승인 변경 후에는 이전 학교 화면을 다시 그대로 쓰지 않는다.
@@ -72,5 +76,6 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       <header className="connected-top"><label>사용할 학교<select value={memberId} onChange={event => { setMemberId(event.target.value); setPage('home') }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label><nav aria-label="신축 업무 메뉴"><button className="secondary" aria-current={page === 'home' ? 'page' : undefined} onClick={() => setPage('home')}>오늘</button><button className="secondary" aria-current={page === 'calendar' ? 'page' : undefined} onClick={() => setPage('calendar')}>학교 일정</button></nav></header>
       <CalendarPanel key={`${memberId}:${attempt}:${scopeEpoch}`} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch} page={page} onPageChange={setPage} relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장" />
     </>}
+    <ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} />
   </StyleBoundary>
 }

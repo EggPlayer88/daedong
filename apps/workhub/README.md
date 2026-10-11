@@ -12,6 +12,8 @@
 
 기존 시스템 전체에 학교별 격리가 적용된 것은 아닙니다. 전국 공개 전에 기존 경로의 권한·RLS를 별도로 정리해야 합니다.
 
+화면 아래 **연결 상태 확인** 버튼은 기존 세션·가입 승인·최고관리자 권한·학교 소속을 읽어서 확인합니다. 자동으로 실행하지 않으며 회원·설정·학교 자료를 변경하지 않습니다. 로그아웃, 프로필 누락, 승인 미확인, 학교 소속 없음, 조회 함수 준비 문제, 네트워크 실패를 구분합니다. 지원용 JSON은 상태·코드·확인 시각·학교 수만 포함합니다. 확인 성공은 학교 소속 조회까지이며 일정 저장이나 실제 Google 로그인 절차의 검증 완료를 의미하지 않습니다.
+
 ## 가상 자료로 확인
 
 ```sh
@@ -49,5 +51,9 @@ npm test
 `test_workhub_database.mjs`는 PGlite의 실제 PostgreSQL 엔진에 기존 001~007 마이그레이션과 신규 SQL을 적용해 RLS·RPC·트랜잭션·회원 보존을 검증합니다. 실제 Supabase/PostgREST·Google OAuth·별도 연결 간 동시 실행 검증을 대신하지 않습니다. 브라우저 연결 시험은 Playwright와 Chrome 설치 후 `node tests/browser/workhub-connection.mjs`로 실행합니다. 이 시험도 주입된 가상 인증 응답을 사용합니다.
 
 전체 가상 업무 브라우저 시험은 `node tests/browser/workhub.mjs`입니다. `PLAYWRIGHT_MODULE`로 설치된 Playwright 경로, `WORKHUB_QA_URL`로 시험할 URL, `WORKHUB_QA_OUTPUT`으로 스크린샷·결과 저장 폴더를 지정할 수 있습니다. 기본 주소는 위 개발 서버입니다.
+
+진단 브라우저 시험은 `node tests/browser/workhub-readiness.mjs`입니다. 합성 응답을 주입한 실제 연결 화면을 시험하며 외부 학교 서버는 호출하지 않습니다.
+
+실제 PostgreSQL 독립 연결 경합 시험은 `npm run test:workhub:postgres`입니다. GitHub Actions의 일회용 PostgreSQL 16 서비스에서 필수 `test` 검사에 포함됩니다. 로컬 실행 시 전용 빈 DB와 명시적 테스트 환경변수가 필요하며, 설정이 없다고 건너뛰어 성공 처리하지 않습니다. [실행 조건과 범위](../../docs/workhub/07-postgres-verification.md)를 먼저 확인해 주세요.
 
 독립 실행 HTML은 `node scripts/export-workhub-preview.mjs [저장할 절대 경로]`로 만듭니다. 생략하면 `dist/workhub-preview.html`에 생성합니다. 번들 안에 합성 자료와 스타일을 포함해 외부 네트워크 없이 열 수 있으며 실제 Supabase 연결은 포함하지 않습니다.

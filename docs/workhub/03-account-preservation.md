@@ -8,7 +8,7 @@
 
 auth.users.id를 문자열로 사용한 public.users.id가 보존 기준이다. 이메일·이름으로 재매칭하지 않는다. public.users.id는 TEXT이며 기존 DDL에 auth.users를 향한 물리 FK가 있는 것은 아니다. 두 ID의 일치를 가입 트리거가 만들어 왔다. 기존 대화·제출물·일정·할 일·부서장 참조는 이 TEXT ID를 사용한다. 새 workhub_memberships.user_id도 public.users(id)를 참조하므로 원본 ID 타입 변경이나 기존 FK 재연결이 필요하지 않다.
 
-003_signup_approval.sql 이후 가입 트리거는 새 프로필을 teacher, is_active=false로 만들고 ON CONFLICT(id) DO NOTHING으로 기존 프로필을 보존한다. 트리거를 교체하거나 기존 사용자에 대해 재발동시키지 않는다. **옛 000_reset_v1_project.sql과 AuthContext 오류 안내의 사용자 삭제·재가입 절차는 이번 신축에 적용하지 않는다.** 프로필 누락은 기존 Auth ID에 대한 비파괴 보정안을 별도 검토한다.
+003_signup_approval.sql 이후 가입 트리거는 새 프로필을 teacher, is_active=false로 만들고 ON CONFLICT(id) DO NOTHING으로 기존 프로필을 보존한다. 트리거를 교체하거나 기존 사용자에 대해 재발동시키지 않는다. **옛 000_reset_v1_project.sql과 과거 오류 안내의 사용자 삭제·재가입 절차는 이번 신축에 적용하지 않는다.** 현재 AuthContext 안내도 기존 계정의 프로필 연결을 확인하도록 수정했다. 프로필 누락은 기존 Auth ID에 대한 비파괴 보정안을 별도 검토한다.
 
 ## 2. 현재 연결의 권한 계약
 
@@ -54,5 +54,7 @@ context.memberships는 현재 연결 가능한 학교의 대상 선택용 roster
 tests/test_workhub_database.mjs는 PGlite의 실제 PostgreSQL에 원본 001~007 SQL을 읽어 적용한 뒤 신규 제안을 적용한다. 합성 계정만 사용하며 운영 DB에 연결하지 않는다. 회원 값·가입 트리거·기존 RLS 보존, 최고관리자 기본 제한, 익명/미승인/타인 소속 차단, 다학교 격리, private, 대상 조건, 버전 충돌, 멱등·종료 소속·전체 롤백, 기존 신규 가입 동작, 연결 계정 전환 취소를 실행 검증한다.
 
 이 검사는 단일 연결이다. 잠금 문법·트랜잭션 롤백을 실행했지만 **두 독립 연결의 실제 동시 경쟁을 실측한 것은 아니다.** 별도 PostgreSQL/Supabase 검증 환경에서 동시 저장·승인 해제와 저장 경합, PostgREST 오류 변환, 실제 JWT·OAuth·RLS·배포 번들을 확인해야 한다. 원격 회원 수나 실제 운영 데이터 보존을 확인했다고 주장하지 않는다.
+
+후속 PostgreSQL 독립 연결 검증은 [07 검증 문서](07-postgres-verification.md)를 기준으로 확인한다. 위 문단은 PGlite 시험 자체의 한계이며, 실제 Supabase·JWT·OAuth 검증과는 별개다.
 
 보관 기간, 감사·receipt 정리 주기, 전체 백업·복원 성능과 전국 공개 정책은 여기서 확정하지 않는다. 로컬 검사 통과는 실제 DB 적용·설정 변경·회원 권한 변경의 자동 실행이 아니다.
