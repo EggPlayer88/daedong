@@ -62,6 +62,6 @@ export function compareCandidates(result) {
     return { id: i + 1, totalPenalty: c.evaluation.totalPenalty,
       breakdown: c.evaluation.breakdown, weaknesses: c.evaluation.weaknesses,
       teacherBurden: c.evaluation.teacherBurden, differentCells: c.differentCells,
-      changedCells: c.changedCells, optimality: c.optimality };
+      changedCells: c.changedCells, optimality: c.optimality, strengths: c.strengths ?? [] };
   });
 }

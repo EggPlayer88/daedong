@@ -5,12 +5,20 @@ from copy import deepcopy
 import math
 import os
 import time
+import json
+from pathlib import Path
+from functools import lru_cache
 
 from ortools.sat.python import cp_model
 
 from .model import (InputError, fields, integer, refs, array, fail, normalize, check_fixed,
                     legal_start, inspect_schedule, expand_cells, available, hard_windows)
 from .quality import read_quality, teacher_targets, morning_baselines, evaluate_quality
+
+
+@lru_cache(maxsize=1)
+def search_policy():
+    return json.loads((Path(__file__).resolve().parents[1] / "_assets/search-defaults.json").read_text(encoding="utf-8"))
 
 
 def positive_number(value, path):
@@ -27,7 +35,7 @@ def parse_options(problem, raw):
     fields(raw, {"timeLimitSeconds", "maxCandidates", "minDifferentCells", "qualityTolerance", "seed", "workers",
                  "previous", "locks", "changeMode", "quality"}, "options")
     o = deepcopy(raw)
-    o["timeLimitSeconds"] = positive_number(o.get("timeLimitSeconds", 180), "options.timeLimitSeconds")
+    o["timeLimitSeconds"] = positive_number(o.get("timeLimitSeconds", search_policy()["timeLimitSeconds"]), "options.timeLimitSeconds")
     o["maxCandidates"] = integer(o.get("maxCandidates", 3), "options.maxCandidates")
     if o["maxCandidates"] > 3:
         fail("TOO_MANY_CANDIDATES", "검토할 후보는 최대 3개입니다.")
@@ -89,20 +97,29 @@ class ScheduleModel:
         self.class_occ, self.teacher_occ, self.resource_occ = defaultdict(list), defaultdict(list), defaultdict(list)
         self.sessions, self.am = defaultdict(list), defaultdict(list)
         self.position, self.unit_day = {}, {}
+        # 같은 수업·블록 길이의 카드들은 교환 가능하다. 시작 위치 하나에 변수 하나만 둔다.
+        self.groups = defaultdict(list)
         for u in problem["units"]:
+            self.groups[u["lessonId"], u["length"]].append(u)
+        self.representative = {u["id"]: us[0]["id"] for us in self.groups.values() for u in us}
+        day_index = {d: i for i, d in enumerate(problem["dayMap"])}
+        stride = max(d["periods"] for d in problem["days"]) + 1
+        for us in self.groups.values():
+            u = us[0]
             lesson = problem["lessonMap"][u["lessonId"]]
             choices = [(d["id"], p) for d in problem["days"] for p in range(1, d["periods"] + 1)
                        if legal_start(problem, u, d["id"], p, options["fixed"])]
             if not choices:
                 fail("NO_LEGAL_PLACEMENT", f"{u['id']}: 모든 하드조건을 지키는 배정 위치가 없습니다.")
-            self.choices[u["id"]] = choices
+            for item in us:
+                self.choices[item["id"]] = choices
             flags, positions, days = [], [], []
             for d, start in choices:
                 v = self.m.new_bool_var(f"x_{u['id']}_{d}_{start}")
                 self.x[u["id"], d, start] = v
                 flags.append(v)
-                di = list(problem["dayMap"]).index(d)
-                positions.append(v * (di * (max(x["periods"] for x in problem["days"]) + 1) + start))
+                di = day_index[d]
+                positions.append(v * (di * stride + start))
                 days.append(v * di)
                 self.sessions[lesson["classId"], lesson["subjectId"], d].append(v)
                 self.am[lesson["classId"], lesson["subjectId"]].append(v * sum(p <= problem["morningEnd"] for p in range(start, start + u["length"])))
@@ -112,16 +129,9 @@ class ScheduleModel:
                         self.teacher_occ[t, d, p].append(v)
                     for r in lesson["resourceIds"]:
                         self.resource_occ[r, d, p].append(v)
-            self.m.add_exactly_one(flags)
+            self.m.add(sum(flags) == len(us))
             self.position[u["id"]] = sum(positions)
             self.unit_day[u["id"]] = sum(days)
-        # 같은 수업의 카드 번호만 바꾸는 대칭을 제거한다. 실제 배치는 보존한다.
-        groups = defaultdict(list)
-        for u in problem["units"]:
-            groups[u["lessonId"], u["length"]].append(u["id"])
-        for group in groups.values():
-            for a, b in zip(group, group[1:]):
-                self.m.add(self.position[a] < self.position[b])
         self.res_teacher, self.res_resource = Counter(), Counter()
         for r in problem["reservations"]:
             if not available(problem, problem["classMap"][r["classId"]].get("availability", {}), r["day"], r["period"]):
@@ -178,19 +188,37 @@ class ScheduleModel:
                 for a, b in zip(units, units[1:]):
                     self.m.add(self.position[a] == self.position[b])
             if kind == "differentDays":
-                days = []
-                for u in units:
-                    v = self.m.new_int_var(0, len(self.p["days"]) - 1, "hard_day")
-                    self.m.add(v == self.unit_day[u])
-                    days.append(v)
-                self.m.add_all_different(days)
+                selected = set(h["lessonIds"])
+                for day in self.p["dayMap"]:
+                    self.m.add(sum(v for (uid, d, _), v in self.x.items()
+                                   if d == day and self.p["unitMap"][uid]["lessonId"] in selected) <= 1)
 
     def mapped_cost(self, expression, values, name):
         value = self.m.new_int_var(0, len(values) - 1, "value_" + name)
         self.m.add(value == expression)
         cost = self.m.new_int_var(min(values), max(values), "cost_" + name)
-        self.m.add_element(value, values, cost)
+        slopes = [b - a for a, b in zip(values, values[1:])]
+        if slopes and all(a <= b for a, b in zip(slopes, slopes[1:])):
+            # 볼록 정수 비용의 지지선은 원래 표와 정확히 같은 값이며 선형 하한을 드러낸다.
+            self.m.add_max_equality(cost, [s * value + values[i] - s * i for i, s in enumerate(slopes)])
+        else:
+            self.m.add_element(value, values, cost)
         return cost
+
+    def gap_cost(self, teacher, day):
+        # 근무 불가능한 교시는 제외하고 첫~마지막 의무의 구간 길이에서 의무 수를 뺀다.
+        flags = [self.busy[teacher, day["id"], p] for p in range(1, day["periods"] + 1)
+                 if available(self.p, self.p["teacherMap"][teacher].get("availability", {}), day["id"], p)]
+        n = len(flags)
+        if n < 3:
+            return 0
+        first = self.m.new_int_var(0, n, "first_duty")
+        last = self.m.new_int_var(-1, n - 1, "last_duty")
+        gap = self.m.new_int_var(0, n - 2, "duty_gaps")
+        self.m.add_min_equality(first, [n + (i - n) * v for i, v in enumerate(flags)])
+        self.m.add_max_equality(last, [-1 + (i + 1) * v for i, v in enumerate(flags)])
+        self.m.add_max_equality(gap, [0, last - first + 1 - sum(flags)])
+        return gap
 
     def and_var(self, flags, name):
         v = self.m.new_bool_var(name)
@@ -238,11 +266,7 @@ class ScheduleModel:
                 flags = [self.busy[t, d["id"], p] for p in range(1, d["periods"] + 1)]
                 load = self.mapped_cost(sum(flags), [max(0, i - targets[t]["daily"]) ** 2 for i in range(d["periods"] + 1)], "daily_load")
                 burdens["teacherDailyLoad"].append(load)
-                for p in range(2, d["periods"]):
-                    if available(self.p, teacher.get("availability", {}), d["id"], p):
-                        before = self.active_var(sum(flags[:p-1]), "before_gap")
-                        after = self.active_var(sum(flags[p:]), "after_gap")
-                        burdens["teacherGaps"].append(self.and_var([before, after, flags[p-1].Not()], "gap"))
+                burdens["teacherGaps"].append(self.gap_cost(t, d))
                 for window in hard_windows(self.p, d["id"], self.q["preferredMaxConsecutive"] + 1, self.q["consecutiveAcrossBreak"]):
                     burdens["teacherConsecutive"].append(self.and_var([self.busy[t, d["id"], p] for p in window], "long_run"))
                 late.append(flags[-1])
@@ -276,7 +300,24 @@ class ScheduleModel:
         return len(cells) - sum(matches)
 
     def placements(self, solver):
-        return [{"unitId": uid, "day": d, "start": p} for (uid, d, p), x in self.x.items() if solver.boolean_value(x)]
+        chosen = defaultdict(list)
+        day_index = {d: i for i, d in enumerate(self.p["dayMap"])}
+        for (uid, d, p), x in self.x.items():
+            if solver.boolean_value(x):
+                chosen[uid].append((d, p))
+        result = []
+        for us in self.groups.values():
+            starts = sorted(chosen[us[0]["id"]], key=lambda x: (day_index[x[0]], x[1]))
+            if len(starts) != len(us):
+                raise RuntimeError("수업 그룹의 선택 개수가 일치하지 않습니다.")
+            result += [{"unitId": u["id"], "day": d, "start": p} for u, (d, p) in zip(us, starts)]
+        return result
+
+    def hint(self, model, placements):
+        model.clear_hints()
+        selected = {(self.representative[p["unitId"]], p["day"], p["start"]) for p in placements}
+        for key, flag in self.x.items():
+            model.add_hint(flag, int(key in selected))
 
 
 def cp_run(model, options, seconds, seed, progress=None, capture=None):
@@ -300,7 +341,7 @@ def proven(solver, status):
     return status == cp_model.OPTIMAL and solver.objective_value - solver.best_objective_bound < 1 - 1e-6
 
 
-def pick_diverse_candidates(candidates, minimum, maximum):
+def pick_diverse_candidates(candidates, minimum, maximum, tradeoffs=False):
     """최고안을 보존하고, 후보 수를 최대화한 뒤 대안의 합산 패널티를 최소화한다."""
     ordered = sorted(candidates, key=lambda c: (c["evaluation"]["totalPenalty"], not c["optimality"]["provenOptimal"]))
     if maximum == 1:
@@ -315,7 +356,11 @@ def pick_diverse_candidates(candidates, minimum, maximum):
         scores = [ordered[i]["evaluation"]["totalPenalty"] for i in group]
         proofs = sum(ordered[i]["optimality"]["provenOptimal"] for i in group)
         spacing = min((distance(i, j) for n, i in enumerate(group) for j in group[n+1:]), default=0)
-        return -len(group), sum(scores), max(scores), -proofs, -spacing
+        coverage = 0
+        if tradeoffs:
+            baseline = ordered[group[0]]["_profileCosts"]
+            coverage = sum(min(ordered[i]["_profileCosts"][k] for i in group) < v for k, v in enumerate(baseline))
+        return -len(group), -coverage, sum(scores), max(scores), -proofs, -spacing
     groups = []
     # 최고 점수가 동점이면 어느 최고안을 고르는지도 함께 비교한다.
     anchors = [i for i, c in enumerate(ordered) if c["evaluation"]["totalPenalty"] == ordered[0]["evaluation"]["totalPenalty"]]
@@ -333,9 +378,9 @@ def pick_diverse_candidates(candidates, minimum, maximum):
     return [ordered[i] for i in chosen]
 
 
-def solve_timetable(raw, options=None, progress=None):
+def _solve_standard(raw, options=None, progress=None, started=None):
     """완전하고 검증된 후보만 반환한다. 99점 환산이나 최적성 증명을 만들어내지 않는다."""
-    started = time.monotonic()
+    started = time.monotonic() if started is None else started
     try:
         opts_raw = options if options is not None else {}
         fields(opts_raw, {"timeLimitSeconds", "maxCandidates", "minDifferentCells", "qualityTolerance", "seed", "workers",
@@ -357,10 +402,7 @@ def solve_timetable(raw, options=None, progress=None):
         fallback = None
         if opts.get("previous") is not None:
             old = inspect_schedule(problem, opts["previous"], opts["fixed"])
-            for place in opts["previous"]:
-                key = place["unitId"], place["day"], place["start"]
-                if key in sm.x:
-                    sm.m.add_hint(sm.x[key], 1)
+            sm.hint(sm.m, opts["previous"])
             if old["valid"]:
                 evaluation = evaluate_quality(problem, opts["previous"], quality, sm.baselines)
                 # 유효한 기존 해보다 품질이 나쁜 해를 배제해 재최적화 탐색을 줄인다.
@@ -396,7 +438,7 @@ def solve_timetable(raw, options=None, progress=None):
                           "scope": "original" if index == 0 and not lex else "diversity_and_change_constraints",
                           "lowerBound": bound}
                 old_record = pool.get(fingerprint)
-                if old_record is None or record["lowerBound"] > old_record["lowerBound"]:
+                if old_record is None or penalty < old_record["reported"] or (penalty == old_record["reported"] and record["lowerBound"] > old_record["lowerBound"]):
                     pool[fingerprint] = record
                 if len(pool) > 50:
                     worst = max(pool, key=lambda k: (pool[k]["changedCells"] if lex else 0, pool[k]["reported"]))
@@ -450,9 +492,7 @@ def solve_timetable(raw, options=None, progress=None):
                             and ((lex and not change_proven) or r["reported"] <= best_penalty + math.floor(best_penalty * opts["qualityTolerance"]))
                             and all(sum(r["_cells"][k] != c["_cells"][k] for k in r["_cells"]) >= opts["minDifferentCells"] for c in candidates)]
             hint = min(hint_options, key=lambda r: r["reported"])["placements"] if hint_options else placements
-            hint_keys = {(p["unitId"], p["day"], p["start"]) for p in hint}
-            for key, x in sm.x.items():
-                sm.m.add_hint(x, int(key in hint_keys))
+            sm.hint(sm.m, hint)
         for record in pool.values():
             validation = inspect_schedule(problem, record["placements"], opts["fixed"])
             if not validation["valid"]:
@@ -497,4 +537,32 @@ def solve_timetable(raw, options=None, progress=None):
                            "qualityTolerance": opts["qualityTolerance"]}}
     except InputError as exc:
         infeasible = exc.issue["code"] in ["NO_LEGAL_PLACEMENT", "RESERVATION_UNAVAILABLE"]
+        return {"status": "infeasible" if infeasible else "invalid_input", "candidates": [], "diagnostics": [exc.issue]}
+
+
+def solve_timetable(raw, options=None, progress=None):
+    """작은 문제·변경 최소화는 완전 탐색, 큰 품질 문제는 구조화 부분 탐색을 사용한다."""
+    started = time.monotonic()
+    try:
+        opts = deepcopy(options if options is not None else {})
+        fields(opts, {"timeLimitSeconds", "maxCandidates", "minDifferentCells", "qualityTolerance", "seed", "workers",
+                      "previous", "locks", "changeMode", "quality", "searchStrategy"}, "options")
+        strategy = opts.pop("searchStrategy", "auto")
+        if strategy not in ("auto", "standard", "adaptive"):
+            fail("INVALID_SEARCH_STRATEGY", "searchStrategy는 auto, standard 또는 adaptive입니다.")
+        p = normalize(raw, read_quality(opts.get("quality")))
+        # 변경량 최우선 모드는 검증된 사전식 목적을 그대로 유지한다.
+        partial = opts.get("previous") is not None and opts.get("changeMode", "minimize") == "minimize"
+        if strategy == "standard" or partial or (strategy == "auto" and len(p["units"]) < search_policy()["adaptiveMinActivities"]):
+            result = _solve_standard(raw, opts, progress, started)
+            if "search" in result:
+                result["search"]["strategy"] = "standard"
+        else:
+            from .search import optimize
+            result = optimize(p, opts, started, progress)
+        if "search" in result:
+            result["search"]["elapsedSeconds"] = time.monotonic() - started
+        return result
+    except InputError as exc:
+        infeasible = exc.issue["code"] in ("NO_LEGAL_PLACEMENT", "RESERVATION_UNAVAILABLE")
         return {"status": "infeasible" if infeasible else "invalid_input", "candidates": [], "diagnostics": [exc.issue]}
