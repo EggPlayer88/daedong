@@ -75,6 +75,31 @@ npm test
 
 개인 업무 화면의 실제 브라우저 검증은 `node tests/browser/workhub-tasks.mjs`, 앱 내 연결 회귀는 `node tests/browser/workhub-connection.mjs`로 실행한다. Playwright 경로는 `PLAYWRIGHT_MODULE`로 지정할 수 있다. 합성 전송 계층을 사용하며 실제 학교 서버에 접속하지 않는다. 독립 PostgreSQL 16 연결의 일정·개인 업무 경합 11개는 CI의 `npm run test:workhub:postgres`에서 실행하며, [전용 DB 실행 조건](../docs/workhub/07-postgres-verification.md)을 먼저 확인한다.
 
+## 신축 공통 구조 검증
+
+기본 회귀에 다음 파일이 자동 포함된다.
+
+| 파일 | 확인하는 계약 |
+|---|---|
+| `test_workhub_shell.mjs` | 연결 모드별 메뉴, 모바일 더보기, 현재 위치·본문 접근, 오류 안내의 SSR 구조 |
+| `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단 |
+| `test_workhub_calendar_views.mjs` | 다일 겹침·월/주 범위·검색·추천·건수와 홈 7일 요약 |
+| `test_workhub_preview_tasks.mjs` | 합성 store와 실제 TaskPanel 계약의 멱등·충돌·격리·Unicode·원자적 실패 |
+
+다음은 Chrome과 Playwright가 필요한 별도 브라우저 시험이다. `PLAYWRIGHT_MODULE`로 설치된 모듈 경로를 지정할 수 있다. 합성 자료만 쓰며 운영 서버에 접속하지 않는다.
+
+```bash
+node tests/browser/workhub-navigation.mjs       # 실제 BrowserRouter의 앞/뒤 이동·기존 링크
+node tests/browser/workhub-calendar-views.mjs   # 월·주·목록·검색·키보드·모바일
+node tests/browser/workhub-calendar-recovery.mjs # 실제 접수 뒤 응답만 유실·같은 요청 재확인
+node tests/browser/workhub.mjs                  # 개인 업무·수합·학생의 전체 흐름
+node tests/browser/workhub-foundation.mjs        # 실제 PreviewApp의 주소·입력 보호·오류 격리
+node scripts/export-workhub-preview.mjs         # 기본 출력: dist/workhub-preview.html
+node tests/browser/workhub-offline.mjs          # file:// 파일·스타일·저장·외부 요청 0
+```
+
+내보내기와 오프라인 시험은 첫 번째 인자로 원하는 HTML 절대 경로를 받을 수 있다. `WORKHUB_QA_OUTPUT`을 지정하면 지원하는 브라우저 시험의 화면·JSON을 해당 폴더에 저장한다. 결과 이미지는 추적 소스로 커밋하지 않는다. 전체 npm 회귀와 별도 브라우저 시험을 혼동하지 않는다.
+
 ## 작성 원칙
 
 - **실제로 돌려서 확인한다.** 빌드 통과나 정적 검사로 대신하지 않는다.
