@@ -55,14 +55,13 @@ export function AuthProvider({ children }) {
       .then((p) => {
         if (!alive) return
         setProfile(p)
-        // 행이 없는 것은 정상이 아니다 (트리거 미적용 / 000 [D] 누락).
-        // 조용히 넘기면 "로그인은 됐는데 아무 권한도 없는" 상태로 헤맨다.
+        // 기존 로그인 계정을 지우지 않고 같은 회원 ID의 프로필 연결을 확인한다.
         setProfileError(
           p
             ? null
             : new Error(
-                'public.users 에 내 행이 없습니다. 001 의 on_auth_user_created 트리거와 ' +
-                  '000 [D](기존 auth 사용자 삭제) 수행 여부를 확인하세요.'
+                '기존 로그인 계정에 연결된 회원 프로필을 확인할 수 없습니다. ' +
+                  '관리자에게 회원 프로필 연결과 가입 처리 상태를 확인해 달라고 알려주세요.'
               )
         )
       })
