@@ -26,3 +26,5 @@ jobs:
       - run: npm test
         env:
           PYTHON: python
+      # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
+      - run: npm run build:workhub
