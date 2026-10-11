@@ -146,6 +146,8 @@ packages/timetable/.venv/Scripts/python.exe packages/timetable/benchmark.py --se
 
 추가 탐색의 세 안은 모두 하드조건을 통과했고 공강 33·동일 과목 하루 중복 활동 쌍 0·점심 횡단 블록 0이었다. 서로 25~48칸 다르다. 전역 최적성은 미증명이다. 탐색 시간과 초기 해가 다르므로 이 기록을 같은 예산의 속도 비교나 모든 학교의 개선율로 일반화하지 않는다.
 
+최종 엔진의 별도 180초 초기 생성에서는 533·535·539의 세 안을 찾았다(실제 약 181초). 모두 하드조건을 통과했고 서로 14~33칸 다르다. 같은 학교에서도 제한 시간과 다중 워커의 탐색 경로에 따라 품질은 달라진다. 높은 품질이 필요하면 기존 최고안을 `previous`로 보존하며 `changeMode:quality`로 이어 탐색한다.
+
 판단해서 정한 것: 품질·최적성 검증을 위해 로컬 CP-SAT를 채택했고 운영 런타임에는 추가하지 않았다. 가중치와 후보 허용 범위는 평가 정책으로 분리했다. 되돌리거나 조정하려면 `engine/solver.py`, `_assets/quality-defaults.json`, 입력 JSON을 수정한다. DB 변경·SQL 실행은 필요 없다.
 
 참고: [CP-SAT 상태와 최적성](https://developers.google.com/optimization/cp/cp_solver), [스케줄링 모델 예제](https://developers.google.com/optimization/scheduling/employee_scheduling).
