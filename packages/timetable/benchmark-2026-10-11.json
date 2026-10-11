@@ -1,0 +1,123 @@
+{
+  "date": "2026-10-11",
+  "source": "origin/v1-final@e8ddf6e96166231577497170770c18a627c6f882",
+  "problem": "school-2026-2.json: 9개 학급, 22명 교사, 일반 수업 279시수",
+  "modelAssumptions": "원어민·창체 확인 이전의 v1 호환 입력. 공통 원어민과 창체 담임 점유 및 점심 횡단 품질 패널티 미포함. 현재 확정 입력의 성능 수치와 직접 비교하지 않음.",
+  "runtime": "Windows, Python 3.12.10, OR-Tools 9.15.6755",
+  "method": "같은 새 평가표로 두 엔진 결과 재평가. 구 엔진은 최대 50회 × 120000노드와 4000회 교환, 새 엔진은 180초·8워커. 서로 다른 탐색 예산이며 속도 비교가 아닌 품질 비교다.",
+  "qualityPolicy": {
+    "preferredMaxConsecutive": 3,
+    "consecutiveAcrossBreak": false,
+    "weights": {
+      "subjectDaily": 10,
+      "subjectAdjacency": 2,
+      "teacherDailyLoad": 4,
+      "teacherGaps": 2,
+      "teacherConsecutive": 3,
+      "morningBalance": 1,
+      "lateSpread": 1,
+      "teacherFairness": 2
+    }
+  },
+  "runs": [
+    {
+      "seed": 1,
+      "legacy": {
+        "penalty": 996,
+        "gaps": 116,
+        "repeatedSubjectPairs": 36,
+        "dailyLoadExcessSquared": 29,
+        "worstTeacherBurden": 34,
+        "elapsedSeconds": 0.731,
+        "hardValid": true
+      },
+      "improved": {
+        "candidatePenalties": [
+          396,
+          401
+        ],
+        "bestGaps": 28,
+        "repeatedSubjectPairs": 0,
+        "dailyLoadExcessSquared": 18,
+        "worstTeacherBurden": 16,
+        "candidateHardValid": [
+          true,
+          true
+        ],
+        "candidateProvenOptimal": [
+          false,
+          false
+        ],
+        "elapsedSeconds": 180.2029999999795
+      }
+    },
+    {
+      "seed": 2,
+      "legacy": {
+        "penalty": 1162,
+        "gaps": 108,
+        "repeatedSubjectPairs": 48,
+        "dailyLoadExcessSquared": 39,
+        "worstTeacherBurden": 47,
+        "elapsedSeconds": 22.301,
+        "hardValid": true
+      },
+      "improved": {
+        "candidatePenalties": [
+          336,
+          337,
+          337
+        ],
+        "bestGaps": 26,
+        "repeatedSubjectPairs": 0,
+        "dailyLoadExcessSquared": 6,
+        "worstTeacherBurden": 16,
+        "candidateHardValid": [
+          true,
+          true,
+          true
+        ],
+        "candidateProvenOptimal": [
+          false,
+          false,
+          false
+        ],
+        "elapsedSeconds": 180.20300000021234
+      }
+    },
+    {
+      "seed": 3,
+      "legacy": {
+        "penalty": 1025,
+        "gaps": 117,
+        "repeatedSubjectPairs": 35,
+        "dailyLoadExcessSquared": 33,
+        "worstTeacherBurden": 33,
+        "elapsedSeconds": 1.246,
+        "hardValid": true
+      },
+      "improved": {
+        "candidatePenalties": [
+          333,
+          339,
+          347
+        ],
+        "bestGaps": 21,
+        "repeatedSubjectPairs": 0,
+        "dailyLoadExcessSquared": 13,
+        "worstTeacherBurden": 16,
+        "candidateHardValid": [
+          true,
+          true,
+          true
+        ],
+        "candidateProvenOptimal": [
+          false,
+          false,
+          false
+        ],
+        "elapsedSeconds": 180.23400000017136
+      }
+    }
+  ]
+}

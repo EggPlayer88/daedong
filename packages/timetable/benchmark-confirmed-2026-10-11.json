@@ -1,0 +1,2243 @@
+{
+  "date": "2026-10-11",
+  "model": "대동여중 9개 학급, 교사 23명(원어민 포함), 일반 수업 279시수, 창체 담임 예약 9칸",
+  "confirmedConditions": [
+    "영어(원어민)는 담당 영어교사와 공통 원어민 1명이 동시 참여",
+    "창체에는 각 반 담임 필수",
+    "4~5교시 블록 허용·점심 경계 횡단은 품질 페널티"
+  ],
+  "qualityPolicy": {
+    "preferredMaxConsecutive": 3,
+    "consecutiveAcrossBreak": false,
+    "weights": {
+      "subjectDaily": 10,
+      "subjectAdjacency": 2,
+      "teacherDailyLoad": 4,
+      "teacherGaps": 2,
+      "teacherConsecutive": 3,
+      "morningBalance": 1,
+      "lateSpread": 1,
+      "teacherFairness": 2,
+      "blockBreakCrossing": 3
+    }
+  },
+  "legacyChecks": [
+    {
+      "seed": 1,
+      "hardValidation": {
+        "valid": false,
+        "errors": [
+          {
+            "code": "TEACHER_COLLISION",
+            "slot": [
+              "native-1",
+              "수",
+              3
+            ]
+          },
+          {
+            "code": "TEACHER_COLLISION",
+            "slot": [
+              "native-1",
+              "화",
+              7
+            ]
+          }
+        ]
+      },
+      "evaluation": null,
+      "elapsedSeconds": 1.383
+    },
+    {
+      "seed": 2,
+      "hardValidation": {
+        "valid": false,
+        "errors": [
+          {
+            "code": "TEACHER_COLLISION",
+            "slot": [
+              "native-1",
+              "수",
+              4
+            ]
+          }
+        ]
+      },
+      "evaluation": null,
+      "elapsedSeconds": 59.305
+    },
+    {
+      "seed": 3,
+      "hardValidation": {
+        "valid": true,
+        "errors": []
+      },
+      "evaluation": {
+        "totalPenalty": 1110,
+        "breakdown": {
+          "subjectDaily": {
+            "amount": 35,
+            "weight": 10,
+            "penalty": 350
+          },
+          "subjectAdjacency": {
+            "amount": 59,
+            "weight": 2,
+            "penalty": 118
+          },
+          "teacherDailyLoad": {
+            "amount": 44,
+            "weight": 4,
+            "penalty": 176
+          },
+          "teacherGaps": {
+            "amount": 126,
+            "weight": 2,
+            "penalty": 252
+          },
+          "teacherConsecutive": {
+            "amount": 6,
+            "weight": 3,
+            "penalty": 18
+          },
+          "morningBalance": {
+            "amount": 106,
+            "weight": 1,
+            "penalty": 106
+          },
+          "lateSpread": {
+            "amount": 4,
+            "weight": 1,
+            "penalty": 4
+          },
+          "teacherFairness": {
+            "amount": 40,
+            "weight": 2,
+            "penalty": 80
+          },
+          "blockBreakCrossing": {
+            "amount": 2,
+            "weight": 3,
+            "penalty": 6
+          }
+        },
+        "teacherBurden": {
+          "t1": {
+            "penalty": 14,
+            "dutyHours": 16
+          },
+          "t2": {
+            "penalty": 23,
+            "dutyHours": 19
+          },
+          "t3": {
+            "penalty": 26,
+            "dutyHours": 9
+          },
+          "t4": {
+            "penalty": 27,
+            "dutyHours": 17
+          },
+          "t5": {
+            "penalty": 14,
+            "dutyHours": 17
+          },
+          "t6": {
+            "penalty": 10,
+            "dutyHours": 12
+          },
+          "t7": {
+            "penalty": 15,
+            "dutyHours": 17
+          },
+          "t8": {
+            "penalty": 33,
+            "dutyHours": 15
+          },
+          "t9": {
+            "penalty": 37,
+            "dutyHours": 17
+          },
+          "t10": {
+            "penalty": 16,
+            "dutyHours": 3
+          },
+          "t11": {
+            "penalty": 27,
+            "dutyHours": 20
+          },
+          "t12": {
+            "penalty": 12,
+            "dutyHours": 17
+          },
+          "t13": {
+            "penalty": 16,
+            "dutyHours": 15
+          },
+          "t14": {
+            "penalty": 18,
+            "dutyHours": 13
+          },
+          "t15": {
+            "penalty": 24,
+            "dutyHours": 16
+          },
+          "t16": {
+            "penalty": 6,
+            "dutyHours": 9
+          },
+          "t17": {
+            "penalty": 23,
+            "dutyHours": 14
+          },
+          "t18": {
+            "penalty": 12,
+            "dutyHours": 12
+          },
+          "t19": {
+            "penalty": 15,
+            "dutyHours": 6
+          },
+          "t20": {
+            "penalty": 24,
+            "dutyHours": 15
+          },
+          "t21": {
+            "penalty": 18,
+            "dutyHours": 15
+          },
+          "t22": {
+            "penalty": 0,
+            "dutyHours": 3
+          },
+          "native-1": {
+            "penalty": 40,
+            "dutyHours": 9
+          }
+        },
+        "weaknesses": [
+          {
+            "type": "teacherFairness",
+            "amount": 40,
+            "penalty": 80
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 3,
+            "penalty": 30,
+            "classId": "c7",
+            "subjectId": "s1",
+            "day": "수"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 3,
+            "penalty": 30,
+            "classId": "c4",
+            "subjectId": "s5",
+            "day": "수"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "t2",
+            "day": "화"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "t3",
+            "day": "금"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "t8",
+            "day": "수"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "t9",
+            "day": "목"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "t10",
+            "day": "목"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "native-1",
+            "day": "월"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 4,
+            "penalty": 16,
+            "teacherId": "native-1",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c3",
+            "subjectId": "s1",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c8",
+            "subjectId": "s1",
+            "day": "월"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c1",
+            "subjectId": "s1",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c2",
+            "subjectId": "s1",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c4",
+            "subjectId": "s1",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c4",
+            "subjectId": "s1",
+            "day": "금"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s1",
+            "day": "목"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s1",
+            "day": "금"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c6",
+            "subjectId": "s1",
+            "day": "수"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c4",
+            "subjectId": "s3",
+            "day": "목"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s3",
+            "day": "수"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c7",
+            "subjectId": "s4",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c8",
+            "subjectId": "s4",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s5",
+            "day": "수"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s5",
+            "day": "목"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c6",
+            "subjectId": "s5",
+            "day": "금"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c6",
+            "subjectId": "s5",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c1",
+            "subjectId": "s6",
+            "day": "목"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c3",
+            "subjectId": "s6",
+            "day": "월"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s8",
+            "day": "월"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c8",
+            "subjectId": "s9",
+            "day": "수"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c6",
+            "subjectId": "s9",
+            "day": "목"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c3",
+            "subjectId": "s10",
+            "day": "목"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c7",
+            "subjectId": "s10",
+            "day": "월"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c8",
+            "subjectId": "s10",
+            "day": "금"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s10",
+            "day": "화"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c5",
+            "subjectId": "s13",
+            "day": "월"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c6",
+            "subjectId": "s13",
+            "day": "금"
+          },
+          {
+            "type": "subjectDaily",
+            "amount": 1,
+            "penalty": 10,
+            "classId": "c8",
+            "subjectId": "s15",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 4,
+            "penalty": 8,
+            "teacherId": "t4",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 4,
+            "penalty": 8,
+            "teacherId": "t9",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t3",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t5",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t6",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t7",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t9",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t11",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t11",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t14",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t15",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t15",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t17",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t19",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t20",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 3,
+            "penalty": 6,
+            "teacherId": "t20",
+            "day": "금"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c3",
+            "subjectId": "s1"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c8",
+            "subjectId": "s1"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c9",
+            "subjectId": "s1"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c2",
+            "subjectId": "s1"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c1",
+            "subjectId": "s5"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c5",
+            "subjectId": "s5"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 4,
+            "penalty": 4,
+            "classId": "c7",
+            "subjectId": "s5"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t1",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t1",
+            "day": "금"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t3",
+            "day": "화"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t4",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t4",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t4",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t4",
+            "day": "목"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t5",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t5",
+            "day": "목"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t6",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t7",
+            "day": "월"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t8",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t8",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t8",
+            "day": "금"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t11",
+            "day": "월"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t11",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t12",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t12",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t12",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t13",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t13",
+            "day": "화"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t13",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t13",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t14",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t14",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t14",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t15",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t15",
+            "day": "목"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t16",
+            "day": "수"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t17",
+            "day": "월"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t17",
+            "day": "수"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t17",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t18",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t18",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t19",
+            "day": "월"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t19",
+            "day": "화"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t20",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t20",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t20",
+            "day": "수"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t21",
+            "day": "화"
+          },
+          {
+            "type": "teacherDailyLoad",
+            "amount": 1,
+            "penalty": 4,
+            "teacherId": "t21",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t21",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "t21",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "native-1",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 2,
+            "penalty": 4,
+            "teacherId": "native-1",
+            "day": "화"
+          },
+          {
+            "type": "blockBreakCrossing",
+            "amount": 1,
+            "penalty": 3,
+            "unitId": "t11-c5-s8@0",
+            "day": "화"
+          },
+          {
+            "type": "blockBreakCrossing",
+            "amount": 1,
+            "penalty": 3,
+            "unitId": "t11-c7-s8@0",
+            "day": "금"
+          },
+          {
+            "type": "teacherConsecutive",
+            "amount": 1,
+            "penalty": 3,
+            "teacherId": "t4",
+            "day": "금"
+          },
+          {
+            "type": "teacherConsecutive",
+            "amount": 1,
+            "penalty": 3,
+            "teacherId": "t8",
+            "day": "수"
+          },
+          {
+            "type": "teacherConsecutive",
+            "amount": 1,
+            "penalty": 3,
+            "teacherId": "t9",
+            "day": "목"
+          },
+          {
+            "type": "teacherConsecutive",
+            "amount": 1,
+            "penalty": 3,
+            "teacherId": "t11",
+            "day": "화"
+          },
+          {
+            "type": "teacherConsecutive",
+            "amount": 1,
+            "penalty": 3,
+            "teacherId": "t15",
+            "day": "월"
+          },
+          {
+            "type": "teacherConsecutive",
+            "amount": 1,
+            "penalty": 3,
+            "teacherId": "t17",
+            "day": "월"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s1",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s1"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s1",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s1",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s1",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s1",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s1",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s1"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s1",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s1",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s1"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s1",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s1",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s2"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s2",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s2"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s2",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s2"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s2"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s2",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s3",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s3"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s3",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s4"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s5",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s5",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s5",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s5",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s5",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s5"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s5",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s5",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s5"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s5",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s5"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s5",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s5"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s5",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s5",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s5",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s5",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s5",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s5"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s5",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s5",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s5",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s5"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s6"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s6"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s6"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s8",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s8",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s8"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s8",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s8"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s8",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s8"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s8"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s8"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s9"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s9",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s9"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s9",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s9"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c8",
+            "subjectId": "s9"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s9",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s9"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s9",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s9"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s9",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s9",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s10"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s10",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s10"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s10",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s10",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s10"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s10",
+            "days": [
+              "월",
+              "화"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s10",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s10",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s10"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c5",
+            "subjectId": "s10",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s12",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s13",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s13",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c3",
+            "subjectId": "s13"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s13"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s13"
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c2",
+            "subjectId": "s15"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s15",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c4",
+            "subjectId": "s15"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s15",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "morningBalance",
+            "amount": 2,
+            "penalty": 2,
+            "classId": "c6",
+            "subjectId": "s15"
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c1",
+            "subjectId": "s15",
+            "days": [
+              "목",
+              "금"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s15",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c7",
+            "subjectId": "s15",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s15",
+            "days": [
+              "화",
+              "수"
+            ]
+          },
+          {
+            "type": "subjectAdjacency",
+            "amount": 1,
+            "penalty": 2,
+            "classId": "c9",
+            "subjectId": "s15",
+            "days": [
+              "수",
+              "목"
+            ]
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t1",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t1",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t1",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t2",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t2",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t2",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t7",
+            "day": "화"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t7",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t8",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t9",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t9",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t11",
+            "day": "월"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t11",
+            "day": "금"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t16",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t17",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t18",
+            "day": "수"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t18",
+            "day": "목"
+          },
+          {
+            "type": "teacherGaps",
+            "amount": 1,
+            "penalty": 2,
+            "teacherId": "t21",
+            "day": "화"
+          },
+          {
+            "type": "lateSpread",
+            "amount": 1,
+            "penalty": 1,
+            "teacherId": "t2"
+          },
+          {
+            "type": "lateSpread",
+            "amount": 1,
+            "penalty": 1,
+            "teacherId": "t7"
+          },
+          {
+            "type": "lateSpread",
+            "amount": 1,
+            "penalty": 1,
+            "teacherId": "t15"
+          },
+          {
+            "type": "lateSpread",
+            "amount": 1,
+            "penalty": 1,
+            "teacherId": "t19"
+          }
+        ]
+      },
+      "elapsedSeconds": 1.463
+    }
+  ],
+  "runs": [
+    {
+      "mode": "새 생성·중간 우수안 수집",
+      "timeLimitSeconds": 180,
+      "seed": 1,
+      "workers": 8,
+      "elapsedSeconds": 144.59400000004098,
+      "candidatePenalties": [
+        444,
+        451,
+        455
+      ],
+      "hardValid": [
+        true,
+        true,
+        true
+      ],
+      "gaps": [
+        46,
+        47,
+        45
+      ],
+      "lunchCrossings": [
+        0,
+        0,
+        0
+      ],
+      "differentCells": [
+        {
+          "2": 14,
+          "3": 23
+        },
+        {
+          "1": 14,
+          "3": 15
+        },
+        {
+          "1": 23,
+          "2": 15
+        }
+      ]
+    },
+    {
+      "mode": "앞선 최고안 444를 previous로 제공·품질 재최적화",
+      "timeLimitSeconds": 600,
+      "seed": 3,
+      "workers": 8,
+      "elapsedSeconds": 481.14100000006147,
+      "candidatePenalties": [
+        388,
+        388,
+        389
+      ],
+      "hardValid": [
+        true,
+        true,
+        true
+      ],
+      "gaps": [
+        33,
+        33,
+        33
+      ],
+      "repeatedSubjectPairs": [
+        0,
+        0,
+        0
+      ],
+      "lunchCrossings": [
+        0,
+        0,
+        0
+      ],
+      "differentCells": [
+        {
+          "2": 41,
+          "3": 48
+        },
+        {
+          "1": 41,
+          "3": 25
+        },
+        {
+          "1": 48,
+          "2": 25
+        }
+      ],
+      "optimality": [
+        {
+          "provenOptimal": false,
+          "lowerBound": 110.0,
+          "absoluteGap": 278.0,
+          "scope": "original",
+          "solverStatus": "FEASIBLE"
+        },
+        {
+          "provenOptimal": false,
+          "lowerBound": 110.0,
+          "absoluteGap": 278.0,
+          "scope": "original",
+          "solverStatus": "INTERMEDIATE_FEASIBLE"
+        },
+        {
+          "provenOptimal": false,
+          "lowerBound": 110.0,
+          "absoluteGap": 279.0,
+          "scope": "original",
+          "solverStatus": "INTERMEDIATE_FEASIBLE"
+        }
+      ]
+    }
+  ],
+  "limits": "실측은 다중 워커로 재현 결과가 달라질 수 있다. 장시간 탐색은 유효 대안 힌트·동점 기준안 선별 보완 이전에 실행했다. 평가식·하드조건은 현재와 같으며 반환 후보를 독립 검증했다. 99점 환산 또는 전역 최적 증명을 하지 않음."
+}

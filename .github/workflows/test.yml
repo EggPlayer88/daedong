@@ -21,7 +21,8 @@ jobs:
           python-version: '3.12'
       # Python 테스트(generate.py·extract.py)는 lxml 이 필요하다.
       # 러너는 lxml 이 없으면 Python 몫을 건너뛰므로, 여기서 반드시 설치해 건너뛰는 일이 없게 한다.
-      - run: pip install lxml
+      # 시간표 회귀도 실제 CP-SAT 엔진으로 실행한다.
+      - run: pip install lxml -r packages/timetable/requirements.txt
       - run: npm ci
       - run: npm test
         env:
