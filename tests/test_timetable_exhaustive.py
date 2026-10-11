@@ -8,7 +8,7 @@ from engine.solver import solve_timetable
 from engine.model import normalize,inspect_schedule,expand_cells,legal_start
 from engine.quality import read_quality,evaluate_quality,morning_baselines
 rng=random.Random(20261011)
-summary={'cases':0,'feasible':0,'infeasible':0,'previousCases':0,'provedOptimal':0,'oracleAssignments':0,'violations':[]}
+summary={'cases':0,'adaptiveCases':0,'feasible':0,'infeasible':0,'previousCases':0,'provedOptimal':0,'oracleAssignments':0,'violations':[]}
 def oracle(raw,opts):
     q=read_quality(opts.get('quality'));p=normalize(raw,q);fixed=p['fixed']+opts.get('locks',[])
     choices={u['id']:[(d['id'],s) for d in p['days'] for s in range(1,d['periods']+1) if legal_start(p,u,d['id'],s,fixed)] for u in p['units']}
@@ -81,7 +81,17 @@ for index in range(48):
             if options.get('previous') is not None:
                 assert r['changeOptimality']['provenMinimumChanges'] and r['changeOptimality']['bestChangedCells']==best[0],(index,'incorrect change proof',r['changeOptimality'],best)
             summary['provedOptimal']+=1
-        print(f'  ✓ 전수열거 사례 {index+1}: 하드조건·품질·최적성 일치')
+        alternate=solve_timetable(raw,{**options,'searchStrategy':'adaptive'})
+        assert alternate['status']==r['status'],(index,'adaptive status mismatch',alternate)
+        if valid:
+            c=alternate['candidates'][0]
+            actual=(c['changedCells'],c['evaluation']['totalPenalty']) if options.get('previous') is not None else c['evaluation']['totalPenalty']
+            assert actual==best and inspect_schedule(p,c['placements'],p['fixed']+options.get('locks',[]))['valid'],(index,'adaptive optimum mismatch',actual,best)
+            assert c['optimality']['provenOptimal'] and c['optimality']['lowerBound']==c['evaluation']['totalPenalty'],(index,'adaptive proof mismatch',c['optimality'])
+        else:
+            assert not alternate['candidates']
+        summary['adaptiveCases']+=1
+        print(f'  ✓ 전수열거 사례 {index+1}: 두 탐색 모드의 하드조건·품질·최적성 일치')
     except Exception as e:
         summary['violations'].append({'case':index,'error':str(e),'problem':raw,'options':options})
 print(json.dumps(summary,ensure_ascii=True))
