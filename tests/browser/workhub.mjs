@@ -92,7 +92,7 @@ try {
     assert.equal(await page.getByLabel('필요 수량', { exact: true }).inputValue(), '0')
     await page.getByRole('button', { name: '최종 제출', exact: true }).click()
     assert((await page.locator('.wf-unit').innerText()).includes('검토 대기'))
-    await menu('오늘');await page.getByRole('button',{name:'수합 원본 보기',exact:true}).click()
+    await menu('오늘');await page.getByRole('button',{name:/브라우저 검증 · 현장학습 수량.*접수 상태 확인/}).click()
     await page.getByRole('heading',{name:'브라우저 검증 · 현장학습 수량',exact:true}).waitFor()
   })
   await ok('보완 요청·재제출·검토 완료·홈 원본 연결', async () => {
@@ -110,7 +110,7 @@ try {
     await page.getByRole('button', { name: '이 버전 검토 완료', exact: true }).click()
     assert((await page.locator('.wf-unit .wf-progress').innerText()).includes('v2'))
     await user('gaon-soyeon')
-    assert.equal(await page.getByRole('button',{name:'수합 원본 보기',exact:true}).count(),0)
+    assert.equal(await page.getByTitle('수합 원본 보기',{exact:true}).count(),0)
     await page.getByRole('button', { name: '수합 전체 보기', exact: true }).click()
     await page.getByRole('button',{name:/브라우저 검증 · 현장학습 수량/}).click()
     await page.getByRole('heading', { name: '브라우저 검증 · 현장학습 수량', exact: true }).waitFor()

@@ -26,8 +26,8 @@ async function heading(name){await page.getByRole('heading',{name,exact:true,lev
 async function settle(){await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))}
 try{
   await test('단일 파일에 일반·인라인 CSS를 담고 운영 연결 코드를 포함하지 않는다',async()=>{
-    assert.match(html,/5차 개발 · 기본 구조 미리보기/)
-    for(const value of ['.ws-shell','.task-panel','.wf-','.students-panel','.cv-month'])assert(html.includes(value),value)
+    assert.match(html,/6차 개발 · 오늘과 업무 찾기/)
+    for(const value of ['.ws-shell','.task-panel','.wf-','.students-panel','.cv-month','.ws-search-dialog'])assert(html.includes(value),value)
     for(const value of ['workhub_calendar_list','workhub_task_save','createSupabaseConnection'])assert(!html.includes(value),value)
     assert.match(html,/connect-src 'none'/)
     await page.goto(base);await page.getByRole('heading',{name:'오늘 챙길 내 업무',exact:true}).waitFor();await settle()

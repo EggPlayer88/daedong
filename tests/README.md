@@ -85,6 +85,10 @@ npm test
 | `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단 |
 | `test_workhub_calendar_views.mjs` | 다일 겹침·월/주 범위·검색·추천·건수와 홈 7일 요약 |
 | `test_workhub_preview_tasks.mjs` | 합성 store와 실제 TaskPanel 계약의 멱등·충돌·격리·Unicode·원자적 실패 |
+| `test_workhub_task_summary.mjs` | 미완료 업무의 기한 분류·4건 요약·메모·조회 실패 표시 |
+| `test_workhub_collection_summary.mjs` | 제출·공동작성·검토·대기의 구분, 복수 보완 기한, 정확한 원본·목록 선택 |
+| `test_workhub_search_sources.mjs` | 현재 학교·소유자 범위, 수합 초안 비공개, 한글 검색·중복·정렬 |
+| `test_workhub_search_ui.mjs` | 검색 SSR, 부분 실패·재시도·지연 응답 폐기·50건 제한·본문 노출 범위 |
 
 다음은 Chrome과 Playwright가 필요한 별도 브라우저 시험이다. `PLAYWRIGHT_MODULE`로 설치된 모듈 경로를 지정할 수 있다. 합성 자료만 쓰며 운영 서버에 접속하지 않는다.
 
@@ -94,6 +98,8 @@ node tests/browser/workhub-calendar-views.mjs   # 월·주·목록·검색·키�
 node tests/browser/workhub-calendar-recovery.mjs # 실제 접수 뒤 응답만 유실·같은 요청 재확인
 node tests/browser/workhub.mjs                  # 개인 업무·수합·학생의 전체 흐름
 node tests/browser/workhub-foundation.mjs        # 실제 PreviewApp의 주소·입력 보호·오류 격리
+node tests/browser/workhub-home-search.mjs       # 실제 홈→검색→원본·학교 변경·연결 모드
+node tests/browser/workhub-task-navigation.mjs   # 완료 업무 원본·지연 응답·소속 전환
 node scripts/export-workhub-preview.mjs         # 기본 출력: dist/workhub-preview.html
 node tests/browser/workhub-offline.mjs          # file:// 파일·스타일·저장·외부 요청 0
 ```
