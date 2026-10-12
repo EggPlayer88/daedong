@@ -6,3 +6,4 @@
 @media(prefers-reduced-motion:reduce){.ws-shell *{scroll-behavior:auto!important}.ws-shell .skeleton{animation:none}}
 
 .ws-header-actions{display:flex;align-items:center;gap:14px;min-width:0;max-width:560px}.ws-header-actions .ws-context-controls{width:280px}@media(max-width:720px){.ws-header-actions{width:100%;max-width:none;flex-wrap:wrap;gap:10px}.ws-header-actions .ws-context-controls{flex:1;min-width:190px}}
+@media(max-width:380px){.ws-navigation{grid-template-columns:repeat(2,minmax(0,1fr))}.ws-more-button{grid-column:1/-1;justify-content:flex-start;padding-inline:12px}.ws-extra-menus{grid-template-columns:minmax(0,1fr)}.ws-header-actions .ws-context-controls{min-width:0;flex-basis:100%}}

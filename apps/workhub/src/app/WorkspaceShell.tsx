@@ -22,6 +22,7 @@ export interface WorkspaceShellProps {
 export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName, contextControls, quickActions, locked = false, notice, storageLabel, children, tools }: WorkspaceShellProps) {
   const content = useRef<HTMLDivElement>(null)
   const previousPage = useRef(page)
+  const moreButton = useRef<HTMLButtonElement>(null)
   const [expanded, setExpanded] = useState(false)
   const moreId = useId()
   const contentId = useId()
@@ -47,6 +48,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
 
   function navigate(next: PageId) {
     if (locked || !modules.some(module => module.id === next)) return
+    if (next === page) { setExpanded(false); focusContent() }
     onNavigate(next)
   }
   function menuButton(module: WorkhubModule) {
@@ -67,9 +69,9 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
       <aside className="ws-sidebar" aria-label="학교 업무실 안내">
         <div className="ws-brand"><span className="ws-brand-mark" aria-hidden="true">學</span><div><strong>하루를 잇는 학교</strong><span>업무혁신시스템</span></div></div>
         <div className="ws-school"><span className="ws-school-dot" aria-hidden="true" /><strong>{school}</strong>{mode === 'preview' && <span className="ws-mode-tag">가상</span>}</div>
-        <nav className="ws-navigation" aria-label={mode === 'connected' ? '신축 업무 메뉴' : '업무 메뉴'}>
+        <nav className="ws-navigation" onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing && expanded && moreButton.current?.getClientRects().length) { event.preventDefault(); event.stopPropagation(); moreButton.current.focus(); setExpanded(false) } }} aria-label={mode === 'connected' ? '신축 업무 메뉴' : '업무 메뉴'}>
           {group('today')}{group('school')}
-          {additional.length > 0 && <><button className="ws-more-button" type="button" aria-expanded={expanded} aria-controls={moreId} onClick={() => setExpanded(value => !value)}><span aria-hidden="true">•••</span>더보기</button><div id={moreId} className={`ws-extra-menus${expanded ? ' ws-extra-open' : ''}`}>{group('work')}{group('teaching')}</div></>}
+          {additional.length > 0 && <><button ref={moreButton} className="ws-more-button" type="button" aria-expanded={expanded} aria-controls={moreId} onClick={() => setExpanded(value => !value)}><span aria-hidden="true">•••</span>더보기</button><div id={moreId} className={`ws-extra-menus${expanded ? ' ws-extra-open' : ''}`}>{group('work')}{group('teaching')}</div></>}
         </nav>
         <div className="ws-sidebar-note"><p>오늘의 일을 가볍게,<br /><strong>함께하는 일을 선명하게.</strong></p></div>
         <div className="ws-member"><span className="ws-avatar" aria-hidden="true">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{mode === 'preview' ? '합성 자료로 흐름 확인' : '현재 학교의 업무 공간'}</span></div></div>
