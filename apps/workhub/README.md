@@ -1,6 +1,6 @@
 # 신축 업무실
 
-작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 작성·저장 확인은 [8차 개발 인계](../../docs/workhub/13-guided-entry.md), 수합·학생 작업 화면은 [7차 개발 인계](../../docs/workhub/12-workflow-records.md), 홈·검색 동선은 [6차 개발 인계](../../docs/workhub/11-home-navigation.md), 개인 업무 서버 연결은 [4차 개발 인계](../../docs/workhub/09-task-persistence.md)를 기준으로 확인합니다. DB 구축과 시간표는 현재 사용자 요청으로 보류합니다.
+화면 사용성과 접근성은 [9차 개발 인계](../../docs/workhub/14-usability-accessibility.md), 작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 작성·저장 확인은 [8차 개발 인계](../../docs/workhub/13-guided-entry.md), 수합·학생 작업 화면은 [7차 개발 인계](../../docs/workhub/12-workflow-records.md), 홈·검색 동선은 [6차 개발 인계](../../docs/workhub/11-home-navigation.md), 개인 업무 서버 연결은 [4차 개발 인계](../../docs/workhub/09-task-persistence.md)를 기준으로 확인합니다. DB 구축과 시간표는 현재 사용자 요청으로 보류합니다.
 
 기존 로그인·회원 프로필을 재사용하는 일정·개인 업무 연결 기반과 별도의 가상 자료 미리보기를 제공합니다. 실제 Supabase에는 이번 SQL을 적용하지 않았습니다.
 
@@ -73,3 +73,5 @@ npm test
 연결 진단만 시연하는 HTML은 `node scripts/export-workhub-readiness-preview.mjs [저장할 절대 경로]`로 만듭니다. 8개 합성 상황을 선택해서 진단 화면을 확인하며 실제 접속 증빙으로 사용하지 않습니다.
 
 4차 내 업무 HTML은 `node scripts/export-workhub-tasks-preview.mjs [저장할 절대 경로]`로 만듭니다. 실제 비동기 화면에 메모리 저장소를 주입해 등록·수정·상태 변경·홈 요약·응답 유실 재시도를 확인합니다. 실제 서버에 접속하거나 자료를 영구 저장하지 않습니다. 화면 검증은 `node tests/browser/workhub-tasks.mjs`, 앱 내 연결 회귀는 `node tests/browser/workhub-connection.mjs`입니다.
+
+키보드 초점·모바일 메뉴·일정 모달은 `node tests/browser/workhub-accessibility.mjs`로 일반 DOM과 ShadowRoot를 함께 검사합니다. 수합/학생 반복 필드와 저장·취소 이후 동작은 각각 `workhub-collection-accessibility.mjs`, `workhub-student-accessibility.mjs`로 확인합니다. 실제 화면읽기 프로그램 음성 검증과 교사 파일럿은 별도로 남아 있습니다.
