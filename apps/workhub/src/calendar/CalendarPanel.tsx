@@ -5,9 +5,10 @@ import { dateLabel, EventEditor, eventTime, visibilityLabels, type Adapter } fro
 import type { RelationOptions } from './contracts'
 import { addDays, dateRange, dayLabel, daysInRange, filterCalendarEvents, monthGrid, overlaps, rangeLabel, shiftPeriod, upcomingPreview, type CalendarRelation, type CalendarView } from './presentation'
 import calendarStyles from './calendar-views.css?inline'
+import type { ResourceOpenRequest } from '../search/contracts'
 const Icon = ({ name }: { name: 'arrow' | 'plus' }) => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d={name === 'plus' ? 'M12 5v14M5 12h14' : 'M5 12h14m-5-5 5 5-5 5'} /></svg>
 
-export function CalendarPanel({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, storageLabel, onNavigationLockChange }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void }) {
+export function CalendarPanel({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, storageLabel, onNavigationLockChange, openRequest }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest }) {
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -24,6 +25,18 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
   const heading = useRef<HTMLHeadingElement>(null)
   const monthRef = useRef<HTMLDivElement>(null)
   const id = useId()
+  const previousPage = useRef(page)
+  const openedRequest = useRef('')
+  useEffect(() => {
+    if (previousPage.current !== page) setDetail(undefined)
+    previousPage.current = page
+  }, [page])
+  useEffect(() => {
+    if (!openRequest || openedRequest.current === openRequest.key || editor || page !== 'calendar') return
+    openedRequest.current = openRequest.key
+    setDetail(openRequest.id)
+    setMessage('')
+  }, [openRequest, editor, page])
   useLayoutEffect(() => {
     onNavigationLockChange?.(!!editor)
     return () => { onNavigationLockChange?.(false) }
@@ -97,7 +110,7 @@ function EventDetail({ id, member, date, adapter, onClose, onEdit }: { id: strin
   const [loading, setLoading] = useState(true)
   const [attempt, setAttempt] = useState(0)
   const dialog = useRef<HTMLDialogElement>(null)
-  useEffect(() => { const previous = document.activeElement as HTMLElement | null; const element = dialog.current; element?.showModal(); return () => { element?.close(); if (previous?.isConnected) previous.focus() } }, [])
+  useEffect(() => { const element = dialog.current; const root = element?.getRootNode(); const previous = (root instanceof ShadowRoot ? root.activeElement : document.activeElement) as HTMLElement | null; element?.showModal(); return () => { element?.close(); if (previous?.isConnected) previous.focus() } }, [])
   useEffect(() => { let active = true; setLoading(true); setEvent(undefined); setError(''); adapter.get(member.id, id).then(result => { if (active) setEvent(result) }).catch(failure => { if (active) setError(failure.message) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [adapter, id, member.id, member.active, attempt])
   return <dialog ref={dialog} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => { event.preventDefault(); onClose() }}><header className="dialog-header"><div><p className="eyebrow">학교 일정 · 원본 보기</p><h2 id="detail-title">{event?.title ?? '일정 상세'}</h2></div><button className="icon-button" aria-label="일정 상세 닫기" onClick={onClose}>✕</button></header><div className="dialog-body">{loading ? <p role="status">원본을 불러오는 중…</p> : error ? <div role="alert" className="error-box"><p>{error}</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>다시 불러오기</button></div> : event && <><div className="detail-tags"><span className="reason-tag">{visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span></div><dl className="event-detail"><div><dt>일정</dt><dd>{dateLabel(event.startDate)}{event.endDate !== event.startDate ? ` ~ ${dateLabel(event.endDate)}` : ''}<br />{eventTime(event)}</dd></div><div><dt>장소</dt><dd>{event.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{event.description || '등록된 안내가 없습니다.'}</dd></div><div><dt>원본 식별자</dt><dd className="mono">{event.id}</dd></div></dl><p className="subtle-note">학교 일정과 홈은 이 원본을 함께 봅니다. 수정 시 원본 버전이 올라가고 추천 대상도 다시 계산됩니다.</p></>}</div><footer className="dialog-footer"><button className="secondary" onClick={onClose}>닫기</button>{event && canEdit(event, member, date) && <button className="primary" onClick={() => onEdit(event)}>일정 수정</button>}</footer></dialog>
 }
