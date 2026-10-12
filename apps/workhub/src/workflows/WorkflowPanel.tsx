@@ -6,6 +6,8 @@ import { WorkflowError, type AnswerInput, type CollectionDraft, type CollectionI
 import './workflows.css'
 import { useEditSession } from '../app/EditSession'
 import { collectionCategoryLabels, collectionHomeSummary, collectionRoleLabels, type CollectionHomeCategory, type CollectionHomeSummary } from './presentation'
+import { CollectionWorkbench } from './CollectionWorkbench'
+import { collectionWorkbench, filterCollectionRequests, type CollectionRequestFilter } from './collection-workbench'
 
 interface Props { member: Membership; members: Membership[]; date: string; store: WorkflowStore }
 const taskLabels: Record<TaskStatus, string> = { todo: '할 일', doing: '진행 중', waiting: '대기', done: '완료', cancelled: '취소' }
@@ -94,8 +96,10 @@ function Collections(props: Props & { initialRequestId?: string; initialUnitId?:
   const [targetUnit, setTargetUnit] = useState(props.initialUnitId)
   const [editor, setEditor] = useState<{ original?: CollectionRequest }>()
   const [tab, setTab] = useState<'received' | 'sent'>()
+  const [query, setQuery] = useState('')
+  const [status, setStatus] = useState<CollectionRequestFilter>('all')
   const requestChange = useEditSession(Boolean(editor))
-  useEffect(() => { if (props.initialRequestId) { setSelection(props.initialRequestId); setTargetUnit(props.initialUnitId); setTab(undefined) } }, [props.initialRequestId, props.initialUnitId])
+  useEffect(() => { if (props.initialRequestId) { setSelection(props.initialRequestId); setTargetUnit(props.initialUnitId); setTab(undefined); setQuery(''); setStatus('all') } }, [props.initialRequestId, props.initialUnitId])
   let requests: CollectionRequest[]
   let received: CollectionRequest[]
   try {
@@ -105,8 +109,20 @@ function Collections(props: Props & { initialRequestId?: string; initialUnitId?:
   const selected = requests.find(request => request.id === selection)
   // 원본 권한을 확인한 뒤 직접 연 요청이 실제로 속하는 목록을 선택한다.
   const activeTab = tab ?? (selected?.managerMemberId === member.id && !received.some(request => request.id === selected.id) ? 'sent' : 'received')
-  const shown = activeTab === 'sent' ? requests.filter(request => request.managerMemberId === member.id) : received
-  return <><div className="wf-collection-toolbar"><div className="wf-tabs" aria-label="수합 목록 분류"><button aria-pressed={activeTab === 'received'} onClick={() => requestChange(() => { setTab('received'); setSelection(undefined); setTargetUnit(undefined) })}>받은 수합</button><button aria-pressed={activeTab === 'sent'} onClick={() => requestChange(() => { setTab('sent'); setSelection(undefined); setTargetUnit(undefined) })}>내가 만든 수합</button></div><button className="primary" onClick={() => requestChange(() => setEditor({}))}>+ 수합 만들기</button></div><p className="wf-hint">현재 글·숫자 응답만 지원합니다. 파일 업로드·외부 결재·공식 처리는 연결되지 않았습니다.</p>{editor ? <CollectionForm {...props} original={editor.original} onCancel={() => setEditor(undefined)} onSaved={request => { setEditor(undefined); setSelection(request.id); setTab('sent') }} /> : <div className="wf-collection-layout"><div className="wf-request-list">{shown.length === 0 ? <p className="wf-empty">{activeTab === 'sent' ? '수합을 만들어 문항과 대상을 정해 보세요.' : '현재 열람할 수 있는 수합이 없습니다.'}</p> : shown.map(request => <button className="wf-request-card" aria-pressed={selection === request.id} key={request.id} onClick={() => requestChange(() => { setSelection(request.id); setTargetUnit(undefined); setTab(activeTab) })}><span className="wf-badge">{request.status === 'draft' ? '작성 중 · 비공개' : request.reviewMode === 'none' ? '검토 없이 응답 완료' : '제출 후 검토'}</span><strong>{request.title}</strong><small>{request.dueDate}까지 · v{request.version}</small></button>)}</div><div className="wf-request-detail">{selected ? <RequestDetail {...props} key={selected.id} request={selected} initialUnitId={targetUnit} onEdit={() => requestChange(() => setEditor({ original: selected }))} /> : <div className="wf-empty" role={selection ? 'alert' : undefined}><h3>{selection ? '요청한 수합을 확인할 수 없습니다' : '수합의 원본을 선택해 주세요'}</h3><p>{selection ? '현재 소속으로 열람할 수 있는 원본인지 확인해 주세요. 다른 수합을 대신 열지 않았습니다.' : '문항, 내 제출 단위, 접수증과 완료본을 함께 확인합니다.'}</p></div>}</div></div>}</>
+  const candidates = activeTab === 'sent' ? requests.filter(request => request.managerMemberId === member.id) : received
+  const shown = filterCollectionRequests(candidates, query, status)
+  function chooseTab(value: 'received' | 'sent') { requestChange(() => { setTab(value); setSelection(undefined); setTargetUnit(undefined); setQuery(''); setStatus('all') }) }
+  return <>
+    <div className="wf-collection-toolbar"><div className="wf-tabs" aria-label="수합 목록 분류"><button aria-pressed={activeTab === 'received'} onClick={() => chooseTab('received')}>받은 수합</button><button aria-pressed={activeTab === 'sent'} onClick={() => chooseTab('sent')}>내가 만든 수합</button></div><button className="primary" onClick={() => requestChange(() => setEditor({}))}>+ 수합 만들기</button></div>
+    <p className="wf-hint">현재 글·숫자 응답만 지원합니다. 파일 업로드·외부 결재·공식 처리는 연결되지 않았습니다.</p>
+    {editor ? <CollectionForm {...props} original={editor.original} onCancel={() => setEditor(undefined)} onSaved={request => { setEditor(undefined); setSelection(request.id); setTargetUnit(undefined); setTab('sent'); setQuery(''); setStatus('all') }} /> : <>
+      <div className="wf-request-filters"><label className="wf-grow">수합 제목 찾기<input type="search" maxLength={120} value={query} onChange={event => requestChange(() => setQuery(event.target.value))} placeholder="제목으로 수합을 찾으세요" /></label><label>수합 게시 상태<select aria-label="수합 게시 상태" value={status} onChange={event => requestChange(() => setStatus(event.target.value as CollectionRequestFilter))}><option value="all">모든 상태</option><option value="published">게시된 수합</option><option value="draft">작성 중 · 비공개</option></select></label>{(query || status !== 'all') && <button type="button" className="text-button" onClick={() => requestChange(() => { setQuery(''); setStatus('all') })}>수합 필터 초기화</button>}</div>
+      <p className="wf-hint" role="status">{activeTab === 'sent' ? '내가 만든 수합' : '받은 수합'} {candidates.length}건 중 {shown.length}건 표시</p>
+      <div className="wf-collection-layout"><div className="wf-request-list">{shown.length === 0 ? <p className="wf-empty">{candidates.length > 0 ? '조건에 맞는 수합이 없습니다. 제목이나 게시 상태를 바꿔 보세요.' : activeTab === 'sent' ? '수합을 만들어 문항과 대상을 정해 보세요.' : '현재 열람할 수 있는 수합이 없습니다.'}</p> : shown.map(request => <button className="wf-request-card" aria-pressed={selection === request.id} key={request.id} onClick={() => requestChange(() => { setSelection(request.id); setTargetUnit(undefined); setTab(activeTab) })}><span className="wf-badge">{request.status === 'draft' ? '작성 중 · 비공개' : request.reviewMode === 'none' ? '검토 없이 응답 완료' : '제출 후 검토'}</span><strong>{request.title}</strong><small>{request.dueDate}까지 · v{request.version}</small></button>)}</div>
+        <div className="wf-request-detail">{selected ? <>{!shown.some(request => request.id === selected.id) && <p className="wf-hint">선택한 수합은 현재 목록 조건에 포함되지 않습니다. 확인 중인 원본은 그대로 유지합니다.</p>}<RequestDetail {...props} key={selected.id} request={selected} initialUnitId={targetUnit} onEdit={() => requestChange(() => setEditor({ original: selected }))} /></> : <div className="wf-empty" role={selection ? 'alert' : undefined}><h3>{selection ? '요청한 수합을 확인할 수 없습니다' : '수합의 원본을 선택해 주세요'}</h3><p>{selection ? '현재 소속으로 열람할 수 있는 원본인지 확인해 주세요. 다른 수합을 대신 열지 않았습니다.' : '문항, 내 제출 단위, 접수증과 완료본을 함께 확인합니다.'}</p></div>}</div>
+      </div>
+    </>}
+  </>
 }
 
 function CollectionForm({ member, members, date, store, original, onCancel, onSaved }: Props & { original?: CollectionRequest; onCancel: () => void; onSaved: (request: CollectionRequest) => void }) {
@@ -128,9 +144,12 @@ function RequestDetail(props: Props & { request: CollectionRequest; initialUnitI
   const action = useAction()
   const units = store.listUnits(member.id, request.id)
   const totals = store.collectionSummary(member.id, request.id)
+  const progress = collectionWorkbench(store, member, request)
+  const [targetUnit, setTargetUnit] = useState({ id: props.initialUnitId, sequence: 0 })
+  useEffect(() => { setTargetUnit(current => ({ id: props.initialUnitId, sequence: current.sequence + 1 })) }, [props.initialUnitId])
   const missingTarget = useRef<HTMLParagraphElement>(null)
-  const unitUnavailable = Boolean(props.initialUnitId && !units.some(unit => unit.id === props.initialUnitId))
-  useEffect(() => { if (unitUnavailable) missingTarget.current?.focus() }, [unitUnavailable, props.initialUnitId])
+  const unitUnavailable = Boolean(targetUnit.id && !units.some(unit => unit.id === targetUnit.id))
+  useEffect(() => { if (unitUnavailable) missingTarget.current?.focus() }, [unitUnavailable, targetUnit])
   return <section>
     <div className="wf-detail-heading"><span className="wf-badge">{request.status === 'draft' ? '아직 게시하지 않음' : '게시됨 · 대상 고정'}</span><h3>{request.title}</h3><p className="wf-preserve">{request.instructions || '추가 안내 없음'}</p><p className="wf-hint">{request.dueDate}까지 · {request.reviewMode === 'none' ? '입력 검사 후 응답 완료, 사람 검토 없음' : '제출과 검토 완료를 따로 표시'} · 원본 v{request.version}</p></div>
     <Feedback {...action} />
@@ -142,15 +161,16 @@ function RequestDetail(props: Props & { request: CollectionRequest; initialUnitI
     </div> : <>
       <div className="wf-progress"><span>열람 가능한 단위 <strong>{totals.totalUnits}부</strong></span><span>유효 제출 <strong>{totals.submittedUnits}부</strong></span><span>완료본 <strong>{totals.completedUnits}부</strong></span></div>
       {request.numberLabel && <p className="wf-hint">{request.numberLabel} 합계: <strong>{totals.numericTotal ?? '범위를 초과하여 계산할 수 없음'}</strong> · 완료본 중 숫자 응답 {totals.numberResponseUnits}부만 집계합니다.</p>}
-      <div className="wf-unit-list">{units.map(unit => <UnitPanel {...props} key={unit.id} unit={unit} highlighted={unit.id === props.initialUnitId} />)}</div>
+      <CollectionWorkbench data={progress} selectedUnitId={targetUnit.id} onOpenUnit={id => setTargetUnit(current => ({ id, sequence: current.sequence + 1 }))} />
+      <div className="wf-unit-list">{units.map(unit => <UnitPanel {...props} key={unit.id} unit={unit} highlighted={unit.id === targetUnit.id} focusSequence={targetUnit.sequence} />)}</div>
     </>}
   </section>
 }
 
-function UnitPanel(props: Props & { request: CollectionRequest; unit: CollectionUnit; highlighted?: boolean }) {
+function UnitPanel(props: Props & { request: CollectionRequest; unit: CollectionUnit; highlighted?: boolean; focusSequence?: number }) {
   const { member, store, request, unit, date } = props
   const target = useRef<HTMLElement>(null)
-  useEffect(() => { if (props.highlighted) { target.current?.focus(); target.current?.scrollIntoView?.({ block: 'center' }) } }, [props.highlighted])
+  useEffect(() => { if (props.highlighted) { target.current?.focus(); target.current?.scrollIntoView?.({ block: 'center' }) } }, [props.highlighted, props.focusSequence])
   const [editing, setEditing] = useState(false)
   const [note, setNote] = useState('')
   const [due, setDue] = useState(date)
