@@ -74,11 +74,26 @@ test('완료본은 검토없는 응답의 숫자 0도 완료로 표시한다', (
   assert.equal(row.state, 'complete'); assert.equal(row.nextStep, '검토 없이 응답 완료'); assert.equal(store.collectionSummary(manager, request.id).numberResponseUnits, 1)
 })
 test('초안·본문·숫자·검토의견을 메타데이터나 검색에 복제하지 않는다', () => {
-  const { store, request, units } = setup({ count: 2 }); submit(store, units[0]); review(store, units[0], 'changes_requested', '2026-10-23')
-  store.saveDraft(author, units[1].id, { text: '비공개 공동초안', number: 999 }, 0, key())
-  const value = table(store, request), content = JSON.stringify(value) + renderTable(value)
-  for (const text of ['진행표에 노출되면 안 되는 제출 본문', '비공개 공동초안', '합성 보완 의견', '999']) assert(!content.includes(text))
-  assert.equal(filterCollectionUnits(value.rows, '비공개 공동초안', 'all', false).length, 0)
+  // 숫자 999는 정상 원본 ID에도 나올 수 있다. 난수를 고정해 그 경우를 항상 검증한다.
+  const randomUUID = crypto.randomUUID
+  let identifier = 0
+  crypto.randomUUID = () => `99999999-0000-4000-8000-${String(++identifier).padStart(12, '0')}`
+  try {
+    const { store, request, units } = setup({ count: 2 }); submit(store, units[0]); review(store, units[0], 'changes_requested', '2026-10-23')
+    store.saveDraft(author, units[1].id, { text: '비공개 공동초안', number: 999 }, 0, key())
+    const value = table(store, request), html = renderTable(value), content = JSON.stringify(value) + html
+    for (const text of ['진행표에 노출되면 안 되는 제출 본문', '비공개 공동초안', '합성 보완 의견']) assert(!content.includes(text))
+    const allowed = ['id', 'label', 'responsibleName', 'state', 'nextStep', 'dueDate', 'overdue', 'initiallyLate', 'currentRevision', 'effectiveRevision', 'pendingSupplementCount'].sort()
+    for (const row of value.rows) {
+      assert.deepEqual(Object.keys(row).sort(), allowed)
+      assert(!Object.values(row).some(item => item === 999))
+      assert(row.id.includes('999'))
+    }
+    // CSS와 DOM 식별자 속성 대신 실제 표시 문구에서 응답 숫자 누출을 확인한다.
+    const visibleText = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/g, '').replace(/<[^>]*>/g, '')
+    assert(!visibleText.includes('999'))
+    for (const query of ['비공개 공동초안', '999']) assert.equal(filterCollectionUnits(value.rows, query, 'all', false).length, 0)
+  } finally { crypto.randomUUID = randomUUID }
 })
 test('현재 열람 가능한 제출 단위만 분모에 넣는다', () => {
   const { store } = setup({ count: 1 })

@@ -192,7 +192,9 @@ await test('실제 홈 JSX가 개발 안내·학교 맥락·조회 상태를 렌
 })
 await test('실제 편집 JSX가 접근 가능한 양식과 열람·추천 구분을 렌더한다', () => {
   const html = renderEditor()
-  assert(html.includes('aria-labelledby="editor-title"'))
+  const dialogTitle = html.match(/<dialog[^>]*aria-labelledby="([^"]+)"/)?.[1]
+  assert(dialogTitle)
+  assert(html.includes(`<h2 id="${dialogTitle}">`))
   assert(html.includes('name="title"'))
   assert(html.includes('대상 미리보기'))
   assert(html.includes('원본 열람 · 현재 기준일 기준'))

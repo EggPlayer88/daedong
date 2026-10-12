@@ -56,6 +56,12 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const [openError, setOpenError] = useState('')
   const [openAttempt, setOpenAttempt] = useState(0)
   const panel = useRef<HTMLElement>(null)
+  const editorTrigger = useRef<HTMLButtonElement | null>(null)
+  const titleInput = useRef<HTMLInputElement>(null)
+  const errorMessage = useRef<HTMLParagraphElement>(null)
+  const noticeMessage = useRef<HTMLParagraphElement>(null)
+  const registrationButton = useRef<HTMLButtonElement>(null)
+  const nextFocus = useRef<'title' | 'return' | 'error' | 'notice'>()
   const focusTask = useRef<string>()
   const alive = useRef(true)
   const listGeneration = useRef(0)
@@ -66,6 +72,17 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const enabled = activeAt(member, date)
   const locked = !!busy || !!pending || !!conflict || !!denied || !enabled
   const navigationLocked = !!editor || !!busy || !!pending || !!conflict
+  // 입력 양식과 목록은 저장·취소로 교체되므로, 화면에 남은 다음 조작 위치로 잇는다.
+  useBrowserLayoutEffect(() => {
+    if (!nextFocus.current || busy) return
+    const target = nextFocus.current === 'title' ? titleInput.current
+      : nextFocus.current === 'error' ? errorMessage.current
+        : nextFocus.current === 'notice' ? noticeMessage.current
+          : editorTrigger.current?.isConnected && !editorTrigger.current.disabled ? editorTrigger.current : registrationButton.current
+    if (!target || ('disabled' in target && target.disabled)) return
+    target.focus()
+    nextFocus.current = undefined
+  })
   useBrowserLayoutEffect(() => {
     onNavigationLockChange?.(navigationLocked)
     return () => { onNavigationLockChange?.(false) }
@@ -87,6 +104,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     setTasks([]); setSelectedTask(undefined); setUnavailableTaskId(undefined); focusTask.current = undefined; setOpenError('')
     setEditor(undefined); setInput(blank()); setPending(undefined); setConflict(undefined)
     setError(''); setNotice(''); setBusy(''); setLoading(false); setDenied(message)
+    nextFocus.current = undefined; editorTrigger.current = null
   }
   useEffect(() => {
     const generation = ++listGeneration.current
@@ -168,6 +186,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
       if (command.kind !== 'status') { setEditor(undefined); setInput(blank()) }
       else if (editor?.original?.id === result.id && command.expectedVersion === editor.original.version) setEditor({ original: result })
       setNotice(command.kind === 'create' ? '내 업무에 추가했습니다.' : command.kind === 'update' ? '업무 내용을 수정했습니다.' : `업무를 ‘${labels[result.status]}’ 상태로 변경했습니다.`)
+      nextFocus.current = 'notice'
       // 이전 접수 결과가 반환된 재시도도 현재 원본은 다시 조회한다.
       setReload(value => value + 1)
     } catch (failure) {
@@ -183,6 +202,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
         pendingRef.current = undefined; setPending(undefined)
       } else setPending(request)
       setError(failureText[code])
+      nextFocus.current = 'error'
     } finally {
       if (current()) { inFlight.current = false; setBusy('') }
     }
@@ -192,23 +212,24 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     if (locked || pendingRef.current) return
     let normalized: TaskInput
     try { normalized = normalizeTaskInput(input) }
-    catch (failure) { setError(failure instanceof TaskError ? failure.message : failureText.INVALID_INPUT); return }
+    catch (failure) { nextFocus.current = 'error'; setError(failure instanceof TaskError ? failure.message : failureText.INVALID_INPUT); errorMessage.current?.focus(); return }
     void perform(editor?.original ? { kind: 'update', taskId: editor.original.id, input: normalized, expectedVersion: editor.original.version } : { kind: 'create', input: normalized })
   }
-  async function beginEdit(task: PersonalTask) {
+  async function beginEdit(task: PersonalTask, trigger: HTMLButtonElement) {
     if (locked || inFlight.current || editor) return
+    editorTrigger.current = trigger
     const operation = ++operationGeneration.current
     inFlight.current = true; setBusy('opening'); setError(''); setNotice('')
     try {
       const raw = await adapter.get(member.id, task.id)
       if (!alive.current || operation !== operationGeneration.current) return
       const original = taskResponse(raw, scope, task.id)
-      merge(original); setEditor({ original }); setInput(inputOf(original))
+      merge(original); setEditor({ original }); setInput(inputOf(original)); nextFocus.current = 'title'
     } catch (failure) {
       if (!alive.current || operation !== operationGeneration.current) return
       const code = errorCode(failure)
       if (code === 'FORBIDDEN' || code === 'INACTIVE_MEMBERSHIP') purge(failureText[code])
-      else setError('업무 원본을 불러오지 못했습니다. 목록의 내용을 덮어쓰지 않았습니다. 다시 시도해 주세요.')
+      else { setError('업무 원본을 불러오지 못했습니다. 목록의 내용을 덮어쓰지 않았습니다. 다시 시도해 주세요.'); nextFocus.current = 'error' }
     } finally { if (alive.current && operation === operationGeneration.current) { inFlight.current = false; setBusy('') } }
   }
   async function loadConflict() {
@@ -219,12 +240,12 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
       const raw = await adapter.get(member.id, conflict.command.taskId)
       if (!alive.current || operation !== operationGeneration.current) return
       const latest = taskResponse(raw, scope, conflict.command.taskId)
-      merge(latest); setConflict({ ...conflict, current: latest }); setError(failureText.CONFLICT)
+      merge(latest); setConflict({ ...conflict, current: latest }); setError(failureText.CONFLICT); nextFocus.current = 'error'
     } catch (failure) {
       if (!alive.current || operation !== operationGeneration.current) return
       const code = errorCode(failure)
       if (code === 'FORBIDDEN' || code === 'INACTIVE_MEMBERSHIP') purge(failureText[code])
-      else setError('최신 업무를 확인하지 못했습니다. 내 변경은 보존했습니다. 다시 불러와 주세요.')
+      else { setError('최신 업무를 확인하지 못했습니다. 내 변경은 보존했습니다. 다시 불러와 주세요.'); nextFocus.current = 'error' }
     } finally { if (alive.current && operation === operationGeneration.current) { inFlight.current = false; setBusy('') } }
   }
   function useLatest() {
@@ -232,6 +253,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     const latest = conflict.current
     if (conflict.command.kind === 'update') { setEditor({ original: latest }); setInput(inputOf(latest)) }
     setConflict(undefined); setError(''); setNotice('최신 업무를 유지했습니다. 내 변경은 서버에 적용하지 않았습니다.')
+    nextFocus.current = conflict.command.kind === 'update' ? 'title' : 'notice'
   }
   const currentTasks = withSelectedTask(tasks, selectedTask).filter(task => task.id !== unavailableTaskId)
   const summary = summarizeTasks(currentTasks, date)
@@ -248,18 +270,18 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const emptyMessage = !tasks.length ? '아직 등록한 개인 업무가 없습니다.' : compact ? '지금 진행할 개인 업무가 없습니다.' : '현재 검색·분류에 맞는 업무가 없습니다.'
   return <section ref={panel} className={`task-panel${compact ? ' task-compact' : ''}`} aria-labelledby={`${id}-heading`}>
     <style>{taskStyles}</style>
-    <header className="task-heading"><div><p className="task-eyebrow">현재 학교 · 나만 보는 업무</p><h2 id={`${id}-heading`}>{compact ? '오늘 챙길 내 업무' : '내 업무'}</h2><p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p></div><button type="button" className="task-primary" disabled={locked || !!editor || loading || !!loadError} onClick={() => { setEditor({}); setInput(blank()); setError(''); setNotice('') }}>할 일 등록</button></header>
+    <header className="task-heading"><div><p className="task-eyebrow">현재 학교 · 나만 보는 업무</p><h2 id={`${id}-heading`}>{compact ? '오늘 챙길 내 업무' : '내 업무'}</h2><p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p></div><button ref={registrationButton} type="button" className="task-primary" disabled={locked || !!editor || loading || !!loadError} onClick={event => { editorTrigger.current = event.currentTarget; nextFocus.current = 'title'; setEditor({}); setInput(blank()); setError(''); setNotice('') }}>할 일 등록</button></header>
     {denied || !enabled ? <div className="task-error" role="alert"><p>{denied || failureText.INACTIVE_MEMBERSHIP}</p>{enabled && <button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>연결 다시 확인</button>}</div> : <>
-      {notice && <p className="task-notice" role="status">{notice}</p>}
-      {error && <p className="task-error" role="alert">{error}</p>}
+      {notice && <p ref={noticeMessage} className="task-notice" role="status" tabIndex={-1}>{notice}</p>}
+      {error && <p ref={errorMessage} id={`${id}-error`} className="task-error" role="alert" tabIndex={-1}>{error}</p>}
       {openError && <div className="task-error" role="alert"><p>{openError}</p><button type="button" className="task-secondary" disabled={locked || !!editor} onClick={() => setOpenAttempt(value => value + 1)}>업무 원본 다시 확인</button></div>}
       {pending && <section className="task-retry" aria-label="저장 결과 확인 필요"><h3>먼저 이전 요청의 결과를 확인해 주세요</h3><p>같은 내용과 요청 번호로 다시 확인합니다. 중복 저장을 막기 위해 결과를 확인할 때까지 입력 수정·취소와 다른 업무 변경을 잠시 멈춥니다.</p><button type="button" className="task-primary" disabled={!!busy} onClick={() => { void perform(pending.command, pending.key) }}>이전 요청 그대로 다시 확인</button></section>}
       {conflict && <section className="task-conflict" aria-label="업무 변경 내용 비교"><h3>최신 업무와 내 변경을 비교해 주세요</h3>{conflict.current ? <><div className="task-comparison"><div><h4>최신 업무 · v{conflict.current.version}</h4><TaskContents task={conflict.current} /></div><div><h4>내가 적용하려던 변경</h4>{conflict.command.kind === 'update' ? <TaskContents task={{ ...conflict.current, ...conflict.command.input }} /> : <p>상태를 <strong>{labels[conflict.command.status]}</strong>로 변경</p>}</div></div><div className="task-actions"><button type="button" className="task-primary" disabled={!!busy} onClick={() => { const current = conflict.current; if (current) void perform({ ...conflict.command, expectedVersion: current.version }) }}>최신 내용 확인 · 내 변경 다시 적용</button><button type="button" className="task-secondary" disabled={!!busy} onClick={useLatest}>최신 내용 사용</button></div></> : <><p>최신 원본을 확인하기 전에는 덮어쓰지 않습니다. 내 입력은 아래에 남아 있습니다.</p><button type="button" className="task-secondary" disabled={!!busy} onClick={() => { void loadConflict() }}>최신 업무 불러오기</button></>}</section>}
-      {editor && <form className="task-editor" onSubmit={submit} aria-label={editor.original ? '내 업무 수정' : '내 업무 등록'}><h3>{editor.original ? '업무 내용 수정' : '새 할 일'}</h3><fieldset disabled={locked}><legend className="task-sr-only">업무 입력</legend><div className="task-form-row"><label className="task-title-field" htmlFor={`${id}-title`}>해야 할 일<input autoFocus id={`${id}-title`} name="task-title" aria-label="해야 할 일" required value={input.title} onChange={event => { setInput({ ...input, title: event.target.value }); setError('') }} placeholder="예: 체험학습 안내 내용 확인" /><small>{Array.from(input.title).length}/120자</small></label><label htmlFor={`${id}-due`}>기한 (선택)<input id={`${id}-due`} name="task-due" aria-label="기한 (선택)" type="date" value={input.dueDate} onChange={event => setInput({ ...input, dueDate: event.target.value })} /></label></div><label htmlFor={`${id}-notes`}>나만 보는 메모<textarea id={`${id}-notes`} name="task-notes" aria-label="나만 보는 메모" rows={3} value={input.notes} onChange={event => { setInput({ ...input, notes: event.target.value }); setError('') }} /><small>{Array.from(input.notes).length.toLocaleString()}/2,000자</small></label></fieldset><div className="task-actions"><button type="submit" className="task-primary" disabled={locked}>{busy === 'saving' ? '저장 중…' : editor.original ? '수정 저장' : '내 업무에 추가'}</button><button type="button" className="task-secondary" disabled={locked} onClick={() => { setEditor(undefined); setInput(blank()); setError('') }}>편집 취소</button>{editor.original && <small>확인한 원본 v{editor.original.version}</small>}</div></form>}
+      {editor && <form className="task-editor" onSubmit={submit} aria-describedby={error ? `${id}-error` : undefined} aria-label={editor.original ? '내 업무 수정' : '내 업무 등록'}><h3>{editor.original ? '업무 내용 수정' : '새 할 일'}</h3><fieldset disabled={locked}><legend className="task-sr-only">업무 입력</legend><div className="task-form-row"><label className="task-title-field" htmlFor={`${id}-title`}>해야 할 일<input ref={titleInput} id={`${id}-title`} aria-describedby={`${id}-title-hint`} name="task-title" aria-label="해야 할 일" required value={input.title} onChange={event => { setInput({ ...input, title: event.target.value }); setError('') }} placeholder="예: 체험학습 안내 내용 확인" /><small id={`${id}-title-hint`}>필수 · {Array.from(input.title).length}/120자</small></label><label htmlFor={`${id}-due`}>기한 (선택)<input id={`${id}-due`} name="task-due" aria-label="기한 (선택)" type="date" value={input.dueDate} onChange={event => setInput({ ...input, dueDate: event.target.value })} /></label></div><label htmlFor={`${id}-notes`}>나만 보는 메모<textarea id={`${id}-notes`} aria-describedby={`${id}-notes-hint`} name="task-notes" aria-label="나만 보는 메모" rows={3} value={input.notes} onChange={event => { setInput({ ...input, notes: event.target.value }); setError('') }} /><small id={`${id}-notes-hint`}>선택 · {Array.from(input.notes).length.toLocaleString()}/2,000자</small></label></fieldset><div className="task-actions"><button type="submit" className="task-primary" disabled={locked}>{busy === 'saving' ? '저장 중…' : editor.original ? '수정 저장' : '내 업무에 추가'}</button><button type="button" className="task-secondary" disabled={locked} onClick={() => { nextFocus.current = 'return'; setEditor(undefined); setInput(blank()); setError('') }}>편집 취소</button>{editor.original && <small>확인한 원본 v{editor.original.version}</small>}</div></form>}
       {!compact && <div className="task-filters"><label htmlFor={`${id}-search`}>업무 검색<input id={`${id}-search`} aria-label="업무 검색" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="제목·나의 메모 검색" /></label><label htmlFor={`${id}-status`}>상태<select id={`${id}-status`} aria-label="상태" value={filter} onChange={event => setFilter(event.target.value as typeof filter)}><option value="open">진행할 업무</option><option value="all">모든 상태</option>{TASK_STATUSES.map(status => <option key={status} value={status}>{labels[status]}</option>)}</select></label><label htmlFor={`${id}-filter-due`}>기한 분류<select id={`${id}-filter-due`} aria-label="기한 분류" value={dueFilter} onChange={event => setDueFilter(event.target.value)}><option value="all">모든 기한</option><option value="overdue">기한 지남</option><option value="today">오늘까지</option><option value="upcoming">앞으로</option><option value="none">기한 없음</option></select></label></div>}
       <div className="task-list-heading"><span>{loading ? '내 업무 확인 중' : loadError ? '조회 실패 · 건수 확인 안 됨' : compact ? `진행할 업무 ${summary.total}개${summary.total > 4 ? ' · 먼저 4개 표시' : ''}` : `현재 분류 ${shown.length}개`}</span><button type="button" className="task-text-button" disabled={!!busy || !!pending || loading} onClick={() => setReload(value => value + 1)}>목록 새로고침</button></div>
       {compact && <TaskDueSummary tasks={currentTasks} date={date} state={loading ? 'loading' : loadError ? 'error' : 'ready'} disabled={navigationLocked} onOpenTasks={onOpenTasks} />}
-      {loading ? <p className="task-loading" role="status">내 업무를 불러오는 중…</p> : loadError ? <div className="task-error" role="alert"><p>{loadError}</p><button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></div> : <div className="task-list">{shown.length ? shown.map(task => <article className={`task-card task-status-${task.status}${selectedTask?.id === task.id ? ' task-card-highlighted' : ''}`} key={task.id} data-task-id={task.id} tabIndex={-1} aria-label={task.title}><div className="task-card-content"><h3>{task.title}</h3><div className="task-meta"><span className="task-status-badge">{labels[task.status]}</span><span className={task.dueDate && task.dueDate < date && isOpen(task) ? 'task-overdue' : ''}>{task.dueDate ? `${task.dueDate}까지${task.dueDate < date && isOpen(task) ? ' · 기한 지남' : ''}` : '기한 없음'}</span><small>v{task.version}</small>{compact && <span className="task-reason">{taskDueLabels[taskDueGroup(task, date)]}</span>}</div>{task.notes && <p className="task-notes">{compact ? taskNoteExcerpt(task.notes) : task.notes}</p>}</div><div className="task-card-actions"><button type="button" className="task-secondary" disabled={locked} onClick={() => { void perform({ kind: 'status', taskId: task.id, status: task.status === 'done' || task.status === 'cancelled' ? 'todo' : 'done', expectedVersion: task.version }) }}>{task.status === 'done' || task.status === 'cancelled' ? '다시 시작' : '완료'}</button>{!compact && <><select aria-label={`${task.title} 상태`} value={task.status} disabled={locked} onChange={event => { void perform({ kind: 'status', taskId: task.id, status: event.target.value as TaskStatus, expectedVersion: task.version }) }}>{TASK_STATUSES.map(status => <option value={status} key={status}>{labels[status]}</option>)}</select><button type="button" className="task-text-button" disabled={locked || !!editor} onClick={() => { void beginEdit(task) }}>수정</button></>}</div></article>) : <p className="task-empty">{emptyMessage}</p>}</div>}
+      {loading ? <p className="task-loading" role="status">내 업무를 불러오는 중…</p> : loadError ? <div className="task-error" role="alert"><p>{loadError}</p><button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></div> : <div className="task-list">{shown.length ? shown.map(task => <article className={`task-card task-status-${task.status}${selectedTask?.id === task.id ? ' task-card-highlighted' : ''}`} key={task.id} data-task-id={task.id} tabIndex={-1} aria-label={task.title}><div className="task-card-content"><h3 id={`${id}-task-${task.id}`}>{task.title}</h3><div className="task-meta"><span className="task-status-badge">{labels[task.status]}</span><span className={task.dueDate && task.dueDate < date && isOpen(task) ? 'task-overdue' : ''}>{task.dueDate ? `${task.dueDate}까지${task.dueDate < date && isOpen(task) ? ' · 기한 지남' : ''}` : '기한 없음'}</span><small>v{task.version}</small>{compact && <span className="task-reason">{taskDueLabels[taskDueGroup(task, date)]}</span>}</div>{task.notes && <p className="task-notes">{compact ? taskNoteExcerpt(task.notes) : task.notes}</p>}</div><div className="task-card-actions"><button type="button" className="task-secondary" aria-describedby={`${id}-task-${task.id}`} disabled={locked} onClick={() => { void perform({ kind: 'status', taskId: task.id, status: task.status === 'done' || task.status === 'cancelled' ? 'todo' : 'done', expectedVersion: task.version }) }}>{task.status === 'done' || task.status === 'cancelled' ? '다시 시작' : '완료'}</button>{!compact && <><select aria-label={`${task.title} 상태`} value={task.status} disabled={locked} onChange={event => { void perform({ kind: 'status', taskId: task.id, status: event.target.value as TaskStatus, expectedVersion: task.version }) }}>{TASK_STATUSES.map(status => <option value={status} key={status}>{labels[status]}</option>)}</select><button type="button" className="task-text-button" aria-describedby={`${id}-task-${task.id}`} disabled={locked || !!editor} onClick={event => { void beginEdit(task, event.currentTarget) }}>수정</button></>}</div></article>) : <p className="task-empty">{emptyMessage}</p>}</div>}
       {busy === 'opening' && <p role="status" className="task-loading">업무 원본을 확인하는 중…</p>}
       {compact && onOpenTasks && <button type="button" className="task-text-button task-more" disabled={!!busy || !!pending || !!conflict || !!editor} onClick={() => onOpenTasks()}>모든 내 업무 보기</button>}
     </>}

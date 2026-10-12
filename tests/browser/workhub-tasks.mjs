@@ -49,7 +49,7 @@ const bundle = buildSync({ stdin: { contents: `
   }
   const adapter={
     async list(memberId){scenario.lists++;if(scenario.failList){scenario.failList=false;throw new TaskError('QUERY_FAILED','SECRET-LIST')};const result=clone(rows.filter(row=>row.ownerMemberId===memberId));if(scenario.holdList){scenario.holdList=false;await new Promise(resolve=>{listRelease=resolve})};return result},
-    async get(memberId,id){scenario.gets++;return clone(find(memberId,id))},
+    async get(memberId,id){scenario.gets++;if(scenario.failGet){scenario.failGet=false;throw new TaskError('QUERY_FAILED','SECRET-GET')};return clone(find(memberId,id))},
     create:(memberId,input,key)=>change('create',memberId,undefined,input,undefined,key),
     update:(memberId,id,input,version,key)=>change('update',memberId,id,input,version,key),
     setStatus:(memberId,id,status,version,key)=>change('status',memberId,id,status,version,key),
@@ -174,8 +174,16 @@ try {
   await card('t1').getByRole('button',{name:'수정',exact:true}).click();await title().fill('유지할 입력')
   await page.evaluate(()=>{window.scenario.omitConflict=true;window.scenario.mutate('t1',{title:'최신 원본'});})
   await page.getByRole('button',{name:'수정 저장',exact:true}).click()
+  await page.evaluate(()=>{window.scenario.failGet=true})
   await page.getByRole('button',{name:'최신 업무 불러오기',exact:true}).click()
+  await page.getByText('최신 업무를 확인하지 못했습니다. 내 변경은 보존했습니다. 다시 불러와 주세요.',{exact:true}).waitFor()
+  await page.waitForFunction(()=>document.activeElement?.classList.contains('task-error'))
+  assert.equal(await title().inputValue(),'유지할 입력')
+  await page.getByRole('button',{name:'최신 업무 불러오기',exact:true}).click()
+  await page.getByRole('button',{name:'최신 내용 사용',exact:true}).waitFor()
+  await page.waitForFunction(()=>document.activeElement?.classList.contains('task-error'))
   await page.getByRole('button',{name:'최신 내용 사용',exact:true}).click()
+  await page.waitForFunction(()=>document.activeElement?.name==='task-title')
   assert.equal(await title().inputValue(),'최신 원본')
   assert.equal(await page.evaluate(()=>window.scenario.attempts.length),1)
   await page.getByRole('button',{name:'편집 취소',exact:true}).click()

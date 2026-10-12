@@ -93,6 +93,9 @@ npm test
 | `test_workhub_student_workspace.mjs` | 학생 찾기·본인 기록의 범위/기간/종류/상태, 조회 실패 구분·출력 범위 |
 | `test_workhub_collection_entry.mjs` | 수합 요청·게시 전 점검, 응답 필수 입력과 준비 상태 안내 |
 | `test_workhub_student_entry.mjs` | 학생 관찰·정정 입력 확인, 작성 대상과 활동 연결의 일치 |
+| `test_workhub_editor_accessibility.mjs` | 반복 일정 편집기의 고유 ID와 제목·폼·대상 안내 연결 |
+| `test_workhub_collection_accessibility.mjs` | 반복 수합 필드·단위 이름·표 머리글·상태·초점 대상의 SSR 연결 |
+| `test_workhub_student_accessibility.mjs` | 학생 관찰·철회·활동의 반복 폼 이름과 오류·설명 연결 |
 
 다음은 Chrome과 Playwright가 필요한 별도 브라우저 시험이다. `PLAYWRIGHT_MODULE`로 설치된 모듈 경로를 지정할 수 있다. 합성 자료만 쓰며 운영 서버에 접속하지 않는다.
 
@@ -108,6 +111,9 @@ node tests/browser/workhub-collection-workbench.mjs # 수합 요청 찾기·진�
 node tests/browser/workhub-student-workspace.mjs # 학생 선택·기록 필터·입력 보호·출력 최신판
 node tests/browser/workhub-collection-entry.mjs # 수합 작성 미리보기·게시 점검·응답 입력
 node tests/browser/workhub-student-entry.mjs     # 관찰/정정·대상 유지·연결 확정·저장 확인
+node tests/browser/workhub-accessibility.mjs   # 일반/Shadow DOM의 업무·일정·메뉴 초점과 모바일
+node tests/browser/workhub-collection-accessibility.mjs # 수합 작성·응답·검토·표의 키보드/필드 연결
+node tests/browser/workhub-student-accessibility.mjs # 정정·철회·채택·복구 초점과 긴 이력 줄바꿈
 node scripts/export-workhub-preview.mjs         # 기본 출력: dist/workhub-preview.html
 node tests/browser/workhub-offline.mjs          # file:// 파일·스타일·저장·외부 요청 0
 ```
