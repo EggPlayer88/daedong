@@ -1,6 +1,6 @@
 # 9차 개발 — 화면 사용성과 접근성
 
-작성일: 2026-10-13 · 기준: 8차 작성·확인(PR #15) · 브랜치: `feat/workhub-accessibility`
+작성일: 2026-10-13 · 기준: 8차 작성·확인(PR #15) · 브랜치: `feat/workhub-accessibility` · [검토용 PR #16](https://github.com/EggPlayer88/daedong/pull/16)
 
 ## 목적과 범위
 
