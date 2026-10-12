@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-12",
+  "files": [
+    {
+      "path": "GPT작업\\업무혁신시스템 기획서.md",
+      "bytes": 140982,
+      "sha256": "8737eec80c1a802b03d0cc3b0750cc39fab26c12188b1c61339e47122f076c3f"
+    },
+    {
+      "path": "GPT작업\\DB설계\\01-foundation-security-migration.md",
+      "bytes": 53871,
+      "sha256": "e564a15966cb6074af2a5ae901198948394e5e624eff2f5a64ba961c6455de7c"
+    },
+    {
+      "path": "GPT작업\\DB설계\\02-workflows-documents.md",
+      "bytes": 70155,
+      "sha256": "b3e2e26e1491003733224346f44327e188afa1fbb6b386e3092b02eb05f68bca"
+    },
+    {
+      "path": "GPT작업\\DB설계\\03-students-integrations.md",
+      "bytes": 68117,
+      "sha256": "e3cc4ea80bbf2b26a3bd32b51367bbed293358cbd69886319335c1e6b757d747"
+    },
+    {
+      "path": "GPT작업\\DB설계\\04-ai-operations.md",
+      "bytes": 33988,
+      "sha256": "fe37175801b431ccfb8cc0eb6f17bec08599f787c575e432e369b36514a48b6d"
+    },
+    {
+      "path": "GPT작업\\DB설계\\05-build-handoff.md",
+      "bytes": 19516,
+      "sha256": "a7112b6008213ff1bab995cbb016967771237056712077393e1a3438182840f7"
+    },
+    {
+      "path": "GPT작업\\DB설계\\coverage.md",
+      "bytes": 34360,
+      "sha256": "3e12cda7a043a6982aced559c1518a45f02db36febe93c83ba4e40a1b4b68ef6"
+    },
+    {
+      "path": "GPT작업\\DB설계\\README.md",
+      "bytes": 23461,
+      "sha256": "ceedd9e6c25ff1d2d055d0926f199103d332d8e078656c96cde86840a9eba5b7"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_2차.md",
+      "bytes": 131008,
+      "sha256": "e7eee545376331052bb9381691dd64e4a75276a6e2d8e33f31752b3a478c5a9e"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_기획서대응표.md",
+      "bytes": 47538,
+      "sha256": "ddd2b87fb003875de4d0ec54a801dbdb3d29f50265c66b395658efc419eae3bd"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_표사전.md",
+      "bytes": 388824,
+      "sha256": "f4c17c91e9408996a59a80efc9984d72e5bcb08b822c2d68ee4fb7402118acae"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\GPT_DB설계_비교평가.md",
+      "bytes": 43072,
+      "sha256": "51d38b8b4ca0fdd59c9306bdf375dd41c259b764ea31e28a8434af80d1e1124c"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\GPT_DB설계_비교평가_영역별기록.md",
+      "bytes": 57839,
+      "sha256": "0c17a2c51ba7612d5078d5ee35b8d8c9ee77d6e592b0932f2625fff55a32ffcf"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_DDL초안.sql",
+      "bytes": 664543,
+      "sha256": "4c02059bb1d3e1d6d2cac7b5b0435ed4d81fd4ea3154c9e72b388da0dae19815"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_검증시나리오.sql",
+      "bytes": 343595,
+      "sha256": "19bc2a48a34937adc3cde27087e5febfecb89c67962ef20f185d68a054d8c385"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_성능시험.sql",
+      "bytes": 16698,
+      "sha256": "4ececcbcdca68f24a5bfa2673ccc5b5b06b94bb20d65b6c8f11ef8ff102b11a1"
+    },
+    {
+      "path": "클로드작업\\DB구조설계\\DB구조설계_시험용_supabase흉내.sql",
+      "bytes": 1940,
+      "sha256": "0f2cf27059e5291c862d67e9045ab084ddbe22a70fbbd88b949f6787aa6e99a7"
+    },
+    {
+      "path": "GPT작업\\DB비교검토_2026-10-12\\DB설계_비교평가_피드백.md",
+      "bytes": 29769,
+      "sha256": "640fd5cfdc3735795d5d9c5dfabbde3a2ba75511d8839546cfabf38076b700d3"
+    }
+  ]
+}

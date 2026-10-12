@@ -1,0 +1,515 @@
+{
+  "version": "1.0",
+  "tests": [
+    {
+      "id": "R01",
+      "severity": "높음",
+      "topic": "협조 원본과 개정 사본",
+      "given": "관계없는 audit.read 관리자로 동일 요청의 원본·사본·검색·내보내기 조회",
+      "expected": "모든 경로에서 보호된 본문 0건",
+      "layer": "RLS/캐시/파일",
+      "contract": "01-foundation-security.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R02",
+      "severity": "높음",
+      "topic": "미래 공동작성자",
+      "given": "unit member valid_from=내일, 현재 JWT로 초안·첨부 조회",
+      "expected": "시작 전 0건, 시작 후 허용 범위만",
+      "layer": "RLS/파일",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R03",
+      "severity": "높음",
+      "topic": "권한 회수 후 재이관",
+      "given": "최초 이관→admin 회수→다른 legacy 회원 추가→변경분 이관",
+      "expected": "회수된 역할 0개 유지, 종료 소속 자동 복구 0개",
+      "layer": "운영 함수/이관",
+      "contract": "07-migration-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R04",
+      "severity": "높음",
+      "topic": "학생 정체성",
+      "given": "A근거 검토→초안 student_id=B 변경, 오염 자료의 출력 검사",
+      "expected": "정체성 변경 거부, 오염된 자료도 출력 거부",
+      "layer": "제약/출력",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R05",
+      "severity": "높음",
+      "topic": "학생 연결판",
+      "given": "A→B→A 매핑판 변경 후 기존 채택 검사",
+      "expected": "재확인 전 과거 채택 계속 stale",
+      "layer": "근거/명령",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R06",
+      "severity": "높음",
+      "topic": "채택 사슬 누락",
+      "given": "classroom_adoption 출처 문자열만 있고 채택행 0개인 판 확정",
+      "expected": "커밋·근거 연결·출력 거부",
+      "layer": "지연 제약/출력",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R07",
+      "severity": "높음",
+      "topic": "인계 후 자기 검토",
+      "given": "자신 제출→담당 인계→지정 검토자로 과거판 승인",
+      "expected": "금지 정책에서 같은 계정 자기 검토 거부",
+      "layer": "명령/트리거",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R08",
+      "severity": "높음",
+      "topic": "게시 문항판",
+      "given": "제출 존재 schema에 문항 추가·종류변경·삭제, 다른수합 schema 연결",
+      "expected": "게시판 변경과 다른부모 참조 거부, 새판만 허용",
+      "layer": "제약/입력검사",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R09",
+      "severity": "높음",
+      "topic": "수락 없는 인계",
+      "given": "accepted_at/hash NULL, 부분NULL, 다른 manifest 수락으로 apply",
+      "expected": "필수값·정확판·수락주체 없으면 거부",
+      "layer": "CHECK/명령",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R10",
+      "severity": "높음",
+      "topic": "파일 부모 UPDATE",
+      "given": "학교파일 연결을 개인문서/타학교/다른종류로 바꿈",
+      "expected": "정체성 불변 또는 전체 부모 검사로 거부",
+      "layer": "제약/다운로드",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R11",
+      "severity": "높음",
+      "topic": "서비스 자격",
+      "given": "비활성·미허용행동·미승인학교 principal로 claim/finish",
+      "expected": "각 단계 실행 거부/규정된 중단, 권한회수와 직렬화",
+      "layer": "worker/두 세션",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "R12",
+      "severity": "높음",
+      "topic": "불명확 외부 요청",
+      "given": "external_request_sent→lease 만료→두 번째 worker claim; provider 응답 수신 뒤 결과 저장 전 crash",
+      "expected": "자동 재전송·중복 도구 실행 0, 불명확 상태 조사; durable 결과 참조 없이 response_received 확정 거부",
+      "layer": "worker/장애주입",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT01",
+      "severity": "높음",
+      "topic": "기존 로그인",
+      "given": "실제 기존 Google 계정 로그인과 재로그인",
+      "expected": "Auth UID 유지·재가입 불필요·기존승인 정확히보존",
+      "layer": "실제 Supabase",
+      "contract": "07-migration-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT02",
+      "severity": "높음",
+      "topic": "테넌트 모든 경로",
+      "given": "학교A JWT로 B의 API·RLS·검색·스토리지·알림·지원·내보내기",
+      "expected": "본문·식별자·건수·존재추정 유출 0",
+      "layer": "실제 Supabase",
+      "contract": "01-foundation-security.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT03",
+      "severity": "높음",
+      "topic": "다중 소속 학교전환",
+      "given": "A초안·캐시·AI 열린 상태에서B선택, 네트워크응답순서반전",
+      "expected": "응답/초안은범위별분리, A응답이B화면오염하지않음",
+      "layer": "브라우저 종단",
+      "contract": "05-api-site-contract.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT04",
+      "severity": "높음",
+      "topic": "권한 회수 경쟁",
+      "given": "세션A=저장/출력, 세션B=소속/역할회수, 양순서 실행",
+      "expected": "회수 먼저면거부, 작업먼저면이력남고후속접근회수",
+      "layer": "독립 DB 두 연결",
+      "contract": "01-foundation-security.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT05",
+      "severity": "높음",
+      "topic": "멱등 경쟁",
+      "given": "같은주체/범위/명령/키 동일본문 동시요청 후 응답유실재시도",
+      "expected": "업무변경·접수증 각1개, 같은결과, 다른본문 충돌",
+      "layer": "독립 DB 두 연결",
+      "contract": "05-api-site-contract.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT06",
+      "severity": "높음",
+      "topic": "원자성 장애",
+      "given": "업무변경 후 receipt/audit/outbox 전후에 오류주입",
+      "expected": "완료표시 없는부분업무 0, 함께커밋하거나모두롤백",
+      "layer": "DB 장애주입",
+      "contract": "05-api-site-contract.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT07",
+      "severity": "높음",
+      "topic": "수합 상태축",
+      "given": "none/required 각각 v1승인·v2제출·철회·보완충족판철회",
+      "expected": "현재제출/완료본/검토/보완·연체가 명세와일치",
+      "layer": "DB+화면",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT08",
+      "severity": "높음",
+      "topic": "수합 공개 분리",
+      "given": "안내 school 공개·결과관계자 공개, 무관교사조회",
+      "expected": "안내만열림, 제출본문/첨부/결과건수정책일치",
+      "layer": "RLS+화면",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT09",
+      "severity": "높음",
+      "topic": "파일 전이",
+      "given": "실물없음·해시/형식불일치·미검사정책미정·접근회수",
+      "expected": "ready/제출/AI입력/다운로드가각각정책대로차단",
+      "layer": "실제 Storage",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT10",
+      "severity": "높음",
+      "topic": "시트 기준 전환",
+      "given": "base→시트수정·사이트수정동시, 미리보기후또수정, cutover",
+      "expected": "충돌표시/기대판거부, 기준전환후원본덮어쓰기0",
+      "layer": "DB+화면",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT11",
+      "severity": "높음",
+      "topic": "인계 원자성",
+      "given": "후임수락후단위책임변경·개인문서혼합·효력일미래",
+      "expected": "정확한수락판만적용, 의무ID유지, 개인자료이동0",
+      "layer": "DB+화면",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT12",
+      "severity": "높음",
+      "topic": "담당 신고",
+      "given": "본인profile_claim으로부서/담임/교과수정",
+      "expected": "승인전권한증가0, 미리보기후정식승인만반영",
+      "layer": "DB+화면",
+      "contract": "01-foundation-security.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT13",
+      "severity": "높음",
+      "topic": "학생 정정 출력 경쟁",
+      "given": "원자료/매핑/관찰정정과record review/export를양순서실행",
+      "expected": "최신근거검사/epoch로낡은정상출력0",
+      "layer": "독립 DB 두 연결",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT14",
+      "severity": "높음",
+      "topic": "학생 CSV",
+      "given": "동명이인·이름변경·반이동·중복파일·다중줄·행순서변경",
+      "expected": "학생자동병합0, 정확활동/원문판/채택관계",
+      "layer": "파서+DB",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT15",
+      "severity": "높음",
+      "topic": "자동 수업앱 사건",
+      "given": "동일키다른본문·역순·취소·삭제뒤재전송",
+      "expected": "명시충돌/보류/삭제원장유지, 자동점수확정0",
+      "layer": "연동 대역+DB",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT16",
+      "severity": "높음",
+      "topic": "실제 0점",
+      "given": "미평가·결시·미제출과점수0입력",
+      "expected": "scored=0만0, 다른상태는NULL과명시상태",
+      "layer": "DB+화면",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT17",
+      "severity": "높음",
+      "topic": "규정 시행판",
+      "given": "미래게시판·과거질문·현재미색인·상충자료·철회",
+      "expected": "기준일유효판만인용, 미확인을정답으로표시0",
+      "layer": "검색+AI 평가",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT18",
+      "severity": "높음",
+      "topic": "AI 도구 확인",
+      "given": "확인후대상변경·만료·전출·중복확인·원문명령주입",
+      "expected": "새검사통과시만1회실행, 조회권한으로쓰기불가",
+      "layer": "DB+도구 대역",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT19",
+      "severity": "높음",
+      "topic": "AI 기억과 재임용",
+      "given": "학교종료·같은학교새소속·근거파기·미확인기억",
+      "expected": "기억재사용/옛대화자동접근차단, 개인영역유입0",
+      "layer": "DB+AI 대역",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT20",
+      "severity": "높음",
+      "topic": "외부 호출 경계",
+      "given": "intent전후·전송직전·전송후응답전·정산전프로세스종료",
+      "expected": "결과모름을구분, 중복비용/외부효과반복을확정하지않음",
+      "layer": "worker 장애주입",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT21",
+      "severity": "높음",
+      "topic": "시간표 빈 자원 경쟁",
+      "given": "교체/출장/예약/분반수강변경이같은빈자원을점유",
+      "expected": "하드충돌동시확정0, 동의지문변경재확인",
+      "layer": "독립 DB 두 연결",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT22",
+      "severity": "높음",
+      "topic": "실시와 보강",
+      "given": "배포후교체·실시정정·역변경·늦은재시도",
+      "expected": "실시자료보존, 보강이중계상0",
+      "layer": "DB+시간표 검증기",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT23",
+      "severity": "높음",
+      "topic": "초중고 차이",
+      "given": "초등학급/중등교과/고교선택/팀티칭/변칙일과",
+      "expected": "검증된유형만지원표시, 미지원배포0",
+      "layer": "학교유형 합성+현장",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT24",
+      "severity": "높음",
+      "topic": "파일 포함 복구",
+      "given": "DB복원+파일검사+삭제·회수원장재적용+옛경로검사",
+      "expected": "파기/회수자료부활0, 부분복구를완료표시0",
+      "layer": "실제 복원 리허설",
+      "contract": "07-migration-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT25",
+      "severity": "높음",
+      "topic": "legacy 경로",
+      "given": "옛public표/API/스토리지URL/도메인으로새권한우회시도",
+      "expected": "기준전환후우회0, 기존허용평가계획서회귀없음",
+      "layer": "실제 종단",
+      "contract": "07-migration-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT26",
+      "severity": "높음",
+      "topic": "지원 관리자",
+      "given": "기한만료·목적밖·다른학교·개인원문·로그조회",
+      "expected": "최소승인범위만, 원문·비밀자동수집0",
+      "layer": "RLS+지원 API",
+      "contract": "01-foundation-security.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT27",
+      "severity": "보통",
+      "topic": "목록 성능",
+      "given": "권한있는대형학교목록·권한없음·홈복합조회·차가운캐시·동시부하",
+      "expected": "목표p50/p95/오류율을운영환경측정하고병목설명",
+      "layer": "실제 PostgreSQL 부하",
+      "contract": "07-migration-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT28",
+      "severity": "높음",
+      "topic": "학년도 전환",
+      "given": "새학년도/학급/수강/담당미리보기·부분실패재시도",
+      "expected": "학생ID유지, 개인본문복사0, 관계기간정합",
+      "layer": "DB+화면",
+      "contract": "03-students-timetable.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT29",
+      "severity": "높음",
+      "topic": "기존 문서 엔진",
+      "given": "6양식일반/최대/누락/표넘침·수정파일재업로드",
+      "expected": "보호자산회귀통과, 파일지문새검사, 실제한글열기",
+      "layer": "문서 생성·실물",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT30",
+      "severity": "보통",
+      "topic": "교사 하루",
+      "given": "출근홈→일정→간단수합→관찰→문서→인계",
+      "expected": "오류/빈목록/오래됨구분, 도움없이완료·시간측정",
+      "layer": "역할별 교사 파일럿",
+      "contract": "05-api-site-contract.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT31",
+      "severity": "높음",
+      "topic": "일정 대상과 기간",
+      "given": "부서 AND 교과·같은값 OR·직접추가·제외·미래담당·private+audience",
+      "expected": "SQL/화면 선정 동등, 추천과 현재열람분리, 제외우선, 실패≠0명",
+      "layer": "SQL+화면",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT32",
+      "severity": "높음",
+      "topic": "공식 일정 효력판",
+      "given": "공식확정v1 후 날짜편집v2미확정, 학년예외 계산, v2철회",
+      "expected": "일반교사/학사계산은v1유지, 확정명령만효력변경, 과거문서불변",
+      "layer": "DB+읽기 RPC",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT33",
+      "severity": "높음",
+      "topic": "알림과 확인",
+      "given": "동일사건재전송·공지개정·권한회수·조용한시간·원본삭제",
+      "expected": "수신자별중복0, 판별확인분리, 금지원문없음, 긴급예외범위고정",
+      "layer": "outbox+화면",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT34",
+      "severity": "높음",
+      "topic": "정책 시행과 하한",
+      "given": "미래정책게시·학교완화시도·부분NULL승인·current pointer지연",
+      "expected": "정확한시행판/공통하한, 미정기능차단, 과거적용판보존",
+      "layer": "DB+정책 registry",
+      "contract": "01-foundation-security.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT35",
+      "severity": "높음",
+      "topic": "문서 근거 사슬",
+      "given": "공통양식+학교지식+작년파일로초안생성, 원문정정·파일재업로드",
+      "expected": "팩/근거판/목적고정, 사실자동승계0, 검사결과재사용0",
+      "layer": "DB+문서 worker",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT36",
+      "severity": "높음",
+      "topic": "응답 유실 후 정책 변경과 재시도",
+      "given": "명령 commit 후 응답 유실→정책판 교체→동일 주체/키/입력 재전송",
+      "expected": "현재 조회 권한 검사 후 기존 접수 반환, 원본·감사·outbox 각각 1개; 입력 변경만 conflict, 새로운 키는 현재 정책 검사",
+      "layer": "명령/멱등/정책",
+      "contract": "05-api-site-contract.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT37",
+      "severity": "높음",
+      "topic": "학교 부트스트랩과 감사 주체",
+      "given": "B01 실제 운영 DB identity로 학교 생성/관리자 부여/이관 실행; 미등록 identity와 임의 actor 입력도 시도",
+      "expected": "검증된 bootstrap/migration principal과 정확한 scope의 감사 1개; 주체 양쪽 NULL·임의 위조 모두 거부; 기존 운영 함수도 공통 감사 경로 이용",
+      "layer": "운영 명령/감사",
+      "contract": "07-migration-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT38",
+      "severity": "높음",
+      "topic": "선택형 출처 FK와 공통 파일 입력",
+      "given": "학교 문서에 본교/common 파일 정상 연결; 다른 학교·다른 개인 파일 연결; 선택 kind만 채운 출처와 미선택 잔여 ID 삽입",
+      "expected": "두 정상 경로 성공, 타인/타학교 거부, 선택하지 않은 FK의 NULL 때문에 정상행 실패하지 않으며 kind 불일치·판 일부 누락 거부",
+      "layer": "복합 FK/CHECK/명령",
+      "contract": "02-workflows-documents.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "IT39",
+      "severity": "높음",
+      "topic": "외부 응답 보관 경계 장애",
+      "given": "provider 응답 수신 직후 결과 저장 전 crash, response_received만 저장 시도, 참조+지문 저장 후 finalize 전 crash",
+      "expected": "보관 전은 unknown으로 자동 재호출 차단; 참조 없는 response_received 거부; 원자 저장 후에는 동일 결과로 복구, 본문 없는 작업도 최소 receipt 필수",
+      "layer": "worker/작업 상태/DB",
+      "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# 정본 명세와 변경 목록을 먼저 검토하도록 생성 사본을 구별한다.
+* text eol=lf
+schema-contract.json linguist-generated=true
+source-baseline.json linguist-generated=true
+08-coverage.md linguist-generated=true
+09-table-dictionary.md linguist-generated=true
+업무혁신시스템_통합DB설계서.md linguist-generated=true
+overview.html linguist-generated=true
