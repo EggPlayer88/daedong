@@ -1,0 +1,12 @@
+{
+  "kind": "artifact_links_and_source_integrity",
+  "source_files_verified": 18,
+  "local_markdown_links_checked": 21,
+  "checks": [
+    "로컬 문서 링크",
+    "선택 시 원본 18개 지문",
+    "통합 생성열 메타 교체"
+  ],
+  "errors": [],
+  "passed": true
+}

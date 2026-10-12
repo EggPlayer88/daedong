@@ -1,0 +1,259 @@
+{
+  "version": "1.0",
+  "modules": [
+    {
+      "id": "M00",
+      "name": "계정·학교·소속",
+      "screen": "오늘 진입/학교 전환/가입 승인",
+      "tables": [
+        "accounts",
+        "schools",
+        "memberships",
+        "membership_roles",
+        "school_features"
+      ],
+      "apis": [
+        "API-01",
+        "API-02"
+      ],
+      "rule": "기존 Auth UID 보존, 승인 대기와 업무 접근 분리"
+    },
+    {
+      "id": "M01",
+      "name": "프로필·업무분장·인계",
+      "screen": "업무/내 담당",
+      "tables": [
+        "duties",
+        "assignments",
+        "profile_claims",
+        "handovers"
+      ],
+      "apis": [
+        "API-03",
+        "API-04"
+      ],
+      "rule": "신고는 권한이 아니며 의무 ID는 인계 때 유지"
+    },
+    {
+      "id": "M02",
+      "name": "일정·학사·시트 전환",
+      "screen": "일정 월/주/목록",
+      "tables": [
+        "events",
+        "event_revisions",
+        "calendar_days",
+        "source_connections"
+      ],
+      "apis": [
+        "API-05",
+        "API-06"
+      ],
+      "rule": "원본 하나, 공식 확정과 공유 등록 분리"
+    },
+    {
+      "id": "M03",
+      "name": "오늘·개인 업무·협조",
+      "screen": "오늘/개인 할 일",
+      "tables": [
+        "tasks",
+        "cooperation_requests",
+        "membership_home_layouts"
+      ],
+      "apis": [
+        "API-07"
+      ],
+      "rule": "홈은 권한 있는 원본 조합, 의무를 수동 체크로 완료하지 않음"
+    },
+    {
+      "id": "M04",
+      "name": "수합",
+      "screen": "업무/받은·보낸 수합",
+      "tables": [
+        "collections",
+        "collection_schemas",
+        "collection_units",
+        "submission_versions"
+      ],
+      "apis": [
+        "API-08",
+        "API-09",
+        "API-10"
+      ],
+      "rule": "안내 공개와 완료본 공개 분리, 문항판·접수판 불변"
+    },
+    {
+      "id": "M05",
+      "name": "전달·알림·문의",
+      "screen": "알림함/전달사항/문의",
+      "tables": [
+        "notices",
+        "notice_receipts",
+        "notifications",
+        "feedback"
+      ],
+      "apis": [
+        "API-11"
+      ],
+      "rule": "읽음·확인·완료를 구분"
+    },
+    {
+      "id": "M06",
+      "name": "학교 지식",
+      "screen": "문서·학교 자료/규정 검색",
+      "tables": [
+        "knowledge_documents",
+        "knowledge_revisions",
+        "knowledge_chunks"
+      ],
+      "apis": [
+        "API-12",
+        "API-13"
+      ],
+      "rule": "학교·시행일·확인판·정확 인용"
+    },
+    {
+      "id": "M07",
+      "name": "Claude 비서·기억",
+      "screen": "상주 AI/전문 화면 연결",
+      "tables": [
+        "conversations",
+        "ai_runs",
+        "ai_run_sources",
+        "tool_proposals",
+        "memories"
+      ],
+      "apis": [
+        "API-14",
+        "API-15"
+      ],
+      "rule": "한 입구와 역할별 도구, 현재권한·명시확인"
+    },
+    {
+      "id": "M08",
+      "name": "문서·팩·파일함",
+      "screen": "내 초안/공용문서/양식",
+      "tables": [
+        "documents",
+        "document_revisions",
+        "document_packs",
+        "file_objects"
+      ],
+      "apis": [
+        "API-16",
+        "API-17"
+      ],
+      "rule": "AI 내용과 코드 서식/계산 분리, 파일지문마다 검사"
+    },
+    {
+      "id": "M09",
+      "name": "시간표 조회·편성",
+      "screen": "시간표/담당자 편성",
+      "tables": [
+        "timetable_versions",
+        "timetable_compositions",
+        "timetable_candidates"
+      ],
+      "apis": [
+        "API-18",
+        "API-19"
+      ],
+      "rule": "최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지"
+    },
+    {
+      "id": "M10",
+      "name": "시간표 교체·실시",
+      "screen": "교체 요청/대강·보강",
+      "tables": [
+        "timetable_change_sets",
+        "lesson_instances",
+        "lesson_executions",
+        "cover_ledger"
+      ],
+      "apis": [
+        "API-20"
+      ],
+      "rule": "동의·변경확정·실시·원장 분리, 구현 보류"
+    },
+    {
+      "id": "M11",
+      "name": "학생·수업·관찰",
+      "screen": "나의 수업/학생",
+      "tables": [
+        "students",
+        "student_enrollments",
+        "observations",
+        "counselling_records"
+      ],
+      "apis": [
+        "API-21",
+        "API-22"
+      ],
+      "rule": "학적 기간과 불변 학생ID, 개인 관찰은 작성자 소유"
+    },
+    {
+      "id": "M12",
+      "name": "평가·생기부 초안",
+      "screen": "평가/문장별 근거 검토",
+      "tables": [
+        "assessments",
+        "record_drafts",
+        "record_sentences",
+        "evidence_links"
+      ],
+      "apis": [
+        "API-23"
+      ],
+      "rule": "교사 확인 사실만 사용, 근거 바뀌면 출력 차단"
+    },
+    {
+      "id": "M13",
+      "name": "수업 사이트 연동",
+      "screen": "활동 받은함/디지털윤리 수업",
+      "tables": [
+        "activity_instances",
+        "source_items",
+        "participant_mappings",
+        "adoptions"
+      ],
+      "apis": [
+        "API-24"
+      ],
+      "rule": "수동 CSV부터 자동 사건까지 같은 불변 원자료/채택 계약"
+    },
+    {
+      "id": "M14",
+      "name": "학년도 전환·연속성",
+      "screen": "관리/학년도·인계",
+      "tables": [
+        "academic_years",
+        "terms",
+        "student_enrollments",
+        "handovers"
+      ],
+      "apis": [
+        "API-03",
+        "API-04",
+        "API-21"
+      ],
+      "rule": "새해에는 관계 새로, 학생ID·이력은 유지"
+    },
+    {
+      "id": "M15",
+      "name": "학교 운영·지원",
+      "screen": "관리/설정·작업·복구",
+      "tables": [
+        "school_policies",
+        "policy_versions",
+        "jobs",
+        "support_sessions",
+        "restore_runs",
+        "legacy_access_gates"
+      ],
+      "apis": [
+        "API-02",
+        "API-11"
+      ],
+      "rule": "역할·정책·복구·옛 경로 폐쇄를 검증한 뒤 공개"
+    }
+  ]
+}
