@@ -16,6 +16,9 @@ import { useWorkspaceNavigation } from '../app/navigation'
 import { enabledModules, type PageId } from '../modules'
 import { TaskPanel } from '../tasks/TaskPanel'
 import { createPreviewTaskAdapter } from './task-adapter'
+import { WorkspaceSearch } from '../search/WorkspaceSearch'
+import { calendarSearchSource, collectionSearchSource, taskSearchSource } from '../search/sources'
+import { useResourceNavigation } from '../app/resource-navigation'
 import './preview.css'
 
 const previewPages = enabledModules('preview').map(module => module.id)
@@ -35,7 +38,6 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
   const taskAdapter = useMemo(() => createPreviewTaskAdapter(stores.workflows), [stores.workflows])
   const [info, setInfo] = useState(stores.calendar.info)
   const [memberId, setMemberId] = useState(info.memberships[0].id)
-  const [selectedRequest, setSelectedRequest] = useState<string>()
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0)
   const [empty, setEmpty] = useState(false)
   const [taskLocked, setTaskLocked] = useState(false)
@@ -47,9 +49,12 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
   const scopeKey = `${memberId}:${workspaceGeneration}:${member.active}`
   const navigation = useWorkspaceNavigation({ allowedPages: previewPages, scopeKey, locked })
   const page = navigation.page as PageId
+  const resource = useResourceNavigation(scopeKey, page, navigation.requestNavigate)
+  const requested = resource.current
+  const searchSources = useMemo(() => [calendarSearchSource(stores.calendar, member, info.basisDate), taskSearchSource(taskAdapter, member, info.basisDate), collectionSearchSource(stores.workflows, member, info.basisDate)], [stores, taskAdapter, member, info.basisDate])
   const storageLabel = persistence.persistent ? '합성 자료 · 이 브라우저에 저장' : '합성 자료 · 임시 메모리 저장 (새로고침 시 초기화)'
-  function navigate(next: PageId) { if (navigation.requestNavigate(next)) { setSelectedRequest(undefined); setError('') } }
-  function selectMember(id: string) { navigation.requestAction(() => { setMemberId(id); setSelectedRequest(undefined); setError('') }) }
+  function navigate(next: PageId) { if (resource.navigate(next)) setError('') }
+  function selectMember(id: string) { navigation.requestAction(() => { resource.clear(); setMemberId(id); setError('') }) }
   function run(operation: () => void) { try { operation(); setError('') } catch (failure) { setError(failure instanceof Error ? failure.message : '개발 도구 실행에 실패했습니다.') } }
   function refreshContext() {
     const next = stores.calendar.info()
@@ -62,7 +67,7 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
     stores.calendar.cancelPending()
     const next = createStores()
     setStores(next); setInfo(next.calendar.info()); setRevision(value => value + 1)
-    setEmpty(false); setSelectedRequest(undefined); setWorkspaceGeneration(value => value + 1)
+    setEmpty(false); resource.clear(); setWorkspaceGeneration(value => value + 1)
   }
   const tools = <details className="developer-panel"><summary>개발 시험 도구 <span>학교·계정 전환 / 실패 상황</span></summary><p>합성 계정 선택은 실제 로그인이 아닙니다. 운영 서버의 권한은 별도 DB 회귀시험으로 검증합니다.</p><div className="developer-grid">
     <label>가상 학교<select disabled={locked} value={member.schoolId} onChange={event => { const next = info.memberships.find(item => item.schoolId === event.target.value && item.userId === member.userId) ?? info.memberships.find(item => item.schoolId === event.target.value)!; selectMember(next.id) }}>{info.schools.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>
@@ -76,16 +81,18 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
   </div><p className="hint">실제 회원과 운영 DB는 이 도구로 변경되지 않습니다. 영속 저장이 가능한 환경은 한 창에서만 편집하여 여러 창의 덮어쓰기를 방지합니다.</p></details>
   return <WorkspaceShell mode="preview" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name} storageLabel={storageLabel}
     locked={locked} notice={navigation.announcement} tools={tools}
+    quickActions={<WorkspaceSearch key={`${scopeKey}:${page}`} scopeKey={scopeKey} sources={searchSources} locked={locked} onOpen={resource.openSearchItem} />}
     contextControls={<label>학교 선택<select disabled={locked} value={member.schoolId} onChange={event => { const next = info.memberships.find(item => item.schoolId === event.target.value && item.userId === member.userId) ?? info.memberships.find(item => item.schoolId === event.target.value)!; selectMember(next.id) }}>{info.schools.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>}>
     {error && <div className="error-box preview-error" role="alert">{error}</div>}
     <EditSession key={scopeKey} onLockChange={setDraftLocked}>
       <ModuleBoundary moduleName={enabledModules('preview').find(module => module.id === page)?.title ?? '업무 화면'} resetKey={`${scopeKey}:${page}`}>
         {page === 'home' || page === 'calendar' ? <CalendarPanel key={scopeKey} member={member} members={info.memberships} schoolName={school.name} date={info.basisDate} adapter={stores.calendar} revision={revision} page={page} onPageChange={navigate} onNavigationLockChange={setCalendarLocked} demo relationOptions={relationLabels} storageLabel={storageLabel}
-          homeExtras={<><ModuleBoundary moduleName="내 업무" resetKey={scopeKey}><TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} compact onNavigationLockChange={setTaskLocked} onOpenTasks={() => navigate('tasks')} /></ModuleBoundary><ModuleBoundary moduleName="수합 요약" resetKey={scopeKey}><HomeWorkSummary member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} includeTasks={false} onOpenCollections={requestId => { if (navigation.requestNavigate('collections')) setSelectedRequest(requestId) }} /></ModuleBoundary></>} /> :
+          openRequest={requested?.kind === 'calendar' && requested.id ? { key: requested.key, id: requested.id } : undefined}
+          homeExtras={<><ModuleBoundary moduleName="내 업무" resetKey={scopeKey}><TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} compact onNavigationLockChange={setTaskLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary><ModuleBoundary moduleName="수합 요약" resetKey={scopeKey}><HomeWorkSummary member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} includeTasks={false} onOpenCollections={resource.openCollection} /></ModuleBoundary></>} /> :
           <main id="main-content" className="main-content">
             <header className="page-header"><div><p className="eyebrow">{school.name} · {info.basisDate} 기준</p><h1 tabIndex={-1}>{page === 'tasks' ? '내 업무' : page === 'collections' ? '자료 수합' : '수업과 학생'}</h1><p>{page === 'tasks' ? '기억해야 할 일은 내려놓고, 해야 할 일에 집중하세요.' : page === 'collections' ? '요청부터 제출과 확인까지, 한 흐름으로.' : '수업에서 확인한 사실을, 학생의 성장 기록으로.'}</p></div></header>
             <div className="basis-strip"><span className="small-tag">합성 자료</span><span>{storageLabel}. 실제 학생·교사의 개인정보는 입력하지 마세요.</span></div>
-            {page === 'students' ? <StudentsPanel member={member} members={info.memberships} date={info.basisDate} store={stores.students} /> : page === 'tasks' ? <TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} onNavigationLockChange={setTaskLocked} /> : <WorkflowPanel member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} page="collections" initialRequestId={selectedRequest} />}
+            {page === 'students' ? <StudentsPanel member={member} members={info.memberships} date={info.basisDate} store={stores.students} /> : page === 'tasks' ? <TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} onNavigationLockChange={setTaskLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /> : <WorkflowPanel key={`${scopeKey}:${requested?.key ?? 'list'}`} member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} page="collections" initialRequestId={requested?.kind === 'collection' ? requested.id : undefined} initialUnitId={requested?.kind === 'collection' ? requested.unitId : undefined} />}
             <footer className="workspace-footer">{storageLabel}<span>업무혁신시스템 · 로컬 계약 검증</span></footer>
           </main>}
       </ModuleBoundary>

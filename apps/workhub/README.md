@@ -1,6 +1,6 @@
 # 신축 업무실
 
-작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 개인 업무 서버 연결은 [4차 개발 인계](../../docs/workhub/09-task-persistence.md), 연결 진단은 [3차 개발 인계](../../docs/workhub/08-activation-readiness.md)를 기준으로 확인합니다.
+작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 현재 홈·검색 동선은 [6차 개발 인계](../../docs/workhub/11-home-navigation.md), 개인 업무 서버 연결은 [4차 개발 인계](../../docs/workhub/09-task-persistence.md), 연결 진단은 [3차 개발 인계](../../docs/workhub/08-activation-readiness.md)를 기준으로 확인합니다. DB 구축과 시간표는 현재 사용자 요청으로 보류합니다.
 
 기존 로그인·회원 프로필을 재사용하는 일정·개인 업무 연결 기반과 별도의 가상 자료 미리보기를 제공합니다. 실제 Supabase에는 이번 SQL을 적용하지 않았습니다.
 
@@ -29,7 +29,7 @@ npm run dev:workhub
 
 | 메뉴 | 확인할 수 있는 흐름 |
 |---|---|
-| 오늘 | 관련 일정·다가오는 일정·할 일 추가와 체크·내 제출 의무에서 원본 이동 |
+| 오늘 | 관련 일정·다가오는 일정·기한별 할 일·제출/공동작성/검토/대기의 구분·정확한 원본 이동 |
 | 학교 일정 | 공개/개인/지정 대상 일정, 대상 미리보기, 수정 충돌, 실패와 재시도 |
 | 내 업무 | 현재 학교의 본인 할 일, 기한·메모·진행/대기/완료/취소, 완료 후 재개 |
 | 자료 수합 | 글/숫자 문항, 개인/공동 단위, 초안 비공개, 책임자 제출, 보완·정정·철회·검토·완료본 집계 |
@@ -43,6 +43,8 @@ npm run dev:workhub
 
 이 진입점의 일반 프로덕션 빌드는 가상 자료 미리보기를 포함하지 않고 준비 화면을 제공합니다. 실제 연결 진입점은 `apps/main`의 `/workhub`입니다. 루트의 `dev`·`build`는 기존 앱을 대상으로 합니다.
 
+공통 헤더의 **업무 찾기**에서 현재 열람 가능한 일정·개인 업무·수합 요청을 찾습니다. 실제 연결 화면은 준비된 일정·개인 업무만 검색합니다. 검색어와 결과는 창을 닫거나 학교를 바꾸면 지우며 주소와 영속 저장소에 남기지 않습니다. 학생 기록과 수합 응답 본문은 검색에 포함하지 않습니다.
+
 ## 검증
 
 ```sh
@@ -51,6 +53,8 @@ npm run build
 npm run build:workhub
 npm test
 ```
+
+홈·검색·원본 이동의 통합 시험은 `node tests/browser/workhub-home-search.mjs`, 업무 원본의 지연 응답과 학교 변경은 `node tests/browser/workhub-task-navigation.mjs`입니다. Chrome과 Playwright를 사용하며 합성 자료만 주입합니다.
 
 `test_workhub_database.mjs`는 PGlite의 실제 PostgreSQL 엔진에 기존 001~007 마이그레이션과 신규 SQL을 적용해 RLS·RPC·트랜잭션·회원 보존을 검증합니다. 실제 Supabase/PostgREST·Google OAuth·별도 연결 간 동시 실행 검증을 대신하지 않습니다. 브라우저 연결 시험은 Playwright와 Chrome 설치 후 `node tests/browser/workhub-connection.mjs`로 실행합니다. 이 시험도 주입된 가상 인증 응답을 사용합니다.
 

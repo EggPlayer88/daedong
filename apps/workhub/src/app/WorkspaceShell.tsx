@@ -11,6 +11,7 @@ export interface WorkspaceShellProps {
   schoolName: string
   memberName: string
   contextControls?: ReactNode
+  quickActions?: ReactNode
   locked?: boolean
   notice?: ReactNode
   storageLabel?: string
@@ -18,7 +19,7 @@ export interface WorkspaceShellProps {
   tools?: ReactNode
 }
 
-export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName, contextControls, locked = false, notice, storageLabel, children, tools }: WorkspaceShellProps) {
+export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName, contextControls, quickActions, locked = false, notice, storageLabel, children, tools }: WorkspaceShellProps) {
   const content = useRef<HTMLDivElement>(null)
   const previousPage = useRef(page)
   const [expanded, setExpanded] = useState(false)
@@ -74,7 +75,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
         <div className="ws-member"><span className="ws-avatar" aria-hidden="true">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{mode === 'preview' ? '합성 자료로 흐름 확인' : '현재 학교의 업무 공간'}</span></div></div>
       </aside>
       <div className="ws-workspace">
-        <header className="ws-context"><nav aria-label="현재 위치" className="ws-breadcrumb"><span>업무실</span><span aria-hidden="true">/</span>{current?.parentId && <><span>{modules.find(module => module.id === current.parentId)?.title}</span><span aria-hidden="true">/</span></>}<strong aria-current="page">{current?.title ?? '화면 확인'}</strong></nav>{contextControls && <div className="ws-context-controls">{contextControls}</div>}</header>
+        <header className="ws-context"><nav aria-label="현재 위치" className="ws-breadcrumb"><span>업무실</span><span aria-hidden="true">/</span>{current?.parentId && <><span>{modules.find(module => module.id === current.parentId)?.title}</span><span aria-hidden="true">/</span></>}<strong aria-current="page">{current?.title ?? '화면 확인'}</strong></nav><div className="ws-header-actions">{quickActions}{contextControls && <div className="ws-context-controls">{contextControls}</div>}</div></header>
         {notice && <div className="ws-notice">{notice}</div>}
         {locked && <p className="ws-locked" role="status" id={lockId}>작성한 내용을 저장하거나 편집을 마친 뒤 이동해 주세요. 처리 중인 요청이 있다면 먼저 결과를 확인해 주세요.</p>}
         <div id={contentId} ref={content} className="ws-content" tabIndex={-1}>{current ? children : <main className="ws-unavailable"><h1>이 화면은 아직 연결되지 않았습니다</h1><p>메뉴에서 현재 이용할 수 있는 화면을 선택해 주세요.</p></main>}</div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { activeAt } from '../domain'
@@ -13,6 +13,9 @@ import { WorkspaceShell } from './WorkspaceShell'
 import { ModuleBoundary } from './ModuleBoundary'
 import { useWorkspaceNavigation } from './navigation'
 import { enabledModules, type PageId } from '../modules'
+import { WorkspaceSearch } from '../search/WorkspaceSearch'
+import { calendarSearchSource, taskSearchSource } from '../search/sources'
+import { useResourceNavigation } from './resource-navigation'
 
 const connectedPages = enabledModules('connected').map(module => module.id)
 
@@ -88,20 +91,25 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
     locked: navigationLocked,
   })
   const page = navigation.page as PageId
-  const navigate = (next: PageId) => { navigation.requestNavigate(next) }
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
+  const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
+  const navigate = (next: PageId) => { resource.navigate(next) }
+  const searchSources = useMemo(() => member && context ? [calendarSearchSource(adapter, member, context.basisDate), taskSearchSource(taskAdapter, member, context.basisDate)] : [], [adapter, taskAdapter, member, context])
+  const requested = resource.current
   return <StyleBoundary>
     <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
     {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
         storageLabel="현재 학교 서버에 저장" locked={navigationLocked} notice={navigation.announcement}
-        contextControls={<label>사용할 학교<select disabled={navigationLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => setMemberId(value)) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
+        quickActions={<WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={resource.openSearchItem} />}
+        contextControls={<label>사용할 학교<select disabled={navigationLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
         <ModuleBoundary moduleName={page === 'tasks' ? '내 업무' : '학교 일정'} resetKey={`${resetKey}:${page}`}>
-          {page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} /></main> :
+          {page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
               page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked}
               relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장"
-              homeExtras={<ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={() => navigate('tasks')} /></ModuleBoundary>} />}
+              openRequest={requested?.kind === 'calendar' && requested.id ? { key: requested.key, id: requested.id } : undefined}
+              homeExtras={<ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary>} />}
         </ModuleBoundary>
       </WorkspaceShell>}
     <ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} />
