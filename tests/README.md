@@ -91,6 +91,8 @@ npm test
 | `test_workhub_search_ui.mjs` | 검색 SSR, 부분 실패·재시도·지연 응답 폐기·50건 제한·본문 노출 범위 |
 | `test_workhub_collection_workbench.mjs` | 제출 단위의 현재판·완료판·보완 분류, 허용 범위 집계·요청 찾기·진행 표 |
 | `test_workhub_student_workspace.mjs` | 학생 찾기·본인 기록의 범위/기간/종류/상태, 조회 실패 구분·출력 범위 |
+| `test_workhub_collection_entry.mjs` | 수합 요청·게시 전 점검, 응답 필수 입력과 준비 상태 안내 |
+| `test_workhub_student_entry.mjs` | 학생 관찰·정정 입력 확인, 작성 대상과 활동 연결의 일치 |
 
 다음은 Chrome과 Playwright가 필요한 별도 브라우저 시험이다. `PLAYWRIGHT_MODULE`로 설치된 모듈 경로를 지정할 수 있다. 합성 자료만 쓰며 운영 서버에 접속하지 않는다.
 
@@ -104,6 +106,8 @@ node tests/browser/workhub-home-search.mjs       # 실제 홈→검색→원본�
 node tests/browser/workhub-task-navigation.mjs   # 완료 업무 원본·지연 응답·소속 전환
 node tests/browser/workhub-collection-workbench.mjs # 수합 요청 찾기·진행 표·필터·단위 이동
 node tests/browser/workhub-student-workspace.mjs # 학생 선택·기록 필터·입력 보호·출력 최신판
+node tests/browser/workhub-collection-entry.mjs # 수합 작성 미리보기·게시 점검·응답 입력
+node tests/browser/workhub-student-entry.mjs     # 관찰/정정·대상 유지·연결 확정·저장 확인
 node scripts/export-workhub-preview.mjs         # 기본 출력: dist/workhub-preview.html
 node tests/browser/workhub-offline.mjs          # file:// 파일·스타일·저장·외부 요청 0
 ```

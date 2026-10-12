@@ -1,6 +1,6 @@
 # 신축 업무실
 
-작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 수합·학생 작업 화면은 [7차 개발 인계](../../docs/workhub/12-workflow-records.md), 홈·검색 동선은 [6차 개발 인계](../../docs/workhub/11-home-navigation.md), 개인 업무 서버 연결은 [4차 개발 인계](../../docs/workhub/09-task-persistence.md)를 기준으로 확인합니다. DB 구축과 시간표는 현재 사용자 요청으로 보류합니다.
+작업별 누적 상태와 남은 순서는 [진행 현황](../../docs/workhub/PROGRESS.md), 작성·저장 확인은 [8차 개발 인계](../../docs/workhub/13-guided-entry.md), 수합·학생 작업 화면은 [7차 개발 인계](../../docs/workhub/12-workflow-records.md), 홈·검색 동선은 [6차 개발 인계](../../docs/workhub/11-home-navigation.md), 개인 업무 서버 연결은 [4차 개발 인계](../../docs/workhub/09-task-persistence.md)를 기준으로 확인합니다. DB 구축과 시간표는 현재 사용자 요청으로 보류합니다.
 
 기존 로그인·회원 프로필을 재사용하는 일정·개인 업무 연결 기반과 별도의 가상 자료 미리보기를 제공합니다. 실제 Supabase에는 이번 SQL을 적용하지 않았습니다.
 
@@ -32,8 +32,8 @@ npm run dev:workhub
 | 오늘 | 관련 일정·다가오는 일정·기한별 할 일·제출/공동작성/검토/대기의 구분·정확한 원본 이동 |
 | 학교 일정 | 공개/개인/지정 대상 일정, 대상 미리보기, 수정 충돌, 실패와 재시도 |
 | 내 업무 | 현재 학교의 본인 할 일, 기한·메모·진행/대기/완료/취소, 완료 후 재개 |
-| 자료 수합 | 요청 찾기, 단위별 진행 표·상태 필터·원본 이동, 글/숫자 문항, 공동 초안·책임자 제출·보완·정정·철회·검토·완료본 집계 |
-| 수업과 학생 | 승인된 명부의 학생 찾기, 학생·기간·종류·상태별 본인 기록, 관찰·정정·철회·최신 근거 출력, 외부 활동 가상 수신·학생 확인 연결·원문 정정 시 재검토 |
+| 자료 수합 | 요청 작성 미리보기·게시 전 점검, 요청 찾기, 단위별 진행 표·원본 이동, 글/숫자 입력 안내·공동 초안·책임자 제출·보완·정정·철회·검토·완료본 집계 |
+| 수업과 학생 | 승인된 명부의 학생 찾기, 학생·기간·종류·상태별 본인 기록, 관찰·정정의 대상/필수 입력 확인·저장 기록 보기·철회·최신 근거 출력, 외부 활동 가상 수신·학생 연결 확인·원문 정정 시 재검토 |
 
 기준일은 **2026-10-19, 한국 시간**입니다. 일정과 공통 소속의 종료일은 포함하며 학생 학적·수강·배정의 종료일은 제외합니다. 한 일정 관련 조건 안의 부서·학년·교과는 모두 맞아야 하고, 같은 항목의 여러 값 및 여러 조건은 하나만 맞으면 됩니다. 직접 포함이 조건에 추가되고 제외가 우선합니다.
 
@@ -60,7 +60,9 @@ npm test
 
 `test_workhub_database.mjs`는 PGlite의 실제 PostgreSQL 엔진에 기존 001~007 마이그레이션과 신규 SQL을 적용해 RLS·RPC·트랜잭션·회원 보존을 검증합니다. 실제 Supabase/PostgREST·Google OAuth·별도 연결 간 동시 실행 검증을 대신하지 않습니다. 브라우저 연결 시험은 Playwright와 Chrome 설치 후 `node tests/browser/workhub-connection.mjs`로 실행합니다. 이 시험도 주입된 가상 인증 응답을 사용합니다.
 
-전체 가상 업무 브라우저 시험은 `node tests/browser/workhub.mjs`입니다. `PLAYWRIGHT_MODULE`로 설치된 Playwright 경로, `WORKHUB_QA_URL`로 시험할 URL, `WORKHUB_QA_OUTPUT`으로 스크린샷·결과 저장 폴더를 지정할 수 있습니다. 기본 주소는 위 개발 서버입니다.
+전체 가상 업무 브라우저 시험은 `node tests/browser/workhub.mjs`입니다. `PLAYWRIGHT_MODULE`로 설치된 Playwright 경로, `WORKHUB_QA_URL`로 시험할 URL, `WORKHUB_QA_OUTPUT`으로 스크린샷·결과 저장 폴더를 지정할 수 있습니다. 기본 실행은 합성 번들을 브라우저에 주입하며 개발 서버가 필요하지 않습니다. `WORKHUB_QA_URL`을 지정한 경우에는 해당 주소의 실행 중인 미리보기를 사용합니다.
+
+수합 작성·게시 전 점검은 `node tests/browser/workhub-collection-entry.mjs`, 학생 관찰·정정·활동 채택의 입력 보호와 저장 확인은 `node tests/browser/workhub-student-entry.mjs`로 시험합니다. 기존 저장 명령과 합성 자료를 사용하며 운영 서버에 요청하지 않습니다.
 
 진단 브라우저 시험은 `node tests/browser/workhub-readiness.mjs`입니다. 합성 응답을 주입한 실제 연결 화면을 시험하며 외부 학교 서버는 호출하지 않습니다.
 
