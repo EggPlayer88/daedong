@@ -4,6 +4,7 @@ import type { ObservationDraft, ObservationView, SourceView } from './contracts'
 import type { StudentStore } from './store'
 import './students.css'
 import { useEditSession } from '../app/EditSession'
+import { evidenceSignature, readObservationRows, searchRoster, studentRecordWorkspace, type RecordFilters, type RecordState } from './presentation'
 
 export interface StudentsPanelProps { member: Membership; members: Membership[]; date: string; store: StudentStore }
 const key = () => globalThis.crypto?.randomUUID?.() ?? `request-${Date.now()}-${Math.random()}`
@@ -21,6 +22,8 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
   const [tab, setTab] = useState<'records' | 'activities'>('records')
   const [courseId, setCourseId] = useState('')
   const [studentId, setStudentId] = useState('')
+  const [studentQuery, setStudentQuery] = useState('')
+  const [filters, setFilters] = useState<Omit<RecordFilters, 'studentId' | 'courseId'>>({ scope: 'selected', from: '', until: '', kind: 'all', state: 'all' })
   const [observedAt, setObservedAt] = useState(date)
   const [activity, setActivity] = useState('')
   const [content, setContent] = useState('')
@@ -30,6 +33,7 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [exportText, setExportText] = useState('')
+  const [exportSignature, setExportSignature] = useState('')
   const [, repaint] = useState(0)
   const dirty = Boolean(activity || content || confirmed || reason || editing)
   const requestChange = useEditSession(dirty)
@@ -38,7 +42,7 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
   let records: ObservationView[] = []
   let activities: SourceView[] = []
   let accessError = ''
-  try { courses = store.listCourses(member.id, observedAt); records = store.listRecords(member.id); activities = store.listActivities(member.id) }
+  try { courses = store.listCourses(member.id, observedAt); records = readObservationRows(store.listRecords(member.id)); activities = store.listActivities(member.id) }
   catch (failure) { accessError = messageOf(failure) }
   const selectedCourse = courses.find(course => course.id === courseId) ?? courses[0]
   let students: ReturnType<StudentStore['listStudents']> = []
@@ -46,6 +50,23 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
     try { students = store.listStudents(member.id, selectedCourse.id, observedAt) } catch (failure) { accessError = messageOf(failure) }
   }
   const selectedStudent = students.find(student => student.id === studentId) ?? students[0]
+  const roster = searchRoster(students, studentQuery)
+  const workspace = studentRecordWorkspace(records, { ...filters, studentId: selectedStudent?.id, courseId: selectedCourse?.id })
+  const visibleExport = exportSignature === evidenceSignature(records) ? exportText : ''
+  const changeFilter = (changes: Partial<typeof filters>) => requestChange(() => setFilters(value => ({ ...value, ...changes })))
+  function showEvidence() {
+    setError('')
+    try { setExportText(store.exportEvidence(member.id)); setExportSignature(evidenceSignature(readObservationRows(store.listRecords(member.id)))) } catch (failure) { setError(messageOf(failure)); setExportText('') }
+  }
+  function downloadEvidence() {
+    setError('')
+    try {
+      const latest = store.exportEvidence(member.id)
+      if (latest !== exportText) { setExportText(latest); setExportSignature(evidenceSignature(readObservationRows(store.listRecords(member.id)))); setNotice('근거 목록이 바뀌어 최신 내용으로 갱신했습니다. 내용을 확인한 뒤 다시 내려받아 주세요.'); return }
+      const blob = new Blob([latest], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a'); anchor.href = url; anchor.download = `합성_관찰근거_${date}.txt`; anchor.click(); URL.revokeObjectURL(url)
+    } catch (failure) { setError(messageOf(failure)); setExportText('') }
+  }
   function run(action: () => void) { setError(''); setNotice(''); try { action(); refresh() } catch (failure) { setError(messageOf(failure)) } }
   function clearForm() { setActivity(''); setContent(''); setConfirmed(false); setReason(''); setEditing(undefined) }
   function save() {
@@ -57,7 +78,7 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
     })
   }
   function edit(record: ObservationView) {
-    setTab('records'); setEditing(record); setCourseId(record.current.courseId); setStudentId(record.current.studentId); setObservedAt(record.current.observedAt); setActivity(record.current.activity); setContent(record.current.content); setReason(''); setConfirmed(false); setError(''); setNotice('기존 기록의 새 개정본을 작성합니다. 정정 사유와 사실 확인이 필요합니다.')
+    setTab('records'); setStudentQuery(''); setEditing(record); setCourseId(record.current.courseId); setStudentId(record.current.studentId); setObservedAt(record.current.observedAt); setActivity(record.current.activity); setContent(record.current.content); setReason(''); setConfirmed(false); setError(''); setNotice('기존 기록의 새 개정본을 작성합니다. 정정 사유와 사실 확인이 필요합니다.')
   }
   function sample() {
     if (!selectedCourse) { setError('승인된 수업을 먼저 선택해 주세요.'); return }
@@ -73,12 +94,22 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
       <div className="students-tabs" aria-label="학생 업무 선택"><button type="button" aria-pressed={tab === 'records'} onClick={() => requestChange(() => setTab('records'))}>내 학급·기록</button><button type="button" aria-pressed={tab === 'activities'} onClick={() => requestChange(() => setTab('activities'))}>수업 활동 받은함 <span>{activities.length}</span></button></div>
       {error && <p role="alert" className="students-error">{error} 입력한 내용은 유지했습니다.</p>}
       {notice && <p role="status" className="students-notice">{notice}</p>}
-      <div className="students-context"><label>수업 기준일<input type="date" value={observedAt} max={date} onChange={event => { const value = event.target.value; if (value) requestChange(() => { setObservedAt(value); setStudentId('') }) }} /></label><label>승인된 내 수업<select value={selectedCourse?.id ?? ''} onChange={event => { const value = event.target.value; requestChange(() => { setCourseId(value); setStudentId(''); clearForm() }) }}><option value="" disabled>수업 선택</option>{courses.map(course => <option key={course.id} value={course.id}>{course.classLabel} · {course.label}</option>)}</select></label><button type="button" className="secondary" onClick={() => requestChange(sample)} disabled={!selectedCourse}>가상 수업 활동 받기</button></div>
+      <div className="students-context"><label>수업 기준일<input type="date" value={observedAt} max={date} onChange={event => { const value = event.target.value; if (value) requestChange(() => { setObservedAt(value); setStudentId(''); setStudentQuery('') }) }} /></label><label>승인된 내 수업<select value={selectedCourse?.id ?? ''} onChange={event => { const value = event.target.value; requestChange(() => { setCourseId(value); setStudentId(''); setStudentQuery(''); clearForm() }) }}><option value="" disabled>수업 선택</option>{courses.map(course => <option key={course.id} value={course.id}>{course.classLabel} · {course.label}</option>)}</select></label><button type="button" className="secondary" onClick={() => requestChange(sample)} disabled={!selectedCourse}>가상 수업 활동 받기</button></div>
       {!courses.length && <p className="students-empty">이 날짜에 승인된 수업 배정이 없습니다. 교사 본인 신고나 시간표 표시만으로 명부 권한이 생기지 않습니다.</p>}
       {tab === 'records' ? <>
-        <div className="students-layout"><article className="students-card"><h2>내 학급 명부</h2><p className="students-muted">이름·번호는 표시 정보입니다. 학생 ID는 학년·반이 바뀌어도 유지합니다.</p><div className="students-roster">{students.map(student => <button type="button" key={student.id} aria-pressed={student.id === selectedStudent?.id} onClick={() => requestChange(() => setStudentId(student.id))}><span>{student.number}번 · {student.name}</span><small>{student.id}</small></button>)}</div>{selectedStudent && <p className="students-muted">학적 기간: {selectedStudent.enrollmentFrom}부터 {selectedStudent.enrollmentUntil} 전까지</p>}</article>
+        <div className="students-layout"><article className="students-card"><h2>내 학급 명부</h2><p className="students-muted">수업 기준일에 수강하는 학생만 표시합니다. 이름·번호가 바뀌어도 학생 ID는 유지됩니다.</p><label>학생 찾기<input type="search" value={studentQuery} onChange={event => setStudentQuery(event.target.value)} placeholder="이름 또는 번호" autoComplete="off" /></label><p className="students-roster-count" role="status">명부 {students.length}명 중 {roster.length}명 표시</p>{selectedStudent && <p className="students-selected">선택 학생 <strong>{selectedStudent.number}번 · {selectedStudent.name}</strong>{!roster.some(student => student.id === selectedStudent.id) && <span>검색 결과에는 없지만 선택을 유지하고 있습니다.</span>}</p>}<div className="students-roster">{roster.map(student => <button type="button" key={student.id} aria-pressed={student.id === selectedStudent?.id} onClick={() => requestChange(() => setStudentId(student.id))}><span>{student.number}번 · {student.name}</span><small>{student.id}</small></button>)}</div>{!roster.length && <p className="students-empty">{students.length ? '검색 조건에 맞는 학생이 없습니다. 이름이나 번호를 다시 확인해 주세요.' : '이 수업 기준일에 조회할 수 있는 학생이 없습니다.'}</p>}{selectedStudent && <p className="students-muted">학적 기간: {selectedStudent.enrollmentFrom}부터 {selectedStudent.enrollmentUntil} 전까지</p>}</article>
         <article className="students-card"><h2>{editing ? `관찰 기록 정정 · v${editing.current.version} 기준` : '빠른 관찰 기록'}</h2><p className="students-muted">{selectedStudent?.name ?? '학생 선택 필요'} · 개인의 수행과 태도는 학생별로 확인합니다.</p><form onSubmit={event => { event.preventDefault(); save() }} className="students-form"><label>활동<input name="student-activity" value={activity} maxLength={150} onChange={event => setActivity(event.target.value)} placeholder="예: 자료 공유 토의" required /></label><label>직접 확인한 사실<textarea aria-label="직접 확인한 사실" name="student-observation" rows={4} value={content} maxLength={4000} onChange={event => setContent(event.target.value)} placeholder="학생이 실제로 말하거나 수행한 내용을 적어 주세요." required /></label>{editing && <label>정정 사유<input name="student-reason" value={reason} onChange={event => setReason(event.target.value)} maxLength={300} required /></label>}<label className="students-check"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />직접 확인한 사실이며 이 학생의 기록임을 확인했습니다.</label><div className="button-row"><button className="primary" type="submit" disabled={!selectedStudent || !confirmed}>{editing ? '새 개정본 저장' : '관찰 저장'}</button>{dirty && <button className="secondary" type="button" onClick={clearForm}>{editing ? '정정 취소' : '기록 입력 취소'}</button>}</div></form></article></div>
-        <article className="students-card students-records"><div className="students-record-heading"><div><h2>내 관찰 기록 <span>{records.filter(record => record.current.state === 'active').length}건</span></h2><p className="students-muted">철회·정정 이력은 남으며 다른 교사의 기록은 집계하지 않습니다.</p></div><button className="secondary" type="button" onClick={() => { setError(''); try { setExportText(store.exportEvidence(member.id)) } catch (failure) { setError(messageOf(failure)); setExportText('') } }}>근거 목록 텍스트 보기</button></div>{!records.length && <p className="students-empty">아직 본인이 작성한 관찰 기록이 없습니다.</p>}{records.map(record => <RecordCard key={record.id} record={record} onEdit={() => requestChange(() => edit(record))} onWithdraw={why => run(() => { store.withdrawObservation(member.id, record.id, record.current.version, why, key()); setNotice('철회 이력을 남겼습니다. 유효 근거 목록에서 제외됩니다.') })} />)}{exportText && <div className="students-export"><label>나의 근거 목록 · AI 생기부 초안 아님<textarea aria-label="나의 근거 목록" readOnly rows={9} value={exportText} onFocus={event => event.currentTarget.select()} /></label><button type="button" className="secondary" onClick={() => { const blob = new Blob([exportText], { type: 'text/plain;charset=utf-8' }); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `합성_관찰근거_${date}.txt`; anchor.click(); URL.revokeObjectURL(url) }}>텍스트 파일 내려받기</button><p className="students-muted">이미 내려받은 파일은 자동 회수되지 않습니다. 원기록이 바뀌면 다시 확인하세요.</p></div>}</article>
+        <article className="students-card students-records"><div className="students-record-heading"><div><h2>내 관찰 기록</h2><p className="students-muted">선택한 학생의 기록을 살펴보고, 필요한 기간과 근거를 찾습니다. 다른 교사의 기록은 집계하지 않습니다.</p></div><button className="secondary" type="button" onClick={showEvidence}>근거 목록 텍스트 보기</button></div>
+          <p className="students-export-scope">근거 목록은 현재 학교에서 본인이 작성한 모든 유효 기록을 포함합니다. 아래 조회 조건과 관계없이 전체 원자료를 다시 확인합니다.</p>
+          <div className="students-record-filters"><label>기록 범위<select aria-label="기록 범위" value={filters.scope} onChange={event => changeFilter({ scope: event.target.value as typeof filters.scope })}><option value="selected">선택 학생 · 현재 수업</option><option value="all">내 전체 기록 · 이전 수업 포함</option></select></label><label>조회 시작일<input type="date" value={filters.from} max={date} onChange={event => changeFilter({ from: event.target.value })} /></label><label>조회 종료일<input type="date" value={filters.until} max={date} onChange={event => changeFilter({ until: event.target.value })} /></label><label>기록 종류<select aria-label="기록 종류" value={filters.kind} onChange={event => changeFilter({ kind: event.target.value as typeof filters.kind })}><option value="all">모든 종류</option><option value="direct">직접 관찰</option><option value="adopted">수업 활동 채택</option></select></label><button type="button" className="secondary" onClick={() => changeFilter({ from: '', until: '', kind: 'all', state: 'all' })}>조회 조건 초기화</button></div>
+          {workspace.error ? <p role="alert" className="students-error">{workspace.error}</p> : <>
+            <p className="students-muted">{filters.scope === 'selected' ? `${selectedStudent?.name ?? '선택 학생 없음'} · 현재 수업` : '내 전체 기록'}의 조회 기간·종류 기준입니다. 철회 이력과 재검토 기록은 유효 근거에서 분리합니다.</p>
+            <div className="students-record-summary" aria-label="관찰 기록 상태">{([['all', '전체 기록'], ['ready', '유효 근거'], ['review', '원자료 재검토'], ['withdrawn', '철회 이력']] as [RecordState, string][]).map(([state, label]) => <button type="button" key={state} aria-pressed={filters.state === state} aria-label={`${label} ${workspace.counts[state]}건 보기`} className={state === 'review' && workspace.counts.review ? 'needs-review' : ''} onClick={() => changeFilter({ state })}><span>{label}</span><strong>{workspace.counts[state]}<small>건</small></strong></button>)}</div>
+            <p className="students-result-count" role="status">조회 결과 {workspace.records.length}건 · 관찰일 최신순</p>
+            {!workspace.records.length && <p className="students-empty">{!records.length ? '아직 본인이 작성한 관찰 기록이 없습니다.' : '현재 학생과 조회 조건에 맞는 기록이 없습니다. 범위를 바꾸거나 조회 조건을 초기화해 보세요.'}</p>}
+            {workspace.records.map(record => <RecordCard key={record.id} record={record} onEdit={() => requestChange(() => edit(record))} onWithdraw={why => run(() => { store.withdrawObservation(member.id, record.id, record.current.version, why, key()); setNotice('철회 이력을 남겼습니다. 유효 근거 목록에서 제외됩니다.') })} />)}
+          </>}
+          {visibleExport && <div className="students-export"><label>나의 근거 목록 · 현재 학교의 본인 전체 기록 · AI 생기부 초안 아님<textarea aria-label="나의 근거 목록" readOnly rows={9} value={visibleExport} onFocus={event => event.currentTarget.select()} /></label><button type="button" className="secondary" onClick={downloadEvidence}>텍스트 파일 내려받기</button><p className="students-muted">내려받기 직전에 전체 원자료의 최신판을 다시 확인합니다. 이미 내려받은 파일은 자동 회수되지 않습니다.</p></div>}</article>
       </> : <article className="students-card"><h2>수업 활동 받은함</h2><p className="students-muted">가상 외부 사건을 수신해 검토하는 흐름입니다. 실제 디지털윤리 사이트에 연결하지 않으며 현재 사이트 CSV를 읽는 파서는 아직 없습니다.</p>{!activities.length && <p className="students-empty">위의 ‘가상 수업 활동 받기’로 수신→학생 확인→관찰 채택을 시험해 보세요.</p>}{activities.map(source => <ActivityCard key={`${source.id}:${source.current.revision}:${source.mapping?.revision ?? 0}`} source={source} member={member} store={store} run={run} onNotice={setNotice} />)}</article>}
     </>}
   </section>
