@@ -1,6 +1,6 @@
 # 업무혁신시스템 누적 진행 현황
 
-최종 갱신: 2026-10-12 · 6차 개발 · 기준 [PR #10](https://github.com/EggPlayer88/daedong/pull/10)
+최종 갱신: 2026-10-12 · 6차 개발 · [PR #13](https://github.com/EggPlayer88/daedong/pull/13) (기준 PR #10)
 
 이 문서는 **이번 작업 / 누적 진행 / 남은 작업 / 검증 / 판단해서 정한 것**의 인계 기준이다. 화면 구현·코드 검증·실제 서버 연결·운영 공개를 구분하며 테스트 수를 출시 완성률로 계산하지 않는다.
 
@@ -50,7 +50,7 @@
 - 오프라인 파일은 실제 file 주소에서 열어 CSS·새로고침·이력·합성 저장·360px 화면을 확인했다. 외부 HTTP 요청과 브라우저 오류는 0건이다.
 - 선행 단계에서 실제 PostgreSQL 16 독립 연결 경합 11개와 DB 접속 안전 조건 12개를 검증했다. 이번 작업은 DB 계약을 수정하지 않으며 PR CI에서 기존 DB 회귀를 함께 실행한다.
 - 의존 PR: [#2](https://github.com/EggPlayer88/daedong/pull/2) → [#4](https://github.com/EggPlayer88/daedong/pull/4) → [#6](https://github.com/EggPlayer88/daedong/pull/6) → [#7](https://github.com/EggPlayer88/daedong/pull/7) → [#8](https://github.com/EggPlayer88/daedong/pull/8) → [#9](https://github.com/EggPlayer88/daedong/pull/9) → [#10](https://github.com/EggPlayer88/daedong/pull/10).
-- 이번 브랜치: `feat/workhub-home-navigation`, 기준 브랜치: `feat/workhub-site-foundation`. DB 문서 PR #12와 독립된 후속 개발이며 사용자 main 병합 전 단계다.
+- 이번 [PR #13](https://github.com/EggPlayer88/daedong/pull/13)의 브랜치: `feat/workhub-home-navigation`, 기준 브랜치: `feat/workhub-site-foundation`. DB 문서 PR #12와 독립된 후속 개발이며 사용자 main 병합 전 단계다.
 - 4차 인계: [09-task-persistence.md](09-task-persistence.md), 5차 인계: [10-site-foundation.md](10-site-foundation.md), 6차 인계: [11-home-navigation.md](11-home-navigation.md).
 
 위 결과는 실제 Supabase 적용·Google 로그인 종단 검증·운영 배포를 뜻하지 않는다.
