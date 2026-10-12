@@ -1,6 +1,6 @@
 # 업무혁신시스템 누적 진행 현황
 
-최종 갱신: 2026-10-13 · 8차 개발 · 기준 [PR #14](https://github.com/EggPlayer88/daedong/pull/14)
+최종 갱신: 2026-10-13 · 8차 개발 · [PR #15](https://github.com/EggPlayer88/daedong/pull/15) (기준 PR #14)
 
 이 문서는 **이번 작업 / 누적 진행 / 남은 작업 / 검증 / 판단해서 정한 것**의 인계 기준이다. 화면 구현·코드 검증·실제 서버 연결·운영 공개를 구분하며 테스트 수를 출시 완성률로 계산하지 않는다.
 
@@ -53,7 +53,7 @@
 - PC·390px 입력 화면을 이미지로 확인했다. 독립 HTML은 실제 file 주소에서 360px·새로고침·이력·합성 저장을 확인했으며 외부 HTTP 요청과 브라우저 오류는 0건이다.
 - 기존 수합·학생 store, DB 제안과 보호 자산은 수정하지 않았다. 기존 DB 회귀는 임시 시험 환경에서 수행하며 운영 DB 구축·적용을 뜻하지 않는다.
 - 의존 PR: [#2](https://github.com/EggPlayer88/daedong/pull/2) → [#4](https://github.com/EggPlayer88/daedong/pull/4) → [#6](https://github.com/EggPlayer88/daedong/pull/6) → [#7](https://github.com/EggPlayer88/daedong/pull/7) → [#8](https://github.com/EggPlayer88/daedong/pull/8) → [#9](https://github.com/EggPlayer88/daedong/pull/9) → [#10](https://github.com/EggPlayer88/daedong/pull/10) → [#13](https://github.com/EggPlayer88/daedong/pull/13) → [#14](https://github.com/EggPlayer88/daedong/pull/14).
-- 이번 브랜치: `feat/workhub-guided-entry`, 기준 브랜치: `feat/workhub-workflow-records`. DB 문서 PR #12와 독립된 후속 개발이며 사용자 main 병합 전 단계다.
+- 이번 [PR #15](https://github.com/EggPlayer88/daedong/pull/15)의 브랜치: `feat/workhub-guided-entry`, 기준 브랜치: `feat/workhub-workflow-records`. DB 문서 PR #12와 독립된 후속 개발이며 사용자 main 병합 전 단계다.
 - 6차 인계: [11-home-navigation.md](11-home-navigation.md), 7차 인계: [12-workflow-records.md](12-workflow-records.md), 8차 인계: [13-guided-entry.md](13-guided-entry.md).
 
 위 결과는 실제 Supabase 적용·Google 로그인 종단 검증·운영 배포를 뜻하지 않는다.
