@@ -1,11 +1,11 @@
 // 용어·명칭 가드 — 새 자산이 들어와도 옛 용어가 되살아나지 않게 고정
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { readFileSync, readdirSync } from 'node:fs'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const API = `${ROOT}/apps/main/api/doc-ai`
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const P = mod.SYSTEM_PROMPT
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }

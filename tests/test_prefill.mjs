@@ -6,13 +6,13 @@
 //   · 파서가 자신 없다고 표시한 부분(_warnings)은 교사 확인으로 넘어간다
 //   · prefill 이 없으면 지금까지처럼 백지 모드
 import { readFileSync, readdirSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
 const DIR = `${API}/_assets/prefill`
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const {
   pickPrefill, buildPrefillDoc, buildPrefillIndex, prefillIndex, manifest: M,
   findPrefill, normSubject, dbSubject, standardsDb,

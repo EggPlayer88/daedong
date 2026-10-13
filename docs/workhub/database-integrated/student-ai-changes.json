@@ -1,0 +1,437 @@
+{
+  "changes": [
+    {
+      "table": "workhub.student_evidence_gates", "action": "add",
+      "columns": [
+        {"name":"school_id","type":"text","nullable":false,"references":"workhub.schools.id","immutable":true,"description":"개인 근거가 속한 학교"},
+        {"name":"owner_account_id","type":"text","nullable":false,"references":"workhub.accounts.id","immutable":true,"description":"개인 기록 작성 계정"},
+        {"name":"epoch","type":"bigint","nullable":false,"default":"0","description":"원본·연결·접근 차단 변경마다 단조 증가하는 판"},
+        {"name":"updated_at","type":"timestamptz","nullable":false,"default":"now()","description":"마지막 gate 변경 시각"}
+      ],
+      "constraints":["PRIMARY KEY(school_id,owner_account_id)","CHECK(epoch>=0); epoch 감소 금지"],
+      "indexes":[],
+      "rules":["R04~R06: 원자료·mapping·관찰·평가 변경과 AI/생기부 확정·출력은 같은 owner gate FOR UPDATE 사용","권한/정책/멱등 잠금 뒤, 원본행·파일 잠금 전에 획득","외부 네트워크 호출 동안 gate를 유지하지 않음"],
+      "read_policy":"브라우저 직접 조회/쓰기 금지; 전용 명령만 사용",
+      "tests":["SI06: 두 독립 연결 정정/출력의 양쪽 선행 순서를 barrier로 검사","AI04: 생성 중 epoch 변경 시 자동 검토완료 금지"]
+    },
+    {
+      "table":"workhub.observations","action":"alter","columns":[],
+      "constraints":["id,school_id,author_account_id,author_membership_id,student_id,academic_year_id UPDATE 불변 트리거","author_membership_id의 school/account가 머리 school/author와 일치"],
+      "indexes":[],
+      "rules":["R04: 학생 오기록은 원기록 철회+다른 학생 새기록; 같은 머리의 재귀속 금지","현재 projection 변경은 새 불변판과 같은 트랜잭션; 철회 뒤 부활 금지"],
+      "read_policy":"현재 본교 유효 소속+본인 author+보존/차단 정책; 관리자/지원자 우회 및 존재/건수 노출 금지",
+      "tests":["SI01: 학생/작성자/학교 재귀속 UPDATE 거부","SI09: 작년 본인 정정과 전출 후 접근 구분"]
+    },
+    {
+      "table":"workhub.observation_revisions","action":"alter",
+      "columns":[
+        {"name":"course_membership_id","type":"text","nullable":true,"references":"workhub.course_memberships.id","immutable":true,"description":"수업 관찰일의 해당 학생 수강; 담임 관찰은 NULL 가능"},
+        {"name":"teacher_assignment_id","type":"text","nullable":true,"references":"workhub.course_group_teachers.id","immutable":true,"description":"수업 관찰일 승인된 교사 담당; 담임 관찰은 승인 assignments로 별도 검사"},
+        {"name":"ai_run_id","type":"text","nullable":true,"references":"workhub.ai_runs.id","immutable":true,"description":"AI 다듬기의 실제 본인 실행; 원문 비교 출처는 ai_run_sources"}
+      ],
+      "constraints":["UNIQUE(school_id,created_by_account_id,observation_id,revision_no)","FOREIGN KEY(school_id,course_membership_id,student_id) REFERENCES workhub.course_memberships(school_id,id,student_id)","FOREIGN KEY(school_id,teacher_assignment_id) REFERENCES workhub.course_group_teachers(school_id,id)","FK(school_id,ai_run_id) REFERENCES workhub.ai_runs(school_id,id); 같은 owner 및 origin 소속/접근 검증","student_id=부모의 불변 student_id; classroom_adoption 사슬 존재는 양쪽 변경에서 deferred constraint trigger"],
+      "indexes":[],
+      "rules":["R06: 가림/파기되지 않은 classroom_adoption판의 채택이력0개는 커밋거부; current+confirmed+needs_review=false이면 활성유효사슬도필수","course_group_id가 있으면 같은 수업/날짜의 수강과 승인 담당 필수","origin_ref는 표시 호환값일 뿐 권한/사슬 검사에 사용하지 않음","AI 다듬기로 classroom 출처를 direct로 세탁하지 않음"],
+      "read_policy":"부모 observations에 본인이 현재 접근할 때만; 학생본문 공용 AI 검색 금지",
+      "tests":["SI03: 문자열 origin_ref만 채운 채택 관찰 거부","SI04: 다른 학생 수강/다른 교사 담당 거부"]
+    },
+    {
+      "table":"workhub.counselling_records","action":"alter","columns":[],
+      "constraints":["id,school_id,author_account_id,author_membership_id,student_id,academic_year_id 불변"],
+      "indexes":[],"rules":["상담 본문과 존재·건수는 관리자/지원/일반 AI/인계/생기부 근거에서 제외"],
+      "read_policy":"현재 본교 유효 접근+본인 작성자; 과거정정 정책 별도 적용","tests":["SI04: 관리자 COUNT=0","SI09: 담당 인계로 상담 소유 변경 불가"]
+    },
+    {
+      "table":"workhub.counselling_revisions","action":"alter",
+      "columns":[
+        {"name":"student_id","type":"text","nullable":false,"references":"workhub.students.id","immutable":true,"description":"부모의 불변 학생 사본"},
+        {"name":"enrollment_id","type":"text","nullable":false,"references":"workhub.student_enrollments.id","immutable":true,"description":"상담 당시 해당 학생 학적"},
+        {"name":"held_on","type":"date","nullable":false,"immutable":true,"description":"이 판의 상담일"}
+      ],
+      "constraints":["FOREIGN KEY(school_id,enrollment_id,student_id) REFERENCES workhub.student_enrollments(school_id,id,student_id)","학생은 부모 identity와 같고 상담일 학적 및 허용 상담/담임 관계 확인"],
+      "indexes":[],"rules":["판은 불변; 삭제 작업의 본문 가림만 예외","일반 ai_run_sources/evidence_links kind에 상담 추가 금지"],
+      "read_policy":"부모 상담과 동일한 작성자 전용","tests":["SI04: 다른 학생 학적 거부","SI09: 현재 담당 없는 과거 본인 정정은 승인 정책을 거침"]
+    },
+    {
+      "table":"workhub.assessments","action":"alter","columns":[],
+      "constraints":["id,school_id,author_account_id,student_id,activity_id 불변"],
+      "indexes":[],
+      "rules":["R04: 다른 학생/평가활동으로 UPDATE 금지; 철회+새 기록만","확정자는 본인 교사; 총점은 승인 루브릭 기준으로 서버 계산"],
+      "read_policy":"현재 본교 접근+author 본인; 관리자/지원자 점수·건수 접근 불가","tests":["SI01: 확정 평가의 학생 재귀속 거부","SI10: 미제출 NULL/실제 0점 구분"]
+    },
+    {
+      "table":"workhub.assessment_revisions","action":"alter",
+      "columns":[
+        {"name":"student_id","type":"text","nullable":false,"references":"workhub.students.id","immutable":true,"description":"부모의 불변 학생 사본"},
+        {"name":"enrollment_id","type":"text","nullable":false,"references":"workhub.student_enrollments.id","immutable":true,"description":"평가 기준일 당시 학적"},
+        {"name":"assessed_on","type":"date","nullable":false,"immutable":true,"description":"이 판의 평가 기준일"},
+        {"name":"body_sha256","type":"text","nullable":false,"immutable":true,"description":"상태·기준판·항목점수·교사확인을 정규화한 서버 지문"}
+      ],
+      "constraints":["UNIQUE(school_id,created_by_account_id,assessment_id,revision_no)","FK(school_id,enrollment_id,student_id) REFERENCES workhub.student_enrollments(school_id,id,student_id)","student_id=부모 학생; body_sha256는 64자리 소문자 hex","기존 scored/NULL·본인확정·루브릭판 복합 FK 유지"],
+      "indexes":[],"rules":["근거 연결/출력에서 평가판 해시도 비교","활동 수업의 수강·승인 담당·기준일 검사"],
+      "read_policy":"부모 평가 작성자 전용","tests":["SI04: 같은 학교 다른 학생 평가판 연결 거부","SI10: 루브릭 키/범위/합계 불일치 거부"]
+    },
+    {
+      "table":"workhub.record_drafts","action":"alter",
+      "columns":[{"name":"reviewed_evidence_epoch","type":"bigint","nullable":true,"description":"마지막 검토가 고정한 owner gate epoch"}],
+      "constraints":["R04: id,school_id,author_account_id,student_id,academic_year_id,area,subject_id,course_group_id 불변","state<>draft이면 reviewed_evidence_epoch 필수; 현재 gate/원본검사와 일치해야 확정"],
+      "indexes":[],
+      "rules":["검토/출력 때 문장과 모든 원본판의 학생·학교·owner·최신성 재검사","evidence_set_sha256는 서버가 실제 문장/근거판/구간/mapping/규칙판으로 재계산","새판 생성 시 draft로 되돌림"],
+      "read_policy":"본인 작성자+현재 본교 접근+보존정책; 학생 변경 명령 없음",
+      "tests":["SI01: A로 검토 후 head.student_id=B UPDATE 거부","SI06: 근거 동시 정정이 먼저면 검토/출력 실패"]
+    },
+    {
+      "table":"workhub.record_draft_revisions","action":"alter",
+      "columns":[
+        {"name":"ai_run_id","type":"text","nullable":true,"references":"workhub.ai_runs.id","immutable":true,"description":"이 초안판 생성에 사용한 본인 AI 실행; 직접 작성은 NULL"},
+        {"name":"evidence_epoch","type":"bigint","nullable":false,"immutable":true,"description":"생성 당시 확인한 학생 근거 gate epoch"}
+      ],
+      "constraints":["FK(school_id,ai_run_id) REFERENCES workhub.ai_runs(school_id,id)","AI 생성판이면 ai_run_id 필수; 그 실행 owner=초안 author, purpose=record_draft; 직접 작성의 epoch도 현재 gate에서 서버 결정"],
+      "indexes":["(ai_run_id) WHERE ai_run_id IS NOT NULL"],
+      "rules":["생성 당시 근거와 실행을 정확히 추적; 원본이 바뀌면 새 결과를 reviewed로 자동확정하지 않음"],
+      "read_policy":"부모 초안의 현재 본인 접근과 동일",
+      "tests":["AI04: 생성 중 근거변경에 대한 결과 공개 차단","다른 교사 AI 실행을 내 초안판 생성근거로 연결하면 거부"]
+    },
+    {
+      "table":"workhub.record_exports","action":"alter",
+      "columns":[
+        {"name":"student_id","type":"text","nullable":false,"references":"workhub.students.id","immutable":true,"description":"출력 대상 학생 사본"},
+        {"name":"academic_year_id","type":"text","nullable":false,"references":"workhub.academic_years.id","immutable":true,"description":"출력 학년도 사본"},
+        {"name":"area","type":"text","nullable":false,"immutable":true,"description":"초안의 불변 기재영역 사본"},
+        {"name":"subject_id","type":"text","nullable":true,"references":"workhub.subjects.id","immutable":true,"description":"과목 영역인 경우 교과 사본"},
+        {"name":"course_group_id","type":"text","nullable":true,"references":"workhub.course_groups.id","immutable":true,"description":"초안 수업 사본"},
+        {"name":"evidence_epoch","type":"bigint","nullable":false,"immutable":true,"description":"최종 동기 검사 gate epoch"}
+      ],
+      "constraints":["모든 대상 FK는 school 복합 FK","identity 사본이 draft identity와 일치해야 INSERT; 출력 당시 현재판/근거지문/epoch 재검사"],
+      "indexes":["(school_id,draft_id,revision_no)"],
+      "rules":["이미 다운로드된 파일의 회수를 보장하지 않음; 원본 정정 시 영향목록으로 최신성 상실 표시","official_state는 사용자 공식 입력 확인과 구분"],
+      "read_policy":"본인 작성자+현재 원본권한; 다운로드 재발급 시도 동일 재검사",
+      "tests":["SI01: 오염 fixture에서도 다른 학생 근거로 export 거부","SI06: 출력 후 정정은 기존 출력 영향으로 남음"]
+    },
+    {
+      "table":"workhub.participant_mapping_revisions","action":"alter","columns":[],
+      "constraints":["UNIQUE(school_id,mapping_id,revision,student_id)","state=confirmed이면 student_id,enrollment_id,course_membership_id 모두 NOT NULL","기존 school/학생을 포함한 학적·수강 복합 FK 및 owner FK 유지"],
+      "indexes":["(mapping_id,revision DESC)"],
+      "rules":["R05: 최신판을 먼저 선택한 뒤 상태를 검사; 옛 confirmed로 fallback 금지","활동일 학적·해당 수업 수강·승인 교사 담당 필수; current pointer가 최신판보다 뒤처져도 이전판 유효 금지"],
+      "read_policy":"해당 활동의 본인 소유자만","tests":["SI02: A→B→A에도 옛 채택 stale","SI05: 최신판 held와 head 지연에서 v1 사용 거부"]
+    },
+    {
+      "table":"workhub.adoptions","action":"alter",
+      "columns":[
+        {"name":"mapping_id","type":"text","nullable":false,"references":"workhub.participant_mappings.id","immutable":true,"description":"채택 당시 연결 정체성"},
+        {"name":"mapping_revision","type":"integer","nullable":false,"references":"workhub.participant_mapping_revisions.revision","immutable":true,"description":"정확한 교사 확정 연결판"},
+        {"name":"student_id","type":"text","nullable":false,"references":"workhub.students.id","immutable":true,"description":"해당 연결판과 target판에 공통인 학생"}
+      ],
+      "constraints":["FK(school_id,mapping_id,mapping_revision,student_id) REFERENCES workhub.participant_mapping_revisions(school_id,mapping_id,revision,student_id)","기존 받은함 owner 복합 FK·source_item_revision FK 유지","mapping의 활동/참가자/owner=원자료, 학생=target판 학생을 제약 trigger로 강제","R06: classroom origin target판과 사슬 무결성을 양쪽 deferred constraint trigger로 강제"],
+      "indexes":["(mapping_id,mapping_revision)"],
+      "rules":["R05: 정확 mapping판이 바뀌면 stale; 같은 학생 ID라는 이유로 자동 복귀 금지","재확정은 새 target판+새 adoption; 기존 불변판 valid로 복구 금지","사슬 누락 classroom 판은 adoption_chain_stale=true"],
+      "read_policy":"같은 학교·owner의 활동/target만; 관리자 우회 없음",
+      "tests":["SI02: 연결 왕복 뒤 기존 채택 불가","SI03: classroom origin+adoption 0행 확정/출력 불가"]
+    },
+    {
+      "table":"workhub.activity_instances","action":"alter",
+      "columns":[
+        {"name":"question_set_sha256","type":"text","nullable":false,"immutable":true,"description":"당시 질문·선택지 원문 묶음 해시"},
+        {"name":"question_manifest_ref","type":"text","nullable":false,"immutable":true,"description":"서버에 보관한 질문 원문판의 검증된 참조; 임의 URL 실행 금지"}
+      ],
+      "constraints":["school_id,owner_account_id,course_group_id,term_id,activity_date,external_app,question_set_version,question_set_sha256는 원자료 수신 이후 변경 금지"],
+      "indexes":[],"rules":["다른 질문판/활동일은 새 활동 또는 원자료 영향이 포함된 명시적 정정 흐름","교사 승인 수업과 학기·활동일 일치"],
+      "read_policy":"본인 활동만","tests":["SI07: 같은 CSV 다른 활동은 별개","SI08: 질문판 불명/다른 과목 활동 연결 거부"]
+    },
+    {
+      "table":"workhub.source_item_revisions","action":"alter","columns":[],
+      "constraints":["UNIQUE(school_id,created_by_account_id,source_item_id,local_revision)","FK(school_id,created_by_account_id,source_item_id) REFERENCES workhub.source_items(school_id,owner_account_id,id)"],
+      "indexes":["(school_id,source_item_id,local_revision DESC)"],
+      "rules":["정확한 원문판·활동 논리키를 포함한 hash와 삭제 원장 대조","누락 CSV행을 철회로 추정하지 않음; 정정은 교사 연결확인","원본문 삭제 후 최소 tombstone을 남기고 재수신 자동 재생성 금지"],
+      "read_policy":"부모 source_item의 owner 전용; 수신 receipt에 원문 복사 금지",
+      "tests":["SI07: CSV 줄바꿈/BOM/빈답/수식문자 보존","SI08: 삭제된 논리항목 재전송 차단"]
+    },
+    {
+      "table":"workhub.evidence_links","action":"alter","columns":[],
+      "constraints":["평가판 source_sha256도 실제 assessment_revisions.body_sha256와 일치","생기부 문장의 모든 source/consumer school·owner·학생·정확판 일치","span은 원문 Unicode code point 범위·source hash와 일치"],
+      "indexes":["(source_type,source_id,source_revision_no)"],
+      "rules":["INSERT 검사 외 검토/출력에서 같은 계약 반복; 무효 근거의 valid 복귀 금지","다형 FK 대체 검증은 원본 존재/판/삭제 RESTRICT까지 강제","상담·원자료 직접 생기부 근거 금지"],
+      "read_policy":"현재 허용된 작성자 전용; 차단 consumer/source의 링크 메타데이터도 숨김",
+      "tests":["SI01: 머리 변경 오염도 출력에서 거부","SI03: adoption 누락은 직접기록으로 간주하지 않음"]
+    },
+    {
+      "table":"workhub.classroom_connections","action":"add",
+      "columns":[
+        {"name":"id","type":"text","nullable":false,"default":"gen_random_uuid()::text","immutable":true,"description":"외부 수업앱 연결 ID"},
+        {"name":"school_id","type":"text","nullable":false,"references":"workhub.schools.id","immutable":true,"description":"서버가 결정하는 학교"},
+        {"name":"owner_account_id","type":"text","nullable":false,"references":"workhub.accounts.id","immutable":true,"description":"연결 소유 교사"},
+        {"name":"course_group_id","type":"text","nullable":false,"references":"workhub.course_groups.id","immutable":true,"description":"이 연결에 허용된 수업; 다른 수업은 별도 연결"},
+        {"name":"external_app","type":"text","nullable":false,"immutable":true,"description":"허용된 공급 앱 registry key"},
+        {"name":"endpoint_id","type":"text","nullable":false,"description":"승인된 endpoint registry key"},
+        {"name":"credential_ref","type":"text","nullable":false,"description":"서버 비밀 저장소 참조이며 비밀값 아님"},
+        {"name":"state","type":"text","nullable":false,"default":"'paused'","description":"paused/active/revoked"},
+        {"name":"permission_version","type":"bigint","nullable":false,"default":"1","description":"허용 범위 및 연결 권한판"},
+        {"name":"created_at","type":"timestamptz","nullable":false,"default":"now()","immutable":true,"description":"생성시각"}
+      ],
+      "constraints":["PRIMARY KEY(id); UNIQUE(school_id,owner_account_id,id)","FK(school_id,course_group_id) REFERENCES workhub.course_groups(school_id,id)","state CHECK(paused,active,revoked); revoked는 끝 상태"],
+      "indexes":["(school_id,owner_account_id,state)"],
+      "rules":["외부 payload의 school/owner는 권한근거가 아님","수신 시 현재 교사 소속/담당/연결권한 재검사"],
+      "read_policy":"본인 안전 메타데이터만; credential_ref는 서버 전용 열",
+      "tests":["SI08: 연결1 인증으로 학교2 payload 위조 거부","권한 회수 뒤 수신 원문 저장·채택 0"]
+    },
+    {
+      "table":"workhub.classroom_event_receipts","action":"add",
+      "columns":[
+        {"name":"id","type":"text","nullable":false,"default":"gen_random_uuid()::text","immutable":true,"description":"수신 접수증 ID"},
+        {"name":"school_id","type":"text","nullable":false,"references":"workhub.schools.id","immutable":true,"description":"연결에서 결정한 학교"},
+        {"name":"owner_account_id","type":"text","nullable":false,"references":"workhub.accounts.id","immutable":true,"description":"연결에서 결정한 owner"},
+        {"name":"connection_id","type":"text","nullable":false,"references":"workhub.classroom_connections.id","immutable":true,"description":"인증된 연결"},
+        {"name":"event_id","type":"text","nullable":false,"immutable":true,"description":"외부 사건키"},
+        {"name":"external_revision","type":"bigint","nullable":false,"immutable":true,"description":"외부 사건판"},
+        {"name":"event_kind","type":"text","nullable":false,"immutable":true,"description":"upsert/cancel/delete"},
+        {"name":"payload_sha256","type":"text","nullable":false,"immutable":true,"description":"정규화 제한 스키마 payload의 지문"},
+        {"name":"activity_instance_id","type":"text","nullable":false,"references":"workhub.activity_instances.id","immutable":true,"description":"확인된 활동"},
+        {"name":"source_item_id","type":"text","nullable":true,"references":"workhub.source_items.id","description":"적용한 논리항목"},
+        {"name":"local_revision","type":"integer","nullable":true,"references":"workhub.source_item_revisions.local_revision","description":"적용한 내부판"},
+        {"name":"state","type":"text","nullable":false,"default":"'received'","description":"received/held/applied/ignored/blocked"},
+        {"name":"safe_error_code","type":"text","nullable":true,"description":"원문 없는 제한 오류코드"},
+        {"name":"received_at","type":"timestamptz","nullable":false,"default":"now()","immutable":true,"description":"서버 수신시각"}
+      ],
+      "constraints":["PRIMARY KEY(id); UNIQUE(connection_id,event_id,external_revision)","FK(school_id,owner_account_id,connection_id) REFERENCES workhub.classroom_connections(school_id,owner_account_id,id)","FK(school_id,owner_account_id,activity_instance_id) REFERENCES workhub.activity_instances(school_id,owner_account_id,id)","source_item_id/local_revision 동시 존재; FK(school_id,source_item_id,local_revision) REFERENCES workhub.source_item_revisions(school_id,source_item_id,local_revision)","external_revision>0"],
+      "indexes":["(connection_id,state,received_at)"],
+      "rules":["같은키 다른지문 conflict, 역전은 held/ignored이며 최신판 되돌리지 않음","원문을 receipt에 저장하지 않음; 삭제 원장 먼저 대조"],
+      "read_policy":"본인 안전 수신상태만; 서버 전용 쓰기",
+      "tests":["SI08: 중복/역전/취소/삭제재수신/학교위조"]
+    },
+    {
+      "table":"workhub.knowledge_documents","action":"alter",
+      "columns":[{"name":"visibility","type":"text","nullable":false,"description":"school/audience/private/common; 이관 시 명시적으로 판정"}],
+      "constraints":["scope=common iff visibility=common","visibility=audience iff audience_set_id IS NOT NULL; school/private는 audience NULL"],
+      "indexes":["(scope_key,visibility,state)"],
+      "rules":["private 학교 원문은 proposed_by_account_id만; 관리자가 자동 공개하지 않음","공통 게시/파기는 현재 operator_grants의 action 검사"],
+      "read_policy":"scope와 ACL 먼저; private 본인, audience 승인대상, school 현재소속, common 게시/공개등급",
+      "tests":["AI01: 다른 학교/사적원문 검색 0","AI14: 운영자등록만으로 common 게시 불가"]
+    },
+    {
+      "table":"workhub.knowledge_chunks","action":"alter",
+      "columns":[{"name":"body_sha256","type":"text","nullable":false,"immutable":true,"description":"원문 구간의 서버 해시"}],
+      "constraints":["UNIQUE(scope_key,id)","scope_key,revision_id,seq,location,body,body_sha256 불변; 삭제 전용 본문 파기 예외"],
+      "indexes":[],"rules":["검색 결과 반환 직전 원본판 게시/효력/ACL/차단 재검사"],
+      "read_policy":"브라우저 직접 본문조회 없음; ACL 선필터 검색 RPC만",
+      "tests":["AI01: chunk와 다른 revision 혼합 저장 거부","원본 철회 직후 오래된 검색캐시에서 본문 0"]
+    },
+    {
+      "table":"workhub.conversations","action":"alter",
+      "columns":[{"name":"origin_membership_id","type":"text","nullable":true,"references":"workhub.memberships.id","immutable":true,"description":"학교 대화를 생성한 소속; 개인 대화는 NULL"}],
+      "constraints":["scope=school iff origin_membership_id IS NOT NULL","FK(school_id,origin_membership_id,owner_account_id) REFERENCES workhub.memberships(school_id,id,account_id)","scope,school_id,owner_account_id,origin_membership_id 불변"],
+      "indexes":["(owner_account_id,origin_membership_id,updated_at DESC)"],
+      "rules":["재임용 새 membership으로 과거 대화 자동 재열람/자동이관 금지","개인 대화에 학교 원문/학생자료 연결 금지"],
+      "read_policy":"본인+생성 소속이 현재 유효+학교/자료 유효; 개인은 승인된 개인 이용자격",
+      "tests":["AI03: 소속 종료→같은학교 재임용 후 옛 대화 0","AI02: 개인 대화의 학교자료 인용 거부"]
+    },
+    {
+      "table":"workhub.ai_policy_versions","action":"add",
+      "columns":[
+        {"name":"id","type":"text","nullable":false,"default":"gen_random_uuid()::text","immutable":true,"description":"승인된 AI 실행 정책판"},
+        {"name":"provider","type":"text","nullable":false,"default":"'anthropic'","immutable":true,"description":"Claude 공급자"},
+        {"name":"model_identifier","type":"text","nullable":false,"immutable":true,"description":"승인된 서버 모델식별자; 임의 기본값 없음"},
+        {"name":"prompt_template_ref","type":"text","nullable":false,"immutable":true,"description":"서버 제한 저장소 프롬프트판 참조"},
+        {"name":"prompt_sha256","type":"text","nullable":false,"immutable":true,"description":"프롬프트판 지문; 원문 아님"},
+        {"name":"tool_registry_version","type":"text","nullable":false,"immutable":true,"description":"도구수준과 schema 고정판"},
+        {"name":"allowed_data_categories","type":"text[]","nullable":false,"immutable":true,"description":"전송 승인된 데이터 종류 목록"},
+        {"name":"limits","type":"jsonb","nullable":false,"immutable":true,"description":"승인된 토큰/호출/예산 제한; 값 임의 확정 금지"},
+        {"name":"cache_policy_ref","type":"text","nullable":false,"immutable":true,"description":"승인된 캐싱 정책판"},
+        {"name":"pricing_reference","type":"text","nullable":false,"immutable":true,"description":"승인 단가/비용 귀속 기준판"},
+        {"name":"approved_by_account_id","type":"text","nullable":false,"references":"workhub.accounts.id","immutable":true,"description":"현재 승인권한으로 확정한 사람"},
+        {"name":"approval_ref","type":"text","nullable":false,"immutable":true,"description":"승인 근거"},
+        {"name":"approved_at","type":"timestamptz","nullable":false,"immutable":true,"description":"승인 시각"},
+        {"name":"effective_from","type":"timestamptz","nullable":false,"immutable":true,"description":"시행 시작"},
+        {"name":"effective_to","type":"timestamptz","nullable":true,"description":"시행 종료"},
+        {"name":"state","type":"text","nullable":false,"default":"'approved'","description":"approved/suspended/retired"}
+      ],
+      "constraints":["PRIMARY KEY(id); provider='anthropic'","effective_to IS NULL OR effective_to>effective_from","정책 내용 변경은 새판; 중단/종료만 허용"],
+      "indexes":["(state,effective_from,effective_to)"],
+      "rules":["정책 승인/변경은 별도 권한과 승인 절차","원문 prompt·API key 저장 금지"],
+      "read_policy":"서버 전용 정책 원문; 사용자/지원에는 승인된 안전 메타데이터만",
+      "tests":["AI13: 클라이언트/로그에 시스템 prompt 없음","정책 없음/미시행/중단 상태 실행 거부"]
+    },
+    {
+      "table":"workhub.ai_runs","action":"alter",
+      "columns":[
+        {"name":"origin_membership_id","type":"text","nullable":true,"references":"workhub.memberships.id","immutable":true,"description":"학교 실행 생성 소속"},
+        {"name":"policy_version_id","type":"text","nullable":false,"references":"workhub.ai_policy_versions.id","immutable":true,"description":"승인된 실제 실행 정책판"},
+        {"name":"job_id","type":"text","nullable":true,"references":"workhub.jobs.id","immutable":true,"description":"비동기 실행을 소유한 동일 scope 작업"}
+      ],
+      "constraints":["scope=school iff origin_membership_id IS NOT NULL","FK(school_id,origin_membership_id,owner_account_id) REFERENCES workhub.memberships(school_id,id,account_id)","FK(scope_key,job_id) REFERENCES workhub.jobs(scope_key,id)","conversation이 있으면 scope/owner/origin_membership 일치 제약 trigger","status CHECK에 queued,indeterminate,cancel_requested 추가; 종료시각 CHECK도 이에 맞춤"],
+      "indexes":[],
+      "rules":["모델/프롬프트/도구판 사본은 policy_version과 일치","성공 결과 공개 전에 현재 소속/정책/근거 gate 재검사"],
+      "read_policy":"본인+원생성소속 현재유효; job/result가 권한 우회 통로가 아님",
+      "tests":["AI03: 재임용으로 옛 실행 자동접근 불가","AI04: 입력판 바뀌면 자동 확정 불가"]
+    },
+    {
+      "table":"workhub.ai_run_sources","action":"add",
+      "columns":[
+        {"name":"id","type":"text","nullable":false,"default":"gen_random_uuid()::text","immutable":true,"description":"실행 근거 ID"},
+        {"name":"scope_key","type":"text","nullable":false,"immutable":true,"description":"실행 scope"},
+        {"name":"school_id","type":"text","nullable":true,"references":"workhub.schools.id","immutable":true,"description":"학교 실행일 때만 학교"},
+        {"name":"run_id","type":"text","nullable":false,"references":"workhub.ai_runs.id","immutable":true,"description":"사용한 AI 실행"},
+        {"name":"owner_account_id","type":"text","nullable":false,"references":"workhub.accounts.id","immutable":true,"description":"실행 소유자; 공유문서 저자와는 다름"},
+        {"name":"kind","type":"text","nullable":false,"immutable":true,"description":"knowledge_revision/knowledge_chunk/document_revision/observation_revision/assessment_revision/source_item_revision"},
+        {"name":"knowledge_revision_scope_key","type":"text","nullable":true,"immutable":true,"description":"지식판 전체를 선택했을 때만 정확한 범위"},
+        {"name":"knowledge_chunk_scope_key","type":"text","nullable":true,"immutable":true,"description":"지식chunk를 선택했을 때만 정확한 범위"},
+        {"name":"knowledge_revision_id","type":"text","nullable":true,"references":"workhub.knowledge_revisions.id","immutable":true,"description":"지식판 전체를 인용할 때만"},
+        {"name":"knowledge_chunk_id","type":"text","nullable":true,"references":"workhub.knowledge_chunks.id","immutable":true,"description":"chunk를 인용할 때만; revision은 chunk에서 파생"},
+        {"name":"document_id","type":"text","nullable":true,"references":"workhub.documents.id","immutable":true,"description":"문서판 머리 ID"},
+        {"name":"document_revision_no","type":"integer","nullable":true,"references":"workhub.document_revisions.revision_no","immutable":true,"description":"정확한 문서판"},
+        {"name":"observation_id","type":"text","nullable":true,"references":"workhub.observations.id","immutable":true,"description":"관찰판 머리 ID"},
+        {"name":"observation_revision_no","type":"integer","nullable":true,"references":"workhub.observation_revisions.revision_no","immutable":true,"description":"정확한 관찰판"},
+        {"name":"assessment_id","type":"text","nullable":true,"references":"workhub.assessments.id","immutable":true,"description":"평가판 머리 ID"},
+        {"name":"assessment_revision_no","type":"integer","nullable":true,"references":"workhub.assessment_revisions.revision_no","immutable":true,"description":"정확한 평가판"},
+        {"name":"source_item_id","type":"text","nullable":true,"references":"workhub.source_items.id","immutable":true,"description":"원자료 머리 ID"},
+        {"name":"source_local_revision","type":"integer","nullable":true,"references":"workhub.source_item_revisions.local_revision","immutable":true,"description":"정확한 원자료판"},
+        {"name":"source_sha256","type":"text","nullable":false,"immutable":true,"description":"사용 당시 원본판 해시"},
+        {"name":"locator","type":"jsonb","nullable":false,"immutable":true,"description":"원문 위치/구간의 제한 스키마; 원문 없음"},
+        {"name":"locator_sha256","type":"text","nullable":false,"immutable":true,"description":"서버가 정규화된 locator로 계산한 고유성 비교 지문"},
+        {"name":"authority_version","type":"bigint","nullable":false,"immutable":true,"description":"사용 당시 접근권한판"},
+        {"name":"evidence_epoch","type":"bigint","nullable":true,"immutable":true,"description":"학생 근거이면 필수인 owner gate epoch"},
+        {"name":"state","type":"text","nullable":false,"default":"'active'","description":"active/stale/withdrawn/blocked"},
+        {"name":"invalidated_at","type":"timestamptz","nullable":true,"description":"무효화 시각"},
+        {"name":"invalid_reason","type":"text","nullable":true,"description":"본문 없는 사유 코드"},
+        {"name":"created_at","type":"timestamptz","nullable":false,"default":"now()","immutable":true,"description":"근거 확정 시각"}
+      ],
+      "constraints":["PRIMARY KEY(id)","FK(scope_key,run_id,owner_account_id) REFERENCES workhub.ai_runs(scope_key,id,owner_account_id)","kind별 정확히 한 원본 ID묶음; 모든 ID+revision 쌍은 동시존재 CHECK","knowledge_revision: FK(knowledge_revision_scope_key,knowledge_revision_id) MATCH FULL REFERENCES workhub.knowledge_revisions(scope_key,id)","knowledge_chunk: FK(knowledge_chunk_scope_key,knowledge_chunk_id) MATCH FULL REFERENCES workhub.knowledge_chunks(scope_key,id)","선택하지 않은 지식 scope/ID 쌍은 둘 다 NULL","FK(scope_key,document_id,document_revision_no) REFERENCES workhub.document_revisions(scope_key,document_id,revision_no)","FK(school_id,owner_account_id,observation_id,observation_revision_no) REFERENCES workhub.observation_revisions(school_id,created_by_account_id,observation_id,revision_no)","FK(school_id,owner_account_id,assessment_id,assessment_revision_no) REFERENCES workhub.assessment_revisions(school_id,created_by_account_id,assessment_id,revision_no)","FK(school_id,owner_account_id,source_item_id,source_local_revision) REFERENCES workhub.source_item_revisions(school_id,created_by_account_id,source_item_id,local_revision)","학생 kind이면 school_id/evidence_epoch NOT NULL; 모든 행의 school_id는 run.school_id와 IS NOT DISTINCT FROM","locator_sha256는 서버 정규화 locator 해시와 일치"],
+      "indexes":["(run_id)","종류별 정확한 원본 ID/판 partial index","(scope_key,owner_account_id,state)","UNIQUE(run_id,knowledge_revision_id,locator_sha256) WHERE kind='knowledge_revision'","UNIQUE(run_id,knowledge_chunk_id,locator_sha256) WHERE kind='knowledge_chunk'","UNIQUE(run_id,document_id,document_revision_no,locator_sha256) WHERE kind='document_revision'","UNIQUE(run_id,observation_id,observation_revision_no,locator_sha256) WHERE kind='observation_revision'","UNIQUE(run_id,assessment_id,assessment_revision_no,locator_sha256) WHERE kind='assessment_revision'","UNIQUE(run_id,source_item_id,source_local_revision,locator_sha256) WHERE kind='source_item_revision'"],
+      "rules":["학생자료는 school 전용이고 상담kind 없음; record_draft purpose는 source_item 직접근거 불가","지식은 본교/common, 개인 실행은 common만","원본 ACL/철회/판/해시 매회 재검사; 무효행 재활성화 금지","같은 학교 재임용 새대화에서 과거 본인 학생 근거는 별도 접근정책 통과시만 허용"],
+      "read_policy":"실행 주인+현재 실행/원본 접근 모두 허용; 원문 복제 없음",
+      "tests":["AI01: 타인/타교/혼합revision 거부","AI02: 개인범위 학생근거 거부","AI04: 정정과 결과공개 경합"]
+    },
+    {
+      "table":"workhub.tool_proposals","action":"alter",
+      "columns":[
+        {"name":"origin_membership_id","type":"text","nullable":true,"references":"workhub.memberships.id","immutable":true,"description":"실행자 원생성 소속"},
+        {"name":"permission_version","type":"bigint","nullable":false,"immutable":true,"description":"확인 카드 발급 권한판"},
+        {"name":"affected_subjects_sha256","type":"text","nullable":false,"immutable":true,"description":"실제 영향 대상 묶음의 서버 해시"},
+        {"name":"tool_registry_version","type":"text","nullable":false,"immutable":true,"description":"도구 수준/schema의 승인 고정판"}
+      ],
+      "constraints":["origin 소속=run origin; actor=run owner","payload/대상판/영향/registry/주체/기한은 생성 후 불변"],
+      "indexes":[],"rules":["확인/실행 때 권한·영향·기대판·도구수준을 서버가 재계산","불명확 실행은 claimed/succeeded와 같은 단일 실행 유일성에 포함"],
+      "read_policy":"실행자 본인+현재 원생성 접근; 다른 사람 확인 불가",
+      "tests":["AI05: 확인 이후 대상/권한/영향 바뀌면 쓰기0","동시 제안 실행에서 실제 명령1"]
+    },
+    {
+      "table":"workhub.memories","action":"alter",
+      "columns":[{"name":"origin_membership_id","type":"text","nullable":true,"references":"workhub.memberships.id","immutable":true,"description":"학교 기억의 생성 소속; 개인은 NULL"}],
+      "constraints":["scope=school iff origin_membership_id IS NOT NULL","FK(school_id,origin_membership_id,owner_account_id) REFERENCES workhub.memberships(school_id,id,account_id)","scope/school/owner/origin 불변"],
+      "indexes":[],
+      "rules":["usable_memories에서 생성소속·현재출처 ACL/판·만료 모두 재검사","학교자료를 개인 기억으로 자동복사 금지; 정정/철회/전출/삭제 시 즉시 사용차단","학생 성향/위험 추정 자동 장기기억 금지"],
+      "read_policy":"본인+생성소속 유효+원본 접근; 지원자 우회 없음",
+      "tests":["AI03: 재임용 때 옛기억 자동 복구0","AI12: 원문파기시 복제기억도 대상"]
+    },
+    {
+      "table":"workhub.jobs","action":"alter",
+      "columns":[
+        {"name":"scope_key","type":"text","nullable":false,"default":null,"generated":"s","generated_expression":"CASE scope WHEN 'school' THEN 's:' || school_id WHEN 'account_private' THEN 'a:' || owner_account_id WHEN 'common' THEN 'c' WHEN 'service' THEN 'svc' ELSE NULL END","immutable":true,"description":"저장 생성 열; 기존 ELSE c 식을 교체하고 service를 svc로 구분"},
+        {"name":"origin_membership_id","type":"text","nullable":true,"references":"workhub.memberships.id","immutable":true,"description":"학교 사람 작업의 요청 소속; 서비스 작업은 NULL"}
+      ],
+      "constraints":["scope CHECK(school,account_private,common,service); scope_key 생성식 s:<school>/a:<owner>/c/svc","school iff school_id IS NOT NULL; 사람 학교작업 iff origin_membership_id IS NOT NULL","owner_account_id와 service_principal_id 정확히 하나; account_private에 서비스principal 금지","FK(school_id,origin_membership_id,owner_account_id) REFERENCES workhub.memberships(school_id,id,account_id)"],
+      "indexes":[],
+      "rules":["R11: actor NULL=허용 분기 제거; principal active/action/current scope grant 검사","B01의 검증된 DB 실행 identity→승인 service_principal 결합이 선행; 호출자 인자/GUC/worker_id로 주체 선택 금지","생성/claim/heartbeat/외부시작/finish/domain publish에서 실제 gate 잠금과 최신검사; 사람 원요청 권한과 실제 worker 권한을 각각 검증","R12: request_started/unknown 외부 단계가 있는 만료 running은 직접 재claim 금지","actor/권한gate를 job행보다 먼저 잠금; 원요청/입력/scope 불변","새membership 재임용에 이전작업 자동재개 금지","순수개인 승인파기만 service deletion_process+단일계정 승인 deletion_ledger/불변manifest/현재grant로 자료scope예외; school파기는항상school"],
+      "read_policy":"본인 현재 원생성 접근의 안전 요약만; service 작업은 허용된 운영 메타데이터만",
+      "tests":["AI06/07: 비활성·다른action/scope·회수경합","AI08/09: 외부시작후 lease만료 즉시claim 거부","AI10: 옛token 공개 거부"]
+    },
+    {
+      "table":"workhub.job_attempts","action":"alter","columns":[],
+      "constraints":["UNIQUE(job_id,attempt_no,lease_token)"],
+      "indexes":[],
+      "rules":["external_request_id는 호환 요약이며 외부 단계 원장은 job_external_calls","lease_lost는 외부호출 failed를 의미하지 않음","사용자가 attempt 상태를 직접 바꾸지 않음"],
+      "read_policy":"서버 전용; 요청자에게 원문 없는 실행요약 DTO만",
+      "tests":["AI08: 재인수 차단 시 이전 외부unknown 사실 보존","AI10: 이전lease 결과 확정 거부"]
+    },
+    {
+      "table":"workhub.job_external_calls","action":"add",
+      "columns":[
+        {"name":"id","type":"text","nullable":false,"default":"gen_random_uuid()::text","immutable":true,"description":"외부 효과 실행 ID"},
+        {"name":"scope_key","type":"text","nullable":false,"immutable":true,"description":"작업과 동일 scope"},
+        {"name":"job_id","type":"text","nullable":false,"references":"workhub.jobs.id","immutable":true,"description":"실행 작업"},
+        {"name":"attempt_no","type":"integer","nullable":false,"references":"workhub.job_attempts.attempt_no","immutable":true,"description":"해당 내부 시도번호"},
+        {"name":"lease_token","type":"bigint","nullable":false,"references":"workhub.job_attempts.lease_token","immutable":true,"description":"외부시작을 허용받은 토큰"},
+        {"name":"call_key","type":"text","nullable":false,"immutable":true,"description":"작업 내 논리 외부호출 키"},
+        {"name":"provider","type":"text","nullable":false,"immutable":true,"description":"승인 공급자"},
+        {"name":"operation","type":"text","nullable":false,"immutable":true,"description":"허용된 외부 동작"},
+        {"name":"request_sha256","type":"text","nullable":false,"immutable":true,"description":"요청지문; 본문 없음"},
+        {"name":"state","type":"text","nullable":false,"default":"'prepared'","description":"prepared/request_started/response_received/unknown/confirmed_not_run/confirmed_succeeded/cancelled"},
+        {"name":"started_at","type":"timestamptz","nullable":true,"description":"실제 호출 직전 별도트랜잭션으로 확정한 시작"},
+        {"name":"provider_request_id","type":"text","nullable":true,"description":"공급자가 알려준 요청번호; 모르면 NULL"},
+        {"name":"safe_result_ref","type":"jsonb","nullable":true,"description":"operation registry의 kind/scope_key/불변 ID·판 또는 최소 receipt; 첫 보관 뒤 불변; 원문/비밀/서명URL 금지"},
+        {"name":"result_sha256","type":"text","nullable":true,"description":"실물 또는 정규화 최소 receipt 지문; 첫 보관 뒤 불변"},
+        {"name":"result_bytes","type":"bigint","nullable":true,"description":"실물 결과 operation에서 필수인 검증된 보관 바이트 수; 첫 보관 뒤 불변"},
+        {"name":"finished_at","type":"timestamptz","nullable":true,"description":"응답/확인 완료시각"},
+        {"name":"safe_error_code","type":"text","nullable":true,"description":"원문 없는 오류코드"},
+        {"name":"resolution_ref","type":"text","nullable":true,"description":"불명확 결과 사후확인의 근거"},
+        {"name":"resolved_by_account_id","type":"text","nullable":true,"references":"workhub.accounts.id","description":"사후확인 권한을 가진 사람"}
+      ],
+      "constraints":["PRIMARY KEY(id); UNIQUE(job_id,call_key)","FK(scope_key,job_id) REFERENCES workhub.jobs(scope_key,id)","FK(job_id,attempt_no,lease_token) REFERENCES workhub.job_attempts(job_id,attempt_no,lease_token)","UNIQUE(provider,operation,provider_request_id) WHERE provider_request_id IS NOT NULL","confirmed_not_run/confirmed_succeeded는 resolution_ref와 실제 확인주체 필수","response_received이면 safe_result_ref/result_sha256/finished_at NOT NULL; 결과 보관과 상태를 같은 트랜잭션에서 확정","result_sha256는 NULL 또는 64자리 소문자 16진수; result_bytes는 NULL 또는 >=0","safe_result_ref의 등록 kind/동일 scope/정확한 불변 ID·판/실물존재/hash를 operation 처리기로 검증; 실물 operation은 result_bytes NOT NULL","safe_result_ref/result_sha256/result_bytes 첫 보관 뒤 일반 UPDATE 불변; 승인 lifecycle 파기 예외는 공개·재개 차단 및 tombstone 유지"],
+      "indexes":["(job_id,state)","(state,started_at) WHERE state IN ('request_started','unknown')"],
+      "rules":["R12: 전송 전에 request_started 커밋; ID미수신 crash도 unknown","응답 수신 후 영속 결과 참조/hash 원자 보관 전 crash는 unknown; response_received 선행 커밋 금지","결과본문 없는 operation도 registry 최소 receipt와 정규화 지문을 동일 scope에 원자 저장; 개인 승인파기 예외는 svc receipt에서 제한 manifest 메타만 참조","실물 결과는 보관/hash/bytes 확인을 먼저 마친 뒤 DB 참조와 상태를 원자 commit; commit 전 고아 실물은 정리 대상이며 재호출 허가가 아님","unknown이면 자동재호출 금지; 사후확인만 terminal로 전이","response_received는 저장 결과를 재검증해 공급자 재호출 없이 domain finalize만 재개; 원본 결과 분실/파기시 결과 불가로 차단","현재 lease로 시작하고 늦은응답은 사실보완으로만 허용; 옛token domain 확정금지"],
+      "read_policy":"서버전용; 요청자에게 안전한 결과불명확 상태만",
+      "tests":["AI08: 외부요청번호있는 만료작업 claim 거부","AI09: request ID 없는 crash도 재호출0","AI10: 늦은응답으로 권한회수 우회불가"]
+    },
+    {
+      "table":"workhub.usage_events","action":"alter",
+      "columns":[
+        {"name":"input_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: NULL미확인,0실제0"},
+        {"name":"output_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: 공급자가 보고한 출력량"},
+        {"name":"cache_read_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: 미확인과0분리"},
+        {"name":"cache_write_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: 미확인과0분리"},
+        {"name":"external_call_id","type":"text","nullable":true,"references":"workhub.job_external_calls.id","immutable":true,"description":"비동기 외부 호출과 연결"},
+        {"name":"attempt_no","type":"integer","nullable":false,"immutable":true,"description":"공급자 호출 시도번호"},
+        {"name":"provider_request_id","type":"text","nullable":true,"description":"실제 공급자 요청번호"},
+        {"name":"metering_state","type":"text","nullable":false,"default":"'unknown'","description":"unknown/estimated/reported"},
+        {"name":"pricing_reference","type":"text","nullable":false,"immutable":true,"description":"승인단가·귀속 기준판"},
+        {"name":"currency","type":"text","nullable":true,"description":"확인된 비용통화; 임의기본값 없음"},
+        {"name":"cost_amount","type":"numeric","nullable":true,"description":"확인/추정 비용; 미확인 NULL"},
+        {"name":"event_kind","type":"text","nullable":false,"default":"'measurement'","immutable":true,"description":"measurement/adjustment"},
+        {"name":"adjusts_usage_event_id","type":"bigint","nullable":true,"references":"workhub.usage_events.id","immutable":true,"description":"명시적 비용정정 원측정"},
+        {"name":"measurement_key","type":"text","nullable":false,"immutable":true,"description":"공급자 보고/조정의 멱등키"}
+      ],
+      "constraints":["UNIQUE(scope_key,measurement_key)","원측정/외부호출 scope 일치 trigger; adjustment만 adjusts_usage_event_id 필수","토큰은 NULL 또는>=0; unknown은 보고된 실제0으로 위장 금지"],
+      "indexes":["(external_call_id)","(charge_school_id,occurred_at)"],
+      "rules":["unknown/estimated→reported 단방향 보완; reported 수정은 명시적 adjustment","집계는 원측정+명시적조정 계약; 원문/prompt/키 금지"],
+      "read_policy":"본인 실행 안전요약, 학교담당자는 비용합계만; 학생별 사용내역 노출 금지",
+      "tests":["AI11: timeout NULL과reported0구분; 중복 보고 비용2배 방지"]
+    },
+    {
+      "table":"workhub.idempotency_receipts","action":"alter",
+      "columns":[
+        {"name":"actor_account_id","type":"text","nullable":true,"references":"workhub.accounts.id","immutable":true,"description":"사람 actor; 서비스일 때 NULL"},
+        {"name":"actor_service_principal_id","type":"text","nullable":true,"references":"workhub.service_principals.id","immutable":true,"description":"서비스 actor; 사람일 때 NULL"},
+        {"name":"actor_key","type":"text GENERATED ALWAYS AS (CASE WHEN actor_account_id IS NOT NULL THEN 'a:'||actor_account_id ELSE 's:'||actor_service_principal_id END) STORED","nullable":false,"immutable":true,"description":"사람/서비스 ID 충돌 없는 키"}
+      ],
+      "constraints":["기존 actor_account_id 기반 PK를 PRIMARY KEY(actor_key,scope_key,operation,idem_key)로 교체","num_nonnulls(actor_account_id,actor_service_principal_id)=1","request_sha256 불변; 같은키 다른payload conflict"],
+      "indexes":[],
+      "rules":["기존 rows의 키 대조·멱등회귀 후 전환; 운영자료 직접변경 지시 아님","재응답 시 현재 actor/scope/original resource 권한 검사","request_sha256은 클라이언트 의도의 결정적 정규화이며 명시 확인판을 포함; 서버가 최초 선택한 정책·근거판은 해당 원본 revision 또는 실행 snapshot에 고정하고 receipt의 resource/판으로 추적. 현재 정책 변경을 과거 동일키 재요청 해시에 끼워 넣지 않는다","result는 ID/판/시각만; 원문/명단/서명URL 저장 금지"],
+      "read_policy":"브라우저 직접조회 금지; 명령별 현재권한을 통과한 안전 재응답",
+      "tests":["AI06: 비활성서비스는 과거receipt 재조회도 거부","같은 요청 재시도 domain write1/다른payload conflict"]
+    },
+    {
+      "table":"workhub.audit_events","action":"alter",
+      "columns":[
+        {"name":"scope_key","type":"text","nullable":false,"immutable":true,"description":"school/account_private/common/service의 검증된 s:/a:/c/svc 키"},
+        {"name":"job_id","type":"text","nullable":true,"references":"workhub.jobs.id","immutable":true,"description":"업무를 수행한 작업; 같은scope"},
+        {"name":"worker_id","type":"text","nullable":true,"immutable":true,"description":"실제 worker 식별; 원요청자와 구별"}
+      ],
+      "constraints":["actor_account_id/actor_service_principal_id XOR 정확히1; 기존 <=1 CHECK 교체","actor_membership은 같은 학교·계정; support_session 실제 지원자 일치","FK(scope_key,job_id) REFERENCES workhub.jobs(scope_key,id)"],
+      "indexes":["(scope_key,occurred_at,id)"],
+      "rules":["학생/평가/원자료/AI private 종류는 owner_only; 관리자 COUNT 우회불가","details는 제한 코드/ID/판만, 변경전후 원문snapshot 금지","지원은 실제지원자, 서비스는 실제principal로 기록; 타인주체 가장금지","B01 공통 write_audit(context)가 검증된 DB identity/현재 요청·worker context에서 실제 actor를 파생; 공개 인자나 GUC만으로 principal 선택 금지","사람 원요청자와 실제 worker는 별도로 검증·기록; 서비스 actor는 B01 identity→principal 결합 및 현재 action/scope 검사 필수","모든 명령은 domain/판/receipt/필수audit/outbox를 같은 트랜잭션에 저장; 감사 실패 무시·빈 actor fallback 금지"],
+      "read_policy":"민감도와 실제 원본/주체 정책의 교집합; 권한이 없던 본문을 audit가 새로 제공하지 않음",
+      "tests":["AI13: 원문/prompt/키 없고 실제actor존재","서비스actor와 사람actor동시 또는둘다NULL거부"]
+    },
+    {
+      "table":"workhub.outbox","action":"alter",
+      "columns":[
+        {"name":"scope_key","type":"text","nullable":false,"immutable":true,"description":"사건원본의 검증된 s:/a:/c/svc 범위"},
+        {"name":"lease_token","type":"bigint","nullable":false,"default":"0","description":"선점마다 증가하는 전송토큰"}
+      ],
+      "constraints":["lease_token>=0; 선점시단조증가; 기존 dedupe_key UNIQUE 유지","원본종류별 scope/schema 검사; scope_key와school_id일치"],
+      "indexes":["(state,next_attempt_at,id) WHERE state IN ('pending','failed')"],
+      "rules":["원본변경과 같은DB트랜잭션 INSERT","옛lease 소비자 결과확정 거부; 수신측 사건키멱등","payload는 ID/판/종류만; 회수뒤 늦은사건이 명단/원문을 복원하지 않음"],
+      "read_policy":"서버전용; 사용자에게 해당업무의 안전상태만",
+      "tests":["AI12: 삭제 뒤 늦은검색/알림 사건으로 본문재생성0","AI10: 오래된전송worker확정거부"]
+    }
+  ]
+}

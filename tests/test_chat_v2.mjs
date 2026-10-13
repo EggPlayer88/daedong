@@ -1,9 +1,9 @@
 // chat.js v2 — 프롬프트 조립(고정부 + 상수 + manifest v2) 검증
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const { SYSTEM_PROMPT: P, manifest: M, constants: C } = mod
 
 let fail = 0

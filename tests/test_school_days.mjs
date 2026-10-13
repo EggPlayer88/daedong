@@ -1,3 +1,4 @@
+import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 // 수업일수·시수 파생 (모듈 C-2) — 캘린더가 계산의 원천이다.
 //
 // 여기서 고정하는 것:
@@ -296,13 +297,7 @@ console.log('\n[화면이 실제로 그려지는가]')
 //    view 는 컴포넌트 내부 상태라 서버 렌더에서 'hours' 로 넘길 수 없다 —
 //    표 자체의 값은 위 순수 함수 테스트가 지킨다.
 {
-  const { execFileSync } = await import('node:child_process')
-  const { mkdtempSync, rmSync, writeFileSync } = await import('node:fs')
-  const { tmpdir } = await import('node:os')
-  const work = mkdtempSync(join(tmpdir(), 'sd-'))
-  // ⚠ 진입점은 repo 안에 둬야 한다 — tmpdir 에 두면 node_modules 를 못 찾는다
-  const entry = join(ROOT, 'tests', '.sd-entry.jsx')
-  writeFileSync(entry, `
+  const { render } = await loadBrowserModule(`
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter } from 'react-router-dom'
 import CalendarPage from '../apps/main/src/pages/CalendarPage.jsx'
@@ -314,18 +309,7 @@ export function render(profile) {
     </AuthContext.Provider>
   )
 }
-`)
-  const bundle = join(work, 'b.cjs')
-  try {
-    execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
-      entry, '--bundle', '--platform=node', '--format=cjs', '--jsx=automatic', '--loader:.jsx=jsx',
-      '--define:import.meta.env={"MODE":"test","VITE_SUPABASE_URL":"http://x","VITE_SUPABASE_ANON_KEY":"k"}',
-      `--outfile=${bundle}`, '--log-level=error',
-    ])
-  } finally {
-    rmSync(entry, { force: true })
-  }
-  const { render } = await import(bundle)
+`, { env: { MODE: 'test', VITE_SUPABASE_URL: 'http://x', VITE_SUPABASE_ANON_KEY: 'k' } })
   const html = render({ id: 's', role: 'superadmin', is_active: true })
   ck('페이지가 그려지고 수업일수·시수 탭이 있다', () => {
     A(html.includes('수업일수·시수'), '탭이 없다')
@@ -335,7 +319,6 @@ export function render(profile) {
     // term 이 null 인 첫 렌더 — 파생 표는 계산하지 않고 넘어가야 한다
     A(html.length > 500, `렌더 결과가 너무 짧다: ${html.length}`)
   })
-  rmSync(work, { recursive: true, force: true })
 }
 
 console.log()

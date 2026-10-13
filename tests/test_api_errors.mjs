@@ -10,11 +10,11 @@
 //   · 그러면서 **상태 코드는 남는다** — 다음에 같은 일이 나면 504(시간 초과)인지
 //     500(크래시)인지 로그 없이도 갈린다. 조용히 삼키면 추적이 처음으로 돌아간다
 //   · 서버가 JSON 으로 답한 실패(400·403·409)는 던지지 않고 호출부로 넘어간다
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const { postJson, ApiError } = await import(`${ROOT}/apps/main/src/lib/api.js`)
+const { postJson, ApiError } = await import(pathToFileURL(`${ROOT}/apps/main/src/lib/api.js`).href)
 
 let fail = 0
 const ck = (n, fn) =>

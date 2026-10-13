@@ -10,11 +10,11 @@
 //   2. 출력이 교과 크기와 무관하다 — carry JSON 길이가 팩 크기에 비례하지 않는다
 //   3. 못 펼친 참조를 **조용히 버리지 않는다** (제0원칙)
 //   4. perf_plans 는 계승 대상이 아니다 (구조화된 원본이 없다 — 있는 척하지 않는다)
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const mod = await import(`${ROOT}/apps/main/api/doc-ai/chat.js`)
+const mod = await import(pathToFileURL(`${ROOT}/apps/main/api/doc-ai/chat.js`).href)
 const {
   prefillIndex, buildPrefillDoc, buildCarryDoc, carryable,
   expandCarry, expandReply, parseCarryPath, CARRY_SOURCES, manifest: M,

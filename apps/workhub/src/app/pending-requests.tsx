@@ -1,0 +1,62 @@
+import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
+import type { CalendarEvent, Membership, SaveCommand } from '../contracts'
+import type { PersonalTask, TaskCommand } from '../tasks/contracts'
+
+export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask }
+export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
+type Requests = { task: TaskRecovery; calendar: CalendarRecovery }
+type Listener = () => void
+
+// 결과 미확정 명령만 현재 탭 메모리에 둔다. 새로고침·로그아웃 후 복구 저장소로 쓰지 않는다.
+export function createPendingRequests() {
+  const entries = new Map<string, TaskRecovery | CalendarRecovery>()
+  const listeners = new Set<Listener>()
+  const notify = () => { for (const listener of listeners) listener() }
+  return {
+    subscribe(listener: Listener) { listeners.add(listener); return () => { listeners.delete(listener) } },
+    get<T extends keyof Requests>(scope: string, kind: T): Requests[T] | undefined { return entries.get(scope + ':' + kind) as Requests[T] | undefined },
+    put<T extends keyof Requests>(scope: string, kind: T, request: Requests[T]) { entries.set(scope + ':' + kind, structuredClone(request)); notify() },
+    remove(scope: string, kind: keyof Requests, key?: string) {
+      const id = scope + ':' + kind
+      const saved = entries.get(id)
+      if (!saved || (key && ('key' in saved ? saved.key : saved.command.idempotencyKey) !== key)) return
+      entries.delete(id); notify()
+    },
+    retainScopes(scopes: readonly string[]) {
+      const allowed = new Set(scopes)
+      let changed = false
+      for (const key of entries.keys()) if (!allowed.has(key.slice(0, key.lastIndexOf(':')))) { entries.delete(key); changed = true }
+      if (changed) notify()
+    },
+    clear() { entries.clear(); notify() },
+    count: () => entries.size,
+  }
+}
+export type PendingRequests = ReturnType<typeof createPendingRequests>
+export const recoveryScope = (member: Membership) => JSON.stringify([member.userId, member.schoolId, member.id, member.active, member.validFrom, member.validThrough, member.role,
+  [...(member.departmentIds ?? [])].sort(), [...(member.gradeIds ?? [])].sort(), [...(member.subjectIds ?? [])].sort()])
+const PendingContext = createContext<PendingRequests | undefined>(undefined)
+
+export function PendingRequestsProvider({ children, store }: { children: ReactNode; store: PendingRequests }) {
+  const count = useSyncExternalStore(store.subscribe, store.count, store.count)
+  useEffect(() => {
+    if (!count) return
+    const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    window.addEventListener('beforeunload', beforeLeave)
+    return () => window.removeEventListener('beforeunload', beforeLeave)
+  }, [count])
+  return <PendingContext.Provider value={store}>{children}</PendingContext.Provider>
+}
+
+export function useRecoveryStore() {
+  const shared = useContext(PendingContext)
+  const [local] = useState(createPendingRequests)
+  return shared ?? local
+}
+
+export function usePendingRequest<T extends keyof Requests>(member: Membership, kind: T) {
+  const store = useRecoveryStore()
+  const scope = recoveryScope(member)
+  const request = useSyncExternalStore(store.subscribe, () => store.get(scope, kind), () => store.get(scope, kind))
+  return { request, put: (value: Requests[T]) => store.put(scope, kind, value), remove: (key?: string) => store.remove(scope, kind, key) }
+}

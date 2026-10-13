@@ -1,0 +1,18 @@
+/* 홈에서는 다음 행동을 먼저 보여 주고 역할별 설명은 필요할 때 펼친다. */
+.wf-home.wf-home-compact .wf-home-heading{align-items:flex-start;flex-direction:column;gap:4px}
+.wf-home.wf-home-compact .wf-home-heading>span{font-size:var(--ui-small-size,.75rem);color:var(--ui-muted,#617368)}
+.wf-home.wf-home-compact .wf-home-obligations{margin-top:12px;padding-top:0;border:0}
+.wf-home.wf-home-compact .wf-home-group{margin:0}
+.wf-home.wf-home-compact .wf-home-category{margin:0 0 5px;color:var(--ui-accent,#216b62);font-size:var(--ui-small-size,.75rem);font-weight:600}
+.wf-home.wf-home-compact .wf-home-category.is-waiting{color:var(--ui-muted,#617368);font-weight:500}
+.wf-home.wf-home-compact .wf-home-details{margin-top:8px;font-size:var(--ui-small-size,.75rem);color:var(--ui-muted,#617368)}
+.wf-home.wf-home-compact .wf-home-details>summary{cursor:pointer;min-height:44px;align-content:center}
+.wf-home.wf-home-compact .wf-home-details .wf-role-counts{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:12px}
+.wf-home.wf-home-compact .wf-home-details .wf-role-counts>div:nth-child(2){border-right:0}
+.wf-home.wf-home-compact .wf-home-role-details{display:grid;gap:12px;list-style:none;padding:0;margin:14px 0}
+.wf-home.wf-home-compact .wf-home-role-details li{line-height:1.7;overflow-wrap:anywhere}
+.wf-home.wf-home-compact .wf-home-role-details strong,.wf-home.wf-home-compact .wf-home-role-details span{display:block;font-size:inherit}
+.wf-home.wf-home-compact .wf-home-role-details strong{font-weight:550;color:var(--ui-text,#24443f)}
+.wf-home.wf-home-compact .wf-home-role-details span{margin-top:3px}
+.ws-shell .wf-home.wf-home-compact .wf-obligation .wf-warning,.wf-home.wf-home-compact .wf-obligation .wf-warning{color:var(--ui-warning,#775d31);background:transparent;border:0;border-radius:0;padding:0;margin-bottom:0;font-weight:600}
+@media(max-width:520px){.ws-shell .wf-home.wf-home-compact .wf-obligation,.wf-home.wf-home-compact .wf-obligation{align-items:flex-start;flex-direction:column}.ws-shell .wf-home.wf-home-compact .wf-obligation button,.wf-home.wf-home-compact .wf-obligation button{min-height:44px}}

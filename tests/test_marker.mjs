@@ -1,7 +1,8 @@
-import { fileURLToPath } from 'node:url'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const { splitPlan } = await import(`${ROOT}/apps/main/src/lib/planMarker.js`)
+const { splitPlan } = await import(pathToFileURL(`${ROOT}/apps/main/src/lib/planMarker.js`).href)
 
 let fail = 0
 const check = (name, fn) => {
@@ -71,8 +72,7 @@ check('한글 값 보존', () => {
 
 // 2026-08-26: 서버(chat.js)도 계승 참조를 펼치려고 이 블록을 읽고 다시 쓴다.
 // 파서가 둘이 되면 반드시 갈라진다 — **같은 파일**을 쓰는지 여기서 못 박는다.
-check('서버와 화면이 같은 마커 파서를 쓴다', async () => {
-  const { readFileSync } = await import('node:fs')
+check('서버와 화면이 같은 마커 파서를 쓴다', () => {
   const chat = readFileSync(`${ROOT}/apps/main/api/doc-ai/chat.js`, 'utf-8')
   assert(/import \{[^}]*splitPlan[^}]*\} from '\.\.\/\.\.\/src\/lib\/planMarker\.js'/.test(chat),
     'chat.js 가 planMarker.js 를 쓰지 않는다 (파서를 따로 만들었나?)')

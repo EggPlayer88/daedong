@@ -1,0 +1,1923 @@
+{
+  "changes": [
+    {
+      "table": "workhub.events",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "official_effective_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "일반 교사 조회·학사 계산의 확정판; 최신 편집안과 분리"
+        }
+      ],
+      "constraints": [
+        "event_revisions UNIQUE(scope_key,event_id,revision_no) 후 (scope_key,id,official_effective_revision_no) 복합 FK DEFERRABLE INITIALLY DEFERRED",
+        "효력 포인터는 kind=official에서만 허용; 해당 판 official_confirm/confirmed 검증"
+      ],
+      "indexes": [
+        "(school_id,start_date,end_date,id)",
+        "(school_id,responsible_membership_id,start_date,id) WHERE responsible_membership_id IS NOT NULL"
+      ],
+      "rules": [
+        "save는 현재안만 변경한다. confirm/withdraw가 효력 포인터·calendar_days·revision·receipt/outbox를 원자 변경한다.",
+        "읽기 DTO는 일반 교사에게 효력판, 작성자/공식 담당에게 현재안과 효력판을 구분한다.",
+        "current/effective는 학교/계정 scope 변경 권한이 아니다. private는 추천 조건과 무관하게 작성자만.",
+        "책임자 변경은 이전 소유자의 task note를 이동하지 않고 원본 연결 카드를 종료/생성한다."
+      ],
+      "read_policy": "현재 소속+원본 visibility; 공식 미확정안은 작성자/공식담당만. revision도 현재 원본 ACL로 재검사.",
+      "tests": [
+        "WF13",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.event_revisions",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "UNIQUE(scope_key,event_id,revision_no)",
+        "본문 snapshot·event_version·change_kind·actor·시각은 INSERT 후 불변",
+        "UNIQUE(school_id,event_id,revision_no)"
+      ],
+      "indexes": [],
+      "rules": [
+        "official_withdraw 변경 종류 추가; 확정/철회는 해당 권한 명령만.",
+        "날짜/본문 snapshot의 hash·버전은 시트 baseline과 문서 근거에서 정확히 참조한다."
+      ],
+      "read_policy": "원본의 현재 읽기 정책. 과거 private revision을 audit.read로 열지 않는다.",
+      "tests": [
+        "WF12",
+        "WF13",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.calendar_days",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "source_event_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "일과 변경의 정확한 공식 확정판"
+        }
+      ],
+      "constraints": [
+        "근거 event ID와 revision은 둘 다 NULL 또는 둘 다 존재; (school_id,source_event_id,source_event_revision_no)는 같은 학교 event revision을 참조",
+        "확정 공식판만 근거 허용; 날짜는 academic_year 범위"
+      ],
+      "indexes": [
+        "(school_id,source_event_id,source_event_revision_no)"
+      ],
+      "rules": [
+        "공식 확정/철회와 날짜 projection 갱신을 같은 transaction으로 처리한다."
+      ],
+      "read_policy": "해당 학교 활성 소속. 과거 계산 근거는 판 ID와 함께 제공.",
+      "tests": [
+        "WF13"
+      ]
+    },
+    {
+      "table": "workhub.source_record_snapshots",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "default": "gen_random_uuid()::text",
+          "immutable": true,
+          "description": "행 식별자"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.schools.id",
+          "description": "학교 경계"
+        },
+        {
+          "name": "source_record_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.source_records.id",
+          "description": "안정 원본행"
+        },
+        {
+          "name": "connection_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.source_connections.id",
+          "description": "같은 연결"
+        },
+        {
+          "name": "mapping_version",
+          "type": "integer",
+          "nullable": false,
+          "description": "정규화에 사용한 불변 매핑판"
+        },
+        {
+          "name": "source_revision",
+          "type": "text",
+          "nullable": true,
+          "description": "외부 수정판 표시"
+        },
+        {
+          "name": "normalized",
+          "type": "jsonb",
+          "nullable": false,
+          "immutable": true,
+          "description": "정규화 원본 snapshot; ACL 근거가 아님"
+        },
+        {
+          "name": "source_sha256",
+          "type": "text",
+          "nullable": false,
+          "immutable": true,
+          "description": "canonical 정규화 지문"
+        },
+        {
+          "name": "captured_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "default": "clock_timestamp()",
+          "immutable": true,
+          "description": "서버 포착 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "(school_id,source_record_id,connection_id)는 source_records의 같은 학교/연결 부모",
+        "(school_id,connection_id,mapping_version) FK source_connection_mappings",
+        "UNIQUE(school_id,source_record_id,id)",
+        "normalized는 object; sha256은 64자리 hex; mapping_version>0"
+      ],
+      "indexes": [
+        "(school_id,source_record_id,captured_at DESC,id)"
+      ],
+      "rules": [
+        "INSERT 후 불변. 운영 파기는 ledger 전용이며 미리보기/반영 근거가 참조하는 동안 RESTRICT."
+      ],
+      "read_policy": "source 연결 담당과 import 담당만; raw 학생정보가 있는 다른 도메인 권한을 자동 합치지 않는다.",
+      "tests": [
+        "WF12"
+      ]
+    },
+    {
+      "table": "workhub.source_records",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "last_source_snapshot_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.source_record_snapshots.id",
+          "description": "직전 반영 원본 불변판"
+        },
+        {
+          "name": "target_event_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.events.id",
+          "description": "target_type=events의 정확한 학교 대상"
+        }
+      ],
+      "constraints": [
+        "UNIQUE(school_id,id,connection_id)",
+        "last_source_snapshot_id는 동일 source_record 복합 FK",
+        "target_type=events이면 target_event_id와 target_id 일치",
+        "baseline 원본판과 마지막 대상 revision/version/hash는 함께 존재 또는 함께 NULL",
+        "이벤트 target revision은 같은 target_event_id의 event_revisions 복합 FK"
+      ],
+      "indexes": [
+        "(school_id,target_event_id) WHERE target_event_id IS NOT NULL"
+      ],
+      "rules": [
+        "last_source_snapshot/hash는 불변 snapshot의 호환 projection이며 별도 writer 금지.",
+        "원본행+event 결과+baseline+receipt는 같은 행 적용 transaction.",
+        "missing_in_source는 삭제가 아니다."
+      ],
+      "read_policy": "연결 관리/가져오기 권한 범위; 대상 열람권한은 별도.",
+      "tests": [
+        "WF12"
+      ]
+    },
+    {
+      "table": "workhub.import_rows",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "incoming_snapshot_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.source_record_snapshots.id",
+          "description": "입력 원본판; 신규 미매핑은 매핑확정 뒤 생성"
+        },
+        {
+          "name": "baseline_source_snapshot_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.source_record_snapshots.id",
+          "description": "미리보기 당시 기준 원본판"
+        },
+        {
+          "name": "baseline_target_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "미리보기 당시 기준 사이트 revision"
+        },
+        {
+          "name": "expected_source_record_version",
+          "type": "integer",
+          "nullable": true,
+          "description": "적용 전 대조할 원본행 판"
+        },
+        {
+          "name": "expected_target_version",
+          "type": "integer",
+          "nullable": true,
+          "description": "적용 전 대조할 사이트 판"
+        },
+        {
+          "name": "target_event_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.events.id",
+          "description": "일정 적용의 typed 대상"
+        },
+        {
+          "name": "result_target_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "실제 성공 결과판"
+        },
+        {
+          "name": "preview_row_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "baseline/입력/해결선택의 고정 지문"
+        }
+      ],
+      "constraints": [
+        "UNIQUE(import_run_id,source_record_id) WHERE source_record_id IS NOT NULL",
+        "UNIQUE(import_run_id,external_key) WHERE external_key IS NOT NULL",
+        "snapshot은 동일 source_record/connection 복합 FK; target revisions는 동일 target_event_id",
+        "preview 고정 이후 incoming/baseline/expected/hash는 불변; 해결 변경은 새 preview",
+        "import_run_id/resolution/source_record_id/target 변경 전부 동일 연결·쓰기 기준 재검사"
+      ],
+      "indexes": [
+        "(school_id,import_run_id,decision,id)"
+      ],
+      "rules": [
+        "행별 원자 적용과 안정 멱등키. 실패 행만 재시도.",
+        "기준 원본 O0/대상 T0·현재 O1/T1를 모두 보존; 판 변경이면 IMPORT_BASELINE_STALE.",
+        "take_source만 아닌 create/manual 적용 경로도 현재 authority 검사."
+      ],
+      "read_policy": "import 생성자 및 명시 연결 관리권한; 다른 학교 raw 숨김.",
+      "tests": [
+        "WF12",
+        "WF09"
+      ]
+    },
+    {
+      "table": "workhub.import_runs",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "preview_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "매핑·입력·행 결정 manifest 지문"
+        },
+        {
+          "name": "expected_connection_version",
+          "type": "integer",
+          "nullable": true,
+          "description": "기준 전환/매핑 변경 감지"
+        },
+        {
+          "name": "approved_preview_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "적용자가 확인한 정확한 미리보기"
+        }
+      ],
+      "constraints": [
+        "preview_ready 이상이면 preview_sha256/expected_connection_version 존재",
+        "applied 상태는 모든 해당 행 결과/실패 집계와 일치"
+      ],
+      "indexes": [
+        "(school_id,connection_id,created_at DESC,id)"
+      ],
+      "rules": [
+        "mapping 변경은 preview 무효. applied/partial counts는 행 결과의 projection.",
+        "source cutover는 같은 connection의 review run만 참조하며 미해결0·관리권한·지문 재검사."
+      ],
+      "read_policy": "import 현재 관리권한; jobs 상태만으로 raw 내용 공개하지 않는다.",
+      "tests": [
+        "WF12"
+      ]
+    },
+    {
+      "table": "workhub.source_connections",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "cutover_import_run_id는 같은 school/connection의 import_runs를 참조; 학교 FK만으로 대체 금지"
+      ],
+      "indexes": [],
+      "rules": [
+        "site_authoritative 전환과 연결 판 증가·receipt·audit를 원자 처리.",
+        "구시트 미리보기 재사용 거부; 역전환도 새 비교/승인 사건으로 보존."
+      ],
+      "read_policy": "현재 연결 관리자; 비밀 API 키는 이 표에 저장하지 않는다.",
+      "tests": [
+        "WF12"
+      ]
+    },
+    {
+      "table": "workhub.tasks",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "owner_account_id는 모든 scope에서 생성 뒤 불변",
+        "source_type별 source_id의 실제 학교 부모/owner 관계를 DB resolver로 검사",
+        "source_event 완료는 해당 source의 실제 완료 사건 completed_by_ref를 검증"
+      ],
+      "indexes": [
+        "(owner_account_id,school_id,status,due_on,id) WHERE status IN ('todo','doing','waiting')"
+      ],
+      "rules": [
+        "직접/AI task만 본인 수동 완료. 수합/보완/확인/인계 의무는 원본 조회 projection.",
+        "일정 책임 이전은 old 카드 종료+new 소유자 카드 생성; private note/state 이전 금지.",
+        "scope+원본+owner 중복 방지 유지; 필요 시 기존 owner 카드를 재사용하되 해당 본인만 메모를 읽는다.",
+        "UI 기존 title120/notes2000과 DB200/5000의 차이는 API 버전별 명시 제한, 조용한 확대 금지."
+      ],
+      "read_policy": "본인 현재 허용 scope만. 배정자는 assigned_task_status의 안전 상태 DTO만.",
+      "tests": [
+        "WF14",
+        "WF18",
+        "WF19"
+      ]
+    },
+    {
+      "table": "workhub.cooperation_requests",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "linked_task_id는 같은 school, 수신자 account 소유, source_type=cooperation,source_id=this.id",
+        "follow_up_of는 같은 school이며 순환 금지"
+      ],
+      "indexes": [
+        "(school_id,to_membership_id,state,due_at,id)"
+      ],
+      "rules": [
+        "수락+연결 task+응답 개정+receipt/outbox 원자.",
+        "대체제안은 새 요청과 수신자 수락 없이 자동 배정하지 않는다.",
+        "이력 본문도 원본의 현재 ACL. task.note는 응답에 포함하지 않는다."
+      ],
+      "read_policy": "송신/수신 현재 관계자; 관리자 audit.read 원문 열람 금지.",
+      "tests": [
+        "WF14",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.collection_schemas",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "default": "gen_random_uuid()::text",
+          "immutable": true,
+          "description": "행 식별자"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.schools.id",
+          "description": "학교 경계"
+        },
+        {
+          "name": "collection_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collections.id",
+          "description": "수합 부모"
+        },
+        {
+          "name": "schema_version",
+          "type": "integer",
+          "nullable": false,
+          "description": "수합 안 문항판"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "default": "'draft'",
+          "description": "draft/published/retired"
+        },
+        {
+          "name": "review_mode",
+          "type": "text",
+          "nullable": false,
+          "description": "none/required"
+        },
+        {
+          "name": "self_review",
+          "type": "text",
+          "nullable": false,
+          "default": "'forbid'",
+          "description": "forbid/allow_with_note"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false,
+          "description": "문항판 제목"
+        },
+        {
+          "name": "instructions",
+          "type": "text",
+          "nullable": true,
+          "description": "안내 snapshot"
+        },
+        {
+          "name": "definition_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "게시 시 문항/옵션/정책 지문"
+        },
+        {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.memberships.id",
+          "description": "같은 학교 작성자"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "default": "clock_timestamp()",
+          "description": "서버 생성"
+        },
+        {
+          "name": "published_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "최초 게시 시각"
+        },
+        {
+          "name": "policy_scope_key",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.policy_versions.scope_key",
+          "description": "본교 collection.submission 정책 scope"
+        },
+        {
+          "name": "policy_version_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.policy_versions.id",
+          "description": "정확한 승인 정책판"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "UNIQUE(school_id,collection_id,schema_version)",
+        "UNIQUE(school_id,collection_id,id)",
+        "UNIQUE(school_id,collection_id,id,schema_version)",
+        "schema_version>0; state/review/self_review 허용값 CHECK",
+        "(policy_scope_key,policy_version_id) MATCH FULL FK policy_versions(scope_key,id); policy_scope_key='s:'||school_id",
+        "published/retired이면 hash/published_at/정책판 NN"
+      ],
+      "indexes": [
+        "(school_id,collection_id,schema_version DESC)"
+      ],
+      "rules": [
+        "draft에서만 문항 편집. publish 후 내용/정책/지문 불변; retired는 현재 적용 금지일 뿐 과거 참조 유지.",
+        "publish가 부모 FOR UPDATE를 잡고 child field 편집은 같은 부모 잠금과 충돌한다.",
+        "정책판은 published·승인·시행일·applies_to_scopes·policy_key 검사."
+      ],
+      "read_policy": "안내 읽기 허용자. 개인/공동 답변은 이 표에 넣지 않는다.",
+      "tests": [
+        "WF03",
+        "WF15"
+      ]
+    },
+    {
+      "table": "workhub.collections",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "current_schema_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.collection_schemas.id",
+          "description": "정확한 현재 published 문항판"
+        },
+        {
+          "name": "request_visibility",
+          "type": "text",
+          "nullable": false,
+          "description": "school/audience/participants"
+        },
+        {
+          "name": "request_audience_set_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.audience_sets.id",
+          "description": "안내 대상"
+        },
+        {
+          "name": "result_visibility",
+          "type": "text",
+          "nullable": false,
+          "default": "'participants'",
+          "description": "participants/audience/school"
+        },
+        {
+          "name": "result_audience_set_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.audience_sets.id",
+          "description": "완료 결과 공개 대상"
+        },
+        {
+          "name": "results_published_by_membership_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.memberships.id",
+          "description": "결과 공개 확대 확인자"
+        },
+        {
+          "name": "results_published_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "결과 공개 확대 시각"
+        }
+      ],
+      "drop_columns": [
+        "visibility",
+        "view_audience_set_id"
+      ],
+      "constraints": [
+        "(school_id,id,current_schema_id) FK collection_schemas(school_id,collection_id,id) DEFERRABLE",
+        "published 이후 current_schema_id NN, same collection의 published 판",
+        "각 visibility=audience iff 해당 audience FK NN",
+        "result_visibility<>participants이면 results_published_by/at NN 및 명시 receipt"
+      ],
+      "indexes": [
+        "(school_id,state,due_at,id)"
+      ],
+      "rules": [
+        "기존 schema_version/review_mode/self_review는 schema projection, 독립 수정 금지.",
+        "안내 공개 변경이 result 공개를 자동 변경하지 않는다.",
+        "게시 대상은 unit/member snapshot 한 번; 동적 추천으로 의무 재생성 금지."
+      ],
+      "read_policy": "안내는 request_visibility+당사자. 결과는 단위 구성원/검토자/요청관리범위, 명시 공개 시 완료본만. 초안 자동 접근 없음.",
+      "tests": [
+        "WF03",
+        "WF06",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.collection_fields",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_schemas.id",
+          "description": "불변 정의 부모"
+        },
+        {
+          "name": "max_length",
+          "type": "integer",
+          "nullable": true,
+          "description": "short_text 코드포인트 상한"
+        },
+        {
+          "name": "file_max_count",
+          "type": "integer",
+          "nullable": true,
+          "description": "file 문항 최대수"
+        }
+      ],
+      "constraints": [
+        "(school_id,collection_id,schema_id,schema_version) FK collection_schemas의 일치하는 부모",
+        "UNIQUE(school_id,schema_id,field_key)",
+        "UNIQUE(school_id,schema_id,id)",
+        "options는 key/label 객체 배열, key 유일·공백 불가",
+        "종류별 불필요 옵션/한도 NULL; 숫자 한도 유한; max_length/file_count 양수"
+      ],
+      "indexes": [
+        "(school_id,schema_id,sort_order,id)"
+      ],
+      "rules": [
+        "published/retired 부모의 field INSERT/UPDATE/DELETE 전부 거부.",
+        "키·타입·옵션·필수값 검증은 validate_collection_answers에서 해당 schema만 사용."
+      ],
+      "read_policy": "수합 안내 권한. 값/답변은 포함하지 않는다.",
+      "tests": [
+        "WF03",
+        "WF15"
+      ]
+    },
+    {
+      "table": "workhub.collection_units",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "active_schema_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_schemas.id",
+          "description": "해당 단위 적용판"
+        },
+        {
+          "name": "first_submission_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.submission_versions.id",
+          "description": "최초 접수의 불변 근거"
+        },
+        {
+          "name": "needs_owner",
+          "type": "boolean",
+          "nullable": false,
+          "default": "false",
+          "description": "책임 공백 projection"
+        },
+        {
+          "name": "responsible_membership_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.memberships.id",
+          "description": "현재 책임자; 공백 허용"
+        }
+      ],
+      "constraints": [
+        "active_schema는 same collection 복합 FK",
+        "current/effective/first는 동일 unit 복합 FK DEFERRABLE",
+        "assigned and not needs_owner이면 현재 유효 책임자 필수",
+        "current는 submitted; effective는 submitted+accepted/not_required; none 현재판은 current=effective; 첫 제출 포인터 불변"
+      ],
+      "indexes": [
+        "(school_id,collection_id,obligation_state,id)",
+        "(school_id,responsible_membership_id,obligation_state,id)"
+      ],
+      "rules": [
+        "current/effective/first/보완/집계는 제출·검토·철회 한 transaction.",
+        "책임자 pointer만으로 미래 기간 접근을 허용하지 않고 현재 관계를 재확인.",
+        "인계해도 unit_id/제출/완료본 유지; 면제는 본문 삭제 아님."
+      ],
+      "read_policy": "당사자와 명시 결과 공개 범위의 안전 현황. private draft 존재 수는 노출 금지.",
+      "tests": [
+        "WF01",
+        "WF06",
+        "WF07",
+        "WF14"
+      ]
+    },
+    {
+      "table": "workhub.collection_unit_members",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "valid_until",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "종료 제외, 계획 종료 시각"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "default": "clock_timestamp()",
+          "immutable": true,
+          "description": "미래 시작 구성원의 취소 검증"
+        }
+      ],
+      "constraints": [
+        "valid_until IS NULL OR valid_until>valid_from",
+        "기존 removed_at>=valid_from CHECK 제거; removed_at IS NULL OR removed_at>=created_at",
+        "동일 unit/member/role의 [valid_from,valid_until) 기간 EXCLUDE WHERE removed_at IS NULL",
+        "responsible role의 unit별 기간 EXCLUDE WHERE removed_at IS NULL; 기존 removed_at만 기준 unique 교체"
+      ],
+      "indexes": [
+        "(membership_id,valid_from,valid_until,unit_id) WHERE removed_at IS NULL"
+      ],
+      "rules": [
+        "공통 read/write 판정에 valid_from<=now<valid_until 및 removed_at NULL 적용.",
+        "removed_at은 실제 즉시 회수, 미래 종료는 valid_until.",
+        "변경 시 permission_version/회수원장/grant 회수·캐시 무효화를 같은 transaction."
+      ],
+      "read_policy": "허용 단위의 구성원 메타. 초안 읽기는 현재 유효 구성원만.",
+      "tests": [
+        "WF01",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.unit_drafts",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "collection_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collections.id",
+          "description": "단위와 같은 요청"
+        },
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_schemas.id",
+          "description": "정확 문항판"
+        }
+      ],
+      "constraints": [
+        "(school_id,unit_id,collection_id) FK collection_units",
+        "(school_id,collection_id,schema_id) FK collection_schemas",
+        "UNIQUE(school_id,id,unit_id,schema_id)",
+        "공유 UNIQUE(unit_id,schema_id), 개인 UNIQUE(unit_id,schema_id,owner_account_id); 기존 schema 없는 unique 교체",
+        "unit/collection/schema/scope/owner 불변; 저장 시 active_schema 일치"
+      ],
+      "indexes": [
+        "(school_id,unit_id,schema_id)"
+      ],
+      "rules": [
+        "답변 JSON object·허용 key/type/범위 검사, draft는 필수 누락 허용.",
+        "새 schema는 새 draft ID; 명시 변환·개인→공유 복사, 자동 합치기 없음.",
+        "현재 유효 구성원과 expected_version 재검사."
+      ],
+      "read_policy": "personal은 작성자+현재 구성원; shared는 현재 구성원. 관리자/검토자에게 존재·건수·첨부명도 숨김.",
+      "tests": [
+        "WF01",
+        "WF03",
+        "WF15"
+      ]
+    },
+    {
+      "table": "workhub.submission_versions",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "collection_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collections.id",
+          "description": "같은 unit의 요청"
+        },
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_schemas.id",
+          "description": "불변 정의판"
+        },
+        {
+          "name": "source_draft_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.unit_drafts.id",
+          "description": "제출한 정확한 공유초안"
+        },
+        {
+          "name": "source_draft_version",
+          "type": "integer",
+          "nullable": false,
+          "description": "확인한 초안판"
+        },
+        {
+          "name": "submitted_by_account_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.accounts.id",
+          "description": "실제 actor의 지속 계정"
+        },
+        {
+          "name": "responsible_membership_id_snapshot",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.memberships.id",
+          "description": "당시 책임 관계"
+        },
+        {
+          "name": "responsible_account_id_snapshot",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.accounts.id",
+          "description": "당시 책임 계정"
+        },
+        {
+          "name": "review_mode_snapshot",
+          "type": "text",
+          "nullable": false,
+          "description": "none/required 불변"
+        },
+        {
+          "name": "due_kind_snapshot",
+          "type": "text",
+          "nullable": false,
+          "description": "date/time"
+        },
+        {
+          "name": "receipt_xid",
+          "type": "xid8",
+          "nullable": false,
+          "default": "pg_current_xact_id()",
+          "immutable": true,
+          "description": "현재 transaction만 첨부 허용"
+        }
+      ],
+      "constraints": [
+        "(school_id,unit_id,collection_id) FK collection_units",
+        "(school_id,collection_id,schema_id,schema_version) FK collection_schemas",
+        "(school_id,source_draft_id,unit_id,schema_id) FK unit_drafts",
+        "UNIQUE(school_id,unit_id,id,schema_id)",
+        "계정=각 membership.account_id; source_draft shared이고 제출 actor 책임자/유효 delegate",
+        "receipt_at 서버 clock_timestamp; date 마감 >=, time > 지연 검사",
+        "withdrawn이면 review_state<>accepted AND external_state<>user_confirmed; exported만으로 공식처리 판정 금지"
+      ],
+      "indexes": [
+        "(school_id,unit_id,version_no DESC)",
+        "(school_id,collection_id,receipt_at,id)"
+      ],
+      "rules": [
+        "본문·정의판·실제제출자·당시책임자·마감/모드 snapshot·receipt_xid 불변.",
+        "JSON 답변 submit 검사 필수, 알 수 없는 key·형식·필수 누락 거부.",
+        "new판 external_state unknown, none not_required/required pending. 정정은 이전판+공백 아닌 사유."
+      ],
+      "read_policy": "현재 단위/검토/요청관리 권한; 결과 공개자는 effective만. 초안과 별도.",
+      "tests": [
+        "WF02",
+        "WF03",
+        "WF06",
+        "WF08",
+        "WF09",
+        "WF15"
+      ]
+    },
+    {
+      "table": "workhub.submission_files",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_schemas.id",
+          "description": "해당 제출의 문항판"
+        },
+        {
+          "name": "field_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_fields.id",
+          "description": "정확한 file 문항"
+        },
+        {
+          "name": "safety_policy_scope_key",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.policy_versions.scope_key",
+          "description": "사용 승인 정책 scope"
+        },
+        {
+          "name": "safety_policy_version_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.policy_versions.id",
+          "description": "접수에 적용한 안전 정책"
+        },
+        {
+          "name": "common_safety_policy_scope_key",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.policy_versions.scope_key",
+          "description": "적용한 공통 안전 하한 정책 scope, 항상 c"
+        },
+        {
+          "name": "common_safety_policy_version_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.policy_versions.id",
+          "description": "적용한 정확한 공통 안전 하한 정책판"
+        }
+      ],
+      "constraints": [
+        "submission/schema/field 모두 동일 collection schema 복합 FK",
+        "field_key=해당 field.key 및 kind=file",
+        "파일은 같은 학교 ready·hash/size 일치·정책 허용",
+        "policy(scope_key,id) 복합 FK, file 목적별 허용 scope",
+        "INSERT 시 submission.receipt_xid=pg_current_xact_id(); UPDATE/DELETE 금지",
+        "(common_safety_policy_scope_key,common_safety_policy_version_id) MATCH FULL FK policy_versions(scope_key,id); scope_key=c"
+      ],
+      "indexes": [
+        "(school_id,schema_id,field_id)"
+      ],
+      "rules": [
+        "현재 파일 읽기+목적 제출 권한+공개범위 상승 검사.",
+        "시각 now 동등성을 같은 transaction의 증거로 사용하지 않는다.",
+        "필수 파일 수/크기/형식 확인 뒤 접수 성공; 첨부 실패는 전체 rollback.",
+        "학교 파일은 공통하한+학교판을 모두 고정하고 현재 유효 두 정책과 당시 두 판의 허용 교집합만 사용. common/account_private는 동일 common판을 두 쌍에 기록. 한 정책의 차단도 옛 허용판으로 우회 금지."
+      ],
+      "read_policy": "정확한 제출판 현재 권한; raw file ID 직접 다운로드 금지.",
+      "tests": [
+        "WF03",
+        "WF05",
+        "WF09",
+        "WF10",
+        "WF11"
+      ]
+    },
+    {
+      "table": "workhub.submission_reviews",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "reviewer_account_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.accounts.id",
+          "description": "소속이 바뀌어도 자기검토 계정 비교"
+        }
+      ],
+      "constraints": [
+        "reviewer.account=reviewer_membership.account",
+        "현재 지정 reviewer·submitted/pending 판·판당1회",
+        "forbid이면 제출자/당시책임자/현재책임자 계정 모두와 불일치",
+        "allow_with_note에는 승인 schema 정책+trim(comment) 비어있지 않음"
+      ],
+      "indexes": [],
+      "rules": [
+        "unit 잠금 후 현재 권한과 account snapshot 비교.",
+        "review INSERT와 submission 상태·effective pointer·receipt/outbox 원자."
+      ],
+      "read_policy": "현재 당사자만; 완료 결과 공개자가 검토 의견까지 읽지 않는다.",
+      "tests": [
+        "WF02",
+        "WF08"
+      ]
+    },
+    {
+      "table": "workhub.correction_requests",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "supersedes_request_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.correction_requests.id",
+          "description": "기한/내용 변경 전 취소한 같은 단위 요청"
+        },
+        {
+          "name": "due_kind",
+          "type": "text",
+          "nullable": false,
+          "description": "date/time"
+        }
+      ],
+      "constraints": [
+        "target/review/fulfilled/supersedes는 정확히 같은 unit, review는 target판",
+        "이유·기한·대상판 INSERT 후 불변; 변경은 취소+새 요청",
+        "state fulfilled iff active fulfillment 존재 및 포인터/시각/late 일치",
+        "fulfillment판은 요청 후 판·철회 안 됨; cancelled는 재개 금지"
+      ],
+      "indexes": [
+        "(school_id,unit_id,due_at) WHERE state='open'"
+      ],
+      "rules": [
+        "무관한 제출로 자동 충족 금지. submit은 명시 request ID.",
+        "fulfilled판 철회 때 fulfillment 무효·포인터비움·open 재계산을 같은 transaction.",
+        "target판 철회 자체는 미충족 요청을 없애지 않는다."
+      ],
+      "read_policy": "현재 당사자; 결과 공개 범위는 보완 내용 접근 권한 아님.",
+      "tests": [
+        "WF06",
+        "WF07"
+      ]
+    },
+    {
+      "table": "workhub.collection_correction_fulfillments",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "default": "gen_random_uuid()::text",
+          "immutable": true,
+          "description": "행 식별자"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.schools.id",
+          "description": "학교 경계"
+        },
+        {
+          "name": "request_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.correction_requests.id",
+          "description": "충족한 요청"
+        },
+        {
+          "name": "unit_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_units.id",
+          "description": "공통 단위"
+        },
+        {
+          "name": "submission_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.submission_versions.id",
+          "description": "보완 제출판"
+        },
+        {
+          "name": "fulfilled_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "immutable": true,
+          "description": "접수 시각 snapshot"
+        },
+        {
+          "name": "due_kind_snapshot",
+          "type": "text",
+          "nullable": false,
+          "immutable": true,
+          "description": "date/time 당시 비교식"
+        },
+        {
+          "name": "due_at_snapshot",
+          "type": "timestamptz",
+          "nullable": false,
+          "immutable": true,
+          "description": "당시 보완기한"
+        },
+        {
+          "name": "late",
+          "type": "boolean",
+          "nullable": false,
+          "immutable": true,
+          "description": "당시 지연"
+        },
+        {
+          "name": "invalidated_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "충족 무효 시각"
+        },
+        {
+          "name": "invalidation_reason",
+          "type": "text",
+          "nullable": true,
+          "description": "submission_withdrawn/request_cancelled"
+        },
+        {
+          "name": "invalidated_by_membership_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.memberships.id",
+          "description": "무효 사건 실행자"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "request/submission 모두 (school_id,unit_id,id) 복합 FK",
+        "UNIQUE(request_id,submission_id)",
+        "UNIQUE(request_id) WHERE invalidated_at IS NULL",
+        "invalidated_* 세 열 동시 NULL 또는 존재",
+        "요청 생성 후 제출판이고 submit의 correction_request_id와 일치"
+      ],
+      "indexes": [
+        "(school_id,unit_id,fulfilled_at DESC,id)"
+      ],
+      "rules": [
+        "충족 본문 불변, 무효 메타는 한 번만. 철회 후 다시 제출하면 새 fulfillment.",
+        "요청 포인터는 현재 유효 fulfillment projection, 변경 명령 하나로 같이 갱신."
+      ],
+      "read_policy": "해당 correction request의 현재 권한.",
+      "tests": [
+        "WF07"
+      ]
+    },
+    {
+      "table": "workhub.handovers",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "manifest_version",
+          "type": "integer",
+          "nullable": false,
+          "default": "1",
+          "description": "수락하는 대상 묶음판"
+        },
+        {
+          "name": "current_acceptance_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.handover_acceptances.id",
+          "description": "현재 유효한 후임 수락"
+        }
+      ],
+      "constraints": [
+        "manifest_version>0",
+        "(school_id,id,current_acceptance_id) FK handover_acceptances(school_id,handover_id,id) DEFERRABLE",
+        "applied이면 current_acceptance_id/accepted_at/accepted_items_sha256/items_sha256/applied_at/applied_by 모두 NN",
+        "현재 acceptance의 후임/manifest_version/hash/effective_on 일치"
+      ],
+      "indexes": [
+        "(school_id,state,effective_on,id)"
+      ],
+      "rules": [
+        "수락 뒤 항목/기대판/후임/효력일 변경은 stale·manifest 증가·현재수락 해제; 이전수락은 보존.",
+        "apply는 전체 원본 잠금과 기대판 재검사 후 전부 또는0.",
+        "state 재활성화에도 같은 대상 다른 active 인계 중복 검사.",
+        "전임 소속 종료를 수락 지연 때문에 연장하지 않는다."
+      ],
+      "read_policy": "전임/후임과 handover.manage의 허용 공개 manifest; 개인 내용 제외.",
+      "tests": [
+        "WF04",
+        "WF14"
+      ]
+    },
+    {
+      "table": "workhub.handover_acceptances",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "default": "gen_random_uuid()::text",
+          "immutable": true,
+          "description": "행 식별자"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.schools.id",
+          "description": "학교 경계"
+        },
+        {
+          "name": "handover_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.handovers.id",
+          "description": "인계"
+        },
+        {
+          "name": "accepted_by_membership_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.memberships.id",
+          "description": "수락한 정확한 후임"
+        },
+        {
+          "name": "accepted_by_account_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.accounts.id",
+          "description": "후임 신원"
+        },
+        {
+          "name": "manifest_version",
+          "type": "integer",
+          "nullable": false,
+          "immutable": true,
+          "description": "확인한 manifest판"
+        },
+        {
+          "name": "items_sha256",
+          "type": "text",
+          "nullable": false,
+          "immutable": true,
+          "description": "원본키/기대판/필드변화 지문"
+        },
+        {
+          "name": "effective_on",
+          "type": "date",
+          "nullable": false,
+          "immutable": true,
+          "description": "확인한 효력일"
+        },
+        {
+          "name": "accepted_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "default": "clock_timestamp()",
+          "immutable": true,
+          "description": "본인 수락시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "UNIQUE(school_id,handover_id,id)",
+        "UNIQUE(handover_id,manifest_version,accepted_by_membership_id)",
+        "계정=수락소속.account_id, 현재handover.to와 일치",
+        "manifest_version>0; hash64hex"
+      ],
+      "indexes": [
+        "(school_id,handover_id,manifest_version DESC)"
+      ],
+      "rules": [
+        "본인 현재 유효 소속만 수락; 모든 본문 INSERT 후 불변.",
+        "적용은 이 수락을 확인하며 NULL projection만으로 허용하지 않는다."
+      ],
+      "read_policy": "해당 handover 현재 허용자.",
+      "tests": [
+        "WF04",
+        "WF14"
+      ]
+    },
+    {
+      "table": "workhub.handover_items",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "target_key",
+          "type": "jsonb",
+          "nullable": false,
+          "immutable": true,
+          "description": "대상 종류의 정확한 PK 객체; 임의키 거부"
+        },
+        {
+          "name": "target_fingerprint",
+          "type": "text",
+          "nullable": false,
+          "immutable": true,
+          "description": "대상 관계/기간/허용 delta 지문"
+        },
+        {
+          "name": "manifest_version",
+          "type": "integer",
+          "nullable": false,
+          "immutable": true,
+          "description": "속한 인계 미리보기판"
+        }
+      ],
+      "constraints": [
+        "단일ID는 target_key={id}, reviewer는 collection_id/membership_id/added_at 정확키",
+        "kind별 resolver가 target 실제 존재·학교·부모·허용 field를 검사; 지원 없는 kind 거부",
+        "항목 정체성 불변; 새 manifest에는 새 item",
+        "active 인계 간 같은 종류/정규target_key 중복은 대상 정렬 advisory lock 아래 검사",
+        "기존 UNIQUE(handover_id,object_type,object_id)를 UNIQUE(handover_id,manifest_version,object_type,target_key)로 교체; target_key는 종류별 정확한 PK JSONB 객체"
+      ],
+      "indexes": [
+        "(school_id,object_type,object_id)"
+      ],
+      "rules": [
+        "개인task/note/개인초안/학생기록/대화/문서owner 이전 금지.",
+        "공식 원본 관련 task는 owner변경이 아닌 이전카드 종료+새 카드 생성으로 적용.",
+        "등록뿐 아니라 apply와 handover 상태 재활성화 때도 원본·기대판/지문 재검사.",
+        "활성 대상 claim은 진행 중인 handover의 현재 manifest_version 항목만 사용한다. 새 미리보기판은 새 item 행이며 과거 item이 계속 대상을 점유하지 않는다."
+      ],
+      "read_policy": "handover 현재 권한; 개인 본문 없이 허용 delta만.",
+      "tests": [
+        "WF04",
+        "WF14"
+      ]
+    },
+    {
+      "table": "workhub.file_objects",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "safety_policy_scope_key",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.policy_versions.scope_key",
+          "description": "검증 당시 승인 정책 scope"
+        },
+        {
+          "name": "safety_policy_version_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.policy_versions.id",
+          "description": "검증/사용 안전정책판"
+        },
+        {
+          "name": "sensitivity",
+          "type": "text",
+          "nullable": false,
+          "description": "public/school/internal_private/student_sensitive"
+        },
+        {
+          "name": "verified_by_service_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.service_principals.id",
+          "description": "실물 검증한 활성 서비스 주체"
+        },
+        {
+          "name": "common_safety_policy_scope_key",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.policy_versions.scope_key",
+          "description": "적용한 공통 안전 하한 정책 scope, 항상 c"
+        },
+        {
+          "name": "common_safety_policy_version_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.policy_versions.id",
+          "description": "적용한 정확한 공통 안전 하한 정책판"
+        }
+      ],
+      "constraints": [
+        "(safety_policy_scope_key,safety_policy_version_id) MATCH FULL FK policy_versions(scope_key,id)",
+        "학교 파일은 본교 file.safety, common/account_private는 common의 applies_to_scopes 일치",
+        "검증 후 file scope/owner/path/hash/bytes/mime 불변; scan clean은 실제 검사 성공만",
+        "ready는 실물 검증 증거; 사용 가능 여부는 scan+현재정책+목적+민감도 별도",
+        "(common_safety_policy_scope_key,common_safety_policy_version_id) MATCH FULL FK policy_versions(scope_key,id); scope_key=c"
+      ],
+      "indexes": [
+        "(school_id,sensitivity,state,id)",
+        "(safety_policy_scope_key,safety_policy_version_id)"
+      ],
+      "rules": [
+        "not_scanned 승인정책 없으면 제출/공유/다운로드/AI사용 차단. 업로더 상태확인·삭제요청만.",
+        "승인된 not_scanned 허용도 해당 목적/형식/범위에 한정, 자동실행/inline render 금지.",
+        "현재 정책과 검증 당시 정책 중 더 제한적으로 재판정; rejected/quarantined/deleted 예외 없음.",
+        "DB메타 ready를 Storage 실물 증거로 대체하지 않고 worker가 hash/bytes/mime을 검증.",
+        "학교 파일은 공통하한+학교판을 모두 고정하고 현재 유효 두 정책과 당시 두 판의 허용 교집합만 사용. common/account_private는 동일 common판을 두 쌍에 기록. 한 정책의 차단도 옛 허용판으로 우회 금지."
+      ],
+      "read_policy": "소유/typed 부모 현재 ACL. 파일 자체 ID나 scope만으로 업무자료를 공개하지 않는다.",
+      "tests": [
+        "WF09",
+        "WF10",
+        "WF11",
+        "WF20"
+      ]
+    },
+    {
+      "table": "workhub.file_links",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "field_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.collection_fields.id",
+          "description": "unit_drafts file 문항일 때 정확한 정의"
+        }
+      ],
+      "constraints": [
+        "scope/file/resource_type/resource_id/resource_version/role/actor/linked_at/field_id 불변",
+        "unlink 메타만 1회 변경, 새 연결은 새 행",
+        "draft 파일은 동일 schema의 file 문항",
+        "resource resolver 허용 목록 외 종류·미지원 복합PK 거부; source·target·version·scope 검사",
+        "기존 UNIQUE(resource_type,resource_id,file_object_id,role) 제거는 새 활성 연결 유일 인덱스로 대체할 때만 수행"
+      ],
+      "indexes": [
+        "UNIQUE (scope_key,resource_type,resource_id,resource_version,field_id,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL"
+      ],
+      "rules": [
+        "초기 resolver: unit_drafts/documents/notices/knowledge_revisions/document_packs/import_runs/export_manifests.",
+        "기존 typed submission_files/document_inputs/document_revisions.output_file_id를 generic link로 우회 금지.",
+        "연결 시 파일읽기+목적쓰기+공개범위 상승 허용 검사; unlink/원본권한회수와 grant revoke 같은 transaction.",
+        "불변판의 파일 연결은 내용 수정용 unlink 불가. 전체 차단/정정판으로 처리."
+      ],
+      "read_policy": "원본 typed 부모의 현재 read; linked_by라는 이유만으로 계속 읽을 수 없음.",
+      "tests": [
+        "WF05",
+        "WF10",
+        "WF05: 연결→unlink→동일 파일 재연결 성공; 동일 문항의 동시 활성 연결 중복 거부; 서로 다른 문항의 동일 파일은 구별"
+      ]
+    },
+    {
+      "table": "workhub.file_access_grants",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "resource_type",
+          "type": "text",
+          "nullable": false,
+          "description": "허용 resolver 종류"
+        },
+        {
+          "name": "resource_id",
+          "type": "text",
+          "nullable": false,
+          "description": "정확한 부모 ID"
+        },
+        {
+          "name": "resource_version",
+          "type": "integer",
+          "nullable": true,
+          "description": "판이 있는 부모는 필수"
+        },
+        {
+          "name": "resource_link_id",
+          "type": "text",
+          "nullable": true,
+          "description": "정확한 typed/generic 관계 ID"
+        }
+      ],
+      "constraints": [
+        "grant 발급 시 수신계정/학교/부모판/파일/hash/정책 일치",
+        "정체성은 불변; revoked_at/사유만 일방향"
+      ],
+      "indexes": [
+        "(school_id,resource_type,resource_id) WHERE revoked_at IS NULL"
+      ],
+      "rules": [
+        "file_grant_valid는 현재 원본 resolver를 항상 검사; 학교 접근+live link만으로 허용 금지.",
+        "민감 파일은 인증 proxy, 서명 URL은 승인 비민감 용도만.",
+        "원본권한 종료는 같은 transaction에서 revoke; 저장소 issued URL 무효화 한계 별도 실측."
+      ],
+      "read_policy": "수신자에게 안전 발급 메타만. 실물은 현재 원본 ACL 재검사.",
+      "tests": [
+        "WF01",
+        "WF10",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.documents",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "owner_account_id는 학교 scope에서도 불변",
+        "current_revision_no는 정확한 동일 document revision이며 비어 있는 문서는0"
+      ],
+      "indexes": [],
+      "rules": [
+        "문서 head의 팩 선택은 다음 판 입력이며 과거 revision의 팩판을 바꾸지 않는다.",
+        "private/shared_with는 현재 ACL. duty/linked_unit 접근이 학생기록이나 개인초안을 자동 공개하지 않음."
+      ],
+      "read_policy": "본인 또는 명시 현재 공유대상. 과거판/근거/파일도 현재 원본 ACL.",
+      "tests": [
+        "WF17",
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.document_revisions",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "pack_id_snapshot",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.document_packs.id",
+          "description": "생성 당시 실제 팩"
+        },
+        {
+          "name": "pack_scope_key_snapshot",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.document_packs.scope_key",
+          "description": "common 또는 본교 팩 scope"
+        },
+        {
+          "name": "pack_version_snapshot",
+          "type": "integer",
+          "nullable": true,
+          "description": "팩판 표시값"
+        }
+      ],
+      "constraints": [
+        "팩 snapshot 세열 동시 NULL 또는 존재; (scope_key,pack_id) MATCH FULL 복합 FK",
+        "pack_version/hash는 해당 실제 팩과 일치",
+        "원본 content/outputfile/hash와 팩 snapshot INSERT 후 불변"
+      ],
+      "indexes": [
+        "(pack_scope_key_snapshot,pack_id_snapshot)"
+      ],
+      "rules": [
+        "새생성은 현재 active 팩, 과거판은 당시 팩 근거 유지.",
+        "source_refs JSON은 document_revision_sources의 표시 snapshot, ACL/근거 단독 원장 아님.",
+        "재업로드는 새 file+revision+validation. pass 승계 금지."
+      ],
+      "read_policy": "문서 현재 권한; source 원문 접근은 별도 현재 ACL.",
+      "tests": [
+        "WF17"
+      ]
+    },
+    {
+      "table": "workhub.document_inputs",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "file_scope_key",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.file_objects.scope_key",
+          "description": "입력 파일의 정확한 범위. 목적 문서 scope_key와 분리, 기존 같은범위 행을 확인 후 백필"
+        }
+      ],
+      "constraints": [
+        "(scope_key,document_id) FK → workhub.documents(scope_key,id) 유지; 두 열 NOT NULL",
+        "기존 (scope_key,file_object_id) FK를 (file_scope_key,file_object_id) FK → workhub.file_objects(scope_key,id)로 교체; 두 열 NOT NULL",
+        "CHECK(file_scope_key=scope_key OR file_scope_key='c'); 학교→본교/common, 개인→본인/common, 공통→common",
+        "fact_source는 extract_state=ok 및 교사의 명시 확인 근거"
+      ],
+      "indexes": [
+        "(file_scope_key,file_object_id)"
+      ],
+      "rules": [
+        "연결·생성·출력 시 현재 파일/원본 읽기·목적 문서 쓰기·안전 정책·공통 게시 상태를 함께 검사. scope 일치만으로 읽기 허가 금지.",
+        "extract ok 자체를 사실 확정으로 보지 않고 form/fact_source/style_example 용도와 교사 확인을 구분.",
+        "채택한 입력은 document_revision_sources.source_scope_key/source_file_id에 같은 정확 파일 범위를 고정. generic file_links의 같은scope 규칙은 그대로 유지."
+      ],
+      "read_policy": "목적 문서의 현재 권한과 원본파일 허용 범위.",
+      "tests": [
+        "WF10",
+        "WF11",
+        "WF17",
+        "WF17: 학교/common·개인/common 입력 성공, 타학교·다른개인·학교→개인 연결 거부; 공통 자료 철회 후 생성/출력 차단"
+      ]
+    },
+    {
+      "table": "workhub.document_validations",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "검사 sha=정확 revision 출력/내용 sha, pass에는 유효 규칙판·필수 skipped0",
+        "결과 INSERT 후 불변; 현재판의 pass는 같은hash/팩판 검사에서만"
+      ],
+      "indexes": [],
+      "rules": [
+        "근거 stale면 과거 pass가 있어도 새 출력/제출 허용을 자동 승계하지 않는다."
+      ],
+      "read_policy": "문서 현재 read, findings도 원본문서와 같은 민감도.",
+      "tests": [
+        "WF17"
+      ]
+    },
+    {
+      "table": "workhub.document_revision_sources",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "default": "gen_random_uuid()::text",
+          "immutable": true,
+          "description": "근거 관계 ID"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.documents.scope_key",
+          "description": "목적 문서 scope"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.schools.id",
+          "description": "학교 문서만"
+        },
+        {
+          "name": "document_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.documents.id",
+          "description": "목적 문서"
+        },
+        {
+          "name": "revision_no",
+          "type": "integer",
+          "nullable": false,
+          "description": "목적 불변판"
+        },
+        {
+          "name": "source_kind",
+          "type": "text",
+          "nullable": false,
+          "description": "file/event_revision/document_revision/knowledge_revision"
+        },
+        {
+          "name": "source_scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "원본 정확 scope"
+        },
+        {
+          "name": "source_file_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.file_objects.id",
+          "description": "파일 근거"
+        },
+        {
+          "name": "source_event_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.events.id",
+          "description": "일정 근거"
+        },
+        {
+          "name": "source_event_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "정확 일정판"
+        },
+        {
+          "name": "source_document_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.documents.id",
+          "description": "문서 근거"
+        },
+        {
+          "name": "source_document_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "정확 문서판"
+        },
+        {
+          "name": "source_knowledge_revision_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.knowledge_revisions.id",
+          "description": "정확 지식판"
+        },
+        {
+          "name": "source_sha256",
+          "type": "text",
+          "nullable": false,
+          "immutable": true,
+          "description": "당시 원본 지문"
+        },
+        {
+          "name": "purpose",
+          "type": "text",
+          "nullable": false,
+          "description": "form/fact/style"
+        },
+        {
+          "name": "locator",
+          "type": "text",
+          "nullable": false,
+          "description": "쪽/문항/문단 위치"
+        },
+        {
+          "name": "confirmed_by_account_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.accounts.id",
+          "description": "근거 확인 계정"
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "default": "clock_timestamp()",
+          "immutable": true,
+          "description": "확인시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(scope_key,id)",
+        "(scope_key,document_id,revision_no) FK → workhub.document_revisions(scope_key,document_id,revision_no); 세 열 NOT NULL",
+        "source_kind IN (file,event_revision,document_revision,knowledge_revision); file이면 source_file_id만 NN, event_revision이면 source_event_id/source_event_revision_no만 NN, document_revision이면 source_document_id/source_document_revision_no만 NN, knowledge_revision이면 source_knowledge_revision_id만 NN; 각 경우 나머지 모든 ID와 판번호는 NULL인 CHECK",
+        "MATCH SIMPLE FK (source_scope_key,source_file_id) → workhub.file_objects(scope_key,id)",
+        "MATCH SIMPLE FK (source_scope_key,source_event_id,source_event_revision_no) → workhub.event_revisions(scope_key,event_id,revision_no)",
+        "MATCH SIMPLE FK (source_scope_key,source_document_id,source_document_revision_no) → workhub.document_revisions(scope_key,document_id,revision_no)",
+        "MATCH SIMPLE FK (source_scope_key,source_knowledge_revision_id) → workhub.knowledge_revisions(scope_key,id)",
+        "source_scope_key NOT NULL; kind별 CHECK가 선택한 FK의 전 열 NN을 보장하여 선택 참조 검사를 생략할 수 없음",
+        "CHECK(source_scope_key=scope_key OR source_scope_key='c'); 학교 목적은 본교/common, 개인 목적은 본인/common만; 학교→개인 복사 금지",
+        "자기 문서판 순환·AI생성문을 원사실로 환류 금지"
+      ],
+      "indexes": [
+        "(scope_key,document_id,revision_no)",
+        "(source_kind,source_knowledge_revision_id)",
+        "(source_document_id,source_document_revision_no)"
+      ],
+      "rules": [
+        "본문 INSERT 후 불변, 원자료 삭제/정정은 정본 lifecycle 차단과 목적문서 stale 반영.",
+        "생성/출력 직전 원본 판/hash/현재권한 재검사. common이란 이유만으로 미게시판 사용 금지."
+      ],
+      "read_policy": "목적 문서 현재 read와 원본 현재 read의 교집합. 존재 정보도 허용 범위만.",
+      "tests": [
+        "WF17",
+        "WF18",
+        "WF17: 네 종류 정상 근거 각각 성공; 미선택 ID NULL 허용; 선택 ID 누락/선택판 누락/불필요 ID·판/다른scope ID 모두 거부"
+      ]
+    },
+    {
+      "table": "workhub.export_manifests",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "manifest_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "고정 선택 항목의 canonical 지문"
+        }
+      ],
+      "constraints": [
+        "items/failed_items JSON은 export_manifest_items projection",
+        "ready/partial은 실제 출력 file와 검증 manifest 지문 필요"
+      ],
+      "indexes": [
+        "(school_id,requested_by_membership_id,created_at DESC,id)"
+      ],
+      "rules": [
+        "none latest_valid, required effective 완료본 기본; received 미승인 포함은 명시선택.",
+        "시작/항목/최종연결/다운로드 권한 재검사, 권한 잃은 파일 섞인 구ZIP 재발급 금지.",
+        "동일 고정 항목 실패만 재시도, 중간 새제출판 자동치환 금지."
+      ],
+      "read_policy": "현재 요청관리/내보내기 권한; ZIP은 모든 포함판 현재 권한도 재확인.",
+      "tests": [
+        "WF16"
+      ]
+    },
+    {
+      "table": "workhub.export_manifest_items",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "default": "gen_random_uuid()::text",
+          "immutable": true,
+          "description": "행 식별자"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.schools.id",
+          "description": "학교 경계"
+        },
+        {
+          "name": "export_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.export_manifests.id",
+          "description": "내보내기 묶음"
+        },
+        {
+          "name": "unit_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_units.id",
+          "description": "단위"
+        },
+        {
+          "name": "submission_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.submission_versions.id",
+          "description": "고정 제출판"
+        },
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "references": "workhub.collection_schemas.id",
+          "description": "해석 정의판"
+        },
+        {
+          "name": "file_object_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.file_objects.id",
+          "description": "파일 없는 글/숫자 응답이면NULL"
+        },
+        {
+          "name": "file_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "실물 지문 snapshot"
+        },
+        {
+          "name": "archive_path",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 정규화 ZIP 경로"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "default": "'queued'",
+          "description": "queued/succeeded/failed/skipped"
+        },
+        {
+          "name": "error_code",
+          "type": "text",
+          "nullable": true,
+          "description": "본문 없는 안전 코드"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "default": "clock_timestamp()",
+          "description": "선택 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "export/단위는 같은 collection",
+        "(school_id,unit_id,submission_id,schema_id) FK submission_versions",
+        "파일이 있으면 동일 제출판 submission_files 관계 및 hash 일치",
+        "UNIQUE(export_id,archive_path)",
+        "state failed이면 error_code NN; file/hash 동시 NULL/존재"
+      ],
+      "indexes": [
+        "(school_id,export_id,state,id)"
+      ],
+      "rules": [
+        "선택 ID/판/hash/path는 불변, 실행 상태만 변경.",
+        "파일 없는 답변도 manifest에 1항목 포함. 상위경로/절대경로/중복 파일명 거부."
+      ],
+      "read_policy": "manifest 현재 권한+해당 제출 현재 권한.",
+      "tests": [
+        "WF16"
+      ]
+    },
+    {
+      "table": "workhub.notices",
+      "action": "alter",
+      "columns": [],
+      "constraints": [],
+      "indexes": [],
+      "rules": [
+        "기존 승인 게시근거·명시 확인·철회 불변 유지.",
+        "알림·file/link·revision 읽기에도 현재 notice ACL, 중요 표시로 전체 대상 확장 금지."
+      ],
+      "read_policy": "현재 승인 관계와 대상. 확인 명단은 요청자/명시 관리권한만.",
+      "tests": [
+        "WF18"
+      ]
+    },
+    {
+      "table": "workhub.notifications",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "title은 민감 이름/본문 없는 허용 템플릿에서 서버 생성",
+        "기존 recipient+kind+source+version 중복키 유지"
+      ],
+      "indexes": [],
+      "rules": [
+        "원본 제목은 읽기 RPC에서 현재 ACL 후 합성, 저장된 민감 제목 캐시 금지.",
+        "read RLS와 push worker 모두 현재 원본 resolver 검사, revoke 지연에도 노출 없음.",
+        "읽음/명시확인/업무완료 구별, 푸시 실패로 업무 rollback 금지."
+      ],
+      "read_policy": "수신 현재 account/membership+원본 현재read. 알림ID만으로 원본 접근 금지.",
+      "tests": [
+        "WF18",
+        "WF19"
+      ]
+    },
+    {
+      "table": "workhub.calendar_day_grade_overrides",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "source_event_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "일과 변경의 정확한 공식 확정판"
+        }
+      ],
+      "constraints": [
+        "source_event_id/source_event_revision_no는 둘 다 NULL 또는 둘 다 존재; (school_id,source_event_id,source_event_revision_no) FK → workhub.event_revisions(school_id,event_id,revision_no)",
+        "학교/날짜 부모는 기존 calendar_days FK 유지; 확정 공식판만 근거 허용"
+      ],
+      "indexes": [
+        "(school_id,source_event_id,source_event_revision_no)"
+      ],
+      "rules": [
+        "공식 확정/철회와 날짜 projection 갱신을 같은 transaction으로 처리한다."
+      ],
+      "read_policy": "해당 학교 활성 소속. 과거 계산 근거는 판 ID와 함께 제공.",
+      "tests": [
+        "WF13"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1848 @@
+{
+  "version": "1.1",
+  "domain": "collection",
+  "status": "design_only_database_and_document_ai_implementation_on_hold",
+  "base_contract": "schema-contract.json@1.0",
+  "contract": "13-template-collection.md",
+  "merge_semantics": "changes는 v1.0에 가산하는 목표 계약이다. alter의 생략 열/규칙은 유지하고 명시 우선 규칙만 대체한다. 운영 스키마/원본 SQL은 변경하지 않는다.",
+  "changes": [
+    {
+      "table": "workhub.collection_templates",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": false,
+          "description": "양식 표시명; 권한·정체성 키로 사용하지 않음"
+        },
+        {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "작성 당시 유효 소속",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "active 또는 retired"
+        },
+        {
+          "name": "management_duty_id",
+          "type": "text",
+          "nullable": true,
+          "description": "명시된 관리 업무; 그 자체가 모든 수합 답변 접근권은 아님",
+          "references": "workhub.duties.id"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "(school_id,created_by_membership_id) FK memberships(school_id,id)",
+        "(school_id,management_duty_id) FK duties(school_id,id); NULL이면 작성자와 명시 위임자 관리",
+        "CHECK state IN(active,retired); title 공백 금지"
+      ],
+      "indexes": [
+        "(school_id,state,created_at DESC,id)"
+      ],
+      "rules": [
+        "양식 재사용 카탈로그이며 답변이나 현재 제출 원장을 넣지 않는다.",
+        "retired는 신규 사용만 막고 기존 양식판/제출/파일 사슬을 보존한다."
+      ],
+      "read_policy": "현재 생성자 또는 명시 양식 관리권한; 게시 수합 대상자는 연결된 정확한 빈 양식판만 읽음.",
+      "tests": [
+        "COL01",
+        "COL18"
+      ]
+    },
+    {
+      "table": "workhub.collection_template_versions",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "template_id",
+          "type": "text",
+          "nullable": false,
+          "description": "재사용 양식 부모",
+          "references": "workhub.collection_templates.id"
+        },
+        {
+          "name": "version_no",
+          "type": "integer",
+          "nullable": false,
+          "description": "양식 파일의 증가 판번호"
+        },
+        {
+          "name": "source_file_id",
+          "type": "text",
+          "nullable": false,
+          "description": "검증된 원본 파일",
+          "references": "workhub.file_objects.id"
+        },
+        {
+          "name": "source_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "실물 검증된 원본 지문"
+        },
+        {
+          "name": "registered_by_membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "등록자",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "capability_report",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "등록 시점의 파일 이용 가능/분석 가능 정보, 분석 성공을 의미하지 않음"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "UNIQUE(school_id,template_id,version_no); UNIQUE(school_id,template_id,id)",
+        "(school_id,template_id) FK collection_templates(school_id,id)",
+        "(school_id,source_file_id) FK file_objects(school_id,id)",
+        "(school_id,registered_by_membership_id) FK memberships(school_id,id)",
+        "version_no>0; source_sha256는 64자리 hex이고 검증된 file_objects.sha256와 일치"
+      ],
+      "indexes": [
+        "(school_id,template_id,version_no DESC)",
+        "(school_id,source_file_id)"
+      ],
+      "rules": [
+        "원본 파일/해시/부모/판은 INSERT 후 불변. 수정 파일은 새 file object와 새 판이다.",
+        "현재 파일 정책을 통과하기 전 분석·전달·AI 입력 금지. 지원 형식은 승인 capability 설정으로 판정한다."
+      ],
+      "read_policy": "양식 관리자 또는 해당 판을 게시한 수합의 안내/양식 수신 권한. 미게시 초안 양식을 학교 전체에 공개하지 않음.",
+      "tests": [
+        "COL01",
+        "COL02",
+        "COL18",
+        "COL19"
+      ]
+    },
+    {
+      "table": "workhub.collection_template_analyses",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "template_version_id",
+          "type": "text",
+          "nullable": false,
+          "description": "분석한 정확한 원본판",
+          "references": "workhub.collection_template_versions.id"
+        },
+        {
+          "name": "job_id",
+          "type": "text",
+          "nullable": false,
+          "description": "분석 작업",
+          "references": "workhub.jobs.id"
+        },
+        {
+          "name": "ai_run_id",
+          "type": "text",
+          "nullable": true,
+          "description": "Claude 실행; 호출 전/수동 분석은 NULL",
+          "references": "workhub.ai_runs.id"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "queued/running/succeeded/needs_review/failed/outcome_unknown/cancelled"
+        },
+        {
+          "name": "recommendation",
+          "type": "text",
+          "nullable": true,
+          "description": "file_upload 또는 guided_candidate"
+        },
+        {
+          "name": "result",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "후보 필드·위치·불확실성·지원 capability, 성공 종료 시 불변"
+        },
+        {
+          "name": "result_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "정규화 분석 결과 지문"
+        },
+        {
+          "name": "analysis_contract_version",
+          "type": "text",
+          "nullable": false,
+          "description": "분석 DTO와 출력 위치 계약 버전"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "검증한 완료/실패 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "(school_id,template_version_id) FK collection_template_versions(school_id,id)",
+        "(scope_key,job_id) FK jobs(scope_key,id); (scope_key,ai_run_id) FK ai_runs(scope_key,id)",
+        "UNIQUE(scope_key,job_id); UNIQUE(school_id,template_version_id,id)",
+        "성공 또는 검토필요 결과는 result/result_sha256/completed_at 모두 존재; failed/unknown을 verified로 사용 금지",
+        "상태·추천은 명시 enum; result는 제한된 object, 실행 코드/비밀/원시 전체 대화 저장 금지"
+      ],
+      "indexes": [
+        "(school_id,template_version_id,created_at DESC,id)"
+      ],
+      "rules": [
+        "jobs와 동일 lease token 및 현재 양식 접근 검사를 통과한 worker만 완료한다.",
+        "원본 sha가 바뀌지 않아도 새 프롬프트/분석 재시도는 새 analysis로 기록한다.",
+        "외부 결과 outcome_unknown은 04장 복구 규칙을 따르며 자동 중복 호출하지 않는다."
+      ],
+      "read_policy": "현재 양식 관리자만; 분석 job/ai 결과로 초안 접근 범위를 넓히지 않음.",
+      "tests": [
+        "COL01",
+        "COL02",
+        "COL15",
+        "COL19"
+      ]
+    },
+    {
+      "table": "workhub.collection_template_mappings",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "template_version_id",
+          "type": "text",
+          "nullable": false,
+          "description": "매핑한 정확한 원본판",
+          "references": "workhub.collection_template_versions.id"
+        },
+        {
+          "name": "analysis_id",
+          "type": "text",
+          "nullable": true,
+          "description": "사용한 AI 분석 또는 수동 검토 근거",
+          "references": "workhub.collection_template_analyses.id"
+        },
+        {
+          "name": "version_no",
+          "type": "integer",
+          "nullable": false,
+          "description": "해당 양식판 내 매핑판"
+        },
+        {
+          "name": "source",
+          "type": "text",
+          "nullable": false,
+          "description": "ai_reviewed 또는 human_review"
+        },
+        {
+          "name": "field_definition",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "안정 field_key의 타입/질문/조건/반복 구조, 게시 schema의 원본"
+        },
+        {
+          "name": "mapping_definition",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "field_key→target_key/구조 locator 및 허용 코드 변환"
+        },
+        {
+          "name": "mapping_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "field+mapping+출력 계약의 canonical 지문"
+        },
+        {
+          "name": "renderer_contract_version",
+          "type": "text",
+          "nullable": false,
+          "description": "실제 사용할 렌더러 계약판"
+        },
+        {
+          "name": "pack_id",
+          "type": "text",
+          "nullable": true,
+          "description": "검증된 출력 팩",
+          "references": "workhub.document_packs.id"
+        },
+        {
+          "name": "pack_scope_key",
+          "type": "text",
+          "nullable": true,
+          "description": "같은 학교 또는 허용된 common 팩"
+        },
+        {
+          "name": "pack_asset_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "정확한 검증 팩 자산 지문"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "candidate/verified/approved/retired"
+        },
+        {
+          "name": "sample_document_id",
+          "type": "text",
+          "nullable": true,
+          "description": "합성 표본 문서",
+          "references": "workhub.documents.id"
+        },
+        {
+          "name": "sample_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "표본의 정확한 불변판"
+        },
+        {
+          "name": "sample_validation_id",
+          "type": "text",
+          "nullable": true,
+          "description": "표본 정확판 검사",
+          "references": "workhub.document_validations.id"
+        },
+        {
+          "name": "sample_manifest_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "입력 fixture/양식/매핑/팩/출력 해시 묶음"
+        },
+        {
+          "name": "approved_by_membership_id",
+          "type": "text",
+          "nullable": true,
+          "description": "표본 확인자",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "approved_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "확인 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "UNIQUE(school_id,template_version_id,version_no); UNIQUE(school_id,template_version_id,id)",
+        "(school_id,template_version_id) FK collection_template_versions(school_id,id)",
+        "(school_id,template_version_id,analysis_id) FK collection_template_analyses(school_id,template_version_id,id); 선택 ID만 NULL인 경우 MATCH SIMPLE",
+        "(pack_scope_key,pack_id) MATCH FULL FK document_packs(scope_key,id); pack/asset 지문은 모두 NULL 또는 모두 존재",
+        "(scope_key,sample_document_id,sample_revision_no) FK document_revisions(scope_key,document_id,revision_no); sample document/revision은 동시 NULL",
+        "(scope_key,sample_document_id,sample_revision_no,sample_validation_id) FK document_validations(scope_key,document_id,revision_no,id); 선택 ID bundle 완전성 CHECK",
+        "(school_id,approved_by_membership_id) FK memberships(school_id,id)",
+        "approved/retired는 표본 정확판/검사/manifest/승인자/승인시각 모두 NN; verified도 exact sample 검사 성공 필수",
+        "source enum/상태 enum/version_no>0; 정의 JSON은 허용형식, target 중복/필드 누락/임의 실행문 금지",
+        "guided 승인 매핑은 pack_id/pack_scope_key/pack_asset_sha256 NN이고 현재 검증·활성 팩 및 renderer contract와 일치; 검증 없는 임의 renderer 사용 금지"
+      ],
+      "indexes": [
+        "(school_id,template_version_id,state,version_no DESC)"
+      ],
+      "rules": [
+        "field/mapping/renderer/pack/source material은 INSERT 후 불변, 내용 변경은 새 version_no.",
+        "표본 필수 검사 skipped=0·실물 hash·원본/매핑/엔진/팩 지문 일치 후 verified; 담당자 명시 확인 후 approved.",
+        "기존 보호 자산을 바꾸지 않고 지원된 팩 또는 승인된 새 출력 경로를 참조한다."
+      ],
+      "read_policy": "현재 양식 관리자. 게시 수합 참가자는 질문·지원 요약만 읽고 분석 원문·관리 메타는 받지 않음.",
+      "tests": [
+        "COL01",
+        "COL02",
+        "COL03",
+        "COL19"
+      ]
+    },
+    {
+      "table": "workhub.collection_answer_snapshots",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "collection_id",
+          "type": "text",
+          "nullable": false,
+          "description": "요청",
+          "references": "workhub.collections.id"
+        },
+        {
+          "name": "unit_id",
+          "type": "text",
+          "nullable": false,
+          "description": "제출 단위",
+          "references": "workhub.collection_units.id"
+        },
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "description": "게시 문항판",
+          "references": "workhub.collection_schemas.id"
+        },
+        {
+          "name": "draft_id",
+          "type": "text",
+          "nullable": false,
+          "description": "출력 직전의 편집 원장",
+          "references": "workhub.unit_drafts.id"
+        },
+        {
+          "name": "draft_version",
+          "type": "integer",
+          "nullable": false,
+          "description": "잠금 후 동결한 초안 버전"
+        },
+        {
+          "name": "answers",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "활성 문항 답변 projection; 초안 전체 대화 아님"
+        },
+        {
+          "name": "provenance",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "경로별 출처/제안/확인 구분"
+        },
+        {
+          "name": "excluded_paths",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "조건상 제외한 경로 목록; 원문값 제외"
+        },
+        {
+          "name": "file_manifest",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "typed snapshot file_links의 표시 projection"
+        },
+        {
+          "name": "manifest_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "답변/조건/문항판/정확한 첨부/출처의 canonical 지문"
+        },
+        {
+          "name": "created_by_account_id",
+          "type": "text",
+          "nullable": false,
+          "description": "동결 요청자",
+          "references": "workhub.accounts.id"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "UNIQUE(school_id,id,unit_id,schema_id); UNIQUE(school_id,unit_id,schema_id,id); UNIQUE(school_id,draft_id,draft_version,manifest_sha256)",
+        "(school_id,collection_id) FK collections(school_id,id)",
+        "(school_id,collection_id,unit_id) FK collection_units(school_id,collection_id,id)",
+        "(school_id,collection_id,schema_id) FK collection_schemas(school_id,collection_id,id)",
+        "(school_id,draft_id,unit_id,schema_id) FK unit_drafts(school_id,id,unit_id,schema_id)",
+        "draft_version>0; answers/provenance는 object, excluded_paths/file_manifest는 제한 배열",
+        "INSERT 시 현재 draft version 일치; 이후 draft 변경이 과거 snapshot 내용을 수정하지 않음"
+      ],
+      "indexes": [
+        "(school_id,unit_id,schema_id,created_at DESC,id)",
+        "(school_id,draft_id,draft_version)"
+      ],
+      "rules": [
+        "기존 mutable unit_drafts와 장시간 출력 사이를 고정하는 불변 입력이다; 제출 이전에 동결한다.",
+        "파일 관계는 목적 고정 file_links에 같은 동결 transaction으로 생성, manifest와 전수 일치 후 불변. JSON file ID만으로 접근권한을 부여하지 않는다.",
+        "필드 provenance의 미확정 필수 값/지원하지 않는 타입·경로는 출력 불가. 숨은 항목은 출력·제출에 포함하지 않는다."
+      ],
+      "read_policy": "제출 전: 원초안의 현재 개인/공동 ACL. 제출 후: 명시 연결된 제출판 독자에게 그 snapshot만 허용. 관리자/검토자의 미제출 초안 우회 0건.",
+      "tests": [
+        "COL04",
+        "COL05",
+        "COL06",
+        "COL07",
+        "COL08",
+        "COL09"
+      ]
+    },
+    {
+      "table": "workhub.collection_output_artifacts",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "unit_id",
+          "type": "text",
+          "nullable": false,
+          "description": "제출 단위",
+          "references": "workhub.collection_units.id"
+        },
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "description": "출력 문항판",
+          "references": "workhub.collection_schemas.id"
+        },
+        {
+          "name": "answer_snapshot_id",
+          "type": "text",
+          "nullable": false,
+          "description": "고정 답변",
+          "references": "workhub.collection_answer_snapshots.id"
+        },
+        {
+          "name": "template_version_id",
+          "type": "text",
+          "nullable": false,
+          "description": "정확 양식판",
+          "references": "workhub.collection_template_versions.id"
+        },
+        {
+          "name": "mapping_id",
+          "type": "text",
+          "nullable": true,
+          "description": "문답형의 승인 매핑판",
+          "references": "workhub.collection_template_mappings.id"
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "nullable": false,
+          "description": "uploaded 또는 generated"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "queued/running/ready/failed/stale/cancelled"
+        },
+        {
+          "name": "job_id",
+          "type": "text",
+          "nullable": true,
+          "description": "생성/파일 검사 작업",
+          "references": "workhub.jobs.id"
+        },
+        {
+          "name": "document_id",
+          "type": "text",
+          "nullable": true,
+          "description": "생성형 문서",
+          "references": "workhub.documents.id"
+        },
+        {
+          "name": "document_revision_no",
+          "type": "integer",
+          "nullable": true,
+          "description": "생성된 정확한 문서판"
+        },
+        {
+          "name": "validation_id",
+          "type": "text",
+          "nullable": true,
+          "description": "생성형 검사 정확판",
+          "references": "workhub.document_validations.id"
+        },
+        {
+          "name": "file_object_id",
+          "type": "text",
+          "nullable": true,
+          "description": "최종 실물 파일",
+          "references": "workhub.file_objects.id"
+        },
+        {
+          "name": "file_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "검증 실물 지문"
+        },
+        {
+          "name": "manifest_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "답변·양식·매핑·팩·렌더러·파일 결합 지문"
+        },
+        {
+          "name": "safe_error_code",
+          "type": "text",
+          "nullable": true,
+          "description": "원문 없는 실패 코드"
+        },
+        {
+          "name": "ready_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "파일/본문 검증 완료 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "UNIQUE(school_id,unit_id,schema_id,id); UNIQUE(school_id,id,answer_snapshot_id); UNIQUE(school_id,id,answer_snapshot_id,manifest_sha256)",
+        "(school_id,unit_id,schema_id,answer_snapshot_id) FK collection_answer_snapshots(school_id,unit_id,schema_id,id)",
+        "(school_id,template_version_id) FK collection_template_versions(school_id,id)",
+        "(school_id,template_version_id,mapping_id) FK collection_template_mappings(school_id,template_version_id,id)",
+        "(scope_key,job_id) FK jobs(scope_key,id)",
+        "(scope_key,document_id,document_revision_no) FK document_revisions(scope_key,document_id,revision_no)",
+        "(scope_key,document_id,document_revision_no,validation_id) FK document_validations(scope_key,document_id,revision_no,id)",
+        "(school_id,file_object_id) FK file_objects(school_id,id)",
+        "document/revision은 둘 다 NULL 또는 둘 다 존재; ready는 file/hash/manifest/ready_at 모두 NN",
+        "generated ready는 mapping/document/revision/validation 모두 NN; uploaded는 mapping/document/revision/validation 모두 NULL",
+        "생성형 file ID/hash는 exact document_revisions.output과 일치; uploaded는 실제 검증 파일과 일치",
+        "schema의 template/mapping과 일치, 다른 schema 매핑 혼합 금지",
+        "(school_id,document_id,document_revision_no,unit_id,schema_id,answer_snapshot_id,template_version_id,mapping_id) FK document_revisions(school_id,document_id,revision_no,collection_unit_id,collection_schema_id,collection_answer_snapshot_id,collection_template_version_id,collection_mapping_id) MATCH SIMPLE. generated ready에서는 전 열 NN",
+        "generated ready는 document_validations.state=pass, 필수검사 skipped=0, findings의 error=0, unresolved_fields의 활성 필수 미확정=0. 검사 checked_sha256=exact output file hash=document_revisions.output_sha256",
+        "generated ready는 document_revisions의 팩 ID/범위/자산 hash와 mapping의 검증 팩 동일, renderer_contract_version과 검증 rule_set_ref가 승인된 registry 조합. material 입력 지문은 actual render job input_sha256와 같아야 함",
+        "generated ready 선언과 confirm/submit 때 위 검사 및 현재 파일 안전정책 재검사. needs_review/error/not_checked 또는 필수검사 skip은 ready 불가"
+      ],
+      "indexes": [
+        "(school_id,unit_id,schema_id,created_at DESC,id)",
+        "(scope_key,job_id) WHERE job_id IS NOT NULL",
+        "(school_id,file_object_id) WHERE file_object_id IS NOT NULL"
+      ],
+      "rules": [
+        "내용 저장은 documents/revisions를 재사용하고 이 표는 사슬 결합과 출력 준비 상태만 담당한다.",
+        "ready 후 파일/판/해시/입력은 불변. 답변/파일 교체/팩검증 변경은 새 artifact, 기존 사용은 stale.",
+        "ready는 제출 아님. 출력 완료 전 초안/권한 변경은 현재 제출에 연결하지 않는다."
+      ],
+      "read_policy": "원 answer snapshot 현재 ACL. 제출 후 exact 제출 연결만 collector 열람 가능; jobs/documents/raw file 경로도 동일 부모 재검사.",
+      "tests": [
+        "COL01",
+        "COL04",
+        "COL09",
+        "COL10",
+        "COL11",
+        "COL12",
+        "COL13",
+        "COL19",
+        "COL23",
+        "COL24"
+      ]
+    },
+    {
+      "table": "workhub.collection_output_confirmations",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 발급 UUID 문자열, PK"
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 학교 경계",
+          "references": "workhub.schools.id"
+        },
+        {
+          "name": "scope_key",
+          "type": "text",
+          "nullable": false,
+          "description": "01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "명령 동시성용 양의 버전, 불변 material 판번호와 별개"
+        },
+        {
+          "name": "unit_id",
+          "type": "text",
+          "nullable": false,
+          "description": "단위",
+          "references": "workhub.collection_units.id"
+        },
+        {
+          "name": "schema_id",
+          "type": "text",
+          "nullable": false,
+          "description": "문항판",
+          "references": "workhub.collection_schemas.id"
+        },
+        {
+          "name": "artifact_id",
+          "type": "text",
+          "nullable": false,
+          "description": "확인한 정확한 산출물",
+          "references": "workhub.collection_output_artifacts.id"
+        },
+        {
+          "name": "answer_snapshot_id",
+          "type": "text",
+          "nullable": false,
+          "description": "확인한 답변 snapshot",
+          "references": "workhub.collection_answer_snapshots.id"
+        },
+        {
+          "name": "manifest_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "서버의 exact artifact 지문과 일치"
+        },
+        {
+          "name": "draft_version",
+          "type": "integer",
+          "nullable": false,
+          "description": "확인 당시 current draft version"
+        },
+        {
+          "name": "confirmed_by_membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "현재 책임자 또는 유효 대리",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "confirmed_by_account_id",
+          "type": "text",
+          "nullable": false,
+          "description": "실제 현재 인증 계정",
+          "references": "workhub.accounts.id"
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 확인 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0",
+        "school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT",
+        "UNIQUE(school_id,unit_id,schema_id,artifact_id,id); UNIQUE(school_id,artifact_id,confirmed_by_account_id,manifest_sha256)",
+        "(school_id,unit_id,schema_id,artifact_id) FK collection_output_artifacts(school_id,unit_id,schema_id,id)",
+        "(school_id,artifact_id,answer_snapshot_id,manifest_sha256) FK collection_output_artifacts(school_id,id,answer_snapshot_id,manifest_sha256)",
+        "(school_id,confirmed_by_membership_id,confirmed_by_account_id) FK memberships(school_id,id,account_id)",
+        "draft_version>0; 확인은 ready exact artifact에 대해서만; artifact snapshot의 draft_version과 일치"
+      ],
+      "indexes": [
+        "(school_id,artifact_id,confirmed_at DESC)"
+      ],
+      "rules": [
+        "불변 확인 사실이며 확인 주체를 제출자로 바꾸지 못한다. 실제 submitter 계정/현재 책임·대리 권한 재검사.",
+        "같은 제출판에 연결할 때 draft/manifest/현재 schema가 달라졌으면 확인은 역사로만 남고 제출은 거부한다."
+      ],
+      "read_policy": "확인 본인 및 현재 해당 초안/제출 권한자. 담당자에게 미제출 확인의 존재를 별도 노출하지 않음.",
+      "tests": [
+        "COL04",
+        "COL09",
+        "COL10",
+        "COL11",
+        "COL12"
+      ]
+    },
+    {
+      "table": "workhub.collection_schemas",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "response_mode",
+          "type": "text",
+          "nullable": true,
+          "description": "기존 일반수합 NULL, 신규 양식수합 file_upload 또는 guided"
+        },
+        {
+          "name": "template_version_id",
+          "type": "text",
+          "nullable": true,
+          "description": "양식 수합의 정확한 빈 양식",
+          "references": "workhub.collection_template_versions.id"
+        },
+        {
+          "name": "mapping_id",
+          "type": "text",
+          "nullable": true,
+          "description": "guided의 정확 승인 매핑",
+          "references": "workhub.collection_template_mappings.id"
+        },
+        {
+          "name": "output_file_field_id",
+          "type": "text",
+          "nullable": true,
+          "description": "최종 문서가 들어가는 같은 schema의 file 문항",
+          "references": "workhub.collection_fields.id"
+        },
+        {
+          "name": "output_requirement",
+          "type": "text",
+          "nullable": true,
+          "description": "original_required 또는 validated_output"
+        }
+      ],
+      "constraints": [
+        "(school_id,template_version_id) FK collection_template_versions(school_id,id)",
+        "(school_id,template_version_id,mapping_id) FK collection_template_mappings(school_id,template_version_id,id)",
+        "(school_id,id,output_file_field_id) FK collection_fields(school_id,schema_id,id) DEFERRABLE",
+        "response_mode NULL이면 이번 확장 연결 전부 NULL; file_upload/guided는 template/output field/requirement 모두 NN; guided만 mapping NN",
+        "published schema material 불변; output file field는 kind=file이며 같은 collection/schema; generated_output은 guided 전용",
+        "UNIQUE(school_id,id,template_version_id,mapping_id) 추가; 생성 문서판이 정확한 schema/양식/매핑 조합을 FK로 참조",
+        "guided에는 output_file_field_id가 가리키는 root/file/generated_output/required=true/file_max_count=1/activation NULL 필드 정확히 1개. 다른 generated_output 필드가 있거나 역참조가 없으면 지연 제약으로 거부",
+        "file_upload에는 output_file_field_id가 root/file/input/required=true/file_max_count=1/activation NULL이며 generated_output 필드 0개. 일반수합 모드 NULL도 generated_output 0개"
+      ],
+      "indexes": [
+        "(school_id,template_version_id,id) WHERE template_version_id IS NOT NULL"
+      ],
+      "rules": [
+        "기존 수합 schema와 review/self_review/current/effective 계약 유지.",
+        "guided 게시 시 승인 mapping exact hash, field 정의, 검증 표본, 현재 renderer/pack capability를 재검사.",
+        "게시 후 변경은 새 schema+단위별 영향승인, pending 제출/열린 보완 단위의 모드 변경 거부.",
+        "게시 schema의 입력 필드 의미/타입/조건/반복 구조는 승인 mapping.field_definition과 일치; 다르면 새 mapping+표본 필요."
+      ],
+      "read_policy": "기존 안내 읽기. mapping 세부·답변·초안 ACL을 상속해 넓히지 않음.",
+      "tests": [
+        "COL01",
+        "COL02",
+        "COL03",
+        "COL16",
+        "COL22"
+      ]
+    },
+    {
+      "table": "workhub.collection_fields",
+      "action": "alter",
+      "supersedes_constraints": [
+        "collection_fields_kind_check"
+      ],
+      "columns": [
+        {
+          "name": "parent_field_id",
+          "type": "text",
+          "nullable": true,
+          "description": "같은 schema의 repeat_group 부모",
+          "references": "workhub.collection_fields.id"
+        },
+        {
+          "name": "activation_rule",
+          "type": "jsonb",
+          "nullable": true,
+          "description": "같은 schema field_key를 참조하는 허용 조건식 AST"
+        },
+        {
+          "name": "repeat_min",
+          "type": "integer",
+          "nullable": true,
+          "description": "반복행 최소; repeat_group만"
+        },
+        {
+          "name": "repeat_max",
+          "type": "integer",
+          "nullable": true,
+          "description": "검증된 출력 지원/정책 범위 내 최대; repeat_group만"
+        },
+        {
+          "name": "field_role",
+          "type": "text",
+          "nullable": false,
+          "description": "input 또는 generated_output, 기존값 input"
+        }
+      ],
+      "constraints": [
+        "UNIQUE(school_id,schema_id,id); UNIQUE(school_id,schema_id,field_key)",
+        "(school_id,schema_id,parent_field_id) FK collection_fields(school_id,schema_id,id); 부모 cycle/다른 schema/중첩 지원 초과 거부",
+        "CHECK kind IN(boolean,single_choice,multi_choice,number,short_text,date,file,long_text,repeat_group); 기존 collection_fields_kind_check를 대체하며 arbitrary kind 금지",
+        "repeat_min/max는 repeat_group만 양의 정수 또는 0을 정책에 맞게 허용, max>=min; 정책 미정이면 게시 차단",
+        "field_role=generated_output이면 kind=file, parent_field_id NULL, activation_rule NULL, required=true, file_max_count=1, 사용자 질문에서 제외",
+        "schema/field 지연 제약: guided schema는 generated_output 정확히 1개이며 해당 id=output_file_field_id. 반대로 generated_output 행은 그 schema가 guided이고 자신을 output_file_field_id로 참조해야 함",
+        "file_upload schema는 generated_output 0개이며 output_file_field_id가 가리키는 필드는 field_role=input/kind=file/parent NULL/activation NULL/required=true/file_max_count=1. 기존 일반수합(response_mode NULL)에도 generated_output 0개",
+        "조건식 참조 존재·type 일치·순환없음, 임의 실행문 불허; posted definition 불변"
+      ],
+      "indexes": [
+        "(school_id,schema_id,parent_field_id,sort_order)"
+      ],
+      "rules": [
+        "field_key는 의미 안정키, label 변경으로 재발급하지 않음. 의미/유형 변경은 새 key.",
+        "반복행 row_key 안정키와 answer_path가 첨부·출력 경로를 결정한다.",
+        "필수 검사는 활성 문항만; 0/false와 NULL 구별; 숨은 값은 초안 보존·출력 제외 안내."
+      ],
+      "read_policy": "기존 schema 안내 권한, 실제 답변 접근은 별도.",
+      "tests": [
+        "COL05",
+        "COL06",
+        "COL07",
+        "COL08",
+        "COL16",
+        "COL21",
+        "COL22"
+      ]
+    },
+    {
+      "table": "workhub.unit_drafts",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "UNIQUE(school_id,id,unit_id,schema_id) 보장; 기존 개인/공동 초안 유일키·schema 불변 계약 유지",
+        "answers 반복행/조건식은 exact schema의 validator로 검사; generated_output 문항의 값을 클라이언트가 임의 설정할 수 없음"
+      ],
+      "indexes": [],
+      "rules": [
+        "AI 제안/직접 입력은 같은 version 원장 사용. AI 제안 반영도 expected_version 검사.",
+        "초안 변경은 관련 ready artifact를 현재판용으로 stale 계산하며 기존 artifact의 파일/답변은 수정하지 않는다.",
+        "validator phase=draft/prepare_output/submit: prepare_output은 generated_output 누락을 허용, submit은 exact 생성파일 typed 관계를 필수 검사."
+      ],
+      "read_policy": "기존 개인/공동 현재 구성원 ACL 유지; collector에게 초안 존재·건수·파일명·AI 결과 비공개.",
+      "tests": [
+        "COL04",
+        "COL05",
+        "COL09",
+        "COL12"
+      ]
+    },
+    {
+      "table": "workhub.documents",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "linked_unit_id가 있는 수합 초안/산출물은 문서 ACL AND 해당 unit draft/submission 현재 ACL을 함께 만족",
+        "UNIQUE(school_id,id,linked_unit_id) 추가. 수합 생성 문서판의 정확 unit FK가 참조하며 linked_unit_id 변경으로 기존 판을 재배정하지 못함",
+        "생성 document owner 변경으로 수합 비공개 초안 경계를 우회하지 못함"
+      ],
+      "indexes": [
+        "(school_id,linked_unit_id,id) WHERE linked_unit_id IS NOT NULL"
+      ],
+      "rules": [
+        "기존 문서 저장/판 생성 사용, 단위 연결 산출물 공개는 실제 submission의 exact revision/file 연결 뒤에만.",
+        "개인 문서함·검색·jobs·ai_runs·source ref에서 동일 부모 경계를 재검사한다.",
+        "개인초안 산출물은 shared_with=none, 공동초안 산출물은 shared_with=unit_members로 생성하되 현재 유효 구성원 검사. linked unit의 개인초안 문서를 school/duty_members로 확대 금지."
+      ],
+      "read_policy": "기존 문서 권한과 수합 원본의 현재 권한 교집합.",
+      "tests": [
+        "COL04",
+        "COL12",
+        "COL20",
+        "COL24"
+      ]
+    },
+    {
+      "table": "workhub.document_revisions",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "collection_unit_id",
+          "type": "text",
+          "nullable": true,
+          "description": "수합 생성판의 정확한 단위, 원문서 linked_unit_id와 일치",
+          "references": "workhub.collection_units.id"
+        },
+        {
+          "name": "collection_schema_id",
+          "type": "text",
+          "nullable": true,
+          "description": "생성에 사용한 불변 수합 문항판",
+          "references": "workhub.collection_schemas.id"
+        },
+        {
+          "name": "collection_answer_snapshot_id",
+          "type": "text",
+          "nullable": true,
+          "description": "렌더러가 실제 소비한 불변 답변 snapshot",
+          "references": "workhub.collection_answer_snapshots.id"
+        },
+        {
+          "name": "collection_template_version_id",
+          "type": "text",
+          "nullable": true,
+          "description": "생성 원본 양식의 정확한 판",
+          "references": "workhub.collection_template_versions.id"
+        },
+        {
+          "name": "collection_mapping_id",
+          "type": "text",
+          "nullable": true,
+          "description": "실제 사용한 승인 매핑판",
+          "references": "workhub.collection_template_mappings.id"
+        },
+        {
+          "name": "collection_generation_input_sha256",
+          "type": "text",
+          "nullable": true,
+          "description": "실제 job.input_sha256와 같은 생성 입력 지문"
+        },
+        {
+          "name": "collection_renderer_contract_version",
+          "type": "text",
+          "nullable": true,
+          "description": "실제 생성에 사용한 검증 렌더러 계약판"
+        }
+      ],
+      "constraints": [
+        "수합 생성판의 7개 collection_* 열은 모두 NULL 또는 모두 NN. NN이면 school_id와 job_id NN이며 origin은 실제 생성 경로를 나타냄",
+        "(school_id,document_id,collection_unit_id) FK documents(school_id,id,linked_unit_id) MATCH SIMPLE; 수합판에서는 모든 FK 열 NN",
+        "(school_id,collection_unit_id,collection_schema_id,collection_answer_snapshot_id) FK collection_answer_snapshots(school_id,unit_id,schema_id,id)",
+        "(school_id,collection_template_version_id,collection_mapping_id) FK collection_template_mappings(school_id,template_version_id,id)",
+        "(school_id,collection_schema_id,collection_template_version_id,collection_mapping_id) FK collection_schemas(school_id,id,template_version_id,mapping_id)",
+        "UNIQUE(school_id,document_id,revision_no,collection_unit_id,collection_schema_id,collection_answer_snapshot_id,collection_template_version_id,collection_mapping_id)",
+        "collection_generation_input_sha256는 64자리 hex이며 해당 job.input_sha256와 일치. job.input의 unit/schema/snapshot/template/mapping/renderer/pack 식별자와 FK 사슬 전수 일치",
+        "collection_renderer_contract_version과 mapping.renderer_contract_version 동일, revision pack snapshot ID/scope/asset hash와 mapping 검증 팩 동일",
+        "수합 source 열은 content/output/pack과 함께 INSERT 후 불변; file 재업로드/수동수정은 새 판과 재검증"
+      ],
+      "indexes": [
+        "(school_id,collection_unit_id,collection_schema_id,collection_answer_snapshot_id) WHERE collection_answer_snapshot_id IS NOT NULL"
+      ],
+      "rules": [
+        "원본문서·생성 입력·출력파일은 기존 문서판에 저장하며 별도 본문 사본을 만들지 않는다.",
+        "worker는 현재 job lease와 권한을 확인하고 실제 사용하는 snapshot/mapping 입력으로만 typed source 열을 채운다. 클라이언트가 제공한 임의 source 문자열로 대체 금지.",
+        "artifact 생성 시 이 정확 source 사슬을 FK로 고정해 같은 학교 다른 단위/초안의 정상 파일을 포장하는 경로를 차단한다."
+      ],
+      "read_policy": "기존 문서판 ACL AND 현재 연결 단위의 초안/제출 ACL. collection source FK가 원본 개인초안 전체 열람을 허용하지 않음.",
+      "tests": [
+        "COL04",
+        "COL09",
+        "COL19",
+        "COL23",
+        "COL24"
+      ]
+    },
+    {
+      "table": "workhub.document_validations",
+      "action": "alter",
+      "columns": [],
+      "constraints": [
+        "UNIQUE(scope_key,document_id,revision_no,id) 추가하여 표본/산출물이 정확한 문서판 검사를 FK로 참조"
+      ],
+      "indexes": [],
+      "rules": [
+        "매핑 표본 필수검사 skipped>0 또는 exact checked hash 불일치이면 문답형 검증 통과 불가.",
+        "파일 안전 검증·서식 검증·내용 규정 검증의 통과 범위를 구분한다."
+      ],
+      "read_policy": "기존 원문서 현재 ACL 및 linked unit 경계.",
+      "tests": [
+        "COL02",
+        "COL03",
+        "COL19",
+        "COL23"
+      ]
+    },
+    {
+      "table": "workhub.file_links",
+      "action": "alter",
+      "supersedes_constraints": [
+        "file_links_resource_type_resource_id_file_object_id_role_key"
+      ],
+      "supersedes_indexes": [
+        "file_links_resource_type_resource_id_file_object_id_role_key",
+        "UNIQUE (scope_key,resource_type,resource_id,resource_version,field_id,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL"
+      ],
+      "columns": [
+        {
+          "name": "answer_path",
+          "type": "text[]",
+          "nullable": true,
+          "description": "문항 key 또는 반복행 group/row_key/field 경로; 수합 외 링크는 NULL"
+        }
+      ],
+      "constraints": [
+        "신규 typed resolver: collection_template_versions, collection_answer_snapshots, collection_output_artifacts. 정확 학교/판/원본권한 검증 구현 후 allowlist",
+        "수합 경로는 exact schema field와 row_key 존재·형식 검증; file ID/raw path로 부모 권한 대체 금지",
+        "answer_path는 file_links의 불변 연결 정체성에 포함. 다른 반복행으로 UPDATE하지 못하며 기존 초안 관계 변경은 unlink+새 링크, 동결 snapshot 관계는 변경 금지",
+        "활성 링크 UNIQUE(scope_key,resource_type,resource_id,resource_version,field_id,answer_path,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL; 기존 명명 UNIQUE 및 answer_path 없는 활성 UNIQUE를 대체",
+        "불변 answer snapshot 링크는 freeze transaction에서만 INSERT, 그 후 UPDATE/unlink/추가 금지; 전체 접근 차단/정정은 별도 사건"
+      ],
+      "indexes": [
+        "(school_id,resource_type,resource_id,resource_version) WHERE unlinked_at IS NULL",
+        "UNIQUE (scope_key,resource_type,resource_id,resource_version,field_id,answer_path,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL"
+      ],
+      "rules": [
+        "snapshot file_manifest JSON과 typed link의 file/hash/path 전수 일치 검사.",
+        "기존 파일 실물·안전정책·현재 다운로드 ACL·grant 회수 유지. 원본 양식 접근이 답변 파일 접근을 열지 않음."
+      ],
+      "read_policy": "typed 원본 현재 ACL. 미제출 artifact/문서/파일은 collector에게 비공개.",
+      "tests": [
+        "COL01",
+        "COL04",
+        "COL08",
+        "COL12",
+        "COL21"
+      ]
+    },
+    {
+      "table": "workhub.submission_versions",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "answer_snapshot_id",
+          "type": "text",
+          "nullable": true,
+          "description": "정확한 동결 답변",
+          "references": "workhub.collection_answer_snapshots.id"
+        },
+        {
+          "name": "output_artifact_id",
+          "type": "text",
+          "nullable": true,
+          "description": "확인한 exact 파일 결합",
+          "references": "workhub.collection_output_artifacts.id"
+        },
+        {
+          "name": "output_confirmation_id",
+          "type": "text",
+          "nullable": true,
+          "description": "실제 제출자 확인",
+          "references": "workhub.collection_output_confirmations.id"
+        }
+      ],
+      "constraints": [
+        "(school_id,unit_id,schema_id,answer_snapshot_id) FK collection_answer_snapshots(school_id,unit_id,schema_id,id)",
+        "(school_id,unit_id,schema_id,output_artifact_id) FK collection_output_artifacts(school_id,unit_id,schema_id,id)",
+        "(school_id,output_artifact_id,answer_snapshot_id) FK collection_output_artifacts(school_id,id,answer_snapshot_id)",
+        "(school_id,unit_id,schema_id,output_artifact_id,output_confirmation_id) FK collection_output_confirmations(school_id,unit_id,schema_id,artifact_id,id)",
+        "기존 일반 수합은 세 연결 NULL 가능; 신규 양식수합은 셋 모두 NN, 부분 NULL 불가",
+        "submission.answers/schema/draft version과 exact snapshot 일치, confirmation actor=current actual submitter 계정 일치"
+      ],
+      "indexes": [
+        "(school_id,output_artifact_id) WHERE output_artifact_id IS NOT NULL"
+      ],
+      "rules": [
+        "cmd_submit에서 현재 source draft·unit/schema·안전 파일·확인 지문·현재 책임자/대리 재검사 후 제출/첨부/current/effective/receipt/outbox 원자.",
+        "output ready/AI 대화 완료/다운로드는 제출이 아니며 지연 계산은 기존 서버 접수시각만.",
+        "기존 review/correction/withdraw/late/current/effective 전이 유지.",
+        "개인초안에서 공동 제출용으로 복사할 때 새 shared draft snapshot/artifact/confirmation 필요; 개인 artifact 직접 공유 접수 금지."
+      ],
+      "read_policy": "기존 exact 제출판 ACL. 이 FK가 원개인초안 전체나 다른 artifact 접근을 열지 않음.",
+      "tests": [
+        "COL09",
+        "COL10",
+        "COL11",
+        "COL12",
+        "COL13",
+        "COL20"
+      ]
+    },
+    {
+      "table": "workhub.submission_files",
+      "action": "alter",
+      "supersedes_constraints": [
+        "submission_files_pkey"
+      ],
+      "supersedes_indexes": [
+        "submission_files_pkey"
+      ],
+      "columns": [
+        {
+          "name": "answer_path",
+          "type": "text[]",
+          "nullable": false,
+          "description": "기존 단일 문항은 [field_key], 반복은 [group_key,row_key,field_key]"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(submission_id,answer_path,file_object_id); UNIQUE(school_id,submission_id,answer_path,file_object_id). 기존 submission_files_pkey와 동명 backing index를 대체",
+        "answer_path는 exact schema/답변 snapshot의 경로; 필드 ID/schema 학교 복합 FK 유지",
+        "generated_output의 file ID/hash는 submission.output_artifact의 exact file과 일치"
+      ],
+      "indexes": [
+        "(school_id,submission_id,answer_path)"
+      ],
+      "rules": [
+        "신규 필드는 기존 행의 field_key로 명시 백필하는 계획만 정의하며 실제 SQL/백필 실행 금지.",
+        "접수와 같은 transaction에서 exact file/hash/정책 snapshot을 고정하고 이후 불변."
+      ],
+      "read_policy": "기존 exact 제출판 현재 ACL.",
+      "tests": [
+        "COL08",
+        "COL09",
+        "COL13",
+        "COL21"
+      ]
+    },
+    {
+      "table": "workhub.export_manifests",
+      "action": "alter",
+      "columns": [],
+      "constraints": [],
+      "indexes": [],
+      "rules": [
+        "기본 selection은 effective. 검토 없는 수합도 current=effective 계약에 따라 같은 기본 사용.",
+        "미승인 received 포함은 담당자 명시 선택·상태 표시; 완료본 없는 단위는 현황표에 미완료 사유 표시.",
+        "02장 13절의 이전 1.0 received 기본을 대체하며 현재 02장과 동일; 고정 item ID/hash·부분실패·현재권한 규칙 유지."
+      ],
+      "read_policy": "기존 현재 요청관리/내보내기 권한 및 포함 제출판 ACL.",
+      "tests": [
+        "COL14",
+        "COL17"
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "id": "API-27",
+      "modules": [
+        "M04",
+        "M08"
+      ],
+      "commands": [
+        "cmd_register_collection_template",
+        "cmd_analyze_collection_template",
+        "cmd_save_collection_mapping",
+        "cmd_validate_collection_mapping",
+        "cmd_approve_collection_mapping"
+      ],
+      "reads": "collection_template_detail / collection_template_analysis / collection_mapping_preview",
+      "tables": [
+        "collection_templates",
+        "collection_template_versions",
+        "collection_template_analyses",
+        "collection_template_mappings",
+        "file_objects",
+        "document_packs",
+        "document_revisions",
+        "document_validations",
+        "jobs",
+        "ai_runs"
+      ],
+      "authorization": "현재 학교의 명시 요청/양식 관리권한, 원본 파일 현재 ACL, 정확 표본 확인. 일반 관리자 권한만으로 초안 열람 불가",
+      "input": "scope={school_id}·file/template version·source hash·mapping hash·sample exact document/revision/validation·expected versions·idempotency_key",
+      "result": "05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 원본판·분석 작업 ID·추천/불확실성·검증/승인 매핑판·receipt; 지원은 검증범위만 표시",
+      "tests": "COL01~03/COL15/COL18~19: 타학교/미지원/표본불일치/외부unknown/판재사용",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-28",
+      "modules": [
+        "M04",
+        "M08"
+      ],
+      "commands": [
+        "cmd_propose_collection_answers",
+        "cmd_apply_collection_answer_proposal",
+        "cmd_prepare_collection_output",
+        "cmd_confirm_collection_output"
+      ],
+      "reads": "collection_interview_context / collection_output_preview",
+      "tables": [
+        "collection_schemas",
+        "collection_fields",
+        "unit_drafts",
+        "collection_answer_snapshots",
+        "collection_output_artifacts",
+        "collection_output_confirmations",
+        "documents",
+        "document_revisions",
+        "document_validations",
+        "file_objects",
+        "file_links",
+        "jobs",
+        "ai_runs"
+      ],
+      "authorization": "현재 유효 개인/공동 초안 접근; 최종 확인은 책임자 또는 유효 대리. 제출은 별도 API-09",
+      "input": "scope={school_id}·unit/schema/draft·expected versions·AI 제안 field paths·artifact ID·observed manifest hash·idempotency_key",
+      "result": "05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 검토할 답변 patch·snapshot/artifact/job·파일/답변 미리보기·확인 ID; not_submitted 상태 유지",
+      "tests": "COL04~13/COL15~16/COL20: 초안비공개/조건·반복/동시편집/오래된출력/책임자인계/AI장애",
+      "status": "target_contract_not_implemented"
+    }
+  ],
+  "existing_api_amendments": [
+    {
+      "api_id": "API-08",
+      "changes": [
+        "양식/모드/approved mapping/정확 표본/schema/destination snapshot 게시 검사",
+        "새 문항판 영향 승인, pending/열린 보완 단위 모드 변경 차단"
+      ]
+    },
+    {
+      "api_id": "API-09",
+      "changes": [
+        "조건/반복/경로 validator",
+        "answer_snapshot_id/output_artifact_id/output_confirmation_id 사슬 및 현재 actual submitter 검사",
+        "출력/제출 별도 상태"
+      ]
+    },
+    {
+      "api_id": "API-10",
+      "changes": [
+        "기본 export selection=effective; received는 명시 선택",
+        "미완료 단위 누락사유 현황표 및 exact manifest"
+      ]
+    },
+    {
+      "api_id": "API-16",
+      "changes": [
+        "linked_unit 문서 ACL 교집합",
+        "양식/매핑/답변 snapshot에 묶인 exact document revision"
+      ]
+    },
+    {
+      "api_id": "API-17",
+      "changes": [
+        "양식판/답변 snapshot/산출물 typed resolver",
+        "answer_path와 현재 부모 권한 검사"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "COL01",
+      "severity": "높음",
+      "topic": "타학교·부모 사슬 교차",
+      "given": "A학교 수합에 B학교 양식/매핑/schema/unit/file/snapshot 연결",
+      "expected": "모든 명령·FK·조회에서 거부, 오류에 타학교 본문/존재 노출 0건",
+      "layer": "FK/RLS/API",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL02",
+      "severity": "높음",
+      "topic": "미검증 문답 게시",
+      "given": "AI가 guided를 추천했지만 표본 실패·필수 검사 skipped·출력 미지원",
+      "expected": "guided 게시 거부, file_only 경로와 구체 원인 표시",
+      "layer": "게시/렌더/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL03",
+      "severity": "높음",
+      "topic": "표본과 매핑판 불일치",
+      "given": "매핑2판에 매핑1판 또는 다른 문서판 validation으로 승인",
+      "expected": "승인 0건, exact source/mapping/renderer/pack/hash 재검증",
+      "layer": "FK/매핑 명령",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL04",
+      "severity": "높음",
+      "topic": "미제출 초안과 산출물 비공개",
+      "given": "collector/학교관리자가 개인·공동초안의 jobs/documents/artifact/file/search/count 조회",
+      "expected": "현재 단위 구성원 외 초안 원문·존재·파일명 0건; 제출 후 exact 제출 연결만 읽음",
+      "layer": "RLS/API/파일/검색",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL05",
+      "severity": "높음",
+      "topic": "AI·직접 입력 공통 원장",
+      "given": "AI 제안 후 수동 값 변경, 오래된 제안 적용, 화면 전환/재접속",
+      "expected": "같은 draft 유지, 기대판 충돌로 덮어쓰기 0건, 입력 복구 가능",
+      "layer": "도메인/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL06",
+      "severity": "높음",
+      "topic": "필수값과 미확정 정보",
+      "given": "0/false/NULL/공백/미확정 사전채움 입력",
+      "expected": "0/false 유효, 활성 필수 미확정은 제출 거부; 제안 사실 임의 확정 0건",
+      "layer": "validator/API",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL07",
+      "severity": "높음",
+      "topic": "조건부 질문과 숨은 값",
+      "given": "참→거짓 전환, 조건 cycle/다른 schema 참조/임의 코드 삽입",
+      "expected": "초안 값 보존·미리보기 제외 안내·출력 제외; 잘못된 조건 정의 거부",
+      "layer": "validator/출력",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL08",
+      "severity": "높음",
+      "topic": "반복행과 파일 경로",
+      "given": "행 순서 변경, 동명이인 행, 중복 row_key, 동일 file을 두 행 첨부",
+      "expected": "안정 row_key/answer_path로 각 행 유지; 중복·지원 깊이 초과 거부",
+      "layer": "validator/FK/파일/출력",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL09",
+      "severity": "높음",
+      "topic": "오래된 출력·답변·파일",
+      "given": "draft7 출력/확인 후 draft8 저장 또는 첨부 변경 뒤 submit",
+      "expected": "OUTPUT_STALE로 제출 0건, 새 출력/최종확인 필요",
+      "layer": "동시성/API",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL10",
+      "severity": "높음",
+      "topic": "다른 파일 확인 사용",
+      "given": "A artifact 미리보기 후 B file/hash 또는 같은 artifact의 다른 snapshot 제출",
+      "expected": "FK/지문 검사로 전체 접수 0건, 기존 완료본 유지",
+      "layer": "FK/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL11",
+      "severity": "높음",
+      "topic": "책임자·대리 인계",
+      "given": "공동작성자 확인 또는 전임 책임자 확인으로 새 책임자가 제출",
+      "expected": "실제 submitter의 현재 책임/대리 권한과 exact 확인 요구",
+      "layer": "권한/인계/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL12",
+      "severity": "높음",
+      "topic": "권한 회수와 장시간 작업",
+      "given": "생성 중 구성원 종료/권한 회수/학교 전환/worker lease 만료",
+      "expected": "결과의 현재 접근 재검사, 이전 worker 공개/제출 차단, 타학교 UI에 결과 노출 0건",
+      "layer": "worker/RLS/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL13",
+      "severity": "높음",
+      "topic": "출력과 접수 분리·멱등",
+      "given": "파일 ready 뒤 제출 validation 실패, 이후 정상 제출 응답 유실 재시도",
+      "expected": "ready만으로 제출0, 정상 접수는 동일 제출판/receipt/outbox 한 번",
+      "layer": "트랜잭션/재시도",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL14",
+      "severity": "높음",
+      "topic": "완료본 기본 내보내기",
+      "given": "required v1승인·v2pending, 다른 단위 미제출",
+      "expected": "기본 ZIP v1, 미완료 사유 현황표; received 명시 선택 때만 v2와 상태표시",
+      "layer": "ZIP/도메인",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL15",
+      "severity": "높음",
+      "topic": "AI 장애·외부 결과 불명",
+      "given": "분석/문답 공급자 실패 또는 outcome_unknown",
+      "expected": "답변 저장·직접 입력·파일 작성 경로 유지, 확인 전 중복 외부 호출 금지",
+      "layer": "worker/API/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL16",
+      "severity": "높음",
+      "topic": "게시 후 문항판 변경",
+      "given": "schema1 게시 뒤 조건/형식/모드 수정, pending/열린 보완 단위 포함",
+      "expected": "새 schema와 영향 미리보기; 허용 단위만 명시 적용, 과거 제출 해석 불변",
+      "layer": "판변경/도메인",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL17",
+      "severity": "높음",
+      "topic": "부분 내보내기·다운로드 회수",
+      "given": "ZIP 제작 중 파일 누락/특정 단위 권한 회수",
+      "expected": "partial 원인·정확 실패 item 재시도; 권한 잃은 포함판 ZIP 재발급 차단",
+      "layer": "worker/파일",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL18",
+      "severity": "높음",
+      "topic": "양식 재사용·원본 교체",
+      "given": "같은 학교 새 수합에서 빈 양식 재사용, 원본 교체, 타학교 복사 시도",
+      "expected": "새 대상/마감/schema, 기존 원본판 보존, 승인 없는 타학교 공유 차단",
+      "layer": "양식/게시/RLS",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL19",
+      "severity": "높음",
+      "topic": "지원 범위·렌더러 변경",
+      "given": "원본/팩/렌더러 지문 변경 또는 업로드형 내용검증 미실시",
+      "expected": "새 지원 검사 요구; 단순 파일검사를 문서 내용 검증 통과로 표시하지 않음",
+      "layer": "지원정책/렌더",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL20",
+      "severity": "높음",
+      "topic": "기존 기능 보존",
+      "given": "기존 로그인·회원·6종 평가계획서·일반 수합·보완·철회 회귀",
+      "expected": "기존 데이터/자산 불변, 신규 연결 NULL인 기존 수합 정상, 정확 현재/완료 포인터 유지",
+      "layer": "회귀/통합",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL21",
+      "severity": "높음",
+      "topic": "상속 제약·인덱스 대체와 반복 파일",
+      "given": "기준+확장 계약을 합친 대상 설계에 long_text/repeat_group과 서로 다른 반복행의 동일 file을 추가, 동일 경로 중복도 추가",
+      "expected": "옛 kind CHECK/PK/활성 UNIQUE는 superseded로만 보존, 정상 반복행 둘은 허용하며 동일 answer_path/file 중복은 새 키로 거부",
+      "layer": "설계 생성기/합성 DDL 제약",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL22",
+      "severity": "높음",
+      "topic": "모드별 출력 문항 역방향 무결성",
+      "given": "guided 출력필드를 input으로 지정, generated_output 2개, output 포인터 미연결, 조건부/반복 부모 출력, file_upload에 generated_output 추가",
+      "expected": "모든 잘못된 정의를 지연 제약·publish에서 거부. guided는 required root file generated_output 정확1개, file_upload는 input 결과필드1개로 정상 게시",
+      "layer": "제약/게시/validator",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL23",
+      "severity": "높음",
+      "topic": "검사 실패 산출물의 ready 승격 차단",
+      "given": "generated artifact에 error/needs_review/not_checked 검사, 필수 skipped, 오류 finding, 미확정 필수, 다른 exact 파일 hash/팩/매핑/렌더러/입력 job hash 대입",
+      "expected": "ready/confirm/submit 전부 거부; 모든 정확한 검사가 pass이고 error·필수skipped·활성필수미확정이0인 실제 파일만 통과",
+      "layer": "worker/검증/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL24",
+      "severity": "높음",
+      "topic": "같은 학교 다른 단위·답변 문서 재포장",
+      "given": "A단위 snapshot으로 생성·검증한 document revision/file을 B단위 artifact에 연결하거나 A단위의 다른 snapshot/schema/mapping으로 재지정",
+      "expected": "document linked_unit·revision typed 생성입력·artifact 복합 FK와 actual job input 검사가 모두 일치해야 하므로 교차 포장·판 변경 거부. 다른학교는 기존 scope 검사도 거부",
+      "layer": "FK/worker/출력/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "COL-T01",
+      "title": "공통 수합 DTO·validator·AI 없는 파일 작성 흐름",
+      "depends_on": [],
+      "deliverables": [
+        "기존 일반 수합 호환 DTO",
+        "조건/반복 필드 합성 fixture",
+        "파일 작성형 화면"
+      ],
+      "acceptance": [
+        "COL05~08의 순수 validator 시험",
+        "기존 인증/권한/제출 정책 변경 없음"
+      ]
+    },
+    {
+      "id": "COL-T02",
+      "title": "양식 등록·불변판·지원수준·재사용",
+      "depends_on": [
+        "COL-T01"
+      ],
+      "deliverables": [
+        "양식 카탈로그와 빈 양식판",
+        "검증 파일 연결",
+        "지원 미확정/미지원 UI"
+      ],
+      "acceptance": [
+        "COL01/COL18/COL19",
+        "실제 파일 정책·검증 없이는 ready 표시 금지"
+      ]
+    },
+    {
+      "id": "COL-T03",
+      "title": "Claude 분석·매핑 편집·표본 출력 검증",
+      "depends_on": [
+        "COL-T02"
+      ],
+      "deliverables": [
+        "분석 결과 DTO",
+        "안정 필드/locator 매핑",
+        "표본 document/validation 사슬"
+      ],
+      "acceptance": [
+        "COL02/COL03/COL15/COL19",
+        "보호된 기존 자산 무변경"
+      ]
+    },
+    {
+      "id": "COL-T04",
+      "title": "게시 문항판·대상 snapshot·변경 영향",
+      "depends_on": [
+        "COL-T03"
+      ],
+      "deliverables": [
+        "모드/표본/대상 확인 카드",
+        "새 schema 적용 명령",
+        "기존 API-08 확장"
+      ],
+      "acceptance": [
+        "COL01/COL16",
+        "미검증 guided 게시0"
+      ]
+    },
+    {
+      "id": "COL-T05",
+      "title": "문답·직접 입력·개인/공동 초안",
+      "depends_on": [
+        "COL-T01",
+        "COL-T04"
+      ],
+      "deliverables": [
+        "동일 unit_drafts 편집기",
+        "AI 제안 선택 반영",
+        "조건부/반복행/첨부/재개 UI"
+      ],
+      "acceptance": [
+        "COL04~08/COL12/COL15",
+        "초안 비공개 종단"
+      ]
+    },
+    {
+      "id": "COL-T06",
+      "title": "답변 snapshot·출력·최종 확인·원자 제출",
+      "depends_on": [
+        "COL-T03",
+        "COL-T05"
+      ],
+      "deliverables": [
+        "output artifact/confirmation 계약",
+        "기존 문서판/작업 재사용",
+        "API-09 제출 사슬 보강"
+      ],
+      "acceptance": [
+        "COL09~13",
+        "오래된/타인 확인 접수0"
+      ]
+    },
+    {
+      "id": "COL-T07",
+      "title": "검토·보완·완료본 ZIP·재안내",
+      "depends_on": [
+        "COL-T06"
+      ],
+      "deliverables": [
+        "effective 기본 export",
+        "상태 현황표/부분실패 복구",
+        "메신저 재안내 recipient 미리보기 연결"
+      ],
+      "acceptance": [
+        "COL14/COL17",
+        "대기 수정본이 완료본을 대체하지 않음"
+      ]
+    },
+    {
+      "id": "COL-T08",
+      "title": "종단·동시성·권한·기존 기능 검증",
+      "depends_on": [
+        "COL-T01",
+        "COL-T02",
+        "COL-T03",
+        "COL-T04",
+        "COL-T05",
+        "COL-T06",
+        "COL-T07"
+      ],
+      "deliverables": [
+        "COL01~24 실행 증거",
+        "합성 DB/파일/브라우저 검증",
+        "별도 공개 검토자료"
+      ],
+      "acceptance": [
+        "신규 설계 검사와 실제 DB 시험 결과 구별",
+        "사용자 승인 전 운영 DB/문서AI 적용0"
+      ]
+    }
+  ],
+  "common_envelope": "05-api-site-contract.md 상속: scope={school_id}, idempotency_key, expected_version/정확 revision. 성공 operation_id/status/resource/server_recorded_at/next_action, 오류 code/retryable/correlation_id/안전 설명. 도메인 receipt/job_id는 추가 필드."
+}

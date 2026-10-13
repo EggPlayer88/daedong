@@ -1,0 +1,12 @@
+{
+  "version": "1.1",
+  "date": "2026-10-13",
+  "status": "design_only_database_construction_on_hold",
+  "expected_modules": 16,
+  "expected_api_groups": 29,
+  "extensions": ["messenger-extension.json", "collection-extension.json", "timetable-extension.json"],
+  "chapters": ["12-messenger.md", "13-template-collection.md", "14-timetable-operations.md", "15-implementation-handoff.md"],
+  "implementation_status": {"database": "on_hold", "timetable": "on_hold", "document_ai": "on_hold", "production_settings_changed": false},
+  "baseline_blueprint_snapshot": "history/업무혁신시스템_기획서_v1.0.md",
+  "current_blueprint_copy": "업무혁신시스템 기획서.md"
+}

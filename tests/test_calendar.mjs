@@ -1,3 +1,4 @@
+import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 // 학사일정(official) + 공유 캘린더(shared) — 006_calendar.
 //
 // 이 파일이 지키는 가장 중요한 것:
@@ -7,8 +8,7 @@
 // 그 밖에: 월간 격자, soft delete·복구, 라벨 자동완성, RLS 정책(정적 대조),
 //          그리고 정책을 그대로 흉내 낸 가짜 클라이언트로 돌린 CRUD 흐름.
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -19,26 +19,12 @@ let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }
 const A = (c, m) => { if (!c) throw new Error(m) }
 
-const work = mkdtempSync(join(tmpdir(), 'cal-'))
-const entry = join(ROOT, 'tests', '.cal-entry.jsx')
-writeFileSync(entry, `
+const { cal } = await loadBrowserModule(`
 import { renderToStaticMarkup } from 'react-dom/server'
 import CalendarPage from '../apps/main/src/pages/CalendarPage.jsx'
 import * as cal from '../apps/main/src/lib/calendar.js'
 export { renderToStaticMarkup, CalendarPage, cal }
-`)
-const bundle = join(work, 'b.cjs')
-try {
-  execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
-    entry, '--bundle', '--platform=node', '--format=cjs', '--jsx=automatic',
-    '--loader:.jsx=jsx',
-    '--define:import.meta.env={"MODE":"test","VITE_SUPABASE_URL":"http://x","VITE_SUPABASE_ANON_KEY":"k"}',
-    `--outfile=${bundle}`, '--log-level=error',
-  ])
-} finally {
-  rmSync(entry, { force: true })
-}
-const { cal } = await import(bundle)
+`, { env: { MODE: 'test', VITE_SUPABASE_URL: 'http://x', VITE_SUPABASE_ANON_KEY: 'k' } })
 
 const ev = (o) => ({
   id: o.id || Math.random().toString(36).slice(2),
@@ -251,7 +237,7 @@ ck('메뉴·라우트 등록', () => {
 })
 
 console.log('\n[시드 스크립트 — 자산에 있는 것만]')
-const seed = execFileSync('node', [join(ROOT, 'scripts/seed-calendar-2026-2.mjs')], { encoding: 'utf-8' })
+const seed = execFileSync(process.execPath, [join(ROOT, 'scripts/seed-calendar-2026-2.mjs')], { encoding: 'utf-8', cwd: ROOT })
 const C = JSON.parse(readFileSync(join(ROOT, 'apps/main/api/doc-ai/_assets/school-constants-2026-2.json'), 'utf-8'))
 ck('학기 경계·공휴일·고사가 들어간다', () => {
   for (const s of ['2학기 개학', '추석 연휴', '개교기념일', '체육대회', '2학년 1회 정기시험', '3학년 정기시험']) {

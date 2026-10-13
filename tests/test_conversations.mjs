@@ -1,3 +1,4 @@
+import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 // 대화 저장 (004_doc_ai_conversations) — 제목 생성·목록 화면·RLS 전제.
 //
 // 지키는 것:
@@ -6,9 +7,7 @@
 //   · 확정 plan 이 있으면 언제나 그쪽이 이긴다
 //   · RLS 는 personal — admin 열람 경로가 생기지 않았는지 SQL 로 확인
 //   · 목록 화면이 깨진 입력에도 죽지 않는다
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -20,26 +19,13 @@ const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail
 const A = (c, m) => { if (!c) throw new Error(m) }
 
 // ── 브라우저 모듈은 번들해서 node 로 돌린다 (JSX·JSON import 해석용).
-//    ⚠ entry 는 **repo 안**에 둬야 한다 — tmp 에 두면 node_modules 를 못 찾는다.
-const work = mkdtempSync(join(tmpdir(), 'convtest-'))
-const entry = join(ROOT, 'tests', '.conv-entry.jsx')
-writeFileSync(entry, `
+//    가상 진입점은 tests/를 기준으로 모듈을 찾는다.
+const { renderToStaticMarkup: render, ConversationList, meta } = await loadBrowserModule(`
 import { renderToStaticMarkup } from 'react-dom/server'
 import ConversationList from '../apps/main/src/components/ConversationList.jsx'
 import * as meta from '../apps/main/src/lib/docAiMeta.js'
 export { renderToStaticMarkup, ConversationList, meta }
 `)
-const bundle = join(work, 'bundle.cjs')
-try {
-  execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
-    entry, '--bundle', '--platform=node', '--format=cjs', '--jsx=automatic',
-    '--loader:.jsx=jsx', '--define:import.meta.env={"MODE":"test"}',
-    `--outfile=${bundle}`, '--log-level=error',
-  ])
-} finally {
-  rmSync(entry, { force: true })
-}
-const { renderToStaticMarkup: render, ConversationList, meta } = await import(bundle)
 const { deriveMeta, buildTitle, SUBJECTS, REF_PREFIX } = meta
 const h = (props) => render(ConversationList({ onOpen() {}, onNew() {}, onDelete() {}, ...props }))
 
