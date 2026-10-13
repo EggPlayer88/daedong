@@ -166,3 +166,7 @@ node tests/browser/workhub-appearance.mjs       # 실제 Vite 앱의 스킨·사
   갱신하고, 아니면 코드를 고친다. (지금까지 실제로 양쪽 모두 있었다)
 
 홈 정보량·모바일 전용 회귀: `workhub-home-layout.mjs`는 첫 3개 요약/펼침·영역 순서·실패 격리·중요 수합 상태를, `workhub-mobile-navigation.mjs`는 일반 DOM과 ShadowRoot의 하단 메뉴·더보기·설정 전환·초점·입력 보호를 검사한다.
+
+## 연결 화면의 날짜 전환
+
+test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 재확인·정리를 검사하며 npm test에 포함된다. node tests/browser/workhub-day-refresh.mjs는 실제 연결 컴포넌트에 합성 전송을 주입하고 Playwright 시계를 제어해 자정·초안 보존·저장 복구·계정 변경·소속 종료·동시 신호 순차 처리를 확인한다. 전체 브라우저 러너에도 포함된다. 기기 시간으로 서버 날짜를 바꾸거나 실제 학교 서버를 호출하지 않는다.
