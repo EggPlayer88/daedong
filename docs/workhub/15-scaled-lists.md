@@ -1,6 +1,6 @@
 # 10차 개발 — 목록 성능과 전체 자료 일관성
 
-작성일: 2026-10-13 · 기준 PR #16 · 브랜치: `feat/workhub-scaled-lists`
+작성일: 2026-10-13 · 기준 PR #16 · 브랜치: `feat/workhub-scaled-lists` · [검토용 PR #17](https://github.com/EggPlayer88/daedong/pull/17)
 
 ## 목적과 적용 범위
 

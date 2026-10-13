@@ -1,6 +1,6 @@
 # 업무혁신시스템 누적 진행 현황
 
-최종 갱신: 2026-10-13 · 10차 개발 · 목록 성능 · 기준 [PR #16](https://github.com/EggPlayer88/daedong/pull/16)
+최종 갱신: 2026-10-13 · 10차 개발 · [PR #17](https://github.com/EggPlayer88/daedong/pull/17) (기준 PR #16)
 
 이 문서는 **이번 작업 / 누적 진행 / 남은 작업 / 검증 / 판단해서 정한 것**의 인계 기준이다. 화면 구현·코드 검증·실제 서버 연결·운영 공개를 구분하며 테스트 수를 출시 완성률로 계산하지 않는다.
 
@@ -56,7 +56,7 @@
 - 실제 화면읽기 프로그램의 음성 출력·종합 색 대비 점검·접근성 인증, 실학교 사용성과 운영 부하 시험은 남아 있다.
 - 전체 테스트에 포함된 DB 제안 회귀는 일회용 시험 환경의 검사이며 **운영 DB 구축·적용은 하지 않았다**.
 - 의존 PR: [#2](https://github.com/EggPlayer88/daedong/pull/2) → [#4](https://github.com/EggPlayer88/daedong/pull/4) → [#6](https://github.com/EggPlayer88/daedong/pull/6) → [#7](https://github.com/EggPlayer88/daedong/pull/7) → [#8](https://github.com/EggPlayer88/daedong/pull/8) → [#9](https://github.com/EggPlayer88/daedong/pull/9) → [#10](https://github.com/EggPlayer88/daedong/pull/10) → [#13](https://github.com/EggPlayer88/daedong/pull/13) → [#14](https://github.com/EggPlayer88/daedong/pull/14) → [#15](https://github.com/EggPlayer88/daedong/pull/15) → [#16](https://github.com/EggPlayer88/daedong/pull/16).
-- 이번 브랜치는 `feat/workhub-scaled-lists`, 기준은 `feat/workhub-accessibility`(PR #16)다. DB 문서 PR #12와 독립된 후속 개발이며 사용자 main 병합 전 단계다.
+- 이번 [PR #17](https://github.com/EggPlayer88/daedong/pull/17)의 브랜치는 `feat/workhub-scaled-lists`, 기준은 `feat/workhub-accessibility`(PR #16)다. DB 문서 PR #12와 독립된 후속 개발이며 사용자 main 병합 전 단계다.
 - 6차 [11-home-navigation.md](11-home-navigation.md), 7차 [12-workflow-records.md](12-workflow-records.md), 8차 [13-guided-entry.md](13-guided-entry.md), 9차 [14-usability-accessibility.md](14-usability-accessibility.md), **10차 [15-scaled-lists.md](15-scaled-lists.md)**.
 
 위 결과는 실제 Supabase 적용·Google 로그인 종단 검증·운영 공개 완료를 뜻하지 않는다.
