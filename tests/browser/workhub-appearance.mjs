@@ -39,7 +39,7 @@ async function menu(name) {
   await button.click()
   await heading(name)
 }
-async function openSettings() { await trigger().click(); await dialog().waitFor(); await settle() }
+async function openSettings() { if (!await trigger().isVisible()) await page.getByRole('button', { name: '더보기', exact: true }).click(); await trigger().click(); await dialog().waitFor(); await settle() }
 async function choose(value) { await dialog().locator(`input[type="radio"][value="${value}"]`).check(); await settle() }
 async function closeSettings() { await dialog().getByRole('button', { name: '완료', exact: true }).click(); await dialog().waitFor({ state: 'detached' }) }
 async function preferences() { return shell().evaluate(element => ({ theme: element.dataset.theme, density: element.dataset.density, textSize: element.dataset.textSize })) }
@@ -71,7 +71,7 @@ try {
     assert.deepEqual(await preferences(), defaults)
     await heading('오늘')
     assert.equal(await page.locator('.overview-grid,.quiet-card,.section-index').count(), 0)
-    assert.equal(await page.getByRole('group', { name: '개인 업무 기한 요약' }).getByRole('button').count(), 4)
+    assert.equal(await page.getByRole('group', { name: '개인 업무 기한 요약' }).count(), 0)
     assert.match(await page.locator('.ws-mode-banner').innerText(), /합성 자료/)
     assert.equal(await page.locator('.home-work-column').count(), 1)
     await page.getByRole('button', { name: '할 일 등록', exact: true }).click()
@@ -80,6 +80,7 @@ try {
     await page.getByLabel('나만 보는 메모', { exact: true }).fill('화면 검증을 위한 가상 업무입니다.')
     await page.getByRole('button', { name: '내 업무에 추가', exact: true }).click()
     await page.getByRole('article', { name: '합성 검증 · 학급 안내문 검토', exact: true }).waitFor(); await settle()
+    assert.equal(await page.getByRole('group', { name: '개인 업무 기한 요약' }).getByRole('button').count(), 4)
     await page.reload(); await home()
     await screenshot('appearance-white-desktop')
   })

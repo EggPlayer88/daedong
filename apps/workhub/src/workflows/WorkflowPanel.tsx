@@ -4,6 +4,7 @@ import { activeAt } from '../domain'
 import type { WorkflowStore } from './store'
 import { WorkflowError, type AnswerInput, type CollectionDraft, type CollectionInput, type CollectionRequest, type CollectionUnit, type PersonalTask, type TaskInput, type TaskStatus } from './types'
 import './workflows.css'
+import homeSummaryStyles from './home-summary.css?inline'
 import { useEditSession } from '../app/EditSession'
 import { collectionCategoryLabels, collectionHomeSummary, collectionRoleLabels, type CollectionHomeCategory, type CollectionHomeSummary } from './presentation'
 import { CollectionWorkbench } from './CollectionWorkbench'
@@ -57,17 +58,17 @@ export function HomeWorkSummary(props: Props & { onOpenCollections?: (requestId?
   try { summary = collectionHomeSummary(props.store, props.member, props.date) } catch (error) { failure = error }
   const shown = summary?.cards.slice(0, 4) ?? []
   const categories: CollectionHomeCategory[] = ['submit', 'review', 'contribute', 'waiting']
-  return <section className="wf-home" aria-label={includeTasks ? '오늘의 내 업무' : '오늘 처리할 수합'}>
+  return <section className="wf-home wf-home-compact" aria-label={includeTasks ? '오늘의 내 업무' : '오늘 처리할 수합'}>
+    <style>{homeSummaryStyles}</style>
     <div className="wf-section-title wf-home-heading"><h2>{includeTasks ? '오늘 챙길 업무' : '오늘 처리할 수합'}</h2><span>{summary ? `처리할 ${summary.actionCount}건 · 검토 대기 ${summary.waitingCount}건` : '수합 현황 확인 안 됨'}</span></div>
     {includeTasks && <Tasks {...props} compact onOpenTasks={props.onOpenTasks} />}
     {!summary ? <div className="wf-summary-error"><ReadError error={failure} /><button type="button" className="secondary small" onClick={() => retry(value => value + 1)}>수합 현황 다시 확인</button><p className="wf-hint">조회 실패를 할 일 없음으로 표시하지 않습니다.</p></div> : <>
-      <dl className="wf-role-counts">{categories.map(category => <div key={category}><dt>{collectionCategoryLabels[category]}</dt><dd>{summary!.counts[category]}건</dd></div>)}</dl>
       <div className="wf-home-obligations">
         {summary.cards.length === 0 ? <p className="wf-muted">지금 처리하거나 검토를 기다리는 수합이 없습니다.</p> : categories.map(category => {
           const cards = shown.filter(card => card.category === category)
-          return cards.length > 0 && <section className={`wf-home-group wf-home-${category}`} key={category} aria-label={collectionCategoryLabels[category]}><h3>{collectionCategoryLabels[category]}</h3>{cards.map(card => <article className="wf-obligation" key={card.unitId} data-collection-unit={card.unitId}>
-            <div><strong>{card.title}</strong><span>{card.unitLabel} · {card.dueDate}까지{card.overdue ? ' · 기한 초과' : ''}</span><span>{card.statusLabel}</span>
-              <div className="wf-role-labels" aria-label="나의 수합 역할">{card.roles.map(role => <span key={role}>{collectionRoleLabels[role]}</span>)}</div>
+          return cards.length > 0 && <section className={`wf-home-group wf-home-${category}`} key={category} aria-label={collectionCategoryLabels[category]}>{cards.map(card => <article className="wf-obligation" key={card.unitId} data-collection-unit={card.unitId}>
+            <div><span className={`wf-home-category${category === 'waiting' ? ' is-waiting' : ''}`}>{collectionCategoryLabels[category]}</span><strong>{card.title}</strong><span>{card.unitLabel}{!card.hasPendingSupplement && <> · {category === 'waiting' ? `제출 기한 ${card.dueDate}` : `${card.dueDate}까지`}{card.overdue ? ' · 기한 초과' : ''}</>}</span>
+              {category === 'contribute' && <small>최종 제출은 책임자가 합니다.</small>}
               {card.effectiveRevision && <small>완료본 v{card.effectiveRevision}{card.currentRevision !== card.effectiveRevision ? ' · 새 판 처리 중' : ''}</small>}
               {card.hasPendingSupplement && <small className="wf-warning">보완 제출 필요 · 남은 보완 {card.pendingSupplementCount}건 · {card.dueDate}까지{card.overdue ? ' · 보완 기한 초과' : ''}</small>}
             </div>
@@ -77,8 +78,12 @@ export function HomeWorkSummary(props: Props & { onOpenCollections?: (requestId?
       </div>
       {summary.cards.length > shown.length && <p className="wf-hint">총 {summary.cards.length}건 중 먼저 {shown.length}건 표시합니다. 나머지는 수합 전체에서 확인하세요.</p>}
       {props.onOpenCollections && <button type="button" className="text-button" onClick={() => props.onOpenCollections?.()}>수합 전체 보기</button>}
+      {summary.cards.length > 0 && <details className="wf-home-details"><summary>역할별 현황</summary>
+        <dl className="wf-role-counts">{categories.map(category => <div key={category}><dt>{collectionCategoryLabels[category]}</dt><dd>{summary!.counts[category]}건</dd></div>)}</dl>
+        <ul className="wf-home-role-details">{shown.map(card => <li key={card.unitId}><strong>{card.title} · {card.unitLabel}</strong><span>{card.roles.map(role => collectionRoleLabels[role]).join(' · ')} · {card.statusLabel}</span></li>)}</ul>
+        <p className="wf-hint">검토 대기는 새 제출이 필요한 할 일과 구분합니다. 완료본이 있어도 남은 보완 요청은 표시합니다. 수합은 원본 화면에서 제출하거나 검토합니다.</p>
+      </details>}
     </>}
-    <details className="wf-home-help"><summary>수합 상태 이용 안내</summary><p className="wf-hint">검토 대기는 새 제출이 필요한 할 일과 구분합니다. 수합 카드는 체크로 완료하지 않습니다. 완료본이 있어도 남은 보완 요청은 표시합니다.</p></details>
   </section>
 }
 

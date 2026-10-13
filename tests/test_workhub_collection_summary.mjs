@@ -128,6 +128,36 @@ test('실제 JSX는 조회 실패와 정상 0건을 구별하며 다시 확인 �
   const failed = renderHome({ ...store, listCollections() { throw new Error('합성 조회 실패') } }, author)
   assert(failed.includes('수합 현황 확인 안 됨')); assert(failed.includes('수합 현황 다시 확인')); assert(!failed.includes('처리할 0건'))
 })
+test('빈 홈은 반복 0건 격자를 생략하고 실제 처리·대기 총수만 남긴다', () => {
+  const html = renderHome(createWorkflowStore({ members, date }), author)
+  assert(html.includes('처리할 0건 · 검토 대기 0건'))
+  assert(!html.includes('<dl class="wf-role-counts">')); assert(!html.includes('<details class="wf-home-details"'))
+})
+test('역할별 현황은 접힌 상태이며 겹치는 역할과 대기 안내를 그대로 보존한다', () => {
+  const { store, unit } = setup({ sharedReviewer: true }); submit(store, unit.id)
+  const html = renderHome(store, reviewer), start = html.indexOf('<details class="wf-home-details">')
+  assert(start > 0); assert(!html.includes('<details class="wf-home-details" open'))
+  const details = html.slice(start)
+  assert(details.includes('공동 작성자 · 지정 검토자')); assert(details.includes('현재 제출판 검토 필요'))
+  assert(!html.slice(0, start).includes('wf-role-labels')); assert(html.slice(0, start).includes('제출판 검토하기'))
+})
+test('접힌 설명 밖에도 완료본·남은 보완·기한 초과와 행동을 모두 노출한다', () => {
+  const { store, unit } = setup(); const first = submit(store, unit.id)
+  store.review(reviewer, unit.id, first.id, 'accepted', '', '', store.unitSummary(reviewer, unit.id).unit.version, 'accept-compact')
+  const second = submit(store, unit.id, 'compact-second')
+  store.review(reviewer, unit.id, second.id, 'changes_requested', '홈 보완 확인', '2026-10-20', store.unitSummary(reviewer, unit.id).unit.version, 'fix-compact')
+  store.withdraw(author, unit.id, store.unitSummary(author, unit.id).unit.version, '합성 철회 사유', 'withdraw-compact')
+  store.setContext({ members, date: '2026-10-22' })
+  const html = renderHome(store, author).split('<details class="wf-home-details">')[0]
+  for (const label of ['완료본 v1', '보완 제출 필요', '남은 보완 1건', '2026-10-20까지', '보완 기한 초과', '보완 제출하기']) assert(html.includes(label), label)
+})
+test('표시 상한을 넘는 수합도 전체 건수와 원본 진입을 잃지 않는다', () => {
+  const { store } = setup({ units: Array.from({ length: 5 }, (_, index) => ({ label: `합성 단위 ${index + 1}`, responsibleMemberId: author, contributorMemberIds: [] })) })
+  const html = renderHome(store, author)
+  assert.equal((html.match(/<article class="wf-obligation"/g) || []).length, 4)
+  assert(html.includes('처리할 5건')); assert(html.includes('총 5건 중 먼저 4건')); assert(html.includes('수합 전체 보기'))
+})
+
 test('원본 요청 안의 정확한 단위만 강조하고 초점 가능한 원본을 제공한다', () => {
   const { store, request } = setup({ units: [{ label: '첫 단위', responsibleMemberId: author, contributorMemberIds: [] }, { label: '둘째 단위', responsibleMemberId: author, contributorMemberIds: [] }] })
   const units = store.listUnits(author, request.id), html = renderDetail(store, author, request.id, units[1].id)

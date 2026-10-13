@@ -75,7 +75,8 @@ try{
     await page.getByRole('button',{name:'편집 취소',exact:true}).click();await page.waitForFunction(()=>[...document.querySelectorAll('.ws-menu-button')].every(button=>!button.disabled))
   })
   await test('수합과 학생 일반 CSS·일정 인라인 CSS가 실제로 적용된다',async()=>{
-    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderTopWidth),'1px')
+    assert.equal(await page.locator('.home-dashboard').evaluate(node=>getComputedStyle(node).display),'grid')
+    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderTopWidth),'0px')
     // 홈 요약은 카드 테두리 중첩 없이 평평하게 구분하고, 본문 색은 공통 스킨을 따른다.
     assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderRadius),'0px')
     await menu('자료 수합');await heading('자료 수합')
