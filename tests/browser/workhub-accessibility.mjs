@@ -1,12 +1,10 @@
 // 실제 화면을 일반 DOM과 연결 화면과 같은 ShadowRoot에서 키보드로 검증한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react';import {createRoot} from 'react-dom/client';
   import {PreviewApp} from './apps/workhub/src/preview/PreviewApp';
@@ -19,7 +17,7 @@ const bundle = buildSync({ stdin: { contents: `
   const root=new URL(location.href).searchParams.has('shadow')?host.attachShadow({mode:'open'}):host;
   window.qaRoot=root;createRoot(root).render(<><style>{theme}{preview}{workflows}{students}</style><PreviewApp persistence={createDemoPersistence(localStorage)}/></>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' }).outputFiles[0].text
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })
 const results = [], errors = []

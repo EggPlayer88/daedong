@@ -1,11 +1,10 @@
 // 실제 학생 화면·저장소에 합성 자료 1,000건을 넣어 DOM 수와 화면 밖 근거 검증을 함께 확인한다.
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
-import {createRequire} from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import {fileURLToPath} from 'node:url'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
   import React,{useState}from'react';import{createRoot}from'react-dom/client';import{StudentsPanel}from'./apps/workhub/src/students/StudentsPanel';
   import{EditSession}from'./apps/workhub/src/app/EditSession';import{createStudentStore}from'./apps/workhub/src/students/store';import{fixtureData}from'./apps/workhub/src/preview/fixtures';
@@ -31,7 +30,7 @@ const bundle=buildSync({stdin:{contents:`
     return <><style>{theme}{css}</style><main data-generation={generation} data-revision={revision} data-locked={locked}><EditSession key={generation} onLockChange={setLocked}><StudentsPanel member={member} members={scope} date={date} store={viewStore}/></EditSession></main></>
   }createRoot(document.getElementById('root')).render(<App/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},logLevel:'silent'}).outputFiles[0].text
-const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1050}}),results=[],errors=[],metrics={},output=process.env.WORKHUB_QA_OUTPUT
+const browser=await launchBrowser(),page=await browser.newPage({viewport:{width:1440,height:1050}}),results=[],errors=[],metrics={},output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(15000);page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});if(output)mkdirSync(output,{recursive:true})
 const records=()=>page.locator('.students-record'),sources=()=>page.locator('.students-source'),recordNav=()=>page.getByRole('navigation',{name:'관찰 기록 페이지',exact:true}),sourceNav=()=>page.getByRole('navigation',{name:'수업 활동 페이지',exact:true})
 async function test(name,run){await run();results.push(name);console.log('  ✓ '+name)}

@@ -16,11 +16,13 @@
     "dev:workhub": "npm run dev -w apps/workhub",
     "build:workhub": "npm run build -w apps/workhub",
     "check:workhub": "npm run check -w apps/workhub",
-    "test:workhub:postgres": "node tests/integration/workhub-postgres.mjs"
+    "test:workhub:postgres": "node tests/integration/workhub-postgres.mjs",
+    "test:workhub:browser": "node tests/browser/run.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
     "esbuild": "0.25.12",
-    "pg": "8.23.1"
+    "pg": "8.23.1",
+    "playwright": "1.62.1"
   }
 }

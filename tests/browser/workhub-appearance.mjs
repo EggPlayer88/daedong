@@ -1,13 +1,11 @@
 // 실제 Vite 미리보기에서 스킨·설정 보존·입력 보호·반응형 화면을 검증한다.
 // 실행 전 npm run dev:workhub, 다른 주소는 WORKHUB_QA_URL로 지정한다.
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const url = process.env.WORKHUB_QA_URL || 'http://127.0.0.1:5176/'
 const output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })

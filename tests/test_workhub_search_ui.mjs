@@ -98,5 +98,22 @@ await test('깨진 결과는 실패로 표시하고 응답 부수 필드·외부
   loader.start([{kind:'calendar',label:'학교 일정',load:async()=>[original]},{kind:'task',label:'내 업무',load:async()=>null}]);await tick()
   original.title='뒤늦은 외부 변경';assert.equal(latest[0].items[0].title,'합성 학교 행사');assert(!JSON.stringify(latest).includes('SECRET-EXTRA'));assert.equal(latest[1].status,'failed');loader.stop()
 })
+await test('조회 조정기는 검색 원문 배열을 복사하고 표시 메타와 분리해 검색한다', async () => {
+  let latest=[]
+  const values=['도서관','2026-10-24'],loader=createWorkspaceSearchLoader(value=>{latest=value})
+  loader.start([{kind:'calendar',label:'학교 일정',load:async()=>[item({searchValues:values,meta:'학교 교사 전체 · 종일'})]}]);await tick()
+  values[0]='외부에서 변경한 값'
+  assert.match(renderResults({states:latest,query:'도서관'}),/검색 결과 1건/)
+  assert.match(renderResults({states:latest,query:'교사 전체'}),/검색 결과 0건/)
+  assert.match(renderResults({states:latest,query:'2026-10-24'}),/검색 결과 1건/)
+  assert(!renderResults({states:latest,query:''}).includes('외부에서 변경한 값'));loader.stop()
+})
+await test('배열이 아닌 검색 원문·문자열이 아닌 원문 값은 실패로 격리한다', async () => {
+  for(const searchValues of [null,'장소',[null],['도서관',42]]){
+    let latest=[];const loader=createWorkspaceSearchLoader(value=>{latest=value})
+    loader.start([{kind:'calendar',label:'학교 일정',load:async()=>[item({searchValues})]}]);await tick()
+    assert.equal(latest[0].status,'failed');assert.deepEqual(latest[0].items,[]);loader.stop()
+  }
+})
 console.log(`업무 찾기 UI ${passed}개 통과, ${failed}개 실패`)
 if(failed)process.exit(1)

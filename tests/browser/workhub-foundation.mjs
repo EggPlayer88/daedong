@@ -1,12 +1,10 @@
 // 실제 PreviewApp를 서버 없이 실행한다. 오류 주입은 메모리 번들에만 적용한다.
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require=createRequire(import.meta.url)
-const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const fault='SYNTHETIC_WORKHUB_RENDER_FAULT'
 const bundle=await build({stdin:{contents:`
   import React,{useState} from 'react';import{createRoot}from'react-dom/client';
@@ -18,7 +16,7 @@ const bundle=await build({stdin:{contents:`
   function Harness(){const[,update]=useState(0);window.qa={fault(value){window.__qaSummaryFault=value;update(n=>n+1)}};return <><style>{theme}{previewStyles}{workflowStyles}{studentStyles}</style><PreviewApp persistence={persistence}/></>}
   createRoot(document.getElementById('root')).render(<Harness/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},logLevel:'silent',plugins:[{name:'synthetic-module-fault',setup(builder){builder.onLoad({filter:/[\\/]workflows[\\/]WorkflowPanel\.tsx$/},args=>({contents:readFileSync(args.path,'utf8').replace('export function HomeWorkSummary(', 'function ActualHomeWorkSummary(')+`\nexport function HomeWorkSummary(props){if(window.__qaSummaryFault)throw new Error('${fault}');return <ActualHomeWorkSummary {...props}/>}`,loader:'tsx'}))}}]})
-const browser=await chromium.launch({channel:'chrome',headless:true})
+const browser=await launchBrowser()
 const context=await browser.newContext({viewport:{width:1440,height:1000}})
 const page=await context.newPage(), errors=[], results=[]
 page.setDefaultTimeout(10000)
@@ -80,11 +78,11 @@ try{
     await page.locator('.error-state').getByRole('button',{name:'다시 불러오기',exact:true}).click();await page.getByRole('button',{name:'학교 전체 일정 살펴보기'}).waitFor();assert.equal(await page.getByRole('heading',{name:'일정을 확인할 수 없어요'}).count(),0)
   })
   await test('한 기능의 렌더 오류를 격리하고 원본 삭제 없이 그 기능만 다시 연다',async()=>{
-    const before=await page.evaluate(()=>localStorage.getItem('workhub:synthetic:v2:workspace'))
+    const before=await page.evaluate(()=>localStorage.getItem('workhub:synthetic:v3:workspace'))
     await page.evaluate(()=>window.qa.fault(true));await page.getByRole('heading',{name:'수합 요약 화면을 표시하지 못했습니다'}).waitFor()
     assert.equal(await page.getByRole('button',{name:'할 일 등록',exact:true}).isEnabled(),true);assert(!(await page.locator('body').innerText()).includes(fault))
     await page.evaluate(()=>window.qa.fault(false));await page.getByRole('button',{name:'이 화면 다시 열기',exact:true}).click();await page.getByRole('heading',{name:'오늘 처리할 수합',exact:true}).waitFor()
-    assert.equal(await page.evaluate(()=>localStorage.getItem('workhub:synthetic:v2:workspace')),before)
+    assert.equal(await page.evaluate(()=>localStorage.getItem('workhub:synthetic:v3:workspace')),before)
   })
   await test('본문 건너뛰기와 360px 더보기로 모든 화면을 찾고 가로 넘침이 없다',async()=>{
     await page.getByRole('link',{name:'본문으로 건너뛰기'}).focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'H1')

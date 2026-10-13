@@ -1,10 +1,8 @@
 // 합성 저장소가 실제로 접수한 뒤 응답만 잃도록 하여 일정 재확인 UI를 검증한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import {EventEditor} from './apps/workhub/src/calendar/EventEditor';
@@ -32,7 +30,7 @@ const bundle = buildSync({ stdin: { contents: `
   }};
   function render(){root.render(<><style>{styles}</style><h1>일정 접수 복구 합성 시험</h1><output aria-label="성공 통지 수">{scenario.saved.length}</output>{visible&&<EventEditor key={generation} original={original} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationLabels={relationLabels} onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));visible=false;render()}}/>}</>)}render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1200, height: 900 } })
 const page = await context.newPage()
 const errors = []; page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(10000)

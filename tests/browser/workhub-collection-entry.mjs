@@ -1,11 +1,10 @@
 // 합성 자료로 요청 작성부터 게시, 공동 초안, 최종 제출과 충돌 복구까지 확인한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require = createRequire(import.meta.url), { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React,{useState}from'react';import{createRoot}from'react-dom/client';
   import{WorkflowPanel}from'./apps/workhub/src/workflows/WorkflowPanel';import{EditSession}from'./apps/workhub/src/app/EditSession';
@@ -17,7 +16,7 @@ const bundle = buildSync({ stdin: { contents: `
   function App(){const[id,setId]=useState('gaon-minjun'),[locked,setLocked]=useState(false),[generation,setGeneration]=useState(0),[target,setTarget]=useState(),[date,setDate]=useState(fixtureData.basisDate);window.qa.open=id=>{setTarget(id);setGeneration(n=>n+1)};window.qa.date=d=>{store.setContext({members,date:d});setDate(d)};const member=members.find(m=>m.id===id);return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:24px;max-width:1250px;margin:auto}'} </style><main><p>가상학교 수합 입력 검증 · 합성 자료</p><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={member} members={members} date={date} page="collections" initialRequestId={target}/></EditSession></main></>}
   createRoot(document.getElementById('root')).render(<App/>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true }), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
+const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
 const errors = [], external = [], results = [], output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })
 page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(10000)
@@ -129,12 +128,34 @@ try {
     assert(await response().getByRole('button', { name: '새 버전 제출', exact: true }).isDisabled())
     await response().getByLabel('정정·보완 사유', { exact: true }).fill('합성 내용 재확인')
     await page.evaluate(() => window.qa.date('2026-10-22'))
+    await response().getByText(/정정 허용 기간이 필요/).waitFor()
     assert.match(await response().innerText(), /정정 허용 기간이 필요/)
     await response().getByRole('button', { name: '새 버전 제출', exact: true }).click()
     assert.match(await response().getByRole('alert').innerText(), /마감 후 정정/)
     assert.equal(await response().getByLabel('정정·보완 사유', { exact: true }).inputValue(), '합성 내용 재확인')
     assert.equal((await state()).submissions.length, 1)
     await unit().getByRole('button', { name: '편집 취소 · 닫기', exact: true }).click()
+  })
+  await test('보완 기한이 지나도 해당 보완을 제출하고 원래 기한과 늦은 접수를 표시한다', async () => {
+    await actor('gaon-minjun', requestId)
+    await unit().getByLabel('검토 의견', { exact: true }).fill('본문을 보완해 주세요.')
+    await unit().getByLabel('보완을 요청할 경우 기한', { exact: true }).fill('2026-10-23')
+    await unit().getByRole('button', { name: '보완 요청', exact: true }).click()
+    await page.evaluate(() => window.qa.date('2026-10-24'))
+    await actor('gaon-soyeon', requestId)
+    assert.match(await unit().innerText(), /보완 기한 초과/)
+    await unit().getByRole('button', { name: '정정·보완 초안 작성', exact: true }).click()
+    assert.match(await response().innerText(), /미완료 보완 요청에 응답할 수 있습니다/)
+    assert.doesNotMatch(await response().innerText(), /정정 허용 기간이 필요/)
+    await response().getByLabel('안내 및 참고 사항', { exact: true }).fill('보완한 제출 내용')
+    await response().getByLabel('정정·보완 사유', { exact: true }).fill('검토 의견에 따른 보완')
+    await response().getByRole('button', { name: '초안 저장', exact: true }).click()
+    await response().getByRole('button', { name: '새 버전 제출', exact: true }).click()
+    assert.equal((await state()).submissions.length, 2)
+    const receipt = (await state()).submissions.at(-1), supplement = (await state()).supplements[0]
+    assert.equal(supplement.fulfilledSubmissionId, receipt.id); assert.equal(supplement.dueDate, '2026-10-23')
+    assert.equal(receipt.receiptDate, '2026-10-24')
+    assert.match(await unit().innerText(), /보완 기한 2026-10-23 · 기한 후 제출 · 접수 2026-10-24/)
   })
   await test('선택 숫자에서 미완성 숫자 입력을 빈칸으로 잘못 제출하지 않는다', async () => {
     await actor('gaon-minjun'); await page.getByRole('button', { name: '+ 수합 만들기', exact: true }).click()

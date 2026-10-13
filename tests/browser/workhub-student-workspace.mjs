@@ -1,11 +1,10 @@
 // 실제 학생 화면을 합성 메모리 저장소와 렌더한다. 학교 서버·학생 자료를 사용하지 않는다.
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
-import {createRequire} from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import {fileURLToPath} from 'node:url'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
   import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
   import {StudentsPanel} from './apps/workhub/src/students/StudentsPanel';
@@ -39,16 +38,18 @@ const bundle=buildSync({stdin:{contents:`
     qa.refresh=()=>setRevision(n=>n+1);qa.switch=id=>setMember(members.find(m=>m.id===id));
     qa.revoke=()=>{const next=members.map(m=>m.id===teacher.id?{...m,active:false}:m);setScope(next);setMember(next.find(m=>m.id===teacher.id))};
     qa.reset=ended=>{seed(ended);qa.downloads=[];setGeneration(n=>n+1);setMember(teacher);setScope(members);return generation+1};
-    return <><style>{theme}{css}</style><main data-generation={generation} data-revision={revision} data-locked={locked}><EditSession key={generation} onLockChange={setLocked}><StudentsPanel member={member} members={scope} date={date} store={store}/></EditSession></main></>
+    return <><style>{theme}{css}</style><main data-generation={generation} data-revision={revision} data-locked={locked} data-member-id={member.id}><EditSession key={generation} onLockChange={setLocked}><StudentsPanel member={member} members={scope} date={date} store={store}/></EditSession></main></>
   }
   createRoot(document.getElementById('root')).render(<App/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},logLevel:'silent'}).outputFiles[0].text
-const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1050}})
+const browser=await launchBrowser(),page=await browser.newPage({viewport:{width:1440,height:1050}})
 const errors=[],results=[],output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(10000);page.on('pageerror',error=>errors.push(error.message));page.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())})
 if(output)mkdirSync(output,{recursive:true})
 async function test(name,run){await run();results.push(name);console.log('  ✓ '+name)}
 async function reset(ended=false){const generation=await page.evaluate(value=>qa.reset(value),ended);await page.waitForFunction(value=>document.querySelector('main').dataset.generation===String(value)&&document.querySelector('main').dataset.locked==='false',generation);await page.getByLabel('학생 찾기',{exact:true}).waitFor()}
+// 합성 계정 변경의 React commit을 먼저 확인한 뒤 같은 렌더의 기록 격리를 검사한다.
+async function switchMember(id){await page.evaluate(value=>qa.switch(value),id);await page.waitForFunction(value=>document.querySelector('main').dataset.memberId===value,id)}
 const record=text=>page.locator('.students-record').filter({hasText:text})
 async function scopeAll(){await page.getByLabel('기록 범위',{exact:true}).selectOption('all')}
 async function openEvidence(){await page.getByRole('button',{name:'근거 목록 텍스트 보기',exact:true}).click()}
@@ -140,8 +141,8 @@ try{
   })
   await test('학교·작성자 변경과 소속 종료는 이전 검색·기록·근거를 모두 제거한다',async()=>{
     await reset();await openEvidence();await page.getByLabel('학생 찾기',{exact:true}).fill('1번')
-    await page.evaluate(()=>qa.switch('gaon-minjun'));assert.equal(await page.locator('.students-record').count(),0);assert.equal(await page.getByLabel('학생 찾기',{exact:true}).inputValue(),'');assert.equal(await page.getByLabel('나의 근거 목록',{exact:true}).count(),0)
-    await page.evaluate(()=>qa.switch('nuri-soyeon'));assert.equal(await page.locator('.students-record').count(),0)
+    await switchMember('gaon-minjun');assert.equal(await page.locator('.students-record').count(),0);assert.equal(await page.getByLabel('학생 찾기',{exact:true}).inputValue(),'');assert.equal(await page.getByLabel('나의 근거 목록',{exact:true}).count(),0)
+    await switchMember('nuri-soyeon');assert.equal(await page.locator('.students-record').count(),0)
     await reset();await openEvidence();await page.evaluate(()=>qa.revoke())
     await page.getByRole('alert').filter({hasText:'학교 소속이 종료'}).waitFor();assert.equal(await page.getByLabel('학생 찾기',{exact:true}).count(),0);assert.equal(await page.getByLabel('나의 근거 목록',{exact:true}).count(),0)
   })

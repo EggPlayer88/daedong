@@ -21,6 +21,17 @@ await test('검색은 한글 조합·대소문자·연속 공백을 정규화하
  assert.equal(filterSearchItems(rows,'학교 자료').length,1)
  assert.equal(filterSearchItems(rows,'없는 업무').length,0)
 })
+await test('표시용 업무·공개 범위·상태 문구는 검색 원문으로 사용하지 않는다',()=>{
+ const rows=[item('plain','준비 자료',{meta:'할 일 · 기한 없음 · 나만 보는 업무'}),item('real','업무 분장',{meta:'완료 · 나만 보는 업무'}),item('calendar','연수 안내',{kind:'calendar',meta:'학교 교사 전체 · 종일 · 장소 미지정'})]
+ assert.deepEqual(filterSearchItems(rows,'업무').map(x=>x.id),['real'])
+ for(const query of ['교사','전체','종일','미지정','완료','기한 없음'])assert.equal(filterSearchItems(rows,query).length,0,query)
+})
+await test('띄어쓰기 차이는 찾되 서로 다른 원문 필드를 붙여 거짓 단어를 만들지 않는다',()=>{
+ const rows=[item('spaced','체험 학습 준비'),item('joined','체험학습 준비'),item('fields','체험',{description:'학습'})]
+ assert.deepEqual(filterSearchItems(rows,'체험학습').map(x=>x.id).sort(),['joined','spaced'])
+ assert.equal(filterSearchItems(rows,'체험 학습').length,3)
+ assert.deepEqual(filterSearchItems(rows,'체험학습','calendar'),[])
+})
 await test('서로 다른 종류의 같은 ID를 유지하고 같은 원본 중복만 제거한다',()=>{
  const rows=[item('same','검색'),item('same','검색'),item('same','검색',{kind:'calendar'}),item('same','검색',{kind:'collection',unitId:'u1'}),item('same','검색',{kind:'collection',unitId:'u2'})]
  assert.equal(filterSearchItems(rows,'').length,4)
@@ -37,6 +48,15 @@ await test('일정 검색은 현재 학교와 기존 개인/대상 열람 경계
  let called='';const source=calendarSearchSource({list:async memberId=>{called=memberId;return rows}},mine,date)
  const found=await source.load();assert.equal(called,mine.id);assert.deepEqual(found.map(x=>x.id),['shared','mine'])
  assert(!JSON.stringify(found).includes('타인 비공개'));assert(!JSON.stringify(found).includes('다른 학교'))
+})
+await test('일정의 장소·시작일·종료일·입력한 시각은 계속 검색할 수 있다',async()=>{
+ const event={...fixtureData.events[0],title:'원문 제목',description:'원문 설명',startDate:'2026-10-19',endDate:'2026-10-22',allDay:false,startTime:'08:40',endTime:'09:30',location:'도서관 북쪽 교실',schoolId:mine.schoolId,authorMemberId:mine.id}
+ const found=await calendarSearchSource({list:async()=>[event]},mine,date).load()
+ for(const query of ['도서관','북쪽교실','2026-10-19','2026-10-22','08:40','09:30'])assert.equal(filterSearchItems(found,query).length,1,query)
+ assert.equal(filterSearchItems(found,'학교 교사 전체').length,0)
+ const tasks=[item('due','제출 준비',{date:'2026-10-24',meta:'2026-10-24까지 · 나만 보는 업무'})]
+ assert.equal(filterSearchItems(tasks,'2026-10-24').length,1)
+ assert.equal(filterSearchItems(tasks,'까지').length,0)
 })
 await test('개인 업무 검색은 현재 소속 본인만 읽으며 완료 업무도 다시 찾을 수 있다',async()=>{
  const store=createWorkflowStore({members,date}),adapter=createPreviewTaskAdapter(store)

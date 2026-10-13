@@ -1,12 +1,10 @@
 // 서버 비동기 계약을 따르는 합성 어댑터로 실제 내 업무 JSX를 검사한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react';import {createRoot} from 'react-dom/client';
   import {TaskPanel} from './apps/workhub/src/tasks/TaskPanel';
@@ -58,7 +56,7 @@ const bundle = buildSync({ stdin: { contents: `
   function render(){root.render(<TaskPanel adapter={adapter} member={member} date={date} revision={revision} compact={new URL(location.href).searchParams.has('compact')} onOpenTasks={()=>{scenario.more++}} onNavigationLockChange={lock}/>)}
   render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1280, height: 1000 } })
 const page = await context.newPage()
 page.setDefaultTimeout(10000)
@@ -229,6 +227,7 @@ try {
   await page.evaluate(()=>{window.scenario.deny=true})
   await card('t1').getByRole('button',{name:'완료',exact:true}).click()
   await page.getByText(/이전 업무 화면을 닫았습니다/).waitFor()
+  assert.equal(await page.locator('.task-error[role=alert]').evaluate(node => node === document.activeElement), true)
   assert.equal(await page.locator('.task-card').count(),0);assert.equal(await form().count(),0)
   assert(!/SECRET/.test(await page.locator('body').innerText()))
   console.log('  ✓ 확정 권한 거부 시 업무 목록과 입력 폐기·서버 원문 미노출')

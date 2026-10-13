@@ -2,12 +2,11 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { execFileSync } from 'node:child_process'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join, relative } from 'node:path'
 
-const require = createRequire(import.meta.url), { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const root = fileURLToPath(new URL('../../', import.meta.url)), baseline = '137a871'
 const common = `
   import React,{useState} from 'react';import{createRoot}from'react-dom/client';
@@ -69,7 +68,7 @@ async function bundle(source, revision) {
   } }] : []
   return (await build({ stdin: { contents: source, resolveDir: root, loader: 'tsx' }, plugins, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })).outputFiles[0].text
 }
-const browser = await chromium.launch({ channel: 'chrome', headless: true }), measurements = {}, errors = []
+const browser = await launchBrowser(), measurements = {}, errors = []
 async function read(page, selector) {
   return page.evaluate(selector => ({ cards: document.querySelectorAll(selector).length, elements: document.querySelectorAll('#root *').length, historyItems: document.querySelectorAll('.students-history li,.wf-history > div').length, calls: { ...qa.calls } }), selector)
 }

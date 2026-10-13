@@ -1,11 +1,10 @@
 // 합성 학생 화면의 실제 키보드 이동·동적 초점·설명 연결·좁은 화면을 확인한다.
 import assert from 'node:assert/strict'
 import{buildSync}from'esbuild'
-import{createRequire}from'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import{fileURLToPath}from'node:url'
 import{mkdirSync,writeFileSync}from'node:fs'
 import{join}from'node:path'
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
   import React,{useState}from'react';import{createRoot}from'react-dom/client';import{StudentsPanel}from'./apps/workhub/src/students/StudentsPanel';import{EditSession}from'./apps/workhub/src/app/EditSession';import{createStudentStore}from'./apps/workhub/src/students/store';import{fixtureData}from'./apps/workhub/src/preview/fixtures';import theme from'./apps/workhub/src/style.css?inline';import css from'./apps/workhub/src/students/students.css?inline';
   const members=fixtureData.memberships,date=fixtureData.basisDate,member=members.find(m=>m.id==='gaon-soyeon');let store,raw,course,student,sources;const qa=window.qa={};
@@ -19,7 +18,7 @@ const bundle=buildSync({stdin:{contents:`
   function App(){const[generation,setGeneration]=useState(0),[revision,setRevision]=useState(0),[locked,setLocked]=useState(false);qa.refresh=()=>setRevision(v=>v+1);qa.reset=()=>{seed();setGeneration(v=>v+1);return generation+1};return <><style>{theme}{css}</style><main data-generation={generation} data-revision={revision} data-locked={locked}><EditSession key={generation} onLockChange={setLocked}><StudentsPanel member={member} members={members} date={date} store={store}/></EditSession></main></>}
   createRoot(document.getElementById('root')).render(<App/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},logLevel:'silent'}).outputFiles[0].text
-const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1050}}),results=[],errors=[],output=process.env.WORKHUB_QA_OUTPUT
+const browser=await launchBrowser(),page=await browser.newPage({viewport:{width:1440,height:1050}}),results=[],errors=[],output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(10000);page.on('pageerror',error=>errors.push(error.message));page.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())});if(output)mkdirSync(output,{recursive:true})
 async function test(name,run){await run();results.push(name);console.log('  ✓ '+name)}
 async function reset(){const generation=await page.evaluate(()=>qa.reset());await page.waitForFunction(value=>document.querySelector('main').dataset.generation===String(value)&&document.querySelector('main').dataset.locked==='false',generation)}

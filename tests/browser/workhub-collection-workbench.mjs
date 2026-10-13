@@ -1,12 +1,10 @@
 // 합성 수합을 실제 화면에서 다룬다. 외부 서비스·실제 개인정보는 사용하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React, {useState} from 'react';import{createRoot}from'react-dom/client';
   import{WorkflowPanel}from'./apps/workhub/src/workflows/WorkflowPanel';
@@ -27,7 +25,7 @@ const bundle = buildSync({ stdin: { contents: `
   function App(){const[id,setId]=useState('gaon-minjun'),[locked,setLocked]=useState(false),[generation,setGeneration]=useState(0);const member=members.find(m=>m.id===id);window.qa.change=id=>{setId(id);setGeneration(n=>n+1)};return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:28px;max-width:1440px;margin:auto}'} </style><main><p>가상학교 수합 작업현황 · 합성 자료</p><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={member} members={members} date={date} page="collections" initialRequestId={id.startsWith('gaon-')?request.id:undefined}/></EditSession></main></>}
   createRoot(document.getElementById('root')).render(<App/>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1440, height: 1250 } }), page = await context.newPage()
 const errors = [], external = [], results = [], output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })

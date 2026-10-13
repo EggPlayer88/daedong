@@ -1,15 +1,13 @@
 // 생성된 단일 HTML을 Chrome file://로 직접 열어 검사한다. HTTP 서버는 사용하지 않는다.
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-const require=createRequire(import.meta.url)
-const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const root=fileURLToPath(new URL('../../',import.meta.url))
 const path=resolve(process.argv[2]||process.env.WORKHUB_OFFLINE_FILE||resolve(root,'dist/workhub-preview.html'))
 const html=readFileSync(path,'utf8')
-const browser=await chromium.launch({channel:'chrome',headless:true})
+const browser=await launchBrowser()
 const context=await browser.newContext({viewport:{width:1440,height:1000}})
 const page=await context.newPage(),errors=[],network=[],results=[]
 page.setDefaultTimeout(10000)
@@ -85,6 +83,44 @@ try{
     assert(colors.token,'공통 본문 색 토큰');assert.equal(colors.actual,colors.expected)
     await menu('수업과 학생');await heading('수업과 학생');assert.equal(await page.locator('.students-layout').evaluate(node=>getComputedStyle(node).display),'grid')
     await menu('학교 일정');await heading('학교 일정');await settle();await page.getByRole('button',{name:'월',exact:true}).click();assert.equal(await page.locator('.cv-month-grid').evaluate(node=>getComputedStyle(node).display),'grid')
+  })
+  await test('학생 관찰·활동은 메뉴 왕복 동안 유지하고 브라우저 저장 없이 새로고침하면 초기화한다',async()=>{
+    await menu('수업과 학생');await heading('수업과 학생')
+    assert.match(await page.locator('.ws-mode-banner').innerText(),/현재 창에서만 임시 보관/)
+    const initialRecords=await page.locator('.students-record').count()
+    const marker='오프라인 학생 자유기록 메모리 전용 표식'
+    await page.getByLabel('활동',{exact:true}).fill('저장 정책 확인 활동')
+    await page.getByLabel('직접 확인한 사실',{exact:true}).fill(marker)
+    await page.getByLabel('직접 확인한 사실이며 이 학생의 기록임을 확인했습니다.').check()
+    await page.getByRole('button',{name:'관찰 저장',exact:true}).click()
+    await page.getByRole('region',{name:'저장한 관찰 기록',exact:true}).waitFor()
+    assert.equal(await page.locator('.students-record').filter({hasText:marker}).count(),1)
+    await page.getByRole('button',{name:'가상 수업 활동 받기',exact:true}).click()
+    await page.locator('.students-source').first().waitFor()
+    await menu('오늘');await heading('오늘');await settle();await menu('수업과 학생');await heading('수업과 학생')
+    assert.equal(await page.locator('.students-record').filter({hasText:marker}).count(),1)
+    await page.getByRole('button',{name:/^수업 활동 받은함/}).click();assert.equal(await page.locator('.students-source').count(),1)
+    const saved=await page.evaluate(()=>Object.entries(localStorage).map(([key,value])=>({key,value})))
+    assert(!JSON.stringify(saved).includes(marker))
+    const envelope=saved.find(row=>row.key==='workhub:synthetic:v3:workspace')
+    assert(envelope);assert(!Object.hasOwn(JSON.parse(envelope.value).sections,'students'))
+    await page.reload();await heading('수업과 학생')
+    assert.equal(await page.locator('.students-record').filter({hasText:marker}).count(),0)
+    assert.equal(await page.locator('.students-record').count(),initialRecords)
+    await page.getByRole('button',{name:/^수업 활동 받은함/}).click();assert.equal(await page.locator('.students-source').count(),0)
+  })
+  await test('구버전 미리보기의 학생 저장값은 자동으로 열지 않고 원본을 그대로 둔다',async()=>{
+    const legacyContext=await browser.newContext(),legacyPage=await legacyContext.newPage()
+    const original=JSON.stringify({schema:2,kind:'synthetic-only',revision:3,sections:{students:{content:'구버전 학생 비공개 표식'}}})
+    try{
+      await legacyPage.addInitScript(value=>localStorage.setItem('workhub:synthetic:v2:workspace',value),original)
+      await legacyPage.goto(base+'?view=students')
+      await legacyPage.getByRole('heading',{name:'수업과 학생',exact:true,level:1}).waitFor()
+      await legacyPage.getByRole('heading',{name:'학생과 수업 기록',exact:true}).waitFor()
+      assert(!(await legacyPage.locator('body').innerText()).includes('구버전 학생 비공개 표식'))
+      assert.equal(await legacyPage.evaluate(()=>localStorage.getItem('workhub:synthetic:v2:workspace')),original)
+      assert.equal(await legacyPage.evaluate(()=>localStorage.getItem('workhub:synthetic:v3:workspace')),null)
+    }finally{await legacyContext.close()}
   })
   await test('360px 더보기와 다섯 화면에서 메뉴 접근·레이아웃이 유지된다',async()=>{
     await page.setViewportSize({width:360,height:800})

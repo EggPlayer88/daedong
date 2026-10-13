@@ -1,11 +1,10 @@
 // 실제 수합 컴포넌트에 검증된 합성 snapshot을 넣어 대량 목록과 입력 보호를 확인한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require = createRequire(import.meta.url), { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React,{useState}from'react';import{createRoot}from'react-dom/client';import{WorkflowPanel}from'./apps/workhub/src/workflows/WorkflowPanel';import{EditSession}from'./apps/workhub/src/app/EditSession';import{createWorkflowStore}from'./apps/workhub/src/workflows/store';import{fixtureData}from'./apps/workhub/src/preview/fixtures';import theme from './apps/workhub/src/style.css?inline';import workflow from './apps/workhub/src/workflows/workflows.css?inline';
   const members=fixtureData.memberships,date=fixtureData.basisDate,manager='gaon-minjun',author='gaon-soyeon';let serial=0;const key=()=>String(++serial),seed=createWorkflowStore({members,date});
@@ -17,7 +16,7 @@ const bundle = buildSync({ stdin: { contents: `
   window.qa={request:request.id,units:units.map(u=>u.id),limitRequests(n){requestLimit=n;store.setContext({members,date})},limitUnits(n){unitLimit=n;store.setContext({members,date})},state(){return store.exportState()}};
   function App(){const[id,setId]=useState(manager),[locked,setLocked]=useState(false),[generation,setGeneration]=useState(0),[target,setTarget]=useState(),[unitTarget,setUnitTarget]=useState();window.qa.open=(r=request.id,u)=>{setTarget(r);setUnitTarget(u);setGeneration(n=>n+1)};return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:20px;max-width:1280px;margin:auto}'} </style><main><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={members.find(m=>m.id===id)} members={members} date={date} page="collections" initialRequestId={target} initialUnitId={unitTarget}/></EditSession></main></>};createRoot(document.getElementById('root')).render(<App/>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true }), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
+const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
 const errors = [], external = [], results = [], metrics = {}, output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })
 page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(12000)
