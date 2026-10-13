@@ -6,16 +6,20 @@ import { fileURLToPath } from 'node:url'
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import {EventEditor} from './apps/workhub/src/calendar/EventEditor';
+  import {createEditDrafts,EditDraftsProvider} from './apps/workhub/src/app/edit-drafts';
+  import {recoveryScope} from './apps/workhub/src/app/pending-requests';
   import {ContractError} from './apps/workhub/src/contracts';
   import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
   import {fixtureData,relationLabels} from './apps/workhub/src/preview/fixtures';
   import styles from './apps/workhub/src/style.css?inline';
   const root=createRoot(document.getElementById('root'));
   const member=fixtureData.memberships.find(item=>item.id==='gaon-minjun');
+  const drafts=createEditDrafts(),scope=recoveryScope(member);
   const memory=createMemoryAdapter(fixtureData,0);let visible=false,original,generation=0,release;
   const clone=value=>structuredClone(value);
-  const scenario={attempts:[],saved:[],closed:0,failAfter:0,failBefore:0,rejectCode:'',holdNext:false,plainError:false,
-    open(kind='create'){memory.reset();scenario.attempts=[];scenario.saved=[];scenario.closed=0;scenario.failAfter=0;scenario.failBefore=0;scenario.rejectCode='';scenario.holdNext=false;scenario.plainError=false;original=kind==='update'?clone(fixtureData.events.find(item=>item.id==='fixture-event-morning')):undefined;visible=true;generation++;render()},
+  const scenario={attempts:[],saved:[],closed:0,failAfter:0,failBefore:0,rejectCode:'',holdNext:false,plainError:false,discarded:0,
+    open(kind='create'){drafts.clear();drafts.activate(scope);scenario.discarded=0;memory.reset();scenario.attempts=[];scenario.saved=[];scenario.closed=0;scenario.failAfter=0;scenario.failBefore=0;scenario.rejectCode='';scenario.holdNext=false;scenario.plainError=false;original=kind==='update'?clone(fixtureData.events.find(item=>item.id==='fixture-event-morning')):undefined;visible=true;generation++;render()},
+    remount(){visible=true;generation++;render()},draftSnapshot(){return drafts.bind(scope,'calendar-editor').initial},
     snapshot(){return memory.exportState()},release(){release?.();release=undefined},
     concurrent(){return memory.simulateConcurrentEdit(member.id,'fixture-event-morning')},
   };window.scenario=scenario;
@@ -28,7 +32,7 @@ const bundle = buildSync({ stdin: { contents: `
     if(scenario.failAfter){scenario.failAfter--;if(scenario.plainError)throw new Error('합성 응답 유실');throw new ContractError('SAVE_FAILED','합성 전송 실패: 접수 후 응답 유실')}
     return result;
   }};
-  function render(){root.render(<><style>{styles}</style><h1>일정 접수 복구 합성 시험</h1><output aria-label="성공 통지 수">{scenario.saved.length}</output>{visible&&<EventEditor key={generation} original={original} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationLabels={relationLabels} onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));visible=false;render()}}/>}</>)}render();
+  function render(){root.render(<EditDraftsProvider store={drafts}><style>{styles}</style><h1>일정 접수 복구 합성 시험</h1><output aria-label="성공 통지 수">{scenario.saved.length}</output>{visible&&<EventEditor key={generation} original={original} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationLabels={relationLabels} onDiscard={()=>{scenario.discarded++;original=undefined}} onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));visible=false;render()}}/>}</EditDraftsProvider>)}render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
 const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1200, height: 900 } })
@@ -95,7 +99,7 @@ try {
   assert.equal(state.data.events.length, initial + 1); assert.equal(state.receipts.length, 1)
   await report('저장 전 전송 실패도 같은 요청으로 재시도하여 최종 원본·접수 각 1건')
 
-  for (const code of ['INVALID_INPUT', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP']) {
+  for (const code of ['INVALID_INPUT', 'NOT_FOUND']) {
     await open(); await title(`확정 거부 ${code}`)
     await page.evaluate(() => { window.scenario.failBefore=1 }); await save(); await pending()
     await page.evaluate(value => { window.scenario.rejectCode=value }, code); await retry()
@@ -106,7 +110,28 @@ try {
     assert.equal((await snapshot()).data.events.length, initial); assert.equal((await snapshot()).receipts.length, 0)
     await page.getByRole('button', { name: '취소', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'detached' })
   }
-  await report('확정 거부 4종은 미확정 잠금을 해제하고 입력을 남기며 취소 허용 (권한 회수는 상위 연결 계층 책임)')
+  await report('입력 오류·원본 없음은 미확정 잠금을 해제하고 입력 확인·취소 허용')
+
+  for (const code of ['FORBIDDEN', 'INACTIVE_MEMBERSHIP']) {
+    await open(); await title(`확정 권한 거부 ${code}`)
+    await page.getByLabel('안내 내용', { exact: true }).fill('폐기해야 할 미저장 내용')
+    await page.evaluate(() => { window.scenario.failBefore=1 }); await save(); await pending()
+    await page.evaluate(value => { window.scenario.rejectCode=value }, code); await retry()
+    await page.getByRole('dialog', { name: '보관한 일정 입력 확인', exact: true }).waitFor()
+    assert.equal(await page.locator('input[name=title]').count(), 0)
+    assert.equal(await page.getByLabel('안내 내용', { exact: true }).count(), 0)
+    assert.ok(!(await page.locator('body').innerText()).includes('폐기해야 할 미저장 내용'))
+    assert.equal(await page.evaluate(() => window.scenario.draftSnapshot()), undefined)
+    assert.equal(await page.evaluate(() => window.scenario.discarded), 1)
+    assert.equal((await snapshot()).data.events.length, initial); assert.equal((await snapshot()).receipts.length, 0)
+    await page.evaluate(() => window.scenario.remount())
+    await page.getByRole('dialog', { name: '일정 등록', exact: true }).waitFor()
+    assert.equal(await page.locator('input[name=title]').inputValue(), '')
+    assert.equal(await page.getByLabel('안내 내용', { exact: true }).inputValue(), '')
+    assert.equal((await attempts()).length, 2)
+    await page.getByRole('button', { name: '취소', exact: true }).click(); await page.getByRole('dialog').waitFor({ state: 'detached' })
+  }
+  await report('확정 권한 거부는 입력 DOM·보관 초안을 폐기하고 부모에 알리며 같은 탭 재마운트에서도 재등장하지 않음')
 
   await open(); await title('입력 오류 후 정정')
   await page.evaluate(() => { window.scenario.rejectCode='INVALID_INPUT' }); await save(); await page.getByRole('alert').waitFor()

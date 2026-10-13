@@ -77,6 +77,34 @@ test('한국어 시트의 공백·마지막 점 날짜를 손실 없이 정규�
   for (const date of ['2026. 2. 29.', '2026. 13. 1.']) assert.ok(prepare(`제목\t시작일\n행사\t${date}`)[0].errors.some(error => error.includes('실제 달력')))
   for (const date of ['10. 13.', '2026. 10. 13..', '2026. 10. 13.(월)', '2026. 10. 13.~15.']) assert.equal(prepare(`제목\t시작일\n행사\t${date}`)[0].draft, undefined)
 })
+test('연도가 있는 날짜의 괄호 한글 요일을 실제 달력과 대조한다', () => {
+  const dates = [
+    ['2026-10-11(일)', '2026-10-11'], ['2026. 10. 12. (월요일)', '2026-10-12'],
+    ['2026. 10. 13.(화)', '2026-10-13'], ['2026/10/14 (수요일)', '2026-10-14'],
+    ['2026-10-15(목요일)', '2026-10-15'], ['2026.10.16(금)', '2026-10-16'],
+    ['2026/10/17(토)', '2026-10-17'], ['2028. 2. 29.(화요일)', '2028-02-29'],
+  ]
+  for (const [input, expected] of dates) {
+    const row = prepare(`제목\t시작일\n요일 확인\t${input}`)[0]
+    assert.deepEqual(row.errors, [], input); assert.equal(row.draft.startDate, expected); assert.equal(row.draft.endDate, expected)
+  }
+})
+test('시작일과 종료일의 틀린 요일은 자동 보정하지 않고 각각 차단한다', () => {
+  const row = prepare('제목\t시작일\t종료일\n요일 불일치\t2026. 10. 13.(월)\t2026-10-14(목요일)')[0]
+  assert.equal(row.draft, undefined); assert.equal(row.errors.length, 2)
+  assert.ok(row.errors.some(error => error.includes('시작일') && error.includes('(월)') && error.includes('2026-10-13 (화)')))
+  assert.ok(row.errors.some(error => error.includes('종료일') && error.includes('(목)') && error.includes('2026-10-14 (수)')))
+  const corrected = prepare('제목\t시작일\t종료일\n요일 불일치\t2026. 10. 13.(화)\t2026-10-14(수요일)')[0]
+  assert.deepEqual(corrected.errors, []); assert.equal(corrected.draft.startDate, '2026-10-13'); assert.equal(corrected.draft.endDate, '2026-10-14')
+})
+test('요일이 있어도 연도 생략·없는 날짜·모호한 괄호는 추정하지 않는다', () => {
+  for (const date of ['10.13(화)', '2026-1-1(목)', '2026.10/13(화)', '2026. 10. 13.(화)~14.(수)', '2026-10-13(Tue)', '2026-10-13(화요일예정)', '2026-10-13(화)(화)', '2026-10-13( 화 )']) {
+    const row = prepare(`제목\t시작일\n요일 확인\t${date}`)[0]
+    assert.equal(row.draft, undefined, date); assert.ok(row.errors.length, date)
+  }
+  const invalid = prepare('제목\t시작일\n없는 날짜\t2026. 2. 29.(일)')[0]
+  assert.equal(invalid.draft, undefined); assert.ok(invalid.errors.some(error => error.includes('실제 달력에 없는')))
+})
 test('연도 생략·시트 일련번호·수식·모호한 날짜를 거부한다', () => {
   for (const date of ['10/19', '46314', '=TODAY()', '2026-1-1', '2026.1/1', '19/10/2026', '2026-10-19T00:00:00Z']) {
     const row = prepare(`제목,시작일\n행사,${date}`)[0]

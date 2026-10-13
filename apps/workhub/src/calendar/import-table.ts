@@ -132,7 +132,10 @@ export function parseImportTable(input: unknown, delimiter: 'auto' | 'tab' | 'co
 }
 
 function dateValue(value: string, label: string, errors: string[]): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) || /^(\d{4})\.[ \t]*(\d{1,2})\.[ \t]*(\d{1,2})\.?$/.exec(value) || /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(value)
+  // 요일은 버리지 않고 실제 달력과 대조한다. 연도나 날짜를 요일로 추측하지 않는다.
+  const weekday = /[ \t]*\(([일월화수목금토])(?:요일)?\)$/.exec(value)
+  const dateText = weekday ? value.slice(0, weekday.index).trimEnd() : value
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateText) || /^(\d{4})\.[ \t]*(\d{1,2})\.[ \t]*(\d{1,2})\.?$/.exec(dateText) || /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(dateText)
   if (!match) {
     errors.push(`${label}은 연도가 있는 YYYY-MM-DD, YYYY. M. D. 또는 YYYY/M/D로 입력해 주세요.`)
     return ''
@@ -142,6 +145,13 @@ function dateValue(value: string, label: string, errors: string[]): string {
   if (Number.isNaN(date.valueOf()) || date.toISOString().slice(0, 10) !== result) {
     errors.push(`${label}이 실제 달력에 없는 날짜입니다.`)
     return ''
+  }
+  if (weekday) {
+    const actualWeekday = '일월화수목금토'[date.getUTCDay()]
+    if (weekday[1] !== actualWeekday) {
+      errors.push(`${label}의 요일 (${weekday[1]})이 실제 날짜 ${result} (${actualWeekday})과 다릅니다. 원본 날짜와 요일을 확인해 주세요.`)
+      return ''
+    }
   }
   return result
 }
