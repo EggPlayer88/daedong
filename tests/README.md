@@ -120,7 +120,7 @@ $env:PLAYWRIGHT_CHANNEL = 'chromium'
 npm run test:workhub:browser
 ```
 
-러너는 목록에 명시한 26개 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
+러너는 목록에 명시한 29개 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
 
 CI에서는 기존 필수 `test` job 안에 **실제 브라우저 회귀 검사** 단계가 있다. 화면·공통 앱·브라우저 시험·공통 시험 도우미·의존성·워크플로가 바뀌면 고정 Chromium과 한글 글꼴을 설치하고 같은 러너를 실행한다. 문서만 바뀐 경우에는 이 단계만 생략하며 `npm test`는 그대로 실행한다. 변경 경로 판정에 실패하면 브라우저 검사를 실행하는 쪽으로 처리한다. 브라우저 실패도 전체 `test` 실패이며, 화면·JSON·콘솔 결과를 `workhub-browser-results` 아티팩트에 7일간 보관한다.
 
@@ -177,3 +177,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `tests/browser/workhub-draft-recovery.mjs`: 실제 연결/폼을 합성 RPC로 실행한다. 명부/조회 실패·원본 재검증·충돌·미확정 저장·폐기 후 재등장 방지를 검증하며 전체 브라우저 러너에 포함된다.
 - `workhub-calendar-import.mjs`의 연결 복구 시험은 부분 완료 행과 미확정 저장 요청의 중복 등록 방지를 함께 검증한다.
 - 자세한 재현 순서는 [재검토 기록](../docs/workhub/23-review-draft-recovery.md)을 참고한다. 실제 운영 DB에는 접속하지 않는다.
+
+## 연결 오류 화면의 이동·폐기 회귀
+
+- `test_workhub_connection_exit_ui.mjs`: 입력/미확정 요청별 안내와 접근성·새 탭 링크의 SSR 4건.
+- `tests/browser/workhub-connection-exit.mjs`: 바깥 BrowserRouter 링크·뒤로가기, 오류/로딩, 폐기 취소·확정, 미확정 요청·혼합 상태, 새 탭, 권한 회수, 모바일 키보드 9건. 전체 러너에 포함한다.
+- 재현 절차와 Linux/PowerShell 명령은 [검토 기록](../docs/workhub/24-connection-exit.md)에 있다. 합성 RPC를 사용하며 실제 운영 서버에는 접속하지 않는다.
