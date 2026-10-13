@@ -1,0 +1,773 @@
+{
+  "version": "1.1",
+  "status": "design",
+  "apis": [
+    {
+      "id": "API-01",
+      "modules": [
+        "M00"
+      ],
+      "commands": [
+        "cmd_ensure_account",
+        "cmd_request_membership"
+      ],
+      "reads": "my_context / school_directory / join_code_preview / membership_requests",
+      "tables": [
+        "accounts",
+        "schools",
+        "memberships",
+        "school_join_codes"
+      ],
+      "authorization": "로그인 계정, 최소 학교 찾기, 본인 신청만. 승인 전 업무 조회 불가",
+      "input": "join_code 또는 school_id, request_id, 신청 expected_version",
+      "result": "계정 맥락·신청 ID·pending/active를 구분",
+      "tests": "첫 로그인/기존 회원/대기/중복 신청/자기승인 차단",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-02",
+      "modules": [
+        "M00",
+        "M15"
+      ],
+      "commands": [
+        "cmd_decide_membership",
+        "cmd_grant_role",
+        "cmd_end_membership",
+        "cmd_set_feature_visibility"
+      ],
+      "reads": "school_members / feature_status",
+      "tables": [
+        "memberships",
+        "membership_roles",
+        "school_features",
+        "school_feature_pilots"
+      ],
+      "authorization": "현재 학교의 해당 관리 권한. 자신을 승인/승격하지 못함",
+      "input": "membership_id, 결정·사유·기간, expected_version, 공개 변경 승인 근거",
+      "result": "새 membership/permission version, 영향받은 접근·작업",
+      "tests": "회수와 저장 경합/마지막 관리자 보호/타학교/공개 확대",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-03",
+      "modules": [
+        "M01"
+      ],
+      "commands": [
+        "cmd_assign",
+        "cmd_submit_profile_claim",
+        "cmd_review_claim",
+        "cmd_save_duty_note"
+      ],
+      "reads": "duty_page / approved_profile / pending_claims",
+      "tables": [
+        "duties",
+        "assignments",
+        "profile_claims",
+        "duty_notes"
+      ],
+      "authorization": "본인 신고와 공식 배정 분리. 지정 업무/인사 범위의 승인권자",
+      "input": "duty/subject/department/class/course, valid_from/to, expected_version",
+      "result": "승인 관계와 신고 상태를 별도 반환",
+      "tests": "중복 기간/미승인 프로필 권한상승/학급·수업 다른학교",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-04",
+      "modules": [
+        "M01",
+        "M14"
+      ],
+      "commands": [
+        "cmd_handover_preview",
+        "cmd_handover_accept",
+        "cmd_handover_apply",
+        "cmd_handover_cancel"
+      ],
+      "reads": "handover_detail / handover_impact",
+      "tables": [
+        "handovers",
+        "handover_items",
+        "handover_acceptances",
+        "assignments",
+        "collection_units"
+      ],
+      "authorization": "원책임자·후임·적용권자 역할을 나누고 활성 후임과 정확한 수락판 확인",
+      "input": "scope, 후임 membership, effective_on, manifest_hash, acceptance_id, expected_versions",
+      "result": "기존 의무 ID를 유지한 책임 이동·제외 항목·접수증",
+      "tests": "NULL 수락/내용 바뀐 수락/개인자료 제외/경합/부분적용 0건",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-05",
+      "modules": [
+        "M02"
+      ],
+      "commands": [
+        "cmd_save_event",
+        "cmd_confirm_official",
+        "cmd_cancel_event",
+        "cmd_delete_event"
+      ],
+      "reads": "events_in_range / event_detail / audience_preview",
+      "tables": [
+        "events",
+        "event_revisions",
+        "audience_sets",
+        "calendar_days"
+      ],
+      "authorization": "공유 일정은 활성 교사 등록. 공식 확정은 별도 권한. 개인 일정 관리자 자동열람 금지",
+      "input": "제목·시간·공개범위·대상판·kind·expected_version·변경사유",
+      "result": "불변 일정판·원본 ID·추천 이유·공식 여부",
+      "tests": "공식 초안 비노출/학교전환/개인범위/수업일 영향",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-06",
+      "modules": [
+        "M02"
+      ],
+      "commands": [
+        "cmd_import_preview",
+        "cmd_import_apply",
+        "cmd_cutover_source"
+      ],
+      "reads": "import_diff / import_result",
+      "tables": [
+        "source_connections",
+        "source_records",
+        "source_record_snapshots",
+        "import_runs",
+        "import_rows"
+      ],
+      "authorization": "연결 담당자만. 사이트 기준으로 전환한 원본을 시트가 덮지 못함",
+      "input": "connection_id, mapping_version, file_id, baseline_ids, row decisions, expected_versions",
+      "result": "행별 applied/conflict/skipped/error와 기준 위치",
+      "tests": "3방향 충돌/안정ID없음/미리보기후변경/파일누락삭제 금지",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-07",
+      "modules": [
+        "M03"
+      ],
+      "commands": [
+        "cmd_save_task",
+        "cmd_set_task_state",
+        "cmd_cooperation_create",
+        "cmd_cooperation_respond"
+      ],
+      "reads": "home_snapshot / my_tasks / assigned_task_status",
+      "tables": [
+        "tasks",
+        "cooperation_requests",
+        "events",
+        "collection_units",
+        "lesson_instances"
+      ],
+      "authorization": "개인 작업은 본인. 배정자는 협조 상태만, 개인 메모 본문은 제외",
+      "input": "scope·title·task_id·expected_version 또는 협조 응답·대체자",
+      "result": "원본이 연결된 홈 카드·개인 할 일·협조 상태",
+      "tests": "수합 수동완료 금지/원본-사본 열람 동일/중복 카드/부분조회 실패",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-08",
+      "modules": [
+        "M04"
+      ],
+      "commands": [
+        "cmd_open_collection",
+        "cmd_publish_collection",
+        "cmd_change_collection_schema",
+        "cmd_exempt_unit"
+      ],
+      "reads": "collection_detail / collection_units_status / publish_preview",
+      "tables": [
+        "collections",
+        "collection_schemas",
+        "collection_fields",
+        "collection_units",
+        "collection_unit_members",
+        "collection_template_versions",
+        "collection_template_mappings"
+      ],
+      "authorization": "게시 권한·대상·정책판. 단위별 하나의 의무. 결과 공개 별도",
+      "input": "기존 수합/단위 입력 + 양식 연결 시 response_mode/template_version_id/mapping_id/output_file_field_id/output_requirement/schema hash·대상 manifest. 문답형은 정확한 매핑/표본 확인판 필수; 양식 없는 숫자/글 수합은 기존 입력 유지",
+      "result": "게시판·고정 의무·단위 ID·면제 이력",
+      "tests": "기존 수합 정상/공동단위/권한 + COL01~08 문항판·추천·매핑·게시",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-09",
+      "modules": [
+        "M04"
+      ],
+      "commands": [
+        "cmd_save_draft",
+        "cmd_submit",
+        "cmd_withdraw_submission"
+      ],
+      "reads": "unit_draft / submission_receipt / operation_result",
+      "tables": [
+        "unit_drafts",
+        "submission_versions",
+        "submission_files",
+        "collection_units",
+        "collection_answer_snapshots",
+        "collection_output_artifacts",
+        "collection_output_confirmations"
+      ],
+      "authorization": "초안은 유효 구성원. 제출/철회는 책임자 또는 유효 대리",
+      "input": "unit/schema/expected draft version·답변·정확한 파일 + 양식 연결 시 answer_snapshot_id/output_artifact_id/output_confirmation_id. 모든 쓰기에 공통 scope/idempotency_key. 양식 없는 단순 응답에는 불필요한 출력 확인을 요구하지 않음",
+      "result": "서버 접수증·정확한 제출판·현재/완료본·보완 충족 상태. 출력 accepted+job_id는 미제출",
+      "tests": "기존 제출/보완/정정 + COL의 답변변경·출력오류·타단위문서·책임자변경·최종확인 검사",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-10",
+      "modules": [
+        "M04"
+      ],
+      "commands": [
+        "cmd_review_submission",
+        "cmd_request_correction",
+        "cmd_open_correction_window",
+        "cmd_collection_export"
+      ],
+      "reads": "submission_review / correction_status / export_status",
+      "tables": [
+        "submission_reviews",
+        "correction_requests",
+        "collection_correction_fulfillments",
+        "export_manifests",
+        "export_manifest_items"
+      ],
+      "authorization": "지정 검토자·요청관리자. 과거 제출자/책임자 계정 기준 자기검토 금지",
+      "input": "명시 선택한 단위/제출판·내보내기 모드·expected_versions. 검토형 기본 effective, 검토없음 latest_valid. 미승인 received 포함은 명시 선택·상태 표기",
+      "result": "고정 제출판/파일지문의 export manifest·ZIP job·부분실패 목록·답변 집계; 완료본 없는 단위도 미완료 사유로 표시",
+      "tests": "인계후자기검토/충족판철회/보완연체/ZIP부분실패/출력중권한회수",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-11",
+      "modules": [
+        "M05",
+        "M15"
+      ],
+      "commands": [
+        "cmd_publish_notice",
+        "cmd_ack_notice",
+        "cmd_feedback_create",
+        "cmd_support_session_grant",
+        "cmd_support_session_revoke"
+      ],
+      "reads": "notices_for_me / notifications / feedback_status / support_scope",
+      "tables": [
+        "notices",
+        "notice_receipts",
+        "notifications",
+        "feedback",
+        "support_sessions"
+      ],
+      "authorization": "게시 범위·현재 원본 권한·승인 지원 목적/기간. 읽음≠명시확인",
+      "input": "notice revision·수신대상·확인 요청 또는 feedback·지원범위·만료",
+      "result": "게시판·중복없는수신목록·확인판·문의번호",
+      "tests": "수신범위회수/수정후확인판/조용한시간/문의민감첨부기본없음",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-12",
+      "modules": [
+        "M06"
+      ],
+      "commands": [
+        "cmd_knowledge_upload",
+        "cmd_knowledge_create_revision",
+        "cmd_knowledge_publish",
+        "cmd_knowledge_withdraw"
+      ],
+      "reads": "knowledge_revision / extraction_status / publication_preview",
+      "tables": [
+        "knowledge_documents",
+        "knowledge_revisions",
+        "knowledge_chunks",
+        "knowledge_conflicts"
+      ],
+      "authorization": "제안과 게시 권한 분리. 공통 승격 별도. 원문확인과 시행범위 필수",
+      "input": "file_id·scope·effective interval·school_level/region·verified_text·source locator",
+      "result": "확인된 게시판·색인 상태·충돌 후보",
+      "tests": "미확인추출게시불가/시행전후정확판/철회/학교규정공통화금지",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-13",
+      "modules": [
+        "M06"
+      ],
+      "commands": [
+        "query_knowledge"
+      ],
+      "reads": "search_knowledge / knowledge_index_status",
+      "tables": [
+        "knowledge_documents",
+        "knowledge_revisions",
+        "knowledge_chunks"
+      ],
+      "authorization": "검색 전에 범위·학교·시행·대상 필터, 인용 직전 원본 재검사",
+      "input": "scope·query·as_of_date·filters·cursor",
+      "result": "근거 구간·원문판·쪽/조항·기준일·색인준비상태",
+      "tests": "권한없는벡터후보유출/현행판미색인/상충자료/전출후캐시",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-14",
+      "modules": [
+        "M07"
+      ],
+      "commands": [
+        "cmd_assistant_run",
+        "cmd_confirm_proposal",
+        "cmd_cancel_assistant_run"
+      ],
+      "reads": "conversation / assistant_run_status / proposal_detail",
+      "tables": [
+        "conversations",
+        "messages",
+        "ai_runs",
+        "ai_run_sources",
+        "tool_proposals",
+        "tool_runs",
+        "jobs"
+      ],
+      "authorization": "본인·현재소속·생성소속·도구별 현재권한. 모델이 행동 수준을 바꾸지 못함",
+      "input": "scope·conversation_id·message·proposal/hash·expected target versions·confirmation",
+      "result": "근거답변 또는 확인가능한 작업안·실행접수증",
+      "tests": "재임용/확인후대상변경/중복확인/원문명령주입/외부결과불명확",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-15",
+      "modules": [
+        "M07"
+      ],
+      "commands": [
+        "cmd_memory_propose",
+        "cmd_memory_confirm",
+        "cmd_memory_revoke",
+        "cmd_memory_correct"
+      ],
+      "reads": "usable_memories / memory_history",
+      "tables": [
+        "memories",
+        "ai_run_sources",
+        "conversations"
+      ],
+      "authorization": "본인 확인과 범위·만료·원본 권한. 학교정보를 개인기억으로 자동복사 금지",
+      "input": "memory_id·source refs·content·scope·expires_at·expected_version",
+      "result": "확인 상태·재사용 가능 여부·정정/중단 이력",
+      "tests": "미확인기억재사용/근거파기/학교전출/동일교재임용",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-16",
+      "modules": [
+        "M08"
+      ],
+      "commands": [
+        "cmd_document_job",
+        "cmd_document_validate",
+        "cmd_document_export"
+      ],
+      "reads": "document_detail / validation_report / job_status",
+      "tables": [
+        "document_packs",
+        "documents",
+        "document_revisions",
+        "document_revision_sources",
+        "document_validations",
+        "jobs",
+        "collection_answer_snapshots",
+        "collection_output_artifacts"
+      ],
+      "authorization": "서버가 허용팩판·자산을 선택. 생성/검사/제출은 별도행동",
+      "input": "기존 문서팩/근거판/초안 + 수합 출력 연결 시 정확한 unit/snapshot/mapping/template version·코드검사판. document revision의 실제 생성입력과 연결을 검사",
+      "result": "문서판·파일·검사 및 수합 artifact 연결, 초안 접근은 작성자/지정 공동단위만. 생성이 제출/승인으로 바뀌지 않음",
+      "tests": "기존6양식회귀/작년사실자동승계금지/수정파일재검사/원형보존과내용지원구분",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-17",
+      "modules": [
+        "M08"
+      ],
+      "commands": [
+        "cmd_file_init",
+        "cmd_file_complete",
+        "cmd_file_download",
+        "cmd_file_delete_request"
+      ],
+      "reads": "file_status / file_grant_status",
+      "tables": [
+        "file_objects",
+        "file_links",
+        "file_access_grants",
+        "deletion_ledger",
+        "messenger_dispatch_files",
+        "collection_template_versions",
+        "collection_output_artifacts"
+      ],
+      "authorization": "실물과 요청객체 일치·소유관계/원본권한·정책판·사용시점 재검사",
+      "input": "기존 file init/complete/download·정확한 owner intent와 safety policy. 새 메신저 업로드만 미연결 파일을 1회 bind; 기존 업무 파일은 원부모 intent/ACL 유지. 학교 수합/문서/메시지의 각 typed 경로 권한 확인",
+      "result": "검증 상태·현재 권한 다운로드 경로·삭제 접수",
+      "tests": "기존 파일 안전/검사/권한회수 + MSG14 원부모 유지·COL 반복행별 파일/정확한 출력파일 검사",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-18",
+      "modules": [
+        "M09"
+      ],
+      "commands": [
+        "cmd_timetable_import_preview",
+        "cmd_timetable_import_apply"
+      ],
+      "reads": "my_lessons / timetable_grid / import_mapping",
+      "tables": [
+        "bell_schedules",
+        "timetable_versions",
+        "timetable_placements",
+        "lesson_instances",
+        "timetable_basis_revisions"
+      ],
+      "authorization": "지정 담당자. 학교 일과·학기·교사/학급/공간 매핑 확인",
+      "input": "school/term·source_file_sha256·mapping_sha256·basis_revision_id·기대입력판. 조회는 날짜/범위/cursor",
+      "result": "가져온 후보/배포판/미매핑을 구분; import 성공이 자동 배포 아님; 일반 교사 DTO에 basis 원문/복무 사유 없음",
+      "tests": "초중고일과/다중학급선택분반/미매핑보류/기존실시보존",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-19",
+      "modules": [
+        "M09"
+      ],
+      "commands": [
+        "cmd_start_composition",
+        "cmd_validate_candidate",
+        "cmd_publish_timetable",
+        "cmd_save_timetable_conditions",
+        "cmd_lock_timetable_conditions",
+        "cmd_save_timetable_candidate",
+        "cmd_cancel_composition"
+      ],
+      "reads": "composition_status / candidate_diff / publish_impact",
+      "tables": [
+        "constraint_sets",
+        "timetable_constraints",
+        "timetable_compositions",
+        "timetable_candidates",
+        "timetable_version_impacts",
+        "timetable_basis_revisions",
+        "timetable_versions"
+      ],
+      "authorization": "담당자·확인된 조건판. AI는 필수조건을 임의 완화하지 못함",
+      "input": "확정 basis_revision_id·locked constraint_set_id·실행 input_sha256·expected_term_version·base candidate. 배포는 candidate/placements/validation/impact 지문·적용기간 필수",
+      "result": "실행 status와 result_kind 분리, 충돌 초안 저장/배포불가·정확한 검증보고·앞/신규/뒤 구간을 보존하는 원자 배포",
+      "tests": "TT01~14·TT24~25 관리자자료/학교필수조건/상태진리표/기간분할/현재권한·기존 교환 보존",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-20",
+      "modules": [
+        "M10"
+      ],
+      "commands": [
+        "cmd_change_propose",
+        "cmd_change_respond",
+        "cmd_change_apply",
+        "cmd_change_revert",
+        "cmd_confirm_execution"
+      ],
+      "reads": "change_candidates / consent_status / execution_ledger",
+      "tables": [
+        "timetable_change_sets",
+        "timetable_change_items",
+        "timetable_change_participants",
+        "resource_occupancy",
+        "lesson_executions",
+        "cover_ledger"
+      ],
+      "authorization": "관련자 동의·지정 승인·실제 담당. 빈 자원도 동시에 두 번 배정 불가",
+      "input": "원수업 expected_versions·candidate/base snapshot/required participant 지문·정확한 응답·유효기한·담당자 최종승인. JWT가 실행주체이며 approved=true를 승인근거로 신뢰하지 않음",
+      "result": "관계자 전원 동의·최신 충돌 재검사 후 전체 원자 적용, 변경안 새판/재동의·실시/보강 기록은 별도",
+      "tests": "TT15~25 교환 경합/만료/재동의/정책에 따른 자기승인 금지/부분반영0/실시보존/AI장애",
+      "status": "target_contract_not_implemented",
+      "contract_version": "1.1"
+    },
+    {
+      "id": "API-21",
+      "modules": [
+        "M11"
+      ],
+      "commands": [
+        "cmd_roster_import_preview",
+        "cmd_roster_import_apply"
+      ],
+      "reads": "course_roster / student_context / roster_diff",
+      "tables": [
+        "students",
+        "student_enrollments",
+        "course_groups",
+        "course_memberships",
+        "course_group_teachers"
+      ],
+      "authorization": "명부담당/현재수업담당 범위. 동명이인은 사람 확인",
+      "input": "명부 file·기간·학급/수강 매핑·stable external IDs·expected versions",
+      "result": "불변학생ID·기간별학적/수강·행별결과",
+      "tests": "동명이인/전학/복수학교/선택과목/학년전환ID유지",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-22",
+      "modules": [
+        "M11"
+      ],
+      "commands": [
+        "cmd_save_observation",
+        "cmd_correct_observation",
+        "cmd_withdraw_observation",
+        "cmd_save_counselling"
+      ],
+      "reads": "my_observations / my_counselling / revision_history",
+      "tables": [
+        "observations",
+        "observation_revisions",
+        "counselling_records",
+        "counselling_revisions",
+        "student_evidence_gates"
+      ],
+      "authorization": "본인과 현재 학교·당시 담당 관계. 과거학년도 정정 절차",
+      "input": "student_id·enrollment/course·occurred_at·facts·origin·expected_revision",
+      "result": "확인된사실판·정정사유·근거영향·재검토상태",
+      "tests": "타교사비공개/학생정체성변경거부/과거정정/근거출력경합",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-23",
+      "modules": [
+        "M12"
+      ],
+      "commands": [
+        "cmd_confirm_assessment",
+        "cmd_save_record_draft",
+        "cmd_link_evidence",
+        "cmd_review_record",
+        "cmd_export_record"
+      ],
+      "reads": "assessment_detail / record_evidence_graph / export_check",
+      "tables": [
+        "assessments",
+        "assessment_revisions",
+        "rubric_revisions",
+        "record_drafts",
+        "record_draft_revisions",
+        "evidence_links",
+        "record_exports"
+      ],
+      "authorization": "작성자·현재소속·정확학생/원본판·기재규칙판·교사검토",
+      "input": "student/context·rubric revision·evidence refs·draft revision·reviewed hash",
+      "result": "평가확정판·문장근거·검토지문·출력기록",
+      "tests": "A학생근거B초안/근거철회/실제0점vs미평가/규칙미정/원문파기",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-24",
+      "modules": [
+        "M13"
+      ],
+      "commands": [
+        "cmd_classroom_import_preview",
+        "cmd_classroom_import_apply",
+        "cmd_classroom_remap",
+        "cmd_classroom_adopt",
+        "cmd_classroom_source_withdraw"
+      ],
+      "reads": "activity_inbox / mapping_review / adoption_impact",
+      "tables": [
+        "activity_instances",
+        "classroom_imports",
+        "source_items",
+        "source_item_revisions",
+        "participant_mappings",
+        "participant_mapping_revisions",
+        "adoptions",
+        "inbox_items"
+      ],
+      "authorization": "활동담당교사 확인. 학생자동확정/자동평가 금지",
+      "input": "activity/question revision·file/event receipt·source revision·mapping revision·target revision",
+      "result": "확인받은함·정확연결판에고정된채택·관찰/평가후속판",
+      "tests": "A→B→A/채택없는출처/중복역순/질문판변경/삭제후재수입차단",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-25",
+      "modules": [
+        "M05"
+      ],
+      "commands": [
+        "cmd_messenger_open_direct",
+        "cmd_messenger_create_group",
+        "cmd_messenger_update_participants",
+        "cmd_messenger_mark_read",
+        "cmd_messenger_withdraw_message"
+      ],
+      "reads": "messenger_inbox / messenger_thread_messages / messenger_participants / messenger_message_file / messenger_dispatch_status",
+      "tables": [
+        "messenger_threads",
+        "messenger_participants",
+        "messenger_messages",
+        "messenger_dispatches",
+        "messenger_dispatch_targets",
+        "messenger_dispatch_files"
+      ],
+      "authorization": "같은 학교 현재 활성 소속과 현재 참여 episode. 그룹 추가·제거·역할변경은 현재 manager; self leave는 일반 현재 참여자도 자기 episode만 종료 가능하며 마지막 manager는 인계/보관과 원자 처리. 타인 DM 관리자 열람 불가. 발신자 회수도 현재 원본소속 필요.",
+      "input": "school_id/origin_membership_id, resource ID, expected_version/participant_epoch, request_key; 목록은 불투명 cursor, 읽음은 through_seq",
+      "result": "접근 가능한 대화/메시지 DTO와 next_cursor; 전달됨/읽음/업무상태는 별도; 메시지본문 없는 상태 오류",
+      "tests": "MSG01~MSG05·MSG09~MSG12·MSG14: 격리/DM중복/재입장/읽음/회수/파일/경합/잘못된참여자FK",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-26",
+      "modules": [
+        "M05",
+        "M07"
+      ],
+      "commands": [
+        "cmd_messenger_prepare",
+        "cmd_messenger_confirm",
+        "cmd_messenger_retry_failed",
+        "cmd_messenger_cancel_pending"
+      ],
+      "reads": "messenger_send_preview / messenger_dispatch_status",
+      "tables": [
+        "messenger_dispatches",
+        "messenger_dispatch_targets",
+        "messenger_dispatch_files",
+        "messenger_messages",
+        "tool_proposals",
+        "tool_runs",
+        "idempotency_receipts",
+        "outbox"
+      ],
+      "authorization": "현재 origin 소속의 발신자. AI 준비는 도구제안만, 확정은 같은 교사의 정확한 payload/수신자/파일 지문 확인. 명단·정책·권한·방참여판 최신 검증.",
+      "input": "mode/body/recipient_selector/정확한 files·card 참조; prepare의 dispatch_id+confirmation_sha256+expected_version+request_key로 confirm; retry는 고정 실패 대상 ID",
+      "result": "prepared이면 정확한 수신자/첨부/영향 미리보기; accepted이면 dispatch_id+진행상태, 완료로 오표시 금지; 수신자별 DB delivered/blocked/failed/cancelled와 알림전달 상태 구분",
+      "tests": "MSG04·MSG06~MSG08·MSG10·MSG11·MSG13: 미확인전송0/수신변경/부분실패/멱등/권한회수/AI주입",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-27",
+      "modules": [
+        "M04",
+        "M08"
+      ],
+      "commands": [
+        "cmd_register_collection_template",
+        "cmd_analyze_collection_template",
+        "cmd_save_collection_mapping",
+        "cmd_validate_collection_mapping",
+        "cmd_approve_collection_mapping"
+      ],
+      "reads": "collection_template_detail / collection_template_analysis / collection_mapping_preview",
+      "tables": [
+        "collection_templates",
+        "collection_template_versions",
+        "collection_template_analyses",
+        "collection_template_mappings",
+        "file_objects",
+        "document_packs",
+        "document_revisions",
+        "document_validations",
+        "jobs",
+        "ai_runs"
+      ],
+      "authorization": "현재 학교의 명시 요청/양식 관리권한, 원본 파일 현재 ACL, 정확 표본 확인. 일반 관리자 권한만으로 초안 열람 불가",
+      "input": "scope={school_id}·file/template version·source hash·mapping hash·sample exact document/revision/validation·expected versions·idempotency_key",
+      "result": "05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 원본판·분석 작업 ID·추천/불확실성·검증/승인 매핑판·receipt; 지원은 검증범위만 표시",
+      "tests": "COL01~03/COL15/COL18~19: 타학교/미지원/표본불일치/외부unknown/판재사용",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-28",
+      "modules": [
+        "M04",
+        "M08"
+      ],
+      "commands": [
+        "cmd_propose_collection_answers",
+        "cmd_apply_collection_answer_proposal",
+        "cmd_prepare_collection_output",
+        "cmd_confirm_collection_output"
+      ],
+      "reads": "collection_interview_context / collection_output_preview",
+      "tables": [
+        "collection_schemas",
+        "collection_fields",
+        "unit_drafts",
+        "collection_answer_snapshots",
+        "collection_output_artifacts",
+        "collection_output_confirmations",
+        "documents",
+        "document_revisions",
+        "document_validations",
+        "file_objects",
+        "file_links",
+        "jobs",
+        "ai_runs"
+      ],
+      "authorization": "현재 유효 개인/공동 초안 접근; 최종 확인은 책임자 또는 유효 대리. 제출은 별도 API-09",
+      "input": "scope={school_id}·unit/schema/draft·expected versions·AI 제안 field paths·artifact ID·observed manifest hash·idempotency_key",
+      "result": "05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 검토할 답변 patch·snapshot/artifact/job·파일/답변 미리보기·확인 ID; not_submitted 상태 유지",
+      "tests": "COL04~13/COL15~16/COL20: 초안비공개/조건·반복/동시편집/오래된출력/책임자인계/AI장애",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-29",
+      "modules": [
+        "M09",
+        "M15"
+      ],
+      "commands": [
+        "cmd_timetable_basis_preview",
+        "cmd_timetable_basis_confirm",
+        "cmd_timetable_basis_change_request",
+        "cmd_timetable_basis_change_decide"
+      ],
+      "reads": "timetable_basis_status / timetable_basis_diff / basis_change_requests",
+      "tables": [
+        "timetable_basis_revisions",
+        "timetable_basis_change_requests",
+        "terms",
+        "course_groups",
+        "course_group_teachers",
+        "academic_classes",
+        "assignments",
+        "bell_schedules",
+        "term_day_templates"
+      ],
+      "authorization": "기본자료확정은 현재 관리자 capability, 시간표 담당은 조회·수정요청만. 학교·학기·현재 소속과 exact 기준판 재검사.",
+      "input": "scope·term_id·expected_term_version·preview/source_manifest_sha256; 수정요청은 base_basis_revision_id·허용 proposed_changes·reason·request expected_version",
+      "result": "확정 불변 basis판·현재 학기포인터·원본 차이·접수증; 요청 상태와 실제 반영된 resolved_basis_revision_id",
+      "tests": "TT04/TT05/TT06/TT23: 담당자 원본수정 차단, 기준자료 변경 경합, exact 지문, 같은학교·학기 FK, 개인정보 최소화",
+      "status": "target_contract_not_implemented"
+    }
+  ]
+}

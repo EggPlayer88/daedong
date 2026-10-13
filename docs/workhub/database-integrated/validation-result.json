@@ -1,0 +1,41 @@
+{
+  "checked_at": "2026-10-13T06:59:05.550Z",
+  "kind": "static_design_consistency_only",
+  "version": "1.1",
+  "counts": {
+    "baseline_tables": 160,
+    "added_tables": 30,
+    "total_tables": 190,
+    "changed_existing_tables": 94,
+    "columns": 2649,
+    "modules": 16,
+    "api_groups": 29,
+    "blueprint_common_contracts": 12,
+    "blueprint_acceptance_cases": 48,
+    "central_acceptance_cases": 114
+  },
+  "extension_tests": 63,
+  "implementation_tickets": 21,
+  "checks": [
+    "원본표와 add/alter 대상 일치",
+    "표/열 중복 없음",
+    "신규 열의 참조 대상 존재",
+    "모든 표 도메인 소유",
+    "M00~M15와 API01~29 대응",
+    "C01~C12와 V01~V48 원본 계약 추적",
+    "신규 표의 PK/제약/권한/시험 명세",
+    "R01~R12 차단 시나리오 존재",
+    "확장 시험 미실행 상태·티켓 선행/순환 검사"
+  ],
+  "errors": [],
+  "warnings": [],
+  "passed": true,
+  "not_proven": [
+    "통합 DDL 적재",
+    "RLS 동작",
+    "실제 두 연결 경합",
+    "Supabase Auth/Storage",
+    "worker 외부 호출",
+    "성능·복원·화면 종단"
+  ]
+}

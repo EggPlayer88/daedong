@@ -1,0 +1,4 @@
+# 로컬 구조도 검증 이미지와 실행 로그는 설계 정본에서 제외한다.
+overview-desktop.png
+overview-mobile.png
+repository-tests.log

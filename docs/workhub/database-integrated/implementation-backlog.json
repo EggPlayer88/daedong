@@ -1,0 +1,433 @@
+{
+  "version": "1.1",
+  "status": "design_only_database_construction_on_hold",
+  "tickets": [
+    {
+      "id": "MSG-T01",
+      "title": "대화방·학교격리·수신자 선택",
+      "depends_on": [],
+      "deliverables": [
+        "DM/그룹 읽기 DTO JSON Schema",
+        "현재소속쌍 유일성/episode 명령 계약",
+        "모바일 목록→대화→뒤로가기 시제품"
+      ],
+      "acceptance": [
+        "MSG01~MSG03 통과",
+        "관리자 전체본문 조회 경로 없음"
+      ],
+      "prerequisites": [
+        "공통 현재주체/권한 gate",
+        "학교 소속·업무배정 조회"
+      ],
+      "domain": "communication",
+      "source_file": "messenger-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "MSG-T02",
+      "title": "기본 메시지와 읽음·정정·회수",
+      "depends_on": [
+        "MSG-T01"
+      ],
+      "deliverables": [
+        "멱등 발송·순번·keyset 목록",
+        "접속복구/읽음커서/전달표시",
+        "정정 새메시지와 회수 tombstone"
+      ],
+      "acceptance": [
+        "MSG05·MSG09·MSG10·MSG11 통과",
+        "화면 빈상태/로딩/실패/권한회수 구분"
+      ],
+      "domain": "communication",
+      "source_file": "messenger-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "MSG-T03",
+      "title": "파일·업무카드 연결",
+      "depends_on": [
+        "MSG-T02"
+      ],
+      "deliverables": [
+        "메시지 부모를 요구하는 첨부 API",
+        "수합/시간표 카드 current read+전문명령 연결",
+        "현재 원본ACL 회수 전파"
+      ],
+      "acceptance": [
+        "MSG04·MSG09·MSG12 통과",
+        "읽음이 수합제출/시간표동의로 바뀌지 않음",
+        "MSG14: 선택 FK·수신 episode·파일 intent·자기나가기 음성시험 통과"
+      ],
+      "prerequisites": [
+        "공통 file_objects 안전검사·다운로드",
+        "수합/시간표 도메인 읽기 계약"
+      ],
+      "domain": "communication",
+      "source_file": "messenger-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "MSG-T04",
+      "title": "AI 준비·확인과 개별 일괄발송",
+      "depends_on": [
+        "MSG-T02",
+        "MSG-T03"
+      ],
+      "deliverables": [
+        "정확한 수신자/첨부/영향 preview",
+        "부분실패 상태와 성공행 제외 재시도",
+        "선택 메시지 AI근거 typed 연결"
+      ],
+      "acceptance": [
+        "MSG06~MSG08·MSG13 통과",
+        "AI준비만으로메시지전송0",
+        "provider 비용값은 승인 설정을 사용"
+      ],
+      "prerequisites": [
+        "Claude 도구제안·확인·작업 계약"
+      ],
+      "domain": "communication",
+      "source_file": "messenger-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "MSG-T05",
+      "title": "운영 공개 전 통합검증",
+      "depends_on": [
+        "MSG-T04"
+      ],
+      "deliverables": [
+        "실제 DB 독립두연결/RLS/Storage 시험 증거",
+        "실시간재연결·전출·모바일 검증",
+        "미정 정책값과 공개 승인 체크"
+      ],
+      "acceptance": [
+        "MSG01~MSG14 실제환경 통과",
+        "보존/첨부/알림정책 미정 기능은 공개 차단",
+        "신규 메뉴 공개는 기존 승인 절차"
+      ],
+      "domain": "communication",
+      "source_file": "messenger-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T01",
+      "title": "공통 수합 DTO·validator·AI 없는 파일 작성 흐름",
+      "depends_on": [],
+      "deliverables": [
+        "기존 일반 수합 호환 DTO",
+        "조건/반복 필드 합성 fixture",
+        "파일 작성형 화면"
+      ],
+      "acceptance": [
+        "COL05~08의 순수 validator 시험",
+        "기존 인증/권한/제출 정책 변경 없음"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T02",
+      "title": "양식 등록·불변판·지원수준·재사용",
+      "depends_on": [
+        "COL-T01"
+      ],
+      "deliverables": [
+        "양식 카탈로그와 빈 양식판",
+        "검증 파일 연결",
+        "지원 미확정/미지원 UI"
+      ],
+      "acceptance": [
+        "COL01/COL18/COL19",
+        "실제 파일 정책·검증 없이는 ready 표시 금지"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T03",
+      "title": "Claude 분석·매핑 편집·표본 출력 검증",
+      "depends_on": [
+        "COL-T02"
+      ],
+      "deliverables": [
+        "분석 결과 DTO",
+        "안정 필드/locator 매핑",
+        "표본 document/validation 사슬"
+      ],
+      "acceptance": [
+        "COL02/COL03/COL15/COL19",
+        "보호된 기존 자산 무변경"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T04",
+      "title": "게시 문항판·대상 snapshot·변경 영향",
+      "depends_on": [
+        "COL-T03"
+      ],
+      "deliverables": [
+        "모드/표본/대상 확인 카드",
+        "새 schema 적용 명령",
+        "기존 API-08 확장"
+      ],
+      "acceptance": [
+        "COL01/COL16",
+        "미검증 guided 게시0"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T05",
+      "title": "문답·직접 입력·개인/공동 초안",
+      "depends_on": [
+        "COL-T01",
+        "COL-T04"
+      ],
+      "deliverables": [
+        "동일 unit_drafts 편집기",
+        "AI 제안 선택 반영",
+        "조건부/반복행/첨부/재개 UI"
+      ],
+      "acceptance": [
+        "COL04~08/COL12/COL15",
+        "초안 비공개 종단"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T06",
+      "title": "답변 snapshot·출력·최종 확인·원자 제출",
+      "depends_on": [
+        "COL-T03",
+        "COL-T05"
+      ],
+      "deliverables": [
+        "output artifact/confirmation 계약",
+        "기존 문서판/작업 재사용",
+        "API-09 제출 사슬 보강"
+      ],
+      "acceptance": [
+        "COL09~13",
+        "오래된/타인 확인 접수0"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T07",
+      "title": "검토·보완·완료본 ZIP·재안내",
+      "depends_on": [
+        "COL-T06"
+      ],
+      "deliverables": [
+        "effective 기본 export",
+        "상태 현황표/부분실패 복구",
+        "메신저 재안내 recipient 미리보기 연결"
+      ],
+      "acceptance": [
+        "COL14/COL17",
+        "대기 수정본이 완료본을 대체하지 않음"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "COL-T08",
+      "title": "종단·동시성·권한·기존 기능 검증",
+      "depends_on": [
+        "COL-T01",
+        "COL-T02",
+        "COL-T03",
+        "COL-T04",
+        "COL-T05",
+        "COL-T06",
+        "COL-T07"
+      ],
+      "deliverables": [
+        "COL01~24 실행 증거",
+        "합성 DB/파일/브라우저 검증",
+        "별도 공개 검토자료"
+      ],
+      "acceptance": [
+        "신규 설계 검사와 실제 DB 시험 결과 구별",
+        "사용자 승인 전 운영 DB/문서AI 적용0"
+      ],
+      "domain": "collection",
+      "source_file": "collection-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T01",
+      "title": "기본자료·권한·학교형 DTO와 합성 기준 사례",
+      "depends_on": [],
+      "deliverables": [
+        "관리자/담당자/교사/대리승인 capability 매핑안",
+        "기준자료 snapshot JSON Schema·canonical hash 계약",
+        "초중고·특수일과 합성 fixtures·지원기능 행렬"
+      ],
+      "acceptance": [
+        "TT04/TT05/TT21/TT23",
+        "원시 학생실명 없이 필요한 참여 충돌 표현",
+        "실제 DB/시간표 구현 재개 승인 전에는 설계/fixture까지만"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T02",
+      "title": "관리자 기준자료판 확정과 담당자 수정요청",
+      "depends_on": [
+        "TT-T01"
+      ],
+      "deliverables": [
+        "API-29 입력/출력 스키마와 UI 설계",
+        "기준자료 2표·term pointer의 SQL 검토안",
+        "확정/수정요청 두 연결 경합 시험"
+      ],
+      "acceptance": [
+        "TT04/TT05/TT06",
+        "Claude Web 확정 SQL·계란님 실행 절차 별도",
+        "실제 DB 구축 보류 해제 전 실행 금지"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T03",
+      "title": "조건 편집·Claude 도구·엔진 adapter",
+      "depends_on": [
+        "TT-T01",
+        "TT-T02"
+      ],
+      "deliverables": [
+        "API-19 조건 저장/잠금 DTO",
+        "지원목록·미지원 처리·원본/현재 engine 차이 검증",
+        "job 결과·취소·불가능/미해결 UX"
+      ],
+      "acceptance": [
+        "TT07/TT08/TT09/TT12/TT25",
+        "AI는 내용·제안만, 코드 충돌검증",
+        "기존 엔진 수정은 별도 시간표 재개 후"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T04",
+      "title": "후보 조정 작업대와 검증 보고",
+      "depends_on": [
+        "TT-T03"
+      ],
+      "deliverables": [
+        "불변 후보·수동편집·비교·고정/해제·되돌리기",
+        "키보드·모바일 대체 조작",
+        "독립 검증기와 stale 표시"
+      ],
+      "acceptance": [
+        "TT10/TT11/TT12/TT13/TT24",
+        "충돌 초안 저장 가능·배포 불가",
+        "기존 unit 순번을 수업 영구ID로 사용하지 않음"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T05",
+      "title": "기간별 기본표 배포·영향 검토·교사 공유",
+      "depends_on": [
+        "TT-T04"
+      ],
+      "deliverables": [
+        "API-18 가져오기 candidate 경로",
+        "API-19 날짜별 배포 영향 manifest/원자공개",
+        "교사/학급/교실 동일원장 DTO·일별 모바일 화면"
+      ],
+      "acceptance": [
+        "TT01/TT02/TT14/TT15/TT22",
+        "미해결 미래변경 영향 0일 때만 공개",
+        "신규 메뉴 공개범위 확대 별도 승인"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T06",
+      "title": "교환 요청·전원 동의·담당자 승인",
+      "depends_on": [
+        "TT-T05"
+      ],
+      "deliverables": [
+        "API-20 exact candidate/participants 지문",
+        "새판 대체·거절·철회·만료·대리승인",
+        "원자 교환·현재권한·자원 경합 시험"
+      ],
+      "acceptance": [
+        "TT01/TT16/TT17/TT18/TT19",
+        "무응답·읽음·AI 발언을 동의로 사용하지 않음",
+        "한 교사만 바뀌는 부분 반영 0건"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T07",
+      "title": "실시·대강·결강·보강·역변경",
+      "depends_on": [
+        "TT-T06"
+      ],
+      "deliverables": [
+        "실시판/담당/보상 원장 DTO와 확인화면",
+        "교환·이동·대강·결강·보강의 의미별 계약",
+        "후속 변경/학생자료 보존 역변경 검사"
+      ],
+      "acceptance": [
+        "TT03/TT20",
+        "예정/실시/미실시/보강누계 구분",
+        "검증된 계산식판 없는 자동 수당/비용 계산 없음"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    },
+    {
+      "id": "TT-T08",
+      "title": "메신저·홈 연결과 학교형 종단검증",
+      "depends_on": [
+        "TT-T05",
+        "TT-T06",
+        "TT-T07"
+      ],
+      "deliverables": [
+        "실제 change_set_id/lesson_instance_id 기반 업무카드",
+        "알림 재시도·중복방지·안전 DTO",
+        "초중고 대표 시나리오·AI장애·접근성·모바일 시험"
+      ],
+      "acceptance": [
+        "TT01~TT25 모두 실행 증거 필요",
+        "설계 완료/DB 준비/기능 구현/학교형 검증/운영 공개 상태를 별도 기록",
+        "DB 및 시간표 재개·공개 승인 전 운영 적용 금지"
+      ],
+      "domain": "timetable",
+      "source_file": "timetable-extension.json",
+      "status": "specified_not_implemented"
+    }
+  ]
+}
