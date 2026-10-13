@@ -2,6 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import type { SearchItem, SearchKind, SearchSource } from './contracts'
 import { filterSearchItems } from './presentation'
 import searchStyles from './search.css?inline'
+import { WorkspaceIcon } from '../app/WorkspaceIcon'
 
 export interface WorkspaceSearchProps {
   sources: readonly SearchSource[]
@@ -132,7 +133,7 @@ function SearchWorkspace({ sources, locked = false, onOpen }: WorkspaceSearchPro
   }
   return <div className="ws-search">
     <style>{searchStyles}</style>
-    <button ref={trigger} type="button" className="ws-search-trigger" aria-haspopup="dialog" disabled={locked} onClick={() => { if (!locked) setOpen(true) }}><span aria-hidden="true">⌕</span>업무 찾기</button>
+    <button ref={trigger} type="button" className="ws-search-trigger" aria-haspopup="dialog" disabled={locked} onClick={() => { if (!locked) setOpen(true) }}><WorkspaceIcon name="search" />업무 찾기</button>
     <dialog ref={dialog} className="ws-search-dialog" aria-labelledby={`${id}-title`} aria-describedby={`${id}-help`} onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); close() } }} onCancel={event => { event.preventDefault(); close() }} onClose={handleNativeClose}>
       {open && <><header className="ws-search-header"><div><p>{sources.map(source => source.label).join(' · ')}</p><h2 id={`${id}-title`}>업무 찾기</h2></div><button className="ws-search-close" type="button" onClick={() => close()} aria-label="업무 찾기 닫기">닫기</button></header>
       <div className="ws-search-body"><p className="ws-search-hint" id={`${id}-help`}>현재 이용할 수 있는 자료만 찾습니다. 검색어와 결과는 이 창을 닫으면 지워집니다.</p>
