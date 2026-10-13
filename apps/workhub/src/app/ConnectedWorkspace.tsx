@@ -18,6 +18,7 @@ import { WorkspaceSearch } from '../search/WorkspaceSearch'
 import { calendarSearchSource, taskSearchSource } from '../search/sources'
 import { useResourceNavigation } from './resource-navigation'
 import { createPendingRequests, PendingRequestsProvider, recoveryScope } from './pending-requests'
+import { watchSchoolDay } from './school-day'
 
 const connectedPages = enabledModules('connected').map(module => module.id)
 
@@ -37,6 +38,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
   const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
   const [context, setContext] = useState<ConnectionContext>()
+  const basisDateRef = useRef<string>()
+  basisDateRef.current = context?.basisDate
   const [memberId, setMemberId] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -52,44 +55,61 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const lastVerifiedMemberId = useRef('')
   useEffect(() => { if (memberId) lastVerifiedMemberId.current = memberId }, [memberId])
   useEffect(() => {
-    let alive = true
-    async function refresh(quiet = false) {
-      const version = ++generation.current
+    let alive = true, running = false
+    let queued: number | undefined
+    function refresh(quiet = false) {
+      // 동시에 여러 신호가 와도 진행 중 조회 하나와 최신 후속 조회 하나만 유지한다.
+      // 요청 즉시 이전 화면 응답을 무효화하고, 서버 문맥 읽기는 순서대로 완료한다.
+      queued = ++generation.current
       if (!quiet) { setLoading(true); setContext(undefined) }
       setError('')
-      try {
-        const identity = await connection.getIdentity()
-        if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
-        const next = await connection.loadContext()
-        if (!alive || version !== generation.current) return
-        const fingerprint = JSON.stringify(next.memberships)
-        // 다른 교사의 이름·목록 순서가 달라져도 내 요청 키는 잃지 않는다.
-        pendingRequests.retainScopes(next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate)).map(recoveryScope))
-        if (scopeFingerprint.current && fingerprint !== scopeFingerprint.current) setScopeEpoch(value => value + 1)
-        scopeFingerprint.current = fingerprint
-        setContext(next)
-        setRefreshEpoch(value => value + 1)
-        const mine = next.memberships.filter(member => member.userId === expectedUserId && activeAt(member, next.basisDate))
-        setMemberId(previous => mine.some(member => member.id === previous) ? previous : mine.some(member => member.id === lastVerifiedMemberId.current) ? lastVerifiedMemberId.current : mine[0]?.id ?? '')
-      } catch (failure) {
-        if (alive && version === generation.current) { setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
-      } finally { if (alive && version === generation.current) setLoading(false) }
+      if (!running) void drain()
     }
-    void refresh()
-    const unsubscribe = connection.subscribeIdentity(() => { void refresh(true) })
+    async function drain() {
+      running = true
+      try {
+        while (alive && queued !== undefined) {
+          const version = queued
+          queued = undefined
+          if (version !== generation.current) continue
+          try {
+            const identity = await connection.getIdentity()
+            if (!alive || version !== generation.current) continue
+            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
+            const next = await connection.loadContext()
+            if (!alive || version !== generation.current) continue
+            const fingerprint = JSON.stringify(next.memberships)
+            // 다른 교사의 이름·목록 순서가 달라져도 내 요청 키는 잃지 않는다.
+            pendingRequests.retainScopes(next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate)).map(recoveryScope))
+            if (scopeFingerprint.current && fingerprint !== scopeFingerprint.current) setScopeEpoch(value => value + 1)
+            scopeFingerprint.current = fingerprint
+            setContext(next)
+            setRefreshEpoch(value => value + 1)
+            const mine = next.memberships.filter(member => member.userId === expectedUserId && activeAt(member, next.basisDate))
+            setMemberId(previous => mine.some(member => member.id === previous) ? previous : mine.some(member => member.id === lastVerifiedMemberId.current) ? lastVerifiedMemberId.current : mine[0]?.id ?? '')
+          } catch (failure) {
+            if (alive && version === generation.current) { setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
+          } finally { if (alive && version === generation.current) setLoading(false) }
+        }
+      } finally { running = false }
+    }
+    refresh()
+    const unsubscribe = connection.subscribeIdentity(() => { refresh(true) })
     const stopInvalidation = connection.subscribeInvalidation(reason => {
       if (!alive) return
       generation.current += 1
+      queued = undefined
       // 조회 실패도 화면은 숨긴다. 결과 미확정 명령은 같은 계정·소속 재검증 후에만 다시 표시한다.
       if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); lastVerifiedMemberId.current = '' }
       setDiagnosticEpoch(value => value + 1)
       setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
     })
-    // 다른 창의 로그아웃·승인 변경 후에는 이전 학교 화면을 다시 그대로 쓰지 않는다.
-    const onFocus = () => { void refresh(true) }
+    // 계정·권한 판정은 기존 서버 경로를 유지한다. 새 날짜는 재조회 신호로만 사용한다.
+    const stopDayWatch = watchSchoolDay(window, () => refresh(true), () => basisDateRef.current)
+    const onFocus = () => { refresh(true) }
     window.addEventListener('focus', onFocus)
-    return () => { alive = false; generation.current += 1; unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
+    return () => { alive = false; queued = undefined; generation.current += 1; stopDayWatch(); unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
   }, [connection, expectedUserId, attempt, pendingRequests])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
