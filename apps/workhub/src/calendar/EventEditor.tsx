@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { ContractError, type AudienceGroup, type CalendarEvent, type EventDraft, type Membership, type SaveCommand } from '../contracts'
 import { activeAt, canRead, matchesAudience, recommendationReason } from '../domain'
 import type { CalendarAdapter, RelationOptions } from './contracts'
+import { usePendingRequest } from '../app/pending-requests'
 
 const noRelations: RelationOptions = { departmentIds: [], gradeIds: [], subjectIds: [] }
 
@@ -17,16 +18,19 @@ function audienceLabel(event: EventDraft, members: Membership[], relationLabels:
   return `${event.audience.all ? '모든 교사' : groups || '직접 포함 교사만'} · 직접 포함: ${names(event.audience.includeMemberIds)} · 제외: ${names(event.audience.excludeMemberIds)}`
 }
 
-export function EventEditor({ original, initialDraft, member, members, date, adapter, onClose, onSaved, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
-  original?: CalendarEvent; initialDraft?: EventDraft; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
+export function EventEditor({ original: providedOriginal, initialDraft, member, members, date, adapter, onClose, onSaved, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
+  original?: CalendarEvent; initialDraft?: EventDraft; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
 }) {
-  const [draft, setDraft] = useState<EventDraft>(() => original || initialDraft ? structuredClone(original ?? initialDraft!) : blank(date))
+  const recovery = usePendingRequest(member, 'calendar')
+  const [restored] = useState(() => recovery.request)
+  const original = restored ? restored.original : providedOriginal
+  const [draft, setDraft] = useState<EventDraft>(() => restored ? structuredClone(restored.command.draft) : original || initialDraft ? structuredClone(original ?? initialDraft!) : blank(date))
   const [version, setVersion] = useState(original?.version)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [conflict, setConflict] = useState<CalendarEvent>()
-  const [pending, setPending] = useState<SaveCommand>()
+  const [pending, setPending] = useState<SaveCommand | undefined>(restored?.command)
   const dialog = useRef<HTMLDialogElement>(null)
   const id = useId()
   const titleInput = useRef<HTMLInputElement>(null)
@@ -34,6 +38,12 @@ export function EventEditor({ original, initialDraft, member, members, date, ada
   const inFlight = useRef(false)
   const saveRequest = useRef<{ payload: string; key: string }>()
   const errorRef = useRef<HTMLDivElement>(null)
+  const initialValue = useRef(JSON.stringify(draft))
+  const dirty = Boolean(initialDraft) || JSON.stringify(draft) !== initialValue.current
+  useEffect(() => {
+    onNavigationLockChange?.(dirty || saving || Boolean(pending) || Boolean(conflict))
+    return () => onNavigationLockChange?.(false)
+  }, [dirty, saving, Boolean(pending), Boolean(conflict), onNavigationLockChange])
   useEffect(() => {
     alive.current = true
     const element = dialog.current
@@ -59,14 +69,14 @@ export function EventEditor({ original, initialDraft, member, members, date, ada
   }
   async function perform(command: SaveCommand) {
     if (inFlight.current || conflict) return
-    inFlight.current = true; setSaving(true); setError('')
+    inFlight.current = true; recovery.put({ command, original }); setSaving(true); setError('')
     try {
       const result = await adapter.save(member.id, command)
-      if (alive.current) { setPending(undefined); onSaved(result) }
+      if (alive.current) { recovery.remove(command.idempotencyKey); setPending(undefined); onSaved(result) }
     } catch (failure) {
       if (!alive.current) return
       if (failure instanceof ContractError && ['INVALID_INPUT', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'CONFLICT'].includes(failure.code)) {
-        setPending(undefined)
+        recovery.remove(command.idempotencyKey); setPending(undefined)
         if (failure.code === 'CONFLICT') setConflict(failure.current)
       } else {
         // 응답만 사라진 경우 새 요청을 만들면 중복될 수 있어 원래 명령을 고정한다.
@@ -89,7 +99,7 @@ export function EventEditor({ original, initialDraft, member, members, date, ada
         <p className="subtle-note">{demo ? '합성 자료로 등록 흐름을 확인합니다. 실제 학교나 학생의 개인정보는 입력하지 마세요.' : '현재 선택한 학교의 일정입니다. 저장된 변경은 같은 학교의 열람 대상에게 반영됩니다.'}</p>
         {error && <div ref={errorRef} id={`${id}-error`} className="error-box" role="alert" tabIndex={-1}>{error}</div>}
         {notice && <p className="notice-box" role="status">{notice}</p>}
-        {pending && <section className="notice-box" aria-label="일정 저장 결과 확인 필요"><h3>먼저 이전 저장 결과를 확인해 주세요</h3><p>저장이 처리된 뒤 응답만 끊겼을 수 있습니다. 중복 등록을 막기 위해 입력과 요청 번호를 유지합니다.</p><button type="button" className="primary" disabled={saving} onClick={() => { void perform(pending) }}>같은 요청으로 저장 결과 확인</button></section>}
+        {pending && <section className="notice-box" aria-label="일정 저장 결과 확인 필요"><h3>먼저 이전 저장 결과를 확인해 주세요</h3><p>저장이 처리된 뒤 응답만 끊겼을 수 있습니다. 중복 등록을 막기 위해 입력과 요청 번호를 유지합니다.</p><button type="button" className="primary" disabled={saving} onClick={() => { void perform(pending) }}>같은 요청으로 저장 결과 확인</button>{onSuspend && <><p>현재 탭에서 요청을 보관하고 목록을 볼 수 있습니다. 새로고침하면 복구 정보가 사라집니다.</p><button type="button" className="secondary" disabled={saving} onClick={onSuspend}>{suspendLabel}</button></>}</section>}
         {conflict && <section className="conflict-box" aria-labelledby={`${id}-conflict`}><h3 id={`${id}-conflict`}>원본이 v{conflict.version}으로 바뀌었습니다</h3><p>다른 교사가 저장한 제목: <strong>{conflict.title}</strong></p><p>현재 원본: {conflict.startDate} ~ {conflict.endDate}, {eventTime(conflict)} / {visibilityLabels[conflict.visibility]}</p><p>내 입력은 아래에 그대로 남아 있습니다. 현재 원본을 확인한 뒤 다시 저장해 주세요.</p><details><summary>현재 원본의 전체 내용 확인</summary><dl className="event-detail"><div><dt>장소</dt><dd>{conflict.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{conflict.description || '등록된 안내 없음'}</dd></div><div><dt>관련 대상</dt><dd>{audienceLabel(conflict, members, relationLabels)}</dd></div></dl></details><div className="button-row"><button type="button" className="secondary" onClick={() => { setVersion(conflict.version); setConflict(undefined); setError(''); setNotice('변경된 원본을 확인했습니다. 내 입력으로 바꾸려면 다시 저장해 주세요.') }}>변경 확인 · 내 입력 유지</button><button type="button" className="text-button" onClick={() => { setDraft(structuredClone(conflict)); setVersion(conflict.version); setConflict(undefined); setError(''); setNotice('현재 원본을 불러왔습니다. 이전 입력은 이 양식에서 대체되었습니다.') }}>현재 원본으로 입력 바꾸기</button></div></section>}
         <fieldset disabled={saving || Boolean(pending)} className="form-fields"><legend className="sr-only">일정 기본 정보</legend>
           <label>일정 제목 <span className="required">필수</span><input ref={titleInput} name="title" required maxLength={100} value={draft.title} placeholder="예: 2학년 체험학습 준비 협의" onChange={event => change('title', event.target.value)} /></label>

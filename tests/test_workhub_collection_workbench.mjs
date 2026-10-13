@@ -73,6 +73,58 @@ test('완료본은 검토없는 응답의 숫자 0도 완료로 표시한다', (
   const row = table(store, request).rows[0]
   assert.equal(row.state, 'complete'); assert.equal(row.nextStep, '검토 없이 응답 완료'); assert.equal(store.collectionSummary(manager, request.id).numberResponseUnits, 1)
 })
+test('원 마감과 보완 기한이 모두 지나도 열린 보완은 접수하고 지연 근거를 보존한다', () => {
+  const { store, request, units } = setup({ count: 1 }); const unit = units[0]
+  submit(store, unit); review(store, unit, 'changes_requested', '2026-10-22')
+  store.setContext({ members, date: '2026-10-23' })
+  const before = table(store, request).rows[0]
+  assert.equal(before.nextStep, '보완 응답 필요'); assert.equal(before.overdue, true)
+  const received = submit(store, unit, 7), summary = store.unitSummary(author, unit.id)
+  assert.equal(received.revision, 2); assert.equal(received.receiptDate, '2026-10-23')
+  assert.equal(summary.initiallyLate, false); assert.equal(summary.pendingSupplements.length, 0)
+  assert.equal(summary.supplements[0].dueDate, '2026-10-22')
+  assert.equal(summary.supplements[0].fulfilledSubmissionId, received.id)
+  assert(summary.supplements[0].fulfilledAt.startsWith('2026-10-23'))
+  assert.equal(table(store, request).rows[0].state, 'pending')
+  const restored = createWorkflowStore({ members, date: '2026-10-23', snapshot: store.exportState() })
+  const html = renderDetail(restored, author, request.id, unit.id)
+  assert.match(html, /보완 기한 2026-10-22.*기한 후 제출.*접수 2026-10-23/s)
+})
+test('보완 접수 후에는 열린 보완 예외를 재사용해 늦은 일반 정정을 제출하지 못한다', () => {
+  const { store, units } = setup({ count: 1 }); const unit = units[0]
+  submit(store, unit); review(store, unit, 'changes_requested', '2026-10-22')
+  store.setContext({ members, date: '2026-10-23' }); submit(store, unit)
+  const draft = store.getDraft(author, unit.id), version = store.unitSummary(author, unit.id).unit.version
+  const before = store.exportState()
+  assert.throws(() => store.submit(author, unit.id, draft.version, version, key(), '일반 정정'), error => error.code === 'INVALID_STATE')
+  assert.deepEqual(store.exportState(), before)
+  store.openCorrection(manager, unit.id, '2026-10-24', '별도 일반 정정 허용', version, key())
+  const result = store.submit(author, unit.id, draft.version, store.unitSummary(author, unit.id).unit.version, key(), '허용받은 정정')
+  assert.equal(result.revision, 3)
+})
+test('다른 제출 단위의 열린 보완은 이 단위의 늦은 정정 허용으로 번지지 않는다', () => {
+  const { store, units } = setup({ count: 2 })
+  submit(store, units[0]); submit(store, units[1]); review(store, units[0], 'changes_requested', '2026-10-22')
+  store.setContext({ members, date: '2026-10-23' })
+  const unit = units[1], draft = store.getDraft(author, unit.id)
+  assert.throws(() => store.submit(author, unit.id, draft.version, store.unitSummary(author, unit.id).unit.version, key(), '별도 단위 정정'), error => error.code === 'INVALID_STATE')
+  assert.equal(store.getSubmissions(author, unit.id).length, 1)
+  assert.equal(submit(store, units[0]).revision, 2)
+})
+test('여러 보완 요청에 응답한 제출은 각 보완 기한을 기준으로 지연을 구분한다', () => {
+  const { store, request, units } = setup({ count: 1 }); const unit = units[0]
+  submit(store, unit); review(store, unit, 'changes_requested', '2026-10-22')
+  submit(store, unit); review(store, unit, 'changes_requested', '2026-10-25')
+  store.withdraw(author, unit.id, store.unitSummary(author, unit.id).unit.version, '보완 내용 다시 확인', key())
+  store.setContext({ members, date: '2026-10-23' })
+  assert.equal(store.unitSummary(author, unit.id).pendingSupplements.length, 2)
+  const received = submit(store, unit)
+  const summary = store.unitSummary(author, unit.id)
+  assert(summary.supplements.every(item => item.fulfilledSubmissionId === received.id))
+  const html = renderDetail(store, author, request.id, unit.id)
+  assert.match(html, /보완 기한 2026-10-22.*기한 후 제출.*접수 2026-10-23/s)
+  assert.match(html, /보완 기한 2026-10-25.*기한 내 제출.*접수 2026-10-23/s)
+})
 test('초안·본문·숫자·검토의견을 메타데이터나 검색에 복제하지 않는다', () => {
   // 숫자 999는 정상 원본 ID에도 나올 수 있다. 난수를 고정해 그 경우를 항상 검증한다.
   const randomUUID = crypto.randomUUID

@@ -177,6 +177,8 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
     })
   }
   function edit(record: ObservationView) {
+    // 앞서 지운 새 관찰의 학적 연결 대신, 정정할 원기록의 연결을 다시 고정한다.
+    setEntryEnrollmentId(record.current.enrollmentId)
     setTab('records'); setStudentQuery(''); setSavedRecord(undefined); setEditing(record); setCourseId(record.current.courseId); setStudentId(record.current.studentId); setObservedAt(record.current.observedAt); setActivity(record.current.activity); setContent(record.current.content); setReason(''); setConfirmed(false); setEntryFocus(value => value + 1); setError(''); setNotice('기존 기록의 새 개정본을 작성합니다. 정정 사유와 사실 확인이 필요합니다.')
   }
   function sample() {

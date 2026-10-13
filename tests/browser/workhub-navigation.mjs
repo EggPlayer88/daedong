@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React, {useEffect,useState} from 'react'; import {createRoot} from 'react-dom/client';
   import {BrowserRouter,Routes,Route,Link,useLocation,useNavigate} from 'react-router-dom';
@@ -25,7 +23,7 @@ const bundle = buildSync({ stdin: { contents: `
   function Frame(){const loc=useLocation();return <><header><Link to="/legacy">기존 메뉴</Link><Link to="/workhub?view=tasks&keep=school#main-content">신축 업무실</Link><output data-testid="router-url">{loc.pathname+loc.search+loc.hash}</output></header><Routes><Route path="/workhub" element={<Workspace/>}/><Route path="*" element={<h1>기존 화면</h1>}/></Routes></>}
   createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><Frame/></BrowserRouter></React.StrictMode>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1000, height: 800 } })
 const page = await context.newPage()
 const errors = []; page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(10000)

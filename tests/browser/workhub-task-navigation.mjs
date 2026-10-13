@@ -1,11 +1,9 @@
 // 실제 TaskPanel과 합성 읽기 어댑터로 원본 이동·지연 응답을 검사한다. 운영 서버에 접속하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
 
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React,{useState} from 'react';import {createRoot} from 'react-dom/client';
   import {TaskPanel} from './apps/workhub/src/tasks/TaskPanel';
@@ -31,7 +29,7 @@ const bundle = buildSync({ stdin: { contents: `
   createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' }).outputFiles[0].text
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const page = await browser.newPage()
 const errors = [], results = []
 page.setDefaultTimeout(10000)

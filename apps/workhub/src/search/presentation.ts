@@ -1,6 +1,7 @@
 import type { SearchItem, SearchKind } from './contracts'
 
 const normalize = (value: string) => value.normalize('NFC').toLocaleLowerCase('ko').trim().replace(/\s+/gu, ' ')
+const compact = (value: string) => value.replace(/\s/gu, '')
 export function filterSearchItems(items: readonly SearchItem[], query: string, kind?: SearchKind): SearchItem[] {
   if (!Array.isArray(items)) return []
   const phrase = normalize(typeof query === 'string' ? query : '')
@@ -13,9 +14,15 @@ export function filterSearchItems(items: readonly SearchItem[], query: string, k
     const key = JSON.stringify([item.kind, item.id, item.unitId ?? ''])
     if (seen.has(key)) return false
     seen.add(key)
-    const haystack = normalize(`${item.title} ${item.description} ${item.meta}`)
-    return words.every(word => haystack.includes(word))
+    // 표시용 문구(예: 나만 보는 업무)가 모든 결과를 일치시키지 않게 원문만 검사한다.
+    const values = [item.title, item.description, typeof item.date === 'string' ? item.date : '',
+      ...(Array.isArray(item.searchValues) ? item.searchValues.filter((value: unknown): value is string => typeof value === 'string') : [])]
+      .map(normalize)
+    return words.every(word => values.some(value => value.includes(word) || compact(value).includes(compact(word))))
   })
-  const rank = (item: SearchItem) => !phrase ? 0 : normalize(item.title) === phrase ? 0 : normalize(item.title).startsWith(phrase) ? 1 : normalize(item.title).includes(phrase) ? 2 : 3
+  const rank = (item: SearchItem) => {
+    const title = compact(normalize(item.title)), query = compact(phrase)
+    return !query || title === query ? 0 : title.startsWith(query) ? 1 : title.includes(query) ? 2 : 3
+  }
   return matches.sort((a, b) => rank(a) - rank(b) || a.title.localeCompare(b.title, 'ko') || a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id))
 }

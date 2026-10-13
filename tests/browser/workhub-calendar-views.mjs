@@ -1,12 +1,10 @@
 // 실제 CalendarPanel을 합성 어댑터로 조작한다. 서버·인증·실자료를 사용하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React,{useState} from 'react'; import {createRoot} from 'react-dom/client';
   import {CalendarPanel} from './apps/workhub/src/calendar/CalendarPanel';
@@ -24,7 +22,7 @@ const bundle = buildSync({ stdin: { contents: `
   function App(){const [page,setPage]=useState('home');return <><style>{theme}</style><nav><button onClick={()=>setPage('home')}>시험 홈</button><button onClick={()=>setPage('calendar')}>시험 일정</button></nav><CalendarPanel member={member} members={data.memberships} schoolName="가상 검증 학교" date={data.basisDate} adapter={adapter} revision={scenario.revision} page={page} onPageChange={setPage} relationOptions={relationLabels} demo onNavigationLockChange={lock} homeExtras={<p>독립 업무 카드</p>}/></>}
   function render(){root.render(<App/>)}render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } })
 const page = await context.newPage()
 page.setDefaultTimeout(10000)
@@ -83,13 +81,18 @@ try {
   await page.getByRole('dialog').getByRole('heading', { name: '수업 자료 정리' }).waitFor()
   await page.getByRole('button', { name: '일정 수정', exact: true }).click()
   await page.locator('.editor-dialog').waitFor(); await settled()
+  assert.equal(await page.evaluate(() => window.scenario.locked), false)
+  await page.locator('.editor-dialog input[name=title]').fill('수업 자료 정리 · 변경 검증'); await settled()
   assert.equal(await page.evaluate(() => window.scenario.locked), true)
   await page.keyboard.press('Escape'); await settled()
   assert.equal(await page.evaluate(() => window.scenario.locked), false)
   await page.getByRole('button', { name: '일정 등록', exact: true }).click()
   await page.locator('.editor-dialog').waitFor(); await settled()
+  assert.equal(await page.evaluate(() => window.scenario.locked), false)
+  await page.locator('.editor-dialog input[name=title]').fill('입력 후 이동 보호 검증'); await settled()
   assert.equal(await page.evaluate(() => window.scenario.locked), true)
   await page.keyboard.press('Escape'); await settled()
+  assert.equal(await page.evaluate(() => window.scenario.locked), false)
   assert.equal(await page.evaluate(() => document.activeElement.textContent.includes('일정 등록')), true)
   await page.getByRole('button', { name: '시트에서 가져오기', exact: true }).click()
   const importing = page.getByRole('dialog', { name: '시트에서 일정 가져오기', exact: true })

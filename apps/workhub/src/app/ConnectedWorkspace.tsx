@@ -16,6 +16,7 @@ import { enabledModules, type PageId } from '../modules'
 import { WorkspaceSearch } from '../search/WorkspaceSearch'
 import { calendarSearchSource, taskSearchSource } from '../search/sources'
 import { useResourceNavigation } from './resource-navigation'
+import { createPendingRequests, PendingRequestsProvider, recoveryScope } from './pending-requests'
 
 const connectedPages = enabledModules('connected').map(module => module.id)
 
@@ -33,6 +34,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [connection] = useState(() => providedConnection ?? createSupabaseConnection())
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
+  const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
   const [context, setContext] = useState<ConnectionContext>()
   const [memberId, setMemberId] = useState('')
   const [error, setError] = useState('')
@@ -46,6 +48,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
   const scopeFingerprint = useRef('')
+  const lastVerifiedMemberId = useRef('')
+  useEffect(() => { if (memberId) lastVerifiedMemberId.current = memberId }, [memberId])
   useEffect(() => {
     let alive = true
     async function refresh(quiet = false) {
@@ -54,16 +58,18 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       setError('')
       try {
         const identity = await connection.getIdentity()
-        if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.')
+        if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
         const next = await connection.loadContext()
         if (!alive || version !== generation.current) return
         const fingerprint = JSON.stringify(next.memberships)
+        // 다른 교사의 이름·목록 순서가 달라져도 내 요청 키는 잃지 않는다.
+        pendingRequests.retainScopes(next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate)).map(recoveryScope))
         if (scopeFingerprint.current && fingerprint !== scopeFingerprint.current) setScopeEpoch(value => value + 1)
         scopeFingerprint.current = fingerprint
         setContext(next)
         setRefreshEpoch(value => value + 1)
         const mine = next.memberships.filter(member => member.userId === expectedUserId && activeAt(member, next.basisDate))
-        setMemberId(previous => mine.some(member => member.id === previous) ? previous : mine[0]?.id ?? '')
+        setMemberId(previous => mine.some(member => member.id === previous) ? previous : mine.some(member => member.id === lastVerifiedMemberId.current) ? lastVerifiedMemberId.current : mine[0]?.id ?? '')
       } catch (failure) {
         if (alive && version === generation.current) { setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
       } finally { if (alive && version === generation.current) setLoading(false) }
@@ -73,6 +79,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
     const stopInvalidation = connection.subscribeInvalidation(reason => {
       if (!alive) return
       generation.current += 1
+      // 조회 실패도 화면은 숨긴다. 결과 미확정 명령은 같은 계정·소속 재검증 후에만 다시 표시한다.
+      if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); lastVerifiedMemberId.current = '' }
       setDiagnosticEpoch(value => value + 1)
       setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
@@ -81,7 +89,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
     const onFocus = () => { void refresh(true) }
     window.addEventListener('focus', onFocus)
     return () => { alive = false; generation.current += 1; unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
-  }, [connection, expectedUserId, attempt])
+  }, [connection, expectedUserId, attempt, pendingRequests])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
   const navigationLocked = taskNavigationLocked || calendarNavigationLocked
@@ -96,7 +104,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const navigate = (next: PageId) => { resource.navigate(next) }
   const searchSources = useMemo(() => member && context ? [calendarSearchSource(adapter, member, context.basisDate), taskSearchSource(taskAdapter, member, context.basisDate)] : [], [adapter, taskAdapter, member, context])
   const requested = resource.current
-  return <StyleBoundary>
+  return <PendingRequestsProvider store={pendingRequests}><StyleBoundary>
     <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
     {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
@@ -113,5 +121,5 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
         </ModuleBoundary>
       </WorkspaceShell>}
     <ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} />
-  </StyleBoundary>
+  </StyleBoundary></PendingRequestsProvider>
 }

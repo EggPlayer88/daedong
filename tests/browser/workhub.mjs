@@ -1,12 +1,10 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true })
 const page = await context.newPage()
 const failures = []
@@ -148,12 +146,20 @@ try {
     const text = await page.getByLabel('나의 근거 목록', { exact: true }).inputValue().catch(() => '')
     assert(!text.includes('응답을 제출함'))
   })
-  await ok('학교 전환·새로고침에서 각 학교 자료 분리', async () => {
+  await ok('학교·메뉴 전환은 학생 자료를 분리 보존하고 새로고침은 학생만 초기화', async () => {
     const tools = page.locator('.developer-panel'); if (!await tools.evaluate(node => node.open)) await tools.locator('summary').click()
     await page.getByLabel(/가상 학교/).selectOption('fixture-school-nuri')
     assert(!(await page.locator('main').innerText()).includes('브라우저 검증 · 행사 안내'))
     await menu('수업과 학생'); assert(!(await page.locator('main').innerText()).includes('과정을 설명함'))
-    await page.reload();await page.getByRole('heading',{name:'수업과 학생',level:1,exact:true}).waitFor();await menu('오늘')
+    await page.getByLabel(/가상 학교/).selectOption('fixture-school-gaon');await menu('수업과 학생')
+    await page.getByText('자료의 작성자와 공개 범위를 확인하고 출처를 적는 과정을 설명함.',{exact:true}).waitFor()
+    await menu('오늘');await menu('수업과 학생')
+    assert((await page.locator('main').innerText()).includes('과정을 설명함'))
+    await page.reload();await page.getByRole('heading',{name:'수업과 학생',level:1,exact:true}).waitFor()
+    await page.getByText('아직 본인이 작성한 관찰 기록이 없습니다.',{exact:true}).waitFor()
+    assert(!(await page.locator('main').innerText()).includes('과정을 설명함'))
+    await menu('자료 수합');await page.getByRole('button',{name:/브라우저 검증 · 현장학습 수량/}).waitFor()
+    await menu('오늘')
     await task('브라우저 검증 · 행사 안내').waitFor()
   })
   await ok('데스크톱·모바일 전 페이지 가로 넘침 및 런타임 오류 없음', async () => {
@@ -171,12 +177,19 @@ try {
   })
   await ok('일괄 초기화 실패는 모든 자료 유지·성공은 세 영역 동시 초기화', async () => {
     await page.setViewportSize({width:1440,height:1100})
+    // 새로고침으로 비워진 학생 메모리에 다시 기록을 넣어 초기화 실패의 원자성을 확인한다.
+    await menu('수업과 학생')
+    await page.getByLabel('활동', { exact: true }).fill('초기화 전 합성 관찰')
+    await page.getByLabel('직접 확인한 사실', { exact: true }).fill('초기화 시험 전에 출처를 확인하는 과정을 설명함.')
+    await page.getByRole('checkbox', { name: '직접 확인한 사실이며 이 학생의 기록임을 확인했습니다.' }).check()
+    await page.getByRole('button', { name: '관찰 저장', exact: true }).click()
+    await page.getByText('초기화 시험 전에 출처를 확인하는 과정을 설명함.',{exact:true}).waitFor()
     const tools = page.locator('.developer-panel'); if (!await tools.evaluate(node => node.open)) await tools.locator('summary').click()
-    const before = await page.evaluate(() => localStorage.getItem('workhub:synthetic:v2:workspace'))
+    const before = await page.evaluate(() => localStorage.getItem('workhub:synthetic:v3:workspace'))
     await page.evaluate(() => { window.__originalStorageSet = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key.startsWith('workhub:synthetic:')) throw new DOMException('quota', 'QuotaExceededError'); return window.__originalStorageSet.call(this, key, value) } })
     await page.getByRole('button', {name:'합성 자료 초기화',exact:true}).click()
     await page.getByRole('alert').filter({hasText:'저장하지 못했습니다'}).waitFor()
-    assert.equal(await page.evaluate(() => localStorage.getItem('workhub:synthetic:v2:workspace')), before)
+    assert.equal(await page.evaluate(() => localStorage.getItem('workhub:synthetic:v3:workspace')), before)
     await menu('내 업무');await task('브라우저 검증 · 행사 안내').waitFor();assert.equal(await task('브라우저 검증 · 행사 안내').count(),1)
     await menu('수업과 학생'); assert((await page.locator('main').innerText()).includes('과정을 설명함'))
     await page.evaluate(() => { Storage.prototype.setItem = window.__originalStorageSet })

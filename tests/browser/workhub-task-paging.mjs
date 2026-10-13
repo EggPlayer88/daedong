@@ -1,11 +1,10 @@
 // 실제 개인 업무 화면에 합성 1,000건을 넣어 표시량·원본 이동·편집 보호를 확인한다.
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
-import {createRequire} from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import {fileURLToPath} from 'node:url'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
   import React,{useState}from'react';import{createRoot}from'react-dom/client';import{TaskPanel}from'./apps/workhub/src/tasks/TaskPanel';
   import{TaskError}from'./apps/workhub/src/tasks/contracts';import{fixtureData}from'./apps/workhub/src/preview/fixtures';import css from'./apps/workhub/src/style.css?inline';
@@ -21,7 +20,7 @@ const bundle=buildSync({stdin:{contents:`
     return <><style>{css}</style><main data-generation={generation} data-locked={locked}><TaskPanel key={generation} member={member} date={date} adapter={adapter} compact={compact} revision={revision} openRequest={request} onNavigationLockChange={setLocked}/></main></>
   }createRoot(document.getElementById('root')).render(<App/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},logLevel:'silent'}).outputFiles[0].text
-const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1050}}),results=[],errors=[],metrics={},output=process.env.WORKHUB_QA_OUTPUT
+const browser=await launchBrowser(),page=await browser.newPage({viewport:{width:1440,height:1050}}),results=[],errors=[],metrics={},output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});if(output)mkdirSync(output,{recursive:true})
 const nav=()=>page.getByRole('navigation',{name:'내 업무 목록 페이지',exact:true}),cards=()=>page.locator('[data-task-id]')
 async function test(name,run){await run();results.push(name);console.log('  ✓ '+name)}
@@ -49,7 +48,8 @@ try{
     await reset(21);await nav().getByRole('button',{name:'마지막',exact:true}).click();assert.equal(await cards().count(),1);await cards().getByRole('button',{name:'완료',exact:true}).click();await settled();await page.getByText('현재 분류 20개',{exact:true}).waitFor();assert.equal(await cards().count(),20);assert.equal(await nav().count(),0);assert.equal(await page.locator('.task-notice').evaluate(node=>node===document.activeElement),true)
   })
   await test('외부 목록 축소 후 마지막 유효 쪽과 빈 목록을 안전하게 표시한다',async()=>{
-    await reset();await nav().getByRole('button',{name:'마지막',exact:true}).click();await page.evaluate(()=>qa.shrink(21));await settled();assert.equal(await cards().count(),1);assert((await nav().innerText()).includes('21–21개 표시'));await page.evaluate(()=>qa.shrink(0));await settled();assert.equal(await cards().count(),0);assert.equal(await nav().count(),0);await page.getByText('아직 등록한 개인 업무가 없습니다.',{exact:true}).waitFor()
+    // revision 변경 직후에는 이전 화면이 잠시 남으므로 새 목록 응답의 집계부터 확인한다.
+    await reset();await nav().getByRole('button',{name:'마지막',exact:true}).click();await page.evaluate(()=>qa.shrink(21));await page.getByText('현재 분류 21개',{exact:true}).waitFor();assert.equal(await cards().count(),1);assert((await nav().innerText()).includes('21–21개 표시'));await page.evaluate(()=>qa.shrink(0));await page.getByText('현재 분류 0개',{exact:true}).waitFor();assert.equal(await cards().count(),0);assert.equal(await nav().count(),0);await page.getByText('아직 등록한 개인 업무가 없습니다.',{exact:true}).waitFor()
   })
   await test('저장 대기·결과 미확정 동안 쪽 이동을 잠그고 같은 요청 재확인 후 풀어 준다',async()=>{
     await reset();await page.evaluate(()=>{qa.hold=true;qa.failure='SAVE_FAILED'});await cards().first().getByRole('button',{name:'완료',exact:true}).click();assert(await nav().getByRole('button',{name:'다음',exact:true}).isDisabled());await page.evaluate(()=>qa.release());await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).waitFor();assert(await nav().getByRole('button',{name:'다음',exact:true}).isDisabled());await page.evaluate(()=>qa.failure='');await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click();await settled();assert(await nav().getByRole('button',{name:'다음',exact:true}).isEnabled())

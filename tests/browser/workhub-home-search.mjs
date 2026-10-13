@@ -1,12 +1,10 @@
 // 실제 공통 홈·검색·원본 화면을 미리보기와 연결 모드에서 검증한다. 외부 서버는 호출하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync,writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require=createRequire(import.meta.url)
-const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
  import React from 'react';import{createRoot}from'react-dom/client';
  import{PreviewApp}from'./apps/workhub/src/preview/PreviewApp';
@@ -43,7 +41,7 @@ const bundle=buildSync({stdin:{contents:`
  }};
  createRoot(document.getElementById('root')).render(location.pathname.includes('connected')?<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={createSupabaseConnection(services)}/>:<><style>{theme}{preview}{workflow}{students}</style><PreviewApp persistence={persistence}/></>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
-const browser=await chromium.launch({channel:'chrome',headless:true}),context=await browser.newContext({viewport:{width:1440,height:1100}}),page=await context.newPage()
+const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1440,height:1100}}),page=await context.newPage()
 const errors=[],results=[],external=[];const output=process.env.WORKHUB_QA_OUTPUT
 if(output)mkdirSync(output,{recursive:true})
 page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(12000)
@@ -78,6 +76,13 @@ try{
   await dialog().getByLabel('검색어',{exact:true}).fill('다른 교사의 비공개');assert.equal(await dialog().locator('.ws-search-result').count(),0)
   await dialog().getByLabel('검색어',{exact:true}).fill('누리');assert.equal(await dialog().locator('.ws-search-result').count(),0)
   await page.keyboard.press('Escape');assert.equal(await dialog().count(),0)
+ })
+ await test('검색은 고정 안내를 제외하고 원문의 띄어쓰기·장소·날짜를 찾는다',async()=>{
+  await search('나만 보는 업무');assert.equal(await dialog().locator('.ws-search-result').count(),0)
+  await dialog().getByLabel('검색어',{exact:true}).fill('교사 전체');assert.equal(await dialog().locator('.ws-search-result').count(),0)
+  await dialog().getByLabel('검색어',{exact:true}).fill('체험 학습');assert.equal(await dialog().locator('.ws-search-result').count(),1)
+  await dialog().getByLabel('검색어',{exact:true}).fill('2026-10-21');assert(await dialog().locator('.ws-search-result').count()>0)
+  await page.keyboard.press('Escape')
  })
  await test('홈 검색에서 일정 원본을 열고 뒤로 가면 상세창도 닫힌다',async()=>{
   await menu('오늘');await home();await search('체험학습');await dialog().locator('.ws-search-result').click()

@@ -47,9 +47,10 @@ await test('이전 창의 버전으로 새 내용을 덮어쓰지 않는다', ()
 await test('개발 자료 초기화가 로그인과 다른 앱 저장키에 닿지 않는다', () => {
   const storage = port(); storage.values.set('sb-existing-auth-token', 'opaque'); storage.values.set('other-app', 'keep')
   const p = createDemoPersistence(storage); p.load('students'); p.save('students', { synthetic: true }); p.clear()
-  assert.deepEqual([...storage.values.keys()].sort(), ['other-app', 'sb-existing-auth-token'])
+  assert.deepEqual([...storage.values.keys()].sort(), ['other-app', 'sb-existing-auth-token', 'workhub:synthetic:v3:workspace'])
+  assert.deepEqual(JSON.parse(storage.values.get('workhub:synthetic:v3:workspace')).sections,{})
 })
-await test('세 영역 초기화는 저장 한 번으로 확정하고 실패하면 어느 영역도 바꾸지 않는다', () => {
+await test('영속 영역과 학생 메모리 초기화는 저장 성공 후 함께 확정한다', () => {
   const storage = port(); const p = createDemoPersistence(storage)
   for (const section of ['calendar', 'workflows', 'students']) { p.load(section); p.save(section, { title: section }) }
   const before = p.exportRaw(); const write = storage.setItem
@@ -60,6 +61,47 @@ await test('세 영역 초기화는 저장 한 번으로 확정하고 실패하�
   let writes = 0; storage.setItem = (...args) => { writes++; return write(...args) }
   p.replaceAll({}); assert.equal(writes, 1)
   for (const section of ['calendar', 'workflows', 'students']) assert.equal(createDemoPersistence(storage).load(section), undefined)
+})
+await test('학생·활동 자유기록은 현재 인스턴스에만 남고 브라우저나 내보내기에 기록하지 않는다', () => {
+  const storage=port(),p=createDemoPersistence(storage)
+  const record={observations:[{content:'학생 기록 메모리 전용 표식'}],sources:[{answer:'활동 답변 메모리 전용 표식'}]}
+  p.save('students',record)
+  assert.deepEqual(p.load('students'),record)
+  assert.equal(createDemoPersistence(storage).load('students'),undefined)
+  assert.equal(storage.values.size,0)
+  assert(!p.exportRaw().includes('메모리 전용 표식'))
+  storage.getItem=()=>{throw new Error('blocked')};storage.setItem=()=>{throw new Error('blocked')}
+  p.save('students',{observations:['저장소 차단에도 메모리 동작']})
+  assert.deepEqual(p.load('students'),{observations:['저장소 차단에도 메모리 동작']})
+})
+await test('구버전 학생 자료는 자동 복원·재저장하지 않고 원본 바이트를 보존한다', () => {
+  const storage=port(),oldKey='workhub:synthetic:v2:workspace',newKey='workhub:synthetic:v3:workspace'
+  const original=JSON.stringify({schema:2,kind:'synthetic-only',revision:7,sections:{calendar:{title:'기존 일정'},workflows:{title:'기존 업무'},students:{content:'구버전 학생 기록 표식'}}})
+  storage.values.set(oldKey,original)
+  const p=createDemoPersistence(storage)
+  assert.equal(p.load('students'),undefined)
+  assert.deepEqual(p.load('calendar'),{title:'기존 일정'})
+  assert.deepEqual(p.load('workflows'),{title:'기존 업무'})
+  p.save('workflows',{title:'변경한 업무'})
+  assert.equal(storage.values.get(oldKey),original)
+  assert(!storage.values.get(newKey).includes('구버전 학생 기록 표식'))
+  assert.deepEqual(Object.keys(JSON.parse(storage.values.get(newKey)).sections).sort(),['calendar','workflows'])
+  const next=createDemoPersistence(storage)
+  assert.equal(next.load('students'),undefined)
+  assert.deepEqual(next.load('workflows'),{title:'변경한 업무'})
+  p.clear()
+  assert.equal(storage.values.get(oldKey),original)
+  assert.equal(createDemoPersistence(storage).load('calendar'),undefined)
+})
+await test('일괄 교체나 변조된 새 봉투로도 학생 영역이 영속 저장·자동 복원되지 않는다', () => {
+  const storage=port(),p=createDemoPersistence(storage),key='workhub:synthetic:v3:workspace'
+  p.replaceAll({calendar:{title:'일정'},students:{content:'일괄 입력 학생 기록'}})
+  assert.deepEqual(p.load('students'),{content:'일괄 입력 학생 기록'})
+  assert(!storage.values.get(key).includes('일괄 입력 학생 기록'))
+  const raw=JSON.parse(storage.values.get(key));raw.sections.students={content:'변조 학생 기록'};storage.values.set(key,JSON.stringify(raw))
+  const next=createDemoPersistence(storage)
+  assert.equal(next.load('students'),undefined)
+  assert.deepEqual(next.load('calendar'),{title:'일정'})
 })
 await test('복원할 때 위조 학교·깨진 audience·중복 원본을 거부한다', () => {
   const initial = createMemoryAdapter(fixtureData, 0).exportState()

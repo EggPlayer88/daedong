@@ -1,12 +1,10 @@
 // 실제 연결 화면과 진단 UI를 합성 전송 계층으로 실행한다. 외부 서버에는 접속하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react';
   import {createRoot} from 'react-dom/client';
@@ -54,7 +52,7 @@ const bundle = buildSync({ stdin: { contents: `
     :<ConnectedWorkspace expectedUserId={owner} connection={connection}/>)}
   render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': JSON.stringify({ VITE_SUPABASE_URL: 'http://localhost.invalid', VITE_SUPABASE_ANON_KEY: 'synthetic' }), 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1280, height: 1000 }, acceptDownloads: true })
 const page = await context.newPage()
 const errors = []

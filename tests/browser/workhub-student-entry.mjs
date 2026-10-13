@@ -1,11 +1,10 @@
 // 실제 학생 입력 화면과 합성 저장소로 오류 안내·대상 고정·입력 복구를 검증한다.
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
-import {createRequire} from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import {fileURLToPath} from 'node:url'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-const require=createRequire(import.meta.url),{chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
   import React,{useState} from 'react';import{createRoot}from'react-dom/client';
   import{StudentsPanel}from'./apps/workhub/src/students/StudentsPanel';import{EditSession}from'./apps/workhub/src/app/EditSession';
@@ -31,6 +30,7 @@ const bundle=buildSync({stdin:{contents:`
   seed();
   qa.ids=()=>({a:students[0].id,b:students[1].id,record:record.id,source:source.id});
   qa.records=()=>raw.listRecords(teacher.id);
+  qa.addOtherRecord=()=>raw.createObservation(teacher.id,{studentId:students[1].id,enrollmentId:students[1].enrollmentId,courseId:course.id,observedAt:date,activity:'둘째 학생의 기존 관찰',content:'둘째 학생에게서 확인한 사실',confirmed:true},'other-record');
   qa.reviseOutside=()=>raw.reviseObservation(teacher.id,record.id,1,{...record.current,content:'외부에서 정정한 사실'},'외부 확인','outside');
   qa.changeSource=operation=>{const current=raw.listActivities(teacher.id)[0].current;raw.receiveActivity(teacher.id,{...current,eventId:'source-'+(current.revision+1),revision:current.revision+1,operation:operation||'upsert',answer:'원문이 바뀐 응답'})};
   qa.adoptOutside=()=>raw.adoptActivity(teacher.id,source.id,1,1,'외부에서 이미 채택함',true,'outside-adopt');
@@ -40,7 +40,7 @@ const bundle=buildSync({stdin:{contents:`
   }
   createRoot(document.getElementById('root')).render(<App/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'process.env.NODE_ENV':'"production"'},logLevel:'silent'}).outputFiles[0].text
-const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1050}})
+const browser=await launchBrowser(),page=await browser.newPage({viewport:{width:1440,height:1050}})
 const results=[],errors=[],output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(10000);page.on('pageerror',error=>errors.push(error.message));page.on('console',msg=>{if(msg.type()==='error')errors.push(msg.text())})
 if(output)mkdirSync(output,{recursive:true})
@@ -84,6 +84,21 @@ try{
     await reset();await fillDirect();await page.evaluate(()=>qa.failWrite=true);await saveDirect();await page.getByRole('alert').filter({hasText:'합성 저장 실패'}).waitFor()
     assert.equal(await confirm().isChecked(),true);assert.equal(await page.getByLabel('직접 확인한 사실',{exact:true}).inputValue(),'새로 직접 확인한 사실');assert.equal(await page.locator('.students-saved').count(),0)
     await page.evaluate(()=>qa.failWrite=false);await saveDirect();assert.equal(await page.evaluate(()=>qa.records().filter(r=>r.current.content==='새로 직접 확인한 사실').length),1)
+  })
+  await test('첫 학생에게 쓰다 지운 뒤 다른 학생을 정정하면 원기록의 학적 연결로 저장한다',async()=>{
+    await reset();const record=await page.evaluate(()=>{const value=qa.addOtherRecord();qa.refresh();return value})
+    await page.getByLabel('활동',{exact:true}).fill('쓰다 지운 활동');await page.getByLabel('활동',{exact:true}).fill('')
+    await page.getByLabel('기록 범위',{exact:true}).selectOption('all')
+    await page.locator('[data-student-record-id="'+record.id+'"]').getByRole('button',{name:'정정하기',exact:true}).click()
+    assert((await page.locator('.students-entry-target').innerText()).includes('2번 · 가상 학생 나'))
+    assert.equal(await page.locator('.students-entry-target.unavailable').count(),0)
+    await page.getByLabel('직접 확인한 사실',{exact:true}).fill('둘째 학생의 발언을 다시 확인한 사실')
+    await page.getByLabel('정정 사유',{exact:true}).fill('활동 원문 재확인');await confirm().check()
+    await page.getByRole('button',{name:'새 개정본 저장',exact:true}).click();await page.locator('.students-saved').waitFor()
+    const result=await page.evaluate(id=>qa.records().find(r=>r.id===id),record.id)
+    assert.equal(await page.evaluate(()=>qa.reviseCalls),1);assert.equal(result.current.version,2)
+    assert.equal(result.current.studentId,record.current.studentId);assert.equal(result.current.enrollmentId,record.current.enrollmentId)
+    assert.equal(result.current.content,'둘째 학생의 발언을 다시 확인한 사실')
   })
   await test('정정 사유 누락을 안내하고 대상 학생이 명부에서 빠지면 다른 학생으로 대체하지 않는다',async()=>{
     await reset();await page.getByRole('button',{name:'정정하기',exact:true}).click();await confirm().check();await page.getByRole('button',{name:'새 개정본 저장',exact:true}).click()

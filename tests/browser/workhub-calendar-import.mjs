@@ -1,16 +1,15 @@
 // 실제 가져오기 화면·일정 편집기를 합성 저장소와 연결한다. 실제 학교 서버에는 접속하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-const require = createRequire(import.meta.url)
-const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import {CalendarImport} from './apps/workhub/src/calendar/CalendarImport';
+  import {PendingRequestsProvider,createPendingRequests} from './apps/workhub/src/app/pending-requests';
   import {ContractError} from './apps/workhub/src/contracts';
   import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
   import {fixtureData,relationLabels} from './apps/workhub/src/preview/fixtures';
@@ -18,10 +17,12 @@ const bundle = buildSync({ stdin: { contents: `
   const host=document.getElementById('root');const surface=window.SHADOW_TEST?host.attachShadow({mode:'open'}):host;
   const root=createRoot(surface);
   const member=fixtureData.memberships.find(item=>item.id==='gaon-minjun');
-  const memory=createMemoryAdapter(fixtureData,0);let visible=false,generation=0,releaseList,releaseSave;
+  const memory=createMemoryAdapter(fixtureData,0),pendingStore=createPendingRequests();let visible=false,generation=0,releaseList,releaseSave;
   const clone=value=>structuredClone(value);
-  const scenario={attempts:[],saved:[],closed:0,failAfter:0,listFailure:'',listCalls:0,holdList:false,holdSave:false,
-    open(){memory.reset();scenario.attempts=[];scenario.saved=[];scenario.closed=0;scenario.failAfter=0;scenario.listFailure='';scenario.listCalls=0;scenario.holdList=false;scenario.holdSave=false;visible=true;generation++;render()},
+  const scenario={attempts:[],saved:[],closed:0,failAfter:0,listFailure:'',listCalls:0,holdList:false,holdSave:false,navigationLocked:false,
+    navigationLock(locked){scenario.navigationLocked=locked},
+    open(){memory.reset();pendingStore.clear();scenario.attempts=[];scenario.saved=[];scenario.closed=0;scenario.failAfter=0;scenario.listFailure='';scenario.listCalls=0;scenario.holdList=false;scenario.holdSave=false;visible=true;generation++;render()},
+    pendingCount(){return pendingStore.count()},
     snapshot(){return memory.exportState()},
     releaseList(){releaseList?.();releaseList=undefined},releaseSave(){releaseSave?.();releaseSave=undefined},
     async match(){return (await memory.list(member.id)).find(event=>event.id==='fixture-event-morning')},
@@ -38,9 +39,9 @@ const bundle = buildSync({ stdin: { contents: `
     if(scenario.failAfter){scenario.failAfter--;throw new ContractError('SAVE_FAILED','합성 접수 후 응답 유실')}
     return result;
   }};
-  function render(){root.render(<><style>{styles}</style><h1>일정 표 가져오기 합성 시험</h1><button id="open" onClick={()=>scenario.open()}>가져오기 열기</button>{visible&&<CalendarImport key={generation} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationOptions={relationLabels} demo storageLabel="합성 저장소" onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));render()}}/>}</>)}render();
+  function render(){root.render(<PendingRequestsProvider store={pendingStore}><style>{styles}</style><h1>일정 표 가져오기 합성 시험</h1><button id="open" onClick={()=>scenario.open()}>가져오기 열기</button>{visible&&<CalendarImport key={generation} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationOptions={relationLabels} demo storageLabel="합성 저장소" onNavigationLockChange={scenario.navigationLock} onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));render()}}/>}</PendingRequestsProvider>)}render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true })
+const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1200, height: 900 } })
 const page = await context.newPage(), errors = []
 page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(10000)
@@ -66,12 +67,58 @@ try {
   await page.goto('http://127.0.0.1:5176/calendar-import-test'); await page.addScriptTag({ content: bundle.outputFiles[0].text })
   await page.locator('#open').click(); await source.waitFor()
   assert.equal(await source.evaluate(element => element === document.activeElement), true)
+  assert.equal(await page.evaluate(() => window.scenario.navigationLocked), false)
+  await source.fill('   ')
+  assert.equal(await page.evaluate(() => window.scenario.navigationLocked), false)
   await prepare('제목\t시작일\t종료일\t시작 시간\t종료 시간\t장소\n검토할 회의\t2026.10.20\t\t09:00\t10:00\t연구실')
   assert.equal(await cards.count(), 1)
   assert.ok((await cards.innerText()).includes('2026-10-20 ~ 2026-10-20 · 09:00–10:00'))
   assert.equal((await attempts()).length, 0); assert.equal((await snapshot()).receipts.length, 0)
   assert.equal(await results.evaluate(element => element === document.activeElement), true)
+  assert.equal(await page.evaluate(() => window.scenario.navigationLocked), true)
   await report('TSV 붙여넣기·열 연결·날짜 정규화·검사는 저장하지 않으며 결과 표제로 초점 이동')
+
+  await open(); await prepare('제목\t시작일\t시작 시간\t종료 시간\n한국어 표시 일정\t2026. 10. 13.\t오전 9:00:00\t오후 2:30:00')
+  assert.ok((await cards.innerText()).includes('2026-10-13 ~ 2026-10-13 · 09:00–14:30'))
+  await cards.getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
+  assert.equal(await editor().getByLabel('시작 시간', { exact: true }).inputValue(), '09:00')
+  assert.equal(await editor().getByLabel('종료 시간', { exact: true }).inputValue(), '14:30')
+  await save(); await editor().waitFor({ state: 'detached' })
+  const koreanSaved = (await snapshot()).data.events.find(event => event.title === '한국어 표시 일정')
+  assert.equal(koreanSaved.startDate, '2026-10-13'); assert.equal(koreanSaved.startTime, '09:00'); assert.equal(koreanSaved.endTime, '14:30')
+  await report('한국어 시트 날짜·오전오후 시간을 편집기와 실제 합성 저장까지 같은 값으로 정규화')
+
+  await open(); await prepare('제목\t시작일\t시작 시간\t종료 시간\n초가 있는 일정\t2026-10-13\t9:00:01\t10:00\n정상 일정\t2026-10-13\t9:00\t10:00:00')
+  assert.ok((await cards.nth(0).innerText()).includes('0이 아닌 초'))
+  assert.equal(await cards.nth(0).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).count(), 0)
+  assert.ok((await cards.nth(1).innerText()).includes('09:00–10:00'))
+  assert.equal((await attempts()).length, 0)
+  await report('0이 아닌 초는 버리지 않고 오류로 안내하며 한 자리 시와 초 00은 허용')
+
+  await open(); await prepare('제목\t시작일\t시간\t담당\t빈열\n제외 확인 일정\t2026-10-13\t09:00~10:30\t교무부\t')
+  const omissions = page.getByRole('region', { name: '가져오지 않는 열을 확인하세요', exact: true })
+  const confirmOmissions = page.getByRole('checkbox', { name: '표시된 열을 제외하고 등록하는 데 동의합니다', exact: true })
+  const openOmittedRow = page.getByRole('button', { name: '내용·공유 대상 확인', exact: true })
+  assert.ok((await omissions.innerText()).includes('3열 ‘시간’ · 값이 있는 1행 · 예: 09:00~10:30'))
+  assert.ok((await omissions.innerText()).includes('4열 ‘담당’')); assert.ok(!(await omissions.innerText()).includes('빈열'))
+  assert.equal(await openOmittedRow.isDisabled(), true); assert.equal((await attempts()).length, 0)
+  await confirmOmissions.check(); assert.equal(await openOmittedRow.isEnabled(), true)
+  await confirmOmissions.uncheck(); assert.equal(await openOmittedRow.isDisabled(), true)
+  await confirmOmissions.check()
+  await page.getByRole('combobox', { name: /^설명 \(선택\)/ }).selectOption('3')
+  assert.equal(await confirmOmissions.isChecked(), false)
+  assert.ok(!(await omissions.innerText()).includes('4열 ‘담당’'))
+  await inspect(); assert.equal(await openOmittedRow.isDisabled(), true)
+  await page.setViewportSize({ width: 320, height: 800 })
+  assert.equal(await omissions.evaluate(element => element.scrollWidth <= element.clientWidth + 1), true)
+  await page.setViewportSize({ width: 1200, height: 900 })
+  await confirmOmissions.check(); await openOmittedRow.click(); await editor().waitFor()
+  assert.equal(await editor().getByRole('checkbox', { name: '종일 일정', exact: true }).isChecked(), true)
+  await save(); await editor().waitFor({ state: 'detached' })
+  const omittedSaved = (await snapshot()).data.events.find(event => event.title === '제외 확인 일정')
+  assert.equal(omittedSaved.allDay, true); assert.equal(omittedSaved.description, '교무부')
+  assert.equal((await attempts()).length, 1)
+  await report('값이 있는 미연결 시간·기타 열을 알리고 제외 동의 전 등록 차단·매핑 변경 시 동의 초기화')
 
   await open(); await columns('행사 이름,행사 날짜,안내\n수동 매핑,2026/10/20,"쉼표, 안내"')
   assert.equal(await page.getByRole('combobox', { name: /^제목 \(필수\)/ }).inputValue(), '-1')
@@ -110,7 +157,7 @@ try {
   assert.equal(await candidateButton.isDisabled(), true)
   await report('기존 일정을 다시 조회하면 과거 후보 확인을 지우고 다시 확인 요구')
 
-  await open(); await prepare('제목,시작일,설명\n등록할 첫 일정,2026-10-20,초안 안내\n남은 일정,2026-10-21,다음 안내')
+  await open(); await prepare('제목,시작일,설명\n등록할 첫 일정,2026-10-20,초안 안내\n남은 일정,2026-10-21,다음 안내\n아직 안 보낸 일정,2026-10-22,미등록 안내')
   const initialCount = (await snapshot()).data.events.length
   await cards.nth(0).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
   await editor().locator('input[name=title]').fill('확인한 첫 일정')
@@ -173,6 +220,25 @@ try {
   assert.equal((await attempts()).length, 2)
   await report('접수 후 응답 유실이면 두 창의 닫기·Esc·새 제출을 막고 미확정 행 유지')
 
+  await page.getByRole('button', { name: '입력창 접고 표 보기', exact: true }).click()
+  await editor().waitFor({ state: 'detached' })
+  await page.getByRole('region', { name: '가져오기 저장 결과 확인 필요', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.scenario.pendingCount()), 1)
+  assert.equal(await source.isDisabled(), true)
+  assert.ok((await cards.nth(0).innerText()).includes('등록 완료 · 확인한 첫 일정'))
+  assert.ok((await cards.nth(1).innerText()).includes('저장 결과 확인 대기'))
+  assert.equal(await cards.nth(2).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).isDisabled(), true)
+  assert.equal(await page.getByRole('button', { name: '검토 마치기', exact: true }).isEnabled(), true)
+  await page.waitForFunction(() => document.activeElement?.getAttribute('role') === 'status' && document.activeElement.textContent.includes('원본 3행의 저장 요청을 보관했습니다.'))
+  await page.keyboard.press('Tab')
+  assert.equal(await page.getByRole('button', { name: '보관한 원본 3행 다시 확인', exact: true }).evaluate(element => element === document.activeElement), true)
+  await report('미확정 입력창을 접으면 복구 안내에 초점이 이어지고 Tab으로 같은 행 재확인에 접근')
+  await page.getByRole('button', { name: '보관한 원본 3행 다시 확인', exact: true }).click(); await editor().waitFor()
+  assert.equal(await editor().locator('input[name=title]').inputValue(), '남은 일정')
+  assert.equal(await editor().getByRole('combobox', { name: /^누가 원본을 볼 수 있나요\?/ }).inputValue(), 'school')
+  assert.equal((await attempts()).length, 2)
+  await report('응답 유실 입력창을 접어도 원본 행·이전 완료 행을 보존하고 다른 행 등록을 막은 채 원래 요청 복구')
+
   await page.evaluate(() => { window.scenario.holdSave=true })
   const retry = page.getByRole('button', { name: '같은 요청으로 저장 결과 확인', exact: true })
   await retry.click(); await page.waitForFunction(() => window.scenario.attempts.length === 3)
@@ -185,12 +251,29 @@ try {
   assert.equal(state.data.events.find(event => event.title === '남은 일정').visibility, 'school')
   assert.equal(await page.evaluate(() => window.scenario.saved.length), 2)
   assert.ok((await outer.innerText()).includes('등록 완료 2개'))
+  assert.ok((await cards.nth(1).innerText()).includes('등록 완료 · 남은 일정'))
+  assert.ok(!(await cards.nth(2).innerText()).includes('등록 완료'))
+  assert.equal(await cards.nth(2).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).isEnabled(), true)
+  assert.equal(await page.evaluate(() => window.scenario.pendingCount()), 0)
   await report('재확인은 같은 요청·키를 사용하며 중복 클릭해도 추가 일정 없이 완료 처리')
 
   await page.getByRole('button', { name: '검토 마치기', exact: true }).click()
   await page.getByRole('button', { name: '가져오기 종료', exact: true }).click(); await outer.waitFor({ state: 'detached' })
   assert.equal((await snapshot()).receipts.length, 2); assert.equal(await page.evaluate(() => window.scenario.closed), 1)
+  assert.equal(await page.evaluate(() => window.scenario.navigationLocked), false)
   await report('가져오기 종료 후에도 이미 등록한 일정은 합성 저장소에 유지')
+
+  await open(); await prepare('제목,시작일\n밖에서 확인할 일정,2026-10-20')
+  await cards.getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
+  await page.evaluate(() => { window.scenario.failAfter=1 }); await save()
+  await page.getByRole('button', { name: '입력창 접고 표 보기', exact: true }).click(); await editor().waitFor({ state: 'detached' })
+  await page.getByRole('button', { name: '검토 마치기', exact: true }).click()
+  assert.ok((await outer.innerText()).includes('보관한 일정 확인'))
+  await page.getByRole('button', { name: '가져오기 종료', exact: true }).click(); await outer.waitFor({ state: 'detached' })
+  assert.equal(await page.evaluate(() => window.scenario.pendingCount()), 1)
+  assert.equal((await attempts()).length, 1); assert.equal((await snapshot()).receipts.length, 1)
+  assert.equal(await page.evaluate(() => window.scenario.navigationLocked), false)
+  await report('결과 미확정 가져오기를 종료해도 상위 공유 메모리에 같은 요청을 보존하고 일반 일정에서 확인 가능')
 
   for (const mode of ['throw', 'null', 'malformed', 'foreign']) {
     await open(); await columns('제목,시작일\n조회 확인 일정,2026-10-20')
@@ -260,6 +343,7 @@ try {
   await cards.getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
   assert.equal(await editor().locator('input[name=title]').evaluate(element => element.getRootNode().activeElement === element), true)
   await page.keyboard.press('Escape'); await editor().waitFor({ state: 'detached' })
+  await page.waitForFunction(() => document.getElementById('root').shadowRoot.activeElement?.textContent === '내용·공유 대상 확인', undefined, { timeout: 3000 })
   assert.equal(await cards.getByRole('button', { name: '내용·공유 대상 확인', exact: true }).evaluate(element => element.getRootNode().activeElement === element), true)
   await page.getByRole('button', { name: '검토 마치기', exact: true }).click()
   await page.getByRole('button', { name: '가져오기 종료', exact: true }).click(); await outer.waitFor({ state: 'detached' })
@@ -269,5 +353,6 @@ try {
   if (outputDir) await writeFile(join(outputDir, 'calendar-import.json'), `${JSON.stringify({ passed, checks, errors, screenshots, narrowLayout: layout, syntheticOnly: true }, null, 2)}\n`, 'utf8')
   console.log(`\n일정 표 가져오기 Chrome ${passed}개 통과`)
 } catch (error) {
+  console.error('초점 상태', await page.evaluate(() => { const root = document.getElementById('root')?.shadowRoot; const describe = element => element ? { tag: element.tagName, text: element.textContent?.slice(0, 120), disabled: element.disabled } : null; return { document: describe(document.activeElement), shadow: describe(root?.activeElement), rowButtons: root ? [...root.querySelectorAll('.ci-row button')].map(describe) : [] } }))
   console.error(error); console.error((await page.locator('body').innerText()).slice(-6000)); process.exitCode = 1
 } finally { await context.close(); await browser.close() }

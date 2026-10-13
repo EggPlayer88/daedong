@@ -235,11 +235,13 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
         const answers = answerInput(draft, request, true)
         const previous = data.submissions.filter(value => value.unitId === unitId)
         const reason = text(correctionReason, '정정 사유', 1000, previous.length > 0)
-        if (previous.length && context.date > request.dueDate && (!unit.correctionUntil || context.date > unit.correctionUntil)) return fail('INVALID_STATE', '마감 후 정정은 요청 관리자가 허용 기간을 열어야 합니다.')
+        // 보완 기한은 지연 판정 기준이다. 해당 단위의 미완료 보완 응답까지 정정 기간으로 차단하지 않는다.
+        const pendingSupplements = data.supplements.filter(value => value.unitId === unitId && !value.fulfilledSubmissionId)
+        if (previous.length && !pendingSupplements.length && context.date > request.dueDate && (!unit.correctionUntil || context.date > unit.correctionUntil)) return fail('INVALID_STATE', '마감 후 정정은 요청 관리자가 허용 기간을 열어야 합니다.')
         const result: Submission = { ...answers, id: id(), unitId, revision: previous.length + 1, submittedBy: member.id, receiptAt: now(), receiptDate: context.date, dueSnapshot: request.dueDate, initiallyLate: previous.length ? previous[0].initiallyLate : context.date > request.dueDate, correctionReason: reason, previousSubmissionId: unit.currentSubmissionId, reviewMode: request.reviewMode, requestKey: key }
         data.submissions.push(result); unit.currentSubmissionId = result.id; unit.version += 1
         if (request.reviewMode === 'none') unit.effectiveSubmissionId = result.id
-        for (const supplement of data.supplements.filter(value => value.unitId === unitId && !value.fulfilledSubmissionId)) { supplement.fulfilledSubmissionId = result.id; supplement.fulfilledAt = now() }
+        for (const supplement of pendingSupplements) { supplement.fulfilledSubmissionId = result.id; supplement.fulfilledAt = now() }
         return result
       })
     },

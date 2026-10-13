@@ -1,20 +1,19 @@
 // 수합 화면의 실제 키보드 경로·레이블 연결·좁은 화면을 합성 자료로 확인한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-const require = createRequire(import.meta.url), { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright')
 const bundle = buildSync({ stdin: { contents: `
   import React,{useState}from'react';import{createRoot}from'react-dom/client';import{WorkflowPanel}from'./apps/workhub/src/workflows/WorkflowPanel';import{EditSession}from'./apps/workhub/src/app/EditSession';import{createWorkflowStore}from'./apps/workhub/src/workflows/store';import{fixtureData}from'./apps/workhub/src/preview/fixtures';import theme from './apps/workhub/src/style.css?inline';import workflow from './apps/workhub/src/workflows/workflows.css?inline';
   const members=fixtureData.memberships,date=fixtureData.basisDate;let fail=false,seq=0;const key=()=>String(++seq);const store=createWorkflowStore({members,date,onChange(){if(fail){fail=false;throw Error('합성 저장 오류')}}});
   let request=store.createCollection('gaon-minjun',{title:'키보드 수합',instructions:'키보드 검증을 위한 합성 수합입니다.',dueDate:'2026-10-21',reviewMode:'required',reviewerMemberId:'gaon-minjun',textLabel:'확인 내용',textRequired:true,numberLabel:'수량',numberRequired:true,units:Array.from({length:23},(_,i)=>({label:'합성 '+(i+1)+'반',responsibleMemberId:'gaon-soyeon',contributorMemberIds:['gaon-seojin']}))},key());request=store.publishCollection('gaon-minjun',request.id,request.version,key());const units=store.listUnits('gaon-minjun',request.id);for(const u of units.slice(0,2)){const d=store.saveDraft('gaon-soyeon',u.id,{text:'합성 제출 내용',number:0},0,key());store.submit('gaon-soyeon',u.id,d.version,u.version,key())}
   window.qa={request:request.id,fail(){fail=true},externalLatest(){const r=store.listCollections('gaon-minjun').find(r=>r.status==='draft');store.updateCollection('gaon-minjun',r.id,{...r,title:'다른 창에서 변경한 수합'},r.version,key())}};
-  function App(){const[id,setId]=useState('gaon-minjun'),[locked,setLocked]=useState(false),[target,setTarget]=useState(request.id),[generation,setGeneration]=useState(0);window.qa.open=()=>{setTarget(request.id);setGeneration(n=>n+1)};return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:20px;max-width:1280px;margin:auto}'} </style><main><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={members.find(m=>m.id===id)} members={members} date={date} page="collections" initialRequestId={target}/></EditSession></main></>}
+  function App(){const[id,setId]=useState('gaon-minjun'),[locked,setLocked]=useState(false),[target,setTarget]=useState(request.id),[generation,setGeneration]=useState(0);window.qa.open=()=>{setTarget(request.id);setGeneration(n=>n+1);return generation+1};return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:20px;max-width:1280px;margin:auto}'} </style><main data-generation={generation}><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={members.find(m=>m.id===id)} members={members} date={date} page="collections" initialRequestId={target}/></EditSession></main></>}
   createRoot(document.getElementById('root')).render(<App/>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
-const browser = await chromium.launch({ channel: 'chrome', headless: true }), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
+const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
 const errors = [], external = [], results = [], output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })
 page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(12000)
@@ -29,7 +28,7 @@ const workbench = () => page.getByRole('region', { name: '제출 단위 진행�
 async function keyboard(locator, key = 'Enter') { await locator.focus(); await page.keyboard.press(key) }
 async function focused(locator) { await page.waitForFunction(element => element === document.activeElement, await locator.elementHandle()) }
 async function test(name, run) { await run(); results.push(name); console.log('  ✓ ' + name) }
-async function original() { await page.evaluate(() => window.qa.open()); await workbench().waitFor() }
+async function original() { const generation = await page.evaluate(() => window.qa.open()); await page.waitForFunction(value => document.querySelector('main').dataset.generation === String(value), generation); await workbench().waitFor() }
 try {
   await page.goto('http://127.0.0.1:5176/collection-accessibility'); await workbench().waitFor()
   await test('키보드로 양식을 열면 제목으로, 취소하면 원래 버튼으로 초점이 돌아온다', async () => {

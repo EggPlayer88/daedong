@@ -7,9 +7,19 @@ import { addDays, dateRange, dayLabel, daysInRange, filterCalendarEvents, monthG
 import calendarStyles from './calendar-views.css?inline'
 import type { ResourceOpenRequest } from '../search/contracts'
 import { CalendarImport } from './CalendarImport'
+import { PendingRequestsProvider, useRecoveryStore, usePendingRequest } from '../app/pending-requests'
 const Icon = ({ name }: { name: 'arrow' | 'plus' }) => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d={name === 'plus' ? 'M12 5v14M5 12h14' : 'M5 12h14m-5-5 5 5-5 5'} /></svg>
 
-export function CalendarPanel({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, storageLabel, onNavigationLockChange, openRequest }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest }) {
+export function CalendarPanel(props: Parameters<typeof CalendarPanelScope>[0]) {
+  const recovery = useRecoveryStore()
+  return <PendingRequestsProvider store={recovery}><CalendarPanelScope {...props} /></PendingRequestsProvider>
+}
+
+function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, storageLabel, onNavigationLockChange, openRequest }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest }) {
+  const recovery = usePendingRequest(member, 'calendar')
+  const [editorLocked, setEditorLocked] = useState(false)
+  const [importLocked, setImportLocked] = useState(false)
+  const navigationLocked = editorLocked || importLocked
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -30,6 +40,13 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
   const searchInput = useRef<HTMLInputElement>(null)
   const monthRef = useRef<HTMLDivElement>(null)
   const id = useId()
+  const recoveryMessage = useRef<HTMLElement>(null)
+  const focusRecovery = useRef(false)
+  useLayoutEffect(() => {
+    if (focusRecovery.current && !editor && recovery.request && recoveryMessage.current) {
+      recoveryMessage.current.focus(); focusRecovery.current = false
+    }
+  }, [editor, recovery.request])
   const previousPage = useRef(page)
   const openedRequest = useRef('')
   // 저장 뒤 목록을 다시 읽으면 이전 일정 버튼이 사라질 수 있어 완료 안내로 잇는다.
@@ -45,15 +62,15 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
     setMessage('')
   }, [openRequest, editor, importing, page])
   useLayoutEffect(() => {
-    onNavigationLockChange?.(!!editor || importing)
+    onNavigationLockChange?.(navigationLocked)
     return () => { onNavigationLockChange?.(false) }
-  }, [!!editor, importing, onNavigationLockChange])
+  }, [navigationLocked, onNavigationLockChange])
   useEffect(() => {
-    if (!editor && !importing) return
+    if (!navigationLocked && !recovery.request) return
     const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', beforeLeave)
     return () => window.removeEventListener('beforeunload', beforeLeave)
-  }, [!!editor, importing])
+  }, [navigationLocked, Boolean(recovery.request)])
   useEffect(() => {
     const generation = ++listGeneration.current
     setLoading(true); setError(''); setEvents([])
@@ -82,8 +99,9 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
     event.preventDefault(); setAnchor(next)
     requestAnimationFrame(() => monthRef.current?.querySelector<HTMLButtonElement>(`[data-calendar-day="${next}"]`)?.focus())
   }
-  return <><style>{calendarStyles}</style><main id="main-content" className={page === 'home' ? 'main-content ui-home-main' : 'main-content'}><header className="page-header"><div><p className="eyebrow">{schoolName} · {dateLabel(date)}</p><h1 ref={heading} tabIndex={-1}>{page === 'home' ? '오늘' : '학교 일정'}</h1>{page === 'calendar' && <p>학교의 일정을 함께 보고, 필요한 일을 함께 준비해요.</p>}</div><div className="button-row"><button className="primary" disabled={!activeAt(member, date)} onClick={() => { setEditor({}); setMessage('') }}><Icon name="plus" />일정 등록</button>{page === 'calendar' && <button type="button" className="secondary" disabled={!activeAt(member, date) || loading || Boolean(error)} onClick={() => { setImportedCount(0); setImporting(true); setMessage('') }}>시트에서 가져오기</button>}</div></header>
+  return <><style>{calendarStyles}</style><main id="main-content" className={page === 'home' ? 'main-content ui-home-main' : 'main-content'}><header className="page-header"><div><p className="eyebrow">{schoolName} · {dateLabel(date)}</p><h1 ref={heading} tabIndex={-1}>{page === 'home' ? '오늘' : '학교 일정'}</h1>{page === 'calendar' && <p>학교의 일정을 함께 보고, 필요한 일을 함께 준비해요.</p>}</div><div className="button-row"><button className="primary" disabled={!activeAt(member, date) || Boolean(recovery.request)} onClick={() => { setEditor({}); setMessage('') }}><Icon name="plus" />일정 등록</button>{page === 'calendar' && <button type="button" className="secondary" disabled={!activeAt(member, date) || Boolean(recovery.request) || loading || Boolean(error)} onClick={() => { setImportedCount(0); setImporting(true); setMessage('') }}>시트에서 가져오기</button>}</div></header>
     <div className="basis-strip"><span className="small-tag">{demo ? '합성 기준일' : '한국 시간'}</span><span><strong>{date}</strong> 기준입니다. 종일 일정의 종료일을 포함합니다.</span></div>
+    {recovery.request && !editor && !importing && <section ref={recoveryMessage} tabIndex={-1} className="notice-box" aria-label="보관한 일정 저장 요청"><h2>확인이 필요한 일정 저장이 있습니다</h2><p>이전 요청은 현재 탭에 보관되어 있습니다. 새로 등록하기 전에 같은 요청으로 저장 결과를 확인하세요.</p><button type="button" className="secondary" onClick={() => setEditor({ original: recovery.request?.original })}>보관한 일정 확인</button></section>}
     {message && <div ref={successMessage} className="success-box" role="status" tabIndex={-1}>{message}</div>}
     {page === 'home' && homeExtras && <div className="home-work-column">{homeExtras}</div>}
     {page === 'calendar' && <section className="cv-controls" aria-label="일정 보기 설정">
@@ -101,7 +119,7 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
       {filtered.length === 0 && view !== 'month' && <div className="cv-empty-actions">{(search || relation !== 'all') && <button type="button" className="secondary" onClick={() => { clearFilters(); searchInput.current?.focus() }}>필터 지우기</button>}{activeRange && <button type="button" className="secondary" onClick={() => { setView('list'); setAllDates(true); searchInput.current?.focus() }}>모든 날짜에서 찾기</button>}</div>}
     </section>}
     <footer className="workspace-footer">{storageLabel ?? (demo ? '합성 자료 · 개발 저장소' : '학교 일정 · 기존 로그인 연결')} <span>업무혁신시스템</span></footer>
-  </main>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} onClose={() => setDetail(undefined)} onEdit={event => { setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} member={member} members={members} date={date} adapter={adapter} onClose={() => setEditor(undefined)} onSaved={event => { setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
+  </main>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setImportLocked} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} editingBlocked={Boolean(recovery.request)} onClose={() => setDetail(undefined)} onEdit={event => { if (recovery.request) return; setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setEditorLocked} onSuspend={() => { focusRecovery.current = true; setEditor(undefined) }} onClose={() => setEditor(undefined)} onSaved={event => { setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
 }
 function EventCard({ event, reason, onOpen, compact = false, summary = false }: { event: CalendarEvent; reason?: string; onOpen: (id: string) => void; compact?: boolean; summary?: boolean }) {
   const date = new Date(`${event.startDate}T00:00:00Z`)
@@ -110,7 +128,7 @@ function EventCard({ event, reason, onOpen, compact = false, summary = false }: 
 
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><span aria-hidden="true">○</span><h3>{title}</h3><p>{text}</p></div> }
 
-function EventDetail({ id, member, date, adapter, onClose, onEdit }: { id: string; member: Membership; date: string; adapter: Adapter; onClose: () => void; onEdit: (event: CalendarEvent) => void }) {
+function EventDetail({ id, member, date, adapter, onClose, onEdit, editingBlocked = false }: { id: string; member: Membership; date: string; adapter: Adapter; onClose: () => void; onEdit: (event: CalendarEvent) => void; editingBlocked?: boolean }) {
   const [event, setEvent] = useState<CalendarEvent>()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -118,5 +136,5 @@ function EventDetail({ id, member, date, adapter, onClose, onEdit }: { id: strin
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { const element = dialog.current; const root = element?.getRootNode(); const previous = (root instanceof ShadowRoot ? root.activeElement : document.activeElement) as HTMLElement | null; element?.showModal(); return () => { element?.close(); if (previous?.isConnected) previous.focus() } }, [])
   useEffect(() => { let active = true; setLoading(true); setEvent(undefined); setError(''); adapter.get(member.id, id).then(result => { if (active) setEvent(result) }).catch(failure => { if (active) setError(failure.message) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [adapter, id, member.id, member.active, attempt])
-  return <dialog ref={dialog} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => { event.preventDefault(); onClose() }}><header className="dialog-header"><div><p className="eyebrow">학교 일정 · 원본 보기</p><h2 id="detail-title">{event?.title ?? '일정 상세'}</h2></div><button className="icon-button" aria-label="일정 상세 닫기" onClick={onClose}>✕</button></header><div className="dialog-body">{loading ? <p role="status">원본을 불러오는 중…</p> : error ? <div role="alert" className="error-box"><p>{error}</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>다시 불러오기</button></div> : event && <><div className="detail-tags"><span className="reason-tag">{visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span></div><dl className="event-detail"><div><dt>일정</dt><dd>{dateLabel(event.startDate)}{event.endDate !== event.startDate ? ` ~ ${dateLabel(event.endDate)}` : ''}<br />{eventTime(event)}</dd></div><div><dt>장소</dt><dd>{event.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{event.description || '등록된 안내가 없습니다.'}</dd></div><div><dt>원본 식별자</dt><dd className="mono">{event.id}</dd></div></dl><p className="subtle-note">학교 일정과 홈은 이 원본을 함께 봅니다. 수정 시 원본 버전이 올라가고 추천 대상도 다시 계산됩니다.</p></>}</div><footer className="dialog-footer"><button className="secondary" onClick={onClose}>닫기</button>{event && canEdit(event, member, date) && <button className="primary" onClick={() => onEdit(event)}>일정 수정</button>}</footer></dialog>
+  return <dialog ref={dialog} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => { event.preventDefault(); onClose() }}><header className="dialog-header"><div><p className="eyebrow">학교 일정 · 원본 보기</p><h2 id="detail-title">{event?.title ?? '일정 상세'}</h2></div><button className="icon-button" aria-label="일정 상세 닫기" onClick={onClose}>✕</button></header><div className="dialog-body">{loading ? <p role="status">원본을 불러오는 중…</p> : error ? <div role="alert" className="error-box"><p>{error}</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>다시 불러오기</button></div> : event && <><div className="detail-tags"><span className="reason-tag">{visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span></div><dl className="event-detail"><div><dt>일정</dt><dd>{dateLabel(event.startDate)}{event.endDate !== event.startDate ? ` ~ ${dateLabel(event.endDate)}` : ''}<br />{eventTime(event)}</dd></div><div><dt>장소</dt><dd>{event.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{event.description || '등록된 안내가 없습니다.'}</dd></div><div><dt>원본 식별자</dt><dd className="mono">{event.id}</dd></div></dl><p className="subtle-note">학교 일정과 홈은 이 원본을 함께 봅니다. 수정 시 원본 버전이 올라가고 추천 대상도 다시 계산됩니다.</p></>}</div><footer className="dialog-footer">{editingBlocked && <p className="hint">보관한 일정의 저장 결과를 확인한 뒤 수정할 수 있습니다.</p>}<button className="secondary" onClick={onClose}>닫기</button>{event && canEdit(event, member, date) && <button className="primary" disabled={editingBlocked} onClick={() => onEdit(event)}>일정 수정</button>}</footer></dialog>
 }

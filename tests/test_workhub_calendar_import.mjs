@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
-const { parseImportTable, suggestImportMapping, prepareImportRows, findImportCandidates, IMPORT_LIMITS, IMPORT_FIELDS, fixtureData } = await loadBrowserModule(`
+const { parseImportTable, suggestImportMapping, prepareImportRows, findImportCandidates, unmappedImportColumns, IMPORT_LIMITS, IMPORT_FIELDS, fixtureData } = await loadBrowserModule(`
   export * from '../apps/workhub/src/calendar/import-table.ts'
   export { fixtureData } from '../apps/workhub/src/preview/fixtures.ts'
 `)
@@ -69,6 +69,14 @@ test('연도를 가진 세 날짜 형식과 윤년을 정규화한다', () => {
   const rows = prepare('제목,시작일\n가,2028-02-29\n나,2028.2.29\n다,2028/2/29')
   for (const row of rows) { assert.deepEqual(row.errors, []); assert.equal(row.draft.startDate, '2028-02-29'); assert.equal(row.draft.endDate, '2028-02-29') }
 })
+test('한국어 시트의 공백·마지막 점 날짜를 손실 없이 정규화한다', () => {
+  for (const date of ['2026. 10. 13.', '2026. 10. 13', '2026.10.13.', '2028. 2. 29.']) {
+    const row = prepare(`제목\t시작일\n행사\t${date}`)[0]
+    assert.deepEqual(row.errors, []); assert.equal(row.draft.startDate, date.startsWith('2028') ? '2028-02-29' : '2026-10-13')
+  }
+  for (const date of ['2026. 2. 29.', '2026. 13. 1.']) assert.ok(prepare(`제목\t시작일\n행사\t${date}`)[0].errors.some(error => error.includes('실제 달력')))
+  for (const date of ['10. 13.', '2026. 10. 13..', '2026. 10. 13.(월)', '2026. 10. 13.~15.']) assert.equal(prepare(`제목\t시작일\n행사\t${date}`)[0].draft, undefined)
+})
 test('연도 생략·시트 일련번호·수식·모호한 날짜를 거부한다', () => {
   for (const date of ['10/19', '46314', '=TODAY()', '2026-1-1', '2026.1/1', '19/10/2026', '2026-10-19T00:00:00Z']) {
     const row = prepare(`제목,시작일\n행사,${date}`)[0]
@@ -89,7 +97,38 @@ test('시간 두 개가 빈 경우만 종일이며 개인 공개로 초안을 �
 test('시간 범위와 자정·다음 날 기간을 정확히 판정한다', () => {
   const rows = prepare('제목,시작일,종료일,시작 시간,종료 시간\n가,2026-10-19,,00:00,00:01\n나,2026-10-19,2026-10-20,23:00,01:00')
   for (const row of rows) { assert.deepEqual(row.errors, []); assert.equal(row.draft.allDay, false) }
-  for (const times of ['09:00,', ',10:00', '9:00,10:00', '09:00,24:00', '09:60,10:00', '10:00,10:00', '11:00,10:00']) assert.equal(prepare(`제목,시작일,시작 시간,종료 시간\n행사,2026-10-19,${times}`)[0].draft, undefined, times)
+  for (const times of ['09:00,', ',10:00', '09:00,24:00', '09:60,10:00', '10:00,10:00', '11:00,10:00']) assert.equal(prepare(`제목,시작일,시작 시간,종료 시간\n행사,2026-10-19,${times}`)[0].draft, undefined, times)
+})
+test('한 자리 시·초 00·오전과 오후를 24시간 분 단위로 바꾼다', () => {
+  for (const [start, end, expectedStart, expectedEnd] of [
+    ['9:00', '10:30:00', '09:00', '10:30'],
+    ['오전 9:00:00', '오후 2:30:00', '09:00', '14:30'],
+    ['오전 12:00', '오후 12:00', '00:00', '12:00'],
+    ['오후1:05', '오후 11:59:00', '13:05', '23:59'],
+  ]) {
+    const row = prepare(`제목\t시작일\t시작 시간\t종료 시간\n행사\t2026. 10. 13.\t${start}\t${end}`)[0]
+    assert.deepEqual(row.errors, []); assert.equal(row.draft.startTime, expectedStart); assert.equal(row.draft.endTime, expectedEnd); assert.equal(row.draft.allDay, false)
+  }
+})
+test('0이 아닌 초·잘못된 오전오후 시각·모호한 시간을 추측하거나 버리지 않는다', () => {
+  for (const time of ['9:00:01', '09:00:59']) {
+    const row = prepare(`제목\t시작일\t시작 시간\t종료 시간\n행사\t2026-10-13\t${time}\t10:00`)[0]
+    assert.equal(row.draft, undefined); assert.ok(row.errors.some(error => error.includes('0이 아닌 초')))
+  }
+  for (const time of ['오전 0:30', '오후 13:00', '오전 -1:00', '9:60', '9:00:60', '24:00', '9시', '9:00~10:00', '오후 9:0']) {
+    const row = prepare(`제목\t시작일\t시작 시간\t종료 시간\n행사\t2026-10-13\t${time}\t23:59`)[0]
+    assert.equal(row.draft, undefined, time); assert.ok(row.errors.length, time)
+  }
+})
+test('값이 있는 미연결 열의 위치·행수·표본을 표시하고 빈 열은 제외한다', () => {
+  const table = parseImportTable('제목\t시작일\t시간\t담당\t\n행사\t2026-10-13\t09:00~10:30\t교무부\t\n회의\t2026-10-14\t \t학년부\t'), mapping = suggestImportMapping(table.headers)
+  const snapshot = structuredClone({ table, mapping })
+  assert.deepEqual(unmappedImportColumns(table, mapping), [
+    { index: 2, label: '시간', count: 1, sample: '09:00~10:30', timeLike: true },
+    { index: 3, label: '담당', count: 2, sample: '교무부', timeLike: false },
+  ])
+  assert.deepEqual(unmappedImportColumns(table, { ...mapping, description: 2, location: 3 }), [])
+  assert.deepEqual({ table, mapping }, snapshot)
 })
 test('제목·설명·장소 길이는 기존 normalizeDraft 기준을 재사용한다', () => {
   for (const [column, value] of [['제목', '가'.repeat(101)], ['장소', '가'.repeat(101)], ['설명', '가'.repeat(2001)]]) {

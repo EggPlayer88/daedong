@@ -37,9 +37,10 @@ export function createWorkspaceSearchLoader(publish: (states: SearchSourceState[
     const current = () => active && epoch === generation && version === versions.get(source.kind)
     void Promise.resolve().then(() => current() ? source.load() : undefined).then(items => {
       if (!current()) return
-      if (!Array.isArray(items) || items.some(item => !item || item.kind !== source.kind || typeof item.id !== 'string' || typeof item.title !== 'string' || typeof item.description !== 'string' || typeof item.meta !== 'string')) throw new Error('INVALID_SEARCH_RESULT')
+      if (!Array.isArray(items) || items.some(item => !item || item.kind !== source.kind || typeof item.id !== 'string' || typeof item.title !== 'string' || typeof item.description !== 'string' || typeof item.meta !== 'string'
+        || (item.searchValues !== undefined && (!Array.isArray(item.searchValues) || item.searchValues.some(value => typeof value !== 'string'))))) throw new Error('INVALID_SEARCH_RESULT')
       // 응답 객체의 부수 필드를 DOM이나 후속 선택으로 전파하지 않는다.
-      const clean = items.map(item => ({ id: item.id, kind: item.kind, title: item.title, description: item.description, meta: item.meta, ...(typeof item.date === 'string' ? { date: item.date } : {}), ...(typeof item.unitId === 'string' ? { unitId: item.unitId } : {}) }))
+      const clean = items.map(item => ({ id: item.id, kind: item.kind, title: item.title, description: item.description, meta: item.meta, ...(item.searchValues ? { searchValues: [...item.searchValues] } : {}), ...(typeof item.date === 'string' ? { date: item.date } : {}), ...(typeof item.unitId === 'string' ? { unitId: item.unitId } : {}) }))
       states = states.map(row => row.kind === source.kind ? { ...row, status: 'ready', items: clean } : row)
       emit()
     }).catch(() => {

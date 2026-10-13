@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
-import { createRequire } from 'node:module'
+import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
-const require=createRequire(import.meta.url)
-const { chromium }=require(process.env.PLAYWRIGHT_MODULE||'playwright')
 const bundle=buildSync({stdin:{contents:`
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import {ConnectedWorkspace} from './apps/workhub/src/app/ConnectedWorkspace';
@@ -38,7 +36,7 @@ const bundle=buildSync({stdin:{contents:`
   const connection=createSupabaseConnection(services);
   createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
-const browser=await chromium.launch({channel:'chrome',headless:true})
+const browser=await launchBrowser()
 const context=await browser.newContext({viewport:{width:1280,height:1000}})
 const page=await context.newPage()
 const errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(10000)

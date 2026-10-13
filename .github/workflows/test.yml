@@ -13,7 +13,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       # 운영과 관계없는 합성 시험 DB이며 작업이 끝나면 함께 폐기된다.
       postgres:
@@ -31,10 +31,32 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+      # 문서만 바꾼 PR은 브라우저 설치를 생략한다. 공통 앱·시험·의존성 변경은 전부 검사한다.
+      - name: 브라우저 검사 대상 확인
+        id: browser-scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { execFileSync } from 'node:child_process'
+          import { appendFileSync } from 'node:fs'
+          let run = true
+          if (/^[0-9a-f]{40}$/i.test(process.env.BASE_SHA || '') && !/^0+$/.test(process.env.BASE_SHA)) {
+            try {
+              const files = execFileSync('git', ['diff', '--name-only', '-z', process.env.BASE_SHA, process.env.HEAD_SHA], { encoding: 'utf8' }).split('\0')
+              run = files.some(path => /^(apps\/workhub\/|apps\/main\/src\/|packages\/shared\/|tests\/browser\/|tests\/helpers\/|scripts\/export-workhub-preview\.mjs$|package(?:-lock)?\.json$|\.github\/workflows\/)/.test(path))
+            } catch { console.log('변경 경로를 판정하지 못해 브라우저 검사를 실행합니다.') }
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT, `run=${run}\n`)
+          console.log(`브라우저 검사 실행: ${run}`)
+          NODE
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -52,3 +74,23 @@ jobs:
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub
+      # 같은 필수 test 검사 안에서 실행하여 브라우저 회귀가 나면 전체 검사가 실패한다.
+      - name: Chromium 및 한글 글꼴 준비
+        if: steps.browser-scope.outputs.run == 'true'
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-cjk
+      - name: 실제 브라우저 회귀 검사
+        if: steps.browser-scope.outputs.run == 'true'
+        run: npm run test:workhub:browser
+        env:
+          PLAYWRIGHT_CHANNEL: chromium
+          WORKHUB_QA_OUTPUT: ${{ runner.temp }}/workhub-browser-results
+      - name: 브라우저 검사 결과 보관
+        if: always() && steps.browser-scope.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-browser-results
+          path: ${{ runner.temp }}/workhub-browser-results
+          if-no-files-found: ignore
+          retention-days: 7
