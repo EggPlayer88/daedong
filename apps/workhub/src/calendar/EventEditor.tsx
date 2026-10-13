@@ -17,10 +17,10 @@ function audienceLabel(event: EventDraft, members: Membership[], relationLabels:
   return `${event.audience.all ? '모든 교사' : groups || '직접 포함 교사만'} · 직접 포함: ${names(event.audience.includeMemberIds)} · 제외: ${names(event.audience.excludeMemberIds)}`
 }
 
-export function EventEditor({ original, member, members, date, adapter, onClose, onSaved, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
-  original?: CalendarEvent; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
+export function EventEditor({ original, initialDraft, member, members, date, adapter, onClose, onSaved, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
+  original?: CalendarEvent; initialDraft?: EventDraft; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
 }) {
-  const [draft, setDraft] = useState<EventDraft>(() => original ? structuredClone(original) : blank(date))
+  const [draft, setDraft] = useState<EventDraft>(() => original || initialDraft ? structuredClone(original ?? initialDraft!) : blank(date))
   const [version, setVersion] = useState(original?.version)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')

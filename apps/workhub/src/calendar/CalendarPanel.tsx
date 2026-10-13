@@ -6,6 +6,7 @@ import type { RelationOptions } from './contracts'
 import { addDays, dateRange, dayLabel, daysInRange, filterCalendarEvents, monthGrid, overlaps, rangeLabel, shiftPeriod, upcomingPreview, type CalendarRelation, type CalendarView } from './presentation'
 import calendarStyles from './calendar-views.css?inline'
 import type { ResourceOpenRequest } from '../search/contracts'
+import { CalendarImport } from './CalendarImport'
 const Icon = ({ name }: { name: 'arrow' | 'plus' }) => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d={name === 'plus' ? 'M12 5v14M5 12h14' : 'M5 12h14m-5-5 5 5-5 5'} /></svg>
 
 export function CalendarPanel({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, storageLabel, onNavigationLockChange, openRequest }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest }) {
@@ -19,6 +20,8 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
   const [relation, setRelation] = useState<CalendarRelation>('all')
   const [allDates, setAllDates] = useState(false)
   const [editor, setEditor] = useState<{ original?: CalendarEvent }>()
+  const [importing, setImporting] = useState(false)
+  const [importedCount, setImportedCount] = useState(0)
   const [detail, setDetail] = useState<string>()
   const [message, setMessage] = useState('')
   const listGeneration = useRef(0)
@@ -36,21 +39,21 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
     previousPage.current = page
   }, [page])
   useEffect(() => {
-    if (!openRequest || openedRequest.current === openRequest.key || editor || page !== 'calendar') return
+    if (!openRequest || openedRequest.current === openRequest.key || editor || importing || page !== 'calendar') return
     openedRequest.current = openRequest.key
     setDetail(openRequest.id)
     setMessage('')
-  }, [openRequest, editor, page])
+  }, [openRequest, editor, importing, page])
   useLayoutEffect(() => {
-    onNavigationLockChange?.(!!editor)
+    onNavigationLockChange?.(!!editor || importing)
     return () => { onNavigationLockChange?.(false) }
-  }, [!!editor, onNavigationLockChange])
+  }, [!!editor, importing, onNavigationLockChange])
   useEffect(() => {
-    if (!editor) return
+    if (!editor && !importing) return
     const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', beforeLeave)
     return () => window.removeEventListener('beforeunload', beforeLeave)
-  }, [!!editor])
+  }, [!!editor, importing])
   useEffect(() => {
     const generation = ++listGeneration.current
     setLoading(true); setError(''); setEvents([])
@@ -79,7 +82,7 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
     event.preventDefault(); setAnchor(next)
     requestAnimationFrame(() => monthRef.current?.querySelector<HTMLButtonElement>(`[data-calendar-day="${next}"]`)?.focus())
   }
-  return <><style>{calendarStyles}</style><main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{schoolName} · {dateLabel(date)}</p><h1 ref={heading} tabIndex={-1}>{page === 'home' ? `${member.name.split(' ')[0]} 선생님, 좋은 하루예요.` : '학교 일정'}</h1><p>{page === 'home' ? '내게 필요한 일정부터, 오늘을 차분하게 시작하세요.' : '학교의 일정을 함께 보고, 필요한 일을 함께 준비해요.'}</p></div><button className="primary" disabled={!activeAt(member, date)} onClick={() => { setEditor({}); setMessage('') }}><Icon name="plus" />일정 등록</button></header>
+  return <><style>{calendarStyles}</style><main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{schoolName} · {dateLabel(date)}</p><h1 ref={heading} tabIndex={-1}>{page === 'home' ? `${member.name.split(' ')[0]} 선생님, 좋은 하루예요.` : '학교 일정'}</h1><p>{page === 'home' ? '내게 필요한 일정부터, 오늘을 차분하게 시작하세요.' : '학교의 일정을 함께 보고, 필요한 일을 함께 준비해요.'}</p></div><div className="button-row"><button className="primary" disabled={!activeAt(member, date)} onClick={() => { setEditor({}); setMessage('') }}><Icon name="plus" />일정 등록</button>{page === 'calendar' && <button type="button" className="secondary" disabled={!activeAt(member, date) || loading || Boolean(error)} onClick={() => { setImportedCount(0); setImporting(true); setMessage('') }}>시트에서 가져오기</button>}</div></header>
     <div className="basis-strip"><span className="small-tag">{demo ? '합성 기준일' : '한국 시간'}</span><span><strong>{date}</strong> 기준입니다. 종일 일정의 종료일을 포함합니다.</span></div>
     {message && <div ref={successMessage} className="success-box" role="status" tabIndex={-1}>{message}</div>}
     {page === 'home' && homeExtras}
@@ -99,7 +102,7 @@ export function CalendarPanel({ member, members, schoolName, date, adapter, revi
       {filtered.length === 0 && view !== 'month' && <div className="cv-empty-actions">{(search || relation !== 'all') && <button type="button" className="secondary" onClick={() => { clearFilters(); searchInput.current?.focus() }}>필터 지우기</button>}{activeRange && <button type="button" className="secondary" onClick={() => { setView('list'); setAllDates(true); searchInput.current?.focus() }}>모든 날짜에서 찾기</button>}</div>}
     </section>}
     <footer className="workspace-footer">{storageLabel ?? (demo ? '합성 자료 · 개발 저장소' : '학교 일정 · 기존 로그인 연결')} <span>업무혁신시스템</span></footer>
-  </main>{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} onClose={() => setDetail(undefined)} onEdit={event => { setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} member={member} members={members} date={date} adapter={adapter} onClose={() => setEditor(undefined)} onSaved={event => { setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
+  </main>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} onClose={() => setDetail(undefined)} onEdit={event => { setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} member={member} members={members} date={date} adapter={adapter} onClose={() => setEditor(undefined)} onSaved={event => { setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
 }
 function EventCard({ event, reason, onOpen, compact = false }: { event: CalendarEvent; reason?: string; onOpen: (id: string) => void; compact?: boolean }) {
   const date = new Date(`${event.startDate}T00:00:00Z`)
