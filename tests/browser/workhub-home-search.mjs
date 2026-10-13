@@ -39,7 +39,7 @@ const bundle=buildSync({stdin:{contents:`
    if(name==='workhub_calendar_get')return{error:null,data:await memory.get(args.p_member_id,args.p_event_id)};
   }catch(e){return{data:null,error:{message:e.code}}};return{data:null,error:{message:'UNEXPECTED_WRITE'}}
  }};
- createRoot(document.getElementById('root')).render(location.pathname.includes('connected')?<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={createSupabaseConnection(services)}/>:<><style>{theme}{preview}{workflow}{students}</style><PreviewApp persistence={persistence}/></>);
+ createRoot(document.getElementById('root')).render(location.pathname.includes('connected')?<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={createSupabaseConnection(services)}/>:<><style>{theme}{preview}{workflow}{students}</style><PreviewApp persistence={persistence}/></>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1440,height:1100}}),page=await context.newPage()
 const errors=[],results=[],external=[];const output=process.env.WORKHUB_QA_OUTPUT
