@@ -64,6 +64,11 @@ jobs:
       # 러너는 lxml 이 없으면 Python 몫을 건너뛰므로, 여기서 반드시 설치해 건너뛰는 일이 없게 한다.
       - run: pip install lxml
       - run: npm ci
+      # 이번 통합 후보의 범위만 고정한다. 향후 승인된 DB/API 변경을 영구 차단하지 않는다.
+      - name: 1차 통합 후보의 포함 이력과 보호 경계
+        if: github.event_name == 'pull_request' && github.head_ref == 'chore/workhub-integration'
+        run: npm run check:workhub:integration
+      - run: npm run check:workhub:design
       - run: npm test
         env:
           PYTHON: python
