@@ -58,7 +58,7 @@ export function HomeWorkSummary(props: Props & { onOpenCollections?: (requestId?
   const shown = summary?.cards.slice(0, 4) ?? []
   const categories: CollectionHomeCategory[] = ['submit', 'review', 'contribute', 'waiting']
   return <section className="wf-home" aria-label={includeTasks ? '오늘의 내 업무' : '오늘 처리할 수합'}>
-    <div className="wf-section-title"><h2>{includeTasks ? '오늘 챙길 업무' : '오늘 처리할 수합'}</h2><span>{summary ? `직접 처리할 ${summary.actionCount}건 수합 · 검토 대기 ${summary.waitingCount}건` : '수합 현황 확인 안 됨'}</span></div>
+    <div className="wf-section-title wf-home-heading"><h2>{includeTasks ? '오늘 챙길 업무' : '오늘 처리할 수합'}</h2><span>{summary ? `처리할 ${summary.actionCount}건 · 검토 대기 ${summary.waitingCount}건` : '수합 현황 확인 안 됨'}</span></div>
     {includeTasks && <Tasks {...props} compact onOpenTasks={props.onOpenTasks} />}
     {!summary ? <div className="wf-summary-error"><ReadError error={failure} /><button type="button" className="secondary small" onClick={() => retry(value => value + 1)}>수합 현황 다시 확인</button><p className="wf-hint">조회 실패를 할 일 없음으로 표시하지 않습니다.</p></div> : <>
       <dl className="wf-role-counts">{categories.map(category => <div key={category}><dt>{collectionCategoryLabels[category]}</dt><dd>{summary!.counts[category]}건</dd></div>)}</dl>
@@ -78,7 +78,7 @@ export function HomeWorkSummary(props: Props & { onOpenCollections?: (requestId?
       {summary.cards.length > shown.length && <p className="wf-hint">총 {summary.cards.length}건 중 먼저 {shown.length}건 표시합니다. 나머지는 수합 전체에서 확인하세요.</p>}
       {props.onOpenCollections && <button type="button" className="text-button" onClick={() => props.onOpenCollections?.()}>수합 전체 보기</button>}
     </>}
-    <p className="wf-hint">검토 대기는 새 제출이 필요한 할 일과 구분합니다. 수합 카드는 체크로 완료하지 않습니다. 완료본이 있어도 남은 보완 요청은 표시합니다.</p>
+    <details className="wf-home-help"><summary>수합 상태 이용 안내</summary><p className="wf-hint">검토 대기는 새 제출이 필요한 할 일과 구분합니다. 수합 카드는 체크로 완료하지 않습니다. 완료본이 있어도 남은 보완 요청은 표시합니다.</p></details>
   </section>
 }
 

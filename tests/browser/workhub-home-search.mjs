@@ -49,7 +49,7 @@ if(output)mkdirSync(output,{recursive:true})
 page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(12000)
 await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5176/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div><script>'+bundle.outputFiles[0].text.replaceAll('</script','<\\/script')+'</script></body></html>'})})
 const dialog=()=>page.getByRole('dialog',{name:'업무 찾기',exact:true})
-const home=()=>page.getByRole('heading',{name:'오늘 챙길 내 업무',exact:true}).waitFor()
+const home=()=>page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor()
 const nav=()=>page.getByRole('navigation',{name:/^(업무 메뉴|신축 업무 메뉴)$/})
 async function menu(name){await nav().getByRole('button',{name,exact:true}).click()}
 async function search(q=''){await page.getByRole('button',{name:'업무 찾기',exact:true}).click();await dialog().getByLabel('검색어',{exact:true}).fill(q);await dialog().locator('.ws-search-source-loading').first().waitFor({state:'hidden'});}
@@ -59,7 +59,7 @@ try{
  await test('홈은 기한별 미완료 업무와 제출 후 검토 대기를 분리한다',async()=>{
   const tiles=page.getByRole('group',{name:'개인 업무 기한 요약'});assert.equal(await tiles.getByRole('button').count(),4)
   for(const b of await tiles.getByRole('button').all())assert.match(await b.getAttribute('aria-label'),/1개 보기/)
-  assert.match(await page.locator('.wf-section-title').innerText(),/직접 처리할 1건 수합 · 검토 대기 1건/)
+  assert.match(await page.locator('.wf-section-title').innerText(),/처리할 1건 · 검토 대기 1건/)
   assert.equal(await page.getByRole('region',{name:'제출 후 검토 대기'}).count(),1)
  })
  await test('기한 요약을 누르면 해당 필터의 업무 목록으로 이동한다',async()=>{

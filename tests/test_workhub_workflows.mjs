@@ -231,7 +231,7 @@ test('완료본 뒤 보완 요청판 철회는 완료본과 별개로 홈 보완
   summary = store.unitSummary(author, unit.id)
   assert.equal(summary.supplementOverdue, true)
   const html = renderHome(store)
-  assert(html.includes('1건 수합')); assert(html.includes('보완 제출 필요'))
+  assert(html.includes('처리할 1건')); assert(html.includes('보완 제출 필요'))
   assert(html.includes('완료본 v1')); assert(html.includes('남은 보완 1건 · 2026-10-20까지'))
   assert(html.includes('보완 기한 초과'))
 })

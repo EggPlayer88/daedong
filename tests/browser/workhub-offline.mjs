@@ -26,14 +26,29 @@ async function heading(name){await page.getByRole('heading',{name,exact:true,lev
 async function settle(){await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))}
 try{
   await test('단일 파일에 일반·인라인 CSS를 담고 운영 연결 코드를 포함하지 않는다',async()=>{
-    assert.match(html,/11차 개발 · 시범 운영 준비/)
+    assert.match(html,/12차 개발 · 화면 사용성 개선/)
     for(const value of ['.ws-shell','.task-panel','.wf-','.students-panel','.cv-month','.ws-search-dialog'])assert(html.includes(value),value)
     for(const value of ['workhub_calendar_list','workhub_task_save','createSupabaseConnection'])assert(!html.includes(value),value)
     assert.match(html,/connect-src 'none'/)
-    await page.goto(base);await page.getByRole('heading',{name:'오늘 챙길 내 업무',exact:true}).waitFor();await settle()
+    await page.goto(base);await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor();await settle()
     assert.equal(await page.locator('.ws-frame').evaluate(node=>getComputedStyle(node).display),'grid')
     assert.match(await page.locator('.ws-mode-banner').innerText(),/합성 자료/)
     assert.equal(new URL(page.url()).protocol,'file:')
+  })
+  await test('한국어 가변 글꼴과 원문 라이선스를 포함하고 외부 요청 없이 실제 로드한다',async()=>{
+    assert.match(html,/font-src data:/)
+    assert.match(html,/data:font\/woff2;base64,/)
+    const license=readFileSync(resolve(root,'apps/workhub/src/assets/fonts/LICENSE-Pretendard.txt'),'utf8')
+    assert(html.replaceAll('\r\n','\n').includes(license.replaceAll('\r\n','\n')),'원문 저작권 표시와 OFL 전문')
+    const loaded=await page.evaluate(async()=>{
+      const faces=await document.fonts.load('500 16px "Pretendard Variable"','학교 업무 일정 수업 학생 기록')
+      return {count:faces.length,status:faces.map(face=>face.status),koreanReady:document.fonts.check('500 16px "Pretendard Variable"','학교 업무 일정 수업 학생 기록'),family:getComputedStyle(document.querySelector('.ws-shell')).fontFamily}
+    })
+    assert(loaded.count>0,'등록된 Pretendard 글꼴')
+    assert(loaded.status.every(status=>status==='loaded'))
+    assert.equal(loaded.koreanReady,true)
+    assert.match(loaded.family,/Pretendard Variable/)
+    assert.deepEqual(network,[])
   })
   await test('file 주소의 view 선택·직접 진입·새로고침이 동작한다',async()=>{
     await menu('내 업무');await heading('내 업무');assert.equal(new URL(page.url()).searchParams.get('view'),'tasks')
@@ -55,7 +70,7 @@ try{
     await row.getByRole('button',{name:'다시 시작',exact:true}).click();await page.getByLabel('상태',{exact:true}).selectOption('open');await row.waitFor()
   })
   await test('오프라인에서도 편집 중 뒤로 가기와 내부 CTA가 초안을 보존한다',async()=>{
-    await menu('오늘');await page.getByRole('heading',{name:'오늘 챙길 내 업무',exact:true}).waitFor();await settle()
+    await menu('오늘');await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor();await settle()
     await page.getByRole('button',{name:'할 일 등록',exact:true}).click();await page.getByLabel('해야 할 일',{exact:true}).fill('파일에서도 보존되는 초안')
     const before=page.url();await page.getByRole('button',{name:'학교 전체 일정 살펴보기'}).click();assert.equal(page.url(),before)
     await page.goBack();await page.waitForURL(before);assert.equal(await page.getByLabel('해야 할 일',{exact:true}).inputValue(),'파일에서도 보존되는 초안')
@@ -63,14 +78,17 @@ try{
   })
   await test('수합과 학생 일반 CSS·일정 인라인 CSS가 실제로 적용된다',async()=>{
     assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderTopWidth),'1px')
-    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderRadius),'13px')
-    await menu('자료 수합');await heading('자료 수합');assert.equal(await page.locator('.wf-panel').evaluate(node=>getComputedStyle(node).color),'rgb(36, 68, 63)')
+    // 홈 요약은 카드 테두리 중첩 없이 평평하게 구분하고, 본문 색은 공통 스킨을 따른다.
+    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderRadius),'0px')
+    await menu('자료 수합');await heading('자료 수합')
+    const colors=await page.locator('.wf-panel').evaluate(node=>{const probe=document.createElement('span');probe.style.color='var(--ui-text)';node.append(probe);const result={actual:getComputedStyle(node).color,token:getComputedStyle(node).getPropertyValue('--ui-text').trim(),expected:getComputedStyle(probe).color};probe.remove();return result})
+    assert(colors.token,'공통 본문 색 토큰');assert.equal(colors.actual,colors.expected)
     await menu('수업과 학생');await heading('수업과 학생');assert.equal(await page.locator('.students-layout').evaluate(node=>getComputedStyle(node).display),'grid')
     await menu('학교 일정');await heading('학교 일정');await settle();await page.getByRole('button',{name:'월',exact:true}).click();assert.equal(await page.locator('.cv-month-grid').evaluate(node=>getComputedStyle(node).display),'grid')
   })
   await test('360px 더보기와 다섯 화면에서 메뉴 접근·레이아웃이 유지된다',async()=>{
     await page.setViewportSize({width:360,height:800})
-    for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){await menu(name);await settle();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name);assert.equal(await page.getByRole('navigation',{name:'현재 위치'}).locator('strong').textContent(),name);if(output)await page.screenshot({path:join(output,`offline-mobile-${name}.png`),fullPage:true})}
+    for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){await menu(name);await heading(name);await settle();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name);assert.equal(await page.getByRole('heading',{name,exact:true,level:1}).isVisible(),true);if(output)await page.screenshot({path:join(output,`offline-mobile-${name}.png`),fullPage:true})}
     await page.setViewportSize({width:1440,height:1000});await menu('오늘');await settle();if(output)await page.screenshot({path:join(output,'offline-desktop-home.png'),fullPage:true})
   })
   await test('외부 HTTP 요청과 예상하지 않은 브라우저 오류가 없다',async()=>{assert.deepEqual(network,[]);assert.deepEqual(errors,[])})

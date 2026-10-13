@@ -58,7 +58,7 @@ try{
     await reset();await page.setViewportSize({width:320,height:950});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);await nav().getByRole('button',{name:'다음',exact:true}).focus();await page.keyboard.press('Enter');await page.locator('[data-task-id="scale-0020"]').waitFor();await shot('320')
   })
   await test('홈 요약은 기존 4개 표시와 전체 기한 집계를 유지한다',async()=>{
-    await reset();await page.evaluate(()=>qa.compact());await page.getByRole('heading',{name:'오늘 챙길 내 업무',exact:true}).waitFor();assert.equal(await cards().count(),4);assert.equal(await nav().count(),0);assert.equal(await page.getByRole('button',{name:'오늘까지 업무 1000개 보기',exact:true}).count(),1)
+    await reset();await page.evaluate(()=>qa.compact());await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor();assert.equal(await cards().count(),4);assert.equal(await nav().count(),0);assert.equal(await page.getByRole('button',{name:'오늘까지 업무 1000개 보기',exact:true}).count(),1)
   })
   await test('학교 변경은 이전 쪽과 자료를 제거하며 브라우저 오류가 없다',async()=>{
     await reset();await nav().getByRole('button',{name:'마지막',exact:true}).click();await page.evaluate(()=>qa.switch());await page.getByText('현재 분류 0개',{exact:true}).waitFor();assert.equal(await cards().count(),0);assert.equal(await nav().count(),0);assert.deepEqual(errors,[])

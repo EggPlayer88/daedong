@@ -118,15 +118,15 @@ test('실제 JSX는 대기를 직접 처리할 업무 수와 분리하고 기존
   const { store, unit } = setup(); submit(store, unit.id)
   store.createTask(author, { title: '가상 개인 준비', notes: '', dueDate: date }, 'task')
   const html = renderHome(store, author)
-  assert(html.includes('직접 처리할 0건 수합 · 검토 대기 1건')); assert(html.includes('제출 후 검토 대기'))
+  assert(html.includes('처리할 0건 · 검토 대기 1건')); assert(html.includes('제출 후 검토 대기'))
   assert(!html.includes('가상 개인 준비')); assert(renderHome(store, author, true).includes('가상 개인 준비'))
 })
 test('실제 JSX는 조회 실패와 정상 0건을 구별하며 다시 확인 행동을 제공한다', () => {
   const store = createWorkflowStore({ members, date })
   const empty = renderHome(store, author)
-  assert(empty.includes('직접 처리할 0건 수합')); assert(empty.includes('지금 처리하거나 검토를 기다리는 수합이 없습니다'))
+  assert(empty.includes('처리할 0건')); assert(empty.includes('지금 처리하거나 검토를 기다리는 수합이 없습니다'))
   const failed = renderHome({ ...store, listCollections() { throw new Error('합성 조회 실패') } }, author)
-  assert(failed.includes('수합 현황 확인 안 됨')); assert(failed.includes('수합 현황 다시 확인')); assert(!failed.includes('직접 처리할 0건'))
+  assert(failed.includes('수합 현황 확인 안 됨')); assert(failed.includes('수합 현황 다시 확인')); assert(!failed.includes('처리할 0건'))
 })
 test('원본 요청 안의 정확한 단위만 강조하고 초점 가능한 원본을 제공한다', () => {
   const { store, request } = setup({ units: [{ label: '첫 단위', responsibleMemberId: author, contributorMemberIds: [] }, { label: '둘째 단위', responsibleMemberId: author, contributorMemberIds: [] }] })
