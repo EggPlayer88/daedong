@@ -2,10 +2,12 @@ import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode } f
 import { enabledModules, moduleGroupLabels, type ModuleGroup, type PageId, type WorkhubModule, type WorkspaceMode } from '../modules'
 import shellStyles from './workspace-shell.css?inline'
 import themeStyles from '../appearance/theme.css?inline'
-import { AppearancePanel } from '../appearance/AppearancePanel'
+import mobileStyles from './mobile-navigation.css?inline'
+import appearanceStyles from '../appearance/appearance.css?inline'
+import { AppearanceDialog, AppearancePanel } from '../appearance/AppearancePanel'
 import { useAppearancePreferences } from '../appearance/preferences'
 import { WorkspaceIcon } from './WorkspaceIcon'
-import { WorkspaceAssistant } from './WorkspaceAssistant'
+import { WorkspaceAssistant, WorkspaceAssistantDialog } from './WorkspaceAssistant'
 import { fontLicense } from '../assets/fonts/fontLicense'
 
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -29,7 +31,12 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
   const content = useRef<HTMLDivElement>(null)
   const previousPage = useRef(page)
   const moreButton = useRef<HTMLButtonElement>(null)
-  const [expanded, setExpanded] = useState(false)
+  const mobileSheet = useRef<HTMLDialogElement>(null)
+  const desktopUtilities = useRef<HTMLDivElement>(null)
+  const restoreAfterResize = useRef(false)
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 720px)').matches)
+  const [mobilePanel, setMobilePanel] = useState<'more' | 'appearance' | 'assistant' | null>(null)
+  const expanded = mobilePanel === 'more'
   const moreId = useId()
   const contentId = useId()
   const lockId = useId()
@@ -37,6 +44,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
   const modules = enabledModules(mode)
   const current = modules.find(module => module.id === page)
   const additional = modules.filter(module => module.group === 'work' || module.group === 'teaching')
+  const secondaryPage = additional.some(module => module.id === page)
   const name = typeof memberName === 'string' && memberName.trim() ? memberName : '선생님'
   const school = typeof schoolName === 'string' && schoolName.trim() ? schoolName : '학교 업무실'
 
@@ -49,13 +57,48 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
   useBrowserLayoutEffect(() => {
     if (previousPage.current === page) return
     previousPage.current = page
-    setExpanded(false)
+    closeMobile(false)
     focusContent()
   }, [page])
 
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 720px)')
+    const update = () => {
+      restoreAfterResize.current = query.matches && Boolean(desktopUtilities.current?.querySelector('dialog[open]'))
+      setMobile(query.matches)
+    }
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
+  // 화면을 넓힌 순간 사라지는 모바일 버튼에 초점을 남기지 않는다.
+  useBrowserLayoutEffect(() => {
+    if (restoreAfterResize.current) { restoreAfterResize.current = false; focusContent() }
+    if (mobile || !mobilePanel) return
+    closeMobile(false)
+    focusContent()
+  }, [mobile, mobilePanel])
+  useBrowserLayoutEffect(() => {
+    const element = mobileSheet.current
+    if (expanded && mobile) {
+      element?.showModal()
+      element?.querySelector<HTMLButtonElement>('.ws-sheet-close')?.focus()
+    } else element?.close()
+    return () => { element?.close() }
+  }, [expanded, mobile])
+  function closeMobile(restore = true) {
+    mobileSheet.current?.close()
+    setMobilePanel(null)
+    if (restore && moreButton.current?.getClientRects().length) moreButton.current.focus()
+  }
+  function openUtility(panel: 'appearance' | 'assistant') {
+    // 먼저 현재 top-layer를 닫아 설정·비서와 포커스 함정이 겹치지 않게 한다.
+    mobileSheet.current?.close()
+    setMobilePanel(panel)
+  }
   function navigate(next: PageId) {
     if (locked || !modules.some(module => module.id === next)) return
-    if (next === page) { setExpanded(false); focusContent() }
+    closeMobile(false)
+    if (next === page) focusContent()
     onNavigate(next)
   }
   function menuButton(module: WorkhubModule) {
@@ -75,15 +118,33 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
       <aside className="ws-sidebar" aria-label="학교 업무실 안내">
         <div className="ws-brand"><span className="ws-brand-mark"><WorkspaceIcon name="school" /></span><div><strong>학교 업무실</strong><span>업무혁신시스템</span></div></div>
         <div className="ws-school"><span className="ws-school-dot" aria-hidden="true" /><strong>{school}</strong>{mode === 'preview' && <span className="ws-mode-tag">가상</span>}</div>
-        <nav className="ws-navigation" onKeyDown={event => { if (event.key === 'Escape' && !event.nativeEvent.isComposing && expanded && moreButton.current?.getClientRects().length) { event.preventDefault(); event.stopPropagation(); moreButton.current.focus(); setExpanded(false) } }} aria-label={mode === 'connected' ? '신축 업무 메뉴' : '업무 메뉴'}>
+        <nav className="ws-navigation" aria-label={mode === 'connected' ? '신축 업무 메뉴' : '업무 메뉴'}>
           {group('today')}{group('school')}
-          {additional.length > 0 && <><button ref={moreButton} className="ws-more-button" type="button" aria-expanded={expanded} aria-controls={moreId} onClick={() => setExpanded(value => !value)}><span aria-hidden="true">•••</span>더보기</button><div id={moreId} className={`ws-extra-menus${expanded ? ' ws-extra-open' : ''}`}>{group('work')}{group('teaching')}</div></>}
+          <button ref={moreButton} className={`ws-more-button${secondaryPage ? ' ws-more-current' : ''}`} type="button" aria-expanded={expanded} aria-controls={moreId} aria-haspopup="dialog" onClick={() => setMobilePanel('more')}><span aria-hidden="true">•••</span><span>더보기</span></button>
+          {additional.length > 0 && <div className="ws-extra-menus">{group('work')}{group('teaching')}</div>}
+          <dialog ref={mobileSheet} id={moreId} className="ws-mobile-sheet" aria-labelledby={`${moreId}-title`} onKeyDown={event => {
+            if (event.key !== 'Tab' || event.nativeEvent.isComposing) return
+            const candidates = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button,input,select,textarea,a[href],[tabindex]')).filter(element => element.tabIndex >= 0 && !element.matches(':disabled') && element.getClientRects().length > 0)
+            const root = event.currentTarget.getRootNode()
+            const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+            const first = candidates[0], last = candidates[candidates.length - 1]
+            if (event.shiftKey && active === first && last) { event.preventDefault(); last.focus() }
+            else if (!event.shiftKey && active === last && first) { event.preventDefault(); first.focus() }
+          }} onCancel={event => { event.preventDefault(); closeMobile() }}>
+            {expanded && <><header className="ws-sheet-header"><div><h2 id={`${moreId}-title`}>더보기</h2><p>{school} · {name}</p></div><button type="button" className="ws-sheet-close" aria-label="더보기 닫기" onClick={() => closeMobile()}>✕</button></header>
+              <div className="ws-sheet-body">
+                {additional.length > 0 && <div className="ws-sheet-menus">{group('work')}{group('teaching')}</div>}
+                {locked && <p className="ws-sheet-lock">작성 중인 내용을 저장하거나 편집을 마친 뒤 이동할 수 있습니다.</p>}
+                <div className="ws-sheet-utilities"><button type="button" className="ws-utility-button" aria-haspopup="dialog" disabled={locked} onClick={() => openUtility('assistant')}><WorkspaceIcon name="assistant" /><span>AI 비서</span><small>준비 중</small></button><button type="button" className="ws-utility-button" aria-haspopup="dialog" onClick={() => openUtility('appearance')}><WorkspaceIcon name="appearance" /><span>화면 설정</span></button></div>
+                {mobile && contextControls && <div className="ws-sheet-context">{contextControls}</div>}
+              </div></>}
+          </dialog>
         </nav>
-        <div className="ws-utilities"><WorkspaceAssistant modules={modules} onNavigate={navigate} locked={locked} /><AppearancePanel preferences={appearance.preferences} onChange={appearance.update} onReset={appearance.reset} persistenceError={appearance.persistenceError} /></div>
+        <div ref={desktopUtilities} className="ws-utilities">{!mobile && <><WorkspaceAssistant modules={modules} onNavigate={navigate} locked={locked} /><AppearancePanel preferences={appearance.preferences} onChange={appearance.update} onReset={appearance.reset} persistenceError={appearance.persistenceError} /></>}</div>
         <div className="ws-member"><span className="ws-avatar" aria-hidden="true">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{mode === 'preview' ? '합성 자료로 흐름 확인' : '현재 학교의 업무 공간'}</span></div></div>
       </aside>
       <div className="ws-workspace">
-        <header className="ws-context"><nav aria-label="현재 위치" className="ws-breadcrumb"><span>업무실</span><span aria-hidden="true">/</span>{current?.parentId && <><span>{modules.find(module => module.id === current.parentId)?.title}</span><span aria-hidden="true">/</span></>}<strong aria-current="page">{current?.title ?? '화면 확인'}</strong></nav><div className="ws-header-actions">{quickActions}{contextControls && <div className="ws-context-controls">{contextControls}</div>}</div></header>
+        <header className="ws-context"><nav aria-label="현재 위치" className="ws-breadcrumb"><span>업무실</span><span aria-hidden="true">/</span>{current?.parentId && <><span>{modules.find(module => module.id === current.parentId)?.title}</span><span aria-hidden="true">/</span></>}<strong aria-current="page">{current?.title ?? '화면 확인'}</strong></nav><div className="ws-header-actions">{quickActions}{!mobile && contextControls && <div className="ws-context-controls">{contextControls}</div>}</div></header>
         {notice && <div className="ws-notice">{notice}</div>}
         {locked && <p className="ws-locked" role="status" id={lockId}>작성한 내용을 저장하거나 편집을 마친 뒤 이동해 주세요. 처리 중인 요청이 있다면 먼저 결과를 확인해 주세요.</p>}
         <div id={contentId} ref={content} className="ws-content" tabIndex={-1}>{current ? children : <main className="ws-unavailable"><h1>이 화면은 아직 연결되지 않았습니다</h1><p>메뉴에서 현재 이용할 수 있는 화면을 선택해 주세요.</p></main>}</div>
@@ -91,6 +152,8 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
         <details className="ws-font-license"><summary>글꼴 라이선스</summary><pre>{fontLicense}</pre></details>
       </div>
     </div>
-    <style>{themeStyles}{shellStyles}</style>
+    {mobile && mobilePanel === 'appearance' && <AppearanceDialog preferences={appearance.preferences} onChange={appearance.update} onReset={appearance.reset} persistenceError={appearance.persistenceError} onClose={() => closeMobile()} returnFocus={moreButton.current} />}
+    {mobile && mobilePanel === 'assistant' && <WorkspaceAssistantDialog modules={modules} onNavigate={navigate} locked={locked} onClose={() => closeMobile()} returnFocus={moreButton.current} />}
+    <style>{themeStyles}{shellStyles}{mobileStyles}{mobile ? appearanceStyles : null}</style>
   </div>
 }
