@@ -1741,7 +1741,7 @@
         "(school_id,requested_by_membership_id,created_at DESC,id)"
       ],
       "rules": [
-        "none latest_valid, required chosen 접수판 기본; effective는 명시선택.",
+        "none latest_valid, required effective 완료본 기본; received 미승인 포함은 명시선택.",
         "시작/항목/최종연결/다운로드 권한 재검사, 권한 잃은 파일 섞인 구ZIP 재발급 금지.",
         "동일 고정 항목 실패만 재시도, 중간 새제출판 자동치환 금지."
       ],

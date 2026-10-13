@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "tests": [
     {
       "id": "R01",
@@ -509,6 +509,636 @@
       "expected": "보관 전은 unknown으로 자동 재호출 차단; 참조 없는 response_received 거부; 원자 저장 후에는 동일 결과로 복구, 본문 없는 작업도 최소 receipt 필수",
       "layer": "worker/작업 상태/DB",
       "contract": "04-ai-knowledge-jobs.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG01",
+      "severity": "높음",
+      "topic": "역순 동시 DM 생성",
+      "given": "같은 학교 동일 소속쌍 두 연결이 A→B/B→A 동시 생성; 다른 학교 동일 계정도 시도",
+      "expected": "해당 학교·소속쌍 방 1개, 참여자 정확히2명. 다른학교 거부",
+      "layer": "독립 DB 두 연결",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG02",
+      "severity": "높음",
+      "topic": "전출·겸임·재임용",
+      "given": "학교A 종료 후 B 전환; A에 새 membership 재가입; 옛 URL/파일/검색 조회",
+      "expected": "옛 membership DM/그룹/AI 근거 자동부활0; 겸임 학교별 독립",
+      "layer": "RLS+읽기API+Storage",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG03",
+      "severity": "높음",
+      "topic": "그룹 신규·재입장",
+      "given": "기존 메시지 뒤 멤버 추가, 나간 뒤 재초대; 과거 seq/file URL 접근",
+      "expected": "active episode visible_from_seq 이후만. 과거본문/파일/AI문맥0",
+      "layer": "DB+UI",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG04",
+      "severity": "높음",
+      "topic": "권한 경합",
+      "given": "발송 준비 뒤 수신자 전출·파일회수·학교스위치중지와 confirm/deliver 동시 실행",
+      "expected": "현재 gate에 따라 미전송 차단; 다른교사 자동치환0; 이미DB전달됨 사실 보존",
+      "layer": "독립 DB 두 연결",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG05",
+      "severity": "높음",
+      "topic": "읽음과 업무완료 분리",
+      "given": "메시지 열기·알림읽기·수합카드읽기·시간표카드읽기; 역순 읽음커서",
+      "expected": "읽음 경계 단조증가; 제출/동의/확정 상태 변경0",
+      "layer": "DB+UI",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG06",
+      "severity": "높음",
+      "topic": "확인 지문",
+      "given": "AI prepare 후 본문/파일/명단/방참여판/정책/registry/만료 변경",
+      "expected": "확인재요구, 과거지문으로 새 영향 전송0; 같은 확인 동시2회도1실행",
+      "layer": "명령+AI도구 대역",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG07",
+      "severity": "높음",
+      "topic": "개별 단체발송",
+      "given": "세 대상 중 한명 중간전출, 한명 DB commit 응답유실, 한명 정상",
+      "expected": "수신자 간 명단공개0; 성공2+blocked1 사실대로. 재시도 성공중복0",
+      "layer": "worker 장애주입",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG08",
+      "severity": "높음",
+      "topic": "그룹 전달 원자성",
+      "given": "여러 그룹참여자 target 갱신 중 중단; 동시에 참가자제거",
+      "expected": "메시지/전체대상/접수/outbox 전체커밋 또는0; stale 그룹 부분전달0",
+      "layer": "독립 DB 두 연결",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG09",
+      "severity": "높음",
+      "topic": "정정·회수·파기",
+      "given": "발신자 정정과 회수; 이미 파일 다운로드; 한 dispatch의 DM 일부회수",
+      "expected": "정정은 새메시지, 원문교체0; 회수내용 재조회0; 외부다운로드 회수완료 주장0; 다른정상DM 손실0",
+      "layer": "DB+파일+화면",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG10",
+      "severity": "높음",
+      "topic": "메시지와 알림 장애",
+      "given": "메시지 commit 직후 푸시 전송 실패·outbox 중복 소비",
+      "expected": "메시지1개 유지, 전달됨 유지; 푸시 재시도만. 읽음 조작0",
+      "layer": "outbox+화면",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG11",
+      "severity": "높음",
+      "topic": "목록과 모바일 복구",
+      "given": "큰 대화·순번중복시각·실시간단절·학교전환 중 지연응답·로딩실패",
+      "expected": "keyset 누락/중복0; seq 재동기화; 다른학교캐시비노출; 실패를0건으로표시0",
+      "layer": "API+브라우저+성능측정",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG12",
+      "severity": "높음",
+      "topic": "메시지·첨부·AI 출처 격리",
+      "given": "관리자 전체조회, 수신자 dispatch직접조회, 다른부모file혼합, 회수 중 AI출력",
+      "expected": "메타/본문 모두 계약범위만; 감사/로그/push/outbox 원문0; current ACL 실패시 AI출력 차단",
+      "layer": "RLS+Storage+AI대역",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG13",
+      "severity": "높음",
+      "topic": "AI 명령주입과 명단오해",
+      "given": "동명이인, 미확정 학년배정, 메시지에 비밀파일전송 지시, 미제출대상 재안내",
+      "expected": "모호한 대상을 임의선정0; 승인자료로명단계산; 콘텐츠지시를도구권한으로사용0; 매발송재확인",
+      "layer": "AI평가+명령",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL01",
+      "severity": "높음",
+      "topic": "타학교·부모 사슬 교차",
+      "given": "A학교 수합에 B학교 양식/매핑/schema/unit/file/snapshot 연결",
+      "expected": "모든 명령·FK·조회에서 거부, 오류에 타학교 본문/존재 노출 0건",
+      "layer": "FK/RLS/API",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL02",
+      "severity": "높음",
+      "topic": "미검증 문답 게시",
+      "given": "AI가 guided를 추천했지만 표본 실패·필수 검사 skipped·출력 미지원",
+      "expected": "guided 게시 거부, file_only 경로와 구체 원인 표시",
+      "layer": "게시/렌더/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL03",
+      "severity": "높음",
+      "topic": "표본과 매핑판 불일치",
+      "given": "매핑2판에 매핑1판 또는 다른 문서판 validation으로 승인",
+      "expected": "승인 0건, exact source/mapping/renderer/pack/hash 재검증",
+      "layer": "FK/매핑 명령",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL04",
+      "severity": "높음",
+      "topic": "미제출 초안과 산출물 비공개",
+      "given": "collector/학교관리자가 개인·공동초안의 jobs/documents/artifact/file/search/count 조회",
+      "expected": "현재 단위 구성원 외 초안 원문·존재·파일명 0건; 제출 후 exact 제출 연결만 읽음",
+      "layer": "RLS/API/파일/검색",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL05",
+      "severity": "높음",
+      "topic": "AI·직접 입력 공통 원장",
+      "given": "AI 제안 후 수동 값 변경, 오래된 제안 적용, 화면 전환/재접속",
+      "expected": "같은 draft 유지, 기대판 충돌로 덮어쓰기 0건, 입력 복구 가능",
+      "layer": "도메인/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL06",
+      "severity": "높음",
+      "topic": "필수값과 미확정 정보",
+      "given": "0/false/NULL/공백/미확정 사전채움 입력",
+      "expected": "0/false 유효, 활성 필수 미확정은 제출 거부; 제안 사실 임의 확정 0건",
+      "layer": "validator/API",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL07",
+      "severity": "높음",
+      "topic": "조건부 질문과 숨은 값",
+      "given": "참→거짓 전환, 조건 cycle/다른 schema 참조/임의 코드 삽입",
+      "expected": "초안 값 보존·미리보기 제외 안내·출력 제외; 잘못된 조건 정의 거부",
+      "layer": "validator/출력",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL08",
+      "severity": "높음",
+      "topic": "반복행과 파일 경로",
+      "given": "행 순서 변경, 동명이인 행, 중복 row_key, 동일 file을 두 행 첨부",
+      "expected": "안정 row_key/answer_path로 각 행 유지; 중복·지원 깊이 초과 거부",
+      "layer": "validator/FK/파일/출력",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL09",
+      "severity": "높음",
+      "topic": "오래된 출력·답변·파일",
+      "given": "draft7 출력/확인 후 draft8 저장 또는 첨부 변경 뒤 submit",
+      "expected": "OUTPUT_STALE로 제출 0건, 새 출력/최종확인 필요",
+      "layer": "동시성/API",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL10",
+      "severity": "높음",
+      "topic": "다른 파일 확인 사용",
+      "given": "A artifact 미리보기 후 B file/hash 또는 같은 artifact의 다른 snapshot 제출",
+      "expected": "FK/지문 검사로 전체 접수 0건, 기존 완료본 유지",
+      "layer": "FK/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL11",
+      "severity": "높음",
+      "topic": "책임자·대리 인계",
+      "given": "공동작성자 확인 또는 전임 책임자 확인으로 새 책임자가 제출",
+      "expected": "실제 submitter의 현재 책임/대리 권한과 exact 확인 요구",
+      "layer": "권한/인계/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL12",
+      "severity": "높음",
+      "topic": "권한 회수와 장시간 작업",
+      "given": "생성 중 구성원 종료/권한 회수/학교 전환/worker lease 만료",
+      "expected": "결과의 현재 접근 재검사, 이전 worker 공개/제출 차단, 타학교 UI에 결과 노출 0건",
+      "layer": "worker/RLS/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL13",
+      "severity": "높음",
+      "topic": "출력과 접수 분리·멱등",
+      "given": "파일 ready 뒤 제출 validation 실패, 이후 정상 제출 응답 유실 재시도",
+      "expected": "ready만으로 제출0, 정상 접수는 동일 제출판/receipt/outbox 한 번",
+      "layer": "트랜잭션/재시도",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL14",
+      "severity": "높음",
+      "topic": "완료본 기본 내보내기",
+      "given": "required v1승인·v2pending, 다른 단위 미제출",
+      "expected": "기본 ZIP v1, 미완료 사유 현황표; received 명시 선택 때만 v2와 상태표시",
+      "layer": "ZIP/도메인",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL15",
+      "severity": "높음",
+      "topic": "AI 장애·외부 결과 불명",
+      "given": "분석/문답 공급자 실패 또는 outcome_unknown",
+      "expected": "답변 저장·직접 입력·파일 작성 경로 유지, 확인 전 중복 외부 호출 금지",
+      "layer": "worker/API/브라우저",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL16",
+      "severity": "높음",
+      "topic": "게시 후 문항판 변경",
+      "given": "schema1 게시 뒤 조건/형식/모드 수정, pending/열린 보완 단위 포함",
+      "expected": "새 schema와 영향 미리보기; 허용 단위만 명시 적용, 과거 제출 해석 불변",
+      "layer": "판변경/도메인",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL17",
+      "severity": "높음",
+      "topic": "부분 내보내기·다운로드 회수",
+      "given": "ZIP 제작 중 파일 누락/특정 단위 권한 회수",
+      "expected": "partial 원인·정확 실패 item 재시도; 권한 잃은 포함판 ZIP 재발급 차단",
+      "layer": "worker/파일",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL18",
+      "severity": "높음",
+      "topic": "양식 재사용·원본 교체",
+      "given": "같은 학교 새 수합에서 빈 양식 재사용, 원본 교체, 타학교 복사 시도",
+      "expected": "새 대상/마감/schema, 기존 원본판 보존, 승인 없는 타학교 공유 차단",
+      "layer": "양식/게시/RLS",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL19",
+      "severity": "높음",
+      "topic": "지원 범위·렌더러 변경",
+      "given": "원본/팩/렌더러 지문 변경 또는 업로드형 내용검증 미실시",
+      "expected": "새 지원 검사 요구; 단순 파일검사를 문서 내용 검증 통과로 표시하지 않음",
+      "layer": "지원정책/렌더",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL20",
+      "severity": "높음",
+      "topic": "기존 기능 보존",
+      "given": "기존 로그인·회원·6종 평가계획서·일반 수합·보완·철회 회귀",
+      "expected": "기존 데이터/자산 불변, 신규 연결 NULL인 기존 수합 정상, 정확 현재/완료 포인터 유지",
+      "layer": "회귀/통합",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT01",
+      "severity": "높음",
+      "topic": "확정 불가시간·공간예약·교환 경합",
+      "given": "두 독립 연결에서 동일 교사/공간의 확정 불가시간·예약과 교환을 barrier로 경합",
+      "expected": "같은 자원키 잠금 후 최신 검사로 충돌하는 둘 중 하나만 커밋. 비어 있던 자원도 보호. 부분 반영 0건",
+      "layer": "트랜잭션/잠금",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT02",
+      "severity": "높음",
+      "topic": "학교형·실제 참여자 충돌",
+      "given": "선택분반 공통 학생·팀티칭·변칙 일과·공유 공간 초과 시도를 배포/교환에 입력",
+      "expected": "실제 시각·참여집단 충돌 탐지, 미검증 운영형은 지원 안 됨으로 차단",
+      "layer": "엔진/검증기/점유",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT03",
+      "severity": "높음",
+      "topic": "재배포·원복·실시 원장 보존",
+      "given": "미래 교환 확정 후 새 기본표 배포, 실시/보강 후 역변경·실시정정",
+      "expected": "승인된 미래 변경 소실 0건, 과거 실시·학생연결 유지, 새 실시판/보상행으로 중복 계상 0건",
+      "layer": "DB/배포/실시",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT04",
+      "severity": "높음",
+      "topic": "관리자와 시간표담당 권한 분리",
+      "given": "compose만 가진 교사가 시수·공식 교사배정·basis 포인터를 직접 또는 AI 도구로 수정",
+      "expected": "모두 거부, 수정요청만 생성. 관리자는 원본 확인·새 기준판 확정으로 실제 반영",
+      "layer": "명령/권한",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT05",
+      "severity": "높음",
+      "topic": "확정 후 원본 변경과 기준판 경합",
+      "given": "basis 미리보기 후 교사배정 변경, 두 관리자 동시 기준확정, 다른 학교/학기 basis 연결. 학기 일부기간만 담은 basis를 최신 포인터로 연결",
+      "expected": "지문 또는 expected term version 충돌로 재미리보기. 잘못된 복합 참조 거부, 이전 불변판 보존. 부분기간 snapshot을 거부하고 학기 전체 기간별 관계를 고정",
+      "layer": "복합FK/트랜잭션",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT06",
+      "severity": "높음",
+      "topic": "수정요청 실제 반영과 상태",
+      "given": "요청 중 원본 변경, 오래된 기준 요청 승인, 적용되지 않은 수정에 applied 저장",
+      "expected": "차이를 재검토, 원본 수정+새 basis+resolved 연결 없이는 applied 거부. 종결 요청 본문 덮어쓰기 거부",
+      "layer": "명령/상태",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT07",
+      "severity": "높음",
+      "topic": "AI의 조건 해석 확인",
+      "given": "'되도록 금요일 마지막 수업 제외', '수요일 못 옴'과 모호한 기간 입력",
+      "expected": "전자는 soft 초안, 후자는 기간 확인, 확인 전 잠금 불가. 자연어 설명과 실제 적용 조건 일치",
+      "layer": "AI도구/화면",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT08",
+      "severity": "높음",
+      "topic": "미지원 조건과 명시 제외",
+      "given": "미지원 hard와 soft를 각각 포함하여 편성 실행. school_hard를 soft/제외로 위장",
+      "expected": "hard 차단, soft는 담당자의 사유 있는 명시 제외만 가능, 적용됐다는 안내 금지. school_hard도 필수조건으로 검사하며 근거 승인 없는 완화 거부",
+      "layer": "입력스키마/엔진",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT09",
+      "severity": "높음",
+      "topic": "탐색 결과 의미",
+      "given": "시간종료 무후보, 유효후보 1개+시간종료, 불가능 증명, 내부 오류. 각 조합에 종료시각/한도/최적성 반대값을 넣는 진리표 시험",
+      "expected": "각각 unresolved/feasible/infeasible/internal_error. 후보 수를 부풀리지 않고 증명 없는 최적·불가능 단정 0건. execution_result_truth_table의 모든 허용 조합만 커밋, 나머지 조합 거부",
+      "layer": "작업/결과DTO",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT10",
+      "severity": "높음",
+      "topic": "수동 충돌 초안",
+      "given": "교사 중복 후보를 직접 저장 후 배포, 검증 중 조건 변경",
+      "expected": "invalid 초안 저장 가능, 배포 불가. 검증 완료 뒤에도 changed inputs는 stale",
+      "layer": "후보/검증/화면",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT11",
+      "severity": "높음",
+      "topic": "기존 후보 변경과 고정",
+      "given": "고정수업 이동 요구, 원후보 수정, 다른 탭 동일 후보 저장",
+      "expected": "확인한 고정해제만 허용. 새 derived candidate 생성, 원후보 불변·재검증",
+      "layer": "후보/AI/동시수정",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT12",
+      "severity": "높음",
+      "topic": "담당자 변경·시수 구조변경 비교",
+      "given": "위치는 같고 교사 T1→T2, 시수 2+2→3+1, 회차키 재생성",
+      "expected": "교사 변경량 0으로 오판하지 않음. 구조변경은 재매핑 또는 새편성 안내, 잠금 silently 재사용 0건",
+      "layer": "adapter/회귀",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT13",
+      "severity": "중간",
+      "topic": "기본자료·조건·달력 stale",
+      "given": "후보 생성 뒤 기준자료/잠금조건/적용달력 변경",
+      "expected": "old candidate 자동배포 금지, 변경 근거 표시 후 새 확인·재검증",
+      "layer": "조회/배포",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT14",
+      "severity": "높음",
+      "topic": "주간표와 특정 날짜 분리",
+      "given": "이번 수요일만 교환 후 다음주 조회, 미래 적용 기본표를 예약 공개. 기존 학기표의 중간 한 달만 대체",
+      "expected": "해당 날짜만 변경, 미래 시작일 전 현재표 유지, 학교현지 [from,to) 경계 정확. 앞/대체/뒤 복원 구간을 빈 날짜·중복 날짜 없이 원자 보존",
+      "layer": "날짜/기간/조회",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT15",
+      "severity": "높음",
+      "topic": "배포 영향 미해결",
+      "given": "새 기본표가 기존 승인 교환·보강 및 실시 수업과 충돌",
+      "expected": "미해결 영향이 있으면 배포 거부. 이미 실시한 수업과 연결 학생자료 유지",
+      "layer": "배포/영향",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT16",
+      "severity": "높음",
+      "topic": "다자 교환과 동의 누락",
+      "given": "A→B→C 교환에서 C를 참여자 목록에서 빼거나 미응답으로 적용",
+      "expected": "서버가 실제 참여자 재계산, 전원 같은판 동의 없으면 전체 미반영",
+      "layer": "권한/동의/원자성",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT17",
+      "severity": "높음",
+      "topic": "동의 후 후보 변경",
+      "given": "A/B 동의 후 시간·교사·기준 수업판을 수정해 이전동의로 적용",
+      "expected": "새 change_set·supersedes 관계 필요, 전원 새 동의. 기존 지문 응답은 CONSENT_STALE",
+      "layer": "지문/상태",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT18",
+      "severity": "높음",
+      "topic": "자기승인·만료·전출",
+      "given": "담당자의 본인 요청을 본인 다른 membership으로 승인, 기한 후 또는 당사자 전출 후 적용. 설계 권고 기본정책을 적용한 합성 정책판으로 시험",
+      "expected": "자기 account 승인 차단, 지정 대리 승인 필요, 기한/활성소속 불일치 적용 거부",
+      "layer": "승인/권한",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT19",
+      "severity": "높음",
+      "topic": "같은 수업 동시 교환·재시도",
+      "given": "두 연결이 같은 수업을 다른 대상으로 교환, 첫 응답 유실 후 동일키 재시도",
+      "expected": "한 변경만 커밋, 재시도는 기존 접수증, 다른 요청 동일키는 충돌. 교사/학급/공간 부분 반영 0",
+      "layer": "멱등/동시성",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT20",
+      "severity": "높음",
+      "topic": "대강·결강·보강 의미",
+      "given": "결강 후 보강 두 번 등록, 대강 실제담당 정정, 시간만 경과한 수업",
+      "expected": "중복 충당 차단, 새 실시판·보상행으로 정확 누계, 자동 실시 확정 0건",
+      "layer": "실시/원장",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT21",
+      "severity": "높음",
+      "topic": "전국 학교 지원 검증",
+      "given": "초등 학년별 교시, 고교 학생 중첩, 합반, 이동시간, 격주 패턴을 엔진판별 실행",
+      "expected": "확인된 기능별 evidence만 verified, 미지원 자동편성·수동검증 우회 배포 불가",
+      "layer": "학교형/릴리스",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT22",
+      "severity": "중간",
+      "topic": "알림 실패·오프라인 조회",
+      "given": "배포 커밋 후 알림 실패, 오래된 모바일 캐시에서 교환 승인",
+      "expected": "시간표 확정은 유지하고 outbox만 재시도, 중복 알림 방지. 최신 검사 없는 승인은 불가",
+      "layer": "outbox/화면",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT23",
+      "severity": "높음",
+      "topic": "자료 최소화·학교격리",
+      "given": "일반교사/다른학교가 기준snapshot·원문사유·선택수강 실명 및 AI 입력을 조회",
+      "expected": "허용 DTO만 반환, 학생실명·복무상세 최소화, 다른학교 정보와 원시 AI문서 명령 실행 0",
+      "layer": "RLS/DTO/AI",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT24",
+      "severity": "중간",
+      "topic": "AI 없이 운영·접근성",
+      "given": "AI 장애 상태에서 조건입력→수동후보→배포→교환응답을 키보드/모바일로 수행",
+      "expected": "동일 권한·검증 아래 수동 흐름 완료, 드래그 전용 동작 없음, 미확인 상태 명확",
+      "layer": "화면/종단",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "TT25",
+      "severity": "높음",
+      "topic": "작업 취소·늦은 결과",
+      "given": "편성 취소/재시작 뒤 옛 worker가 후보와 완료응답 저장",
+      "expected": "job fencing 거부 또는 취소판 귀속만, 새 작업/공개 시간표 덮어쓰기 없음",
+      "layer": "작업/경합",
+      "contract": "14-timetable-operations.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG14",
+      "severity": "높음",
+      "topic": "선택 FK·수신 episode·원파일 부모 보존",
+      "given": "준비 단계의 두 선택열 NULL, 한 열만 NULL, 같은 방 다른 참여자의 episode 연결, 기존 업무파일을 첨부하며 intent 변경, 일반 참여자의 자기나가기/타인제거를 각각 시도",
+      "expected": "두열NULL 준비만 허용; 부분NULL·다른수신episode 거부; 기존파일 부모/intent/ACL 불변; 일반회원 자기나가기만 허용",
+      "layer": "복합FK/파일명령/권한",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL21",
+      "severity": "높음",
+      "topic": "상속 제약·인덱스 대체와 반복 파일",
+      "given": "기준+확장 계약을 합친 대상 설계에 long_text/repeat_group과 서로 다른 반복행의 동일 file을 추가, 동일 경로 중복도 추가",
+      "expected": "옛 kind CHECK/PK/활성 UNIQUE는 superseded로만 보존, 정상 반복행 둘은 허용하며 동일 answer_path/file 중복은 새 키로 거부",
+      "layer": "설계 생성기/합성 DDL 제약",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL22",
+      "severity": "높음",
+      "topic": "모드별 출력 문항 역방향 무결성",
+      "given": "guided 출력필드를 input으로 지정, generated_output 2개, output 포인터 미연결, 조건부/반복 부모 출력, file_upload에 generated_output 추가",
+      "expected": "모든 잘못된 정의를 지연 제약·publish에서 거부. guided는 required root file generated_output 정확1개, file_upload는 input 결과필드1개로 정상 게시",
+      "layer": "제약/게시/validator",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL23",
+      "severity": "높음",
+      "topic": "검사 실패 산출물의 ready 승격 차단",
+      "given": "generated artifact에 error/needs_review/not_checked 검사, 필수 skipped, 오류 finding, 미확정 필수, 다른 exact 파일 hash/팩/매핑/렌더러/입력 job hash 대입",
+      "expected": "ready/confirm/submit 전부 거부; 모든 정확한 검사가 pass이고 error·필수skipped·활성필수미확정이0인 실제 파일만 통과",
+      "layer": "worker/검증/제출",
+      "contract": "13-template-collection.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "COL24",
+      "severity": "높음",
+      "topic": "같은 학교 다른 단위·답변 문서 재포장",
+      "given": "A단위 snapshot으로 생성·검증한 document revision/file을 B단위 artifact에 연결하거나 A단위의 다른 snapshot/schema/mapping으로 재지정",
+      "expected": "document linked_unit·revision typed 생성입력·artifact 복합 FK와 actual job input 검사가 모두 일치해야 하므로 교차 포장·판 변경 거부. 다른학교는 기존 scope 검사도 거부",
+      "layer": "FK/worker/출력/제출",
+      "contract": "13-template-collection.md",
       "status": "required_not_run_on_integrated_ddl"
     }
   ]

@@ -1,10 +1,12 @@
 {
   "kind": "artifact_links_and_source_integrity",
   "source_files_verified": 18,
-  "local_markdown_links_checked": 21,
+  "local_markdown_links_checked": 61,
   "checks": [
     "로컬 문서 링크",
-    "선택 시 원본 18개 지문",
+    "기획서 원본 스냅샷·현행 사본 지문",
+    "선택 시 원본 18개와 최신 제품 기획서 지문",
+    "대체된 옛 제약·인덱스 제거",
     "통합 생성열 메타 교체"
   ],
   "errors": [],

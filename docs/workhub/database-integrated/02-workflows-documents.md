@@ -1,5 +1,7 @@
 # 업무·일정·수합·파일·문서 통합 DB 설계 v1
 
+> 2026-10-13 보강: [양식 기반 수합](13-template-collection.md)과 [교사 메신저](12-messenger.md)를 함께 적용한다. 이 장의 기존 제출·검토·접수증·파일 권한 계약은 유지한다. ZIP 기본은 검토형의 승인된 완료본(effective), 검토 없는 수합은 최신 유효 완료본이며 미승인 제출 포함은 명시 선택이다. 양식 분석·문답·출력 생성과 정식 제출은 별도 상태다. 실제 DB 구축은 보류한다.
+
 작성일: 2026-10-12. **실행 가능한 명세를 목표로 한 통합 설계 제안이다. SQL 확정본·마이그레이션·사용자 정책 승인·운영 적용 결과가 아니다.** 원본 Claude 최종 7개, GPT 기존 설계, 운영 코드와 확정 자산은 변경하지 않는다. SQL 확정은 Claude Web, 실행은 사용자라는 저장소 규칙을 따른다.
 
 ## 1. 기준과 선택한 해법
@@ -173,7 +175,7 @@ document_revisions에 pack_id/pack_scope_key/pack_version을 snapshot으로 고�
 
 ## 13. ZIP 내보내기·공지·알림
 
-export_manifests는 작업/선택 모드를 유지하고, 신설 export_manifest_items가 unit/submission/schema/file의 정확한 ID·판/hash·상태·오류 코드를 고정한다. 기존 items/failed_items JSON은 관계표의 읽기 projection이다. none은 latest_valid, required는 선택한 received판이 기본이고 effective만 묶을 때 명시 선택한다. 파일 없는 숫자/글 응답도 항목에 포함한다. ZIP 파일명은 단위·판·검토상태를 포함하고 경로를 서버 정규화한다.
+export_manifests는 작업/선택 모드를 유지하고, 신설 export_manifest_items가 unit/submission/schema/file의 정확한 ID·판/hash·상태·오류 코드를 고정한다. 기존 items/failed_items JSON은 관계표의 읽기 projection이다. none은 latest_valid(현재 유효 완료본), required는 effective(승인 완료본)가 기본이다. 미승인 received판을 포함하려면 선택 모드와 미검토 상태를 명시 확인한다. 파일 없는 숫자/글 응답도 항목에 포함한다. ZIP 파일명은 단위·판·검토상태를 포함하고 경로를 서버 정규화한다.
 
 작업자는 시작·각 항목 접근·최종 연결·다운로드 때 권한을 검사한다. 중간 권한 회수/파일 누락은 해당 항목 실패, 결과 partial을 명시한다. 현재 볼 수 없는 자료가 섞인 예전 ZIP을 재발급하지 않는다. 실패 항목만 고정 ID로 재시도하며 새 제출판으로 슬쩍 바꾸지 않는다. 파일 bytes·manifest hash 검증 전 ready 금지다.
 
