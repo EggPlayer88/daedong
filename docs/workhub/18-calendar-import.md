@@ -1,6 +1,6 @@
 # 11차 — 시트 일정 입력과 시범 운영 준비
 
-2026-10-13 · `feat/workhub-calendar-import` · 기준: 10차 PR #17
+2026-10-13 · [PR #18](https://github.com/EggPlayer88/daedong/pull/18) · `feat/workhub-calendar-import` · 기준: 10차 PR #17
 
 ## 교사가 할 수 있는 일
 

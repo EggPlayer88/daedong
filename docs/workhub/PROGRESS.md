@@ -1,6 +1,6 @@
 # 업무혁신시스템 누적 진행 현황
 
-최종 갱신: 2026-10-13 · 11차 개발 · `feat/workhub-calendar-import` (기준 PR #17)
+최종 갱신: 2026-10-13 · 11차 개발 · [PR #18](https://github.com/EggPlayer88/daedong/pull/18) (기준 PR #17)
 
 목표는 **문서작성 AI·시간표를 제외한 기능을 완성한 뒤 시범 공개**하는 것이다. 구현·합성 검증·실제 서버 연결·운영 공개를 구분하며 테스트 수를 완성률로 환산하지 않는다.
 
@@ -61,7 +61,7 @@
 
 ## PR·산출물
 
-브랜치는 `feat/workhub-calendar-import`, 기준은 `feat/workhub-scaled-lists` ([PR #17](https://github.com/EggPlayer88/daedong/pull/17))다. DB 통합 설계 [PR #12](https://github.com/EggPlayer88/daedong/pull/12)는 별도 검토본이다. 선행 의존 PR은 #2 → #4 → #6 → #7 → #8 → #9 → #10 → #13 → #14 → #15 → #16 → #17 순서다.
+이번 [PR #18](https://github.com/EggPlayer88/daedong/pull/18)은 draft이며 브랜치는 `feat/workhub-calendar-import`, 기준은 `feat/workhub-scaled-lists` ([PR #17](https://github.com/EggPlayer88/daedong/pull/17))다. DB 통합 설계 [PR #12](https://github.com/EggPlayer88/daedong/pull/12)는 별도 검토본이다. 선행 의존 PR은 #2 → #4 → #6 → #7 → #8 → #9 → #10 → #13 → #14 → #15 → #16 → #17 순서다.
 
 - [11차 DB 연결·적용 인계](16-pilot-db-activation.md)
 - [시범 공개 완료 계획](17-pilot-release-plan.md)
