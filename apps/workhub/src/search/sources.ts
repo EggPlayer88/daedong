@@ -1,5 +1,5 @@
 import type { CalendarAdapter } from '../calendar/contracts'
-import { eventTime, visibilityLabels } from '../calendar/EventEditor'
+import { eventTime, visibilityLabels } from '../calendar/formatting'
 import { ContractError, type Membership } from '../contracts'
 import { activeAt, canRead } from '../domain'
 import type { TaskAdapter, TaskStatus } from '../tasks/contracts'

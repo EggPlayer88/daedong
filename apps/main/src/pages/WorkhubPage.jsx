@@ -1,5 +1,4 @@
-import '../../../workhub/src/app/navigation'
-import '../../../workhub/src/typography.css'
+import '../../../workhub/src/app/navigation-bridge'
 import { Component, lazy, Suspense } from 'react'
 import { useAuth } from '../lib/AuthContext.jsx'
 

@@ -1,5 +1,7 @@
 // 검색도 기존 화면과 같은 읽기 경계를 거치는지 실제 합성 저장소로 확인한다.
 import assert from 'node:assert/strict'
+import { buildSync } from 'esbuild'
+import { fileURLToPath } from 'node:url'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 const { calendarSearchSource, taskSearchSource, collectionSearchSource, filterSearchItems, fixtureData, createWorkflowStore, createPreviewTaskAdapter } = await loadBrowserModule(`
  export { calendarSearchSource, taskSearchSource, collectionSearchSource } from '../apps/workhub/src/search/sources.ts'
@@ -13,6 +15,12 @@ const mine=members.find(m=>m.id==='gaon-soyeon'), other=members.find(m=>m.id==='
 let passed=0,failed=0
 async function test(name,fn){try{await fn();passed++;console.log('  ✓ '+name)}catch(e){failed++;console.error('  ✗ '+name+': '+e.stack)}}
 const item=(id,title,patch={})=>({id,kind:'task',title,description:'',meta:'',...patch})
+
+await test('검색 자료 변환은 React·일정 편집기·저장 화면을 불러오지 않고 사용할 수 있다',()=>{
+ const result=buildSync({entryPoints:[fileURLToPath(new URL('../apps/workhub/src/search/sources.ts',import.meta.url))],bundle:true,write:false,metafile:true,platform:'neutral',format:'esm',logLevel:'silent'})
+ const inputs=Object.keys(result.metafile.inputs).map(path=>path.replaceAll('\\','/'))
+ assert(!inputs.some(path=>path.endsWith('.tsx')||/(^|\/)node_modules\/(react|react-dom)(\/|$)/.test(path)),inputs.join('\n'))
+})
 
 await test('검색은 한글 조합·대소문자·연속 공백을 정규화하고 여러 단어를 모두 찾는다',()=>{
  const rows=[item('a','학교 AI 연수',{description:'자료 준비'}),item('b','학교 연수')]

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict'
-import { buildSync } from 'esbuild'
+import { build } from 'esbuild'
+import { basename } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
-const bundle = buildSync({ stdin: { contents: `
-  import React, {useEffect,useState} from 'react'; import {createRoot} from 'react-dom/client';
-  import {BrowserRouter,Routes,Route,Link,useLocation,useNavigate} from 'react-router-dom';
+const root = fileURLToPath(new URL('../../', import.meta.url))
+const workspaceSource = `
+  import React, {useEffect,useState} from 'react';
+  import {useNavigate} from 'react-router-dom';
   import {useWorkspaceNavigation} from './apps/workhub/src/app/navigation';
-  const scenario={mounts:0,unmounts:0,actions:0}; window.scenario=scenario;
-  function Workspace(){
+  const scenario=window.scenario;
+  export default function Workspace(){
     const [scope,setScope]=useState();const [draft,setDraft]=useState('');const [pending,setPending]=useState(false);
     const [allowed,setAllowed]=useState(['home','calendar','tasks']); const navigate=useNavigate();
     const nav=useWorkspaceNavigation({allowedPages:allowed,scopeKey:scope,locked:!!draft||pending});
@@ -20,21 +22,63 @@ const bundle = buildSync({ stdin: { contents: `
       <p role="status">{nav.announcement}</p><a href="#main-content">본문으로 건너뛰기</a><a href="#fragment-target">다른 본문 위치</a><div id="main-content" tabIndex={-1}>본문</div><div id="fragment-target">두 번째 본문</div>
     </section>
   }
-  function Frame(){const loc=useLocation();return <><header><Link to="/legacy">기존 메뉴</Link><Link to="/workhub?view=tasks&keep=school#main-content">신축 업무실</Link><output data-testid="router-url">{loc.pathname+loc.search+loc.hash}</output></header><Routes><Route path="/workhub" element={<Workspace/>}/><Route path="*" element={<h1>기존 화면</h1>}/></Routes></>}
+`
+const bundle = await build({
+  stdin: { contents: `
+  import React, {lazy,Suspense} from 'react'; import {createRoot} from 'react-dom/client';
+  import {BrowserRouter,Routes,Route,Link,useLocation} from 'react-router-dom';
+  import './apps/workhub/src/app/navigation-bridge';
+  const scenario={mounts:0,unmounts:0,actions:0}; window.scenario=scenario;
+  const Workspace=lazy(()=>import('workhub-lazy-test'));
+  function Frame(){const loc=useLocation();return <><header><Link to="/legacy">기존 메뉴</Link><Link to="/workhub?view=tasks&keep=school#main-content">신축 업무실</Link><output data-testid="router-url">{loc.pathname+loc.search+loc.hash}</output></header><Routes><Route path="/workhub" element={<Suspense fallback={<p role="status">신축 화면 준비 중</p>}><Workspace/></Suspense>}/><Route path="*" element={<h1>기존 화면</h1>}/></Routes></>}
   createRoot(document.getElementById('root')).render(<React.StrictMode><BrowserRouter><Frame/></BrowserRouter></React.StrictMode>);
-`, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
+`, resolveDir: root, loader: 'tsx' },
+  bundle: true, write: false, outdir: 'navigation-browser-test', format: 'esm',
+  splitting: true, metafile: true, jsx: 'automatic',
+  define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent',
+  plugins: [{
+    name: '지연-탐색-검증',
+    setup(build) {
+      build.onResolve({filter: /^workhub-lazy-test$/}, () => ({path: 'workhub-lazy-test', namespace: 'test'}))
+      build.onLoad({filter: /.*/, namespace: 'test'}, () => ({contents: workspaceSource, resolveDir: root, loader: 'tsx'}))
+    },
+  }],
+})
+const entry = Object.entries(bundle.metafile.outputs).find(([, value]) => value.entryPoint === '<stdin>')[0]
+const lazyEntry = Object.entries(bundle.metafile.outputs).find(([, value]) => value.entryPoint === 'test:workhub-lazy-test')[0]
+const assets = new Map(bundle.outputFiles.map(file => [basename(file.path), file.text]))
+let lazyRequests = 0
 const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1000, height: 800 } })
 const page = await context.newPage()
 const errors = []; page.on('pageerror', error => errors.push(error.message)); page.setDefaultTimeout(10000)
 const origin = 'http://127.0.0.1:5176'
-await page.route(`${origin}/**`, route => route.fulfill({ contentType: 'text/html', body: `<!doctype html><html lang="ko"><meta charset="utf-8"><body><div id="root"></div><script>${bundle.outputFiles[0].text.replaceAll('</script', '<\\/script')}</script></body></html>` }))
+await page.route(`${origin}/**`, route => {
+  const path = new URL(route.request().url()).pathname
+  if (path.startsWith('/__navigation/')) {
+    const name = path.split('/').pop()
+    if (name === basename(lazyEntry)) lazyRequests++
+    return route.fulfill({status: assets.has(name) ? 200 : 404, contentType: 'text/javascript', body: assets.get(name) || ''})
+  }
+  return route.fulfill({ contentType: 'text/html', body: `<!doctype html><html lang="ko"><meta charset="utf-8"><body><div id="root"></div><script type="module" src="/__navigation/${basename(entry)}"></script></body></html>` })
+})
 async function boot(path = '/workhub?view=tasks&keep=school#main-content') { await page.goto(origin + path); await page.getByRole('heading', { name: path.startsWith('/workhub') ? (new URL(origin + path).searchParams.get('view') || 'home') : '기존 화면', exact: true }).waitFor() }
 async function screen(name) { await page.getByRole('heading', { name, exact: true }).waitFor() }
 async function click(name) { await page.getByRole('button', { name, exact: true }).click() }
 async function routerLocation(expected) { await page.waitForFunction(value => document.querySelector('[data-testid=router-url]')?.textContent === value, expected) }
 async function report(message) { assert.deepEqual(errors, []); console.log(`  ✓ ${message}`) }
 try {
+  await boot('/legacy')
+  assert.equal(lazyRequests, 0)
+  await page.getByRole('link', {name: '신축 업무실', exact: true}).click(); await screen('tasks')
+  assert.equal(lazyRequests, 1)
+  await page.getByLabel('미저장 내용').fill('지연 로딩 뒤에도 기존 화면으로 이동하지 않음')
+  const lazyUrl = page.url()
+  await page.goBack(); await page.waitForURL(lazyUrl); await screen('tasks')
+  assert.equal(await page.getByLabel('미저장 내용').inputValue(), '지연 로딩 뒤에도 기존 화면으로 이동하지 않음')
+  assert.equal(await page.evaluate(() => window.scenario.unmounts), 0)
+  await report('기존 화면에서는 신축 코드 미요청·Router 생성 후 지연 로딩에서도 편집 잠금 POP 보호')
+  await page.getByLabel('미저장 내용').fill('')
   await boot()
   assert.equal(await page.getByTestId('router-url').textContent(), '/workhub?view=tasks&keep=school#main-content')
   await page.reload(); await screen('tasks')

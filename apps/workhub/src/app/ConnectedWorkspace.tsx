@@ -1,3 +1,4 @@
+import '../typography.css'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarPanel } from '../calendar/CalendarPanel'

@@ -3,15 +3,16 @@ import { ContractError, type AudienceGroup, type CalendarEvent, type EventDraft,
 import { activeAt, canRead, matchesAudience, recommendationReason } from '../domain'
 import type { CalendarAdapter, RelationOptions } from './contracts'
 import { usePendingRequest } from '../app/pending-requests'
+import { eventTime, visibilityLabels } from './formatting'
+
+// 기존 일정 화면·미리보기 import 경로를 유지한다. 순수 조회 계층은 formatting을 직접 사용한다.
+export { dateLabel, eventTime, visibilityLabels } from './formatting'
 
 const noRelations: RelationOptions = { departmentIds: [], gradeIds: [], subjectIds: [] }
 
 export type Adapter = CalendarAdapter
 const emptyGroup = (): AudienceGroup => ({ departmentIds: [], gradeIds: [], subjectIds: [] })
 const blank = (date: string): EventDraft => ({ title: '', description: '', location: '', startDate: date, endDate: date, allDay: false, startTime: '15:30', endTime: '16:30', visibility: 'school', audience: { all: true, groups: [], includeMemberIds: [], excludeMemberIds: [] } })
-export const visibilityLabels = { school: '학교 교사 전체', audience: '관련 대상만', private: '나만 보기' }
-export function dateLabel(date: string) { return new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`)) }
-export function eventTime(event: EventDraft) { return event.allDay ? '종일' : `${event.startTime}–${event.endTime}` }
 function audienceLabel(event: EventDraft, members: Membership[], relationLabels: RelationOptions) {
   const groups = event.audience.groups.map(group => (['departmentIds', 'gradeIds', 'subjectIds'] as const).map(field => group[field].map(id => relationLabels[field].find(item => item.id === id)?.name ?? '알 수 없는 조건').join(' 또는 ')).filter(Boolean).join(' + ')).filter(Boolean).join(' / 또는 / ')
   const names = (ids: string[]) => ids.map(id => members.find(item => item.id === id)?.name ?? '알 수 없는 교사').join(', ') || '없음'

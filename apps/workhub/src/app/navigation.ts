@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { subscribeWorkspacePopstate } from './navigation-bridge'
 
 const knownPages = new Set(['home', 'calendar', 'tasks', 'collections', 'students'])
 export const navigationBlockedMessage = '작성 중인 내용을 저장하거나 편집을 취소한 뒤 이동해 주세요. 저장 결과를 확인 중이면 먼저 같은 요청의 결과를 확인해 주세요.'
@@ -62,23 +63,6 @@ function fragmentOnly(first: string, second: string): boolean {
   return a.origin === b.origin && a.pathname === b.pathname && a.search === b.search
 }
 
-// popstate는 Window 자신을 대상으로 한다. Router보다 늦게 붙인 capture listener만으로는
-// 먼저 등록된 Router listener를 막을 수 없으므로 메인 앱이 이 모듈을 Router 생성 전에
-// 한 번 import한다. 화면이 닫힌 동안에는 빈 dispatcher이며 탐색을 가로막지 않는다.
-const popstateDispatchers = new WeakMap<Window, Set<(event: PopStateEvent) => void>>()
-function preparePopstateBridge(host: Window) {
-  let listeners = popstateDispatchers.get(host)
-  if (!listeners) {
-    listeners = new Set()
-    const registered = listeners
-    host.addEventListener('popstate', event => {
-      for (const listener of registered) { listener(event); if (event.cancelBubble) break }
-    }, true)
-    popstateDispatchers.set(host, listeners)
-  }
-  return listeners
-}
-if (typeof window !== 'undefined') preparePopstateBridge(window)
 export interface NavigationControllerOptions {
   window: Window
   getOptions: () => NavigationOptions
@@ -90,6 +74,7 @@ export interface NavigationControllerOptions {
 // 차단하고 원래 항목으로 되돌리므로 편집 컴포넌트를 unmount하지 않는다.
 export function createWorkspaceNavigationController({ window: host, getOptions, onPageChange, onAnnouncement }: NavigationControllerOptions) {
   let active = false
+  let unsubscribePopstate: (() => void) | undefined
   let localNotification = false
   let current = { href: host.location.href, state: host.history.state as unknown }
   let restoring = false
@@ -166,14 +151,15 @@ export function createWorkspaceNavigationController({ window: host, getOptions, 
     start() {
       if (active) return
       active = true
-      preparePopstateBridge(host).add(onPopState)
+      unsubscribePopstate = subscribeWorkspacePopstate(host, onPopState)
       host.document.addEventListener('click', onClick, true)
       host.addEventListener('beforeunload', onBeforeUnload)
       sync()
     },
     stop() {
       active = false
-      preparePopstateBridge(host).delete(onPopState)
+      unsubscribePopstate?.()
+      unsubscribePopstate = undefined
       host.document.removeEventListener('click', onClick, true)
       host.removeEventListener('beforeunload', onBeforeUnload)
     },
