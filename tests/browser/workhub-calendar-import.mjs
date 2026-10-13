@@ -9,7 +9,8 @@ import { join } from 'node:path'
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import {CalendarImport} from './apps/workhub/src/calendar/CalendarImport';
-  import {PendingRequestsProvider,createPendingRequests} from './apps/workhub/src/app/pending-requests';
+  import {PendingRequestsProvider,createPendingRequests,recoveryScope} from './apps/workhub/src/app/pending-requests';
+  import {EditDraftsProvider,createEditDrafts} from './apps/workhub/src/app/edit-drafts';
   import {ContractError} from './apps/workhub/src/contracts';
   import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
   import {fixtureData,relationLabels} from './apps/workhub/src/preview/fixtures';
@@ -17,11 +18,14 @@ const bundle = buildSync({ stdin: { contents: `
   const host=document.getElementById('root');const surface=window.SHADOW_TEST?host.attachShadow({mode:'open'}):host;
   const root=createRoot(surface);
   const member=fixtureData.memberships.find(item=>item.id==='gaon-minjun');
-  const memory=createMemoryAdapter(fixtureData,0),pendingStore=createPendingRequests();let visible=false,generation=0,releaseList,releaseSave;
+  const memory=createMemoryAdapter(fixtureData,0),pendingStore=createPendingRequests(),draftStore=createEditDrafts(true);let visible=false,generation=0,releaseList,releaseSave;
   const clone=value=>structuredClone(value);
   const scenario={attempts:[],saved:[],closed:0,failAfter:0,listFailure:'',listCalls:0,holdList:false,holdSave:false,navigationLocked:false,
     navigationLock(locked){scenario.navigationLocked=locked},
-    open(){memory.reset();pendingStore.clear();scenario.attempts=[];scenario.saved=[];scenario.closed=0;scenario.failAfter=0;scenario.listFailure='';scenario.listCalls=0;scenario.holdList=false;scenario.holdSave=false;visible=true;generation++;render()},
+    open(){memory.reset();pendingStore.clear();draftStore.clear();draftStore.activate(recoveryScope(member));scenario.attempts=[];scenario.saved=[];scenario.closed=0;scenario.failAfter=0;scenario.listFailure='';scenario.listCalls=0;scenario.holdList=false;scenario.holdSave=false;visible=true;generation++;render()},
+    disconnect(){draftStore.suspend();visible=false;render()},
+    reconnect(){draftStore.activate(recoveryScope(member));visible=true;generation++;render()},
+    draftCount(){return draftStore.count()},
     pendingCount(){return pendingStore.count()},
     snapshot(){return memory.exportState()},
     releaseList(){releaseList?.();releaseList=undefined},releaseSave(){releaseSave?.();releaseSave=undefined},
@@ -39,7 +43,7 @@ const bundle = buildSync({ stdin: { contents: `
     if(scenario.failAfter){scenario.failAfter--;throw new ContractError('SAVE_FAILED','합성 접수 후 응답 유실')}
     return result;
   }};
-  function render(){root.render(<PendingRequestsProvider store={pendingStore}><style>{styles}</style><h1>일정 표 가져오기 합성 시험</h1><button id="open" onClick={()=>scenario.open()}>가져오기 열기</button>{visible&&<CalendarImport key={generation} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationOptions={relationLabels} demo storageLabel="합성 저장소" onNavigationLockChange={scenario.navigationLock} onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));render()}}/>}</PendingRequestsProvider>)}render();
+  function render(){root.render(<EditDraftsProvider store={draftStore}><PendingRequestsProvider store={pendingStore}><style>{styles}</style><h1>일정 표 가져오기 합성 시험</h1><button id="open" onClick={()=>scenario.open()}>가져오기 열기</button>{visible&&<CalendarImport key={generation} member={member} members={fixtureData.memberships} date={fixtureData.basisDate} adapter={adapter} relationOptions={relationLabels} demo storageLabel="합성 저장소" onNavigationLockChange={scenario.navigationLock} onClose={()=>{scenario.closed++;visible=false;render()}} onSaved={event=>{scenario.saved.push(clone(event));render()}}/>}</PendingRequestsProvider></EditDraftsProvider>)}render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
 const browser = await launchBrowser()
 const context = await browser.newContext({ viewport: { width: 1200, height: 900 } })
@@ -333,6 +337,63 @@ try {
   await page.getByRole('alert').waitFor(); assert.ok((await page.getByRole('alert').innerText()).includes('UTF-8'))
   assert.equal(await source.isEnabled(), true); assert.equal((await attempts()).length, 0)
   await report('UTF-8이 아닌 파일은 명확히 거부하고 붙여넣기 입력을 다시 허용')
+
+  await open()
+  const reconnectSource = '제목,시작일,설명\n복구할 첫 일정,2026-10-20,첫 안내\n복구할 다음 일정,2026-10-21,다음 안내'
+  await columns(reconnectSource)
+  await page.getByRole('combobox', { name: /^열 구분/ }).selectOption('comma')
+  await page.getByRole('button', { name: '열 연결 확인', exact: true }).click()
+  await page.evaluate(() => window.scenario.disconnect()); await outer.waitFor({ state: 'detached' })
+  assert.ok(!(await page.locator('body').innerText()).includes('복구할 첫 일정'))
+  assert.equal(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented }), true)
+  await page.evaluate(() => window.scenario.reconnect()); await source.waitFor()
+  assert.equal(await source.inputValue(), reconnectSource)
+  assert.equal(await page.getByRole('combobox', { name: /^열 구분/ }).inputValue(), 'comma')
+  assert.equal(await page.getByRole('combobox', { name: /^제목 \(필수\)/ }).inputValue(), '0')
+  assert.equal((await attempts()).length, 0)
+  await report('연결 오류로 UI를 숨긴 동안 이탈 경고를 유지하고 동일 범위 재검증 후 붙여넣기·구분자·열 연결을 복구')
+  await inspect()
+  await cards.nth(0).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
+  await save(); await editor().waitFor({ state: 'detached' })
+  await cards.nth(1).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
+  await editor().locator('input[name=title]').fill('연결 중 보관한 행 제목')
+  await editor().getByRole('textbox', { name: /^안내 내용/ }).fill('마지막 글자까지 보존한 설명')
+  await page.evaluate(() => window.scenario.disconnect()); await outer.waitFor({ state: 'detached' }); await editor().waitFor({ state: 'detached' })
+  await page.evaluate(() => window.scenario.reconnect()); await source.waitFor()
+  assert.equal(await source.inputValue(), reconnectSource); assert.equal(await source.isDisabled(), true)
+  assert.ok((await cards.nth(0).innerText()).includes('등록 완료'))
+  assert.ok((await outer.innerText()).includes('원본 3행의 작성 내용을 보관했습니다'))
+  assert.equal(await editor().count(), 0)
+  assert.equal(await cards.nth(1).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).isDisabled(), true)
+  assert.equal((await snapshot()).receipts.length, 1); assert.equal((await attempts()).length, 1)
+  await page.evaluate(() => { window.scenario.listFailure = 'throw' })
+  await page.getByRole('button', { name: '기존 일정 다시 비교', exact: true }).click(); await page.getByRole('alert').waitFor()
+  assert.ok((await cards.nth(0).innerText()).includes('등록 완료'))
+  assert.equal(await cards.nth(1).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).isDisabled(), true)
+  await page.evaluate(() => { window.scenario.listFailure = '' })
+  await page.getByRole('button', { name: '기존 일정 다시 비교', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('.ci-row:not(.ci-saved) button')?.disabled === false)
+  await cards.nth(1).getByRole('button', { name: '내용·공유 대상 확인', exact: true }).click(); await editor().waitFor()
+  assert.equal(await editor().locator('input[name=title]').inputValue(), '연결 중 보관한 행 제목')
+  assert.equal(await editor().getByRole('textbox', { name: /^안내 내용/ }).inputValue(), '마지막 글자까지 보존한 설명')
+  await report('부분 등록 후 재연결은 완료 receipts와 편집 초안을 보존하고 재비교 실패 때 잠근 뒤 성공해야 행 편집을 재개')
+  await page.evaluate(() => { window.scenario.failAfter = 1 }); await save()
+  await page.getByRole('region', { name: '일정 저장 결과 확인 필요', exact: true }).waitFor()
+  const unresolvedImportCommand = (await attempts()).at(-1)
+  await page.evaluate(() => window.scenario.disconnect()); await outer.waitFor({ state: 'detached' })
+  await page.evaluate(() => window.scenario.reconnect()); await editor().waitFor()
+  assert.equal(await editor().locator('input[name=title]').inputValue(), '연결 중 보관한 행 제목')
+  await page.getByRole('button', { name: '같은 요청으로 저장 결과 확인', exact: true }).click(); await editor().waitFor({ state: 'detached' })
+  assert.deepEqual((await attempts()).at(-1), unresolvedImportCommand)
+  assert.equal((await snapshot()).receipts.length, 2)
+  assert.ok((await outer.innerText()).includes('등록 완료 2개'))
+  assert.equal(await page.evaluate(() => window.scenario.pendingCount()), 0)
+  await page.getByRole('button', { name: '검토 마치기', exact: true }).click()
+  await page.getByRole('button', { name: '가져오기 종료', exact: true }).click(); await outer.waitFor({ state: 'detached' })
+  assert.equal(await page.evaluate(() => window.scenario.draftCount()), 0)
+  await page.evaluate(() => window.scenario.reconnect()); await source.waitFor()
+  assert.equal(await source.inputValue(), ''); assert.equal(await cards.count(), 0)
+  await report('미확정 행은 재연결 후에도 같은 요청으로만 확인하며 완료 receipts를 합산하고 명시 종료 후 이전 초안을 다시 열지 않음')
 
   await open(); await prepare(['제목,시작일', ...Array.from({ length: 23 }, (_, index) => `여러 행 ${index + 1},2026-10-20`)].join('\n'))
   assert.equal(await cards.count(), 20); assert.ok((await outer.innerText()).includes('전체 23행'))

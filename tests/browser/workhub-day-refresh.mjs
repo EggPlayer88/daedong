@@ -85,7 +85,7 @@ async function test(name, run) {
     passed++; console.log('  ✓ ' + name)
   } catch (error) {
     failures++; console.error('  ✗ ' + name + ': ' + error.stack)
-    console.error((await page.locator('body').innerText()).slice(-1800))
+    console.error((await page.locator('.workhub-connected').innerText().catch(() => page.locator('body').innerText())).slice(-1800))
   } finally { await context.close() }
 }
 async function advanceDay(page, day = '20') {
@@ -208,12 +208,23 @@ try {
     await page.evaluate(() => { qa.hold(); window.dispatchEvent(new Event('focus')) })
     await page.waitForFunction(() => qa.pending() === 1)
     await page.evaluate(() => qa.switchUser())
-    await page.getByRole('heading', { name: '학교 연결을 완료하지 못했습니다' }).waitFor()
+    const connectionError = page.getByRole('heading', { name: '학교 연결을 완료하지 못했습니다' })
+    await connectionError.waitFor()
     assert.equal(await page.getByRole('dialog').count(), 0)
+    assert.equal(await page.locator('input[name="title"]').count(), 0)
+    assert.equal(await page.getByRole('article').count(), 0)
+    // 인증 이벤트의 지연 재검증까지 진행해도, 보류된 이전 조회가 안내를 지우지 않아야 한다.
+    await page.clock.fastForward(1000)
+    assert.equal(await page.evaluate(() => qa.pending()), 1)
+    assert.equal(await connectionError.isVisible(), true)
+    assert.equal(await page.getByRole('heading', { name: '연결된 학교 소속이 없습니다' }).count(), 0)
+    assert.equal(await page.evaluate(() => qa.info().memberships.length), 0)
     await page.evaluate(() => qa.release())
     await page.clock.fastForward(1000)
     await page.waitForFunction(() => qa.inFlight === 0)
+    assert.equal(await connectionError.isVisible(), true)
     assert.equal(await page.getByRole('dialog').count(), 0)
+    assert.equal(await page.locator('input[name="title"]').count(), 0)
     assert.equal(await page.getByRole('article', { name: '자정 기한 업무', exact: true }).count(), 0)
     assert.equal(await page.evaluate(() => qa.info().memberships.length), 0)
   })
