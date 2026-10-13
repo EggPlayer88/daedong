@@ -11,7 +11,7 @@
 - 사이트: #2 → #4 → #6 → #7 → #8 → #9 → #10 → #13 → #14 → #15 → #16 → #17 → #18 → #19 → #20 → #21.
 - 설계: #10에서 갈라진 #11 → #12 → #22.
 - #3(Supabase 유지 자동 작업)는 운영 자동화 효과/설정 검토를 별도 단계로 남긴다.
-- #5(시간표 엔진)는 사용자의 보류 지시와 미해결 검토 사항 때문에 포함하지 않는다.
+- [#5(시간표 엔진)](https://github.com/EggPlayer88/daedong/pull/5)은 사용자의 보류 지시와 미해결 검토 사항 때문에 포함하지 않는다. 담당 교사를 T1→T2로 바꾸고 이전 시간표 위치를 유지하면 교사가 바뀐 칸을 changedCells=0으로 계산하는 결함이 확인됐다. 당시 교사를 보존하지 않고 새 교사 배정으로 이전 표를 재구성하는 [solver.py 원본](https://github.com/EggPlayer88/daedong/blob/6595dbac5ba0b32c28e9a7f3bb2562c6a0df6acb/packages/timetable/engine/solver.py#L65)과 [model.py 원본](https://github.com/EggPlayer88/daedong/blob/6595dbac5ba0b32c28e9a7f3bb2562c6a0df6acb/packages/timetable/engine/model.py#L267)이 재개 시 검토 근거다.
 - 기존 운영 main의 로그인·회원·평가계획서·문서 엔진은 보존한다.
 
 최신 사이트 끝과 설계 끝을 각각 merge commit으로 합쳐 원래 커밋과 검토 이력을 보존했다. PROGRESS.md의 충돌은 최신 사이트 상태에 최신 설계 링크/상태를 추가해 해결했다. 옛 설계 쪽의 “DB 우선 구축” 안내를 현재 실행 지시로 채택하지 않았다.
@@ -55,7 +55,9 @@ flowchart LR
 
 ## 기획과 현재 코드의 차이
 
-단일 최신 설계는 [통합 DB v1.1](../database-integrated/README.md)이다. [초기 설계](../database/README.md), 기존 `database/workhub/*.sql`은 이력/시험용 제안이다. SQL 제안의 RLS·경합 시험 통과는 최신 190개 테이블 설계의 구현 완료를 뜻하지 않는다.
+기능 범위의 최신 설계는 [통합 DB v1.1](../database-integrated/README.md)이다. [초기 설계](../database/README.md), 기존 `database/workhub/*.sql`은 이력/시험용 제안이다. SQL 제안의 RLS·경합 시험 통과는 최신 190개 테이블 설계의 구현 완료를 뜻하지 않는다.
+
+v1.1의 기존 재평가 F1~F9는 해결 완료가 아니다. B01·B02 확정 SQL은 F5·F6·F8을 반영한 계약의 재검토 후 작성하고, 나머지 항목도 해당 배치 전 정상·거부 시험으로 확인한다. [DB 재개 인계](../16-pilot-db-activation.md)의 선행 조건을 따른다.
 
 신규 구현 티켓 21개는 계획 상태다. 파일 수합을 먼저 구현할 때는 다음 경로를 분리해야 한다.
 
