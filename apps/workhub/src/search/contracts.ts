@@ -7,6 +7,8 @@ export interface SearchItem {
   title: string
   description: string
   meta: string
+  // 장소·기간처럼 원본에 있는 값만 넣는다. 상태/공개 범위 안내는 meta 표시 전용이다.
+  searchValues?: readonly string[]
   date?: string
   unitId?: string
 }

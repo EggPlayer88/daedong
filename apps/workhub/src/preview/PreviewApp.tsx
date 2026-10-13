@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { fixtureData, relationLabels } from './fixtures'
 import { createMemoryAdapter } from './memory-adapter'
 import { CalendarPanel } from '../calendar/CalendarPanel'
@@ -20,6 +20,8 @@ import { WorkspaceSearch } from '../search/WorkspaceSearch'
 import { calendarSearchSource, collectionSearchSource, taskSearchSource } from '../search/sources'
 import { useResourceNavigation } from '../app/resource-navigation'
 import './preview.css'
+import { activeAt } from '../domain'
+import { createPendingRequests, PendingRequestsProvider, recoveryScope } from '../app/pending-requests'
 
 const previewPages = enabledModules('preview').map(module => module.id)
 
@@ -47,12 +49,17 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
   const school = info.schools.find(item => item.id === member.schoolId)!
   const locked = taskLocked || calendarLocked || draftLocked
   const scopeKey = `${memberId}:${workspaceGeneration}:${member.active}`
+  const pendingRequests = useMemo(createPendingRequests, [member.userId, workspaceGeneration])
+  useEffect(() => {
+    pendingRequests.retainScopes(info.memberships.filter(item => item.userId === member.userId && activeAt(item, info.basisDate)).map(recoveryScope))
+  }, [info, member.userId, pendingRequests])
   const navigation = useWorkspaceNavigation({ allowedPages: previewPages, scopeKey, locked })
   const page = navigation.page as PageId
   const resource = useResourceNavigation(scopeKey, page, navigation.requestNavigate)
   const requested = resource.current
   const searchSources = useMemo(() => [calendarSearchSource(stores.calendar, member, info.basisDate), taskSearchSource(taskAdapter, member, info.basisDate), collectionSearchSource(stores.workflows, member, info.basisDate)], [stores, taskAdapter, member, info.basisDate])
-  const storageLabel = persistence.persistent ? '합성 자료 · 이 브라우저에 저장' : '합성 자료 · 임시 메모리 저장 (새로고침 시 초기화)'
+  const storageLabel = persistence.persistent ? '합성 자료 · 일정·업무·수합은 이 브라우저에 저장 · 학생·활동 기록은 새로고침 시 초기화' : '합성 자료 · 임시 메모리 저장 (새로고침 시 초기화)'
+  const pageStorageLabel = page === 'students' ? '합성 자료 · 학생·활동 기록은 현재 창에서만 임시 보관 (새로고침 시 초기화)' : storageLabel
   function navigate(next: PageId) { if (resource.navigate(next)) setError('') }
   function selectMember(id: string) { navigation.requestAction(() => { resource.clear(); setMemberId(id); setError('') }) }
   function run(operation: () => void) { try { operation(); setError('') } catch (failure) { setError(failure instanceof Error ? failure.message : '개발 도구 실행에 실패했습니다.') } }
@@ -78,8 +85,8 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
     <button className="secondary small" disabled={locked} aria-pressed={empty} onClick={() => navigation.requestAction(() => { stores.calendar.setEmpty(!empty); setEmpty(!empty); setRevision(value => value + 1) })}>{empty ? '자료 다시 표시' : '빈 목록 시험'}</button>
     <button className="secondary small" disabled={!member.active} onClick={() => run(() => { stores.calendar.endMembership(member.id); refreshContext() })}>현재 소속 종료</button>
     <button className="secondary small" disabled={locked} onClick={() => navigation.requestAction(() => run(reset))}>합성 자료 초기화</button>
-  </div><p className="hint">실제 회원과 운영 DB는 이 도구로 변경되지 않습니다. 영속 저장이 가능한 환경은 한 창에서만 편집하여 여러 창의 덮어쓰기를 방지합니다.</p></details>
-  return <WorkspaceShell mode="preview" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name} storageLabel={storageLabel}
+  </div><p className="hint">실제 회원과 운영 DB는 이 도구로 변경되지 않습니다. 학생·활동 기록은 브라우저에 영구 저장하지 않고 이전 버전에서 저장한 학생 자료도 자동으로 열지 않습니다. 일정·업무·수합의 영속 저장이 가능한 환경은 한 창에서만 편집합니다.</p></details>
+  return <PendingRequestsProvider store={pendingRequests}><WorkspaceShell mode="preview" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name} storageLabel={pageStorageLabel}
     locked={locked} notice={navigation.announcement} tools={tools}
     quickActions={<WorkspaceSearch key={`${scopeKey}:${page}`} scopeKey={scopeKey} sources={searchSources} locked={locked} onOpen={resource.openSearchItem} />}
     contextControls={<label>학교 선택<select disabled={locked} value={member.schoolId} onChange={event => { const next = info.memberships.find(item => item.schoolId === event.target.value && item.userId === member.userId) ?? info.memberships.find(item => item.schoolId === event.target.value)!; selectMember(next.id) }}>{info.schools.map(item => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>}>
@@ -91,11 +98,11 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
           homeExtras={<><ModuleBoundary moduleName="내 업무" resetKey={scopeKey}><TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} compact onNavigationLockChange={setTaskLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary><ModuleBoundary moduleName="수합 요약" resetKey={scopeKey}><HomeWorkSummary member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} includeTasks={false} onOpenCollections={resource.openCollection} /></ModuleBoundary></>} /> :
           <main id="main-content" className="main-content">
             <header className="page-header"><div><p className="eyebrow">{school.name} · {info.basisDate} 기준</p><h1 tabIndex={-1}>{page === 'tasks' ? '내 업무' : page === 'collections' ? '자료 수합' : '수업과 학생'}</h1></div></header>
-            <div className="basis-strip"><span className="small-tag">합성 자료</span><span>{storageLabel}. 실제 학생·교사의 개인정보는 입력하지 마세요.</span></div>
+            <div className="basis-strip"><span className="small-tag">합성 자료</span><span>{pageStorageLabel}. 실제 학생·교사의 개인정보는 입력하지 마세요.</span></div>
             {page === 'students' ? <StudentsPanel member={member} members={info.memberships} date={info.basisDate} store={stores.students} /> : page === 'tasks' ? <TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} onNavigationLockChange={setTaskLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /> : <WorkflowPanel key={`${scopeKey}:${requested?.key ?? 'list'}`} member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} page="collections" initialRequestId={requested?.kind === 'collection' ? requested.id : undefined} initialUnitId={requested?.kind === 'collection' ? requested.unitId : undefined} />}
-            <footer className="workspace-footer">{storageLabel}<span>업무혁신시스템 · 로컬 계약 검증</span></footer>
+            <footer className="workspace-footer">{pageStorageLabel}<span>업무혁신시스템 · 로컬 계약 검증</span></footer>
           </main>}
       </ModuleBoundary>
     </EditSession>
-  </WorkspaceShell>
+  </WorkspaceShell></PendingRequestsProvider>
 }

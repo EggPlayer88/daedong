@@ -20,6 +20,7 @@ export function calendarSearchSource(adapter: CalendarAdapter, member: Membershi
     return events.filter(event => canRead(event, member, date)).map(event => ({
       kind: 'calendar', id: event.id, title: event.title, description: event.description,
       meta: `${event.startDate}${event.endDate === event.startDate ? '' : ` ~ ${event.endDate}`} · ${eventTime(event)} · ${event.location || '장소 미지정'} · ${visibilityLabels[event.visibility]}`,
+      searchValues: [event.endDate, event.location, ...(event.allDay ? [] : [event.startTime, event.endTime])],
       date: event.startDate,
     }))
   } }

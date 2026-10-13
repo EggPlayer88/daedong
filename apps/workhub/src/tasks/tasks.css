@@ -7,3 +7,9 @@
 @media(min-width:1100px){.task-compact .task-list{grid-template-columns:repeat(2,minmax(0,1fr))}.task-compact .task-empty{grid-column:1/-1}}
 .task-panel :is(button,input,select,textarea){min-height:44px}
 .task-panel :is(.task-error,.task-notice):focus{outline:3px solid #ad701e;outline-offset:3px}
+
+/* 저장 결과와 이어지는 행동을 한 줄로 묶고 좁은 화면에서는 자연스럽게 줄바꿈한다. */
+.task-notice{display:flex;align-items:center;justify-content:space-between;gap:8px 16px;flex-wrap:wrap}
+.task-notice .task-text-button{flex-shrink:0}
+.task-retry>button{margin:4px 8px 0 0}
+.task-retry:focus{outline:3px solid var(--ui-accent,#346d5e);outline-offset:3px}

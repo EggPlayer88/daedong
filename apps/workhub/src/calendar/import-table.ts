@@ -18,6 +18,7 @@ export interface ImportRow {
   draft?: EventDraft
   errors: string[]
 }
+export interface UnmappedImportColumn { index: number; label: string; count: number; sample: string; timeLike: boolean }
 export const IMPORT_FIELDS: ReadonlyArray<{ key: ImportField; label: string; required?: boolean }> = [
   { key: 'sourceId', label: '원본 ID' },
   { key: 'title', label: '제목', required: true },
@@ -47,6 +48,16 @@ export function suggestImportMapping(headers: unknown): ImportMapping {
     // 같은 뜻의 열이 둘 이상이면 사용자가 선택할 때까지 비워 둔다.
     return [key, candidates.length === 1 ? candidates[0] : -1]
   })) as ImportMapping
+}
+
+// 값이 있는 열의 제외는 자동으로 동의한 것으로 보지 않는다. 빈 열은 확인을 요구하지 않는다.
+export function unmappedImportColumns(table: ImportTable, mapping: ImportMapping): UnmappedImportColumn[] {
+  const mapped = new Set(IMPORT_FIELDS.map(field => mapping[field.key]).filter(index => Number.isInteger(index) && index >= 0))
+  return table.headers.flatMap((header, index) => {
+    if (mapped.has(index)) return []
+    const values = table.rows.map(row => row.cells[index]?.trim() ?? '').filter(Boolean)
+    return values.length ? [{ index, label: header || '(열 이름 없음)', count: values.length, sample: values[0].slice(0, 80), timeLike: /시간|일시|time/i.test(header) }] : []
+  })
 }
 
 function detectDelimiter(text: string): 'tab' | 'comma' {
@@ -121,9 +132,9 @@ export function parseImportTable(input: unknown, delimiter: 'auto' | 'tab' | 'co
 }
 
 function dateValue(value: string, label: string, errors: string[]): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) || /^(\d{4})\.(\d{1,2})\.(\d{1,2})$/.exec(value) || /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) || /^(\d{4})\.[ \t]*(\d{1,2})\.[ \t]*(\d{1,2})\.?$/.exec(value) || /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(value)
   if (!match) {
-    errors.push(`${label}은 연도가 있는 YYYY-MM-DD, YYYY.M.D 또는 YYYY/M/D로 입력해 주세요.`)
+    errors.push(`${label}은 연도가 있는 YYYY-MM-DD, YYYY. M. D. 또는 YYYY/M/D로 입력해 주세요.`)
     return ''
   }
   const result = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`
@@ -133,6 +144,22 @@ function dateValue(value: string, label: string, errors: string[]): string {
     return ''
   }
   return result
+}
+
+function timeValue(value: string, label: string, errors: string[]): string {
+  if (!value) return ''
+  const match = /^(?:(오전|오후)[ \t]*)?(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(value)
+  if (!match || Number(match[2]) > (match[1] ? 12 : 23) || match[1] && Number(match[2]) < 1) {
+    errors.push(`${label}은 9:00, 09:00 또는 오전/오후 9:00:00 형식으로 입력해 주세요.`)
+    return ''
+  }
+  // 일정 계약은 분 단위다. 초를 버려 다른 시각으로 등록하지 않는다.
+  if (match[4] && match[4] !== '00') {
+    errors.push(`${label}은 분 단위로만 등록할 수 있습니다. 0이 아닌 초는 원본에서 확인해 주세요.`)
+    return ''
+  }
+  const hour = match[1] ? Number(match[2]) % 12 + (match[1] === '오후' ? 12 : 0) : Number(match[2])
+  return `${String(hour).padStart(2, '0')}:${match[3]}`
 }
 
 function sameScheduleKey(draft: EventDraft): string {
@@ -165,8 +192,9 @@ export function prepareImportRows(table: ImportTable, mapping: ImportMapping, me
     if (!result.title) errors.push('제목을 입력해 주세요.')
     const startDate = dateValue(value('startDate'), '시작일', errors)
     const endDate = value('endDate') ? dateValue(value('endDate'), '종료일', errors) : startDate
-    const startTime = value('startTime'), endTime = value('endTime'), allDay = !startTime && !endTime
-    if (!allDay && (!/^([01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(endTime))) errors.push('시간 일정은 시작·종료 시간을 모두 HH:mm(24시간제)로 입력해 주세요.')
+    const rawStartTime = value('startTime'), rawEndTime = value('endTime'), allDay = !rawStartTime && !rawEndTime
+    const startTime = timeValue(rawStartTime, '시작 시간', errors), endTime = timeValue(rawEndTime, '종료 시간', errors)
+    if (!allDay && (!rawStartTime || !rawEndTime)) errors.push('시간 일정은 시작·종료 시간을 모두 입력해 주세요.')
     if (errors.length) return result
     try {
       result.draft = normalizeDraft({
