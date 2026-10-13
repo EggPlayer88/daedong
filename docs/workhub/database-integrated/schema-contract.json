@@ -10757,13 +10757,6 @@
           "initially_deferred": false
         },
         {
-          "name": "collection_units_responsible_membership_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL responsible_membership_id",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
           "name": "collection_units_school_id_collection_id_fkey",
           "kind": "f",
           "definition": "FOREIGN KEY (school_id, collection_id) REFERENCES workhub.collections(school_id, id)",
@@ -10979,6 +10972,15 @@
         "workflows-changes.json"
       ],
       "removed_columns": [],
+      "superseded_constraints": [
+        {
+          "name": "collection_units_responsible_membership_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL responsible_membership_id",
+          "deferrable": false,
+          "initially_deferred": false
+        }
+      ],
       "contract_overrides": [],
       "domain": "collection"
     },
@@ -11282,13 +11284,6 @@
           "initially_deferred": false
         },
         {
-          "name": "collections_check",
-          "kind": "c",
-          "definition": "CHECK (((visibility = 'audience'::text) = (view_audience_set_id IS NOT NULL)))",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
           "name": "collections_check1",
           "kind": "c",
           "definition": "CHECK (((state = 'draft'::text) OR (published_at IS NOT NULL)))",
@@ -11429,13 +11424,6 @@
           "initially_deferred": false
         },
         {
-          "name": "collections_school_id_view_audience_set_id_fkey",
-          "kind": "f",
-          "definition": "FOREIGN KEY (school_id, view_audience_set_id) REFERENCES workhub.audience_sets(school_id, id)",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
           "name": "collections_self_review_check",
           "kind": "c",
           "definition": "CHECK ((self_review = ANY (ARRAY['forbid'::text, 'allow_with_note'::text])))",
@@ -11502,20 +11490,6 @@
           "name": "collections_version_not_null",
           "kind": "n",
           "definition": "NOT NULL version",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
-          "name": "collections_visibility_check",
-          "kind": "c",
-          "definition": "CHECK ((visibility = ANY (ARRAY['school'::text, 'audience'::text, 'participants'::text])))",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
-          "name": "collections_visibility_not_null",
-          "kind": "n",
-          "definition": "NOT NULL visibility",
           "deferrable": false,
           "initially_deferred": false
         }
@@ -11590,18 +11564,6 @@
             "school_id",
             "id"
           ]
-        },
-        {
-          "name": "collections_school_id_view_audience_set_id_fkey",
-          "columns": [
-            "school_id",
-            "view_audience_set_id"
-          ],
-          "target_table": "workhub.audience_sets",
-          "target_columns": [
-            "school_id",
-            "id"
-          ]
         }
       ],
       "inherited_indexes": [
@@ -11636,7 +11598,11 @@
       "mandatory_constraints": [
         "(school_id,id,current_schema_id) FK collection_schemas(school_id,collection_id,id) DEFERRABLE",
         "published 이후 current_schema_id NN, same collection의 published 판",
-        "각 visibility=audience iff 해당 audience FK NN",
+        "request_visibility/result_visibility 각각 school/audience/participants 중 하나",
+        "request_visibility=audience iff request_audience_set_id IS NOT NULL",
+        "result_visibility=audience iff result_audience_set_id IS NOT NULL",
+        "FOREIGN KEY(school_id,request_audience_set_id) REFERENCES workhub.audience_sets(school_id,id); 선택 대상은 MATCH SIMPLE",
+        "FOREIGN KEY(school_id,result_audience_set_id) REFERENCES workhub.audience_sets(school_id,id); 선택 대상은 MATCH SIMPLE",
         "result_visibility<>participants이면 results_published_by/at NN 및 명시 receipt"
       ],
       "mandatory_rules": [
@@ -11661,6 +11627,50 @@
       "removed_columns": [
         "visibility",
         "view_audience_set_id"
+      ],
+      "superseded_constraints": [
+        {
+          "name": "collections_check",
+          "kind": "c",
+          "definition": "CHECK (((visibility = 'audience'::text) = (view_audience_set_id IS NOT NULL)))",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "collections_visibility_check",
+          "kind": "c",
+          "definition": "CHECK ((visibility = ANY (ARRAY['school'::text, 'audience'::text, 'participants'::text])))",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "collections_visibility_not_null",
+          "kind": "n",
+          "definition": "NOT NULL visibility",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "collections_school_id_view_audience_set_id_fkey",
+          "kind": "f",
+          "definition": "FOREIGN KEY (school_id, view_audience_set_id) REFERENCES workhub.audience_sets(school_id, id)",
+          "deferrable": false,
+          "initially_deferred": false
+        }
+      ],
+      "superseded_foreign_keys": [
+        {
+          "name": "collections_school_id_view_audience_set_id_fkey",
+          "columns": [
+            "school_id",
+            "view_audience_set_id"
+          ],
+          "target_table": "workhub.audience_sets",
+          "target_columns": [
+            "school_id",
+            "id"
+          ]
+        }
       ],
       "contract_overrides": [],
       "domain": "collection"
@@ -25827,13 +25837,6 @@
           "initially_deferred": false
         },
         {
-          "name": "idempotency_receipts_actor_account_id_not_null",
-          "kind": "n",
-          "definition": "NOT NULL actor_account_id",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
           "name": "idempotency_receipts_created_at_not_null",
           "kind": "n",
           "definition": "NOT NULL created_at",
@@ -25858,13 +25861,6 @@
           "name": "idempotency_receipts_operation_not_null",
           "kind": "n",
           "definition": "NOT NULL operation",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
-          "name": "idempotency_receipts_pkey",
-          "kind": "p",
-          "definition": "PRIMARY KEY (actor_account_id, scope_key, operation, idem_key)",
           "deferrable": false,
           "initially_deferred": false
         },
@@ -25913,15 +25909,11 @@
         {
           "name": "idempotency_expiry",
           "definition": "CREATE INDEX idempotency_expiry ON workhub.idempotency_receipts USING btree (expires_at) WHERE (expires_at IS NOT NULL)"
-        },
-        {
-          "name": "idempotency_receipts_pkey",
-          "definition": "CREATE UNIQUE INDEX idempotency_receipts_pkey ON workhub.idempotency_receipts USING btree (actor_account_id, scope_key, operation, idem_key)"
         }
       ],
       "source_policies_not_target": [],
       "mandatory_constraints": [
-        "기존 actor_account_id 기반 PK를 PRIMARY KEY(actor_key,scope_key,operation,idem_key)로 교체",
+        "PRIMARY KEY(actor_key,scope_key,operation,idem_key); 기존 actor_account_id 기반 PK와 인덱스를 대체",
         "num_nonnulls(actor_account_id,actor_service_principal_id)=1",
         "request_sha256 불변; 같은키 다른payload conflict"
       ],
@@ -25943,7 +25935,29 @@
         "student-ai-changes.json"
       ],
       "removed_columns": [],
+      "superseded_constraints": [
+        {
+          "name": "idempotency_receipts_actor_account_id_not_null",
+          "kind": "n",
+          "definition": "NOT NULL actor_account_id",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "idempotency_receipts_pkey",
+          "kind": "p",
+          "definition": "PRIMARY KEY (actor_account_id, scope_key, operation, idem_key)",
+          "deferrable": false,
+          "initially_deferred": false
+        }
+      ],
       "contract_overrides": [],
+      "superseded_indexes": [
+        {
+          "name": "idempotency_receipts_pkey",
+          "definition": "CREATE UNIQUE INDEX idempotency_receipts_pkey ON workhub.idempotency_receipts USING btree (actor_account_id, scope_key, operation, idem_key)"
+        }
+      ],
       "domain": "operations"
     },
     {
@@ -61774,7 +61788,7 @@
           "name": "input_tokens",
           "type": "bigint",
           "nullable": true,
-          "default": "0",
+          "default": null,
           "generated": "",
           "identity": "",
           "description": "DEFAULT 제거: NULL미확인,0실제0",
@@ -61784,7 +61798,7 @@
           "name": "output_tokens",
           "type": "bigint",
           "nullable": true,
-          "default": "0",
+          "default": null,
           "generated": "",
           "identity": "",
           "description": "DEFAULT 제거: 공급자가 보고한 출력량",
@@ -61794,7 +61808,7 @@
           "name": "cache_read_tokens",
           "type": "bigint",
           "nullable": true,
-          "default": "0",
+          "default": null,
           "generated": "",
           "identity": "",
           "description": "DEFAULT 제거: 미확인과0분리",
@@ -61804,7 +61818,7 @@
           "name": "cache_write_tokens",
           "type": "bigint",
           "nullable": true,
-          "default": "0",
+          "default": null,
           "generated": "",
           "identity": "",
           "description": "DEFAULT 제거: 미확인과0분리",
@@ -61937,23 +61951,9 @@
           "initially_deferred": false
         },
         {
-          "name": "usage_events_cache_read_tokens_not_null",
-          "kind": "n",
-          "definition": "NOT NULL cache_read_tokens",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
           "name": "usage_events_cache_write_tokens_check",
           "kind": "c",
           "definition": "CHECK ((cache_write_tokens >= 0))",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
-          "name": "usage_events_cache_write_tokens_not_null",
-          "kind": "n",
-          "definition": "NOT NULL cache_write_tokens",
           "deferrable": false,
           "initially_deferred": false
         },
@@ -62014,13 +62014,6 @@
           "initially_deferred": false
         },
         {
-          "name": "usage_events_input_tokens_not_null",
-          "kind": "n",
-          "definition": "NOT NULL input_tokens",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
           "name": "usage_events_model_not_null",
           "kind": "n",
           "definition": "NOT NULL model",
@@ -62038,13 +62031,6 @@
           "name": "usage_events_output_tokens_check",
           "kind": "c",
           "definition": "CHECK ((output_tokens >= 0))",
-          "deferrable": false,
-          "initially_deferred": false
-        },
-        {
-          "name": "usage_events_output_tokens_not_null",
-          "kind": "n",
-          "definition": "NOT NULL output_tokens",
           "deferrable": false,
           "initially_deferred": false
         },
@@ -62222,6 +62208,36 @@
         "student-ai-changes.json"
       ],
       "removed_columns": [],
+      "superseded_constraints": [
+        {
+          "name": "usage_events_input_tokens_not_null",
+          "kind": "n",
+          "definition": "NOT NULL input_tokens",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "usage_events_output_tokens_not_null",
+          "kind": "n",
+          "definition": "NOT NULL output_tokens",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "usage_events_cache_read_tokens_not_null",
+          "kind": "n",
+          "definition": "NOT NULL cache_read_tokens",
+          "deferrable": false,
+          "initially_deferred": false
+        },
+        {
+          "name": "usage_events_cache_write_tokens_not_null",
+          "kind": "n",
+          "definition": "NOT NULL cache_write_tokens",
+          "deferrable": false,
+          "initially_deferred": false
+        }
+      ],
       "contract_overrides": [],
       "domain": "ai"
     }

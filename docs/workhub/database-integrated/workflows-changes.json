@@ -516,6 +516,12 @@
     {
       "table": "workhub.collections",
       "action": "alter",
+      "supersedes_constraints": [
+        "collections_check",
+        "collections_visibility_check",
+        "collections_visibility_not_null",
+        "collections_school_id_view_audience_set_id_fkey"
+      ],
       "columns": [
         {
           "name": "current_schema_id",
@@ -572,7 +578,11 @@
       "constraints": [
         "(school_id,id,current_schema_id) FK collection_schemas(school_id,collection_id,id) DEFERRABLE",
         "published 이후 current_schema_id NN, same collection의 published 판",
-        "각 visibility=audience iff 해당 audience FK NN",
+        "request_visibility/result_visibility 각각 school/audience/participants 중 하나",
+        "request_visibility=audience iff request_audience_set_id IS NOT NULL",
+        "result_visibility=audience iff result_audience_set_id IS NOT NULL",
+        "FOREIGN KEY(school_id,request_audience_set_id) REFERENCES workhub.audience_sets(school_id,id); 선택 대상은 MATCH SIMPLE",
+        "FOREIGN KEY(school_id,result_audience_set_id) REFERENCES workhub.audience_sets(school_id,id); 선택 대상은 MATCH SIMPLE",
         "result_visibility<>participants이면 results_published_by/at NN 및 명시 receipt"
       ],
       "indexes": [
@@ -637,6 +647,9 @@
     {
       "table": "workhub.collection_units",
       "action": "alter",
+      "supersedes_constraints": [
+        "collection_units_responsible_membership_id_not_null"
+      ],
       "columns": [
         {
           "name": "active_schema_id",
