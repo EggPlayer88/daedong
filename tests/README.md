@@ -96,6 +96,9 @@ npm test
 | `test_workhub_editor_accessibility.mjs` | 반복 일정 편집기의 고유 ID와 제목·폼·대상 안내 연결 |
 | `test_workhub_collection_accessibility.mjs` | 반복 수합 필드·단위 이름·표 머리글·상태·초점 대상의 SSR 연결 |
 | `test_workhub_student_accessibility.mjs` | 학생 관찰·철회·활동의 반복 폼 이름과 오류·설명 연결 |
+| `test_workhub_list_window.mjs` | 공통 20개 표시 범위·쪽 경계·목록 축소·깨진 입력·원본 비변경·페이지 SSR 안내 |
+| `test_workhub_collection_paging.mjs` | 1,000요청/100단위의 제한 렌더·전체 집계·직접 원본·접힌 이력·깨진 조회 |
+| `test_workhub_student_paging.mjs` | 1,000관찰의 제한 렌더·전체 근거·접힌 이력·소속 종료·깨진 전체 조회 |
 
 다음은 Chrome과 Playwright가 필요한 별도 브라우저 시험이다. `PLAYWRIGHT_MODULE`로 설치된 모듈 경로를 지정할 수 있다. 합성 자료만 쓰며 운영 서버에 접속하지 않는다.
 
@@ -114,6 +117,10 @@ node tests/browser/workhub-student-entry.mjs     # 관찰/정정·대상 유지�
 node tests/browser/workhub-accessibility.mjs   # 일반/Shadow DOM의 업무·일정·메뉴 초점과 모바일
 node tests/browser/workhub-collection-accessibility.mjs # 수합 작성·응답·검토·표의 키보드/필드 연결
 node tests/browser/workhub-student-accessibility.mjs # 정정·철회·채택·복구 초점과 긴 이력 줄바꿈
+node tests/browser/workhub-task-paging.mjs       # 1000업무·쪽 이동·원본·편집/재시도 잠금
+node tests/browser/workhub-collection-paging.mjs # 1000요청/100단위·전체집계·표와 상세·입력 보호
+node tests/browser/workhub-student-paging.mjs    # 각1000기록/활동·화면밖 근거검증·조회실패후 같은쪽 복귀
+node tests/browser/workhub-scale-baseline.mjs   # 137a871과 현재의 같은 합성자료 DOM 비교
 node scripts/export-workhub-preview.mjs         # 기본 출력: dist/workhub-preview.html
 node tests/browser/workhub-offline.mjs          # file:// 파일·스타일·저장·외부 요청 0
 ```

@@ -146,11 +146,12 @@ try{
     await page.getByRole('alert').filter({hasText:'학교 소속이 종료'}).waitFor();assert.equal(await page.getByLabel('학생 찾기',{exact:true}).count(),0);assert.equal(await page.getByLabel('나의 근거 목록',{exact:true}).count(),0)
   })
   await test('실제 화면 정정은 불변 개정 이력을 보존하고 새 관찰판을 표시한다',async()=>{
-    await reset();const card=record('첫 학생의 직접 관찰');await card.getByRole('button',{name:'정정하기',exact:true}).click()
+    await reset();const id=await page.evaluate(()=>qa.ids().first),card=page.locator(`[data-student-record-id="${id}"]`);await card.getByRole('button',{name:'정정하기',exact:true}).click()
     await page.getByLabel('직접 확인한 사실',{exact:true}).fill('화면에서 정정한 확인 사실');await page.getByLabel('정정 사유',{exact:true}).fill('내용을 다시 확인함')
     await page.getByRole('checkbox',{name:'직접 확인한 사실이며 이 학생의 기록임을 확인했습니다.',exact:true}).check()
     await page.getByRole('button',{name:'새 개정본 저장',exact:true}).click()
     assert((await card.innerText()).includes('v2'));assert.equal(await page.evaluate(()=>qa.records().find(r=>r.id===qa.ids().first).revisions.length),2)
+    assert.equal(await card.locator('.students-history').count(),0);await card.locator('summary').click();await card.locator('.students-history').waitFor();assert((await card.locator('.students-history').innerText()).includes('첫 학생의 직접 관찰'))
   })
   await test('PC·390px 학생 검색 및 기록 화면이 가로 넘침 없이 표시된다',async()=>{
     await reset();await scopeAll();await page.evaluate(()=>{qa.changeSource();qa.refresh()})

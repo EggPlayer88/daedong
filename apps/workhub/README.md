@@ -75,3 +75,7 @@ npm test
 4차 내 업무 HTML은 `node scripts/export-workhub-tasks-preview.mjs [저장할 절대 경로]`로 만듭니다. 실제 비동기 화면에 메모리 저장소를 주입해 등록·수정·상태 변경·홈 요약·응답 유실 재시도를 확인합니다. 실제 서버에 접속하거나 자료를 영구 저장하지 않습니다. 화면 검증은 `node tests/browser/workhub-tasks.mjs`, 앱 내 연결 회귀는 `node tests/browser/workhub-connection.mjs`입니다.
 
 키보드 초점·모바일 메뉴·일정 모달은 `node tests/browser/workhub-accessibility.mjs`로 일반 DOM과 ShadowRoot를 함께 검사합니다. 수합/학생 반복 필드와 저장·취소 이후 동작은 각각 `workhub-collection-accessibility.mjs`, `workhub-student-accessibility.mjs`로 확인합니다. 실제 화면읽기 프로그램 음성 검증과 교사 파일럿은 별도로 남아 있습니다.
+
+개인 업무·수합 요청·제출 단위 원본·관찰 기록·수업 활동은 20개씩 표시합니다. 원본 이동은 해당 쪽으로 연결되고 전체 집계·근거 출력은 쪽에 제한되지 않습니다. 접힌 개정/제출 이력은 펼칠 때 생성합니다. 작성 중에는 쪽 전환을 보호하고 일시 조회 실패 후에도 보존한 입력이 있는 쪽으로 복구합니다. 서버 조회의 커서·페이지 처리는 별도 미구현 사항입니다.
+
+대량 목록 회귀는 `workhub-task-paging.mjs`, `workhub-collection-paging.mjs`, `workhub-student-paging.mjs`이며, `workhub-scale-baseline.mjs`는 동일 합성 자료의 이전 커밋 `137a871`과 현재 DOM 개수를 비교합니다. [10차 인계](../../docs/workhub/15-scaled-lists.md)에 측정 범위와 잔여 조회 비용을 기록합니다.

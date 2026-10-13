@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useEditSession } from '../app/EditSession'
 import { collectionUnitStateLabels, collectionUnitStates, filterCollectionUnits, type CollectionUnitState, type CollectionWorkbench as WorkbenchData } from './collection-workbench'
 
@@ -16,6 +16,7 @@ export function CollectionWorkbench({ data, onOpenUnit, selectedUnitId }: { data
   const lastPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1)
   const currentPage = Math.min(page, lastPage)
   const shown = filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
+  useEffect(() => { if (page !== currentPage) setPage(currentPage) }, [page, currentPage])
   function change(action: () => void) { requestChange(() => { action(); setPage(0) }) }
   return <section className="wf-workbench" aria-label="제출 단위 진행현황">
     <div className="wf-section-title"><h4>제출 단위 진행현황</h4><span>현재 열람 가능한 {data.rows.length}부 · 기한 초과 {data.overdueCount}부</span></div>
