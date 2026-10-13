@@ -1,5 +1,5 @@
 import '../typography.css'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { activeAt } from '../domain'
@@ -19,6 +19,7 @@ import { calendarSearchSource, taskSearchSource } from '../search/sources'
 import { useResourceNavigation } from './resource-navigation'
 import { createPendingRequests, PendingRequestsProvider, recoveryScope } from './pending-requests'
 import { watchSchoolDay } from './school-day'
+import { createEditDrafts, EditDraftsProvider } from './edit-drafts'
 
 const connectedPages = enabledModules('connected').map(module => module.id)
 
@@ -37,6 +38,9 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
   const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
+  const editDrafts = useMemo(() => createEditDrafts(true), [connection, expectedUserId])
+  const draftCount = useSyncExternalStore(editDrafts.subscribe, editDrafts.count, editDrafts.count)
+  useEffect(() => () => editDrafts.clear(), [editDrafts])
   const [context, setContext] = useState<ConnectionContext>()
   const basisDateRef = useRef<string>()
   basisDateRef.current = context?.basisDate
@@ -61,8 +65,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       // 동시에 여러 신호가 와도 진행 중 조회 하나와 최신 후속 조회 하나만 유지한다.
       // 요청 즉시 이전 화면 응답을 무효화하고, 서버 문맥 읽기는 순서대로 완료한다.
       queued = ++generation.current
-      if (!quiet) { setLoading(true); setContext(undefined) }
-      setError('')
+      if (!quiet) { setLoading(true); setContext(undefined); setError('') }
+      // 재검증 대기 중에는 이전 실패 안내를 유지한다. 빈 학교 문맥으로 오해시키지 않는다.
       if (!running) void drain()
     }
     async function drain() {
@@ -75,20 +79,25 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
           try {
             const identity = await connection.getIdentity()
             if (!alive || version !== generation.current) continue
-            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
+            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); editDrafts.clear(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
             const next = await connection.loadContext()
             if (!alive || version !== generation.current) continue
-            const fingerprint = JSON.stringify(next.memberships)
-            // 다른 교사의 이름·목록 순서가 달라져도 내 요청 키는 잃지 않는다.
-            pendingRequests.retainScopes(next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate)).map(recoveryScope))
+            const mine = next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate))
+            const selected = mine.find(item => item.id === lastVerifiedMemberId.current) ?? mine[0]
+            const fingerprint = selected ? recoveryScope(selected) : ''
+            // 이름·동료 명부·서버 날짜 자체는 편집 권한을 바꾸지 않는다.
+            // 내 현재 학교의 유효 권한만 대조하고, 변경되면 기존 초안을 폐기한다.
+            pendingRequests.retainScopes(mine.map(recoveryScope))
+            if (selected) editDrafts.activate(fingerprint)
+            else editDrafts.clear()
             if (scopeFingerprint.current && fingerprint !== scopeFingerprint.current) setScopeEpoch(value => value + 1)
             scopeFingerprint.current = fingerprint
+            setError('')
             setContext(next)
             setRefreshEpoch(value => value + 1)
-            const mine = next.memberships.filter(member => member.userId === expectedUserId && activeAt(member, next.basisDate))
-            setMemberId(previous => mine.some(member => member.id === previous) ? previous : mine.some(member => member.id === lastVerifiedMemberId.current) ? lastVerifiedMemberId.current : mine[0]?.id ?? '')
+            setMemberId(selected?.id ?? '')
           } catch (failure) {
-            if (alive && version === generation.current) { setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
+            if (alive && version === generation.current) { editDrafts.suspend(); setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
           } finally { if (alive && version === generation.current) setLoading(false) }
         }
       } finally { running = false }
@@ -100,7 +109,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       generation.current += 1
       queued = undefined
       // 조회 실패도 화면은 숨긴다. 결과 미확정 명령은 같은 계정·소속 재검증 후에만 다시 표시한다.
-      if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); lastVerifiedMemberId.current = '' }
+      if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); editDrafts.clear(); lastVerifiedMemberId.current = '' }
+      else editDrafts.suspend()
       setDiagnosticEpoch(value => value + 1)
       setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
@@ -110,10 +120,10 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
     const onFocus = () => { refresh(true) }
     window.addEventListener('focus', onFocus)
     return () => { alive = false; queued = undefined; generation.current += 1; stopDayWatch(); unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
-  }, [connection, expectedUserId, attempt, pendingRequests])
+  }, [connection, expectedUserId, attempt, pendingRequests, editDrafts])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
-  const navigationLocked = taskNavigationLocked || calendarNavigationLocked
+  const navigationLocked = taskNavigationLocked || calendarNavigationLocked || (draftCount > 0 && (!context || !!error))
   const navigation = useWorkspaceNavigation({
     allowedPages: connectedPages,
     scopeKey: member ? `${expectedUserId}:${memberId}:${scopeEpoch}` : undefined,
@@ -125,13 +135,13 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const navigate = (next: PageId) => { resource.navigate(next) }
   const searchSources = useMemo(() => member && context ? [calendarSearchSource(adapter, member, context.basisDate), taskSearchSource(taskAdapter, member, context.basisDate)] : [], [adapter, taskAdapter, member, context])
   const requested = resource.current
-  return <PendingRequestsProvider store={pendingRequests}><StyleBoundary>
+  return <EditDraftsProvider store={editDrafts}><PendingRequestsProvider store={pendingRequests}><StyleBoundary>
     <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
-    {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> :
+    {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p>{draftCount > 0 && <p role="status">작성 중인 내용은 현재 탭에 임시 보관했습니다. 연결을 다시 확인하면 같은 계정과 학교의 입력을 복원합니다. 새로고침하거나 탭을 닫으면 사라집니다.</p>}<button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
         storageLabel="현재 학교 서버에 저장" locked={navigationLocked} notice={navigation.announcement}
         quickActions={<WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={resource.openSearchItem} />}
-        contextControls={<label>사용할 학교<select disabled={navigationLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
+        contextControls={<label>사용할 학교<select disabled={navigationLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
         <ModuleBoundary moduleName={page === 'tasks' ? '내 업무' : '학교 일정'} resetKey={`${resetKey}:${page}`}>
           {page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
@@ -142,5 +152,5 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
         </ModuleBoundary>
       </WorkspaceShell>}
     <ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} />
-  </StyleBoundary></PendingRequestsProvider>
+  </StyleBoundary></PendingRequestsProvider></EditDraftsProvider>
 }

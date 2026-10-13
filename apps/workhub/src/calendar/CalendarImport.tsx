@@ -1,9 +1,10 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type SetStateAction } from 'react'
 import type { CalendarEvent, Membership } from '../contracts'
 import { normalizeDraft } from '../domain'
 import { ListPagination } from '../app/ListPagination'
 import { listWindow } from '../app/list-window'
 import { PendingRequestsProvider, usePendingRequest, useRecoveryStore } from '../app/pending-requests'
+import { useEditDraft } from '../app/edit-drafts'
 import { EventEditor, type Adapter } from './EventEditor'
 import type { RelationOptions } from './contracts'
 import { IMPORT_FIELDS, IMPORT_LIMITS, findImportCandidates, parseImportTable, prepareImportRows, suggestImportMapping, unmappedImportColumns, type ImportMapping, type ImportRow, type ImportTable } from './import-table'
@@ -11,6 +12,12 @@ import styles from './import.css?inline'
 
 export interface CalendarImportProps { member: Membership; members: Membership[]; date: string; adapter: Adapter; relationOptions?: RelationOptions; demo?: boolean; storageLabel?: string; onClose: () => void; onSaved: (event: CalendarEvent) => void; onNavigationLockChange?: (locked: boolean) => void }
 const MAX_FILE_BYTES = 1_000_000
+const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
+interface ImportDraft {
+  source: string; delimiter: 'auto' | 'tab' | 'comma'; table?: ImportTable; mapping?: ImportMapping; rows?: ImportRow[]
+  omissionsConfirmed: boolean; selected?: ImportRow; receipts: Record<string, CalendarEvent>
+  suspended?: { row: ImportRow; requestKey: string }; page: number
+}
 
 // 붙여넣기는 등록 준비다. 실제 저장·권한·응답 유실 처리는 기존 일정 편집기에 맡긴다.
 export function CalendarImport(props: CalendarImportProps) {
@@ -21,43 +28,59 @@ export function CalendarImport(props: CalendarImportProps) {
 function CalendarImportScope(props: CalendarImportProps) {
   const { member, members, date, adapter, relationOptions, demo = false, storageLabel, onClose, onSaved, onNavigationLockChange } = props
   const recovery = usePendingRequest(member, 'calendar')
+  const draft = useEditDraft<ImportDraft>(member, 'calendar-import')
+  const [input, setInput] = useState<ImportDraft>(() => draft.initial ?? { source: '', delimiter: 'auto', omissionsConfirmed: false, receipts: {}, page: 0 })
+  const inputRef = useRef(input)
+  const { source, delimiter, table, mapping, rows, omissionsConfirmed, selected, receipts, suspended, page } = input
+  // 필드 변경과 같은 순간에 탭 메모리에 남긴다. 정리 함수에서는 폐기된 권한의 초안을 다시 쓰지 않는다.
+  function updateInput(patch: Partial<ImportDraft>) {
+    const next = { ...inputRef.current, ...patch }
+    inputRef.current = next; setInput(next)
+    draft.save(next, Boolean(next.source.trim() || next.table || next.selected || Object.keys(next.receipts).length))
+  }
+  function field<K extends keyof ImportDraft>(key: K) {
+    return (value: SetStateAction<ImportDraft[K]>) => updateInput({ [key]: typeof value === 'function' ? (value as (current: ImportDraft[K]) => ImportDraft[K])(inputRef.current[key]) : value })
+  }
+  const setSource = field('source'), setDelimiter = field('delimiter'), setTable = field('table'), setMapping = field('mapping'), setRows = field('rows')
+  const setOmissionsConfirmed = field('omissionsConfirmed'), setReceipts = field('receipts'), setSuspended = field('suspended'), setPage = field('page')
+  // 새 저장은 기존 목록을 다시 비교한 뒤에만 재개한다. 미확정 요청은 같은 키의 결과 확인이 우선이다.
+  const [restoringSelection, setRestoringSelection] = useState(Boolean(draft.initial?.selected) && !recovery.request)
+  const activeSelected = restoringSelection ? undefined : selected
+  function setSelected(value: ImportRow | undefined) { setRestoringSelection(false); updateInput({ selected: value }) }
   const id = useId(), dialog = useRef<HTMLDialogElement>(null), sourceInput = useRef<HTMLTextAreaElement>(null), resultHeading = useRef<HTMLHeadingElement>(null), errorElement = useRef<HTMLDivElement>(null), noticeElement = useRef<HTMLParagraphElement>(null)
   const alive = useRef(true), generation = useRef(0)
   const editorTrigger = useRef<HTMLButtonElement | null>(null), returnEditorFocus = useRef(false)
-  const [source, setSource] = useState(''), [delimiter, setDelimiter] = useState<'auto' | 'tab' | 'comma'>('auto')
-  const [table, setTable] = useState<ImportTable>(), [mapping, setMapping] = useState<ImportMapping>(), [rows, setRows] = useState<ImportRow[]>()
   const [existing, setExisting] = useState<CalendarEvent[]>([]), [reading, setReading] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [comparisonReady, setComparisonReady] = useState(false)
-  const [omissionsConfirmed, setOmissionsConfirmed] = useState(false)
-  const [selected, setSelected] = useState<ImportRow>(), [receipts, setReceipts] = useState<Record<string, CalendarEvent>>({}), [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({})
-  const [suspended, setSuspended] = useState<{ row: ImportRow; requestKey: string }>()
-  const [page, setPage] = useState(0), [closing, setClosing] = useState(false), [listFocus, setListFocus] = useState(0)
+  const [acknowledged, setAcknowledged] = useState<Record<string, boolean>>({})
+  const [closing, setClosing] = useState(false), [listFocus, setListFocus] = useState(0)
   const savedCount = Object.keys(receipts).length, pageRows = listWindow(rows, page)
   const omittedColumns = useMemo(() => table && mapping ? unmappedImportColumns(table, mapping) : [], [table, mapping])
   const unconfirmedOmissions = omittedColumns.length > 0 && !omissionsConfirmed
-  const locked = reading || Boolean(selected)
+  const locked = reading || Boolean(activeSelected)
   const pendingRow = suspended && suspended.requestKey === recovery.request?.command.idempotencyKey ? suspended.row : undefined
   const navigationLocked = Boolean(source.trim() || table || selected || savedCount || reading)
   useEffect(() => {
     onNavigationLockChange?.(navigationLocked)
     return () => onNavigationLockChange?.(false)
   }, [navigationLocked, onNavigationLockChange])
-  useEffect(() => {
+  useBrowserLayoutEffect(() => {
     alive.current = true
     const element = dialog.current, root = element?.getRootNode()
     const origin = (root instanceof ShadowRoot ? root.activeElement : document.activeElement) as HTMLElement | null
+    // 복구 시 자식 편집창도 함께 마운트될 수 있으므로 부모 창을 먼저 최상위 계층에 올린다.
     element?.showModal(); sourceInput.current?.focus()
     return () => { alive.current = false; generation.current++; element?.close(); if (origin?.isConnected) origin.focus() }
   }, [])
   useEffect(() => { if (error) errorElement.current?.focus() }, [error])
   useEffect(() => { if (listFocus) resultHeading.current?.focus() }, [listFocus])
   useEffect(() => {
-    if (!notice || selected) return
+    if (!notice || activeSelected) return
     const frame = requestAnimationFrame(() => noticeElement.current?.focus())
     return () => cancelAnimationFrame(frame)
-  }, [notice, selected])
+  }, [notice, activeSelected])
   useEffect(() => {
-    if (selected || !returnEditorFocus.current) return
+    if (activeSelected || !returnEditorFocus.current) return
     returnEditorFocus.current = false
     // 자식 대화상자가 열릴 때 행 버튼은 비활성화된다. 다시 활성화된 뒤 원래 버튼으로 잇는다.
     const frame = requestAnimationFrame(() => {
@@ -66,10 +89,12 @@ function CalendarImportScope(props: CalendarImportProps) {
       else resultHeading.current?.focus()
     })
     return () => cancelAnimationFrame(frame)
-  }, [selected])
-  function clearCheck() { setTable(undefined); setMapping(undefined); setRows(undefined); setExisting([]); setComparisonReady(false); setOmissionsConfirmed(false); setAcknowledged({}); setError(''); setNotice(''); setPage(0) }
+  }, [activeSelected])
+  function clearRows() { draft.removePrefix('import-row:'); setSelected(undefined); setSuspended(undefined); setRows(undefined); setExisting([]); setComparisonReady(false); setAcknowledged({}) }
+  function clearCheck() { setTable(undefined); setMapping(undefined); clearRows(); setOmissionsConfirmed(false); setError(''); setNotice(''); setPage(0) }
   function changeSource(value: string) { generation.current++; setSource(value); clearCheck() }
-  function close() { if (locked) return; if (source.trim() || savedCount) setClosing(true); else onClose() }
+  function finish() { draft.removePrefix('import-row:'); draft.remove(); onClose() }
+  function close() { if (locked) return; if (source.trim() || savedCount) setClosing(true); else finish() }
   function cancelRead() { generation.current++; setReading(false); setNotice('읽기를 취소했습니다. 원본 표는 유지됩니다. 다시 검사하거나 검토를 마칠 수 있습니다.') }
   async function readExisting() {
     const latest: unknown = await adapter.list(member.id)
@@ -94,8 +119,8 @@ function CalendarImportScope(props: CalendarImportProps) {
     finally { if (alive.current && attempt === generation.current) setReading(false) }
   }
   function inspectColumns() {
-    try { const parsed = parseImportTable(source, delimiter); setTable(parsed); setMapping(suggestImportMapping(parsed.headers)); setOmissionsConfirmed(false); setRows(undefined); setError(''); setNotice('열 이름을 확인했습니다. 제목과 시작일을 포함해 가져올 열을 선택하세요.') }
-    catch (failure) { setError(failure instanceof Error ? failure.message : '표를 읽지 못했습니다.'); setTable(undefined); setMapping(undefined); setRows(undefined) }
+    try { const parsed = parseImportTable(source, delimiter); setTable(parsed); setMapping(suggestImportMapping(parsed.headers)); setOmissionsConfirmed(false); clearRows(); setError(''); setNotice('열 이름을 확인했습니다. 제목과 시작일을 포함해 가져올 열을 선택하세요.') }
+    catch (failure) { setError(failure instanceof Error ? failure.message : '표를 읽지 못했습니다.'); setTable(undefined); setMapping(undefined); clearRows() }
   }
   async function inspectRows() {
     if (!table || !mapping || locked || savedCount || recovery.request) return
@@ -125,18 +150,19 @@ function CalendarImportScope(props: CalendarImportProps) {
       {demo && <p className="subtle-note">합성 자료 미리보기입니다. 실제 학교·학생 자료를 입력하지 마세요.</p>}
       {error && <div ref={errorElement} className="error-box" role="alert" tabIndex={-1}>{error}</div>}
       {notice && <p ref={noticeElement} className="notice-box" role="status" tabIndex={-1}>{notice}</p>}
-      {recovery.request && !selected && !closing && <section className="notice-box" aria-label="가져오기 저장 결과 확인 필요"><h3>먼저 보관한 일정의 저장 결과를 확인하세요</h3><p>{pendingRow ? `원본 ${pendingRow.line}행 ‘${pendingRow.title}’의 요청을 보관했습니다.` : '이전 일정 저장 요청의 결과가 아직 확인되지 않았습니다.'} 다른 행을 등록하기 전에 같은 요청으로 결과를 확인해 주세요. 표와 등록 완료 행은 그대로 유지됩니다.</p>{pendingRow && <button type="button" className="secondary" disabled={reading} onClick={event => { editorTrigger.current = event.currentTarget; setNotice(''); setSelected(pendingRow) }}>보관한 원본 {pendingRow.line}행 다시 확인</button>}<p>가져오기를 종료해 학교 일정으로 돌아갈 수도 있습니다. 현재 탭의 보관 요청은 학교 일정에서 다시 확인하세요. 새로고침하면 복구 정보가 사라집니다.</p></section>}
-      {closing ? <section className="notice-box" aria-label="일정 가져오기 종료 확인"><h3>가져오기를 종료할까요?</h3><p>등록 완료한 {savedCount}개 일정은 유지됩니다. 이 창의 원본 표와 아직 등록하지 않은 행은 닫으면 사라집니다.</p>{recovery.request && <p>결과 미확정 요청은 학교 일정의 ‘보관한 일정 확인’에서 같은 요청으로 확인하세요. 아직 등록되지 않았다고 판단해 새 일정으로 다시 입력하지 마세요.</p>}<div className="button-row"><button type="button" className="secondary" autoFocus onClick={() => setClosing(false)}>계속 검토</button><button type="button" className="primary" onClick={onClose}>가져오기 종료</button></div></section> : <>
+      {recovery.request && !activeSelected && !closing && <section className="notice-box" aria-label="가져오기 저장 결과 확인 필요"><h3>먼저 보관한 일정의 저장 결과를 확인하세요</h3><p>{pendingRow ? `원본 ${pendingRow.line}행 ‘${pendingRow.title}’의 요청을 보관했습니다.` : '이전 일정 저장 요청의 결과가 아직 확인되지 않았습니다.'} 다른 행을 등록하기 전에 같은 요청으로 결과를 확인해 주세요. 표와 등록 완료 행은 그대로 유지됩니다.</p>{pendingRow && <button type="button" className="secondary" disabled={reading} onClick={event => { editorTrigger.current = event.currentTarget; setNotice(''); setSelected(pendingRow) }}>보관한 원본 {pendingRow.line}행 다시 확인</button>}<p>가져오기를 종료해 학교 일정으로 돌아갈 수도 있습니다. 현재 탭의 보관 요청은 학교 일정에서 다시 확인하세요. 새로고침하면 복구 정보가 사라집니다.</p></section>}
+      {closing ? <section className="notice-box" aria-label="일정 가져오기 종료 확인"><h3>가져오기를 종료할까요?</h3><p>등록 완료한 {savedCount}개 일정은 유지됩니다. 이 창의 원본 표와 아직 등록하지 않은 행은 닫으면 사라집니다.</p>{recovery.request && <p>결과 미확정 요청은 학교 일정의 ‘보관한 일정 확인’에서 같은 요청으로 확인하세요. 아직 등록되지 않았다고 판단해 새 일정으로 다시 입력하지 마세요.</p>}<div className="button-row"><button type="button" className="secondary" autoFocus onClick={() => setClosing(false)}>계속 검토</button><button type="button" className="primary" onClick={finish}>가져오기 종료</button></div></section> : <>
       <fieldset className="form-fields" disabled={locked || savedCount > 0 || Boolean(recovery.request)}><legend className="sr-only">원본 표와 열 연결</legend>
         <label htmlFor={`${id}-source`}><span id={`${id}-source-label`}>원본 표 붙여넣기</span><textarea ref={sourceInput} id={`${id}-source`} aria-labelledby={`${id}-source-label`} className="ci-source" value={source} onChange={event => changeSource(event.target.value)} aria-describedby={`${id}-source-help`} spellCheck={false} placeholder={'제목\t시작일\t종료일\t장소\n교과 협의\t2026-10-20\t2026-10-20\t회의실'} /></label>
         <p id={`${id}-source-help`} className="hint">최대 {IMPORT_LIMITS.rows}행·{IMPORT_LIMITS.columns}열·{IMPORT_LIMITS.text.toLocaleString()}자. 첫 행은 열 이름입니다. 원본 표는 이 창에서만 처리됩니다.</p>
         <div className="form-grid"><label htmlFor={`${id}-file`}><span id={`${id}-file-label`}>CSV·TSV 파일 열기</span><input id={`${id}-file`} aria-labelledby={`${id}-file-label`} className="ci-file" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; void readFile(file) }} /></label><label htmlFor={`${id}-delimiter`}><span id={`${id}-delimiter-label`}>열 구분</span><select id={`${id}-delimiter`} aria-labelledby={`${id}-delimiter-label`} value={delimiter} onChange={event => { setDelimiter(event.target.value as typeof delimiter); clearCheck() }}><option value="auto">자동 확인</option><option value="tab">탭 · 시트에서 복사</option><option value="comma">쉼표 · CSV</option></select></label></div>
         <button type="button" className="secondary" disabled={!source.trim()} onClick={inspectColumns}>열 연결 확인</button>
-        {table && mapping && <><div className="ci-mapping">{IMPORT_FIELDS.map(field => <label key={field.key} htmlFor={`${id}-map-${field.key}`}><span id={`${id}-map-${field.key}-label`}>{field.label}{field.required ? ' (필수)' : ' (선택)'}</span><select id={`${id}-map-${field.key}`} aria-labelledby={`${id}-map-${field.key}-label`} value={mapping[field.key]} onChange={event => { setMapping({ ...mapping, [field.key]: Number(event.target.value) }); setOmissionsConfirmed(false); setRows(undefined); setExisting([]); setError(''); setNotice('') }}><option value={-1}>가져오지 않음</option>{table.headers.map((header, index) => <option key={index} value={index}>{index + 1}열 · {header || '(열 이름 없음)'}</option>)}</select></label>)}</div>
+        {table && mapping && <><div className="ci-mapping">{IMPORT_FIELDS.map(field => <label key={field.key} htmlFor={`${id}-map-${field.key}`}><span id={`${id}-map-${field.key}-label`}>{field.label}{field.required ? ' (필수)' : ' (선택)'}</span><select id={`${id}-map-${field.key}`} aria-labelledby={`${id}-map-${field.key}-label`} value={mapping[field.key]} onChange={event => { setMapping({ ...mapping, [field.key]: Number(event.target.value) }); setOmissionsConfirmed(false); clearRows(); setError(''); setNotice('') }}><option value={-1}>가져오지 않음</option>{table.headers.map((header, index) => <option key={index} value={index}>{index + 1}열 · {header || '(열 이름 없음)'}</option>)}</select></label>)}</div>
           {omittedColumns.length > 0 && <section className="notice-box" aria-labelledby={`${id}-omissions-title`}><h3 id={`${id}-omissions-title`}>가져오지 않는 열을 확인하세요</h3><p id={`${id}-omissions-help`}>다음 열에는 값이 있지만 연결하지 않았습니다. 필요한 열을 연결하거나, 아래 내용을 제외해도 되는지 확인한 뒤 등록하세요.</p><ul>{omittedColumns.map(column => <li key={column.index} style={{ overflowWrap: 'anywhere' }}>{column.index + 1}열 ‘{column.label}’ · 값이 있는 {column.count}행 · 예: {column.sample}</li>)}</ul>{omittedColumns.some(column => column.timeLike) && <p>‘시간’·‘일시’에 시작과 종료가 함께 있다면 원본에서 각각의 열로 나누어 연결하세요. 시간 열을 제외하면 종일 일정으로 준비될 수 있습니다.</p>}<label className="check-label"><input type="checkbox" checked={omissionsConfirmed} onChange={event => setOmissionsConfirmed(event.target.checked)} aria-describedby={`${id}-omissions-help`} />표시된 열을 제외하고 등록하는 데 동의합니다</label></section>}
           <p className="hint">연도가 있는 날짜(예: 2026. 10. 13.(화))와 시간(예: 9:00, 오후 2:30:00)을 사용할 수 있습니다. 괄호 안의 한글 요일은 날짜와 일치해야 합니다. 초는 00만 허용합니다. 종료일이 비어 있으면 시작일과 같은 날로, 시작·종료 시간이 모두 비어 있으면 종일 일정으로 준비합니다. 그 밖의 빈칸이나 모호한 날짜는 오류로 안내합니다.</p>
           <button type="button" className="primary" onClick={() => { void inspectRows() }}>행 검사 · 기존 일정과 비교</button></>}
       </fieldset>
+      {restoringSelection && selected && !closing && <p className="notice-box" role="status">원본 {selected.line}행의 작성 내용을 보관했습니다. 기존 일정을 다시 비교하고 이 행의 ‘내용·공유 대상 확인’을 누르면 계속 작성할 수 있습니다.</p>}
       {reading && <div className="notice-box"><p role="status">원본 자료와 기존 일정을 확인하는 중…</p><button type="button" className="secondary" onClick={cancelRead}>읽기 취소</button></div>}
       {rows && <section aria-labelledby={`${id}-results`}><h3 ref={resultHeading} id={`${id}-results`} className="ci-summary-title" tabIndex={-1}>가져올 일정 검토</h3><div className="ci-counts" role="status"><span>전체 {rows.length}행</span><span>입력 오류 {rows.filter(row => row.errors.length).length}행</span><span>등록 완료 {savedCount}개</span><span>기존 일정 후보 {rows.filter(row => candidates(row).length && !receipts[row.key]).length}행</span></div>
         <p className="ci-target">새 일정은 ‘나만 보기’로 준비합니다. ‘내용·공유 대상 확인’에서 열람 범위와 홈 추천 대상을 직접 확인한 뒤 등록하세요.</p>
@@ -156,5 +182,5 @@ function CalendarImportScope(props: CalendarImportProps) {
       </>}
     </div>
     {!closing && <footer className="dialog-footer"><p className="hint">{storageLabel ?? (demo ? '합성 자료 · 개발 저장소' : '현재 학교 서버에 저장')} · 표 검사만으로 저장되지 않습니다.</p><button type="button" className="secondary" disabled={locked} onClick={close}>검토 마치기</button></footer>}
-  </dialog>{selected?.draft && <EventEditor key={selected.key} initialDraft={selected.draft} member={member} members={members} date={date} adapter={adapter} relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} suspendLabel="입력창 접고 표 보기" onSuspend={() => { if (!recovery.request) return; setSuspended({ row: selected, requestKey: recovery.request.command.idempotencyKey }); setSelected(undefined); setNotice(`원본 ${selected.line}행의 저장 요청을 보관했습니다. 표에서 같은 요청을 다시 확인할 수 있습니다.`) }} onClose={() => { returnEditorFocus.current = true; setSelected(undefined); setSuspended(undefined) }} onSaved={event => { setReceipts(value => ({ ...value, [selected.key]: event })); setExisting(value => [...value.filter(row => row.id !== event.id), event]); setSelected(undefined); setSuspended(undefined); setNotice(`‘${event.title}’ 등록을 확인했습니다. 남은 행을 계속 검토할 수 있습니다.`); onSaved(event) }} />}</>
+  </dialog>{activeSelected?.draft && <EventEditor key={activeSelected.key} draftSlot={`import-row:${activeSelected.key}`} initialDraft={activeSelected.draft} member={member} members={members} date={date} adapter={adapter} relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} suspendLabel="입력창 접고 표 보기" onSuspend={() => { if (!recovery.request) return; setSuspended({ row: activeSelected, requestKey: recovery.request.command.idempotencyKey }); setSelected(undefined); setNotice(`원본 ${activeSelected.line}행의 저장 요청을 보관했습니다. 표에서 같은 요청을 다시 확인할 수 있습니다.`) }} onClose={() => { returnEditorFocus.current = true; setSelected(undefined); setSuspended(undefined) }} onSaved={event => { setReceipts(value => ({ ...value, [activeSelected.key]: event })); setExisting(value => [...value.filter(row => row.id !== event.id), event]); setSelected(undefined); setSuspended(undefined); setNotice(`‘${event.title}’ 등록을 확인했습니다. 남은 행을 계속 검토할 수 있습니다.`); onSaved(event) }} />}</>
 }

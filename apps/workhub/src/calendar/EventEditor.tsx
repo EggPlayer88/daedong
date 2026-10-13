@@ -1,13 +1,16 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useLayoutEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { ContractError, type AudienceGroup, type CalendarEvent, type EventDraft, type Membership, type SaveCommand } from '../contracts'
-import { activeAt, canRead, matchesAudience, recommendationReason } from '../domain'
+import { activeAt, canEdit, canRead, matchesAudience, normalizeDraft, recommendationReason } from '../domain'
 import type { CalendarAdapter, RelationOptions } from './contracts'
 import { usePendingRequest } from '../app/pending-requests'
+import { useEditDraft } from '../app/edit-drafts'
 import { eventTime, visibilityLabels } from './formatting'
 
 // 기존 일정 화면·미리보기 import 경로를 유지한다. 순수 조회 계층은 formatting을 직접 사용한다.
 export { dateLabel, eventTime, visibilityLabels } from './formatting'
 
+export interface EventEditorSnapshot { original?: CalendarEvent; draft: EventDraft; version?: number; initialValue: string; conflict?: CalendarEvent }
+const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const noRelations: RelationOptions = { departmentIds: [], gradeIds: [], subjectIds: [] }
 
 export type Adapter = CalendarAdapter
@@ -19,18 +22,24 @@ function audienceLabel(event: EventDraft, members: Membership[], relationLabels:
   return `${event.audience.all ? '모든 교사' : groups || '직접 포함 교사만'} · 직접 포함: ${names(event.audience.includeMemberIds)} · 제외: ${names(event.audience.excludeMemberIds)}`
 }
 
-export function EventEditor({ original: providedOriginal, initialDraft, member, members, date, adapter, onClose, onSaved, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
-  original?: CalendarEvent; initialDraft?: EventDraft; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
+export function EventEditor({ original: providedOriginal, initialDraft, draftSlot = 'calendar-editor', member, members, date, adapter, onClose, onSaved, onDiscard, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
+  original?: CalendarEvent; initialDraft?: EventDraft; draftSlot?: string; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onDiscard?: () => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
 }) {
   const recovery = usePendingRequest(member, 'calendar')
   const [restored] = useState(() => recovery.request)
-  const original = restored ? restored.original : providedOriginal
-  const [draft, setDraft] = useState<EventDraft>(() => restored ? structuredClone(restored.command.draft) : original || initialDraft ? structuredClone(original ?? initialDraft!) : blank(date))
-  const [version, setVersion] = useState(original?.version)
+  const editMemory = useEditDraft<EventEditorSnapshot>(member, draftSlot)
+  const [savedDraft] = useState(() => restored ? undefined : editMemory.initial)
+  const original = restored ? restored.original : savedDraft ? savedDraft.original : providedOriginal
+  const retiredDraft = useRef(false)
+  const [restoreState, setRestoreState] = useState<'checking' | 'ready' | 'retry' | 'denied'>(savedDraft?.original ? 'checking' : 'ready')
+  const [restoreAttempt, setRestoreAttempt] = useState(0)
+  const [restoreError, setRestoreError] = useState('')
+  const [draft, setDraft] = useState<EventDraft>(() => restored ? structuredClone(restored.command.draft) : savedDraft ? structuredClone(savedDraft.draft) : original || initialDraft ? structuredClone(original ?? initialDraft!) : blank(date))
+  const [version, setVersion] = useState(savedDraft?.version ?? original?.version)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [conflict, setConflict] = useState<CalendarEvent>()
+  const [conflict, setConflict] = useState<CalendarEvent | undefined>(savedDraft?.conflict)
   const [pending, setPending] = useState<SaveCommand | undefined>(restored?.command)
   const dialog = useRef<HTMLDialogElement>(null)
   const id = useId()
@@ -39,8 +48,34 @@ export function EventEditor({ original: providedOriginal, initialDraft, member, 
   const inFlight = useRef(false)
   const saveRequest = useRef<{ payload: string; key: string }>()
   const errorRef = useRef<HTMLDivElement>(null)
-  const initialValue = useRef(JSON.stringify(draft))
+  const initialValue = useRef(savedDraft?.initialValue ?? JSON.stringify(draft))
   const dirty = Boolean(initialDraft) || JSON.stringify(draft) !== initialValue.current
+  useBrowserLayoutEffect(() => {
+    if (retiredDraft.current) return
+    editMemory.save({ original, draft, version, initialValue: initialValue.current, conflict }, dirty || saving || Boolean(conflict))
+  })
+  useEffect(() => {
+    if (!savedDraft?.original) return
+    let current = true
+    setRestoreState('checking'); setRestoreError('')
+    void adapter.get(member.id, savedDraft.original.id).then(latest => {
+      if (!current) return
+      if (!latest || latest.id !== savedDraft.original!.id || latest.schoolId !== member.schoolId || !Number.isSafeInteger(latest.version) || latest.version < 1) throw new Error('일정 원본의 응답을 확인하지 못했습니다.')
+      normalizeDraft(latest, member, members)
+      if (!canEdit(latest, member, date)) throw new ContractError('FORBIDDEN', '현재 원본을 수정할 수 없습니다.')
+      // 최신 원본의 버전을 입력에 덮어쓰지 않는다. 저장 시 충돌 검사를 유지한다.
+      if (savedDraft.conflict) setConflict(latest)
+      setRestoreState('ready'); setNotice('연결을 다시 확인했습니다. 저장하지 않은 입력을 복원했습니다.')
+    }).catch(failure => {
+      if (!current) return
+      if (failure instanceof ContractError && ['FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND'].includes(failure.code)) {
+        retiredDraft.current = true; editMemory.remove(); onDiscard?.(); setRestoreState('denied')
+        setRestoreError('이전 일정의 수정 권한을 확인할 수 없어 보관한 입력을 폐기했습니다. 목록에서 다시 확인해 주세요.')
+      } else { setRestoreState('retry'); setRestoreError('일정 원본을 다시 확인하지 못했습니다. 보관한 입력을 표시하지 않고 유지합니다. 다시 확인해 주세요.') }
+    })
+    return () => { current = false }
+  }, [adapter, member.id, restoreAttempt])
+  function closeEditor() { retiredDraft.current = true; editMemory.remove(); onClose() }
   useEffect(() => {
     onNavigationLockChange?.(dirty || saving || Boolean(pending) || Boolean(conflict))
     return () => onNavigationLockChange?.(false)
@@ -55,6 +90,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, member, 
     return () => { alive.current = false; element?.close(); if (previouslyFocused?.isConnected) previouslyFocused.focus() }
   }, [])
   useEffect(() => { if (error) errorRef.current?.focus() }, [error])
+  useEffect(() => { if (savedDraft && restoreState === 'ready') titleInput.current?.focus() }, [restoreState])
   function change<K extends keyof EventDraft>(key: K, value: EventDraft[K]) { setDraft(current => ({ ...current, [key]: value })); setError('') }
   const schoolMembers = members.filter(item => item.schoolId === member.schoolId)
   const previewEvent: CalendarEvent = { ...draft, id: original?.id ?? 'preview-unsaved', schoolId: member.schoolId, authorMemberId: original?.authorMemberId ?? member.id, version: version ?? 0, updatedAt: '' }
@@ -69,16 +105,17 @@ export function EventEditor({ original: providedOriginal, initialDraft, member, 
     change('audience', { ...draft.audience, groups: draft.audience.groups.map((group, i) => i !== index ? group : { ...group, [field]: checked ? [...group[field], id] : group[field].filter(value => value !== id) }) })
   }
   async function perform(command: SaveCommand) {
-    if (inFlight.current || conflict) return
+    if (inFlight.current || conflict || restoreState !== 'ready') return
     inFlight.current = true; recovery.put({ command, original }); setSaving(true); setError('')
     try {
       const result = await adapter.save(member.id, command)
-      if (alive.current) { recovery.remove(command.idempotencyKey); setPending(undefined); onSaved(result) }
+      if (alive.current) { retiredDraft.current = true; editMemory.remove(); recovery.remove(command.idempotencyKey); setPending(undefined); onSaved(result) }
     } catch (failure) {
       if (!alive.current) return
       if (failure instanceof ContractError && ['INVALID_INPUT', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'CONFLICT'].includes(failure.code)) {
         recovery.remove(command.idempotencyKey); setPending(undefined)
         if (failure.code === 'CONFLICT') setConflict(failure.current)
+        if (['FORBIDDEN', 'INACTIVE_MEMBERSHIP'].includes(failure.code)) { retiredDraft.current = true; editMemory.remove(); onDiscard?.(); setRestoreState('denied'); setRestoreError('현재 일정의 수정 권한을 확인할 수 없어 보관한 입력을 폐기했습니다.') }
       } else {
         // 응답만 사라진 경우 새 요청을 만들면 중복될 수 있어 원래 명령을 고정한다.
         setPending(command)
@@ -93,9 +130,10 @@ export function EventEditor({ original: providedOriginal, initialDraft, member, 
     if (saveRequest.current?.payload !== payload) saveRequest.current = { payload, key: crypto.randomUUID() }
     void perform({ draft: structuredClone(draft), id: original?.id, expectedVersion: version, idempotencyKey: saveRequest.current.key })
   }
-  return <dialog ref={dialog} className="editor-dialog" aria-labelledby={`${id}-title`} onCancel={event => { event.preventDefault(); if (!saving && !pending) onClose() }}>
+  if (restoreState !== 'ready') return <dialog ref={dialog} className="editor-dialog" aria-labelledby={`${id}-title`} onCancel={event => { event.preventDefault(); closeEditor() }}><header className="dialog-header"><h2 id={`${id}-title`}>보관한 일정 입력 확인</h2><button type="button" className="icon-button" aria-label="일정 편집 닫기" onClick={closeEditor}>✕</button></header><div className="dialog-body"><p role={restoreState === 'checking' ? 'status' : 'alert'}>{restoreState === 'checking' ? '현재 일정의 수정 권한을 다시 확인하는 중…' : restoreError}</p>{restoreState === 'retry' && <button type="button" className="primary" onClick={() => setRestoreAttempt(value => value + 1)}>원본 다시 확인</button>}<button type="button" className="secondary" onClick={closeEditor}>{restoreState === 'denied' ? '닫기' : '보관한 입력 폐기'}</button></div></dialog>
+  return <dialog ref={dialog} className="editor-dialog" aria-labelledby={`${id}-title`} onCancel={event => { event.preventDefault(); if (!saving && !pending) closeEditor() }}>
     <form onSubmit={save} aria-labelledby={`${id}-title`} aria-describedby={error ? `${id}-error` : undefined}>
-      <header className="dialog-header"><div><p className="eyebrow">학교 일정 · {original ? `원본 v${version}` : '새 일정'}</p><h2 id={`${id}-title`}>{original ? '일정 수정' : '일정 등록'}</h2></div><button type="button" className="icon-button" aria-label="일정 편집 닫기" disabled={saving || Boolean(pending)} onClick={onClose}>✕</button></header>
+      <header className="dialog-header"><div><p className="eyebrow">학교 일정 · {original ? `원본 v${version}` : '새 일정'}</p><h2 id={`${id}-title`}>{original ? '일정 수정' : '일정 등록'}</h2></div><button type="button" className="icon-button" aria-label="일정 편집 닫기" disabled={saving || Boolean(pending)} onClick={closeEditor}>✕</button></header>
       <div className="dialog-body">
         <p className="subtle-note">{demo ? '합성 자료로 등록 흐름을 확인합니다. 실제 학교나 학생의 개인정보는 입력하지 마세요.' : '현재 선택한 학교의 일정입니다. 저장된 변경은 같은 학교의 열람 대상에게 반영됩니다.'}</p>
         {error && <div ref={errorRef} id={`${id}-error`} className="error-box" role="alert" tabIndex={-1}>{error}</div>}
@@ -119,7 +157,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, member, 
         <section className="audience-preview" aria-labelledby={`${id}-preview`}><h3 id={`${id}-preview`}>대상 미리보기</h3><dl><div><dt>관련 대상 · {targetDate} 기준</dt><dd>{targetMembers.length}명 <span>{targetMembers.map(item => item.name).join(', ') || '해당 없음'}</span></dd></div><div><dt>원본 열람 · 현재 기준일 기준</dt><dd>{readMembers.length}명 <span>{readMembers.map(item => item.name).join(', ') || '해당 없음'}</span></dd></div><div><dt>홈 추천 후보 · 열람 가능한 교사 중</dt><dd>{homeMembers.length}명 <span>{homeMembers.map(item => item.name).join(', ') || '해당 없음'}</span></dd></div></dl><p className="hint">진행 중인 일정은 현재 기준일, 미래 일정은 시작일의 소속 관계로 추천합니다. 작성자는 본인 일정을 확인하며 지난 일정은 홈에 나타나지 않습니다.</p></section>
         {demo && original && adapter.simulateConcurrentEdit && adapter.failNextSave && <details className="developer-inline"><summary>개발 시험 · 동시 수정 / 저장 실패</summary><div className="button-row"><button type="button" className="secondary small" disabled={saving || Boolean(pending)} onClick={() => { try { adapter.simulateConcurrentEdit?.(member.id, original.id); setNotice('가상 원본을 다른 교사가 수정했습니다. 저장을 눌러 충돌과 입력 보존을 확인하세요.') } catch (failure) { setError((failure as Error).message) } }}>다른 교사 수정 발생</button><button type="button" className="secondary small" disabled={saving || Boolean(pending)} onClick={() => { adapter.failNextSave?.(); setNotice('다음 저장이 한 번 실패합니다. 입력을 유지한 재시도를 확인하세요.') }}>다음 저장 실패</button></div></details>}
       </div>
-      <footer className="dialog-footer"><p className="hint">{original ? `확인한 원본 v${version} · ${storageLabel}` : storageLabel}</p><div className="button-row"><button type="button" className="secondary" disabled={saving || Boolean(pending)} onClick={onClose}>취소</button><button className="primary" type="submit" disabled={saving || Boolean(pending) || Boolean(conflict)}>{saving ? '저장 중…' : original ? '수정 저장' : '일정 등록'}</button></div></footer>
+      <footer className="dialog-footer"><p className="hint">{original ? `확인한 원본 v${version} · ${storageLabel}` : storageLabel}</p><div className="button-row"><button type="button" className="secondary" disabled={saving || Boolean(pending)} onClick={closeEditor}>취소</button><button className="primary" type="submit" disabled={saving || Boolean(pending) || Boolean(conflict)}>{saving ? '저장 중…' : original ? '수정 저장' : '일정 등록'}</button></div></footer>
     </form>
   </dialog>
 }
