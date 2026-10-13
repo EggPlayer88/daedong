@@ -1,9 +1,9 @@
 // 프롬프트 + 카드 판정이 서버(apply_fixed_hours)와 같은지
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 const { SYSTEM_PROMPT: P, constants: C, fixedHours: T, manifest: M } = mod
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }

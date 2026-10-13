@@ -1,12 +1,11 @@
+import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 // 모듈 공개 범위 — 개발 중 화면이 실사용자에게 보이지 않는다.
 //
 // 지키는 것:
 //   · 메뉴 숨김 **과** 라우트 차단 둘 다 (숨김만으로는 주소를 아는 사람이 들어온다)
 //   · 실사용 중인 화면(평가계획서·제출)은 **이전과 똑같이** 보인다
 //   · 신규 모듈의 기본값은 superadmin — visibility 를 빼먹으면 안 보이는 쪽으로 실패한다
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -16,10 +15,7 @@ let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }
 const A = (c, m) => { if (!c) throw new Error(m) }
 
-const work = mkdtempSync(join(tmpdir(), 'vis-'))
-const entry = join(ROOT, 'tests', '.vis-entry.jsx')
-// ⚠ 컴포넌트를 함수처럼 부르면 훅이 깨진다 — JSX 로 그리는 하네스를 번들 안에 둔다
-writeFileSync(entry, `
+const { mods, renderNav, renderAt } = await loadBrowserModule(`
 import { renderToStaticMarkup } from 'react-dom/server'
 import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '../apps/main/src/components/Layout.jsx'
@@ -68,19 +64,7 @@ export function renderNav(profile) {
   )
 }
 export { mods }
-`)
-const bundle = join(work, 'b.cjs')
-try {
-  execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
-    entry, '--bundle', '--platform=node', '--format=cjs', '--jsx=automatic',
-    '--loader:.jsx=jsx',
-    '--define:import.meta.env={"MODE":"test","VITE_SUPABASE_URL":"http://x","VITE_SUPABASE_ANON_KEY":"k"}',
-    `--outfile=${bundle}`, '--log-level=error',
-  ])
-} finally {
-  rmSync(entry, { force: true })
-}
-const { mods, renderNav, renderAt } = await import(bundle)
+`, { env: { MODE: 'test', VITE_SUPABASE_URL: 'http://x', VITE_SUPABASE_ANON_KEY: 'k' } })
 
 const USERS = {
   teacher: { id: 't', name: '교사', role: 'teacher', is_active: true },

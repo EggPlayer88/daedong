@@ -2,26 +2,33 @@
 // tests/run.mjs — 전체 검증 실행기.  `npm test` 로 호출한다.
 //
 // JS 테스트는 node 로, Python 테스트는 lxml 이 있는 인터프리터로 돌린다.
-// Python 인터프리터 탐색 순서: $PYTHON → tests/.venv → .venv → python3
+// Python 인터프리터 탐색 순서: $PYTHON → tests/.venv → .venv → python3 → python
 // (lxml 이 없으면 Python 몫은 건너뛰고 그 사실을 분명히 보고한다 — 조용히 통과시키지 않는다)
 
 import { spawnSync } from 'node:child_process'
 import { readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
+const ROOT = join(HERE, '..')
 const only = process.argv[2] // 부분 문자열로 필터 (예: npm test -- hours)
 
 function findPython() {
   const candidates = [
     process.env.PYTHON,
+    join(HERE, '.venv', 'Scripts', 'python.exe'),
     join(HERE, '.venv', 'bin', 'python'),
+    join(ROOT, '.venv', 'Scripts', 'python.exe'),
     join(HERE, '..', '.venv', 'bin', 'python'),
     'python3',
+    'python',
   ].filter(Boolean)
-  for (const py of candidates) {
-    if (py.includes('/') && !existsSync(py)) continue
+  for (const candidate of candidates) {
+    // 상대 경로는 호출자의 cwd에서 확정한다. 자식 시험은 ROOT에서 실행되기 때문이다.
+    const isPath = /[\\/]/.test(candidate)
+    const py = isPath ? resolve(candidate) : candidate
+    if (isPath && !existsSync(py)) continue
     const r = spawnSync(py, ['-c', 'import lxml.etree'], { stdio: 'ignore' })
     if (r.status === 0) return py
   }
@@ -46,7 +53,11 @@ for (const f of files) {
     continue
   }
   const cmd = isPy ? python : process.execPath
-  const r = spawnSync(cmd, [join(HERE, f)], { encoding: 'utf-8' })
+  const r = spawnSync(cmd, [join(HERE, f)], {
+    encoding: 'utf-8',
+    cwd: ROOT,
+    env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' },
+  })
   const out = (r.stdout || '') + (r.stderr || '')
   const n = (out.match(/^ {2}✓/gm) || []).length
   if (r.status === 0) {

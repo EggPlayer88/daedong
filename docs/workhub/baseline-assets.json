@@ -1,0 +1,498 @@
+{
+  "schemaVersion": 1,
+  "recordedDate": "2026-10-11",
+  "purpose": "T01 기존 자산의 읽기 전용 기준선. 운영 DB·외부 설정·실제 배포 상태의 증명이 아님.",
+  "baseMainCommit": "6165bcc45c13f4bb8534b43ce853dd6729cab1fc",
+  "inspectionHead": "2ebdba7373feedbb18b73abf4d6237697a33dd97",
+  "windowsTestFixCommit": "2ebdba7373feedbb18b73abf4d6237697a33dd97",
+  "windowsTestFixPullRequest": "https://github.com/EggPlayer88/daedong/pull/2",
+  "hashAlgorithm": "SHA-256",
+  "hashSource": "git show <inspectionHead>:<path>의 원본 바이트. PowerShell 텍스트 파이프를 통하지 않고 subprocess로 읽음.",
+  "workingTreeComparisonRule": "exact는 원본 바이트 일치. crlf_only는 작업 파일의 CRLF만 LF로 치환하면 원본과 일치함. 지문 기준은 항상 Git 원본이며 작업 파일은 변경하지 않음.",
+  "coreAutocrlfAtInspection": "true",
+  "assetCount": 37,
+  "allAssetsMatchBaseMain": true,
+  "workingTreeComparisonCounts": {
+    "crlf_only": 17,
+    "exact": 20
+  },
+  "assets": [
+    {
+      "path": "apps/main/api/_hwpx/README.md",
+      "category": "validated_hwpx_engine",
+      "gitByteLength": 1740,
+      "gitSha256": "957533fcd04cb1cc02a22394295e56c67c4f2311e4112be8bbe0b1118ab5728e",
+      "baseMainSha256": "957533fcd04cb1cc02a22394295e56c67c4f2311e4112be8bbe0b1118ab5728e",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "6f7574ff9a7b1ef4daa47e20485e35be49a45ffe5aa8098ad800d15fbd77a732",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/_hwpx/analyze_template.py",
+      "category": "validated_hwpx_engine",
+      "gitByteLength": 9361,
+      "gitSha256": "29ada62e3df5b85745ac4a43e48d8960fbbecac18206e75b4d89a06f13623c8f",
+      "baseMainSha256": "29ada62e3df5b85745ac4a43e48d8960fbbecac18206e75b4d89a06f13623c8f",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "40e211fc68646861d4b40114edc0bcae8fdcf76d3bd3ebba174d51f4a547c955",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/_hwpx/extract_text.py",
+      "category": "validated_hwpx_engine",
+      "gitByteLength": 4918,
+      "gitSha256": "2010380624a49564188840f8664d1205e0f42442c68294ab5c44cebac0ec0634",
+      "baseMainSha256": "2010380624a49564188840f8664d1205e0f42442c68294ab5c44cebac0ec0634",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "a445008f1986e076ed54fabe979f808303e3cb5ca6dc2e96c25b1bac9e1d8683",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/_hwpx/hwpx_lib.py",
+      "category": "validated_hwpx_engine",
+      "gitByteLength": 15202,
+      "gitSha256": "eee3b6a89d5118afca864cdbc85900368b714f76c8644e5ac57defafa831e633",
+      "baseMainSha256": "eee3b6a89d5118afca864cdbc85900368b714f76c8644e5ac57defafa831e633",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "ced2b63997265a1729b56fd7710daa4b946b718a670a7a6200cd6dbb10cf75a4",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/_hwpx/hwpx_zip.py",
+      "category": "validated_hwpx_engine",
+      "gitByteLength": 4597,
+      "gitSha256": "13972edb5d74d34eab482cbda4f3acf9963cd49f33e84e53f427d96e5c9c7671",
+      "baseMainSha256": "13972edb5d74d34eab482cbda4f3acf9963cd49f33e84e53f427d96e5c9c7671",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "b4b275c8983ec84788af0f0fe735830f653ccd35f863dad221c2591133f3e0a0",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/regulation-2026.json",
+      "category": "regulation_rules_with_full_file_fingerprint",
+      "gitByteLength": 6199,
+      "gitSha256": "1929c3d295f9c4bee6fa665cc453f1a68ece19e812a6e63e9853853aa1c18b8e",
+      "baseMainSha256": "1929c3d295f9c4bee6fa665cc453f1a68ece19e812a6e63e9853853aa1c18b8e",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "285a8c3d6c6fcfd554bf6e02d07017bc4418e8398c30612cb1bb2651e3409cfe",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/template-manifest.json",
+      "category": "manifest_contract_with_full_file_fingerprint",
+      "gitByteLength": 19745,
+      "gitSha256": "d8c7c40afc5bce65602a56203c0ab90888ea4d1da1d739da30a82d63808f4d2d",
+      "baseMainSha256": "d8c7c40afc5bce65602a56203c0ab90888ea4d1da1d739da30a82d63808f4d2d",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "99291dd2175cfb9e0e65dbda36ee1a4374504d19d2adabb98129a499f4a58a2e",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/token-map.json",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 10772,
+      "gitSha256": "6602a8718fa93636088f2d876163e5f28bb22347c990deead384236be140a132",
+      "baseMainSha256": "6602a8718fa93636088f2d876163e5f28bb22347c990deead384236be140a132",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "6602a8718fa93636088f2d876163e5f28bb22347c990deead384236be140a132",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/tpl-g1-free.hwpx",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 64141,
+      "gitSha256": "61622a33d281c7089869bba50482d4c909c229813ee06032463f2e10b5fc2b52",
+      "baseMainSha256": "61622a33d281c7089869bba50482d4c909c229813ee06032463f2e10b5fc2b52",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "61622a33d281c7089869bba50482d4c909c229813ee06032463f2e10b5fc2b52",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/tpl-g2-exam1.hwpx",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 55106,
+      "gitSha256": "c8798155ce79d02cc58700a24068e47e767e5bba8dfdaaca4aa7db7f48c92781",
+      "baseMainSha256": "c8798155ce79d02cc58700a24068e47e767e5bba8dfdaaca4aa7db7f48c92781",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "c8798155ce79d02cc58700a24068e47e767e5bba8dfdaaca4aa7db7f48c92781",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/tpl-g2-exam2.hwpx",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 69832,
+      "gitSha256": "87da45e089970e2c44da329cd72c48736b6d786d49375f8e9a14c3d80bd47fe3",
+      "baseMainSha256": "87da45e089970e2c44da329cd72c48736b6d786d49375f8e9a14c3d80bd47fe3",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "87da45e089970e2c44da329cd72c48736b6d786d49375f8e9a14c3d80bd47fe3",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/tpl-g2-perf3-arts.hwpx",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 55354,
+      "gitSha256": "4b4e8d021fa302a700d63076727fde89ae2e9e349d8d7771c72db43c8f0574ba",
+      "baseMainSha256": "4b4e8d021fa302a700d63076727fde89ae2e9e349d8d7771c72db43c8f0574ba",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "4b4e8d021fa302a700d63076727fde89ae2e9e349d8d7771c72db43c8f0574ba",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/tpl-g3-exam1.hwpx",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 71022,
+      "gitSha256": "f20fd2d9c12ba249aa9ae2cfd7a02a0b5b2282b73162febbe81ebe71ac5382a2",
+      "baseMainSha256": "f20fd2d9c12ba249aa9ae2cfd7a02a0b5b2282b73162febbe81ebe71ac5382a2",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "f20fd2d9c12ba249aa9ae2cfd7a02a0b5b2282b73162febbe81ebe71ac5382a2",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/api/doc-ai/_assets/tpl-g3-perf3.hwpx",
+      "category": "runtime_template_or_token_map",
+      "gitByteLength": 54902,
+      "gitSha256": "d7990527af52f261472d5152c9a0b560b447993a3d8322a6eb92ebeccc9ecb3a",
+      "baseMainSha256": "d7990527af52f261472d5152c9a0b560b447993a3d8322a6eb92ebeccc9ecb3a",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "d7990527af52f261472d5152c9a0b560b447993a3d8322a6eb92ebeccc9ecb3a",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/public/examples/예시_2026학년도_2학기_1학년_수학_평가계획서_자유학기.hwpx",
+      "category": "approved_example",
+      "gitByteLength": 76771,
+      "gitSha256": "b3ff1192d5de34abb89c5d1b7674ce6bc0aadf7212dee6b861078d397be357e3",
+      "baseMainSha256": "b3ff1192d5de34abb89c5d1b7674ce6bc0aadf7212dee6b861078d397be357e3",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "b3ff1192d5de34abb89c5d1b7674ce6bc0aadf7212dee6b861078d397be357e3",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/public/examples/예시_2026학년도_2학기_2학년_수학_평가계획서.hwpx",
+      "category": "approved_example",
+      "gitByteLength": 80270,
+      "gitSha256": "acfc1f18e24bd74f4056907e1b57bf5a1514805ce63098258affaa075803c7e1",
+      "baseMainSha256": "acfc1f18e24bd74f4056907e1b57bf5a1514805ce63098258affaa075803c7e1",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "acfc1f18e24bd74f4056907e1b57bf5a1514805ce63098258affaa075803c7e1",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "apps/main/public/examples/예시_2026학년도_2학기_3학년_수학_평가계획서.hwpx",
+      "category": "approved_example",
+      "gitByteLength": 80609,
+      "gitSha256": "058312089367e4848827c40fa9ee9a6e5817e4d21802370e0f7af12379eccac8",
+      "baseMainSha256": "058312089367e4848827c40fa9ee9a6e5817e4d21802370e0f7af12379eccac8",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "058312089367e4848827c40fa9ee9a6e5817e4d21802370e0f7af12379eccac8",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/template-manifest.v4.final.json",
+      "category": "template_source_original",
+      "gitByteLength": 5373,
+      "gitSha256": "27a9e31550017a0374618abf5077b1feafa51fcedf10d19b127edbc3c8684751",
+      "baseMainSha256": "27a9e31550017a0374618abf5077b1feafa51fcedf10d19b127edbc3c8684751",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "847c5a31082a86b680320d7dee8ea85225b8b99ebe855fc1da2efc144db5abff",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "doc-ai-templates-v4/token-map.json",
+      "category": "template_source_original",
+      "gitByteLength": 10772,
+      "gitSha256": "6602a8718fa93636088f2d876163e5f28bb22347c990deead384236be140a132",
+      "baseMainSha256": "6602a8718fa93636088f2d876163e5f28bb22347c990deead384236be140a132",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "6602a8718fa93636088f2d876163e5f28bb22347c990deead384236be140a132",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/tpl-g1-free.hwpx",
+      "category": "template_source_original",
+      "gitByteLength": 64141,
+      "gitSha256": "61622a33d281c7089869bba50482d4c909c229813ee06032463f2e10b5fc2b52",
+      "baseMainSha256": "61622a33d281c7089869bba50482d4c909c229813ee06032463f2e10b5fc2b52",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "61622a33d281c7089869bba50482d4c909c229813ee06032463f2e10b5fc2b52",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/tpl-g2-exam1.hwpx",
+      "category": "template_source_original",
+      "gitByteLength": 55106,
+      "gitSha256": "c8798155ce79d02cc58700a24068e47e767e5bba8dfdaaca4aa7db7f48c92781",
+      "baseMainSha256": "c8798155ce79d02cc58700a24068e47e767e5bba8dfdaaca4aa7db7f48c92781",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "c8798155ce79d02cc58700a24068e47e767e5bba8dfdaaca4aa7db7f48c92781",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/tpl-g2-exam2.hwpx",
+      "category": "template_source_original",
+      "gitByteLength": 69832,
+      "gitSha256": "87da45e089970e2c44da329cd72c48736b6d786d49375f8e9a14c3d80bd47fe3",
+      "baseMainSha256": "87da45e089970e2c44da329cd72c48736b6d786d49375f8e9a14c3d80bd47fe3",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "87da45e089970e2c44da329cd72c48736b6d786d49375f8e9a14c3d80bd47fe3",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/tpl-g2-perf3-arts.hwpx",
+      "category": "template_source_original",
+      "gitByteLength": 55354,
+      "gitSha256": "4b4e8d021fa302a700d63076727fde89ae2e9e349d8d7771c72db43c8f0574ba",
+      "baseMainSha256": "4b4e8d021fa302a700d63076727fde89ae2e9e349d8d7771c72db43c8f0574ba",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "4b4e8d021fa302a700d63076727fde89ae2e9e349d8d7771c72db43c8f0574ba",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/tpl-g3-exam1.hwpx",
+      "category": "template_source_original",
+      "gitByteLength": 71022,
+      "gitSha256": "f20fd2d9c12ba249aa9ae2cfd7a02a0b5b2282b73162febbe81ebe71ac5382a2",
+      "baseMainSha256": "f20fd2d9c12ba249aa9ae2cfd7a02a0b5b2282b73162febbe81ebe71ac5382a2",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "f20fd2d9c12ba249aa9ae2cfd7a02a0b5b2282b73162febbe81ebe71ac5382a2",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "doc-ai-templates-v4/tpl-g3-perf3.hwpx",
+      "category": "template_source_original",
+      "gitByteLength": 54902,
+      "gitSha256": "d7990527af52f261472d5152c9a0b560b447993a3d8322a6eb92ebeccc9ecb3a",
+      "baseMainSha256": "d7990527af52f261472d5152c9a0b560b447993a3d8322a6eb92ebeccc9ecb3a",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "d7990527af52f261472d5152c9a0b560b447993a3d8322a6eb92ebeccc9ecb3a",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "examples/예시_2026학년도_2학기_1학년_수학_평가계획서_자유학기.hwpx",
+      "category": "approved_example",
+      "gitByteLength": 76771,
+      "gitSha256": "b3ff1192d5de34abb89c5d1b7674ce6bc0aadf7212dee6b861078d397be357e3",
+      "baseMainSha256": "b3ff1192d5de34abb89c5d1b7674ce6bc0aadf7212dee6b861078d397be357e3",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "b3ff1192d5de34abb89c5d1b7674ce6bc0aadf7212dee6b861078d397be357e3",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "examples/예시_2026학년도_2학기_2학년_수학_평가계획서.hwpx",
+      "category": "approved_example",
+      "gitByteLength": 80270,
+      "gitSha256": "acfc1f18e24bd74f4056907e1b57bf5a1514805ce63098258affaa075803c7e1",
+      "baseMainSha256": "acfc1f18e24bd74f4056907e1b57bf5a1514805ce63098258affaa075803c7e1",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "acfc1f18e24bd74f4056907e1b57bf5a1514805ce63098258affaa075803c7e1",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "examples/예시_2026학년도_2학기_3학년_수학_평가계획서.hwpx",
+      "category": "approved_example",
+      "gitByteLength": 80609,
+      "gitSha256": "058312089367e4848827c40fa9ee9a6e5817e4d21802370e0f7af12379eccac8",
+      "baseMainSha256": "058312089367e4848827c40fa9ee9a6e5817e4d21802370e0f7af12379eccac8",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "058312089367e4848827c40fa9ee9a6e5817e4d21802370e0f7af12379eccac8",
+      "workingTreeComparison": "exact"
+    },
+    {
+      "path": "migrations/000_reset_v1_project.sql",
+      "category": "migration_record",
+      "gitByteLength": 7566,
+      "gitSha256": "2c8431c584fb7230a064a198b295516c50ecbfcae8487014ed5a13d9e8b10333",
+      "baseMainSha256": "2c8431c584fb7230a064a198b295516c50ecbfcae8487014ed5a13d9e8b10333",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "ef074636338a38ce392e7370b52239c5241e4ba18605a2b81e8a997aa9aead3b",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/001_users_departments.sql",
+      "category": "migration_record",
+      "gitByteLength": 9265,
+      "gitSha256": "9384f59a88e28400778670d3201e54bb92f5b552ac5834926b7a2c00600b03bf",
+      "baseMainSha256": "9384f59a88e28400778670d3201e54bb92f5b552ac5834926b7a2c00600b03bf",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "356b0f91775122d98352a4d997d68e3cf143a6c827028c585abb1fde103fc488",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/002_schedules_tasks.sql",
+      "category": "migration_record",
+      "gitByteLength": 6777,
+      "gitSha256": "53d658220263de2a22a7dca7e8967841c72bc7bf0c986e6725516a8e8d05bc13",
+      "baseMainSha256": "53d658220263de2a22a7dca7e8967841c72bc7bf0c986e6725516a8e8d05bc13",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "3dccef010398f05fcf5bf666088356a82c6efaf784348bb6e7e5f8c2231f13e3",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/003_signup_approval.sql",
+      "category": "migration_record",
+      "gitByteLength": 4577,
+      "gitSha256": "aaacc852c34e1a455edf655bcc6714d8eb27e624c07a338a3f8543c3395ddc73",
+      "baseMainSha256": "aaacc852c34e1a455edf655bcc6714d8eb27e624c07a338a3f8543c3395ddc73",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "be498517ffbb47373d711dbbcc5f0bf064ffd42472019b7338fc05a1281ee507",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/004_doc_ai_conversations.sql",
+      "category": "migration_record",
+      "gitByteLength": 2252,
+      "gitSha256": "d08e907cb27c8160f45e17ab1d4d19dbd548546ccf680af44bbf01ab785562e6",
+      "baseMainSha256": "d08e907cb27c8160f45e17ab1d4d19dbd548546ccf680af44bbf01ab785562e6",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "4af5e32067ddde7ecfe5c102d612d4c0060da3a740ac49437f7c4906177b6cfd",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/005_doc_submissions.sql",
+      "category": "migration_record",
+      "gitByteLength": 3508,
+      "gitSha256": "96a0ac5c1b7ea14dd8ef8d306a52fab2d594a007d42de414dc3aa3288d7096e5",
+      "baseMainSha256": "96a0ac5c1b7ea14dd8ef8d306a52fab2d594a007d42de414dc3aa3288d7096e5",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "ff073f382cf296902669fd7c7e0e5c9df3cc9a17f9fe50863366ddd7f26d6305",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/006_calendar.sql",
+      "category": "migration_record",
+      "gitByteLength": 5184,
+      "gitSha256": "f3b8a4740adedda13f332ecb5d52f56cfbe028a95a701c635e8e9decb378a183",
+      "baseMainSha256": "f3b8a4740adedda13f332ecb5d52f56cfbe028a95a701c635e8e9decb378a183",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "cd4d83da5144ff263e263a4bc349d0fbbae70624218a5a0b241554556cb08b0c",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/007_submission_delete.sql",
+      "category": "migration_record",
+      "gitByteLength": 1519,
+      "gitSha256": "6cf3b11b9bdc84e088462bc77f4915617e6e2dbb47606bba84ab2494d30b541f",
+      "baseMainSha256": "6cf3b11b9bdc84e088462bc77f4915617e6e2dbb47606bba84ab2494d30b541f",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "d71971680d222d7b48803af8820aa394721456e16b6a79cef60680d2dfe23bc8",
+      "workingTreeComparison": "crlf_only"
+    },
+    {
+      "path": "migrations/archive/010_seed.sql",
+      "category": "migration_record",
+      "gitByteLength": 1757,
+      "gitSha256": "d139295eb5329080fef515d575646175a7cdd49e73eb1a4cc081accb01f53f97",
+      "baseMainSha256": "d139295eb5329080fef515d575646175a7cdd49e73eb1a4cc081accb01f53f97",
+      "headMatchesBaseMain": true,
+      "workingTreeSha256": "a8515c83f355429ca8475ebe39f9b77028bbc13a2d2ce8cf1d2ed0d646b3a2d7",
+      "workingTreeComparison": "crlf_only"
+    }
+  ],
+  "manifestContract": {
+    "runtimePath": "apps/main/api/doc-ai/_assets/template-manifest.json",
+    "originalPath": "doc-ai-templates-v4/template-manifest.v4.final.json",
+    "canonicalization": "JSON 객체 키 재귀 정렬, 배열 순서 유지, 공백 없는 UTF-8 JSON. 파일 바이트 지문과 별도 의미 비교.",
+    "allSectionsMatchOriginal": true,
+    "sections": [
+      {
+        "key": "routing",
+        "runtimeCanonicalSha256": "43299a4dcc33023cecd106776a877d4d4d5d5e3b4876933695da875fbfcdeb8f",
+        "originalCanonicalSha256": "43299a4dcc33023cecd106776a877d4d4d5d5e3b4876933695da875fbfcdeb8f",
+        "matchesOriginal": true
+      },
+      {
+        "key": "composition_rules",
+        "runtimeCanonicalSha256": "cb0d7f191a31b73a9fc8e0917b1f24c4ac4b51c561a18abe3819bf20328036a0",
+        "originalCanonicalSha256": "cb0d7f191a31b73a9fc8e0917b1f24c4ac4b51c561a18abe3819bf20328036a0",
+        "matchesOriginal": true
+      },
+      {
+        "key": "unused_handling",
+        "runtimeCanonicalSha256": "c0d1312069b18e5b4a54fbc67b43bc7562225d8693ba6887d59921a844c67a4c",
+        "originalCanonicalSha256": "c0d1312069b18e5b4a54fbc67b43bc7562225d8693ba6887d59921a844c67a4c",
+        "matchesOriginal": true
+      },
+      {
+        "key": "fixed_texts",
+        "runtimeCanonicalSha256": "a4d5a271479030f9cc8521e9e3365178a3ffa053e23cf51eb49c9ada91aeb88d",
+        "originalCanonicalSha256": "a4d5a271479030f9cc8521e9e3365178a3ffa053e23cf51eb49c9ada91aeb88d",
+        "matchesOriginal": true
+      },
+      {
+        "key": "token_families",
+        "runtimeCanonicalSha256": "0baf3c3eedc6b11979452d1bd31d82e6740e9e97edde0f78316513a2e6dc7dcc",
+        "originalCanonicalSha256": "0baf3c3eedc6b11979452d1bd31d82e6740e9e97edde0f78316513a2e6dc7dcc",
+        "matchesOriginal": true
+      },
+      {
+        "key": "final_check",
+        "runtimeCanonicalSha256": "aee8f9ca5fd6c56af012c3ea91dd5a082dd52fbaf296ebc655bc1bdcc34181fe",
+        "originalCanonicalSha256": "aee8f9ca5fd6c56af012c3ea91dd5a082dd52fbaf296ebc655bc1bdcc34181fe",
+        "matchesOriginal": true
+      },
+      {
+        "key": "filename_pattern",
+        "runtimeCanonicalSha256": "c9e9d6e0a3683d5d2d6dfb3e2aa7d006ed783e98e73c1891e417b6893d19d71e",
+        "originalCanonicalSha256": "c9e9d6e0a3683d5d2d6dfb3e2aa7d006ed783e98e73c1891e417b6893d19d71e",
+        "matchesOriginal": true
+      }
+    ]
+  },
+  "regulationProtectedSections": {
+    "path": "apps/main/api/doc-ai/_assets/regulation-2026.json",
+    "thresholdsCanonicalSha256": "1b00d6c93226f21a9770ff0533f115161f664614f207c01fbb3097e7e38ba89e",
+    "rulesCanonicalSha256": "ac1fec642956efa17fe2250ea4be89a13cdd56d6f5bd27f9e3068178d926ba8d",
+    "articleCoverage": "rules 내 article은 rules 지문에 포함됨. 현행 법규·학교 규정 최신성 자체를 확인한 것은 아님."
+  },
+  "verification": {
+    "windowsRegression": {
+      "commit": "2ebdba7373feedbb18b73abf4d6237697a33dd97",
+      "passedAssertions": 695,
+      "skippedPythonFiles": 0,
+      "status": "passed_reported_by_parent_session",
+      "evidence": "Windows 테스트 수정 작업에서 최종 npm test 실제 실행 결과를 부모 작업이 보고함. T01 문서 작업은 재실행하지 않음."
+    },
+    "linuxCi": {
+      "status": "passed_reported_by_parent_session",
+      "commit": "2ebdba7373feedbb18b73abf4d6237697a33dd97",
+      "checkName": "test",
+      "conclusion": "success",
+      "source": ".github/workflows/test.yml",
+      "configuredOs": "ubuntu-latest",
+      "configuredNode": "22",
+      "configuredPython": "3.12",
+      "evidence": "부모 작업이 정확한 HEAD의 GitHub checks에서 completed/success를 확인함.",
+      "url": "https://github.com/EggPlayer88/daedong/actions/runs/38119150694/job/114410094330"
+    },
+    "deploymentBundle": {
+      "ticket": "T03",
+      "status": "pending",
+      "note": "실제 Vercel Root Directory·Python/JS 함수 번들·보호 자산 포함 여부 검증은 아직 수행하지 않음."
+    },
+    "newAppRegression": {
+      "status": "not_part_of_this_baseline",
+      "note": "같은 작업 공간에서 진행 중인 apps/workhub 추가 이후의 회귀검사는 해당 변경의 검증 결과로 별도 기록한다."
+    }
+  },
+  "knownFindings": [
+    {
+      "id": "BASE-DEP-001",
+      "source": "부모 작업 세션의 npm audit --json 실제 출력. 의존성 추가 전 npm ci에도 high 1건이 보고됨.",
+      "package": "source-map-js",
+      "installedVersionAtBase": "1.2.1",
+      "isDirect": false,
+      "severity": "high",
+      "reportedRange": "1.0.0 - 1.2.1",
+      "advisoryRange": ">=1.0.0 <1.2.2",
+      "advisory": "GHSA-68fv-2mgg-jv7q",
+      "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+      "title": "source-map-js allows event-loop denial of service through indexed source-map section offsets",
+      "nodes": [
+        "node_modules/source-map-js"
+      ],
+      "fixAvailable": true,
+      "status": "tracked_outside_T01_no_dependency_change",
+      "limitation": "도구 진단 기록이며 서비스 내 실제 도달 가능성·악용 여부·보완 효과는 검증하지 않음."
+    }
+  ]
+}

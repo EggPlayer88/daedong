@@ -1,3 +1,5 @@
+import { buildCatalog } from '../scripts/build-prefill-catalog.mjs'
+import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 // 평가계획 제출·수합 (005_doc_submissions).
 //
 // 지키는 것:
@@ -5,9 +7,7 @@
 //   · 재제출은 옛 행을 지우지 않고 'replaced' 로 넘긴다 (수합 기록이다)
 //   · 제출 현황 매트릭스가 prefill 목록 기준으로 제출/미제출을 가른다
 //   · RLS — 교사는 본인 것만, 담당자(admin·superadmin)만 전체
-import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -20,32 +20,18 @@ let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }
 const A = (c, m) => { if (!c) throw new Error(m) }
 
-// 브라우저 모듈이라 번들해서 돌린다 (entry 는 repo 안 — tmp 는 node_modules 를 못 찾는다)
-const work = mkdtempSync(join(tmpdir(), 'subm-'))
-const entry = join(ROOT, 'tests', '.subm-entry.jsx')
-writeFileSync(entry, `
+// 브라우저 모듈은 가상 JSX 진입점을 번들해서 돌린다.
+const { lib, renderToStaticMarkup, SubmissionRow, can } = await loadBrowserModule(`
 import { renderToStaticMarkup } from 'react-dom/server'
 import SubmissionsPage, { SubmissionRow } from '../apps/main/src/pages/SubmissionsPage.jsx'
 import * as lib from '../apps/main/src/lib/submissions.js'
 import { can } from '@daedong/shared'
 export { renderToStaticMarkup, SubmissionsPage, SubmissionRow, lib, can }
-`)
-const bundle = join(work, 'b.cjs')
-try {
-  execFileSync(join(ROOT, 'node_modules/.bin/esbuild'), [
-    entry, '--bundle', '--platform=node', '--format=cjs', '--jsx=automatic',
-    '--loader:.jsx=jsx', '--define:import.meta.env={"MODE":"test","VITE_SUPABASE_URL":"http://x","VITE_SUPABASE_ANON_KEY":"k"}',
-    `--outfile=${bundle}`, '--log-level=error',
-  ])
-} finally {
-  rmSync(entry, { force: true })
-}
-const { lib, renderToStaticMarkup, SubmissionRow, can } = await import(bundle)
+`, { env: { MODE: 'test', VITE_SUPABASE_URL: 'http://x', VITE_SUPABASE_ANON_KEY: 'k' } })
 const catalog = JSON.parse(readFileSync(join(ASSETS, 'prefill-catalog.json'), 'utf-8'))
 
 console.log('\n[교과 목록 — prefill 색인에서 파생]')
-ck('catalog 가 prefill 폴더와 일치한다', async () => {
-  const { buildCatalog } = await import(`${ROOT}/scripts/build-prefill-catalog.mjs`)
+ck('catalog 가 prefill 폴더와 일치한다', () => {
   const fresh = buildCatalog()
   A(JSON.stringify(fresh) === JSON.stringify(catalog),
     'prefill 이 바뀌었는데 catalog 를 다시 만들지 않았다 (node scripts/build-prefill-catalog.mjs)')

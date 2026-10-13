@@ -1,10 +1,10 @@
 # tests/ — 검증 스크립트
 
-의존성 없는 순수 스크립트다 (테스트 프레임워크를 쓰지 않는다).
+테스트 프레임워크 없이 실행하는 스크립트다. JSX 검사는 esbuild와 React를 사용하므로 먼저 `npm ci`를 실행한다.
 각 파일은 단독 실행 가능하고, 성공하면 `✓` 줄과 `전부 통과`, 실패하면 `✗` 와 종료코드 1.
 
 ```bash
-npm test                 # 전체
+npm test                 # 단위·계약·SSR·Python 전체 (브라우저 검사는 아래 별도 명령)
 npm test -- hours        # 파일명에 'hours' 가 든 것만
 node tests/test_gate.mjs # 단독 실행
 ```
@@ -18,14 +18,30 @@ python3 -m venv tests/.venv
 tests/.venv/bin/pip install lxml
 ```
 
-러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` 순으로 lxml 이 있는
+Windows PowerShell에서는 다음과 같이 준비한다.
+
+```powershell
+python -m venv tests/.venv
+tests/.venv/Scripts/python.exe -m pip install lxml
+npm test
+```
+
+러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` → `python` 순으로 lxml 이 있는
 인터프리터를 찾는다. 못 찾으면 **Python 몫을 건너뛰고 그 사실을 출력한다**
 (조용히 통과시키지 않는다).
+가상환경의 Windows `Scripts/python.exe`와 POSIX `bin/python` 경로를 모두 지원한다.
+`PYTHON`에는 실행 파일 경로 하나만 지정한다(공백·한글 허용). `py -3` 같은 명령문은 넣지 않는다.
+러너는 자식 프로세스의 작업 폴더를 저장소 루트로 고정하고 Python 출력을 UTF-8로 받는다.
+
+브라우저 모듈 검사는 `helpers/load-browser-module.mjs`의 가상 JSX 진입점을 사용한다.
+임시 번들은 파일 URL로 불러오며, 빌드·로딩 성공 여부와 관계없이 전용 임시 폴더를 정리한다.
+프롬프트 원문은 `.gitattributes`로 LF 체크아웃을 고정한다(본문 구분자 `\n---\n` 보존).
 
 ## 무엇을 지키는 테스트인가
 
 | 파일 | 지키는 것 |
 |---|---|
+| `test_browser_loader.mjs` | 공백·한글·`#`가 있는 경로에서 실제 JSX 렌더, 빌드 실패·모듈 실행 실패 시 임시 폴더 정리 |
 | `test_v4.py` | 실제 양식 6종으로 hwpx 생성 전 구간. **token-map 전수 대조**(맵 ≠ 양식 → 실패), 모르는 토큰은 즉시 실패, short=0 항 생략, **성취수준 수준당 4칸**(모자라면 공란·문자열 하나도 수용), 3학년 성취수준 부재, 자유학기 활동 블록, 프롬프트 골격 ↔ 치환 경로 이음매, 양식 sha256 불변 |
 | `test_scales.py` | 배점 정합성 — 회차 100점 / 수행 합 100점 / 반영비율 100%, 만점 표기 `N점(M%)` 서버 계산, 한도 초과 시 거부 대신 안내 |
 | `test_hours.py` | 시수/누계 고정표 주입, `hours_manual` 보존, 범위 밖 처리, 표 자체 무결성(누계 단조·합계·ok) |
@@ -54,6 +70,89 @@ tests/.venv/bin/pip install lxml
 | `test_calendar.mjs` | 학사일정·공유 캘린더(006) — **파생 계산은 official 만**(shared 의 no_class 는 안 센다), 월간 격자·KST 날짜, soft delete·복구, 라벨 자동완성, RLS 정책 대조 + 정책을 흉내 낸 CRUD 흐름, 시드 SQL |
 | `test_submissions.mjs` | 제출·수합(005) — 파일 규칙(hwpx·30MB)·storage 경로 규약, 파일명에서 교과·학년 제안, 재제출은 지우지 않고 `replaced`, 현황 매트릭스, **RLS(교사 본인 / 담당자 전체·삭제 경로 없음)**, prefill 목록과 catalog 동기화 |
 | `test_embed.mjs` | users↔departments embed 모호성 — FK 가 2개라 `대상!FK이름` 으로 명시해야 한다 |
+| `test_workhub_tasks.mjs` | 개인 업무 RPC 어댑터 — 입력 정규화·응답 학교/소유자/업무 ID·잘못된 충돌 본문·계정 변경·미확정 저장 처리 |
+| `test_workhub_tasks_database.mjs` | 개인 업무 추가 SQL — 회원/함수/권한 보존, RLS·타인 거부·직접 쓰기 금지·원자적 감사/접수·실제 어댑터와 DB 왕복 |
+
+개인 업무 화면의 실제 브라우저 검증은 `node tests/browser/workhub-tasks.mjs`, 앱 내 연결 회귀는 `node tests/browser/workhub-connection.mjs`로 실행한다. Playwright 경로는 `PLAYWRIGHT_MODULE`로 지정할 수 있다. 합성 전송 계층을 사용하며 실제 학교 서버에 접속하지 않는다. 독립 PostgreSQL 16 연결의 일정·개인 업무 경합 11개는 CI의 `npm run test:workhub:postgres`에서 실행하며, [전용 DB 실행 조건](../docs/workhub/07-postgres-verification.md)을 먼저 확인한다.
+
+## 신축 공통 구조 검증
+
+기본 회귀에 다음 파일이 자동 포함된다.
+
+| 파일 | 확인하는 계약 |
+|---|---|
+| `test_workhub_browser_launcher.mjs` | 로컬 Chrome·CI 고정 Chromium·명시한 Edge 선택과 잘못된 채널 거부 |
+| `test_workhub_shell.mjs` | 연결 모드별 메뉴, 모바일 더보기, 현재 위치·본문 접근, 오류 안내의 SSR 구조 |
+| `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단 |
+| `test_workhub_calendar_views.mjs` | 다일 겹침·월/주 범위·검색·추천·건수와 홈 7일 요약 |
+| `test_workhub_calendar_import.mjs` | CSV/TSV 인용·행 번호·한도·열 매핑·날짜/시간·중복·개인 공개 초안·깨진 입력 |
+| `test_workhub_calendar_import_ui.mjs` | 실제 가져오기/편집기의 SSR·고유 ID·초안 이관·문자열 이스케이프·저장 호출 없음 |
+| `test_workhub_preview_tasks.mjs` | 합성 store와 실제 TaskPanel 계약의 멱등·충돌·격리·Unicode·원자적 실패 |
+| `test_workhub_task_summary.mjs` | 미완료 업무의 기한 분류·4건 요약·메모·조회 실패 표시 |
+| `test_workhub_collection_summary.mjs` | 제출·공동작성·검토·대기의 구분, 복수 보완 기한, 정확한 원본·목록 선택 |
+| `test_workhub_search_sources.mjs` | 현재 학교·소유자 범위, 수합 초안 비공개, 한글 검색·중복·정렬 |
+| `test_workhub_search_ui.mjs` | 검색 SSR, 부분 실패·재시도·지연 응답 폐기·50건 제한·본문 노출 범위 |
+| `test_workhub_collection_workbench.mjs` | 제출 단위의 현재판·완료판·보완 분류, 허용 범위 집계·요청 찾기·진행 표 |
+| `test_workhub_student_workspace.mjs` | 학생 찾기·본인 기록의 범위/기간/종류/상태, 조회 실패 구분·출력 범위 |
+| `test_workhub_collection_entry.mjs` | 수합 요청·게시 전 점검, 응답 필수 입력과 준비 상태 안내 |
+| `test_workhub_student_entry.mjs` | 학생 관찰·정정 입력 확인, 작성 대상과 활동 연결의 일치 |
+| `test_workhub_editor_accessibility.mjs` | 반복 일정 편집기의 고유 ID와 제목·폼·대상 안내 연결 |
+| `test_workhub_collection_accessibility.mjs` | 반복 수합 필드·단위 이름·표 머리글·상태·초점 대상의 SSR 연결 |
+| `test_workhub_student_accessibility.mjs` | 학생 관찰·철회·활동의 반복 폼 이름과 오류·설명 연결 |
+| `test_workhub_list_window.mjs` | 공통 20개 표시 범위·쪽 경계·목록 축소·깨진 입력·원본 비변경·페이지 SSR 안내 |
+| `test_workhub_collection_paging.mjs` | 1,000요청/100단위의 제한 렌더·전체 집계·직접 원본·접힌 이력·깨진 조회 |
+| `test_workhub_student_paging.mjs` | 1,000관찰의 제한 렌더·전체 근거·접힌 이력·소속 종료·깨진 전체 조회 |
+
+다음은 실제 브라우저가 필요한 별도 시험이다. Playwright는 루트 개발 의존성에 정확한 버전으로 고정되어 `npm ci`로 설치된다. `launch-browser.mjs`가 실행 브라우저를 한곳에서 고른다. 기본은 설치된 Chrome이며 `PLAYWRIGHT_CHANNEL=chromium`은 Playwright에 맞는 Chromium을 사용한다. 필요한 경우 기존처럼 `PLAYWRIGHT_MODULE`로 별도 설치 경로를 지정할 수 있다. 합성 자료만 쓰며 운영 서버에 접속하지 않는다.
+
+```bash
+npx playwright install chromium
+PLAYWRIGHT_CHANNEL=chromium npm run test:workhub:browser
+npm run test:workhub:browser -- --list        # 실행 대상 파일 확인
+npm run test:workhub:browser -- student      # 학생 영역만 선택 (로컬 기본 Chrome)
+```
+
+Windows PowerShell에서는 환경 변수를 별도로 지정한다.
+
+```powershell
+npx playwright install chromium
+$env:PLAYWRIGHT_CHANNEL = 'chromium'
+npm run test:workhub:browser
+```
+
+러너는 목록에 명시한 26개 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
+
+CI에서는 기존 필수 `test` job 안에 **실제 브라우저 회귀 검사** 단계가 있다. 화면·공통 앱·브라우저 시험·공통 시험 도우미·의존성·워크플로가 바뀌면 고정 Chromium과 한글 글꼴을 설치하고 같은 러너를 실행한다. 문서만 바뀐 경우에는 이 단계만 생략하며 `npm test`는 그대로 실행한다. 변경 경로 판정에 실패하면 브라우저 검사를 실행하는 쪽으로 처리한다. 브라우저 실패도 전체 `test` 실패이며, 화면·JSON·콘솔 결과를 `workhub-browser-results` 아티팩트에 7일간 보관한다.
+
+개별 파일은 계속 직접 실행할 수 있다. `workhub-appearance.mjs`만 직접 실행할 때에는 별도 Vite와 `WORKHUB_QA_URL`이 필요하고, 아래 오프라인 시험은 HTML을 먼저 생성해야 한다.
+
+```bash
+node tests/browser/workhub-navigation.mjs       # 실제 BrowserRouter의 앞/뒤 이동·기존 링크
+node tests/browser/workhub-calendar-views.mjs   # 월·주·목록·검색·키보드·모바일
+node tests/browser/workhub-calendar-recovery.mjs # 실제 접수 뒤 응답만 유실·같은 요청 재확인
+node tests/browser/workhub-request-recovery.mjs # 대기 요청 보관·이동·재확인·권한/소속 경계
+node tests/browser/workhub-calendar-import.mjs  # 표 검사→행 검토→기존 편집기·중복 재비교·읽기 취소·저장 복구
+node tests/browser/workhub.mjs                  # 개인 업무·수합·학생의 전체 흐름
+node tests/browser/workhub-foundation.mjs        # 실제 PreviewApp의 주소·입력 보호·오류 격리
+node tests/browser/workhub-home-search.mjs       # 실제 홈→검색→원본·학교 변경·연결 모드
+node tests/browser/workhub-task-navigation.mjs   # 완료 업무 원본·지연 응답·소속 전환
+node tests/browser/workhub-collection-workbench.mjs # 수합 요청 찾기·진행 표·필터·단위 이동
+node tests/browser/workhub-student-workspace.mjs # 학생 선택·기록 필터·입력 보호·출력 최신판
+node tests/browser/workhub-collection-entry.mjs # 수합 작성 미리보기·게시 점검·응답 입력
+node tests/browser/workhub-student-entry.mjs     # 관찰/정정·대상 유지·연결 확정·저장 확인
+node tests/browser/workhub-accessibility.mjs   # 일반/Shadow DOM의 업무·일정·메뉴 초점과 모바일
+node tests/browser/workhub-collection-accessibility.mjs # 수합 작성·응답·검토·표의 키보드/필드 연결
+node tests/browser/workhub-student-accessibility.mjs # 정정·철회·채택·복구 초점과 긴 이력 줄바꿈
+node tests/browser/workhub-task-paging.mjs       # 1000업무·쪽 이동·원본·편집/재시도 잠금
+node tests/browser/workhub-collection-paging.mjs # 1000요청/100단위·전체집계·표와 상세·입력 보호
+node tests/browser/workhub-student-paging.mjs    # 각1000기록/활동·화면밖 근거검증·조회실패후 같은쪽 복귀
+node tests/browser/workhub-scale-baseline.mjs   # 137a871과 현재의 같은 합성자료 DOM 비교
+node scripts/export-workhub-preview.mjs         # 기본 출력: dist/workhub-preview.html
+node tests/browser/workhub-offline.mjs          # file:// 파일·스타일·저장·외부 요청 0
+node tests/browser/workhub-appearance.mjs       # 실제 Vite 앱의 스킨·사용자 설정·반응형
+```
+
+내보내기와 오프라인 시험은 첫 번째 인자로 원하는 HTML 절대 경로를 받을 수 있다. `WORKHUB_QA_OUTPUT`을 지정하면 브라우저 러너는 파일별 하위 폴더에 화면·JSON·콘솔 로그를 저장하고 최상위 `summary.json`에 파일별 성공·실패와 실행 시간을 기록한다. 미지정 시 전용 임시 폴더를 사용하고 경로를 출력한다. 결과 이미지는 추적 소스로 커밋하지 않는다. `npm test`의 검사 수와 별도 브라우저 파일/시나리오 수를 구분해 보고한다.
 
 ## 작성 원칙
 
@@ -65,3 +164,5 @@ tests/.venv/bin/pip install lxml
   따라가야 하고, 따라가지 않으면 테스트가 깨져야 한다.
 - 테스트가 깨지면 **먼저 어느 쪽이 틀렸는지 판단한다** — 규약이 바뀐 것이라면 테스트를
   갱신하고, 아니면 코드를 고친다. (지금까지 실제로 양쪽 모두 있었다)
+
+홈 정보량·모바일 전용 회귀: `workhub-home-layout.mjs`는 첫 3개 요약/펼침·영역 순서·실패 격리·중요 수합 상태를, `workhub-mobile-navigation.mjs`는 일반 DOM과 ShadowRoot의 하단 메뉴·더보기·설정 전환·초점·입력 보호를 검사한다.

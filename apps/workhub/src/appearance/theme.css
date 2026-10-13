@@ -1,0 +1,125 @@
+/* 기능의 배치와 동작은 유지하고, 셸 안의 기존 색상만 공통 스킨에 연결한다. */
+.ws-shell{--teal:var(--ui-accent);--navy:var(--ui-text);--muted:var(--ui-muted);--border:var(--ui-line);--surface:var(--ui-surface);--ink:var(--ui-text)}
+.ws-shell :is(.task-panel,.wf-panel,.wf-home,.students-panel,.ws-search,.connection-readiness){color:var(--ui-text);font-family:inherit;font-size:var(--ui-body-size)}
+.ws-shell :is(.main-content,.task-panel,.wf-panel,.wf-home,.students-panel,.ws-search-dialog,.connection-readiness) :is(p,li,dt,dd,label,button,input,select,textarea,summary){font-size:var(--ui-body-size)}
+.ws-shell :is(h1,h2,h3,h4,h5){color:var(--ui-text);letter-spacing:-.025em}
+.ws-shell :is(.page-header,.students-header) h1{font-size:clamp(24px,2.1vw,30px);line-height:1.45}
+.ws-shell :is(.task-heading,.wf-page-heading) h2{font-size:calc(var(--ui-body-size) + 10px);line-height:1.45}
+.ws-shell :is(.students-card h2,.section-heading h2,.task-compact .task-heading h2,.wf-section-title h2,.connection-readiness h2){font-size:calc(var(--ui-body-size) + 4px)}
+.ws-shell :is(.students-card h3,.task-card h3,.wf-section-title h3,.wf-unit h4,.cv-period h2){font-size:calc(var(--ui-body-size) + 1px)}
+.ws-shell :is(.event-title,.students-content,.students-source blockquote,.students-record strong,.students-selected strong,.wf-request-card strong,.wf-task-check strong,.ws-search-result strong){font-size:var(--ui-body-size)}
+.ws-shell :is(.eyebrow,.task-eyebrow,.wf-eyebrow){font-size:var(--ui-small-size);color:var(--ui-muted);letter-spacing:.02em}
+.ws-shell .wf-eyebrow{font-size:var(--ui-small-size)!important;color:var(--ui-muted)!important}
+.ws-shell :is(.page-header p:not(.eyebrow),.task-heading p,.wf-page-heading p,.students-header p,.section-description,.basis-strip,.scope-note,.workspace-footer,.result-count,.loading-state,.list-pagination p,.event-meta,.event-location,.version-tag,.card-arrow,.task-meta,.task-card .task-notes,.task-list-heading,.task-panel small,.task-status-done h3,.task-status-cancelled h3,.wf-section-title>span,.wf-task-note,.wf-task-check small,.wf-task.is-done .wf-task-check strong,.wf-muted,.wf-hint,.wf-label,.wf-request-card small,.wf-obligation span,.wf-obligation small,.wf-progress,.wf-role-counts dt,.wf-workbench-table small,.wf-table-pages,.wf-entry-checklist li p,.wf-entry-checklist strong small,.wf-request-preview>p,.wf-request-preview dt,.wf-question-preview li>span,.wf-question-preview small,.wf-recipient-preview li p,.wf-publish-check>p,.students-muted,.students-card h3 small,.students-roster small,.students-records h2 span,.students-record details,.students-source-tools,.students-roster-count,.students-result-count,.students-entry-target>span,.students-entry-target p,.students-field-help,.students-record-summary small,.students-export-scope,.ws-search-header p,.ws-search-hint,.ws-search-count,.ws-search-meta,.ws-search-excerpt,.cv-filter-summary p,.cv-weekdays span,.cv-no-events,.cv-home-count,.cv-month-keyboard,.cv-detail-only,.ci-source-id,.readiness-detail dt,.readiness-checks strong,.connection-readiness .readiness-kicker,.connection-readiness .readiness-download-note,.connection-readiness .readiness-limits){color:var(--ui-muted)}
+.ws-shell :is(.hint,.muted,.section-description,.basis-strip,.scope-note,.workspace-footer,.result-count,.event-meta,.event-location,.version-tag,.reason-tag,.small-tag,.task-meta,.task-list-heading,.task-panel small,.task-reason,.wf-scope,.wf-section-title>span,.wf-task-check small,.wf-task-note,.wf-muted,.wf-hint,.wf-obligation span,.wf-obligation small,.wf-request-card small,.wf-badge,.wf-label,.wf-progress,.wf-status-notes span,.wf-role-counts dt,.wf-role-labels>span,.wf-workbench-table small,.wf-table-pages,.wf-entry-checklist li p,.wf-entry-checklist strong small,.wf-request-preview dt,.wf-question-preview li>span,.wf-question-preview small,.wf-recipient-preview li p,.students-muted,.students-card h3 small,.students-roster small,.students-records h2 span,.students-record details,.students-source-tools,.students-roster-count,.students-result-count,.students-selected,.students-export-scope,.students-record-summary span,.students-record-summary small,.students-entry-target>span,.students-entry-target p,.students-field-help,.students-field-error,.students-saved p,.students-badge,.ws-search-header p,.ws-search-hint,.ws-search-source,.ws-search-count,.ws-search-kind,.ws-search-meta,.ws-search-excerpt,.ws-search-open,.cv-filter-summary p,.cv-weekdays span,.cv-day-count,.cv-day-sample,.cv-week-day h3 span,.cv-no-events,.cv-home-count,.cv-month-keyboard,.cv-detail-only,.ci-source-id,.list-pagination p,.readiness-checks strong,.readiness-detail dl,.connection-readiness .readiness-kicker,.connection-readiness .readiness-download-note,.connection-readiness .readiness-download-status,.connection-readiness .readiness-limits){font-size:var(--ui-small-size)}
+
+/* 조작 요소는 색상보다 위치와 이름으로 구분하며, 터치 영역은 줄이지 않는다. */
+.ws-shell button:not(.cv-month-day){min-height:44px}
+.ws-shell :is(.primary,.secondary,.text-button,.icon-button,.task-primary,.task-secondary,.task-text-button,.list-pagination-actions button,.ws-search-close,.wf-tabs button,.wf-state-filters button,.students-tabs button,.cv-switch button){font-size:var(--ui-body-size);border-radius:var(--ui-radius);box-shadow:none}
+.ws-shell :is(.primary,.task-primary,.connection-readiness .readiness-button){color:var(--ui-on-accent);background:var(--ui-accent);border-color:var(--ui-accent);box-shadow:none}
+.ws-shell :is(.primary,.task-primary,.connection-readiness .readiness-button):hover:not(:disabled){color:var(--ui-on-accent);background:var(--ui-accent);filter:brightness(.94)}
+.ws-shell :is(.secondary,.task-secondary,.list-pagination-actions button,.ws-search-close,.students-tabs button,.wf-state-filters button,.connection-readiness .readiness-button.readiness-secondary){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line)}
+.ws-shell :is(.secondary,.task-secondary,.list-pagination-actions button,.ws-search-close):hover:not(:disabled){background:var(--ui-surface-muted);border-color:var(--ui-accent)}
+.ws-shell :is(.text-button,.task-text-button,.ws-search-open){color:var(--ui-accent);background:transparent}
+.ws-shell .icon-button{background:var(--ui-surface-muted);color:var(--ui-muted);width:44px;height:44px}
+.ws-shell .ws-search-trigger{background:var(--ui-surface);border-color:var(--ui-line);color:var(--ui-muted);font-size:var(--ui-body-size)!important}
+.ws-shell .ws-search-close{font-size:var(--ui-body-size)!important}
+.ws-shell :is(button,a,input,select,textarea,summary,[tabindex="-1"]):focus-visible{outline:3px solid var(--ui-focus);outline-offset:3px}
+.ws-shell :is(.task-panel,.wf-panel,.students-panel,.ws-search,.connection-readiness,.cv-month,.cv-switch) :is(button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ui-focus);outline-offset:3px}
+.ws-shell :is(.task-card,.task-error,.task-notice,.students-record,.students-source,.students-entry-target,.students-saved,.students-error,.wf-unit,.wf-unit-unavailable,.wf-request-list,.wf-unit-list,.wf-workbench-scroll,.wf-version-comparison>h4,.ci-summary-title,.ci-row):focus{outline-color:var(--ui-focus)}
+.ws-shell :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);border-radius:var(--ui-radius);min-height:44px;font-size:var(--ui-body-size);box-shadow:none}
+.ws-shell :is(.task-panel,.students-panel,.wf-panel,.ws-search-fields) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);font-size:var(--ui-body-size)}
+.ws-shell :is(input,textarea)::placeholder{color:var(--ui-muted);opacity:1}
+.ws-shell :is(input[type=checkbox],input[type=radio]){accent-color:var(--ui-accent)}
+.ws-shell :is(.task-panel fieldset:disabled input,.task-panel fieldset:disabled textarea,input:disabled,select:disabled,textarea:disabled){background:var(--ui-surface-muted);color:var(--ui-muted)}
+.ws-shell :is(.required,.audience-group legend,.wf-unit-input>legend){color:var(--ui-accent);font-size:var(--ui-small-size)}
+.ws-shell :is(.check-label,.wf-checkbox,.students-check){min-height:44px;font-size:var(--ui-body-size)}
+.ws-shell .students-panel [aria-invalid=true]{border-color:var(--ui-danger)!important;box-shadow:0 0 0 1px var(--ui-danger)}
+
+/* 카드와 목록: 바깥 면은 밝게, 보조 면은 아주 옅게 둔다. */
+.ws-shell :is(.event-card,.task-card,.task-compact,.wf-home,.wf-request-card,.wf-request-detail,.wf-editor,.wf-request-preview,.wf-response-state,.wf-workbench-scroll,.students-card,.students-record,.students-source,.ws-search-result,.cv-filters,.cv-month,.ci-row,.connection-readiness){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);border-radius:var(--ui-radius);box-shadow:none}
+.ws-shell :is(.event-card,.task-card,.wf-request-card,.students-roster button,.ws-search-result){padding:var(--ui-row-padding);border-radius:var(--ui-radius)}
+.ws-shell :is(.event-card,.wf-request-card,.students-roster button,.ws-search-result):hover:not(:disabled){background:var(--ui-surface-muted);border-color:var(--ui-accent);box-shadow:none}
+.ws-shell :is(.task-editor,.task-status-done,.task-empty,.task-loading,.task-comparison>div,.task-due-tile,.wf-scope,.wf-task-form,.wf-empty,.wf-obligation,.wf-unit-input,.wf-progress,.wf-submitted,.wf-response-form,.wf-workbench,.wf-entry-checklist,.wf-publish-check,.wf-role-counts>div,.wf-question-preview li,.students-boundary,.students-roster button,.students-empty,.students-export,.students-export-scope,.students-record-summary button,.ws-search-source,.ws-search-empty,.cv-switch,.cv-week-day,.ci-target,.audience-preview,.subtle-note,.developer-inline,.developer-panel,.readiness-progress,.readiness-idle,.readiness-step){background:var(--ui-surface-muted);color:var(--ui-text);border-color:var(--ui-line);border-radius:var(--ui-radius);box-shadow:none}
+.ws-shell :is(.event-list,.calendar-list,.task-list,.wf-request-list,.students-roster,.ci-rows){gap:10px}
+.ws-shell :is(.event-badges,.task-meta){row-gap:5px}
+.ws-shell :is(.date-tile,.compact .date-tile,.count,.small-tag,.reason-tag,.task-status-badge,.task-reason,.wf-badge,.wf-role-labels>span,.students-badge,.ws-search-kind){background:var(--ui-accent-soft);color:var(--ui-accent);border-color:var(--ui-line);border-radius:5px}
+.ws-shell :is(.date-tile small,.reason-tag,.task-status-badge,.wf-badge,.ws-search-kind){font-size:var(--ui-small-size)}
+.ws-shell .date-tile strong{font-size:24px}
+.ws-shell :is(.scope-note,.workspace-footer,.list-pagination,.audience-section,.audience-group,.individual-targets,.event-detail>div,.wf-fieldset,.wf-task,.wf-home-obligations,.wf-unit,.wf-secondary-action,.wf-history,.wf-history>div,.wf-recipient-preview,.wf-recipient-preview li,.wf-question-preview small,.readiness-detail,.readiness-checks li){border-color:var(--ui-line)}
+.ws-shell :is(.scope-note strong,.wf-progress strong,.wf-role-counts dd,.students-history p,.wf-response-state){color:var(--ui-text)}
+.ws-shell :is(.event-detail dt,.audience-preview dt,.audience-preview dd span,.task-comparison dt){color:var(--ui-muted);font-size:var(--ui-small-size)}
+.ws-shell :is(.event-detail dd,.audience-preview dd,.wf-submitted p,.wf-submitted p:last-child){font-size:var(--ui-body-size)}
+.ws-shell .students-source blockquote{background:var(--ui-surface);border-color:var(--ui-accent);color:var(--ui-text)}
+.ws-shell .students-badge{font-weight:600}
+.ws-shell .students-selected{background:var(--ui-accent-soft);color:var(--ui-text)}
+.ws-shell .students-selected span{color:var(--ui-muted)}
+.ws-shell .students-entry-target{background:var(--ui-accent-soft);border-color:var(--ui-line);border-radius:var(--ui-radius)}
+.ws-shell .students-entry-target>strong{font-size:calc(var(--ui-body-size) + 3px)}
+.ws-shell :is(.students-record-summary strong,.task-due-tile strong){font-size:calc(var(--ui-body-size) + 8px);font-weight:650}
+
+/* 선택 상태는 모든 스킨에서 같은 파란 강조를 사용한다. */
+.ws-shell :is(.wf-tabs,.students-tabs,.cv-switch){background:var(--ui-surface-muted)}
+.ws-shell :is(.wf-tabs button,.cv-switch button){background:transparent;color:var(--ui-muted)}
+.ws-shell :is(.wf-tabs button[aria-pressed=true],.cv-switch button[aria-pressed=true],.students-tabs button[aria-pressed=true],.wf-state-filters button[aria-pressed=true]){background:var(--ui-accent-soft);color:var(--ui-accent);border-color:var(--ui-accent);box-shadow:none}
+.ws-shell :is(.wf-request-card[aria-pressed=true],.students-roster button[aria-pressed=true],.students-record-summary button[aria-pressed=true],.task-card-highlighted){background:var(--ui-accent-soft);color:var(--ui-text);border-color:var(--ui-accent);box-shadow:inset 0 0 0 1px var(--ui-accent)}
+.ws-shell .wf-unit-target{background:var(--ui-accent-soft);border-color:var(--ui-accent)!important;border-radius:var(--ui-radius)}
+.ws-shell .wf-target-mark{color:var(--ui-accent);font-size:var(--ui-small-size)}
+
+/* 오류·경고·성공은 의미를 보존하고 배경/본문 색을 짝으로 바꾼다. */
+.ws-shell :is(.error-box,.task-error,.wf-error,.students-error,.students-entry-errors,.ci-error){background:var(--ui-danger-soft);color:var(--ui-danger);border-color:var(--ui-danger);border-radius:var(--ui-radius)}
+.ws-shell :is(.error-state,.conflict-box,.task-retry,.task-conflict,.task-due-overdue,.wf-warning,.wf-review-form,.wf-review-note,.wf-entry-issues,.wf-version-comparison,.students-warning,.students-badge.warning,.students-entry-target.unavailable,.students-record-summary button.needs-review,.ws-search-notice,.ws-search-source-failed,.ws-search-source-loading,.readiness-summary){background:var(--ui-warning-soft);color:var(--ui-warning);border-color:var(--ui-warning);border-radius:var(--ui-radius)}
+.ws-shell :is(.success-box,.task-notice,.task-due-today,.wf-notice,.students-notice,.students-saved,.ci-saved,.readiness-summary.readiness-confirmed){background:var(--ui-success-soft);color:var(--ui-success);border-color:var(--ui-success);border-radius:var(--ui-radius)}
+.ws-shell :is(.notice-box,.wf-workbench-table .wf-unit-state-pending){background:var(--ui-accent-soft);color:var(--ui-accent);border-color:var(--ui-accent)}
+.ws-shell :is(.task-overdue,.wf-workbench-table .wf-overdue-label,.ci-warning,.error-state p,.conflict-box h3){color:var(--ui-warning)}
+.ws-shell .students-field-error{color:var(--ui-danger)}
+.ws-shell :is(.students-saved p,.students-saved strong){color:var(--ui-success)}
+.ws-shell .students-record-summary button.needs-review[aria-pressed=true]{border-color:var(--ui-warning);box-shadow:inset 0 0 0 1px var(--ui-warning)}
+.ws-shell .wf-status-notes span{background:var(--ui-warning-soft);color:var(--ui-warning)}
+.ws-shell .state-symbol{color:var(--ui-warning);border-color:var(--ui-warning)}
+.ws-shell .wf-entry-checklist li>span{background:var(--ui-surface-muted);border-color:var(--ui-line);color:var(--ui-muted)}
+.ws-shell .wf-entry-checklist li.is-ready>span{background:var(--ui-success-soft);color:var(--ui-success)}
+.ws-shell .wf-entry-checklist li.needs-input>span{background:var(--ui-warning-soft);color:var(--ui-warning)}
+.ws-shell .readiness-checks li[data-check-state=confirmed] strong{color:var(--ui-success)}
+.ws-shell .readiness-checks li[data-check-state=attention] strong{color:var(--ui-warning)}
+.ws-shell .connection-readiness .readiness-download-status{color:var(--ui-accent)}
+
+/* 수합 표와 달력은 정렬 및 조작 위치를 유지한다. */
+.ws-shell .wf-workbench-table{color:var(--ui-text);font-size:var(--ui-body-size)}
+.ws-shell .wf-workbench-table :is(th,td){border-color:var(--ui-line);padding:var(--ui-row-padding)}
+.ws-shell .wf-workbench-table thead th{background:var(--ui-surface-muted);color:var(--ui-muted)}
+.ws-shell .wf-workbench-table .is-selected{background:var(--ui-accent-soft)}
+.ws-shell .wf-workbench-table :is(.wf-unit-state-changes,.wf-unit-state-revising,.wf-unit-state-missing){background:var(--ui-warning-soft);color:var(--ui-warning)}
+.ws-shell .cv-month-day{background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);border-radius:5px}
+.ws-shell .cv-month-day:hover{background:var(--ui-surface-muted)}
+.ws-shell .cv-month-day.is-outside{background:var(--ui-surface-muted);color:var(--ui-muted)}
+.ws-shell .cv-month-day[aria-pressed=true]{background:var(--ui-accent-soft);color:var(--ui-text);border-color:var(--ui-accent)}
+.ws-shell .cv-day-count{color:var(--ui-accent)}
+.ws-shell .cv-today-label{background:var(--ui-accent);color:var(--ui-on-accent);font-size:max(10px,calc(var(--ui-small-size) - 2px))}
+.ws-shell .cv-week-day.is-today{border-color:var(--ui-accent)}
+.ws-shell .cv-month-keyboard{line-height:1.7}
+
+/* 모달 역시 현재 선택한 스킨 안에서 읽히도록 한다. */
+.ws-shell :is(.editor-dialog,.detail-dialog,.calendar-import-dialog,.ws-search-dialog,.appearance-dialog){background:var(--ui-surface);color:var(--ui-text);border:1px solid var(--ui-line);border-radius:10px;box-shadow:0 16px 48px #10182829}
+.ws-shell dialog::backdrop{background:#11182770;backdrop-filter:none}
+.ws-shell :is(.dialog-header,.dialog-footer,.ws-search-header){border-color:var(--ui-line)}
+.ws-shell .dialog-footer{background:var(--ui-surface-muted)}
+.ws-shell :is(.dialog-header h2,.ws-search-header h2){font-size:calc(var(--ui-body-size) + 6px)}
+.ws-shell .dialog-header .eyebrow{font-size:var(--ui-small-size)}
+.ws-shell .skeleton{background:linear-gradient(90deg,var(--ui-surface-muted),var(--ui-surface),var(--ui-surface-muted));background-size:200% 100%;border-radius:var(--ui-radius)}
+.ws-shell .appearance-dialog{font-size:var(--ui-body-size)}
+.ws-shell .appearance-dialog :is(.appearance-option-description,.appearance-status,.appearance-storage-note,.appearance-storage-error){font-size:var(--ui-small-size)}
+.ws-shell .appearance-option input[type=radio]{display:inline-block;width:16px;height:16px;min-height:0;padding:0;margin:0;box-shadow:none}
+.ws-shell .empty-state{background:var(--ui-surface-muted);border-color:var(--ui-line);border-radius:var(--ui-radius)}
+.ws-shell .empty-state :is(h3,p,span){color:var(--ui-muted)}
+.ws-shell .empty-state :is(h3,p){font-size:var(--ui-body-size)}
+.ws-shell .audience-group .text-button{color:var(--ui-muted);font-size:var(--ui-small-size)}
+.ws-shell :is(.individual-targets summary,.developer-inline summary,.member-target,.audience-group legend,.group-label,.wf-entry-checklist strong,.wf-entry-checklist li,.wf-request-preview dl,.wf-question-preview li,.wf-recipient-preview summary,.wf-recipient-preview li,.wf-history>div,.wf-secondary-action summary,.wf-history summary){font-size:var(--ui-small-size)}
+.ws-shell .wf-question-preview strong{font-size:var(--ui-body-size)}
+
+@media(max-width:720px){
+  .ws-shell :is(input:not([type=checkbox]):not([type=radio]),select,textarea),.ws-shell :is(.task-panel,.students-panel,.wf-panel,.ws-search-fields) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){font-size:max(16px,var(--ui-body-size))}
+  .ws-shell .wf-date input{font-size:max(16px,var(--ui-body-size))!important}
+  .ws-shell :is(.event-card,.task-card,.wf-request-card,.students-roster button,.ws-search-result){padding:var(--ui-row-padding)}
+  .ws-shell :is(.wf-home,.task-compact,.students-card,.wf-request-detail,.wf-editor){border-radius:var(--ui-radius)}
+}

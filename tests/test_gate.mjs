@@ -1,12 +1,12 @@
 // D20 서버 게이트 — 승인 전에는 Claude API 를 호출하지 않는지까지 확인
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
 process.env.VITE_SUPABASE_URL = 'https://fake.supabase.co'
 process.env.VITE_SUPABASE_ANON_KEY = 'anon'
 process.env.ANTHROPIC_API_KEY = 'sk-test'
-const mod = await import(`${API}/chat.js`)
+const mod = await import(pathToFileURL(`${API}/chat.js`).href)
 
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }

@@ -8,6 +8,7 @@ import SubmissionsPage from './pages/SubmissionsPage.jsx'
 import DocAiPage from './pages/DocAiPage.jsx'
 import AdminUsersPage from './pages/AdminUsersPage.jsx'
 import PendingPage from './pages/PendingPage.jsx'
+import WorkhubPage from './pages/WorkhubPage.jsx'
 import { visibleModules } from './lib/modules.js'
 
 // 모듈 key → 화면. 라우트 목록은 lib/modules.js 가 정한다 —
@@ -18,6 +19,7 @@ const SCREENS = {
   'doc-ai': <DocAiPage />,
   submissions: <SubmissionsPage />,
   calendar: <CalendarPage />,
+  workhub: <WorkhubPage />,
   'admin-users': <AdminUsersPage />,
 }
 

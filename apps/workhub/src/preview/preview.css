@@ -1,0 +1,9 @@
+.menu-icon{width:20px;text-align:center;font-size:21px;line-height:1}
+.preview-error{margin:24px 32px}
+.sidebar-intro{margin-top:420px}
+@media(max-width:720px){
+  .main-nav{overflow-x:auto;gap:3px;padding:8px 12px}
+  .main-nav button{flex:0 0 auto;min-height:44px;padding:9px 11px;gap:6px;white-space:nowrap}
+  .main-nav .menu-icon{font-size:18px;width:18px}
+  .preview-error{margin:15px}
+}
