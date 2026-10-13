@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { hasPreviewUrl } from './preview-readiness.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const scripts = [
@@ -52,7 +53,7 @@ async function startPreview() {
   const deadline = Date.now() + 30000
   while (Date.now() < deadline) {
     if (failed) throw new Error(`${failed}\n${log}`)
-    if (log.includes(url)) {
+    if (hasPreviewUrl(log, url)) {
       try { if ((await fetch(url, { signal: AbortSignal.timeout(1000) })).ok) return url } catch { /* 소유 서버의 준비가 끝날 때까지 기다린다. */ }
     }
     await new Promise(done => setTimeout(done, 100))
