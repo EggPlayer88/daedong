@@ -26,11 +26,12 @@ test('메뉴의 실제 구현 범위와 공개 제한을 중앙 목록에서 고
 test('연결 화면은 구현된 세 업무 메뉴와 명시적 AI 준비 안내를 제공한다', () => {
   const html=body(renderShell({mode:'connected',page:'tasks'}))
   for(const name of ['오늘','학교 일정','내 업무'])assert(html.includes(`>${name}</span>`))
-  for(const name of ['자료 수합','수업과 학생','시간표','문서함','더보기'])assert(!html.includes(name))
+  for(const name of ['자료 수합','수업과 학생','시간표','문서함'])assert(!html.includes(name))
   const assistant=html.match(/<button[^>]*class="[^"]*ws-assistant-trigger[^"]*"[\s\S]*?<\/button>/g)||[]
   assert.equal(assistant.length,1);assert(assistant[0].includes('AI 비서'));assert(assistant[0].includes('준비 중'))
   assert(!html.includes('<textarea'));assert(!html.includes('대화 전송'))
   assert.match(html,/aria-label="신축 업무 메뉴"/)
+  assert.match(html,/class="ws-more-button"[^>]*aria-haspopup="dialog"/)
   assert.match(html,/ws-child-menu[^>]*aria-current="page"/)
 })
 test('미리보기 메뉴는 업무와 나의 수업으로 묶고 더보기의 연결을 제공한다', () => {

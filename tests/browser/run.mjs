@@ -11,12 +11,12 @@ const scripts = [
   'workhub-tasks', 'workhub-connection', 'workhub-readiness',
   'workhub-navigation', 'workhub-foundation', 'workhub-calendar-views',
   'workhub-calendar-recovery', 'workhub-calendar-import', 'workhub-request-recovery',
-  'workhub-home-search', 'workhub-task-navigation',
+  'workhub-home-search', 'workhub-home-layout', 'workhub-task-navigation',
   'workhub-collection-workbench', 'workhub-collection-entry',
   'workhub-student-workspace', 'workhub-student-entry',
   'workhub-accessibility', 'workhub-collection-accessibility', 'workhub-student-accessibility',
   'workhub-task-paging', 'workhub-collection-paging', 'workhub-student-paging',
-  'workhub', 'workhub-offline', 'workhub-appearance',
+  'workhub', 'workhub-offline', 'workhub-appearance', 'workhub-mobile-navigation',
 ]
 const filters = process.argv.slice(2)
 if (filters.includes('--list')) { console.log(scripts.join('\n')); process.exit(0) }

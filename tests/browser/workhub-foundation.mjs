@@ -29,7 +29,7 @@ await context.route(`${origin}/**`,route=>route.fulfill({contentType:'text/html'
 const nav=()=>page.getByRole('navigation',{name:'업무 메뉴'})
 async function menu(name){const button=nav().getByRole('button',{name,exact:true});if(!await button.isVisible())await nav().getByRole('button',{name:'더보기',exact:true}).click();await button.click()}
 async function screen(name){await page.getByRole('heading',{name,exact:true,level:1}).waitFor()}
-async function home(){await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor()}
+async function home(){await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor();await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))}
 async function test(name,action){await action();results.push(name);console.log('  ✓ '+name)}
 async function settledNavigation(){await page.waitForFunction(()=>[...document.querySelectorAll('.ws-menu-button')].every(button=>!button.disabled))}
 try{
@@ -75,7 +75,7 @@ try{
     await page.getByRole('button',{name:'학교 전체 일정 살펴보기'}).waitFor()
     const tools=page.locator('.developer-panel');if(!await tools.evaluate(node=>node.open))await tools.locator('summary').click()
     await page.getByRole('button',{name:'다음 조회 실패',exact:true}).click();await page.getByRole('heading',{name:'일정을 확인할 수 없어요'}).waitFor()
-    await page.locator('.error-state').getByRole('button',{name:'다시 불러오기',exact:true}).click();await page.getByRole('button',{name:'학교 전체 일정 살펴보기'}).waitFor();assert.equal(await page.getByRole('heading',{name:'일정을 확인할 수 없어요'}).count(),0)
+    await page.locator('.error-state').getByRole('button',{name:'다시 불러오기',exact:true}).click();await page.locator('.error-state').waitFor({state:'hidden'});await page.locator('.home-today .event-card').first().waitFor();assert.equal(await page.getByRole('heading',{name:'일정을 확인할 수 없어요'}).count(),0)
   })
   await test('한 기능의 렌더 오류를 격리하고 원본 삭제 없이 그 기능만 다시 연다',async()=>{
     const before=await page.evaluate(()=>localStorage.getItem('workhub:synthetic:v3:workspace'))

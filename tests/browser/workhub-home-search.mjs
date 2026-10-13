@@ -60,6 +60,17 @@ try{
   assert.match(await page.locator('.wf-section-title').innerText(),/처리할 1건 · 검토 대기 1건/)
   assert.equal(await page.getByRole('region',{name:'제출 후 검토 대기'}).count(),1)
  })
+ await test('수합 홈은 역할별 숫자를 접고 처리·대기 상태와 원본 행동을 남긴다',async()=>{
+  const summary=page.getByRole('region',{name:'오늘 처리할 수합',exact:true})
+  const details=summary.locator('.wf-home-details'),counts=details.locator('.wf-role-counts')
+  assert.equal(await details.getAttribute('open'),null);assert.equal(await counts.isVisible(),false)
+  assert.equal(await summary.locator('.wf-obligation').count(),2)
+  assert.equal(await summary.locator('.wf-home-category').filter({hasText:'제출 후 검토 대기'}).isVisible(),true)
+  assert.equal(await summary.getByRole('button',{name:/두 번째 단위.*접수 상태 확인/}).isVisible(),true)
+  await details.locator('summary').focus();await page.keyboard.press('Enter')
+  assert.equal(await counts.isVisible(),true);assert.match(await details.innerText(),/제출 책임자/)
+  await page.keyboard.press('Enter');assert.equal(await counts.isVisible(),false)
+ })
  await test('기한 요약을 누르면 해당 필터의 업무 목록으로 이동한다',async()=>{
   await page.getByRole('group',{name:'개인 업무 기한 요약'}).getByRole('button').first().click()
   await page.getByRole('heading',{name:'내 업무',level:1,exact:true}).waitFor();assert.equal(await page.getByLabel('기한 분류',{exact:true}).inputValue(),'overdue')

@@ -307,7 +307,7 @@ test('초기화 저장 실패는 기존 업무를 유지하고 성공 때만 비
 test('실제 홈 JSX에 개인 체크와 수합 원본 행동을 구분하여 표시한다', () => {
   const { store } = opened('none'); store.createTask(author, taskInput, 'task')
   const html = renderHome(store)
-  assert(html.includes('해야 할 일')); assert(html.includes('수합 원본 보기')); assert(html.includes('체크로 완료하지 않습니다'))
+  assert(html.includes('해야 할 일')); assert(html.includes('수합 원본 보기')); assert(html.includes('수합은 원본 화면에서 제출하거나 검토합니다'))
   assert(html.includes('가상 안내 내용 확인'))
 })
 test('실제 수합 화면 JSX는 지원 범위와 받은/보낸 업무를 안내한다', () => {

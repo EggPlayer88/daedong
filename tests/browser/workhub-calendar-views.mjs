@@ -38,9 +38,9 @@ async function settled() { await page.evaluate(() => new Promise(resolve => requ
 async function screenshot(name) { if (process.env.WORKHUB_QA_OUTPUT) { mkdirSync(process.env.WORKHUB_QA_OUTPUT, { recursive: true }); await page.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, name + '.png'), fullPage: true }) } }
 try {
   await boot()
-  const upcoming = page.locator('.home-columns > section').nth(1)
-  assert.equal(await upcoming.locator('.event-card').count(), 4)
-  assert.ok((await upcoming.innerText()).includes('6개 중 먼저 4개 표시'))
+  const upcoming = page.locator('.home-upcoming')
+  assert.equal(await upcoming.locator('.event-card').count(), 3)
+  assert.ok((await upcoming.innerText()).includes('6개 중 먼저 3개 표시'))
   assert.equal(await upcoming.getByText('7일 밖의 일정').count(), 0)
   await page.getByRole('button', { name: '전체 관련 일정 보기' }).click()
   assert.equal(await page.getByLabel('조회 기간', { exact: true }).inputValue(), 'all')
