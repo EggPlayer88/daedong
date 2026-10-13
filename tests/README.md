@@ -170,3 +170,10 @@ node tests/browser/workhub-appearance.mjs       # 실제 Vite 앱의 스킨·사
 ## 연결 화면의 날짜 전환
 
 test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 재확인·정리를 검사하며 npm test에 포함된다. node tests/browser/workhub-day-refresh.mjs는 실제 연결 컴포넌트에 합성 전송을 주입하고 Playwright 시계를 제어해 자정·초안 보존·저장 복구·계정 변경·소속 종료·동시 신호 순차 처리를 확인한다. 전체 브라우저 러너에도 포함된다. 기기 시간으로 서버 날짜를 바꾸거나 실제 학교 서버를 호출하지 않는다.
+
+## PR #24 입력 복구 회귀
+
+- `test_workhub_edit_drafts.mjs`: 재확인 전 접근 차단·동일 범위 복구·폐기 후 늦은 콜백·슬롯 분리·이탈 경고 8개.
+- `tests/browser/workhub-draft-recovery.mjs`: 실제 연결/폼을 합성 RPC로 실행한다. 명부/조회 실패·원본 재검증·충돌·미확정 저장·폐기 후 재등장 방지를 검증하며 전체 브라우저 러너에 포함된다.
+- `workhub-calendar-import.mjs`의 연결 복구 시험은 부분 완료 행과 미확정 저장 요청의 중복 등록 방지를 함께 검증한다.
+- 자세한 재현 순서는 [재검토 기록](../docs/workhub/23-review-draft-recovery.md)을 참고한다. 실제 운영 DB에는 접속하지 않는다.
