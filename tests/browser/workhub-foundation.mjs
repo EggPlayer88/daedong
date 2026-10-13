@@ -31,7 +31,7 @@ await context.route(`${origin}/**`,route=>route.fulfill({contentType:'text/html'
 const nav=()=>page.getByRole('navigation',{name:'업무 메뉴'})
 async function menu(name){const button=nav().getByRole('button',{name,exact:true});if(!await button.isVisible())await nav().getByRole('button',{name:'더보기',exact:true}).click();await button.click()}
 async function screen(name){await page.getByRole('heading',{name,exact:true,level:1}).waitFor()}
-async function home(){await page.getByRole('heading',{name:'오늘 챙길 내 업무',exact:true}).waitFor()}
+async function home(){await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor()}
 async function test(name,action){await action();results.push(name);console.log('  ✓ '+name)}
 async function settledNavigation(){await page.waitForFunction(()=>[...document.querySelectorAll('.ws-menu-button')].every(button=>!button.disabled))}
 try{
@@ -89,7 +89,7 @@ try{
   await test('본문 건너뛰기와 360px 더보기로 모든 화면을 찾고 가로 넘침이 없다',async()=>{
     await page.getByRole('link',{name:'본문으로 건너뛰기'}).focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'H1')
     await page.setViewportSize({width:360,height:800});assert.equal(await nav().getByRole('button',{name:'수업과 학생',exact:true}).isVisible(),false)
-    for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){await menu(name);await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name);assert((await nav().locator('.ws-menu-button[aria-current="page"]').textContent()).includes(name));assert.equal(await page.getByRole('navigation',{name:'현재 위치'}).locator('strong').textContent(),name);if(output)await page.screenshot({path:join(output,`foundation-mobile-${name}.png`),fullPage:true})}
+    for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){await menu(name);await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name);assert((await nav().locator('.ws-menu-button[aria-current="page"]').textContent()).includes(name));assert.equal(await page.getByRole('heading',{level:1}).textContent(),name);if(output)await page.screenshot({path:join(output,`foundation-mobile-${name}.png`),fullPage:true})}
     await page.setViewportSize({width:1440,height:1000});await menu('오늘');await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'));if(output)await page.screenshot({path:join(output,'foundation-desktop-home.png'),fullPage:true})
   })
   await test('모바일 더보기에서 연속으로 다른 메뉴를 골라도 이전 화면의 닫기가 새 클릭을 취소하지 않는다',async()=>{
@@ -97,7 +97,7 @@ try{
     // 고정 지연 없이 메뉴를 바로 이어 누른다. 늦은 effect가 다시 연 메뉴를 닫는 회귀를 잡는다.
     for(let round=0;round<12;round++)for(const name of ['자료 수합','수업과 학생']){
       await menu(name)
-      assert.equal(await page.getByRole('navigation',{name:'현재 위치'}).locator('strong').textContent(),name)
+      assert.equal(await page.getByRole('heading',{level:1}).textContent(),name)
     }
   })
   assert.deepEqual(errors.filter(error=>!error.includes(fault)),[])

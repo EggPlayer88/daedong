@@ -42,7 +42,7 @@ async function user(id) {
 }
 try {
   await page.goto(url)
-  await page.getByRole('heading', { name: '오늘 챙길 내 업무' }).waitFor()
+  await page.getByRole('heading', { name: '내 할 일' }).waitFor()
   await ok('홈에서 할 일 추가·새로고침 복원·완료와 재개', async () => {
     await page.getByRole('button',{name:'할 일 등록',exact:true}).click()
     await page.getByLabel('해야 할 일', { exact: true }).fill('브라우저 검증 · 행사 안내')
@@ -163,7 +163,7 @@ try {
         await menu(name)
         await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${label} ${name}`)
-        if (label === 'desktop') assert(await page.locator('.ws-sidebar-note').evaluate(node => node.getBoundingClientRect().top >= document.querySelector('.ws-navigation').getBoundingClientRect().bottom), '왼쪽 메뉴와 소개 문구가 겹치지 않아야 한다.')
+        if (label === 'desktop') assert(await page.locator('.ws-utilities').evaluate(node => node.getBoundingClientRect().top >= document.querySelector('.ws-navigation').getBoundingClientRect().bottom), '왼쪽 메뉴와 화면 설정·AI 비서가 겹치지 않아야 한다.')
         if (output && ['오늘','자료 수합','수업과 학생'].includes(name)) await page.screenshot({path:join(output,`workhub-v2-${label}-${name}.png`),fullPage:true})
       }
     }
@@ -181,7 +181,7 @@ try {
     await menu('수업과 학생'); assert((await page.locator('main').innerText()).includes('과정을 설명함'))
     await page.evaluate(() => { Storage.prototype.setItem = window.__originalStorageSet })
     await page.getByRole('button', {name:'합성 자료 초기화',exact:true}).click()
-    await page.getByRole('heading', {name:'오늘 챙길 내 업무'}).waitFor()
+    await page.getByRole('heading', {name:'내 할 일'}).waitFor()
     assert.equal(await task('브라우저 검증 · 행사 안내').count(),0)
     await menu('자료 수합'); assert(!(await page.locator('main').innerText()).includes('브라우저 검증 · 현장학습 수량'))
     await menu('수업과 학생'); assert(!(await page.locator('main').innerText()).includes('과정을 설명함'))
