@@ -84,6 +84,8 @@ npm test
 | `test_workhub_shell.mjs` | 연결 모드별 메뉴, 모바일 더보기, 현재 위치·본문 접근, 오류 안내의 SSR 구조 |
 | `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단 |
 | `test_workhub_calendar_views.mjs` | 다일 겹침·월/주 범위·검색·추천·건수와 홈 7일 요약 |
+| `test_workhub_calendar_import.mjs` | CSV/TSV 인용·행 번호·한도·열 매핑·날짜/시간·중복·개인 공개 초안·깨진 입력 |
+| `test_workhub_calendar_import_ui.mjs` | 실제 가져오기/편집기의 SSR·고유 ID·초안 이관·문자열 이스케이프·저장 호출 없음 |
 | `test_workhub_preview_tasks.mjs` | 합성 store와 실제 TaskPanel 계약의 멱등·충돌·격리·Unicode·원자적 실패 |
 | `test_workhub_task_summary.mjs` | 미완료 업무의 기한 분류·4건 요약·메모·조회 실패 표시 |
 | `test_workhub_collection_summary.mjs` | 제출·공동작성·검토·대기의 구분, 복수 보완 기한, 정확한 원본·목록 선택 |
@@ -106,6 +108,7 @@ npm test
 node tests/browser/workhub-navigation.mjs       # 실제 BrowserRouter의 앞/뒤 이동·기존 링크
 node tests/browser/workhub-calendar-views.mjs   # 월·주·목록·검색·키보드·모바일
 node tests/browser/workhub-calendar-recovery.mjs # 실제 접수 뒤 응답만 유실·같은 요청 재확인
+node tests/browser/workhub-calendar-import.mjs  # 표 검사→행 검토→기존 편집기·중복 재비교·읽기 취소·저장 복구
 node tests/browser/workhub.mjs                  # 개인 업무·수합·학생의 전체 흐름
 node tests/browser/workhub-foundation.mjs        # 실제 PreviewApp의 주소·입력 보호·오류 격리
 node tests/browser/workhub-home-search.mjs       # 실제 홈→검색→원본·학교 변경·연결 모드
