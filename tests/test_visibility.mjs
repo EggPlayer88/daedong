@@ -30,6 +30,7 @@ export function renderAt(profile, path) {
     'doc-ai': <div>문서 작성 AI 화면</div>,
     submissions: <div>평가계획 제출 화면</div>,
     calendar: <div>학사일정 화면</div>,
+    'workhub-setup': <div>학교 설정 준비 화면</div>,
     'admin-users': <div>사용자 관리 화면</div>,
   }
   return renderToStaticMarkup(
@@ -144,6 +145,18 @@ ck('메뉴와 라우트가 같은 표를 본다', () => {
   const layout = readFileSync(join(ROOT, 'apps/main/src/components/Layout.jsx'), 'utf-8')
   A(layout.includes('visibleModules(profile)'), '메뉴가 공개 범위를 안 본다')
   A(!layout.includes('const MENU = ['), '메뉴 목록이 따로 남아 있다')
+})
+
+ck('학교 설정 준비는 슈퍼관리자 메뉴와 라우트에만 연결된다', () => {
+  const module = mods.MODULES.find(item => item.key === 'workhub-setup')
+  A(module?.visibility === 'superadmin' && module.to === '/workhub/setup', '학교 설정 준비 공개 범위 또는 주소')
+  for (const profile of [null, USERS.teacher, USERS.head, USERS.admin]) {
+    A(!mods.visibleModules(profile).some(item => item.key === module.key), '제한 대상에게 메뉴가 보인다')
+    A(!renderAt(profile, module.to).includes('학교 설정 준비 화면'), '제한 대상에게 입력 화면이 열린다')
+  }
+  const html = renderAt(USERS.superadmin, module.to)
+  A(html.includes('학교 설정 준비 화면'), '슈퍼관리자에게 준비 화면이 연결되지 않았다')
+  A((html.match(/aria-current="page"/g) || []).length === 1, '부모 메뉴와 학교 설정 메뉴가 동시에 현재 화면으로 표시된다')
 })
 
 console.log('\n[기본값 — 새 모듈은 안 보이는 쪽으로 실패한다]')
