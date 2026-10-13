@@ -4,6 +4,8 @@ import type { ObservationDraft, ObservationView, SourceView } from './contracts'
 import type { StudentStore } from './store'
 import './students.css'
 import { useEditSession } from '../app/EditSession'
+import { listWindow } from '../app/list-window'
+import { ListPagination } from '../app/ListPagination'
 import { evidenceSignature, readObservationRows, searchRoster, studentRecordWorkspace, type RecordFilters, type RecordState } from './presentation'
 import { ActivityObservationEntry, ObservationEntry } from './ObservationEntry'
 import type { ObservationInput } from './entry'
@@ -26,11 +28,15 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
   const panel = useRef<HTMLElement>(null)
   const savedPanel = useRef<HTMLDivElement>(null)
   const recordsHeading = useRef<HTMLHeadingElement>(null)
+  const activitiesHeading = useRef<HTMLHeadingElement>(null)
   const readErrorPanel = useRef<HTMLDivElement>(null)
   const appliedRecordFocus = useRef(''), appliedEntryFocus = useRef(0), appliedSavedFocus = useRef(0)
   const activityDrafts = useRef(new Map<string, ActivityEntryDraft>())
   const [activityDraftCount, setActivityDraftCount] = useState(0)
   const [tab, setTab] = useState<'records' | 'activities'>('records')
+  const [recordPage, setRecordPage] = useState({ scope: '', page: 0 })
+  const [activityPage, setActivityPage] = useState({ scope: '', page: 0 })
+  const [pageFocus, setPageFocus] = useState<{ tab: 'records' | 'activities'; key: string }>()
   const [courseId, setCourseId] = useState('')
   const [studentId, setStudentId] = useState('')
   const [entryEnrollmentId, setEntryEnrollmentId] = useState('')
@@ -70,15 +76,37 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
   const selectedStudent = studentId ? students.find(student => student.id === studentId) : students[0]
   const roster = searchRoster(students, studentQuery)
   const workspace = studentRecordWorkspace(records, { ...filters, studentId: selectedStudent?.id, courseId: selectedCourse?.id })
+  const recordScope = JSON.stringify([filters, selectedStudent?.id, selectedCourse?.id, observedAt])
+  const activityScope = JSON.stringify([selectedCourse?.id, observedAt])
+  // 권한·원자료 검증과 전체 집계 이후에 카드만 나눈다. 화면 밖 기록도 근거 검증 대상이다.
+  const recordWindow = listWindow(workspace.records, recordPage.scope === recordScope ? recordPage.page : 0)
+  const activityWindow = listWindow(activities, activityPage.scope === activityScope ? activityPage.page : 0)
+  // 성공한 조회에서만 사라진 쪽을 보정한다. 일시 조회 실패는 입력이 있는 쪽을 지우지 않는다.
+  useEffect(() => {
+    if (accessError) return
+    if (recordPage.scope !== recordScope || recordPage.page !== recordWindow.page) setRecordPage({ scope: recordScope, page: recordWindow.page })
+  }, [accessError, recordScope, recordWindow.page, recordPage])
+  useEffect(() => {
+    if (accessError) return
+    if (activityPage.scope !== activityScope || activityPage.page !== activityWindow.page) setActivityPage({ scope: activityScope, page: activityWindow.page })
+  }, [accessError, activityScope, activityWindow.page, activityPage])
+  useEffect(() => {
+    if (!pageFocus || accessError) return
+    const heading = pageFocus.tab === 'records' ? recordsHeading.current : activitiesHeading.current
+    heading?.focus(); heading?.scrollIntoView({ block: 'nearest' })
+  }, [pageFocus])
   const visibleExport = exportSignature === evidenceSignature(records) ? exportText : ''
   const changeFilter = (changes: Partial<typeof filters>) => requestChange(() => setFilters(value => ({ ...value, ...changes })))
   useEffect(() => {
     if (!recordFocus || recordFocus.key === appliedRecordFocus.current || accessError || tab !== 'records') return
+    const index = workspace.records.findIndex(record => record.id === recordFocus.id)
+    const targetPage = index < 0 ? recordWindow.page : Math.floor(index / recordWindow.size)
+    if (targetPage !== recordWindow.page) { setRecordPage({ scope: recordScope, page: targetPage }); return }
     const card = Array.from(panel.current?.querySelectorAll<HTMLElement>('[data-student-record-id]') ?? []).find(node => node.dataset.studentRecordId === recordFocus.id)
     const target = card ?? recordsHeading.current
     if (target) appliedRecordFocus.current = recordFocus.key
     target?.focus(); target?.scrollIntoView({ block: 'nearest' })
-  }, [recordFocus, accessError, tab])
+  }, [recordFocus, accessError, tab, recordScope, recordWindow.page])
   useEffect(() => {
     if (!entryFocus || entryFocus === appliedEntryFocus.current || accessError || tab !== 'records') return
     const field = panel.current?.querySelector<HTMLElement>('[data-entry-field="activity"]')
@@ -179,10 +207,11 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
             <div className="students-record-summary" aria-label="관찰 기록 상태">{([['all', '전체 기록'], ['ready', '유효 근거'], ['review', '원자료 재검토'], ['withdrawn', '철회 이력']] as [RecordState, string][]).map(([state, label]) => <button type="button" key={state} aria-pressed={filters.state === state} aria-label={`${label} ${workspace.counts[state]}건 보기`} className={state === 'review' && workspace.counts.review ? 'needs-review' : ''} onClick={() => changeFilter({ state })}><span>{label}</span><strong>{workspace.counts[state]}<small>건</small></strong></button>)}</div>
             <p className="students-result-count" role="status">조회 결과 {workspace.records.length}건 · 관찰일 최신순</p>
             {!workspace.records.length && <p className="students-empty">{!records.length ? '아직 본인이 작성한 관찰 기록이 없습니다.' : '현재 학생과 조회 조건에 맞는 기록이 없습니다. 범위를 바꾸거나 조회 조건을 초기화해 보세요.'}</p>}
-            {workspace.records.map((record, index) => <RecordCard key={record.id} record={record} position={index + 1} onEdit={() => requestChange(() => edit(record))} onWithdraw={why => run(() => { store.withdrawObservation(member.id, record.id, record.current.version, why, key()); setRecordFocus({ id: record.id, key: key() }); setNotice('철회 이력을 남겼습니다. 유효 근거 목록에서 제외됩니다.') })} />)}
+            {recordWindow.items.map((record, index) => <RecordCard key={record.id} record={record} position={recordWindow.start + index} onEdit={() => requestChange(() => edit(record))} onWithdraw={why => run(() => { store.withdrawObservation(member.id, record.id, record.current.version, why, key()); setRecordFocus({ id: record.id, key: key() }); setNotice('철회 이력을 남겼습니다. 유효 근거 목록에서 제외됩니다.') })} />)}
+            <ListPagination label="관찰 기록 페이지" window={recordWindow} onPageChange={page => requestChange(() => { setRecordPage({ scope: recordScope, page }); setPageFocus({ tab: 'records', key: key() }) })} />
           </>}
           {visibleExport && <div className="students-export"><label>나의 근거 목록 · 현재 학교의 본인 전체 기록 · AI 생기부 초안 아님<textarea aria-label="나의 근거 목록" readOnly rows={9} value={visibleExport} onFocus={event => event.currentTarget.select()} /></label><button type="button" className="secondary" onClick={downloadEvidence}>텍스트 파일 내려받기</button><p className="students-muted">내려받기 직전에 전체 원자료의 최신판을 다시 확인합니다. 이미 내려받은 파일은 자동 회수되지 않습니다.</p></div>}</article>
-      </> : <article className="students-card"><h2>수업 활동 받은함</h2><p className="students-muted">가상 외부 사건을 수신해 검토하는 흐름입니다. 실제 디지털윤리 사이트에 연결하지 않으며 현재 사이트 CSV를 읽는 파서는 아직 없습니다.</p>{!activities.length && <p className="students-empty">위의 ‘가상 수업 활동 받기’로 수신→학생 확인→관찰 채택을 시험해 보세요.</p>}{activities.map((source, index) => <ActivityCard key={source.id} source={source} position={index + 1} member={member} store={store} run={run} onNotice={setNotice} onSaved={announceSaved} drafts={activityDrafts.current} onDraftCountChange={setActivityDraftCount} />)}</article>}
+      </> : <article className="students-card"><h2 ref={activitiesHeading} tabIndex={-1}>수업 활동 받은함</h2><p className="students-muted">가상 외부 사건을 수신해 검토하는 흐름입니다. 실제 디지털윤리 사이트에 연결하지 않으며 현재 사이트 CSV를 읽는 파서는 아직 없습니다.</p>{!activities.length && <p className="students-empty">위의 ‘가상 수업 활동 받기’로 수신→학생 확인→관찰 채택을 시험해 보세요.</p>}{activityWindow.items.map((source, index) => <ActivityCard key={source.id} source={source} position={activityWindow.start + index} member={member} store={store} run={run} onNotice={setNotice} onSaved={announceSaved} drafts={activityDrafts.current} onDraftCountChange={setActivityDraftCount} />)}<ListPagination label="수업 활동 페이지" window={activityWindow} onPageChange={page => requestChange(() => { setActivityPage({ scope: activityScope, page }); setPageFocus({ tab: 'activities', key: key() }) })} /></article>}
     </>}
   </section>
 }
@@ -190,6 +219,7 @@ function StudentWorkspace({ member, date, store }: StudentsPanelProps) {
 function RecordCard({ record, position, onEdit, onWithdraw }: { record: ObservationView; position: number; onEdit: () => void; onWithdraw: (reason: string) => void }) {
   const id = useId(), reasonField = useRef<HTMLInputElement>(null), withdrawToggle = useRef<HTMLButtonElement>(null)
   const [withdrawing, setWithdrawing] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [attempted, setAttempted] = useState(false)
   const reasonError = !reason.trim() ? '철회 사유를 입력해 주세요. 이전 기록과 함께 보존됩니다.' : reason.length > observationLimits.reason ? `철회 사유는 ${observationLimits.reason}자 이내로 작성해 주세요.` : ''
@@ -200,7 +230,7 @@ function RecordCard({ record, position, onEdit, onWithdraw }: { record: Observat
     <strong id={`${id}-activity`}>{record.current.activity}</strong><p className="students-content">{record.current.content}</p>
     {record.current.source && <p className="students-muted">출처 {record.current.source.sourceId} · 원자료 판 {record.current.source.sourceRevision} · 연결 판 {record.current.source.mappingRevision}</p>}
     {record.needsReview && record.current.state === 'active' && <p className="students-warning">원자료가 바뀌었습니다. 근거 내보내기를 중지했습니다. 이 기록을 철회하고 받은함에서 새 원문을 확인한 뒤 다시 채택하세요.</p>}
-    <details><summary aria-describedby={`${id}-title ${id}-activity`}>불변 개정 이력 {record.revisions.length}개</summary><ol className="students-history">{record.revisions.map(revision => <li key={revision.version}><strong>v{revision.version} · {revision.state === 'withdrawn' ? '철회' : '작성/정정'}</strong><span>{revision.reason}</span><p>{revision.content}</p></li>)}</ol></details>
+    <details onToggle={event => setHistoryOpen(event.currentTarget.open)}><summary aria-describedby={`${id}-title ${id}-activity`}>불변 개정 이력 {record.revisions.length}개</summary>{historyOpen && <ol className="students-history">{record.revisions.map(revision => <li key={revision.version}><strong>v{revision.version} · {revision.state === 'withdrawn' ? '철회' : '작성/정정'}</strong><span>{revision.reason}</span><p>{revision.content}</p></li>)}</ol>}</details>
     {record.current.state === 'active' && <div className="button-row"><button type="button" className="secondary small" onClick={onEdit} disabled={record.needsReview} aria-describedby={`${id}-title ${id}-activity`}>정정하기</button><button ref={withdrawToggle} type="button" className="secondary small" aria-expanded={withdrawing} aria-controls={withdrawing ? `${id}-withdraw` : undefined} aria-describedby={`${id}-title ${id}-activity`} onClick={() => { setWithdrawing(value => !value); setAttempted(false); withdrawToggle.current?.focus() }}>{withdrawing ? '철회 입력 취소' : '철회하기'}</button></div>}
     {withdrawing && record.current.state === 'active' && <form id={`${id}-withdraw`} className="students-withdraw" aria-label={`${position}번 관찰 기록 철회`} aria-describedby={`${id}-title ${id}-activity`} noValidate onSubmit={event => { event.preventDefault(); setAttempted(true); if (reasonError) reasonField.current?.focus(); else onWithdraw(reason) }}><label>철회 사유<input ref={reasonField} aria-label="철회 사유" value={reason} onChange={event => setReason(event.target.value)} maxLength={observationLimits.reason} required aria-invalid={attempted && Boolean(reasonError)} aria-describedby={`${id}-withdraw-help`} /><span id={`${id}-withdraw-help`} className={attempted && reasonError ? 'students-field-error' : 'students-muted'} role={attempted && reasonError ? 'alert' : undefined}>{attempted && reasonError ? reasonError : '철회해도 이전 기록과 사유는 보존됩니다.'}</span></label><button type="submit" className="secondary">사유와 함께 철회</button></form>}
   </section>
