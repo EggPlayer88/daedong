@@ -29,6 +29,19 @@ async function settle() {
   await page.waitForFunction(() => !document.querySelector('.loading-state,.task-loading'))
   await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 }
+// CSS의 media 적용과 React의 matchMedia 상태 반영은 같은 순간에 끝나지 않는다.
+// 설정 진입 방식을 고르기 전에 현재 화면 폭에 맞는 버튼 DOM까지 준비됐는지 확인한다.
+async function resize(viewport) {
+  await page.setViewportSize(viewport)
+  await page.waitForFunction(() => {
+    const mobile = window.matchMedia('(max-width: 720px)').matches
+    const desktopSettings = document.querySelector('.ws-utilities .appearance-trigger')
+    const more = document.querySelector('.ws-more-button')
+    return mobile
+      ? !desktopSettings && Boolean(more?.getClientRects().length)
+      : Boolean(desktopSettings?.getClientRects().length) && !more?.getClientRects().length
+  })
+}
 async function test(name, action) { await action(); results.push(name); console.log('  ✓ ' + name) }
 async function home() { await page.getByRole('heading', { name: '내 할 일', exact: true }).waitFor(); await settle() }
 async function heading(name) { await page.getByRole('heading', { name, exact: true, level: 1 }).waitFor(); await settle() }
@@ -172,7 +185,7 @@ try {
   })
   await test('320·390·1440px에서 세 스킨·큰 글씨의 홈과 설정이 가로로 넘치지 않는다', async () => {
     for (const width of [320, 390, 1440]) {
-      await page.setViewportSize({ width, height: width < 500 ? 850 : 1000 })
+      await resize({ width, height: width < 500 ? 850 : 1000 })
       for (const theme of ['light', 'warm', 'dark']) {
         await openSettings(); await choose(theme); await choose('large'); await choose('compact')
         await assertFits(`${width}px ${theme} 설정`)
@@ -183,13 +196,13 @@ try {
     }
   })
   await test('좁은 화면에서도 기존 다섯 화면의 메뉴·핵심 행동을 유지한다', async () => {
-    await page.setViewportSize({ width: 320, height: 850 })
+    await resize({ width: 320, height: 850 })
     for (const name of ['학교 일정', '내 업무', '자료 수합', '수업과 학생', '오늘']) {
       await menu(name); await assertFits(`320px ${name}`)
       assert.equal(await page.getByRole('navigation', { name: '업무 메뉴', exact: true }).locator('[aria-current="page"]').innerText(), name)
     }
     await home(); await openSettings(); await dialog().getByRole('button', { name: '기본 설정으로', exact: true }).click(); await closeSettings()
-    await page.setViewportSize({ width: 1440, height: 1000 }); await screenshot('appearance-final-white-home')
+    await resize({ width: 1440, height: 1000 }); await screenshot('appearance-final-white-home')
   })
   await test('화면 설정과 준비 중 AI가 서버 변경 요청이나 브라우저 오류를 만들지 않는다', async () => {
     assert.deepEqual(commandRequests, []); assert.deepEqual(errors, [])
