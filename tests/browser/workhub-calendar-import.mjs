@@ -93,8 +93,8 @@ try {
   await report('한국어 시트 날짜·오전오후 시간을 편집기와 실제 합성 저장까지 같은 값으로 정규화')
 
   await open(); await prepare('제목\t시작일\t종료일\n요일 확인 일정\t2026. 10. 13.(월)\t2026/10/14(목요일)')
-  assert.ok((await cards.innerText()).includes('시작일의 요일 (월)이 실제 날짜 2026-10-13 (화)과 다릅니다'))
-  assert.ok((await cards.innerText()).includes('종료일의 요일 (목)이 실제 날짜 2026-10-14 (수)과 다릅니다'))
+  assert.ok((await cards.innerText()).includes('시작일의 요일이 일치하지 않습니다. 입력한 요일: (월), 실제 날짜: 2026-10-13 (화).'))
+  assert.ok((await cards.innerText()).includes('종료일의 요일이 일치하지 않습니다. 입력한 요일: (목), 실제 날짜: 2026-10-14 (수).'))
   assert.equal(await cards.getByRole('button', { name: '내용·공유 대상 확인', exact: true }).count(), 0)
   assert.equal((await attempts()).length, 0)
   assert.equal(await source.isEnabled(), true)
