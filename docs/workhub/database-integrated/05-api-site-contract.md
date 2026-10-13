@@ -1,5 +1,7 @@
 # 사이트와 DB 명령 계약
 
+> 1.1 추가: API-25~26은 [교사 메신저](12-messenger.md), API-27~28은 [양식 기반 수합](13-template-collection.md), API-29는 [시간표 기본자료](14-timetable-operations.md)를 따른다. 기존 API-08~10/16~20의 해당 경로에도 새 양식·답변·후보·기본자료판 연결을 적용한다. 정확한 함수/입출력은 api-contracts.json과 상세 명세를 함께 참조한다. 아래 공통 명령 원칙은 신규 API에도 적용한다.
+
 목표 사이트 M00~M15의 화면은 DB 표를 임의로 조합해 쓰지 않고 아래 읽기 모델과 명령을 사용한다. API 번호는 기능군이며 거대한 단일 RPC를 뜻하지 않는다. 실제 세부 route와 JSON Schema는 이 계약을 구체화한 구현 산출물이다.
 
 ## 공통 요청과 결과
@@ -88,30 +90,30 @@ request_sha256은 클라이언트 의도를 결정적으로 정규화한 지문�
 
 - 명령: cmd_open_collection, cmd_publish_collection, cmd_change_collection_schema, cmd_exempt_unit
 - 읽기: collection_detail / collection_units_status / publish_preview
-- 표: collections, collection_schemas, collection_fields, collection_units, collection_unit_members
-- 입력: schema_id/hash·unit definitions·responsible membership·due_at·request/result_visibility·policy_version
+- 표: collections, collection_schemas, collection_fields, collection_units, collection_unit_members, collection_template_versions, collection_template_mappings
+- 입력: 기존 수합/단위 입력 + 양식 연결 시 response_mode/template_version_id/mapping_id/output_file_field_id/output_requirement/schema hash·대상 manifest. 문답형은 정확한 매핑/표본 확인판 필수; 양식 없는 숫자/글 수합은 기존 입력 유지
 - 권한: 게시 권한·대상·정책판. 단위별 하나의 의무. 결과 공개 별도
 - 결과: 게시판·고정 의무·단위 ID·면제 이력
-- 필수 시험: 같은단위중복/정의판불변/다른수합schema FK/결과공개기본차단
+- 필수 시험: 기존 수합 정상/공동단위/권한 + COL01~08 문항판·추천·매핑·게시
 
 ### API-09 · M04
 
 - 명령: cmd_save_draft, cmd_submit, cmd_withdraw_submission
 - 읽기: unit_draft / submission_receipt / operation_result
-- 표: unit_drafts, submission_versions, submission_files, collection_units
-- 입력: unit_id·schema_id·answers·검증 file IDs·expected unit/draft version·idempotency_key
+- 표: unit_drafts, submission_versions, submission_files, collection_units, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations
+- 입력: unit/schema/expected draft version·답변·정확한 파일 + 양식 연결 시 answer_snapshot_id/output_artifact_id/output_confirmation_id. 모든 쓰기에 공통 scope/idempotency_key. 양식 없는 단순 응답에는 불필요한 출력 확인을 요구하지 않음
 - 권한: 초안은 유효 구성원. 제출/철회는 책임자 또는 유효 대리
-- 결과: 불변 제출판·서버 접수시각·review state·완료본 포인터
-- 필수 시험: 미래구성원/RLS/동시제출/응답유실/철회후과거본무단복원금지
+- 결과: 서버 접수증·정확한 제출판·현재/완료본·보완 충족 상태. 출력 accepted+job_id는 미제출
+- 필수 시험: 기존 제출/보완/정정 + COL의 답변변경·출력오류·타단위문서·책임자변경·최종확인 검사
 
 ### API-10 · M04
 
 - 명령: cmd_review_submission, cmd_request_correction, cmd_open_correction_window, cmd_collection_export
 - 읽기: submission_review / correction_status / export_status
 - 표: submission_reviews, correction_requests, collection_correction_fulfillments, export_manifests, export_manifest_items
-- 입력: submission_id/revision·review decision·due_at·reason·selected version IDs
+- 입력: 명시 선택한 단위/제출판·내보내기 모드·expected_versions. 검토형 기본 effective, 검토없음 latest_valid. 미승인 received 포함은 명시 선택·상태 표기
 - 권한: 지정 검토자·요청관리자. 과거 제출자/책임자 계정 기준 자기검토 금지
-- 결과: 검토 결과·보완 의무·검사된 선택판의 출력 작업 ID
+- 결과: 고정 제출판/파일지문의 export manifest·ZIP job·부분실패 목록·답변 집계; 완료본 없는 단위도 미완료 사유로 표시
 - 필수 시험: 인계후자기검토/충족판철회/보완연체/ZIP부분실패/출력중권한회수
 
 ### API-11 · M05 / M15
@@ -168,51 +170,51 @@ request_sha256은 클라이언트 의도를 결정적으로 정규화한 지문�
 
 - 명령: cmd_document_job, cmd_document_validate, cmd_document_export
 - 읽기: document_detail / validation_report / job_status
-- 표: document_packs, documents, document_revisions, document_revision_sources, document_validations, jobs
-- 입력: pack_id/version·input role refs·structured fields·expected_revision
+- 표: document_packs, documents, document_revisions, document_revision_sources, document_validations, jobs, collection_answer_snapshots, collection_output_artifacts
+- 입력: 기존 문서팩/근거판/초안 + 수합 출력 연결 시 정확한 unit/snapshot/mapping/template version·코드검사판. document revision의 실제 생성입력과 연결을 검사
 - 권한: 서버가 허용팩판·자산을 선택. 생성/검사/제출은 별도행동
-- 결과: 초안판·누락목록·지원수준·검사결과·검증 file ref
+- 결과: 문서판·파일·검사 및 수합 artifact 연결, 초안 접근은 작성자/지정 공동단위만. 생성이 제출/승인으로 바뀌지 않음
 - 필수 시험: 기존6양식회귀/작년사실자동승계금지/수정파일재검사/원형보존과내용지원구분
 
 ### API-17 · M08
 
 - 명령: cmd_file_init, cmd_file_complete, cmd_file_download, cmd_file_delete_request
 - 읽기: file_status / file_grant_status
-- 표: file_objects, file_links, file_access_grants, deletion_ledger
-- 입력: 원본 종류/ID·media type·size·hash·intent·expected_version
+- 표: file_objects, file_links, file_access_grants, deletion_ledger, messenger_dispatch_files, collection_template_versions, collection_output_artifacts
+- 입력: 기존 file init/complete/download·정확한 owner intent와 safety policy. 새 메신저 업로드만 미연결 파일을 1회 bind; 기존 업무 파일은 원부모 intent/ACL 유지. 학교 수합/문서/메시지의 각 typed 경로 권한 확인
 - 권한: 실물과 요청객체 일치·소유관계/원본권한·정책판·사용시점 재검사
 - 결과: 검증 상태·현재 권한 다운로드 경로·삭제 접수
-- 필수 시험: 경로바꾸기/타학교부모/부모UPDATE/미검사/회수후링크/실물없는ready
+- 필수 시험: 기존 파일 안전/검사/권한회수 + MSG14 원부모 유지·COL 반복행별 파일/정확한 출력파일 검사
 
 ### API-18 · M09
 
 - 명령: cmd_timetable_import_preview, cmd_timetable_import_apply
 - 읽기: my_lessons / timetable_grid / import_mapping
-- 표: bell_schedules, timetable_versions, timetable_placements, lesson_instances
-- 입력: school/term·source_file·mapping·기대입력판
+- 표: bell_schedules, timetable_versions, timetable_placements, lesson_instances, timetable_basis_revisions
+- 입력: school/term·source_file_sha256·mapping_sha256·basis_revision_id·기대입력판. 조회는 날짜/범위/cursor
 - 권한: 지정 담당자. 학교 일과·학기·교사/학급/공간 매핑 확인
-- 결과: 명시적으로 구분한 후보/배포판·미매핑 목록
+- 결과: 가져온 후보/배포판/미매핑을 구분; import 성공이 자동 배포 아님; 일반 교사 DTO에 basis 원문/복무 사유 없음
 - 필수 시험: 초중고일과/다중학급선택분반/미매핑보류/기존실시보존
 
 ### API-19 · M09
 
-- 명령: cmd_start_composition, cmd_validate_candidate, cmd_publish_timetable
+- 명령: cmd_start_composition, cmd_validate_candidate, cmd_publish_timetable, cmd_save_timetable_conditions, cmd_lock_timetable_conditions, cmd_save_timetable_candidate, cmd_cancel_composition
 - 읽기: composition_status / candidate_diff / publish_impact
-- 표: constraint_sets, timetable_constraints, timetable_compositions, timetable_candidates, timetable_version_impacts
-- 입력: 조건판/시수/배정·input hash·candidate version·publish confirmation
+- 표: constraint_sets, timetable_constraints, timetable_compositions, timetable_candidates, timetable_version_impacts, timetable_basis_revisions, timetable_versions
+- 입력: 확정 basis_revision_id·locked constraint_set_id·실행 input_sha256·expected_term_version·base candidate. 배포는 candidate/placements/validation/impact 지문·적용기간 필수
 - 권한: 담당자·확인된 조건판. AI는 필수조건을 임의 완화하지 못함
-- 결과: 계산결과/미해결·검증보고·영향명세·배포판
-- 필수 시험: 조건변경후후보재검사/수동수정/교사학생공간충돌/실시판보존
+- 결과: 실행 status와 result_kind 분리, 충돌 초안 저장/배포불가·정확한 검증보고·앞/신규/뒤 구간을 보존하는 원자 배포
+- 필수 시험: TT01~14·TT24~25 관리자자료/학교필수조건/상태진리표/기간분할/현재권한·기존 교환 보존
 
 ### API-20 · M10
 
 - 명령: cmd_change_propose, cmd_change_respond, cmd_change_apply, cmd_change_revert, cmd_confirm_execution
 - 읽기: change_candidates / consent_status / execution_ledger
 - 표: timetable_change_sets, timetable_change_items, timetable_change_participants, resource_occupancy, lesson_executions, cover_ledger
-- 입력: 원수업판·변경항목판·동의hash·승인·expected_versions·실시결과
+- 입력: 원수업 expected_versions·candidate/base snapshot/required participant 지문·정확한 응답·유효기한·담당자 최종승인. JWT가 실행주체이며 approved=true를 승인근거로 신뢰하지 않음
 - 권한: 관련자 동의·지정 승인·실제 담당. 빈 자원도 동시에 두 번 배정 불가
-- 결과: 원자변경·이전판관계·실시판·보강원장
-- 필수 시험: 교체경합/동의후수정/전출후동의/원복영향/시간경과자동실시금지
+- 결과: 관계자 전원 동의·최신 충돌 재검사 후 전체 원자 적용, 변경안 새판/재동의·실시/보강 기록은 별도
+- 필수 시험: TT15~25 교환 경합/만료/재동의/정책에 따른 자기승인 금지/부분반영0/실시보존/AI장애
 
 ### API-21 · M11
 
@@ -254,6 +256,56 @@ request_sha256은 클라이언트 의도를 결정적으로 정규화한 지문�
 - 결과: 확인받은함·정확연결판에고정된채택·관찰/평가후속판
 - 필수 시험: A→B→A/채택없는출처/중복역순/질문판변경/삭제후재수입차단
 
+### API-25 · M05
+
+- 명령: cmd_messenger_open_direct, cmd_messenger_create_group, cmd_messenger_update_participants, cmd_messenger_mark_read, cmd_messenger_withdraw_message
+- 읽기: messenger_inbox / messenger_thread_messages / messenger_participants / messenger_message_file / messenger_dispatch_status
+- 표: messenger_threads, messenger_participants, messenger_messages, messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files
+- 입력: school_id/origin_membership_id, resource ID, expected_version/participant_epoch, request_key; 목록은 불투명 cursor, 읽음은 through_seq
+- 권한: 같은 학교 현재 활성 소속과 현재 참여 episode. 그룹 추가·제거·역할변경은 현재 manager; self leave는 일반 현재 참여자도 자기 episode만 종료 가능하며 마지막 manager는 인계/보관과 원자 처리. 타인 DM 관리자 열람 불가. 발신자 회수도 현재 원본소속 필요.
+- 결과: 접근 가능한 대화/메시지 DTO와 next_cursor; 전달됨/읽음/업무상태는 별도; 메시지본문 없는 상태 오류
+- 필수 시험: MSG01~MSG05·MSG09~MSG12·MSG14: 격리/DM중복/재입장/읽음/회수/파일/경합/잘못된참여자FK
+
+### API-26 · M05 / M07
+
+- 명령: cmd_messenger_prepare, cmd_messenger_confirm, cmd_messenger_retry_failed, cmd_messenger_cancel_pending
+- 읽기: messenger_send_preview / messenger_dispatch_status
+- 표: messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files, messenger_messages, tool_proposals, tool_runs, idempotency_receipts, outbox
+- 입력: mode/body/recipient_selector/정확한 files·card 참조; prepare의 dispatch_id+confirmation_sha256+expected_version+request_key로 confirm; retry는 고정 실패 대상 ID
+- 권한: 현재 origin 소속의 발신자. AI 준비는 도구제안만, 확정은 같은 교사의 정확한 payload/수신자/파일 지문 확인. 명단·정책·권한·방참여판 최신 검증.
+- 결과: prepared이면 정확한 수신자/첨부/영향 미리보기; accepted이면 dispatch_id+진행상태, 완료로 오표시 금지; 수신자별 DB delivered/blocked/failed/cancelled와 알림전달 상태 구분
+- 필수 시험: MSG04·MSG06~MSG08·MSG10·MSG11·MSG13: 미확인전송0/수신변경/부분실패/멱등/권한회수/AI주입
+
+### API-27 · M04 / M08
+
+- 명령: cmd_register_collection_template, cmd_analyze_collection_template, cmd_save_collection_mapping, cmd_validate_collection_mapping, cmd_approve_collection_mapping
+- 읽기: collection_template_detail / collection_template_analysis / collection_mapping_preview
+- 표: collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, file_objects, document_packs, document_revisions, document_validations, jobs, ai_runs
+- 입력: scope={school_id}·file/template version·source hash·mapping hash·sample exact document/revision/validation·expected versions·idempotency_key
+- 권한: 현재 학교의 명시 요청/양식 관리권한, 원본 파일 현재 ACL, 정확 표본 확인. 일반 관리자 권한만으로 초안 열람 불가
+- 결과: 05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 원본판·분석 작업 ID·추천/불확실성·검증/승인 매핑판·receipt; 지원은 검증범위만 표시
+- 필수 시험: COL01~03/COL15/COL18~19: 타학교/미지원/표본불일치/외부unknown/판재사용
+
+### API-28 · M04 / M08
+
+- 명령: cmd_propose_collection_answers, cmd_apply_collection_answer_proposal, cmd_prepare_collection_output, cmd_confirm_collection_output
+- 읽기: collection_interview_context / collection_output_preview
+- 표: collection_schemas, collection_fields, unit_drafts, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations, documents, document_revisions, document_validations, file_objects, file_links, jobs, ai_runs
+- 입력: scope={school_id}·unit/schema/draft·expected versions·AI 제안 field paths·artifact ID·observed manifest hash·idempotency_key
+- 권한: 현재 유효 개인/공동 초안 접근; 최종 확인은 책임자 또는 유효 대리. 제출은 별도 API-09
+- 결과: 05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 검토할 답변 patch·snapshot/artifact/job·파일/답변 미리보기·확인 ID; not_submitted 상태 유지
+- 필수 시험: COL04~13/COL15~16/COL20: 초안비공개/조건·반복/동시편집/오래된출력/책임자인계/AI장애
+
+### API-29 · M09 / M15
+
+- 명령: cmd_timetable_basis_preview, cmd_timetable_basis_confirm, cmd_timetable_basis_change_request, cmd_timetable_basis_change_decide
+- 읽기: timetable_basis_status / timetable_basis_diff / basis_change_requests
+- 표: timetable_basis_revisions, timetable_basis_change_requests, terms, course_groups, course_group_teachers, academic_classes, assignments, bell_schedules, term_day_templates
+- 입력: scope·term_id·expected_term_version·preview/source_manifest_sha256; 수정요청은 base_basis_revision_id·허용 proposed_changes·reason·request expected_version
+- 권한: 기본자료확정은 현재 관리자 capability, 시간표 담당은 조회·수정요청만. 학교·학기·현재 소속과 exact 기준판 재검사.
+- 결과: 확정 불변 basis판·현재 학기포인터·원본 차이·접수증; 요청 상태와 실제 반영된 resolved_basis_revision_id
+- 필수 시험: TT04/TT05/TT06/TT23: 담당자 원본수정 차단, 기준자료 변경 경합, exact 지문, 같은학교·학기 FK, 개인정보 최소화
+
 
 ## 대시보드 응답
 
@@ -282,4 +334,4 @@ home_snapshot은 school/account scope와 basis_at, permission_version, sections�
 
 ## API 구현 완료의 기준
 
-명령마다 입력 JSON Schema, 권한 검사, DB 원자성, 오류 코드, 현재권한 결과 재조회, 화면 종단 시험이 있어야 구현 완료다. 이 파일의 함수명이 존재한다는 이유만으로 구현·노출·운영 완료로 계산하지 않는다. 24개 기능군 모두 현재 status는 target_contract_not_implemented이며, 기존 일부 함수의 존재는 별도 실측 목록으로 관리한다.
+명령마다 입력 JSON Schema, 권한 검사, DB 원자성, 오류 코드, 현재권한 결과 재조회, 화면 종단 시험이 있어야 구현 완료다. 이 파일의 함수명이 존재한다는 이유만으로 구현·노출·운영 완료로 계산하지 않는다. 29개 기능군 모두 현재 status는 target_contract_not_implemented이며, 기존 일부 함수의 존재는 별도 실측 목록으로 관리한다.

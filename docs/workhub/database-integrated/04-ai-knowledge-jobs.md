@@ -1,5 +1,7 @@
 # 04. 지식·Claude·개인 비서·긴 작업 통합 계약
 
+> 1.1 보강: 같은 Claude 비서가 메신저 발송안(API-25~26), 양식 분석/문답(API-27~28), 시간표 조건/변경(API-18~20/29)의 전문 도구를 사용한다. 교사 간 메시지는 AI conversations/messages와 별도다. 12~14의 현재 권한·정확한 확인판·최종 서버 재검사를 따르며, 공급자 답변을 업무 확정으로 취급하지 않는다. 기존 키·모델·비용 정책은 변경하지 않는다.
+
 > 2026-10-12 · 완성 사이트용 **DB 설계 제안**. 실행 SQL과 운영 보안·모델·비용 설정을 변경하지 않는다. `workhub.knowledge_documents/knowledge_revisions/knowledge_chunks/conversations/ai_runs/messages/tool_proposals/tool_runs/memories/usage_events/jobs/job_attempts/outbox` 등 Claude 2차의 실제 이름을 유지한다. GPT의 typed 근거와 권한·동시 정정 계약을 결합한다. 변경 열·표 목록은 `student-ai-changes.json`, 공통 주체와 권한은 01, 학생 사슬은 03이 기준이다.
 
 ## 1. 무엇을 분리하는가

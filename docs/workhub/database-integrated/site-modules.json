@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "modules": [
     {
       "id": "M00",
@@ -67,34 +67,65 @@
     {
       "id": "M04",
       "name": "수합",
-      "screen": "업무/받은·보낸 수합",
+      "screen": "양식 분석/방식·질문 확인/받은·보낸 수합/문답·직접 입력/완료본",
       "tables": [
         "collections",
         "collection_schemas",
         "collection_units",
-        "submission_versions"
+        "submission_versions",
+        "collection_templates",
+        "collection_template_versions",
+        "collection_template_analyses",
+        "collection_template_mappings",
+        "file_objects",
+        "document_packs",
+        "document_revisions",
+        "document_validations",
+        "jobs",
+        "ai_runs",
+        "collection_fields",
+        "unit_drafts",
+        "collection_answer_snapshots",
+        "collection_output_artifacts",
+        "collection_output_confirmations",
+        "documents",
+        "file_links"
       ],
       "apis": [
         "API-08",
         "API-09",
-        "API-10"
+        "API-10",
+        "API-27",
+        "API-28"
       ],
-      "rule": "안내 공개와 완료본 공개 분리, 문항판·접수판 불변"
+      "rule": "안내 공개와 완료본 공개 분리, 문항판·접수판 불변; 양식·질문·답변·파일·최종확인의 정확한 판 연결"
     },
     {
       "id": "M05",
-      "name": "전달·알림·문의",
-      "screen": "알림함/전달사항/문의",
+      "name": "메신저·전달·알림·문의",
+      "screen": "교사 대화/개별·단체 발송/알림함/전달사항/문의",
       "tables": [
         "notices",
         "notice_receipts",
         "notifications",
-        "feedback"
+        "feedback",
+        "messenger_threads",
+        "messenger_participants",
+        "messenger_messages",
+        "messenger_dispatches",
+        "messenger_dispatch_targets",
+        "messenger_dispatch_files",
+        "tool_proposals",
+        "tool_runs",
+        "idempotency_receipts",
+        "outbox"
       ],
       "apis": [
-        "API-11"
+        "API-11",
+        "API-25",
+        "API-26"
       ],
-      "rule": "읽음·확인·완료를 구분"
+      "rule": "AI 대화와 교사 대화 분리, 발송 확인·현재 참가 권한, 읽음·제출·동의·확정 구분"
     },
     {
       "id": "M06",
@@ -120,11 +151,19 @@
         "ai_runs",
         "ai_run_sources",
         "tool_proposals",
-        "memories"
+        "memories",
+        "messenger_dispatches",
+        "messenger_dispatch_targets",
+        "messenger_dispatch_files",
+        "messenger_messages",
+        "tool_runs",
+        "idempotency_receipts",
+        "outbox"
       ],
       "apis": [
         "API-14",
-        "API-15"
+        "API-15",
+        "API-26"
       ],
       "rule": "한 입구와 역할별 도구, 현재권한·명시확인"
     },
@@ -136,28 +175,54 @@
         "documents",
         "document_revisions",
         "document_packs",
-        "file_objects"
+        "file_objects",
+        "collection_templates",
+        "collection_template_versions",
+        "collection_template_analyses",
+        "collection_template_mappings",
+        "document_validations",
+        "jobs",
+        "ai_runs",
+        "collection_schemas",
+        "collection_fields",
+        "unit_drafts",
+        "collection_answer_snapshots",
+        "collection_output_artifacts",
+        "collection_output_confirmations",
+        "file_links"
       ],
       "apis": [
         "API-16",
-        "API-17"
+        "API-17",
+        "API-27",
+        "API-28"
       ],
       "rule": "AI 내용과 코드 서식/계산 분리, 파일지문마다 검사"
     },
     {
       "id": "M09",
       "name": "시간표 조회·편성",
-      "screen": "시간표/담당자 편성",
+      "screen": "관리자 기본자료/조건 설정/편성 작업대/확정 시간표",
       "tables": [
         "timetable_versions",
         "timetable_compositions",
-        "timetable_candidates"
+        "timetable_candidates",
+        "timetable_basis_revisions",
+        "timetable_basis_change_requests",
+        "terms",
+        "course_groups",
+        "course_group_teachers",
+        "academic_classes",
+        "assignments",
+        "bell_schedules",
+        "term_day_templates"
       ],
       "apis": [
         "API-18",
-        "API-19"
+        "API-19",
+        "API-29"
       ],
-      "rule": "최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지"
+      "rule": "최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지; 관리자 자료판·담당자 조건·초안과 배포 분리"
     },
     {
       "id": "M10",
@@ -247,11 +312,21 @@
         "jobs",
         "support_sessions",
         "restore_runs",
-        "legacy_access_gates"
+        "legacy_access_gates",
+        "timetable_basis_revisions",
+        "timetable_basis_change_requests",
+        "terms",
+        "course_groups",
+        "course_group_teachers",
+        "academic_classes",
+        "assignments",
+        "bell_schedules",
+        "term_day_templates"
       ],
       "apis": [
         "API-02",
-        "API-11"
+        "API-11",
+        "API-29"
       ],
       "rule": "역할·정책·복구·옛 경로 폐쇄를 검증한 뒤 공개"
     }

@@ -1,0 +1,11 @@
+{
+  "version": "1.1",
+  "date": "2026-10-13",
+  "source": "GPT작업/업무혁신시스템 기획서.md",
+  "source_sha256": "8eab3d57c68faf493511478516f6308f4fe6283d90de8a4487edc0f3c23c401f",
+  "packaged_copy": "업무혁신시스템 기획서.md",
+  "packaged_copy_sha256": "8038c13d61d5630d8d975c51784cdf4c847a7f8316d2e8d411b6c25e66a74dba",
+  "original_snapshot": "history/업무혁신시스템_기획서_v1.0.md",
+  "original_sha256": "8737eec80c1a802b03d0cc3b0750cc39fab26c12188b1c61339e47122f076c3f",
+  "note": "기존 V01~48 추적은 원본 스냅샷, 이번 요구는 extension JSON과 상세 12~15"
+}

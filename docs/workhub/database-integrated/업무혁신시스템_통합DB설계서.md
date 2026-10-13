@@ -1,14 +1,14 @@
 # 업무혁신시스템 통합 DB 설계서
 
-2026-10-12 · GPT·Claude 통합 v1.0 · 설계 산출물 / 운영 미적용
+2026-10-13 · GPT·Claude 통합 v1.1 · 메신저·양식 수합·시간표 보강 / 실제 DB 구축 보류
 
 ## 핵심 결론
 
 기존 인증과 회원을 보존하고, 완성될 사이트 전체의 공통 데이터 구조를 새로 정립한다. Claude의 구체적인 표·열·키를 기본으로 삼고 GPT의 권한·근거·업무 상태·이관·검증 계약을 결합했다. 현재 화면만을 위한 임시 DB를 먼저 만들지 않는다.
 
-목표 구조는 175개 표, 2374개 열이다. 기존 160개 표 중 81개를 명시 보강하고 15개를 추가했다. 청사진의 16개 기능군·24개 API·12개 공통 계약·48개 수용 기준을 연결했으며, 중앙 필수 검증 51건과 도메인별 세부 시험을 정의했다. 이 수치는 구현 범위이며 운영 시험 통과 수가 아니다.
+목표 구조는 190개 표, 2649개 열이다. 기존 160개 표 중 94개를 명시 보강하고 30개를 추가했다. 청사진의 16개 기능군·29개 API·12개 공통 계약·48개 기존 수용 기준을 연결했으며, 중앙 필수 검증 114건과 도메인별 세부 시험을 정의했다. 이번 보강 시험은 63건, 상세 구현 티켓은 21개다. 이 수치는 설계 범위이며 운영 시험 통과 수가 아니다.
 
-설계를 먼저 확정하는 방향이 적절하다. 다만 전체 화면의 세부 배치까지 기다릴 필요는 없다. 계정·학교·자료 범위·불변판·명령 입출력을 공통 기준으로 확정하고, SQL 배치별 검증과 사이트 어댑터 구현을 나란히 진행한다. 정책 수치와 실제 환경값은 승인 전까지 빈 값으로 유지하며 영향을 받는 기능만 준비 상태로 표시한다.
+현재 요청은 설계 보강이다. 실제 DB 구축·SQL 적용과 시간표·문서 AI 구현은 보류한다. 계정·학교·자료 범위·불변판·명령 입출력을 먼저 정리하고, 재개 시 15장의 구현 순서와 SQL 배치별 검증을 따른다. 정책 수치와 실제 환경값은 승인 전까지 빈 값으로 유지한다. 기존 로그인·회원 데이터는 보존한다.
 
 읽기 안내: [구조도와 표 탐색](overview.html) → 이 설계서 → [전체 열 사전](09-table-dictionary.md) → [SQL 작성 인계서](Claude_SQL작성_인계서.md). 이 합본은 아래 개별 정본에서 생성했다. 수정은 개별 문서/정형 목록에서 하고 생성기를 다시 실행한다.
 
@@ -22,10 +22,14 @@
 6. [05-api-site-contract.md](05-api-site-contract.md)
 7. [06-validation-release.md](06-validation-release.md)
 8. [07-migration-operations.md](07-migration-operations.md)
-9. [08-coverage.md](08-coverage.md)
-10. [10-decision-register.md](10-decision-register.md)
-11. [11-review-and-verification.md](11-review-and-verification.md)
-12. [Claude_SQL작성_인계서.md](Claude_SQL작성_인계서.md)
+9. [12-messenger.md](12-messenger.md)
+10. [13-template-collection.md](13-template-collection.md)
+11. [14-timetable-operations.md](14-timetable-operations.md)
+12. [15-implementation-handoff.md](15-implementation-handoff.md)
+13. [08-coverage.md](08-coverage.md)
+14. [10-decision-register.md](10-decision-register.md)
+15. [11-review-and-verification.md](11-review-and-verification.md)
+16. [Claude_SQL작성_인계서.md](Claude_SQL작성_인계서.md)
 
 
 ---
@@ -34,7 +38,7 @@
 
 # 업무혁신시스템 통합 DB 설계
 
-설계안 1.0 · 2026-10-12 · GPT·Claude 통합 · 상태: 구현 기준 제안, 운영 미적용
+설계안 1.1 · 2026-10-13 · GPT·Claude 통합 · 상태: 구현 기준 명세, 실제 DB 구축 보류
 
 교사가 사이트에서 업무를 끝까지 처리하는 데 필요한 데이터·권한·기록의 관계를 정한다. 완성될 사이트의 M00~M15 전체를 대상으로 하며, 현재 구현된 화면의 한계에 DB를 맞추지 않는다. 기존 로그인·회원은 보존한다.
 
@@ -42,6 +46,9 @@
 
 ## 먼저 읽을 내용
 
+- [보강된 제품 기획서](업무혁신시스템%20기획서.md): 메신저·문서 수합·시간표 요구를 관련 장에 반영한 기획서 사본.
+- [메신저 상세](12-messenger.md) · [양식 기반 수합 상세](13-template-collection.md) · [시간표 운영 상세](14-timetable-operations.md): 화면·권한·상태·데이터·API·실패 처리.
+- [구현 순서·연결 여정·협업 인계](15-implementation-handoff.md): 세 기능을 실제 작업으로 옮기는 기준. 현재는 설계 작업만 완료하며 DB·문서 AI·시간표 구현 보류를 유지한다.
 - [통합 설계서 합본](업무혁신시스템_통합DB설계서.md): 핵심 결론과 모든 상세 명세.
 - [전체 구조도·테이블 탐색기](overview.html): 업무 흐름 3종, 12개 영역, 표·열 검색.
 - [Claude SQL 작성 인계서](Claude_SQL작성_인계서.md): 재사용 기준과 SQL·사이트 연결 순서.
@@ -63,6 +70,8 @@
 4. 수업 앱 활동 → 교사 확인 받은함 → 정확한 학생 연결판 → 관찰·평가 → 생기부 문장 근거 → 검토·출력.
 5. 업무 인계 → 후임의 정확한 목록 수락 → 효력일에 원자 적용 → 진행 중 의무의 책임만 이동.
 6. 시간표 입력·조건판 → 후보 검증 → 배포 → 교체·동의·확정 → 실제 수업 실시. 편성 결과와 실시 결과를 구분한다.
+
+2026-10-13 보강으로 3번은 양식 업로드→AI 분석/추천→담당자 질문·칸 매핑·표본 확인→파일형/문답형(직접 입력 포함)→교사 완성본 확인→정식 제출까지 구체화했다. 6번은 관리자의 기본자료 확정과 담당자의 추가 조건/편성 역할을 분리했다. 교사 간 메신저는 1:1·공동 대화·개별 일괄 발송을 지원하고 수합/교환 카드를 같은 업무 원본으로 연결한다.
 
 ## 구조의 중심 결정
 
@@ -132,13 +141,15 @@ flowchart TB
 
 이 통합 폴더가 새 목표 설계의 기준이다. 이전 GPT 문서와 Claude DDL은 출처이며 충돌 시 통합 계약을 우선한다. source-baseline.json은 수정 전 원본의 증거이고 실행할 최종 DB 설계가 아니다. schema-contract.json은 원본 열과 명시적 변경을 합친 설계 카탈로그이며 SQL 마이그레이션이 아니다.
 
+1.1에서는 12~14의 명시 보강과 `messenger-extension.json`, `collection-extension.json`, `timetable-extension.json`이 해당 기능의 상세 기준이다. 기존 01~07의 권한·멱등·파일·복구 조건은 계속 적용한다. M00~M15는 유지하고 API-25~29를 추가한다. `implementation-backlog.json`은 티켓별 선행·산출물·완료 기준을 제공한다. `history`는 과거 검토 지문을 보존하는 자료이며 새 구현 기준이 아니다.
+
 Claude Web이 이 계약에 맞는 확정 SQL과 실제 PostgreSQL 시험을 작성하고, Codex가 화면·어댑터·회귀를 연결하며, 사용자가 기존 절차에 따라 SQL을 적용한다. 기존 migrations·인증·보호 자산·DECISIONS.md는 이 문서 작성으로 변경하지 않았다.
 
 확정 전 비어 있어야 하는 값은 보존기간·학교 규정 수치·모델/비용 승인값·실제 외부 서비스 설정이다. 해당 값의 저장 구조와 미정 처리 흐름까지 정해 두므로, 나머지 사이트 구현을 멈출 이유는 없다.
 
 ## 설계 산출물 재생성
 
-Node.js에서 `node validate-design.cjs` 후 `node build-delivery.cjs`를 실행한다. 외부 패키지·네트워크·실제 DB 연결은 필요하지 않다. 표/열·연결의 형식과 청사진 추적 검사는 SQL의 보안·동시성 시험을 대신하지 않는다. 정형 변경 목록과 개별 문서를 수정하고 생성 결과를 갱신한다. source-baseline.json은 원본 증거이므로 변경하지 않는다.
+Node.js에서 `node validate-design.cjs` → `node build-delivery.cjs` → `node check-delivery.cjs` 순서로 실행한다. 첫 명령은 확장 계약을 API·시험·모듈·백로그에 반영하고 전체 카탈로그를 재생성한다. 외부 패키지·네트워크·실제 DB 연결은 필요하지 않다. 표/열·연결의 형식과 청사진 추적 검사는 SQL의 보안·동시성 시험을 대신하지 않는다. 정형 변경 목록과 개별 문서를 수정하고 생성 결과를 갱신한다. source-baseline.json은 원본 증거이므로 변경하지 않는다. 구조도 동작 검사는 설치된 Playwright/Chrome으로 `node check-overview.cjs`를 별도 실행한다.
 
 
 ---
@@ -298,6 +309,8 @@ common 정책은 현재 operator_grants.policy.manage, school 정책은 현재 �
 <!-- SOURCE: 02-workflows-documents.md -->
 
 # 업무·일정·수합·파일·문서 통합 DB 설계 v1
+
+> 2026-10-13 보강: [양식 기반 수합](13-template-collection.md)과 [교사 메신저](12-messenger.md)를 함께 적용한다. 이 장의 기존 제출·검토·접수증·파일 권한 계약은 유지한다. ZIP 기본은 검토형의 승인된 완료본(effective), 검토 없는 수합은 최신 유효 완료본이며 미승인 제출 포함은 명시 선택이다. 양식 분석·문답·출력 생성과 정식 제출은 별도 상태다. 실제 DB 구축은 보류한다.
 
 작성일: 2026-10-12. **실행 가능한 명세를 목표로 한 통합 설계 제안이다. SQL 확정본·마이그레이션·사용자 정책 승인·운영 적용 결과가 아니다.** 원본 Claude 최종 7개, GPT 기존 설계, 운영 코드와 확정 자산은 변경하지 않는다. SQL 확정은 Claude Web, 실행은 사용자라는 저장소 규칙을 따른다.
 
@@ -472,7 +485,7 @@ document_revisions에 pack_id/pack_scope_key/pack_version을 snapshot으로 고�
 
 ## 13. ZIP 내보내기·공지·알림
 
-export_manifests는 작업/선택 모드를 유지하고, 신설 export_manifest_items가 unit/submission/schema/file의 정확한 ID·판/hash·상태·오류 코드를 고정한다. 기존 items/failed_items JSON은 관계표의 읽기 projection이다. none은 latest_valid, required는 선택한 received판이 기본이고 effective만 묶을 때 명시 선택한다. 파일 없는 숫자/글 응답도 항목에 포함한다. ZIP 파일명은 단위·판·검토상태를 포함하고 경로를 서버 정규화한다.
+export_manifests는 작업/선택 모드를 유지하고, 신설 export_manifest_items가 unit/submission/schema/file의 정확한 ID·판/hash·상태·오류 코드를 고정한다. 기존 items/failed_items JSON은 관계표의 읽기 projection이다. none은 latest_valid(현재 유효 완료본), required는 effective(승인 완료본)가 기본이다. 미승인 received판을 포함하려면 선택 모드와 미검토 상태를 명시 확인한다. 파일 없는 숫자/글 응답도 항목에 포함한다. ZIP 파일명은 단위·판·검토상태를 포함하고 경로를 서버 정규화한다.
 
 작업자는 시작·각 항목 접근·최종 연결·다운로드 때 권한을 검사한다. 중간 권한 회수/파일 누락은 해당 항목 실패, 결과 partial을 명시한다. 현재 볼 수 없는 자료가 섞인 예전 ZIP을 재발급하지 않는다. 실패 항목만 고정 ID로 재시도하며 새 제출판으로 슬쩍 바꾸지 않는다. 파일 bytes·manifest hash 검증 전 ready 금지다.
 
@@ -544,6 +557,8 @@ DB 조회는 Claude의 ‘내 소속/권한/단위 집합을 질의당 한 번 �
 <!-- SOURCE: 03-students-timetable.md -->
 
 # 03. 학생·수업·근거·생기부·시간표 통합 계약
+
+> 2026-10-13 시간표 상세 보강은 [14-timetable-operations.md](14-timetable-operations.md)를 따른다. 관리자 확정 기본자료판→담당자 조건/편성/조정→배포→날짜별 교환의 역할·상태·정확한 판 연결을 추가했다. 기존 26표는 재사용하고 변경하는 CHECK는 timetable-extension.json의 supersedes_constraints에 명시한다. 화면 결과와 DB 실행 상태를 구분하며, 더 구체적인 14장의 전이와 제약이 이전 축약 문구보다 우선한다. 실제 구축과 구현은 보류한다.
 
 > 2026-10-12 · 완성된 사이트를 위한 **설계 제안**. 실행 SQL·운영 적용본이 아니다. Claude 2차의 `workhub` 160표와 `workhub_private` 함수를 기준으로 이름과 검증된 구조를 계승한다. 이 문서가 명시한 변경은 동봉 `student-ai-changes.json`의 변경 목록이며 SQL 확정·실행·공개 승인을 대신하지 않는다. 시간표 구현 작업은 현재 보류다.
 
@@ -738,6 +753,8 @@ AI 생성은 gate 아래 입력판/epoch를 읽어 실행 출처를 저장한 �
 
 # 04. 지식·Claude·개인 비서·긴 작업 통합 계약
 
+> 1.1 보강: 같은 Claude 비서가 메신저 발송안(API-25~26), 양식 분석/문답(API-27~28), 시간표 조건/변경(API-18~20/29)의 전문 도구를 사용한다. 교사 간 메시지는 AI conversations/messages와 별도다. 12~14의 현재 권한·정확한 확인판·최종 서버 재검사를 따르며, 공급자 답변을 업무 확정으로 취급하지 않는다. 기존 키·모델·비용 정책은 변경하지 않는다.
+
 > 2026-10-12 · 완성 사이트용 **DB 설계 제안**. 실행 SQL과 운영 보안·모델·비용 설정을 변경하지 않는다. `workhub.knowledge_documents/knowledge_revisions/knowledge_chunks/conversations/ai_runs/messages/tool_proposals/tool_runs/memories/usage_events/jobs/job_attempts/outbox` 등 Claude 2차의 실제 이름을 유지한다. GPT의 typed 근거와 권한·동시 정정 계약을 결합한다. 변경 열·표 목록은 `student-ai-changes.json`, 공통 주체와 권한은 01, 학생 사슬은 03이 기준이다.
 
 ## 1. 무엇을 분리하는가
@@ -913,6 +930,8 @@ memories에 origin_membership_id를 추가하고 대화와 같은 scope/생성 �
 
 # 사이트와 DB 명령 계약
 
+> 1.1 추가: API-25~26은 [교사 메신저](12-messenger.md), API-27~28은 [양식 기반 수합](13-template-collection.md), API-29는 [시간표 기본자료](14-timetable-operations.md)를 따른다. 기존 API-08~10/16~20의 해당 경로에도 새 양식·답변·후보·기본자료판 연결을 적용한다. 정확한 함수/입출력은 api-contracts.json과 상세 명세를 함께 참조한다. 아래 공통 명령 원칙은 신규 API에도 적용한다.
+
 목표 사이트 M00~M15의 화면은 DB 표를 임의로 조합해 쓰지 않고 아래 읽기 모델과 명령을 사용한다. API 번호는 기능군이며 거대한 단일 RPC를 뜻하지 않는다. 실제 세부 route와 JSON Schema는 이 계약을 구체화한 구현 산출물이다.
 
 ## 공통 요청과 결과
@@ -1001,30 +1020,30 @@ request_sha256은 클라이언트 의도를 결정적으로 정규화한 지문�
 
 - 명령: cmd_open_collection, cmd_publish_collection, cmd_change_collection_schema, cmd_exempt_unit
 - 읽기: collection_detail / collection_units_status / publish_preview
-- 표: collections, collection_schemas, collection_fields, collection_units, collection_unit_members
-- 입력: schema_id/hash·unit definitions·responsible membership·due_at·request/result_visibility·policy_version
+- 표: collections, collection_schemas, collection_fields, collection_units, collection_unit_members, collection_template_versions, collection_template_mappings
+- 입력: 기존 수합/단위 입력 + 양식 연결 시 response_mode/template_version_id/mapping_id/output_file_field_id/output_requirement/schema hash·대상 manifest. 문답형은 정확한 매핑/표본 확인판 필수; 양식 없는 숫자/글 수합은 기존 입력 유지
 - 권한: 게시 권한·대상·정책판. 단위별 하나의 의무. 결과 공개 별도
 - 결과: 게시판·고정 의무·단위 ID·면제 이력
-- 필수 시험: 같은단위중복/정의판불변/다른수합schema FK/결과공개기본차단
+- 필수 시험: 기존 수합 정상/공동단위/권한 + COL01~08 문항판·추천·매핑·게시
 
 ### API-09 · M04
 
 - 명령: cmd_save_draft, cmd_submit, cmd_withdraw_submission
 - 읽기: unit_draft / submission_receipt / operation_result
-- 표: unit_drafts, submission_versions, submission_files, collection_units
-- 입력: unit_id·schema_id·answers·검증 file IDs·expected unit/draft version·idempotency_key
+- 표: unit_drafts, submission_versions, submission_files, collection_units, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations
+- 입력: unit/schema/expected draft version·답변·정확한 파일 + 양식 연결 시 answer_snapshot_id/output_artifact_id/output_confirmation_id. 모든 쓰기에 공통 scope/idempotency_key. 양식 없는 단순 응답에는 불필요한 출력 확인을 요구하지 않음
 - 권한: 초안은 유효 구성원. 제출/철회는 책임자 또는 유효 대리
-- 결과: 불변 제출판·서버 접수시각·review state·완료본 포인터
-- 필수 시험: 미래구성원/RLS/동시제출/응답유실/철회후과거본무단복원금지
+- 결과: 서버 접수증·정확한 제출판·현재/완료본·보완 충족 상태. 출력 accepted+job_id는 미제출
+- 필수 시험: 기존 제출/보완/정정 + COL의 답변변경·출력오류·타단위문서·책임자변경·최종확인 검사
 
 ### API-10 · M04
 
 - 명령: cmd_review_submission, cmd_request_correction, cmd_open_correction_window, cmd_collection_export
 - 읽기: submission_review / correction_status / export_status
 - 표: submission_reviews, correction_requests, collection_correction_fulfillments, export_manifests, export_manifest_items
-- 입력: submission_id/revision·review decision·due_at·reason·selected version IDs
+- 입력: 명시 선택한 단위/제출판·내보내기 모드·expected_versions. 검토형 기본 effective, 검토없음 latest_valid. 미승인 received 포함은 명시 선택·상태 표기
 - 권한: 지정 검토자·요청관리자. 과거 제출자/책임자 계정 기준 자기검토 금지
-- 결과: 검토 결과·보완 의무·검사된 선택판의 출력 작업 ID
+- 결과: 고정 제출판/파일지문의 export manifest·ZIP job·부분실패 목록·답변 집계; 완료본 없는 단위도 미완료 사유로 표시
 - 필수 시험: 인계후자기검토/충족판철회/보완연체/ZIP부분실패/출력중권한회수
 
 ### API-11 · M05 / M15
@@ -1081,51 +1100,51 @@ request_sha256은 클라이언트 의도를 결정적으로 정규화한 지문�
 
 - 명령: cmd_document_job, cmd_document_validate, cmd_document_export
 - 읽기: document_detail / validation_report / job_status
-- 표: document_packs, documents, document_revisions, document_revision_sources, document_validations, jobs
-- 입력: pack_id/version·input role refs·structured fields·expected_revision
+- 표: document_packs, documents, document_revisions, document_revision_sources, document_validations, jobs, collection_answer_snapshots, collection_output_artifacts
+- 입력: 기존 문서팩/근거판/초안 + 수합 출력 연결 시 정확한 unit/snapshot/mapping/template version·코드검사판. document revision의 실제 생성입력과 연결을 검사
 - 권한: 서버가 허용팩판·자산을 선택. 생성/검사/제출은 별도행동
-- 결과: 초안판·누락목록·지원수준·검사결과·검증 file ref
+- 결과: 문서판·파일·검사 및 수합 artifact 연결, 초안 접근은 작성자/지정 공동단위만. 생성이 제출/승인으로 바뀌지 않음
 - 필수 시험: 기존6양식회귀/작년사실자동승계금지/수정파일재검사/원형보존과내용지원구분
 
 ### API-17 · M08
 
 - 명령: cmd_file_init, cmd_file_complete, cmd_file_download, cmd_file_delete_request
 - 읽기: file_status / file_grant_status
-- 표: file_objects, file_links, file_access_grants, deletion_ledger
-- 입력: 원본 종류/ID·media type·size·hash·intent·expected_version
+- 표: file_objects, file_links, file_access_grants, deletion_ledger, messenger_dispatch_files, collection_template_versions, collection_output_artifacts
+- 입력: 기존 file init/complete/download·정확한 owner intent와 safety policy. 새 메신저 업로드만 미연결 파일을 1회 bind; 기존 업무 파일은 원부모 intent/ACL 유지. 학교 수합/문서/메시지의 각 typed 경로 권한 확인
 - 권한: 실물과 요청객체 일치·소유관계/원본권한·정책판·사용시점 재검사
 - 결과: 검증 상태·현재 권한 다운로드 경로·삭제 접수
-- 필수 시험: 경로바꾸기/타학교부모/부모UPDATE/미검사/회수후링크/실물없는ready
+- 필수 시험: 기존 파일 안전/검사/권한회수 + MSG14 원부모 유지·COL 반복행별 파일/정확한 출력파일 검사
 
 ### API-18 · M09
 
 - 명령: cmd_timetable_import_preview, cmd_timetable_import_apply
 - 읽기: my_lessons / timetable_grid / import_mapping
-- 표: bell_schedules, timetable_versions, timetable_placements, lesson_instances
-- 입력: school/term·source_file·mapping·기대입력판
+- 표: bell_schedules, timetable_versions, timetable_placements, lesson_instances, timetable_basis_revisions
+- 입력: school/term·source_file_sha256·mapping_sha256·basis_revision_id·기대입력판. 조회는 날짜/범위/cursor
 - 권한: 지정 담당자. 학교 일과·학기·교사/학급/공간 매핑 확인
-- 결과: 명시적으로 구분한 후보/배포판·미매핑 목록
+- 결과: 가져온 후보/배포판/미매핑을 구분; import 성공이 자동 배포 아님; 일반 교사 DTO에 basis 원문/복무 사유 없음
 - 필수 시험: 초중고일과/다중학급선택분반/미매핑보류/기존실시보존
 
 ### API-19 · M09
 
-- 명령: cmd_start_composition, cmd_validate_candidate, cmd_publish_timetable
+- 명령: cmd_start_composition, cmd_validate_candidate, cmd_publish_timetable, cmd_save_timetable_conditions, cmd_lock_timetable_conditions, cmd_save_timetable_candidate, cmd_cancel_composition
 - 읽기: composition_status / candidate_diff / publish_impact
-- 표: constraint_sets, timetable_constraints, timetable_compositions, timetable_candidates, timetable_version_impacts
-- 입력: 조건판/시수/배정·input hash·candidate version·publish confirmation
+- 표: constraint_sets, timetable_constraints, timetable_compositions, timetable_candidates, timetable_version_impacts, timetable_basis_revisions, timetable_versions
+- 입력: 확정 basis_revision_id·locked constraint_set_id·실행 input_sha256·expected_term_version·base candidate. 배포는 candidate/placements/validation/impact 지문·적용기간 필수
 - 권한: 담당자·확인된 조건판. AI는 필수조건을 임의 완화하지 못함
-- 결과: 계산결과/미해결·검증보고·영향명세·배포판
-- 필수 시험: 조건변경후후보재검사/수동수정/교사학생공간충돌/실시판보존
+- 결과: 실행 status와 result_kind 분리, 충돌 초안 저장/배포불가·정확한 검증보고·앞/신규/뒤 구간을 보존하는 원자 배포
+- 필수 시험: TT01~14·TT24~25 관리자자료/학교필수조건/상태진리표/기간분할/현재권한·기존 교환 보존
 
 ### API-20 · M10
 
 - 명령: cmd_change_propose, cmd_change_respond, cmd_change_apply, cmd_change_revert, cmd_confirm_execution
 - 읽기: change_candidates / consent_status / execution_ledger
 - 표: timetable_change_sets, timetable_change_items, timetable_change_participants, resource_occupancy, lesson_executions, cover_ledger
-- 입력: 원수업판·변경항목판·동의hash·승인·expected_versions·실시결과
+- 입력: 원수업 expected_versions·candidate/base snapshot/required participant 지문·정확한 응답·유효기한·담당자 최종승인. JWT가 실행주체이며 approved=true를 승인근거로 신뢰하지 않음
 - 권한: 관련자 동의·지정 승인·실제 담당. 빈 자원도 동시에 두 번 배정 불가
-- 결과: 원자변경·이전판관계·실시판·보강원장
-- 필수 시험: 교체경합/동의후수정/전출후동의/원복영향/시간경과자동실시금지
+- 결과: 관계자 전원 동의·최신 충돌 재검사 후 전체 원자 적용, 변경안 새판/재동의·실시/보강 기록은 별도
+- 필수 시험: TT15~25 교환 경합/만료/재동의/정책에 따른 자기승인 금지/부분반영0/실시보존/AI장애
 
 ### API-21 · M11
 
@@ -1167,6 +1186,56 @@ request_sha256은 클라이언트 의도를 결정적으로 정규화한 지문�
 - 결과: 확인받은함·정확연결판에고정된채택·관찰/평가후속판
 - 필수 시험: A→B→A/채택없는출처/중복역순/질문판변경/삭제후재수입차단
 
+### API-25 · M05
+
+- 명령: cmd_messenger_open_direct, cmd_messenger_create_group, cmd_messenger_update_participants, cmd_messenger_mark_read, cmd_messenger_withdraw_message
+- 읽기: messenger_inbox / messenger_thread_messages / messenger_participants / messenger_message_file / messenger_dispatch_status
+- 표: messenger_threads, messenger_participants, messenger_messages, messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files
+- 입력: school_id/origin_membership_id, resource ID, expected_version/participant_epoch, request_key; 목록은 불투명 cursor, 읽음은 through_seq
+- 권한: 같은 학교 현재 활성 소속과 현재 참여 episode. 그룹 추가·제거·역할변경은 현재 manager; self leave는 일반 현재 참여자도 자기 episode만 종료 가능하며 마지막 manager는 인계/보관과 원자 처리. 타인 DM 관리자 열람 불가. 발신자 회수도 현재 원본소속 필요.
+- 결과: 접근 가능한 대화/메시지 DTO와 next_cursor; 전달됨/읽음/업무상태는 별도; 메시지본문 없는 상태 오류
+- 필수 시험: MSG01~MSG05·MSG09~MSG12·MSG14: 격리/DM중복/재입장/읽음/회수/파일/경합/잘못된참여자FK
+
+### API-26 · M05 / M07
+
+- 명령: cmd_messenger_prepare, cmd_messenger_confirm, cmd_messenger_retry_failed, cmd_messenger_cancel_pending
+- 읽기: messenger_send_preview / messenger_dispatch_status
+- 표: messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files, messenger_messages, tool_proposals, tool_runs, idempotency_receipts, outbox
+- 입력: mode/body/recipient_selector/정확한 files·card 참조; prepare의 dispatch_id+confirmation_sha256+expected_version+request_key로 confirm; retry는 고정 실패 대상 ID
+- 권한: 현재 origin 소속의 발신자. AI 준비는 도구제안만, 확정은 같은 교사의 정확한 payload/수신자/파일 지문 확인. 명단·정책·권한·방참여판 최신 검증.
+- 결과: prepared이면 정확한 수신자/첨부/영향 미리보기; accepted이면 dispatch_id+진행상태, 완료로 오표시 금지; 수신자별 DB delivered/blocked/failed/cancelled와 알림전달 상태 구분
+- 필수 시험: MSG04·MSG06~MSG08·MSG10·MSG11·MSG13: 미확인전송0/수신변경/부분실패/멱등/권한회수/AI주입
+
+### API-27 · M04 / M08
+
+- 명령: cmd_register_collection_template, cmd_analyze_collection_template, cmd_save_collection_mapping, cmd_validate_collection_mapping, cmd_approve_collection_mapping
+- 읽기: collection_template_detail / collection_template_analysis / collection_mapping_preview
+- 표: collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, file_objects, document_packs, document_revisions, document_validations, jobs, ai_runs
+- 입력: scope={school_id}·file/template version·source hash·mapping hash·sample exact document/revision/validation·expected versions·idempotency_key
+- 권한: 현재 학교의 명시 요청/양식 관리권한, 원본 파일 현재 ACL, 정확 표본 확인. 일반 관리자 권한만으로 초안 열람 불가
+- 결과: 05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 원본판·분석 작업 ID·추천/불확실성·검증/승인 매핑판·receipt; 지원은 검증범위만 표시
+- 필수 시험: COL01~03/COL15/COL18~19: 타학교/미지원/표본불일치/외부unknown/판재사용
+
+### API-28 · M04 / M08
+
+- 명령: cmd_propose_collection_answers, cmd_apply_collection_answer_proposal, cmd_prepare_collection_output, cmd_confirm_collection_output
+- 읽기: collection_interview_context / collection_output_preview
+- 표: collection_schemas, collection_fields, unit_drafts, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations, documents, document_revisions, document_validations, file_objects, file_links, jobs, ai_runs
+- 입력: scope={school_id}·unit/schema/draft·expected versions·AI 제안 field paths·artifact ID·observed manifest hash·idempotency_key
+- 권한: 현재 유효 개인/공동 초안 접근; 최종 확인은 책임자 또는 유효 대리. 제출은 별도 API-09
+- 결과: 05장 공통 operation_id/status/resource/server_recorded_at/next_action 봉투 + 검토할 답변 patch·snapshot/artifact/job·파일/답변 미리보기·확인 ID; not_submitted 상태 유지
+- 필수 시험: COL04~13/COL15~16/COL20: 초안비공개/조건·반복/동시편집/오래된출력/책임자인계/AI장애
+
+### API-29 · M09 / M15
+
+- 명령: cmd_timetable_basis_preview, cmd_timetable_basis_confirm, cmd_timetable_basis_change_request, cmd_timetable_basis_change_decide
+- 읽기: timetable_basis_status / timetable_basis_diff / basis_change_requests
+- 표: timetable_basis_revisions, timetable_basis_change_requests, terms, course_groups, course_group_teachers, academic_classes, assignments, bell_schedules, term_day_templates
+- 입력: scope·term_id·expected_term_version·preview/source_manifest_sha256; 수정요청은 base_basis_revision_id·허용 proposed_changes·reason·request expected_version
+- 권한: 기본자료확정은 현재 관리자 capability, 시간표 담당은 조회·수정요청만. 학교·학기·현재 소속과 exact 기준판 재검사.
+- 결과: 확정 불변 basis판·현재 학기포인터·원본 차이·접수증; 요청 상태와 실제 반영된 resolved_basis_revision_id
+- 필수 시험: TT04/TT05/TT06/TT23: 담당자 원본수정 차단, 기준자료 변경 경합, exact 지문, 같은학교·학기 FK, 개인정보 최소화
+
 
 ## 대시보드 응답
 
@@ -1195,7 +1264,7 @@ home_snapshot은 school/account scope와 basis_at, permission_version, sections�
 
 ## API 구현 완료의 기준
 
-명령마다 입력 JSON Schema, 권한 검사, DB 원자성, 오류 코드, 현재권한 결과 재조회, 화면 종단 시험이 있어야 구현 완료다. 이 파일의 함수명이 존재한다는 이유만으로 구현·노출·운영 완료로 계산하지 않는다. 24개 기능군 모두 현재 status는 target_contract_not_implemented이며, 기존 일부 함수의 존재는 별도 실측 목록으로 관리한다.
+명령마다 입력 JSON Schema, 권한 검사, DB 원자성, 오류 코드, 현재권한 결과 재조회, 화면 종단 시험이 있어야 구현 완료다. 이 파일의 함수명이 존재한다는 이유만으로 구현·노출·운영 완료로 계산하지 않는다. 29개 기능군 모두 현재 status는 target_contract_not_implemented이며, 기존 일부 함수의 존재는 별도 실측 목록으로 관리한다.
 
 
 ---
@@ -1203,6 +1272,8 @@ home_snapshot은 school/account scope와 basis_at, permission_version, sections�
 <!-- SOURCE: 06-validation-release.md -->
 
 # 검증과 DB 확정 기준
+
+> 1.1에서는 12~14의 MSG/COL/TT 시험 및 15장의 연결 여정을 추가한다. 모든 시험의 status는 정의됨/실제 통합 DB에서 미실행이다. validation-result.json은 카탈로그 정합성 검사이고 수신/출력/시간표 실제 동작 증거가 아니다. 기존 R/IT 시험도 계속 필수다.
 
 이 문서는 통합 SQL을 검증할 시험 계약이다. 기존 Claude DDL의 762개 통과와 수정 전 12개 반례는 비교 검토의 증거다. 통합 설계에서 반례를 막는 규칙을 정했다고 수정된 SQL이 시험을 통과한 것은 아니다.
 
@@ -1224,7 +1295,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 모든 경로에서 보호된 본문 0건
 - 시험 층: RLS/캐시/파일
 - 명세: 01-foundation-security.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R02 미래 공동작성자
 
@@ -1232,7 +1303,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 시작 전 0건, 시작 후 허용 범위만
 - 시험 층: RLS/파일
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R03 권한 회수 후 재이관
 
@@ -1240,7 +1311,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 회수된 역할 0개 유지, 종료 소속 자동 복구 0개
 - 시험 층: 운영 함수/이관
 - 명세: 07-migration-operations.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R04 학생 정체성
 
@@ -1248,7 +1319,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 정체성 변경 거부, 오염된 자료도 출력 거부
 - 시험 층: 제약/출력
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R05 학생 연결판
 
@@ -1256,7 +1327,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 재확인 전 과거 채택 계속 stale
 - 시험 층: 근거/명령
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R06 채택 사슬 누락
 
@@ -1264,7 +1335,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 커밋·근거 연결·출력 거부
 - 시험 층: 지연 제약/출력
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R07 인계 후 자기 검토
 
@@ -1272,7 +1343,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 금지 정책에서 같은 계정 자기 검토 거부
 - 시험 층: 명령/트리거
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R08 게시 문항판
 
@@ -1280,7 +1351,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 게시판 변경과 다른부모 참조 거부, 새판만 허용
 - 시험 층: 제약/입력검사
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R09 수락 없는 인계
 
@@ -1288,7 +1359,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 필수값·정확판·수락주체 없으면 거부
 - 시험 층: CHECK/명령
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R10 파일 부모 UPDATE
 
@@ -1296,7 +1367,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 정체성 불변 또는 전체 부모 검사로 거부
 - 시험 층: 제약/다운로드
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R11 서비스 자격
 
@@ -1304,7 +1375,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 각 단계 실행 거부/규정된 중단, 권한회수와 직렬화
 - 시험 층: worker/두 세션
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### R12 불명확 외부 요청
 
@@ -1312,7 +1383,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 자동 재전송·중복 도구 실행 0, 불명확 상태 조사; durable 결과 참조 없이 response_received 확정 거부
 - 시험 층: worker/장애주입
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT01 기존 로그인
 
@@ -1320,7 +1391,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: Auth UID 유지·재가입 불필요·기존승인 정확히보존
 - 시험 층: 실제 Supabase
 - 명세: 07-migration-operations.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT02 테넌트 모든 경로
 
@@ -1328,7 +1399,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 본문·식별자·건수·존재추정 유출 0
 - 시험 층: 실제 Supabase
 - 명세: 01-foundation-security.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT03 다중 소속 학교전환
 
@@ -1336,7 +1407,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 응답/초안은범위별분리, A응답이B화면오염하지않음
 - 시험 층: 브라우저 종단
 - 명세: 05-api-site-contract.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT04 권한 회수 경쟁
 
@@ -1344,7 +1415,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 회수 먼저면거부, 작업먼저면이력남고후속접근회수
 - 시험 층: 독립 DB 두 연결
 - 명세: 01-foundation-security.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT05 멱등 경쟁
 
@@ -1352,7 +1423,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 업무변경·접수증 각1개, 같은결과, 다른본문 충돌
 - 시험 층: 독립 DB 두 연결
 - 명세: 05-api-site-contract.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT06 원자성 장애
 
@@ -1360,7 +1431,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 완료표시 없는부분업무 0, 함께커밋하거나모두롤백
 - 시험 층: DB 장애주입
 - 명세: 05-api-site-contract.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT07 수합 상태축
 
@@ -1368,7 +1439,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 현재제출/완료본/검토/보완·연체가 명세와일치
 - 시험 층: DB+화면
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT08 수합 공개 분리
 
@@ -1376,7 +1447,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 안내만열림, 제출본문/첨부/결과건수정책일치
 - 시험 층: RLS+화면
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT09 파일 전이
 
@@ -1384,7 +1455,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: ready/제출/AI입력/다운로드가각각정책대로차단
 - 시험 층: 실제 Storage
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT10 시트 기준 전환
 
@@ -1392,7 +1463,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 충돌표시/기대판거부, 기준전환후원본덮어쓰기0
 - 시험 층: DB+화면
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT11 인계 원자성
 
@@ -1400,7 +1471,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 정확한수락판만적용, 의무ID유지, 개인자료이동0
 - 시험 층: DB+화면
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT12 담당 신고
 
@@ -1408,7 +1479,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 승인전권한증가0, 미리보기후정식승인만반영
 - 시험 층: DB+화면
 - 명세: 01-foundation-security.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT13 학생 정정 출력 경쟁
 
@@ -1416,7 +1487,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 최신근거검사/epoch로낡은정상출력0
 - 시험 층: 독립 DB 두 연결
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT14 학생 CSV
 
@@ -1424,7 +1495,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 학생자동병합0, 정확활동/원문판/채택관계
 - 시험 층: 파서+DB
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT15 자동 수업앱 사건
 
@@ -1432,7 +1503,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 명시충돌/보류/삭제원장유지, 자동점수확정0
 - 시험 층: 연동 대역+DB
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT16 실제 0점
 
@@ -1440,7 +1511,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: scored=0만0, 다른상태는NULL과명시상태
 - 시험 층: DB+화면
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT17 규정 시행판
 
@@ -1448,7 +1519,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 기준일유효판만인용, 미확인을정답으로표시0
 - 시험 층: 검색+AI 평가
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT18 AI 도구 확인
 
@@ -1456,7 +1527,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 새검사통과시만1회실행, 조회권한으로쓰기불가
 - 시험 층: DB+도구 대역
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT19 AI 기억과 재임용
 
@@ -1464,7 +1535,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 기억재사용/옛대화자동접근차단, 개인영역유입0
 - 시험 층: DB+AI 대역
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT20 외부 호출 경계
 
@@ -1472,7 +1543,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 결과모름을구분, 중복비용/외부효과반복을확정하지않음
 - 시험 층: worker 장애주입
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT21 시간표 빈 자원 경쟁
 
@@ -1480,7 +1551,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 하드충돌동시확정0, 동의지문변경재확인
 - 시험 층: 독립 DB 두 연결
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT22 실시와 보강
 
@@ -1488,7 +1559,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 실시자료보존, 보강이중계상0
 - 시험 층: DB+시간표 검증기
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT23 초중고 차이
 
@@ -1496,7 +1567,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 검증된유형만지원표시, 미지원배포0
 - 시험 층: 학교유형 합성+현장
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT24 파일 포함 복구
 
@@ -1504,7 +1575,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 파기/회수자료부활0, 부분복구를완료표시0
 - 시험 층: 실제 복원 리허설
 - 명세: 07-migration-operations.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT25 legacy 경로
 
@@ -1512,7 +1583,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 기준전환후우회0, 기존허용평가계획서회귀없음
 - 시험 층: 실제 종단
 - 명세: 07-migration-operations.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT26 지원 관리자
 
@@ -1520,7 +1591,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 최소승인범위만, 원문·비밀자동수집0
 - 시험 층: RLS+지원 API
 - 명세: 01-foundation-security.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT27 목록 성능
 
@@ -1528,7 +1599,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 목표p50/p95/오류율을운영환경측정하고병목설명
 - 시험 층: 실제 PostgreSQL 부하
 - 명세: 07-migration-operations.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT28 학년도 전환
 
@@ -1536,7 +1607,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 학생ID유지, 개인본문복사0, 관계기간정합
 - 시험 층: DB+화면
 - 명세: 03-students-timetable.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT29 기존 문서 엔진
 
@@ -1544,7 +1615,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 보호자산회귀통과, 파일지문새검사, 실제한글열기
 - 시험 층: 문서 생성·실물
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT30 교사 하루
 
@@ -1552,7 +1623,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 오류/빈목록/오래됨구분, 도움없이완료·시간측정
 - 시험 층: 역할별 교사 파일럿
 - 명세: 05-api-site-contract.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT31 일정 대상과 기간
 
@@ -1560,7 +1631,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: SQL/화면 선정 동등, 추천과 현재열람분리, 제외우선, 실패≠0명
 - 시험 층: SQL+화면
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT32 공식 일정 효력판
 
@@ -1568,7 +1639,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 일반교사/학사계산은v1유지, 확정명령만효력변경, 과거문서불변
 - 시험 층: DB+읽기 RPC
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT33 알림과 확인
 
@@ -1576,7 +1647,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 수신자별중복0, 판별확인분리, 금지원문없음, 긴급예외범위고정
 - 시험 층: outbox+화면
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT34 정책 시행과 하한
 
@@ -1584,7 +1655,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 정확한시행판/공통하한, 미정기능차단, 과거적용판보존
 - 시험 층: DB+정책 registry
 - 명세: 01-foundation-security.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT35 문서 근거 사슬
 
@@ -1592,7 +1663,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 팩/근거판/목적고정, 사실자동승계0, 검사결과재사용0
 - 시험 층: DB+문서 worker
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT36 응답 유실 후 정책 변경과 재시도
 
@@ -1600,7 +1671,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 현재 조회 권한 검사 후 기존 접수 반환, 원본·감사·outbox 각각 1개; 입력 변경만 conflict, 새로운 키는 현재 정책 검사
 - 시험 층: 명령/멱등/정책
 - 명세: 05-api-site-contract.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT37 학교 부트스트랩과 감사 주체
 
@@ -1608,7 +1679,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 검증된 bootstrap/migration principal과 정확한 scope의 감사 1개; 주체 양쪽 NULL·임의 위조 모두 거부; 기존 운영 함수도 공통 감사 경로 이용
 - 시험 층: 운영 명령/감사
 - 명세: 07-migration-operations.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT38 선택형 출처 FK와 공통 파일 입력
 
@@ -1616,7 +1687,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 두 정상 경로 성공, 타인/타학교 거부, 선택하지 않은 FK의 NULL 때문에 정상행 실패하지 않으며 kind 불일치·판 일부 누락 거부
 - 시험 층: 복합 FK/CHECK/명령
 - 명세: 02-workflows-documents.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
 
 ### IT39 외부 응답 보관 경계 장애
 
@@ -1624,7 +1695,512 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 - 기대 결과: 보관 전은 unknown으로 자동 재호출 차단; 참조 없는 response_received 거부; 원자 저장 후에는 동일 결과로 복구, 본문 없는 작업도 최소 receipt 필수
 - 시험 층: worker/작업 상태/DB
 - 명세: 04-ai-knowledge-jobs.md
-- 상태: 통합 SQL에서 미실행
+- 상태: 통합 DB에서 미실행
+
+### MSG01 역순 동시 DM 생성
+
+- 상황: 같은 학교 동일 소속쌍 두 연결이 A→B/B→A 동시 생성; 다른 학교 동일 계정도 시도
+- 기대 결과: 해당 학교·소속쌍 방 1개, 참여자 정확히2명. 다른학교 거부
+- 시험 층: 독립 DB 두 연결
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG02 전출·겸임·재임용
+
+- 상황: 학교A 종료 후 B 전환; A에 새 membership 재가입; 옛 URL/파일/검색 조회
+- 기대 결과: 옛 membership DM/그룹/AI 근거 자동부활0; 겸임 학교별 독립
+- 시험 층: RLS+읽기API+Storage
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG03 그룹 신규·재입장
+
+- 상황: 기존 메시지 뒤 멤버 추가, 나간 뒤 재초대; 과거 seq/file URL 접근
+- 기대 결과: active episode visible_from_seq 이후만. 과거본문/파일/AI문맥0
+- 시험 층: DB+UI
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG04 권한 경합
+
+- 상황: 발송 준비 뒤 수신자 전출·파일회수·학교스위치중지와 confirm/deliver 동시 실행
+- 기대 결과: 현재 gate에 따라 미전송 차단; 다른교사 자동치환0; 이미DB전달됨 사실 보존
+- 시험 층: 독립 DB 두 연결
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG05 읽음과 업무완료 분리
+
+- 상황: 메시지 열기·알림읽기·수합카드읽기·시간표카드읽기; 역순 읽음커서
+- 기대 결과: 읽음 경계 단조증가; 제출/동의/확정 상태 변경0
+- 시험 층: DB+UI
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG06 확인 지문
+
+- 상황: AI prepare 후 본문/파일/명단/방참여판/정책/registry/만료 변경
+- 기대 결과: 확인재요구, 과거지문으로 새 영향 전송0; 같은 확인 동시2회도1실행
+- 시험 층: 명령+AI도구 대역
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG07 개별 단체발송
+
+- 상황: 세 대상 중 한명 중간전출, 한명 DB commit 응답유실, 한명 정상
+- 기대 결과: 수신자 간 명단공개0; 성공2+blocked1 사실대로. 재시도 성공중복0
+- 시험 층: worker 장애주입
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG08 그룹 전달 원자성
+
+- 상황: 여러 그룹참여자 target 갱신 중 중단; 동시에 참가자제거
+- 기대 결과: 메시지/전체대상/접수/outbox 전체커밋 또는0; stale 그룹 부분전달0
+- 시험 층: 독립 DB 두 연결
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG09 정정·회수·파기
+
+- 상황: 발신자 정정과 회수; 이미 파일 다운로드; 한 dispatch의 DM 일부회수
+- 기대 결과: 정정은 새메시지, 원문교체0; 회수내용 재조회0; 외부다운로드 회수완료 주장0; 다른정상DM 손실0
+- 시험 층: DB+파일+화면
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG10 메시지와 알림 장애
+
+- 상황: 메시지 commit 직후 푸시 전송 실패·outbox 중복 소비
+- 기대 결과: 메시지1개 유지, 전달됨 유지; 푸시 재시도만. 읽음 조작0
+- 시험 층: outbox+화면
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG11 목록과 모바일 복구
+
+- 상황: 큰 대화·순번중복시각·실시간단절·학교전환 중 지연응답·로딩실패
+- 기대 결과: keyset 누락/중복0; seq 재동기화; 다른학교캐시비노출; 실패를0건으로표시0
+- 시험 층: API+브라우저+성능측정
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG12 메시지·첨부·AI 출처 격리
+
+- 상황: 관리자 전체조회, 수신자 dispatch직접조회, 다른부모file혼합, 회수 중 AI출력
+- 기대 결과: 메타/본문 모두 계약범위만; 감사/로그/push/outbox 원문0; current ACL 실패시 AI출력 차단
+- 시험 층: RLS+Storage+AI대역
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### MSG13 AI 명령주입과 명단오해
+
+- 상황: 동명이인, 미확정 학년배정, 메시지에 비밀파일전송 지시, 미제출대상 재안내
+- 기대 결과: 모호한 대상을 임의선정0; 승인자료로명단계산; 콘텐츠지시를도구권한으로사용0; 매발송재확인
+- 시험 층: AI평가+명령
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### COL01 타학교·부모 사슬 교차
+
+- 상황: A학교 수합에 B학교 양식/매핑/schema/unit/file/snapshot 연결
+- 기대 결과: 모든 명령·FK·조회에서 거부, 오류에 타학교 본문/존재 노출 0건
+- 시험 층: FK/RLS/API
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL02 미검증 문답 게시
+
+- 상황: AI가 guided를 추천했지만 표본 실패·필수 검사 skipped·출력 미지원
+- 기대 결과: guided 게시 거부, file_only 경로와 구체 원인 표시
+- 시험 층: 게시/렌더/브라우저
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL03 표본과 매핑판 불일치
+
+- 상황: 매핑2판에 매핑1판 또는 다른 문서판 validation으로 승인
+- 기대 결과: 승인 0건, exact source/mapping/renderer/pack/hash 재검증
+- 시험 층: FK/매핑 명령
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL04 미제출 초안과 산출물 비공개
+
+- 상황: collector/학교관리자가 개인·공동초안의 jobs/documents/artifact/file/search/count 조회
+- 기대 결과: 현재 단위 구성원 외 초안 원문·존재·파일명 0건; 제출 후 exact 제출 연결만 읽음
+- 시험 층: RLS/API/파일/검색
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL05 AI·직접 입력 공통 원장
+
+- 상황: AI 제안 후 수동 값 변경, 오래된 제안 적용, 화면 전환/재접속
+- 기대 결과: 같은 draft 유지, 기대판 충돌로 덮어쓰기 0건, 입력 복구 가능
+- 시험 층: 도메인/브라우저
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL06 필수값과 미확정 정보
+
+- 상황: 0/false/NULL/공백/미확정 사전채움 입력
+- 기대 결과: 0/false 유효, 활성 필수 미확정은 제출 거부; 제안 사실 임의 확정 0건
+- 시험 층: validator/API
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL07 조건부 질문과 숨은 값
+
+- 상황: 참→거짓 전환, 조건 cycle/다른 schema 참조/임의 코드 삽입
+- 기대 결과: 초안 값 보존·미리보기 제외 안내·출력 제외; 잘못된 조건 정의 거부
+- 시험 층: validator/출력
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL08 반복행과 파일 경로
+
+- 상황: 행 순서 변경, 동명이인 행, 중복 row_key, 동일 file을 두 행 첨부
+- 기대 결과: 안정 row_key/answer_path로 각 행 유지; 중복·지원 깊이 초과 거부
+- 시험 층: validator/FK/파일/출력
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL09 오래된 출력·답변·파일
+
+- 상황: draft7 출력/확인 후 draft8 저장 또는 첨부 변경 뒤 submit
+- 기대 결과: OUTPUT_STALE로 제출 0건, 새 출력/최종확인 필요
+- 시험 층: 동시성/API
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL10 다른 파일 확인 사용
+
+- 상황: A artifact 미리보기 후 B file/hash 또는 같은 artifact의 다른 snapshot 제출
+- 기대 결과: FK/지문 검사로 전체 접수 0건, 기존 완료본 유지
+- 시험 층: FK/제출
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL11 책임자·대리 인계
+
+- 상황: 공동작성자 확인 또는 전임 책임자 확인으로 새 책임자가 제출
+- 기대 결과: 실제 submitter의 현재 책임/대리 권한과 exact 확인 요구
+- 시험 층: 권한/인계/제출
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL12 권한 회수와 장시간 작업
+
+- 상황: 생성 중 구성원 종료/권한 회수/학교 전환/worker lease 만료
+- 기대 결과: 결과의 현재 접근 재검사, 이전 worker 공개/제출 차단, 타학교 UI에 결과 노출 0건
+- 시험 층: worker/RLS/브라우저
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL13 출력과 접수 분리·멱등
+
+- 상황: 파일 ready 뒤 제출 validation 실패, 이후 정상 제출 응답 유실 재시도
+- 기대 결과: ready만으로 제출0, 정상 접수는 동일 제출판/receipt/outbox 한 번
+- 시험 층: 트랜잭션/재시도
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL14 완료본 기본 내보내기
+
+- 상황: required v1승인·v2pending, 다른 단위 미제출
+- 기대 결과: 기본 ZIP v1, 미완료 사유 현황표; received 명시 선택 때만 v2와 상태표시
+- 시험 층: ZIP/도메인
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL15 AI 장애·외부 결과 불명
+
+- 상황: 분석/문답 공급자 실패 또는 outcome_unknown
+- 기대 결과: 답변 저장·직접 입력·파일 작성 경로 유지, 확인 전 중복 외부 호출 금지
+- 시험 층: worker/API/브라우저
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL16 게시 후 문항판 변경
+
+- 상황: schema1 게시 뒤 조건/형식/모드 수정, pending/열린 보완 단위 포함
+- 기대 결과: 새 schema와 영향 미리보기; 허용 단위만 명시 적용, 과거 제출 해석 불변
+- 시험 층: 판변경/도메인
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL17 부분 내보내기·다운로드 회수
+
+- 상황: ZIP 제작 중 파일 누락/특정 단위 권한 회수
+- 기대 결과: partial 원인·정확 실패 item 재시도; 권한 잃은 포함판 ZIP 재발급 차단
+- 시험 층: worker/파일
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL18 양식 재사용·원본 교체
+
+- 상황: 같은 학교 새 수합에서 빈 양식 재사용, 원본 교체, 타학교 복사 시도
+- 기대 결과: 새 대상/마감/schema, 기존 원본판 보존, 승인 없는 타학교 공유 차단
+- 시험 층: 양식/게시/RLS
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL19 지원 범위·렌더러 변경
+
+- 상황: 원본/팩/렌더러 지문 변경 또는 업로드형 내용검증 미실시
+- 기대 결과: 새 지원 검사 요구; 단순 파일검사를 문서 내용 검증 통과로 표시하지 않음
+- 시험 층: 지원정책/렌더
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL20 기존 기능 보존
+
+- 상황: 기존 로그인·회원·6종 평가계획서·일반 수합·보완·철회 회귀
+- 기대 결과: 기존 데이터/자산 불변, 신규 연결 NULL인 기존 수합 정상, 정확 현재/완료 포인터 유지
+- 시험 층: 회귀/통합
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### TT01 확정 불가시간·공간예약·교환 경합
+
+- 상황: 두 독립 연결에서 동일 교사/공간의 확정 불가시간·예약과 교환을 barrier로 경합
+- 기대 결과: 같은 자원키 잠금 후 최신 검사로 충돌하는 둘 중 하나만 커밋. 비어 있던 자원도 보호. 부분 반영 0건
+- 시험 층: 트랜잭션/잠금
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT02 학교형·실제 참여자 충돌
+
+- 상황: 선택분반 공통 학생·팀티칭·변칙 일과·공유 공간 초과 시도를 배포/교환에 입력
+- 기대 결과: 실제 시각·참여집단 충돌 탐지, 미검증 운영형은 지원 안 됨으로 차단
+- 시험 층: 엔진/검증기/점유
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT03 재배포·원복·실시 원장 보존
+
+- 상황: 미래 교환 확정 후 새 기본표 배포, 실시/보강 후 역변경·실시정정
+- 기대 결과: 승인된 미래 변경 소실 0건, 과거 실시·학생연결 유지, 새 실시판/보상행으로 중복 계상 0건
+- 시험 층: DB/배포/실시
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT04 관리자와 시간표담당 권한 분리
+
+- 상황: compose만 가진 교사가 시수·공식 교사배정·basis 포인터를 직접 또는 AI 도구로 수정
+- 기대 결과: 모두 거부, 수정요청만 생성. 관리자는 원본 확인·새 기준판 확정으로 실제 반영
+- 시험 층: 명령/권한
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT05 확정 후 원본 변경과 기준판 경합
+
+- 상황: basis 미리보기 후 교사배정 변경, 두 관리자 동시 기준확정, 다른 학교/학기 basis 연결. 학기 일부기간만 담은 basis를 최신 포인터로 연결
+- 기대 결과: 지문 또는 expected term version 충돌로 재미리보기. 잘못된 복합 참조 거부, 이전 불변판 보존. 부분기간 snapshot을 거부하고 학기 전체 기간별 관계를 고정
+- 시험 층: 복합FK/트랜잭션
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT06 수정요청 실제 반영과 상태
+
+- 상황: 요청 중 원본 변경, 오래된 기준 요청 승인, 적용되지 않은 수정에 applied 저장
+- 기대 결과: 차이를 재검토, 원본 수정+새 basis+resolved 연결 없이는 applied 거부. 종결 요청 본문 덮어쓰기 거부
+- 시험 층: 명령/상태
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT07 AI의 조건 해석 확인
+
+- 상황: '되도록 금요일 마지막 수업 제외', '수요일 못 옴'과 모호한 기간 입력
+- 기대 결과: 전자는 soft 초안, 후자는 기간 확인, 확인 전 잠금 불가. 자연어 설명과 실제 적용 조건 일치
+- 시험 층: AI도구/화면
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT08 미지원 조건과 명시 제외
+
+- 상황: 미지원 hard와 soft를 각각 포함하여 편성 실행. school_hard를 soft/제외로 위장
+- 기대 결과: hard 차단, soft는 담당자의 사유 있는 명시 제외만 가능, 적용됐다는 안내 금지. school_hard도 필수조건으로 검사하며 근거 승인 없는 완화 거부
+- 시험 층: 입력스키마/엔진
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT09 탐색 결과 의미
+
+- 상황: 시간종료 무후보, 유효후보 1개+시간종료, 불가능 증명, 내부 오류. 각 조합에 종료시각/한도/최적성 반대값을 넣는 진리표 시험
+- 기대 결과: 각각 unresolved/feasible/infeasible/internal_error. 후보 수를 부풀리지 않고 증명 없는 최적·불가능 단정 0건. execution_result_truth_table의 모든 허용 조합만 커밋, 나머지 조합 거부
+- 시험 층: 작업/결과DTO
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT10 수동 충돌 초안
+
+- 상황: 교사 중복 후보를 직접 저장 후 배포, 검증 중 조건 변경
+- 기대 결과: invalid 초안 저장 가능, 배포 불가. 검증 완료 뒤에도 changed inputs는 stale
+- 시험 층: 후보/검증/화면
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT11 기존 후보 변경과 고정
+
+- 상황: 고정수업 이동 요구, 원후보 수정, 다른 탭 동일 후보 저장
+- 기대 결과: 확인한 고정해제만 허용. 새 derived candidate 생성, 원후보 불변·재검증
+- 시험 층: 후보/AI/동시수정
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT12 담당자 변경·시수 구조변경 비교
+
+- 상황: 위치는 같고 교사 T1→T2, 시수 2+2→3+1, 회차키 재생성
+- 기대 결과: 교사 변경량 0으로 오판하지 않음. 구조변경은 재매핑 또는 새편성 안내, 잠금 silently 재사용 0건
+- 시험 층: adapter/회귀
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT13 기본자료·조건·달력 stale
+
+- 상황: 후보 생성 뒤 기준자료/잠금조건/적용달력 변경
+- 기대 결과: old candidate 자동배포 금지, 변경 근거 표시 후 새 확인·재검증
+- 시험 층: 조회/배포
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT14 주간표와 특정 날짜 분리
+
+- 상황: 이번 수요일만 교환 후 다음주 조회, 미래 적용 기본표를 예약 공개. 기존 학기표의 중간 한 달만 대체
+- 기대 결과: 해당 날짜만 변경, 미래 시작일 전 현재표 유지, 학교현지 [from,to) 경계 정확. 앞/대체/뒤 복원 구간을 빈 날짜·중복 날짜 없이 원자 보존
+- 시험 층: 날짜/기간/조회
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT15 배포 영향 미해결
+
+- 상황: 새 기본표가 기존 승인 교환·보강 및 실시 수업과 충돌
+- 기대 결과: 미해결 영향이 있으면 배포 거부. 이미 실시한 수업과 연결 학생자료 유지
+- 시험 층: 배포/영향
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT16 다자 교환과 동의 누락
+
+- 상황: A→B→C 교환에서 C를 참여자 목록에서 빼거나 미응답으로 적용
+- 기대 결과: 서버가 실제 참여자 재계산, 전원 같은판 동의 없으면 전체 미반영
+- 시험 층: 권한/동의/원자성
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT17 동의 후 후보 변경
+
+- 상황: A/B 동의 후 시간·교사·기준 수업판을 수정해 이전동의로 적용
+- 기대 결과: 새 change_set·supersedes 관계 필요, 전원 새 동의. 기존 지문 응답은 CONSENT_STALE
+- 시험 층: 지문/상태
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT18 자기승인·만료·전출
+
+- 상황: 담당자의 본인 요청을 본인 다른 membership으로 승인, 기한 후 또는 당사자 전출 후 적용. 설계 권고 기본정책을 적용한 합성 정책판으로 시험
+- 기대 결과: 자기 account 승인 차단, 지정 대리 승인 필요, 기한/활성소속 불일치 적용 거부
+- 시험 층: 승인/권한
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT19 같은 수업 동시 교환·재시도
+
+- 상황: 두 연결이 같은 수업을 다른 대상으로 교환, 첫 응답 유실 후 동일키 재시도
+- 기대 결과: 한 변경만 커밋, 재시도는 기존 접수증, 다른 요청 동일키는 충돌. 교사/학급/공간 부분 반영 0
+- 시험 층: 멱등/동시성
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT20 대강·결강·보강 의미
+
+- 상황: 결강 후 보강 두 번 등록, 대강 실제담당 정정, 시간만 경과한 수업
+- 기대 결과: 중복 충당 차단, 새 실시판·보상행으로 정확 누계, 자동 실시 확정 0건
+- 시험 층: 실시/원장
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT21 전국 학교 지원 검증
+
+- 상황: 초등 학년별 교시, 고교 학생 중첩, 합반, 이동시간, 격주 패턴을 엔진판별 실행
+- 기대 결과: 확인된 기능별 evidence만 verified, 미지원 자동편성·수동검증 우회 배포 불가
+- 시험 층: 학교형/릴리스
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT22 알림 실패·오프라인 조회
+
+- 상황: 배포 커밋 후 알림 실패, 오래된 모바일 캐시에서 교환 승인
+- 기대 결과: 시간표 확정은 유지하고 outbox만 재시도, 중복 알림 방지. 최신 검사 없는 승인은 불가
+- 시험 층: outbox/화면
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT23 자료 최소화·학교격리
+
+- 상황: 일반교사/다른학교가 기준snapshot·원문사유·선택수강 실명 및 AI 입력을 조회
+- 기대 결과: 허용 DTO만 반환, 학생실명·복무상세 최소화, 다른학교 정보와 원시 AI문서 명령 실행 0
+- 시험 층: RLS/DTO/AI
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT24 AI 없이 운영·접근성
+
+- 상황: AI 장애 상태에서 조건입력→수동후보→배포→교환응답을 키보드/모바일로 수행
+- 기대 결과: 동일 권한·검증 아래 수동 흐름 완료, 드래그 전용 동작 없음, 미확인 상태 명확
+- 시험 층: 화면/종단
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### TT25 작업 취소·늦은 결과
+
+- 상황: 편성 취소/재시작 뒤 옛 worker가 후보와 완료응답 저장
+- 기대 결과: job fencing 거부 또는 취소판 귀속만, 새 작업/공개 시간표 덮어쓰기 없음
+- 시험 층: 작업/경합
+- 명세: 14-timetable-operations.md
+- 상태: 통합 DB에서 미실행
+
+### MSG14 선택 FK·수신 episode·원파일 부모 보존
+
+- 상황: 준비 단계의 두 선택열 NULL, 한 열만 NULL, 같은 방 다른 참여자의 episode 연결, 기존 업무파일을 첨부하며 intent 변경, 일반 참여자의 자기나가기/타인제거를 각각 시도
+- 기대 결과: 두열NULL 준비만 허용; 부분NULL·다른수신episode 거부; 기존파일 부모/intent/ACL 불변; 일반회원 자기나가기만 허용
+- 시험 층: 복합FK/파일명령/권한
+- 명세: 12-messenger.md
+- 상태: 통합 DB에서 미실행
+
+### COL21 상속 제약·인덱스 대체와 반복 파일
+
+- 상황: 기준+확장 계약을 합친 대상 설계에 long_text/repeat_group과 서로 다른 반복행의 동일 file을 추가, 동일 경로 중복도 추가
+- 기대 결과: 옛 kind CHECK/PK/활성 UNIQUE는 superseded로만 보존, 정상 반복행 둘은 허용하며 동일 answer_path/file 중복은 새 키로 거부
+- 시험 층: 설계 생성기/합성 DDL 제약
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL22 모드별 출력 문항 역방향 무결성
+
+- 상황: guided 출력필드를 input으로 지정, generated_output 2개, output 포인터 미연결, 조건부/반복 부모 출력, file_upload에 generated_output 추가
+- 기대 결과: 모든 잘못된 정의를 지연 제약·publish에서 거부. guided는 required root file generated_output 정확1개, file_upload는 input 결과필드1개로 정상 게시
+- 시험 층: 제약/게시/validator
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL23 검사 실패 산출물의 ready 승격 차단
+
+- 상황: generated artifact에 error/needs_review/not_checked 검사, 필수 skipped, 오류 finding, 미확정 필수, 다른 exact 파일 hash/팩/매핑/렌더러/입력 job hash 대입
+- 기대 결과: ready/confirm/submit 전부 거부; 모든 정확한 검사가 pass이고 error·필수skipped·활성필수미확정이0인 실제 파일만 통과
+- 시험 층: worker/검증/제출
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
+### COL24 같은 학교 다른 단위·답변 문서 재포장
+
+- 상황: A단위 snapshot으로 생성·검증한 document revision/file을 B단위 artifact에 연결하거나 A단위의 다른 snapshot/schema/mapping으로 재지정
+- 기대 결과: document linked_unit·revision typed 생성입력·artifact 복합 FK와 actual job input 검사가 모두 일치해야 하므로 교차 포장·판 변경 거부. 다른학교는 기존 scope 검사도 거부
+- 시험 층: FK/worker/출력/제출
+- 명세: 13-template-collection.md
+- 상태: 통합 DB에서 미실행
+
 
 ## 실제 두 연결 시험 방법
 
@@ -1642,7 +2218,7 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 
 | 축 | 배점 | 만점 근거 |
 |---|---:|---|
-| 요구 범위와 관계 | 20 | M00~M15/API01~24 누락·타학교/타학생/타부모 참조 0 |
+| 요구 범위와 관계 | 20 | M00~M15/API01~29 누락·타학교/타학생/타부모 참조 0 |
 | 권한과 개인 원문 | 25 | 역할별 모든 접근경로·회수·지원·서비스자격 시험 통과 |
 | 업무 상태와 근거 | 25 | 수합·인계·학생·AI·시간표의 반례와 양방향경합 통과 |
 | 이관과 복구 | 15 | 기존로그인/회원대조·legacy우회폐쇄·파일포함복원 성공 |
@@ -1656,6 +2232,8 @@ schema-contract.json은 설계 명세다. validate-design.cjs가 성공해도 RL
 <!-- SOURCE: 07-migration-operations.md -->
 
 # 07. 회원 보존·이관·회수·파기·복구 실행 계약
+
+> **2026-10-13 현재 실제 DB 구축 보류.** 아래 배치는 재개 이후의 실행 계약이다. 이번 보강의 메신저·양식 수합·시간표 기준자료는 12~15와 확장 JSON을 함께 반영한다. 지금 SQL 실행·DB 생성·서비스 설정을 진행하지 않는다.
 
 > 2026-10-12 설계안. 운영 DB를 읽거나 변경하지 않았다. 기존 migrations·인증 코드·문서 엔진·확정 자산은 그대로다. 이 문서는 SQL 확정본의 요구사항과 중단 조건이며 실행 지시가 아니다. 실제 SQL은 Claude Web이 검토·확정하고 계란님이 검증 환경부터 실행한다.
 
@@ -1809,13 +2387,1349 @@ restore_runs는 해당 recovery_set FK, 격리 환경, 외부 전송 차단, 복
 아직 확정하지 않은 것은 실제 운영 인벤토리, 최초 학교·관리자 연결, 승인 상태 예외 매핑, 보존기간·법적 근거·백업 저장위치/만료, 지원기한, 외부 기능 한도/비용, 실제 공개 범위다. 이는 구체적인 적용본과 검증 증거를 갖춘 승인 게이트로 관리한다. 현재 설계 문서 작성과 보호된 운영 변경을 혼동하지 않는다.
 
 
+## 1.1 보강 배치와 선행 관계
+
+실제 구축 보류를 유지하며 재개 후 배치를 다음과 같이 상세화한다. 각 배치는 FK뿐 아니라 명령·권한·검사·파일 grant·해당 기능 스위치를 함께 닫아야 한다. 전체 최종 카탈로그를 중간 배치에서 이미 존재한다고 가정하지 않는다.
+
+| 배치 | 선행 객체 | 신규/확장 범위 | 후속까지 보류할 연결 |
+|---|---|---|---|
+| 확장 공통 | 계정·소속·정책·파일·멱등·감사·jobs/outbox | 새 resource kind/권한·지원 정책을 닫힌 기본값으로 등록 | 공개 범위 확대 |
+| 교사 메신저 | 확장 공통·수합 원본, 12의 FK 부모 | 6표·typed 첨부·참가/발송/읽기 명령 | timetable_change_set_id 및 그 FK/카드 kind는 시간표 전용 표 생성 뒤 추가. tool_proposal_id와 그 FK, ai_run_sources의 메시지 출처 확장 및 AI origin 발송은 AI 선행 표 생성 뒤 추가. 초기 직접 발송에는 해당 열/입력/기능을 만들거나 받지 않음 |
+| 양식 파일 수합 | 기존 collection/file/문서 공통 | 재사용 양식·파일판·기존 제출 흐름 | AI 분석·매핑·출력 참조는 다음 행의 선행 객체가 준비된 배치에서 생성 |
+| 양식 문답·출력 | AI 실행·작업·문서판·검사·전체 수합 부모 | 13의 7표/기존표 보강을 FK 의존 순서로 생성, 순환은 선행 기본객체+지연 FK+커밋전 검사 | 승인되지 않은 양식/모델·비용 정책 기능은 계속 차단 |
+| 시간표 재개 | 기존 공통 수업/학생·기간·공간·일과 | 기존26표+기준자료2표/기존상태 대체, 이후 메신저 시간표 카드 FK 추가 | 엔진/실제학교 검증 전 편성·배포 공개 |
+
+시간표 카드 연결을 뒤로 나누는 것은 최종 설계에서 FK를 제거한다는 뜻이 아니다. 해당 열/제약을 아직 만들지 않는 중간 배치 계약이며 최종 카탈로그에는 필수 연결로 유지한다. 현재 운영에 적용한 SQL은 없으므로 실행 기록을 만들어내지 않는다.
+
+
+---
+
+<!-- SOURCE: 12-messenger.md -->
+
+# 12. 교사 메신저: 대화·파일·AI 발송 구현 계약
+
+> 2026-10-13 / 설계 보완판 1.1. 사용자 요구와 합의한 개선안을 구체화했다. **실제 DB 구축, SQL 작성·실행, 인증·RLS 변경, 서비스 공개는 하지 않았다.** 신규 구현은 기존 M05(전달·알림·문의)의 세부 기능으로 편성하며 AI는 M07과 연결한다. 기존 AI `conversations/messages`를 교사 대화에 재사용하지 않는다. 표·명령은 구현 목표이며 현재 서비스에 존재한다는 뜻이 아니다.
+
+## 1. 사용자에게 보이는 완성 동작
+
+1. 같은 학교 교사를 검색해 1:1 메시지와 파일을 보낸다.
+2. 여러 교사에게 같은 안내를 보내려면 **각자에게 보내기**를 선택한다. 각 수신자는 자기 DM으로 받고 다른 수신자나 답변을 보지 않는다.
+3. 함께 논의해야 하면 **단체 대화방**을 만든다. 보내기 전 참여자 목록을 확인하며 답변은 그 방의 현재 참여자에게 보인다.
+4. Claude에게 “2학년 담임께 이 파일과 안내를 보내줘”라고 요청하면 AI는 등록·승인된 배정에서 대상자를 찾고 발송안을 만든다. 사용자가 받는 사람·본문·첨부를 확인한 뒤 보낸다.
+5. 수합/시간표 요청을 카드로 받아 해당 업무를 열고 작성·동의·거절한다. **대화 읽음, 문서 제출, 시간표 동의, 시간표 반영은 다른 상태**다.
+6. 일반 발송은 교사가 편집기에 표시된 정확한 상대·본문·첨부를 보고 누르는 ‘보내기’가 확인이다. 단순 DM마다 불필요한 팝업을 강제하지 않는다. AI/개별 일괄발송은 별도 확인 화면에서 실제 대상자와 영향을 보여 준다.
+
+### 화면과 모바일 동선
+
+| 화면 | 우선 정보·행동 | 숨기거나 분리할 정보 |
+|---|---|---|
+| 메시지 목록 | 내 현재 학교, 안 읽은 대화, 상대/방 이름, 마지막 활동, 새 메시지 | 그룹 수신 전체·AI 대화·업무 승인 대기 목록을 한 목록으로 섞지 않음 |
+| 1:1 대화 | 상대의 이름·소속 표시, 최근 메시지, 파일, 답장 입력 | 온라인/마지막 접속 추적은 초기 필수 범위에 넣지 않음 |
+| 단체 대화 | 방 이름, 참여자 수/열기, 본문, 초대·나가기 | 권한 없는 교사의 인사정보·이메일 노출 금지 |
+| 여러 명에게 보내기 | 대상 선택, 정확한 명단·학교·대상 수, 본문/파일, 각자 DM임을 명시 | 실제 단체 대화방과 동일한 ‘단체’ 명칭만 쓰지 않음 |
+| AI 발송 확인 | 받는 사람, 메시지, 파일, 관련 업무, 수정/보내기 | 프롬프트·tool JSON·내부 토큰·해시를 사용자에게 보여 주지 않음 |
+| 보낸 결과 | 전달됨/실패/대상 변경으로 차단, 재시도할 대상 | 알림 실패를 메시지 실패로 표시하지 않음 |
+
+모바일은 목록→대화의 한 화면 전환, 뒤로 가면 이전 목록 위치 복원, 입력 영역/파일 버튼을 소프트키보드 위에서 사용할 수 있게 한다. 키보드 접근, 읽기 순서, 파일 제거의 이름, 전송 중 상태, 오류 후 내용 보존을 검증한다. 빈 목록·조회 실패·권한 없음·로딩을 각각 표시한다. 실시간 연결이 끊기면 마지막 확정 순번 뒤를 재조회하고, 실시간 사건만으로 읽음을 자동 갱신하지 않는다.
+
+## 2. 역할·학교·참여자의 경계
+
+| 주체 | 허용 | 허용하지 않음 |
+|---|---|---|
+| 현재 활성 교사 | 같은 학교 현재 교사와 DM, 권한 있는 그룹 참여, 자기 발송·정정·회수 | 다른 학교 계정 검색·발송, 타인 대화 열람 |
+| 그룹 manager | 현재 방 이름/참여자/관리 역할 변경·보관 | 학교 관리자라는 이유만으로 다른 방에 들어가기 |
+| 학교 관리자 | 승인된 범위의 이용 상태·실패율 등 최소 운영 메타 | 교사의 DM 본문·첨부·AI 요청 열람 |
+| Claude | 요청 교사의 현재 권한 안에서 대상 조회·초안·선택 대화 요약 | 확인 전 발송, 모든 교사 대화 일괄 수집 |
+| 제한 worker | 고정 dispatch의 현재 허용 대상에 전달하고 상태 기록 | 서비스 역할로 새 수신자 추가·권한 우회 |
+| 플랫폼 지원 | 허용된 장애 코드·ID·시각·메타 | 대화/첨부 원문을 지원 조회에 포함 |
+
+- 학교 경계는 `school_id`, 실제 사람은 인증된 `account_id`, 현재 행동 자격은 `membership_id`로 분리한다. 겸임 교사는 학교별 별도 메시지함을 사용한다. 현재학교 UI만 바뀌고 요청 school 값이 남는 상황을 generation/cache 키로 차단한다.
+- DM 유일성은 **같은 학교의 정렬한 소속 ID 두 개**다. 두 사람이 순서를 바꾸어 동시에 생성해도 한 방이다. 본인에게 보내기는 별도 개인 메모로 다루며 이 계약에서는 거부한다.
+- 소속 종료는 즉시 그 학교 메시지/파일/검색/AI 근거 접근을 막는다. 재임용된 새 소속에 옛 대화 접근권을 자동 승계하지 않는다.
+- 그룹 새 참여자와 재입장자는 참여 시점 이후부터 본다. 재입장은 새 episode이고 기존 episode를 되살리지 않는다. 초기에는 과거 대화 공개 기능을 제공하지 않는다.
+- 기존 수신자가 떠나도 다른 적법한 참여자의 대화가 사라지지는 않는다. 화면에 “탈퇴한 참여자”를 표시하고 현재 인사정보를 과도하게 조회하지 않는다. 표시 이름 보존은 승인된 보존·최소정보 정책을 따른다.
+- self leave는 일반 참여자도 본인의 현재 episode에 실행할 수 있다. 다른 교사 제거·초대·역할 변경은 manager만 가능하다.
+- 마지막 manager가 나갈 때 다른 현재 참여자에게 인계하거나 방 보관을 선택한다. 보관은 삭제가 아니며 기존 참여자는 허용된 과거 메시지를 읽을 수 있으나 새 발송은 막는다.
+- 소속/역할 변경이 아직 participant 행에 전파되지 않았어도 읽기 API의 현재 소속 검사가 먼저 막는다.
+
+## 3. 본문·발송·대화방을 분리하는 이유
+
+`messenger_dispatches`는 사용자가 확인한 **불변 발송내용과 정확한 대상 집합**이다. `messenger_messages`는 그 발송내용이 특정 대화방에 실제 도착했다는 기록이다. 개별 일괄발송은 여러 DM 메시지가 같은 dispatch 본문·첨부를 참조하되, 수신자는 자기 메시지 경로만 읽는다.
+
+6개 표로 구성한다. 별도 대화 본문 복사·수신자별 첨부 복사·알림 본문 사본은 만들지 않는다. 기존 파일·멱등 접수·감사·outbox·AI 제안 표를 재사용한다.
+
+| 표 | 담당 사실 |
+|---|---|
+| messenger_threads | 학교별 direct/group 방, DM 쌍 유일성, 참여판·메시지 순번 |
+| messenger_participants | 현재/과거 참여 episode, 보기 시작 순번, 역할·읽음 경계 |
+| messenger_dispatches | 고정 발송안, 확인 지문, 본문·업무 카드, 확인/진행 상태 |
+| messenger_dispatch_targets | 정확한 수신자 스냅숏, 대상별 결과, 정정할 이전 메시지 |
+| messenger_messages | 방에 실제 커밋된 메시지, 순번, 회수 여부 |
+| messenger_dispatch_files | 발송안과 검증된 파일의 연결·지문 |
+
+**의존 순서:** threads → participants → dispatches → dispatch_files/messages → dispatch_targets. dispatch는 message를 FK로 참조하지 않는다. 정정 원메시지 FK는 targets에 두므로 서로가 반드시 먼저 존재해야 하는 순환 참조를 만들지 않는다. 그룹 참여 변경/메시지 생성은 선행 행을 생성한 뒤 같은 트랜잭션에서 무결성을 확인한다.
+
+## 4. 명단 고정·확인·전달 상태 기계
+
+### 4.1 발송 준비
+
+1. 현재 학교/발신 소속/feature 및 서비스 스위치를 검사한다.
+2. 승인된 부서·학년·교과·직접 선택 명단으로 대상 후보를 계산한다. 동명이인이나 미승인 배정은 추정하지 않고 선택을 요청한다.
+3. 등록된 대상 조건의 AND/OR/제외 규칙을 사용하고 중복 소속은 제거한다. ‘학년 부장’과 ‘학년 담임’을 구분한다.
+4. 파일 실물·안전검사·현재 원본 ACL, 업무카드 현재 열람권을 검사한다.
+5. dispatch/targets/files를 원자 생성하고 정렬된 정확한 수신자 집합과 발송 확인 지문을 반환한다. 대상 조회 실패는 0명으로 반환하지 않는다.
+6. 수정하면 새 prepared dispatch를 만든다. 이전 확인 지문은 재사용하지 않는다. 만료시간은 승인된 정책값이며 문서에 임의 분/시간을 고정하지 않는다.
+
+### 4.2 발송 확인
+
+`confirmation_sha256`는 본문·파일 ID와 실물지문·모드·카드 종류/ID/판·정정 원메시지·정확한 수신 소속/계정 집합·정책판·권한판·group 참여판·만료·tool registry 판을 결정적으로 정규화한 값이다. 해시가 존재한다는 것만으로 권한이 생기지 않으며 서버가 원본에서 다시 계산한다.
+
+확인 당시 대상 명단/방 참여판/파일/권한/정책 등이 바뀌면 `CONFIRMATION_STALE`로 돌아가 새 명단을 보여 준다. 이미 사용자가 확인한 명단을 확인 후 부서 조회 결과로 몰래 바꾸지 않는다. 직접 입력과 AI 도구가 같은 domain 명령을 사용한다.
+
+`prepared → confirmed → sending → completed | partial | failed`
+
+- prepared → cancelled/expired: 효과 없음.
+- confirmed/sending → cancelled: **아직 pending인 대상만 취소**한다. 이미 전달된 메시지는 별도 회수 절차이며 일괄 취소됐다고 표시하지 않는다.
+- completed: 모든 고정 대상에 DB 메시지가 커밋됨. 푸시 성공/읽음/업무 완료 의미가 아니다.
+- partial: 일부 delivered이고 나머지는 blocked/failed/cancelled.
+- failed: delivered 0이며 모든 대상이 확정 실패/차단으로 종료.
+- pending/sending: 현재 작업 중 또는 안전한 재시도 대기. 결과를 모르는 상태를 성공으로 만들지 않는다.
+- 상태 집계는 targets의 투영이며 근거 없는 수동 ‘완료’ 변경은 금지한다.
+
+### 4.3 그룹과 개별 일괄발송의 원자성
+
+**그룹:** 고정한 참여판과 현재 참여자를 대조한 뒤 메시지 1개·전체 target delivered·방 순번·접수·감사·outbox를 한 트랜잭션으로 저장한다. 그룹 참여자 일부만 성공한 메시지를 만들지 않는다. 새 멤버가 확인 직후 들어오면 기존 확인안은 stale이다.
+
+**개별 일괄발송:** 대상별로 DM 확보·메시지 1개·대상 delivered·접수·감사·outbox를 원자 처리한다. 다른 대상이 실패해도 성공한 메시지는 유지한다. 진행 중 전출한 대상은 blocked이며 다른 교사로 대체하지 않는다. 실제 최신 gate를 통과한 원래 대상만 전달한다.
+
+재시도 키는 dispatch/recipient에 고정한다. DB 응답이 유실되어도 원접수와 `UNIQUE(dispatch_id,thread_id)`를 먼저 현재 권한으로 조회해 같은 성공을 반환한다. 성공행을 반복 삽입하지 않는다. 그룹은 메시지 1개 단위로 재시도한다.
+
+푸시/이메일 등 외부 알림은 outbox 후속 작업이다. 메시지 저장이 성공하고 푸시만 실패했을 때 화면은 ‘전달됨’을 유지하고 알림만 재시도한다. 외부 채널의 불명확한 결과는 04의 외부 호출 계약을 따르며 DB 메시지를 다시 발송하지 않는다.
+
+## 5. 읽음·정정·회수·보존
+
+- 읽음은 현재 episode의 접근 가능한 메시지가 화면에 실제 표시된 뒤 `last_read_seq`를 단조 증가시킨다. 최신 페이지 일부만 보고 과거 미조회 구간까지 읽었다고 가정하지 않는다. 초기 진입 UI는 읽음 경계 이후부터 이어 보여주거나 ‘여기까지 읽음’ 행동을 명시한다.
+- 소규모/대규모 그룹의 읽음 상세 공개 범위는 학교 정책으로 결정한다. 기본 DTO는 본인의 안 읽음과 표시 허용된 집계만 제공하며, 개인별 활동 감시용 접속 이력을 새로 수집하지 않는다.
+- 정정은 원메시지를 참조하는 새 발송이다. 원본문을 덮어쓰지 않고 연결된 정정 표시를 제공한다. 일괄발송 정정은 수신자별 원메시지를 고정한다.
+- 회수는 원메시지에 tombstone을 남기고 그 메시지 경로의 본문·첨부·검색·AI 재사용을 막는다. 이미 읽거나 PC에 저장한 내용을 원격 삭제했다고 주장하지 않는다.
+- 한 dispatch의 일부 DM만 회수한 경우 다른 정상 DM의 공용 본문을 물리 삭제하지 않는다. 전체 파기는 모든 종속 메시지/보존 hold/정책을 계산하는 공통 lifecycle 명령이 수행한다.
+- 일반 교사의 ‘대화방 나가기’는 전교 자료 삭제가 아니다. 삭제·파기 기한·회수 가능기간은 임의 값으로 정하지 않으며 승인된 보존 정책 확정이 운영 공개 전 필요하다.
+- 최초에는 무제한 전체본문 검색/대화 export를 추가하지 않는다. 대화 내 검색을 제공할 경우 현재 participant episode·seq·원본 상태를 먼저 필터하고, 색인 누락/철회 지연에도 직접 서버 검사가 막아야 한다.
+
+## 6. 파일과 업무 카드
+
+### 파일 전달
+파일은 공통 업로드 예약·실물 크기/MIME/hash·안전검사를 재사용한다. 업로드 중/검사 실패/정책 미정인 파일은 발송 확인이 불가능하다. 파일 크기·종류·압축 해제 상한·URL 수명은 승인된 정책으로 읽는다.
+
+새 업로드는 사용자가 이 메시지에 공유하려는 파일로 명확히 표시한다. 기존 학교 문서·학생 자료·다른 사람의 private 파일을 메신저에 붙였다는 이유로 ACL을 확장하지 않는다. 기존 업무 파일은 받는 사람의 원본 현재 열람권도 AND로 확인하는 링크로 전달하며, 권한이 없으면 담당 업무 화면에서 접근을 요청하게 한다.
+
+다운로드 요청은 `messageId + fileId`를 요구한다. 서버는 현재 소속/참여 episode/seq/메시지 상태/같은 dispatch 첨부/파일 실물/원본 ACL을 검사한다. Storage 경로를 반환하거나 파일 ID만으로 서명 URL을 발급하지 않는다. 이전 URL 접근 회수 가능범위와 만료는 기존 파일 계약을 따르고, 다운로드된 사본까지 회수됐다고 표시하지 않는다.
+
+### 수합·시간표 카드
+카드는 `collection_id` 또는 `timetable_change_set_id`와 당시 판을 typed FK로 보존한다. 수신자별 수합 단위는 그 교사의 현재 단위 관계로 서버가 해석하며, 다른 교사 답변/단위 목록을 메시지 JSON에 복사하지 않는다.
+
+- ‘작성하기’는 현재 작성/제출 권한의 수합 화면을 연다.
+- ‘수락/거절’은 시간표 현재 영향판·본인 참여를 다시 읽어 전문 명령의 확인 UI로 이어진다.
+- 카드의 예전 제목/마감/상태를 정본으로 취급하지 않는다. 현재 업무를 읽을 수 없으면 ‘현재 확인할 수 없는 업무’만 보여 준다.
+- 메시지 회수는 수합/시간표 원본을 취소하지 않는다. 업무 취소도 별도 권한 명령으로 처리한다.
+- 미제출 교사 재안내는 현재 미제출 명단을 새로 계산한 새 발송안을 확인한다. 과거 명단을 반복 재활용하지 않는다.
+
+## 7. Claude 문맥과 개인정보
+
+Claude 연결은 기존 M07 `tool_proposals/tool_runs/ai_runs`의 현재권한·확인·비용·실행 계약을 사용한다. 모델명·토큰 한도·가격·보존 수치를 이번 설계에서 새로 확정하지 않는다.
+
+AI에 보내는 대화는 사용자가 명시 선택한 메시지 범위 또는 해당 대화에서 요청한 요약 범위로 제한한다. 개인 AI 대화와 교사 메신저는 다른 저장소·권한이다. 학교 전체 대화를 자동으로 학교 지식에 색인하거나, 다른 교사의 대화가 개인 비서 기억으로 들어가게 하지 않는다.
+
+`ai_run_sources.kind=messenger_message` 분기는 정확한 메시지/불변 dispatch/선택 당시 상태판/locator/hash를 저장한다. 현재 read를 실행 직전과 결과 공개 직전에 다시 검사한다. 회수·소속종료·방 탈퇴·참여범위 변경 시 옛 요약을 정상 근거처럼 재사용하지 않는다. 로그·감사·outbox·push에는 본문·첨부 파일명·수신자 전체 명단·AI 프롬프트를 넣지 않고 안전한 사건 ID와 코드만 둔다. push는 ‘새 메시지가 있습니다’ 수준이며 구체 표시 정책은 별도 승인한다.
+
+## 8. API 세부 계약과 예시
+
+공통: 브라우저는 authenticated direct DML 대신 등록된 명령을 사용한다. 모든 변경은 명시적 school/origin membership, requestKey, 기대판을 받는다. actor는 Auth에서 파생하며 body에 actor를 적어도 대체하지 않는다. `operationId/status/serverRecordedAt` 공통 응답을 따르고 날짜는 서버 시각이다. 예시 ID·시각은 합성 데이터다.
+
+### API-25 읽기·대화 운영
+
+- `GET /schools/{schoolId}/messenger/threads?cursor=...`: 현재 참여방, 안 읽은 수, 다음 cursor. 마지막 본문 미리보기는 권한·표시정책이 허용한 경우만.
+- `GET /schools/{schoolId}/messenger/threads/{threadId}/messages?beforeSeq=...`: `ORDER BY seq DESC` keyset. 동일 타임스탬프도 누락되지 않는다. 최대 page 크기는 등록된 서비스 설정, 사용자가 임의 무제한 지정 못함.
+- `POST .../direct`: recipientMembershipId, requestKey. 역순 중복은 동일 thread 반환.
+- `POST .../groups`: title, 정확한 recipientMembershipIds, requestKey. 활성 교사만 초대. 방생성은 메시지 발송과 별도.
+- `POST .../threads/{id}/participants`: add/remove/leave/transfer_manager, expectedParticipantEpoch, requestKey. leave는 본인 현재 episode에 한해 일반 참여자도 허용하고, 나머지는 manager 권한을 검사한다.
+- `POST .../threads/{id}/read`: participantId, throughSeq, requestKey.
+- `POST .../messages/{id}/withdraw`: expectedVersion, requestKey. 현재 발신자만.
+- `GET .../messages/{id}/files/{fileId}`: 현재 읽기권한을 검사하는 파일 API로 연결.
+- `GET .../dispatches/{id}`: 발신자만 대상별 전달 현황. 수신자에게 전체 대상 명단 반환 금지.
+
+```json
+{
+  "threadId": "thread-demo",
+  "participantId": "participant-demo",
+  "visibleFromSeq": 21,
+  "lastReadSeq": 24,
+  "messages": [
+    {
+      "id": "message-demo",
+      "seq": 25,
+      "sender": {"displayName": "예시 교사", "membershipStatus": "active"},
+      "body": "자료를 확인해 주세요.",
+      "state": "visible",
+      "files": [],
+      "workCard": {"kind": "collection", "id": "collection-demo", "action": "open"},
+      "sentAt": "2026-10-13T03:00:00Z"
+    }
+  ],
+  "nextCursor": null
+}
+```
+
+### API-26 발송 준비·확정
+
+```json
+{
+  "schoolId": "school-demo",
+  "originMembershipId": "member-sender",
+  "requestKey": "prepare-demo-001",
+  "mode": "broadcast_direct",
+  "recipientSelector": {"gradeIds": ["grade-demo"], "assignmentKind": "homeroom_teacher", "include": [], "exclude": []},
+  "body": "수합 자료를 확인해 주세요.",
+  "files": [{"id": "file-demo", "sha256": "<검증된 64자리 지문>"}],
+  "workCard": {"kind": "collection", "id": "collection-demo", "expectedVersion": 3},
+  "origin": "ai"
+}
+```
+
+`POST /schools/{schoolId}/messenger/dispatches/prepare` 응답:
+```json
+{
+  "operationId": "operation-demo",
+  "status": "committed",
+  "dispatchId": "dispatch-demo",
+  "version": 1,
+  "state": "prepared",
+  "confirmationSha256": "<서버 계산 64자리 지문>",
+  "recipientPreview": [{"membershipId": "member-a", "displayName": "예시 교사", "assignmentLabel": "2학년 담임"}],
+  "targetCount": 1,
+  "modeLabel": "각자에게 보내기",
+  "nextAction": "confirm"
+}
+```
+
+`POST .../dispatches/{id}/confirm` 입력은 `expectedVersion, confirmationSha256, requestKey`. AI는 tool_proposal도 같은 dispatch/actor/origin/해시를 가리켜야 한다. 단체발송 응답 `status=accepted, state=confirmed, operationId, dispatchId`는 접수이며 전달 완료가 아니다.
+
+상태 조회:
+```json
+{
+  "dispatchId": "dispatch-partial-demo",
+  "state": "partial",
+  "summary": {"targetCount": 3, "delivered": 2, "blocked": 1, "failed": 0, "pending": 0},
+  "targets": [
+    {"membershipId": "member-a", "state": "delivered", "notificationState": "retrying"},
+    {"membershipId": "member-b", "state": "delivered", "notificationState": "sent"},
+    {"membershipId": "member-c", "state": "blocked", "code": "RECIPIENT_UNAVAILABLE"}
+  ]
+}
+```
+
+### 오류·사용자 회복 경로
+
+| 코드 | HTTP | 재시도/화면 행동 |
+|---|---:|---|
+| RESOURCE_UNAVAILABLE | 404 | 존재 여부 숨김. 목록 새로고침, 다른 학교/타인 객체 정보 미표시 |
+| ORIGIN_MEMBERSHIP_ENDED | 403 | 현재 학교 접근 잠금, 옛 초안 새 학교로 복사하지 않음 |
+| CONFIRMATION_STALE | 409 | 수신자/첨부/본문 다시 확인. 자동 발송 금지 |
+| PARTICIPANTS_CHANGED | 409 | 그룹 참여명단 새로 읽고 새 발송안 |
+| IDEMPOTENCY_CONFLICT | 409 | 같은 키 다른 의도. 기존 결과 확인 후 명시적 새 요청 |
+| RECIPIENT_UNAVAILABLE | 409 | 확인 전이면 명단 조정, 확인 후에는 대상 blocked |
+| FILE_NOT_READY / FILE_UNAVAILABLE | 409 | 검사 진행/파일 거부 구분, 준비 완료 전 발송 금지 |
+| POLICY_UNSET | 409 | 필요한 정책명을 안전한 설명으로 안내; 임의 한도 적용 금지 |
+| TEMPORARILY_UNAVAILABLE | 503 | 내용 보존, 같은 요청키로 접수 조회 후 안전한 재시도 |
+| VALIDATION_FAILED | 422 | 빈 본문+첨부없음, 잘못된 모드/대상/혼합 카드 필드 표시 |
+
+오류는 `code,retryable,correlationId,message,nextAction`을 반환한다. 예외 stack·SQL·다른 학교 ID·본문·파일 원문은 반환하지 않는다. 개별 수신 실패는 전체 HTTP 요청실패와 구분하고 대상 상태 DTO로 표현한다.
+
+## 9. 동시성·조회·보존 구현 요구
+
+01의 공통 잠금 순서(주체→학교/스위치→소속→역할/정책→멱등→원본→파일→접수/감사/outbox)를 따른다. 여러 소속/방은 정렬된 ID 순서로 잠근다. 읽음 cursor의 감소·message seq 경쟁·그룹 마지막 manager 경쟁을 독립 DB 두 연결로 시험한다. 외부 AI/Storage/알림 호출 동안 DB 잠금을 잡고 기다리지 않는다.
+
+직접 SELECT 허용 여부보다 중요한 것은 모든 경로에서 동일한 현재권한 결과다. 특히 dispatch 본문과 고정 수신명단을 한 번에 노출하는 REST SELECT는 허용하지 않고, 메시지 DTO가 현재 참여자에게 본문만 투영한다. 원본 처리가 가능한 registry에 새 typed handler를 추가하고 임의 테이블 문자열로 동적 조회하지 않는다.
+
+전체 대화가 아닌 본인 active participants로 먼저 범위를 줄인 후 방/메시지를 찾는다. 읽음 수는 본인 episode 경계 이후의 실제 visible 메시지로 계산하며 방의 last_seq 차이를 그대로 개수로 쓰지 않는다. 회수/숨김/본인발송이 존재하기 때문이다. 최종 p50/p95 목표와 실제 학교 규모는 성능 시험에서 측정하며 근거 없는 숫자를 완료 기준으로 만들지 않는다.
+
+메신저 보존 규칙, 첨부 제한, 읽음 상세 공개, 알림 표시·조용한 시간은 정책 등록 항목으로 남긴다. 이 문서가 운영 정책 승인이나 실제 DB 보안 변경을 대신하지 않는다.
+
+## 10. 테이블별 핵심 열·무결성
+
+아래 열은 전체 구현 목표의 핵심 사전이다. 기존 공통 정책/불변/삭제 원장 규칙은 그대로 적용한다. 각 references의 단일열 표시는 관계 설명이며, 실제 학교 범위는 아래 복합 FK로 강제한다. SQL은 별도 승인 절차에서 작성한다.
+
+### workhub.messenger_threads (신규)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `id` | text | 불가 | 서버 생성 식별자 |
+| `school_id` | text | 불가 | 불변 학교 경계 · 참조: `workhub.schools.id` |
+| `kind` | text | 불가 | direct/group; 생성 후 불변 |
+| `title` | text | 허용 | group 제목; direct는 NULL. 상대 이름은 현재 표시자료로 조립 |
+| `direct_low_membership_id` | text | 허용 | direct의 정렬상 작은 소속 ID · 참조: `workhub.memberships.id` |
+| `direct_high_membership_id` | text | 허용 | direct의 정렬상 큰 소속 ID · 참조: `workhub.memberships.id` |
+| `created_by_membership_id` | text | 불가 | 방 생성 당시 소속 · 참조: `workhub.memberships.id` |
+| `created_by_account_id` | text | 불가 | 방 생성 당시 계정 · 참조: `workhub.accounts.id` |
+| `state` | text | 불가 | active/archived; 보관은 삭제/권한회수가 아님 |
+| `participant_epoch` | bigint | 불가 | 참여/탈퇴/역할변경마다 증가; 발송 확인 지문에 포함 |
+| `last_seq` | bigint | 불가 | 0부터 시작. 이 방 마지막 커밋 메시지 순번; 순번 배정은 방 잠금 아래 실행 |
+| `version` | integer | 불가 | 1부터 시작하는 낙관적 동시성 판 |
+| `created_at` | timestamptz | 불가 | 서버 생성 시각 |
+| `updated_at` | timestamptz | 불가 | 서버 최신 활동 시각 |
+
+**키·무결성**
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- kind=direct iff 두 direct membership 존재 AND low<high; group이면 두 열 모두 NULL
+- UNIQUE(school_id,direct_low_membership_id,direct_high_membership_id) WHERE kind=direct
+- (school_id,direct_low_membership_id)/(school_id,direct_high_membership_id) FK memberships(school_id,id); 서로 다른 현재 소속, 계정도 서로 달라야 함
+- (school_id,created_by_membership_id,created_by_account_id) FK memberships(school_id,id,account_id)
+- last_seq>=0, participant_epoch>=1, version>=1; direct 방은 정확히 두 지정 소속만 참여 가능
+- group title은 공백제거 후 비어있지 않음; 직접 DM에는 title 없음. 길이 한도는 승인된 입력 규격에서 조회
+
+**인덱스**
+
+- `(school_id,updated_at DESC,id)`
+- `(school_id,state,id)`
+
+**명령·불변 규칙**
+
+- 같은 학교 두 소속의 역순 동시 DM 생성은 UNIQUE와 멱등 명령으로 한 방으로 수렴한다.
+- 전출 뒤 새 소속으로 돌아온 사용자는 새 membership이므로 옛 DM이 자동 재개되지 않는다.
+- group에서 현재 manager가 0명이 되는 변경은 현재 참여자에게 역할 인계하거나 방 archived 처리와 원자 결합한다. 학교 관리자 자동 manager 승격 금지.
+- 나가기/멤버 추가/재입장은 participant_epoch 증가. 재입장은 새 참여 행과 새 visible_from_seq를 만든다.
+
+**읽기:** 현재 학교 소속이 활성이고 현재 참여 episode가 active인 사람만. 퇴직·탈퇴 시 목록/검색/본문/파일 즉시 차단. 관리자·플랫폼 자동 열람 불가.
+
+**수용시험:** MSG01, MSG02, MSG03, MSG04
+
+### workhub.messenger_participants (신규)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `id` | text | 불가 | 서버 생성 식별자 |
+| `school_id` | text | 불가 | 불변 학교 경계 · 참조: `workhub.schools.id` |
+| `thread_id` | text | 불가 | 대화방 · 참조: `workhub.messenger_threads.id` |
+| `membership_id` | text | 불가 | 참여 당시 고정 소속 · 참조: `workhub.memberships.id` |
+| `account_id` | text | 불가 | 참여자 계정 · 참조: `workhub.accounts.id` |
+| `role` | text | 불가 | manager/member; direct는 member |
+| `state` | text | 불가 | active/left/removed; 종료 후 같은 행을 active로 되돌리지 않음 |
+| `visible_from_seq` | bigint | 불가 | 참여 직후 볼 수 있는 첫 순번; 기본 last_seq+1 |
+| `last_read_seq` | bigint | 불가 | 실제 화면에 표시한 연속 읽음 경계; visible_from_seq-1 이상, 단조 증가 |
+| `joined_at` | timestamptz | 불가 | 참여 시작 |
+| `ended_at` | timestamptz | 허용 | left/removed이면 필수 |
+| `ended_by_membership_id` | text | 허용 | 자발적 나가기/제거 수행자; 소속 종료 worker는 NULL · 참조: `workhub.memberships.id` |
+| `version` | integer | 불가 | 1부터 시작하는 낙관적 동시성 판 |
+
+**키·무결성**
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- UNIQUE(school_id,thread_id,id)
+- UNIQUE(school_id,thread_id,id,membership_id,account_id)
+- (school_id,thread_id) FK messenger_threads(school_id,id)
+- (school_id,membership_id,account_id) FK memberships(school_id,id,account_id)
+- (school_id,ended_by_membership_id) FK memberships(school_id,id)
+- UNIQUE(thread_id,membership_id) WHERE state=active
+- state=active iff ended_at IS NULL; visible_from_seq>=1; last_read_seq>=visible_from_seq-1
+- 동일 thread/membership episode 기간은 중첩 금지. 종료 시점은 joined_at 이상; 새 episode는 ended_at 뒤 생성
+- joined_at/visible_from_seq와 thread/member/account 정체성 불변; ended 상태에서 active로 역전 금지
+
+**인덱스**
+
+- `(school_id,membership_id,thread_id) WHERE state=active`
+- `(school_id,thread_id,state,id)`
+
+**명령·불변 규칙**
+
+- 읽음 명령은 해당 episode의 접근 가능 메시지 순번만 허용하고 max(기존,입력)로 갱신한다.
+- 페이지가 뒤에서 열리면 현재 화면 이전을 읽음으로 처리할지 UI에서 명시해 자동 과장하지 않는다. 미조회 앞부분이 있으면 연속 경계 이전까지만 갱신한다.
+- 새 참여자/재입장자는 새 visible_from_seq 이후만 본다. 과거 파일/검색/인용/AI 문맥도 같은 경계 적용.
+- 메시지를 읽어도 수합 제출/시간표 동의/공지 확인 상태는 바뀌지 않는다.
+
+**읽기:** 본인 episode와 현재 방의 최소 참여자 정보만. 다른 학교/관계없는 관리자 불가. 종료 참여자도 기존 메시지 발신 표시용 최소 탈퇴 표식만 반환.
+
+**수용시험:** MSG02, MSG03, MSG05, MSG14
+
+### workhub.messenger_dispatches (신규)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `id` | text | 불가 | 서버 생성 식별자 |
+| `school_id` | text | 불가 | 불변 학교 경계 · 참조: `workhub.schools.id` |
+| `sender_membership_id` | text | 불가 | 발송 주체의 고정 소속 · 참조: `workhub.memberships.id` |
+| `sender_account_id` | text | 불가 | 인증에서 파생한 발송 계정 · 참조: `workhub.accounts.id` |
+| `mode` | text | 불가 | direct/group/broadcast_direct; 수신자에게 서로 다른 의미 |
+| `group_thread_id` | text | 허용 | group일 때만 대상 방 · 참조: `workhub.messenger_threads.id` |
+| `expected_participant_epoch` | bigint | 허용 | group 확인 당시 참여판 |
+| `body` | text | 불가 | 정규화한 plain text 본문; 승인된 렌더러만 사용, HTML 실행 없음 |
+| `content_sha256` | text | 불가 | 본문·파일지문·업무카드·전달모드의 canonical SHA-256 |
+| `confirmation_sha256` | text | 불가 | content + 정확한 정렬 수신자 + 현재권한판 + 방참여판 + 정책판 + 만료의 지문 |
+| `recipient_selector` | jsonb | 불가 | 직접 ID/부서/학년 등 명단 생성 조건. 실제 발송 대상은 targets 고정 집합 |
+| `policy_bindings` | jsonb | 불가 | 적용 정책의 scope_key/id/version 및 명령 registry 판; 임의 실행문 불가 |
+| `permission_context` | jsonb | 불가 | 확인 당시 계정/학교/소속/역할 권한판. 실행 때 현재값과 비교 |
+| `origin` | text | 불가 | manual/ai/workflow; AI도 교사가 발신자 |
+| `tool_proposal_id` | text | 허용 | AI 확인 제안과의 1방향 연결; payload가 이 dispatch와 지문 참조 · 참조: `workhub.tool_proposals.id` |
+| `card_kind` | text | 허용 | collection/timetable_change; 없으면 다른 card 열도 NULL |
+| `collection_id` | text | 허용 | 수합 안내 카드의 현재 원본 · 참조: `workhub.collections.id` |
+| `timetable_change_set_id` | text | 허용 | 시간표 변경 카드의 현재 원본 · 참조: `workhub.timetable_change_sets.id` |
+| `card_version` | integer | 허용 | 표시 제안 당시 원본 판; 행동 시 현재 원본 재검사 |
+| `state` | text | 불가 | prepared/confirmed/sending/completed/partial/failed/cancelled/expired |
+| `expires_at` | timestamptz | 불가 | 확인 유효 시각; 구체 유효시간은 승인 정책 |
+| `confirmed_at` | timestamptz | 허용 | 교사가 정확한 지문을 확인한 서버 시각 |
+| `confirmed_by_membership_id` | text | 허용 | sender_membership_id와 같아야 함 · 참조: `workhub.memberships.id` |
+| `target_count` | integer | 불가 | 준비 시 고정 대상 수. 최소 1 |
+| `version` | integer | 불가 | 1부터 시작하는 낙관적 동시성 판 |
+| `created_at` | timestamptz | 불가 | 생성 시각 |
+| `completed_at` | timestamptz | 허용 | 모든 대상 최종결과가 있을 때 |
+
+**키·무결성**
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,sender_membership_id,sender_account_id) FK memberships(school_id,id,account_id)
+- (school_id,group_thread_id) FK messenger_threads(school_id,id)
+- (school_id,collection_id) FK collections(school_id,id); (school_id,timetable_change_set_id) FK timetable_change_sets(school_id,id)
+- card_kind=collection이면 collection_id/card_version만 존재; timetable_change이면 timetable_change_set_id/card_version만 존재; 없음이면 전부 NULL
+- UNIQUE(school_id,id,sender_membership_id,sender_account_id)
+- group mode iff group_thread_id와 expected_participant_epoch 존재; direct는 target_count=1
+- tool_proposal_id는 동일 school·actor·origin membership의 tool_proposals이며 cmd_messenger_confirm 전용 tool registry; 일반 FK 외 명령 검증
+- confirmed_at/confirmed_by는 둘 다 NULL 또는 존재하고 confirmed_by=sender; confirmed 이후 상태에는 확인 필수
+- confirmed/completed 후 content/selector/정확한 대상/첨부/card/확인 맥락 불변; 수정은 새 dispatch
+- 준비안은 trim(body) 비어있지 않음 OR 첨부 존재 OR 업무카드 존재; 실제 대상행 수=target_count, 학교/소속별 중복 없음
+- prepared 생성과 targets/files를 같은 transaction으로 생성하고 지연 무결성 검사. 정규화 본문/card/policy JSON은 서버 schema로 검증
+
+**인덱스**
+
+- `(school_id,sender_membership_id,created_at DESC,id)`
+- `(school_id,state,created_at,id) WHERE state IN(prepared,confirmed,sending,partial)`
+- `(school_id,tool_proposal_id) WHERE tool_proposal_id IS NOT NULL`
+
+**명령·불변 규칙**
+
+- 본문은 이 불변 dispatch에 한 번만 보관하고 messenger_messages가 참조한다. 일반 수신자는 dispatch 직접 조회 불가, 메시지 DTO에서 본문만 받는다.
+- AI prepared만으로 전송하지 않는다. 확인 이후 target 고정. 명단 변화는 확인 전 STALE, 확인 후 새로운 교사를 자동 추가하지 않음.
+- confirmed 이후 권한 상실·소속 종료는 미전송 대상 blocked. 이미 전달된 사실은 지우지 않고 현재 메시지 열람권을 별도로 적용한다.
+- 정정은 dispatch_targets.corrects_message_id가 가리키는 과거 본문을 덮어쓰지 않는 새 메시지. 원메시지 조회 시 정정 연결을 표시; 학교 일반관리자가 타인 메시지를 정정할 수 없음.
+- 자동 workflow 알림은 기본 notifications로 처리. 사람 이름으로 DM을 자동 발송하지 않으며 반복 안내는 매번 현재 미제출/미동의 명단으로 새 확인안을 만든다.
+
+**읽기:** 발신자 본인 현재 origin membership만 준비안/전체 발송 결과를 조회. 수신자는 자기 messenger_messages 경로에서 본문과 본인 관련 카드만 받음. 관리자 일괄본문/수신명단 조회 금지.
+
+**수용시험:** MSG04, MSG06, MSG07, MSG08, MSG09, MSG10, MSG13
+
+### workhub.messenger_dispatch_targets (신규)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `id` | text | 불가 | 서버 생성 식별자 |
+| `school_id` | text | 불가 | 불변 학교 경계 · 참조: `workhub.schools.id` |
+| `dispatch_id` | text | 불가 | 확인안 · 참조: `workhub.messenger_dispatches.id` |
+| `recipient_membership_id` | text | 불가 | 고정 수신 소속 · 참조: `workhub.memberships.id` |
+| `recipient_account_id` | text | 불가 | 고정 수신 계정 · 참조: `workhub.accounts.id` |
+| `recipient_participant_id` | text | 허용 | group의 정확한 참여 episode; direct는 전달 시 생성/선택 · 참조: `workhub.messenger_participants.id` |
+| `result_thread_id` | text | 허용 | 실제 생성/기존 DM 또는 고정 group 방 · 참조: `workhub.messenger_threads.id` |
+| `state` | text | 불가 | pending/delivered/blocked/failed/cancelled; delivered는 DB 메시지 커밋 |
+| `safe_error_code` | text | 허용 | 본문 없는 허용목록 실패 사유 |
+| `attempt_count` | integer | 불가 | 내부 전달 시도 수; 재시도 정책에서 증가 |
+| `delivered_at` | timestamptz | 허용 | delivered일 때 서버 시각 |
+| `version` | integer | 불가 | 1부터 시작하는 낙관적 동시성 판 |
+| `corrects_message_id` | text | 허용 | 정정 발송 대상의 이전 메시지. prepared 시 고정하며 같은 학교·방·발신자 소유 검증 · 참조: `workhub.messenger_messages.id` |
+
+**키·무결성**
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,dispatch_id) FK messenger_dispatches(school_id,id)
+- (school_id,recipient_membership_id,recipient_account_id) FK memberships(school_id,id,account_id)
+- (school_id,result_thread_id,recipient_participant_id,recipient_membership_id,recipient_account_id) FK messenger_participants(school_id,thread_id,id,membership_id,account_id) MATCH SIMPLE
+- CHECK((result_thread_id IS NULL) = (recipient_participant_id IS NULL)); delivered이면 두 선택열 모두 NOT NULL. 준비 단계는 두 선택열 모두 NULL 허용
+- UNIQUE(dispatch_id,recipient_membership_id); 발신자 자신은 targets에 넣지 않음
+- delivered이면 result_thread/participant/delivered_at 필수이고 같은 dispatch/thread 메시지가 반드시 존재
+- sender/recipient 동일 계정 및 다른 학교 거부; recipient ID/account는 준비 후 불변
+- state delivered에서는 재시도/삭제/다른 thread 대입 금지; failed는 DB 효과 없음이 증명된 경우만
+- (school_id,corrects_message_id) FK messenger_messages(school_id,id); 정정대상은 현재 존재하는 이전 메시지이며 같은 발신자의 동일 결과방만 허용
+
+**인덱스**
+
+- `(school_id,dispatch_id,state,id)`
+- `(school_id,recipient_membership_id,dispatch_id)`
+- `(school_id,corrects_message_id) WHERE corrects_message_id IS NOT NULL`
+
+**명령·불변 규칙**
+
+- 단체 개별발송은 대상별 독립 transaction: DM 확보+message 1개+target delivered+receipt/audit/outbox 원자.
+- group는 동결한 현재 참여집합 전체와 메시지 1개를 같은 transaction으로 처리한다. 그룹 전달 중 부분 성공은 허용하지 않음.
+- 부서/학년 조건은 준비 시 대상 스냅숏; 실행은 현재 소속·접근검사를 다시 하며 selector를 재해석해 다른 사람에게 보내지 않는다.
+- 성공행은 건너뛰고 실패행만 같은 dispatch/recipient 키로 재시도한다. blocked는 새 확인안을 만들기 전 자동 재시도하지 않는다.
+- 수신자에게 타 수신자 목록·실패사유·단체발송 집계 반환 금지.
+- 같은 방의 다른 참여자 episode를 수신자 행에 연결할 수 없다. 복합 FK가 수신 소속·계정까지 묶으며 현재 active episode도 명령에서 재검사한다.
+- group 정정은 모든 targets가 같은 corrects_message_id를 갖거나 전부 NULL. 직접/개별발송 정정은 대상별 자기 DM의 원메시지만 참조한다. 정정 대상도 확인 지문에 포함한다.
+
+**읽기:** 발신자는 전체 상태, 수신자는 본인 delivered 최소 접수만. 양쪽 모두 현재 해당 학교 origin 소속과 메시지 관계 확인.
+
+**수용시험:** MSG01, MSG04, MSG07, MSG08, MSG10, MSG11, MSG14
+
+### workhub.messenger_messages (신규)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `id` | text | 불가 | 서버 생성 식별자 |
+| `school_id` | text | 불가 | 불변 학교 경계 · 참조: `workhub.schools.id` |
+| `thread_id` | text | 불가 | 실제 표시되는 방 · 참조: `workhub.messenger_threads.id` |
+| `dispatch_id` | text | 불가 | 본문·파일·발신자의 불변 발송판 · 참조: `workhub.messenger_dispatches.id` |
+| `seq` | bigint | 불가 | 방 잠금 아래 단조 증가 순번 |
+| `state` | text | 불가 | visible/withdrawn; 일반 수정으로 본문 대체 금지 |
+| `sent_at` | timestamptz | 불가 | DB 커밋에 대응하는 서버 기록시각 |
+| `withdrawn_at` | timestamptz | 허용 | 회수 명령 시각 |
+| `withdrawn_by_membership_id` | text | 허용 | 발신자 본인; 안전사건은 별도 승인 운영 경로 · 참조: `workhub.memberships.id` |
+| `version` | integer | 불가 | 1부터 시작하는 낙관적 동시성 판 |
+
+**키·무결성**
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,thread_id) FK messenger_threads(school_id,id); (school_id,dispatch_id) FK messenger_dispatches(school_id,id)
+- UNIQUE(thread_id,seq)
+- UNIQUE(dispatch_id,thread_id)
+- UNIQUE(school_id,id,dispatch_id)
+- seq>=1; visible이면 withdrawn 열 NULL; withdrawn이면 withdrawn_at 필수
+- dispatch sender가 방의 현재 참여자이며 group은 dispatch.group_thread_id와 같아야 함
+- direct/broadcast_direct는 그 DM 상대가 정확한 dispatch target이어야 함; sender/recipient 외 세 번째 참여 금지
+
+**인덱스**
+
+- `(school_id,thread_id,seq DESC)`
+- `(school_id,dispatch_id,id)`
+
+**명령·불변 규칙**
+
+- 메시지 body 중복 열 없음. 읽기는 현재 participant episode의 seq범위+현재 소속+message visible 검사 후 dispatch 본문을 조립한다.
+- withdrawn은 대화에 회수 표식만 남기고 본문/첨부/검색/AI문맥을 막는다. 이미 상대가 읽거나 내려받은 파일까지 회수했다고 보장하지 않음.
+- 회수와 read/download/AI 근거선택은 동일 메시지 gate로 직렬화한다. 캐시·색인 무효화는 후속이며 서버 읽기검사를 대체하지 않음.
+- 정정은 새 dispatch_targets.corrects_message_id 참조이며 원본문을 덮어쓰지 않음. 메시지 직접삭제는 일반 API 없음.
+
+**읽기:** 현재 active origin membership + current active participant episode + seq>=visible_from_seq AND (발신자 또는 해당 dispatch 고정 수신자). withdrawn은 내용 없는 표식만.
+
+**수용시험:** MSG02, MSG03, MSG05, MSG14, MSG08, MSG09, MSG10, MSG12
+
+### workhub.messenger_dispatch_files (신규)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `id` | text | 불가 | 서버 생성 식별자 |
+| `school_id` | text | 불가 | 불변 학교 경계 · 참조: `workhub.schools.id` |
+| `dispatch_id` | text | 불가 | 불변 발송판 · 참조: `workhub.messenger_dispatches.id` |
+| `file_object_id` | text | 불가 | 같은 학교의 검증된 파일 · 참조: `workhub.file_objects.id` |
+| `sha256` | text | 불가 | 준비 당시 실물 지문 |
+| `size_bytes` | bigint | 불가 | 검증된 실물 크기 |
+| `filename` | text | 불가 | 화면 표시용 정규화 파일명; 경로로 쓰지 않음 |
+| `position` | integer | 불가 | 본문 아래 표시 순서 |
+
+**키·무결성**
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,dispatch_id) FK messenger_dispatches(school_id,id); (school_id,file_object_id) FK file_objects(school_id,id)
+- UNIQUE(dispatch_id,file_object_id)
+- UNIQUE(dispatch_id,position)
+- size_bytes>=0; position>=0; sha256 64자리 hex
+- 준비 시 안전검사/실물hash/학교/원본현재권한 일치. confirmed 이후 첨부 INSERT/UPDATE/DELETE 금지
+
+**인덱스**
+
+- `(school_id,file_object_id,dispatch_id)`
+
+**명령·불변 규칙**
+
+- 새 파일은 기존 cmd_file_init으로 school 비공개 미연결 업로드를 예약하고 안전검사 후 prepare에 file ID/hash를 전달한다. 미연결 상태·업로드 주체·동일 학교를 확인한 새 업로드만 dispatch 생성+typed 첨부+intended_resource_type=messenger_dispatch/id 1회 bind를 원자 수행한다. 기존 업무 파일의 intended_resource_type/id·원부모·소유자는 변경하지 않고 typed 첨부 참조와 현재 원본 ACL을 유지한다.
+- 기존 학교·개인 파일을 DM에 붙여 원본 ACL을 확대하지 않는다. 새 파일 업로드와 기존 업무자료 링크 공유를 구분한다.
+- 이미 다른 원본에 속한 파일은 모든 수신자가 원본을 현재 읽을 수 있을 때만 현재 원본 ACL을 AND로 검사하는 링크로 제공; 권한이 다른 경우 업무카드/접근요청 안내.
+- 다운로드는 messageId+fileId로 수행하고 message.dispatchId=이 행 dispatch를 서버 확인한다. 직접 dispatchId나 파일ID/Storage URL만으로 다운로드 불가.
+- 파일 한도·형식·보존기간·URL 수명은 승인 정책값. 미정이면 해당 업로드/발송만 POLICY_UNSET, 임의 숫자 기본값 금지.
+
+**읽기:** prepared는 현재 발신자만. delivered는 읽을 수 있는 정확한 message 부모 AND file 안전상태/실물일치/기존원본 현재 ACL. 관리자 우회 없음.
+
+**수용시험:** MSG04, MSG06, MSG09, MSG12, MSG14
+
+### workhub.ai_run_sources (기존 표 보강)
+
+| 열 | 타입 | NULL | 의미 |
+|---|---|---|---|
+| `messenger_message_id` | text | 허용 | kind=messenger_message인 정확한 원본 메시지 · 참조: `workhub.messenger_messages.id` |
+| `messenger_dispatch_id` | text | 허용 | 그 메시지가 참조하는 불변 본문판 · 참조: `workhub.messenger_dispatches.id` |
+| `messenger_message_version` | integer | 허용 | 선택 당시 상태판; 현재 live version FK로 묶지 않고 변경 시 무효화 |
+
+**키·무결성**
+
+- kind=messenger_message 추가. 이 kind일 때 위 세 열 필수, 기존 다른 kind의 typed 출처 열은 NULL; 기존 kind에서는 위 열 모두 NULL
+- (school_id,messenger_message_id,messenger_dispatch_id) FK messenger_messages(school_id,id,dispatch_id)
+- school scope만 허용. source_sha256은 실제 선택 메시지/첨부·원문 locator의 지문, AI run origin membership으로 현재 메시지 read 재검사
+- 기존 typed source CHECK를 단순 OR로 완화하지 않고 새 분기만 추가; 기존 FK/불변제약 보존
+
+**인덱스**
+
+- `(school_id,messenger_message_id) WHERE messenger_message_id IS NOT NULL`
+
+**명령·불변 규칙**
+
+- 사용자가 명시 선택한 메시지/연속 범위 또는 해당 대화에서 허용한 요약만 AI에 제공. 학교 전체 메신저 자동 검색/지식색인 금지.
+- 일반 대화검색은 AI 공급자 전송과 구분. AI source 선택 범위·출처·대상학교를 사용자에게 표시.
+- 원본 회수·방 탈퇴·소속 종료·현재 참여범위 변경 시 AI 결과 출력/재사용 현재권한 검사 실패. 원본문/원문지문은 감사·outbox에 저장 금지.
+- 메시지 속 명령은 자료다. 다른 교사가 써둔 명령으로 사용자 확인 없는 발송·학생자료 조회 불가.
+
+**읽기:** 기존 AI run 본인/origin 규칙 AND 현재 messenger message read. 학교 관리자·다른 대화 참가자는 이 AI run을 자동 열람하지 못한다.
+
+**수용시험:** MSG12, MSG13
+
+## 11. 구현 티켓과 완료 기준
+
+### MSG-T01 · 대화방·학교격리·수신자 선택
+
+- 선행 티켓: 없음
+- 공통 선행조건: 공통 현재주체/권한 gate / 학교 소속·업무배정 조회
+- 산출물: DM/그룹 읽기 DTO JSON Schema / 현재소속쌍 유일성/episode 명령 계약 / 모바일 목록→대화→뒤로가기 시제품
+- 완료: MSG01~MSG03 통과 / 관리자 전체본문 조회 경로 없음
+
+### MSG-T02 · 기본 메시지와 읽음·정정·회수
+
+- 선행 티켓: MSG-T01
+- 산출물: 멱등 발송·순번·keyset 목록 / 접속복구/읽음커서/전달표시 / 정정 새메시지와 회수 tombstone
+- 완료: MSG05·MSG09·MSG10·MSG11 통과 / 화면 빈상태/로딩/실패/권한회수 구분
+
+### MSG-T03 · 파일·업무카드 연결
+
+- 선행 티켓: MSG-T02
+- 공통 선행조건: 공통 file_objects 안전검사·다운로드 / 수합/시간표 도메인 읽기 계약
+- 산출물: 메시지 부모를 요구하는 첨부 API / 수합/시간표 카드 current read+전문명령 연결 / 현재 원본ACL 회수 전파
+- 완료: MSG04·MSG09·MSG12 통과 / 읽음이 수합제출/시간표동의로 바뀌지 않음 / MSG14: 선택 FK·수신 episode·파일 intent·자기나가기 음성시험 통과
+
+### MSG-T04 · AI 준비·확인과 개별 일괄발송
+
+- 선행 티켓: MSG-T02 / MSG-T03
+- 공통 선행조건: Claude 도구제안·확인·작업 계약
+- 산출물: 정확한 수신자/첨부/영향 preview / 부분실패 상태와 성공행 제외 재시도 / 선택 메시지 AI근거 typed 연결
+- 완료: MSG06~MSG08·MSG13 통과 / AI준비만으로메시지전송0 / provider 비용값은 승인 설정을 사용
+
+### MSG-T05 · 운영 공개 전 통합검증
+
+- 선행 티켓: MSG-T04
+- 산출물: 실제 DB 독립두연결/RLS/Storage 시험 증거 / 실시간재연결·전출·모바일 검증 / 미정 정책값과 공개 승인 체크
+- 완료: MSG01~MSG14 실제환경 통과 / 보존/첨부/알림정책 미정 기능은 공개 차단 / 신규 메뉴 공개는 기존 승인 절차
+
+메신저 모듈은 기존 M05 범위 안의 확장이다. 신규 메뉴/라우트의 기본 공개는 기존 규칙대로 superadmin이며 사용자 승인 없이 전 교사에게 노출하지 않는다. DB가 보류된 동안에는 합성 저장소·UI·DTO·계약 시험을 진행할 수 있으나, 실제 다학교 격리·RLS·Storage·경합 검증을 완료했다고 보고하지 않는다.
+
+## 12. 필수 수용시험
+
+| ID | 시나리오 | 완료 기준 | 검증 층 |
+|---|---|---|---|
+| MSG01 | 역순 동시 DM 생성: 같은 학교 동일 소속쌍 두 연결이 A→B/B→A 동시 생성; 다른 학교 동일 계정도 시도 | 해당 학교·소속쌍 방 1개, 참여자 정확히2명. 다른학교 거부 | 독립 DB 두 연결 |
+| MSG02 | 전출·겸임·재임용: 학교A 종료 후 B 전환; A에 새 membership 재가입; 옛 URL/파일/검색 조회 | 옛 membership DM/그룹/AI 근거 자동부활0; 겸임 학교별 독립 | RLS+읽기API+Storage |
+| MSG03 | 그룹 신규·재입장: 기존 메시지 뒤 멤버 추가, 나간 뒤 재초대; 과거 seq/file URL 접근 | active episode visible_from_seq 이후만. 과거본문/파일/AI문맥0 | DB+UI |
+| MSG04 | 권한 경합: 발송 준비 뒤 수신자 전출·파일회수·학교스위치중지와 confirm/deliver 동시 실행 | 현재 gate에 따라 미전송 차단; 다른교사 자동치환0; 이미DB전달됨 사실 보존 | 독립 DB 두 연결 |
+| MSG05 | 읽음과 업무완료 분리: 메시지 열기·알림읽기·수합카드읽기·시간표카드읽기; 역순 읽음커서 | 읽음 경계 단조증가; 제출/동의/확정 상태 변경0 | DB+UI |
+| MSG06 | 확인 지문: AI prepare 후 본문/파일/명단/방참여판/정책/registry/만료 변경 | 확인재요구, 과거지문으로 새 영향 전송0; 같은 확인 동시2회도1실행 | 명령+AI도구 대역 |
+| MSG07 | 개별 단체발송: 세 대상 중 한명 중간전출, 한명 DB commit 응답유실, 한명 정상 | 수신자 간 명단공개0; 성공2+blocked1 사실대로. 재시도 성공중복0 | worker 장애주입 |
+| MSG08 | 그룹 전달 원자성: 여러 그룹참여자 target 갱신 중 중단; 동시에 참가자제거 | 메시지/전체대상/접수/outbox 전체커밋 또는0; stale 그룹 부분전달0 | 독립 DB 두 연결 |
+| MSG09 | 정정·회수·파기: 발신자 정정과 회수; 이미 파일 다운로드; 한 dispatch의 DM 일부회수 | 정정은 새메시지, 원문교체0; 회수내용 재조회0; 외부다운로드 회수완료 주장0; 다른정상DM 손실0 | DB+파일+화면 |
+| MSG10 | 메시지와 알림 장애: 메시지 commit 직후 푸시 전송 실패·outbox 중복 소비 | 메시지1개 유지, 전달됨 유지; 푸시 재시도만. 읽음 조작0 | outbox+화면 |
+| MSG11 | 목록과 모바일 복구: 큰 대화·순번중복시각·실시간단절·학교전환 중 지연응답·로딩실패 | keyset 누락/중복0; seq 재동기화; 다른학교캐시비노출; 실패를0건으로표시0 | API+브라우저+성능측정 |
+| MSG12 | 메시지·첨부·AI 출처 격리: 관리자 전체조회, 수신자 dispatch직접조회, 다른부모file혼합, 회수 중 AI출력 | 메타/본문 모두 계약범위만; 감사/로그/push/outbox 원문0; current ACL 실패시 AI출력 차단 | RLS+Storage+AI대역 |
+| MSG13 | AI 명령주입과 명단오해: 동명이인, 미확정 학년배정, 메시지에 비밀파일전송 지시, 미제출대상 재안내 | 모호한 대상을 임의선정0; 승인자료로명단계산; 콘텐츠지시를도구권한으로사용0; 매발송재확인 | AI평가+명령 |
+| MSG14 | 선택 FK·수신 episode·원파일 부모 보존: 준비 두열NULL/부분NULL/다른수신episode/기존파일intent변경/일반회원나가기 | 두열NULL 준비만허용, 다른수신episode·intent변경거부, 자기나가기만허용 | 복합FK/파일명령/권한 |
+
+모든 시험은 `required_not_run_on_integrated_ddl` 상태다. 설계 JSON 정합성 통과는 실제 PostgreSQL·Supabase·파일·AI·브라우저 시험 성공을 의미하지 않는다.
+
+## 13. 판단해서 정한 것과 되돌릴 위치
+
+- M05 확장: 전달·알림과 사용 동선을 연결하고 M00~M15의 기존 번호를 보존하기 위해 정했다. 기능군 분리는 site-modules/API 매핑에서 변경한다.
+- 6표 구조: 발송본문과 수신 결과를 분리하면서 파일·감사·AI 실행 기반은 재사용한다. 중복본문을 만들지 않는 대신 dispatch 직접 공개를 금지한다.
+- membership 쌍 DM 및 참여 episode: 전출/재임용과 그룹 재입장을 자동 접근권으로 오인하지 않도록 정했다. 과거 대화 승계가 필요하면 별도 승인된 접근/보존 정책을 먼저 설계한다.
+- 신규·재입장자의 과거 열람 기본 차단: 교사들이 예상하지 못한 대화 공개를 막기 위한 초기 제품 선택이다. 변경 지점은 visible_from_seq 정책과 해당 공개 확인 UX이며 기존 자료를 일괄 공개하지 않는다.
+- 그룹 1회 원자 전달과 개별발송 대상별 처리: 서로 다른 대화 의미와 실패 회복을 보존하기 위해 정했다. 구현 시 전달 방식과 재시도 계약을 함께 바꿔야 한다.
+- 정정은 새 메시지, 회수는 표식: 상대에게 이미 전달된 업무 내용의 변경 이력을 숨기지 않기 위해 정했다. 보존·파기 세부값은 승인 정책으로 확정한다.
+
+
+---
+
+<!-- SOURCE: 13-template-collection.md -->
+
+# 13. 양식 분석·문답 작성·문서 수합 구현 계약 v1.1
+
+작성일: 2026-10-13. 상태: **사용자가 요청한 설계 보완안. 실제 DB 구축·SQL 실행·문서 AI 구현은 보류.** 기존 02장의 수합·파일 계약과 04장의 Claude·작업 계약을 확장한다. 실행 SQL이나 운영 중인 인증·회원·권한 변경이 아니다. 기계 판독 명세는 collection-extension.json이며, 기존 schema-contract.json의 1.0 기준과 함께 읽는다.
+
+## 1. 사용자 요구와 구현 원칙
+
+담당자가 양식을 올리고 Claude가 수합 항목과 형식을 분석한다. Claude가 파일 작성형 또는 문답형을 근거와 함께 추천하고 담당자가 결정한다. 파일 작성형은 내려받기→외부 작성→업로드→미리보기/확인→제출, 문답형은 질문 또는 직접 입력→완성본 확인→제출이다. 질문 중 증빙 파일을 받는 혼합 사용을 지원하되 교사에게 별개의 세 번째 시스템을 학습시키지 않는다.
+
+두 방식은 같은 collection/unit/schema/submission과 제출·검토·보완·철회·완료본 규칙을 사용한다. AI 대화 완료, 파일 생성 완료, 파일 다운로드, 공식 제출, 담당자 검토 완료는 각각 별도 사실이다. 업로드·AI 답변·출력만으로 제출 상태가 바뀌지 않는다. AI 없이 직접 입력하거나 파일을 작성해도 업무를 마칠 수 있어야 한다.
+
+Claude는 분석·질문·문장 정리·누락 안내를 담당한다. 서식 치환·표 확장·합계·파일 검증·필수값·권한·접수는 코드가 수행한다. 분석 결과에 들어 있는 임의 명령·수식·외부 URL을 실행하지 않는다. 양식 내 문장은 분석 대상 데이터이지 시스템 지시가 아니다.
+
+현재 구현에 이 문서의 양식 분석·질문 매핑·임의 문서 자동 채움이 존재한다고 주장하지 않는다. 검증된 평가계획서 자산 및 apps/main/api/_hwpx는 읽기·재사용 경계이며 수정하지 않는다. 새 일반 양식은 기존 6종과 별도 검증 경로를 거쳐야 한다. 특정 HWP/HWPX/DOCX/PDF를 올렸다는 이유만으로 자동 작성 지원으로 판정하지 않는다.
+
+## 2. 화면과 담당자의 책임
+
+| 화면 | 주 사용자 | 입력·동작 | 다음 단계의 조건 |
+|---|---|---|---|
+| 수합 만들기 | 요청관리자 | 제목, 목적, 마감, 제출 단위, 검토 필요 여부, 양식 업로드 | 학교·담당 범위·파일 실물 검증 |
+| 양식 분석 결과 | 요청관리자 | 발견 항목, 표/반복행, 서명/첨부, 해석 불확실 부분, 방식 추천 확인 | 문답 지원과 파일 보관 가능 여부를 분리 |
+| 질문·칸 연결 편집 | 요청관리자 | 질문/필수/선택지/조건/반복행, 정확한 양식 칸 연결 | 허용된 필드·표현식·출력 계약 검증 |
+| 표본 확인 | 요청관리자 | 합성 답변으로 만든 문서와 누락/잘림 리포트 확인 | 정확한 매핑판·엔진판·팩판의 필수 검사 통과 |
+| 게시 미리보기 | 요청관리자 | 대상 단위·책임자·공동작성자, 질문/방식, 마감, 결과 공개 확인 | 대상 snapshot·문항판·표본 확인 지문 고정 |
+| 내 제출 | 대상 교사 | AI와 작성/직접 입력/파일 작성, 임시 저장, 재개 | 필수 입력·첨부·현재 단위 권한 |
+| 제출 전 확인 | 책임자·유효 대리 | 최종 답변, 출력 파일, 제출 의미 확인 | 현재 답변판과 정확한 파일에 대한 본인 확인 |
+| 수합 현황 | 요청관리자·지정 검토자 | 제출/미제출/보완/완료 구분, 검토·재안내 | 미제출 초안 본문·파일명·건수는 미노출 |
+| 내려받기 | 허용된 요청관리자 | 완료본 기본, 미승인 포함은 명시 선택 | 고정 선택판 manifest·파일 검사·현재 권한 |
+
+휴대전화에서는 질문 한 묶음과 다음 행동을 먼저 보여 주고 진행률은 필수 활성 항목 기준으로 계산한다. 문항 전부와 AI 대화가 서로 다른 답을 저장하지 않도록 unit_drafts를 단일 편집 원장으로 사용한다. AI 입력 제안은 검토 후 해당 항목에 반영하며 사용자가 입력한 값을 조용히 덮어쓰지 않는다. 문답과 직접 입력 전환 시 같은 초안을 이어 쓴다.
+
+담당자가 게시하는 의무는 개인별 또는 학년/교과 공동 단위이다. 공동 단위에서 작성자 여러 명이 답변을 편집할 수 있어도 최종 제출은 책임자 또는 유효 대리만 한다. 개인 준비초안을 담당자에게 자동 공유하지 않으며 공동 초안으로 복사하는 행위는 작성자가 미리 확인한다.
+
+## 3. 추천·지원수준·폴백
+
+분석 응답은 recommendation, reasons, uncertain_items, required_capabilities, available_capabilities, extraction_evidence를 반환한다. 숫자로 표현한 모델 신뢰도 하나로 지원 여부나 공개를 결정하지 않는다.
+
+| 판정 | 의미 | 허용 경로 |
+|---|---|---|
+| file_only | 파일을 전달·보관할 수 있으나 자동 채움은 검증하지 못함 | 파일 작성형 |
+| guided_candidate | 항목과 칸 후보를 찾았으나 매핑/출력 검증 전 | 담당자 편집·표본 검증까지만 |
+| guided_verified | 정확한 양식 hash+매핑판+출력 엔진/팩판의 필수 검사 통과, 담당자 확인 | 문답형 게시 가능 |
+| blocked | 파일 손상·암호화·안전정책 차단 등 사용 불가 | 원인 표시·다른 파일 등록 |
+
+상태는 extension 전용 판정이며 기존 document_packs.support_level 값을 덮어쓰지 않는다. file_only는 다운로드 안전성까지 자동 승인한다는 뜻이 아니며 기존 파일 정책을 별도 통과해야 한다.
+
+추천은 자유 서술량·반복 구조·첨부/서명·조건부 항목·정확한 출력 가능성·미해결 칸을 함께 고려한다. 담당자가 문답형을 선택해도 guided_verified 조건을 우회하지 못한다. 스캔 이미지, 병합셀, 복잡한 수식·차트, 암호화 파일 등은 실제 파서·출력 검증 결과를 기준으로 판정한다. 초기에 지원하는 파일 형식·크기·반복행 한도는 승인된 capability/정책 설정으로 정하고 여기서 임의 수치를 확정하지 않는다.
+
+문답형 생성이 실패하면 답변은 보존하고 재시도·직접 입력을 제공한다. 파일 작성형으로 전환하려면 담당자가 새 문항판의 영향 목록을 확인해야 한다. 파일 작성으로 바꾸어도 이미 제출한 답변을 지우거나 완료본을 되돌리지 않는다. 반드시 원형 문서를 납품해야 하는 업무에서 임의 PDF/텍스트로 대체해 성공으로 표시하지 않는다.
+
+## 4. 필드·질문·양식 칸의 계약
+
+collection_fields.field_key는 label에서 자동 생성하지 않는 안정 식별자다. 같은 의미를 복제하는 새 schema에서는 유지하고 의미·타입이 바뀌면 새 key를 부여한다. collection_fields.id는 그 문항판의 실제 행 ID이며 stable key와 구별한다. 출력 매핑은 같은 template version 안의 안정 target_key와 구조적 locator를 가진다. 셀의 화면 좌표만으로 치환하지 않고 실제 파서가 검증 가능한 문서 위치를 사용한다.
+
+필드 형식은 기존 short_text/number/date/boolean/single_choice/multi_choice/file을 유지하며 필요한 long_text와 repeat_group을 명시 확장한다. 파일 작성형은 결과 문서를 받는 file 필드 한 개와 필요한 공통 질문을 정의한다. 문답형은 결과 문서를 받는 output_file_field_id가 정확한 같은 schema의 file 필드여야 한다. 이 결과 문항은 교사 질문 목록에서 숨기고 서버 산출물 연결용으로 사용한다.
+
+guided schema는 output_file_field_id가 가리키는 generated_output 문항이 정확히 한 개여야 한다. 그 문항은 kind=file, parent_field_id와 activation_rule은 NULL, required=true, file_max_count=1이다. 역방향으로도 모든 generated_output 문항은 guided schema의 유일한 output_file_field_id여야 한다. 두 번째 생성 문항이나 포인터 없는 생성 문항은 게시뿐 아니라 schema/field 지연 무결성 검사에서 거부한다. file_upload는 결과 문항이 같은 조건의 field_role=input이며 generated_output은 0개다. 기존 일반수합(response_mode=NULL)에도 generated_output을 만들지 않는다. 따라서 생성되지 않을 두 번째 필수 출력파일 때문에 영원히 제출하지 못하는 정의를 저장할 수 없다.
+
+반복행은 repeat_group 아래 같은 schema의 자식 문항을 두며 답변은 [{row_key, values:{field_key:value}}]이다. row_key는 행 순서/이름과 별개의 서버 발급 안정 키다. 부모 cycle, 허용 깊이 초과, 중복 row_key, 정의되지 않은 키, 허용 범위 밖 행 수를 거부한다. 초기는 단일 반복 깊이를 기본 구현 범위로 두고 더 깊은 중첩은 unsupported로 표시한다. 행 수 한도는 검증된 출력 팩의 한도와 학교 정책의 교집합이다. 파일 첨부는 answer_path=[group_key,row_key,field_key]로 구별한다.
+
+조건부 질문은 허용된 비교/논리식 AST만 받는다. 예: field=participates, op=eq, value=true. 임의 JavaScript·SQL·템플릿 코드는 금지한다. 참조 대상이 같은 schema에 존재해야 하며 순환 의존을 거부한다. 활성 문항의 필수 조건만 검사한다. 조건 변경으로 숨겨진 값은 초안에 보존하고 제출 미리보기에 '이번 제출에서 제외'를 표시한다. 출력·제출 snapshot은 활성 답변 projection을 사용하여 숨긴 과거 값이 파일에 남지 않게 한다.
+
+검증 phase는 draft/prepare_output/submit으로 구분한다. prepare_output은 활성 입력 문항과 증빙 첨부를 검사하되 아직 만들지 않은 generated_output 파일을 필수 누락으로 처리하지 않는다. submit은 생성된 exact 파일을 포함한 submission_files를 같은 접수 트랜잭션에서 검사한다. 답변 JSON의 파일 표시값만으로 필수 파일을 충족시킬 수 없고, 서버가 만든 typed 파일관계가 정본이다.
+
+대화에서 숫자·날짜를 추출해도 타입·범위는 코드가 검사한다. 0과 false는 유효값이며 빈칸과 구별한다. 미확정 항목은 unresolved 상태로 표시하고 필수 항목이면 제출을 막는다. 학교·이름·교과·수업 배정 등 사전 채움은 현재 권한 있는 원본과 source revision/asOf를 표시한 제안이다. 지난해 문서의 값을 현재 사실로 확정하지 않는다.
+
+AI의 제안과 교사의 확정은 구별한다. collection_answer_snapshots.provenance에는 source_kind, source_ref, proposed_by(ai/user/prefill), confirmed_by_account_id, confirmed_at를 필드 경로별로 기록한다. source_ref는 승인된 typed 참조만 허용하고 ACL을 대신하지 않는다. 답변 snapshot의 값과 provenance에 불일치가 있으면 출력하지 않는다.
+
+## 5. 불변 사슬과 재사용
+
+연결 정본은 다음과 같다.
+
+~~~text
+collection_templates
+  → collection_template_versions (원본 file ID + 실물 hash)
+  → collection_template_analyses (정확한 양식판 + Claude 실행/작업)
+  → collection_template_mappings (칸/질문 매핑판 + 출력 계약 + 검증 표본)
+  → collection_schemas (담당자가 게시한 질문판·작성방식)
+  → unit_drafts (개인/공동 현재 답변, 낙관적 버전)
+  → collection_answer_snapshots (정확한 답변판·활성 답변·첨부 지문)
+  → documents / document_revisions (생성 내용과 정확한 출력판)
+  → collection_output_artifacts (답변/양식/매핑/출력 파일의 결합)
+  → collection_output_confirmations (실제 제출자의 최종 확인)
+  → submission_versions + submission_files (기존 원자 접수)
+~~~
+
+양식은 같은 학교 안에서 재사용할 수 있다. 새 수합은 양식판/승인 매핑을 참조하되 대상·마감·질문판·정책을 새로 만든다. 다른 학교로 복사하려면 빈 양식과 매핑만 명시적으로 복제하는 별도 권한 기능이 필요하며 답변·개인자료·권한은 복사하지 않는다. 초기 구현에서는 같은 학교 재사용으로 한정한다.
+
+원본 파일 교체는 새 template version, 분석 재시도는 새 analysis, 매핑 내용 변경은 새 mapping version이다. 같은 분석 결과를 사람이 고쳤으면 source='human_review'와 수정 근거를 기록한다. 미검증 AI 매핑을 승인판으로 위장하지 않는다. 샘플 문서는 실학생/실교사의 응답이 아닌 합성 fixture로 만들며 원본 텍스트 자체에 개인정보가 있으면 마스킹과 안전정책 검사를 먼저 한다.
+
+게시 schema는 불변이다. 게시 후 문항·조건·모드·출력 대상·양식을 바꾸면 새 schema를 만든다. 영향 미리보기는 단위별 초안/미제출/검토 대기/완료/열린 보완과 호환 가능한 필드 매핑을 반환한다. 기존 02장 규칙대로 pending 제출 또는 열린 보완이 있는 단위에는 모드 변경을 적용하지 않는다. 단위별 활성 schema 이동은 담당자의 명시 적용과 현재 기대판 확인으로 처리하고, 기존 제출판과 완료본의 schema는 바꾸지 않는다.
+
+새 판으로 답변을 옮길 때는 같은 안정 key·타입·선택지 의미가 검증된 항목만 복사 후보로 제시한다. 책임자가 복사 결과를 확인해야 하며 제거 필드·유형 변경·조건 변경을 조용히 버리거나 임의 변환하지 않는다.
+
+서버는 게시 schema의 입력 필드 정의를 승인 mapping의 field_definition과 대조한다. 라벨·도움말만 바꾸는 것도 새 schema 지문에 기록하고, 출력 의미·타입·조건·반복 구조가 달라지면 새 mapping과 표본 검증을 요구한다. mapping 승인 후 별개 schema를 임의 작성해 필드 연결을 바꾸는 우회를 허용하지 않는다.
+
+## 6. 추가 표와 기존 표 보강
+
+열의 정확한 목록과 제약은 collection-extension.json이 정본이다. 모든 신규 표는 TEXT UUID id PK, UNIQUE(school_id,id), 학교 복합 FK, 기본 삭제 RESTRICT를 사용한다. current/head의 version과 불변 material version_no를 혼동하지 않는다.
+
+| 표 | 역할 | 핵심 연결/불변 조건 |
+|---|---|---|
+| collection_templates | 같은 학교에서 재사용할 양식의 이름·관리 주체 | 생성자 계정과 현재 명시 관리권한; retired는 과거 사슬 보존 |
+| collection_template_versions | 업로드 양식의 정확한 원본판 | template+version_no 유일, file ID/hash 고정 |
+| collection_template_analyses | 양식 분석 결과·추천·불확실성 | template version+job+ai_run; 외부 결과 unknown은 성공 아님 |
+| collection_template_mappings | 출력 위치·질문 연결·표본 검증·담당자 승인 | 원본판/analysis/매핑판 불변, 승인 시 표본 문서·검사·확인 정확 일치 |
+| collection_answer_snapshots | 출력/제출에 사용하는 답변 동결판 | school+unit+schema+draft+draft_version+첨부 manifest 불변 |
+| collection_output_artifacts | 답변 snapshot에서 만든/확인한 정확한 파일 | unit/schema/mapping/document revision/file/hash, 생성 성공과 제출 분리 |
+| collection_output_confirmations | 제출자의 정확한 결과 확인 증거 | artifact+draft version+manifest hash+actor, 후속 변경 시 효력 상실 |
+
+기존 보강은 다음과 같다.
+
+- collection_schemas: response_mode(file_upload/guided), template_version_id, mapping_id, output_file_field_id, output_requirement(original_required/validated_output) 추가. 기존 텍스트/숫자 수합은 response_mode=NULL로 유지할 수 있으며 신규 양식 수합만 명시 모드 필요.
+- collection_fields: parent_field_id, activation_rule, repeat_min/max, field_role(input/generated_output) 추가. 부모·출력 문항은 정확한 schema 복합 FK.
+- unit_drafts: 기존 version과 JSON answers 재사용. AI 대화 세션 자체를 답변 정본으로 사용하지 않음.
+- documents/document_revisions/document_validations: 기존 생성/출력/팩/검사 사슬 재사용. unit-linked 문서는 단위 초안 ACL도 추가로 만족해야 함.
+- document_revisions에는 collection_unit_id, collection_schema_id, collection_answer_snapshot_id, collection_template_version_id, collection_mapping_id, collection_generation_input_sha256, collection_renderer_contract_version을 선택 묶음으로 추가한다. 수합 생성판이면 모두 존재하며 원본문서 linked_unit_id·exact schema/답변 snapshot·승인 매핑·실제 작업 입력 지문과 일치한다. artifact는 scope만 확인하지 않고 이 정확한 8열 복합키(학교·문서·문서판·단위·문항판·답변 snapshot·양식판·매핑판)를 참조한다. 다른 단위의 정상 생성파일을 재포장하는 것은 같은 학교라도 거부한다.
+- file_objects/file_links/submission_files: 기존 실물 검증과 typed 링크 재사용. 반복문항용 answer_path를 보강하고 file_links 허용 resolver에 양식판·표본·output artifact를 구현/음성시험 후 추가.
+- submission_versions: answer_snapshot_id, output_artifact_id, output_confirmation_id의 정확한 단위/문항판 FK 추가. 기존 수합에는 NULL 허용, 문답형과 신규 파일 수합에는 제출 정책에 맞는 확인 사슬 필수.
+- export_manifests/export_manifest_items: 새 원장을 만들지 않고 정확한 제출판·파일 hash를 재사용.
+- jobs/ai_runs/job_external_calls: 기존 임대·멱등·권한·외부결과 unknown 계약 재사용. 모델명·비용·max_tokens·캐싱은 이번 설계에서 변경하지 않음.
+
+문서 원본에 linked_unit_id가 있으면 소유자라는 이유만으로 종료된 단위 자료에 접근할 수 없다. unit 연결 산출물은 문서 ACL과 현재 초안/제출 ACL의 교집합이다. 담당자는 제출 전 artifact·문서·파일·작업 결과·검색·건수로 초안을 우회해 읽지 못한다. 제출 후에는 제출판에 연결된 정확한 산출물만 볼 수 있다. private draft 문서의 owner를 담당자로 바꾸어 해결하지 않는다.
+
+개인초안의 문서는 기존 shared_with=none, 공동초안의 문서는 shared_with=unit_members를 사용한다. 각 경우 현재 초안 구성원/소유자 조건도 함께 검사하며 school/duty_members 공유로 개인초안 자료를 확대하지 않는다. 제출된 정확한 문서판 열람은 제출판의 별도 typed 경로에서 허용하고 개인초안 문서 전체를 공개하지 않는다.
+
+### 기존 제약·인덱스의 명시 대체
+
+이 확장은 새 제약을 덧붙이는 것만으로 구현할 수 없다. 다음 원본 제약/인덱스는 동반 JSON의 supersedes_constraints/supersedes_indexes로 목표 설계에서 명시 대체하며 원본 DDL과 운영 DB에는 손대지 않는다. 이전 정의는 대상 설계의 superseded 이력으로 남기고 유효한 제약 목록에 중복 유지하지 않는다.
+
+| 대체하는 기존 이름/정의 | 새 목표 계약 |
+|---|---|
+| collection_fields_kind_check | 기존 7종과 long_text/repeat_group을 허용하는 명시 CHECK |
+| submission_files_pkey 및 같은 이름의 backing index | PRIMARY KEY(submission_id,answer_path,file_object_id), 학교 포함 UNIQUE(school_id,submission_id,answer_path,file_object_id) |
+| file_links_resource_type_resource_id_file_object_id_role_key 및 같은 이름의 backing index | 아래 새 활성 링크 UNIQUE |
+| 기존 활성 UNIQUE(scope_key,resource_type,resource_id,resource_version,field_id,file_object_id,role) | UNIQUE(scope_key,resource_type,resource_id,resource_version,field_id,answer_path,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL |
+
+같은 file_object를 같은 반복 문항의 다른 row_key에 붙이는 것은 허용하고 같은 경로의 중복 활성 연결은 거부한다. 불변 snapshot의 연결은 별도의 동결 규칙으로 유지한다. 생성기가 이전 backing index나 경로 없는 활성 UNIQUE를 계속 남기면 새 기능이 거부되므로 COL21로 합성 목표 계약과 실제 후속 DDL을 각각 검증해야 한다.
+
+## 7. 상태와 트랜잭션 경계
+
+양식/매핑 준비 상태와 교사의 제출 상태를 합치지 않는다.
+
+- 분석: queued → running → succeeded / needs_review / failed / outcome_unknown / cancelled. jobs의 상태를 안전하게 projection하며 실패·unknown은 검증 완료가 아니다.
+- 매핑: candidate → verified → approved → retired. 내용 수정은 새 판. approved에는 표본·필수검사·담당자 확인이 모두 필요.
+- 산출물: queued → running → ready / failed / stale / cancelled. 답변/첨부/양식/매핑/팩/규칙이 바뀌면 기존 산출물은 보존하면서 새 제출용 사용을 stale로 막는다.
+- 확인: 불변 사실이다. 현재 초안/산출물/hash와 맞지 않으면 과거 확인을 새 제출에 사용할 수 없다.
+- 제출: 기존 02장의 current/effective·review/보완/철회 규칙 그대로다.
+
+cmd_prepare_collection_output은 현재 unit/schema/draft/첨부 manifest를 잠그고 불변 answer snapshot과 job 또는 검증 대기 artifact를 등록한다. AI/렌더러 호출 동안 DB 잠금은 유지하지 않는다. worker는 lease_token·현재 권한·정확한 snapshot을 확인하여 새 document revision과 실제 file object를 만들고 검증 후 ready로 연결한다. 작업 완료 전에 답변이 바뀌어도 과거 결과를 최신 초안에 덮어쓰지 않고 stale로 반환한다.
+
+생성형의 ready는 파일이 존재한다는 뜻보다 엄격하다. exact document_validations.state=pass, 오류 finding=0, 필수검사 skipped=0, 활성 필수 미확정=0, checked_sha256=실제 출력파일 hash=document_revisions.output_sha256를 모두 만족해야 한다. 문서판에 기록한 실제 팩 ID/범위/자산 hash·renderer 계약판·양식/매핑·답변 snapshot과 승인 표본/검사 규칙판의 호환성이 검증되어야 한다. 실제 render job.input_sha256와 문서판의 collection_generation_input_sha256도 일치시킨다. needs_review/error/not_checked, 다른 hash의 성공 검사, 생략된 필수검사는 ready로 승격할 수 없다. 확인·제출 시에도 현재 안전정책과 exact 사슬을 재검사한다.
+
+파일 작성형은 업로드된 최종 파일의 실제 hash/형식/안전정책을 검증하고 artifact(kind='uploaded')로 묶는다. 내용 이해·맞춤법·업무 규정 준수까지 자동 검증했다고 표시하지 않는다. 미리보기 불가능한 형식은 '미리보기 미지원, 내려받아 확인'으로 안내하며 실제 원본을 읽을 수 있는 확인 경로를 제공한다.
+
+cmd_confirm_collection_output은 actor가 확인한 artifact ID·exact file hash·answer manifest·현재 draft version을 고정한다. 공동작성자가 preview를 봤어도 책임자/유효 대리가 최종 확인해야 한다. 제출 직전 책임자가 바뀌면 기존 actor의 확인으로 새 책임자가 제출할 수 없다.
+
+개인 초안을 공동 제출하기 위해 복사한 경우에는 공유 초안에서 새 snapshot·산출물·확인을 만든다. 개인 초안의 artifact를 공유 제출판에 직접 붙여 개인 초안 전체의 접근권을 옮기는 우회는 금지한다. 파일형 단독 단위도 기존 제출 계약에 따라 책임자 자신의 명시 제출용 초안에서 같은 절차를 적용한다.
+
+cmd_submit은 기존 잠금 순서에 template/mapping/snapshot/artifact/confirmation을 사전 정렬해 포함하고 현재 권한·policy·schema·draft·입력 manifest·파일 실물 상태·확인 actor를 재검사한다. answer snapshot↔artifact↔confirmation↔submission↔submission_files와 unit pointer, receipt, audit, outbox를 하나의 트랜잭션으로 확정한다. 하나라도 stale이면 전체 0건이다. 파일 생성 성공 이후 제출이 실패해도 '문서 준비 완료, 아직 제출하지 않음'을 표시하고 안전하게 재시도한다.
+
+재시도는 동일 idempotency_key/동일 본문이면 동일 결과, 다른 본문이면 IDEMPOTENCY_CONFLICT다. 완료됐는지 모르는 외부 AI 호출은 job_external_calls의 unknown 복구 계약을 따르고 무조건 재호출하지 않는다.
+
+## 8. API 계약과 예시
+
+공통 학교/소속·expected_version·idempotency_key·현재 권한·파일 정책은 01/02/04/05를 따른다. 요청 봉투는 scope={school_id}와 idempotency_key를 사용한다. 성공 봉투의 operation_id, status(committed/accepted), resource, server_recorded_at, next_action과 오류 봉투의 code, retryable, correlation_id, 안전한 설명은 05장 공통 계약을 그대로 상속한다. receipt/job_id 등은 추가 도메인 정보이며 공통 봉투를 대체하지 않는다. 아래 endpoint 명칭은 기존 cmd_* 계약을 HTTP 또는 RPC 어댑터에 매핑할 때 사용하는 목표 명령이며 현재 배포된 API라고 주장하지 않는다. 동반 JSON의 API-27·API-28에 목록을 등록한다.
+
+### API-27: 양식 분석·매핑 확정
+
+명령: cmd_register_collection_template, cmd_analyze_collection_template, cmd_save_collection_mapping, cmd_validate_collection_mapping, cmd_approve_collection_mapping.
+조회: collection_template_detail, collection_template_analysis, collection_mapping_preview.
+
+등록 입력: scope={school_id}, collection_id(초안 연결 시), file_object_id, expected_file_version, title, idempotency_key.
+등록 결과: template_id, template_version_id, source_sha256, support='file_only', resource version/receipt.
+
+분석 입력 예:
+~~~json
+{
+  "scope": {"school_id": "school-example"},
+  "template_version_id": "template-version-example",
+  "expected_version": 1,
+  "idempotency_key": "analyze-example-1"
+}
+~~~
+
+접수 결과 예:
+~~~json
+{
+  "operation_id": "operation-analysis-example",
+  "status": "accepted",
+  "resource": {"type": "collection_template_analysis", "id": "analysis-example", "version": 1},
+  "server_recorded_at": "2026-10-13T03:00:00Z",
+  "next_action": "poll_analysis",
+  "job_id": "job-example",
+  "recommendation": null,
+  "receipt": {"id": "receipt-example"}
+}
+~~~
+
+분석 완료 조회는 recommendation='guided_candidate', reasons, uncertain_items, field_candidates, target_candidates, capability_report와 정확한 source_sha256를 반환한다. 아직 검증 전이면 '자동 채움 가능'으로 표시하지 않는다.
+
+매핑 확정 입력: mapping_id, expected_version, mapping_sha256, sample_document_id/revision_no, sample_validation_id, sample_manifest_sha256, acknowledged_findings, idempotency_key.
+확정 결과: approved_mapping_id/version_no, template_version_id, approved_by/at, verification report, receipt.
+대표 오류: TEMPLATE_NOT_READY, TEMPLATE_SOURCE_CHANGED, MAPPING_UNVERIFIED, SAMPLE_OUTPUT_MISMATCH, REQUIRED_VALIDATION_SKIPPED, UNSUPPORTED_OUTPUT_FORMAT, FIELD_MAPPING_INVALID.
+
+### API-28: 문답·직접 입력·출력 준비·확인
+
+명령: cmd_propose_collection_answers, cmd_apply_collection_answer_proposal, cmd_prepare_collection_output, cmd_confirm_collection_output.
+조회: collection_interview_context, collection_output_preview.
+직접 입력 저장은 기존 API-09 cmd_save_draft를 그대로 사용한다.
+
+AI 답변 제안은 현재 schema+draft version과 사용자 메시지를 입력받아 patch 후보·근거·확인 필요 항목만 반환한다. apply 명령은 교사가 선택한 field paths와 기대판을 검사한 뒤 기존 draft 저장 명령으로 연결한다. 모델 출력에 없는 필드를 임의로 추가하거나 숨은 자동 제출 도구를 호출하지 않는다. 통합 대화 UI를 쓰더라도 해당 단위/학교 맥락과 현재 접근을 고정한다.
+
+출력 준비 입력 예:
+~~~json
+{
+  "scope": {"school_id": "school-example"},
+  "unit_id": "unit-example",
+  "schema_id": "schema-example",
+  "draft_id": "draft-example",
+  "expected_unit_version": 3,
+  "expected_draft_version": 7,
+  "idempotency_key": "output-example-7"
+}
+~~~
+
+접수 결과 예:
+~~~json
+{
+  "operation_id": "operation-output-example",
+  "status": "accepted",
+  "resource": {"type": "collection_output_artifact", "id": "artifact-example", "version": 1},
+  "server_recorded_at": "2026-10-13T03:05:00Z",
+  "next_action": "poll_output",
+  "answer_snapshot_id": "snapshot-example",
+  "job_id": "job-render-example",
+  "submission_state": "not_submitted"
+}
+~~~
+
+미리보기 조회는 현재 actor가 볼 수 있는 exact file/hash, active answers, excluded fields, unresolved fields, document revision, validation summary, manifest hash, stale reasons를 반환한다. file hash·manifest hash는 서버 검증값이며 클라이언트 주장을 그대로 저장하지 않는다.
+
+확인 입력: artifact_id, expected_artifact_version, expected_draft_version, observed_manifest_sha256, idempotency_key.
+확인 결과: confirmation_id, artifact_id, manifest_sha256, confirmed_at, can_submit, receipt. can_submit은 조회 당시 정보이며 실제 submit 재검사를 대신하지 않는다.
+
+기존 API-09 제출 입력에 answer_snapshot_id, output_artifact_id, output_confirmation_id를 추가한다. 예시의 모든 ID/hash는 형식 예시이며 실제 권한을 갖는 토큰이나 운영 데이터가 아니다.
+
+오류 응답 예:
+~~~json
+{
+  "status": "conflict",
+  "error": {
+    "code": "OUTPUT_STALE",
+    "retryable": false,
+    "correlation_id": "correlation-output-example",
+    "message": "답변이 변경되어 문서를 다시 준비해야 합니다.",
+    "details": {"expected_draft_version": 7, "current_draft_version": 8},
+    "retry_action": "prepare_output"
+  }
+}
+~~~
+
+권한 없는 actor에게는 current draft 값·타학교 ID 존재·첨부명 등을 details로 반환하지 않는다. 지원 불가를 빈 문서 성공으로 바꾸지 않는다.
+
+### 기존 API-08~10 보강
+
+- API-08 게시: 모드·template version·approved mapping·schema hash·대상 manifest를 함께 고정한다. 문답형은 exact 검증 사슬 누락 시 게시 거부.
+- API-09 저장/제출: 조건부·반복행 검증, draft 변경 시 현재 output stale 계산, final confirmation 재검사. 외부 편집 최종본 재업로드는 새 파일/산출물 확인.
+- API-10 내보내기: **기본 선택을 effective(완료본)**로 통일한다. 미승인 제출본을 함께 받을 때 received를 명시 선택하고 파일명·현황표에 검토 상태를 표시한다. 이는 02장 13절의 이전 1.0 received 기본을 대체하며 현재 02장과 동일한 계약이다. 완료본 없는 단위를 ZIP에서 조용히 누락하지 않고 manifest의 미완료 사유로 표시한다.
+
+## 9. 파일 정리·검토·재안내
+
+기본 묶음은 단위별 effective_submission_id에 연결된 정확한 파일과 답변 현황표다. 표시 이름이 바뀌어도 안정 unit ID와 제출판을 manifest에 남긴다. ZIP 경로는 서버가 정규화하고 동명이인·동일 제목의 충돌을 피한다. 수합 제목/단위 표시명/제출판/검토상태 조합을 사용하며 민감정보를 파일명에 과도하게 넣지 않는다.
+
+수합 담당자가 '미제출자에게 안내'를 누르면 현재 obligation_state와 current/effective/열린 보완을 구분하여 대상 미리보기를 만든다. 메신저 단체 발송은 수합을 완료하거나 초안을 읽는 권한이 아니다. 메시지 전송의 실제 recipient snapshot·발송 확인은 메신저 계약을 따른다.
+
+부분 내보내기 실패는 manifest item마다 사유와 재시도 가능 여부를 보여 준다. 최종 ZIP도 현재 허용된 모든 포함판에 접근할 수 있어야 내려받는다. 이미 승인한 제출판이 있는 상태에서 새 미승인 수정본이 올라오면 기본 완료본 묶음은 기존 승인판을 유지한다.
+
+## 10. 구현 순서와 완료 조건
+
+| 티켓 | 선행 | 산출물 | 완료 기준 |
+|---|---|---|---|
+| COL-T01 | 공통 권한/파일/명령 계약 | 수합 fixture·DTO·필드 validator·화면 흐름 | AI 없이 기존 텍스트/숫자·파일 작성형을 끝낼 수 있음 |
+| COL-T02 | T01, 파일 검사·다운로드 | 양식 등록/버전/재사용/지원수준 화면 | 안전한 원본 전달과 미지원 표시, 기존 팩 불변 |
+| COL-T03 | T02, Claude 실행·jobs | 분석 후보 DTO·매핑 편집·표본 생성 검증 | 미검증 후보를 게시하지 못함 |
+| COL-T04 | T03 | 게시 schema·대상 snapshot·판 변경 영향 | 과거 제출판 불변, pending/보완 단위 모드 변경 차단 |
+| COL-T05 | T01/T04 | 직접 입력·문답·반복행·조건부·첨부·개인/공동 초안 | 같은 답변 원장, 권한/충돌/재개 회귀 |
+| COL-T06 | T03/T05 | snapshot→문서→파일→확인→원자 제출 | 오래된 출력/다른 단위 파일/타인 확인으로 제출 0건 |
+| COL-T07 | T06 | 검토·보완·effective 기본 ZIP·현황표·재안내 연결 | 부분 실패·완료본/최신안 구분·권한 회수 종단 |
+| COL-T08 | T01~T07 | 합성 DB·파일·브라우저·동시성·복구 검증 | 동반 COL01~COL24 실행 증거 확보 후 별도 공개 검토 |
+
+이 순서는 이후 구현의 의존 관계다. 실제 DB·문서 AI 구현 재개를 승인한 것으로 해석하지 않는다. 보류 중에는 순수 fixture/DTO/화면 설계를 진행할 수 있지만 운영 API·DB 연결·보호 자산 수정·신규 메뉴 공개 확대는 별도 승인 절차를 지킨다.
+
+## 11. 필수 수용 시험
+
+collection-extension.json의 COL01~COL24를 추적한다. 특히 다음 실패 경로를 성공 경로와 같은 비중으로 검증한다.
+
+1. 타학교 양식/매핑/schema/단위/파일을 교차 연결하면 FK·명령·읽기에서 모두 거부.
+2. 미검증 분석 후보/필수 검사를 건너뛴 표본/다른 매핑판 표본으로 문답형 게시 거부.
+3. 공동 구성원 종료·미래 시작·개인초안의 작업 결과/검색/첨부 우회 열람 0건.
+4. 답변 7판 출력 후 8판 저장, 파일 교체, 조건 변화, 책임자 인계 시 기존 확인으로 제출 0건.
+5. 0/false·미입력·조건 숨김·반복행 순서 변경·중복 row key·파일 경로 충돌 검증.
+6. 출력 성공 후 제출 응답 유실 재시도는 제출판/알림 한 번, 외부 AI unknown은 확인 전 중복 호출 금지.
+7. 검토 필수 v1 승인 뒤 v2 대기이면 기본 ZIP은 v1, 명시 받은판 모드만 v2 포함.
+8. AI 장애·분석 미지원 때도 파일 작성/직접 입력 경로와 답변 저장은 유지.
+9. 렌더러·팩·원본 hash 변경 시 표본/출력 지원 판정을 재검증하고 과거판 기록은 유지.
+10. 기존 인증·회원·평가계획서 6종·기존 제출/철회/보완 회귀를 통과한 증거 없이 공개하지 않음.
+11. COL21: 옛 kind CHECK/PK/UNIQUE와 backing index가 목표 설계에서 명시 대체되고 같은 파일의 서로 다른 반복행 첨부는 통과하며 같은 경로 중복은 거부.
+12. COL22: guided 출력필드의 input 지정, 복수 generated_output, output 포인터 누락, 조건부 출력, file_upload의 generated_output은 모두 거부.
+13. COL23: 실패/미검사/필수 skipped/필수 미확정/다른 exact hash·팩·매핑·렌더러·job 입력으로 ready/confirm/submit 승격 0건.
+14. COL24: 같은 학교 A단위의 정상 문서판을 B단위 artifact 또는 A단위 다른 snapshot에 붙여도 문서 linked_unit·revision typed 입력·artifact 복합 FK가 거부.
+
+## 12. 설계에서 정한 것과 아직 확인할 것
+
+**설계 기본값:** 담당자가 최종 방식 결정, 문답형은 표본 검증 필수, AI 없이 직접 입력 가능, 제출자 최종 확인 필수, 단위 초안 비공개, 결과 다운로드는 완료본 기본, 새 학교로 자료 자동 공유 금지.
+
+**운영 승인·실측 필요:** 실제 양식 표본과 지원 파일 형식, 파서/출력 엔진별 보존 가능 범위, 파일 검사/보존 정책, 출력 분량/반복행 한도, 문답형 사용 학교·교사 공개 범위, 비용 상한. 수치와 지원 형식을 임의로 확정하지 않는다. 운영 DB 생성과 SQL 확정은 계속 보류하며 현재 회원과 로그인 자료는 보존한다.
+
+
+---
+
+<!-- SOURCE: 14-timetable-operations.md -->
+
+# 14. 시간표 준비·편성·조정·공유·변경 실행 설계
+
+> 2026-10-13 · 보강판 1.1 · **설계 계약이며 구현·운영 반영 완료가 아니다.** 실제 DB 구축·SQL 실행·시간표 구현은 계속 보류한다. 사용자 설명을 반영해 기존 03의 시간표 26표와 API-18~20을 구체화한다. 신규는 관리자 기준자료판·수정요청 2표이고, 기존 로그인·회원·시간표 엔진·확정 SQL은 변경하지 않는다. 정형 변경 목록은 `timetable-extension.json`이다.
+
+## 1. 확정한 제품 흐름과 역할
+
+`관리자 기본자료 확정 → 시간표 담당자 조건 설정 → 편성 실행 → 후보 저장·비교·직접 조정 → 적용일부터 확정·공유 → 교사 변경 요청·관련 교사 동의 → 시간표 담당자 최종 승인·반영`
+
+기본자료의 승인과 시간 배치의 결정은 서로 다른 권한이다. 담당자가 교사를 배치하다가 시수가 맞지 않는다고 공식 시수나 교과 담당을 몰래 바꾸지 못한다. 같은 사람이 관리자와 시간표 담당을 겸할 수는 있지만, 어떤 역할로 무엇을 확정했는지는 각각 기록한다. AI는 Claude를 사용하며 조건 해석·질문·대안 설명·허용 도구 호출을 맡는다. 수업 배치·시수·충돌·권한·최종 저장은 코드가 결정한다.
+
+| 주체 | 할 수 있는 일 | 단독으로 할 수 없는 일 |
+|---|---|---|
+| 학교 관리자/공식 배정 담당 | 학년·학급·교사·학기·교과 시수·승인 수업/업무 배정 정리, 기본자료판 확정, 수정요청 검토 | 담당자의 개인 대화나 학생 관찰 열람, 기존 실시 수업 삭제 |
+| 시간표 담당자 | 확정자료 읽기, 오류 수정요청, 조건 설정, 생성/저장/수정/비교, 기본표 확정, 교환 승인 | 공식 배정·시수 직접 변경, 미지원/충돌 후보 강제 배포, 본인 요청 최종 승인 |
+| 일반 교사 | 확정 시간표 조회, 본인 수업 변경 요청, 본인이 참여하는 제안 동의/거절, 실제 실시 확인 | 다른 교사의 수업 단독 이동, 대화만으로 확정표 수정 |
+| 지정 대리 승인자 | 담당자가 요청 당사자인 건의 최종 승인, 위임된 기간·범위 처리 | 학교 전체 관리자 권한 취득, 위임 기간 외 승인 |
+| Claude | 자료의 누락 질문, 명확한 조건 초안, 후보 설명, 변경안 초안, 요청 상태 조회 | 담당 교사 임의 지정, 필수조건 자동 완화, 무응답을 동의로 간주, 범용 SQL 실행 |
+
+위 권한 이름은 `timetable.basis.confirm / timetable.compose / timetable.publish / timetable.change.approve`라는 목적별 capability로 구현한다. 실제 role에 묶는 것은 공통 권한 정책을 따른다. 초기 공개 범위는 기존 규칙대로 superadmin/지정 시범 범위이며 전 교사 공개는 별도 운영 승인 후 진행한다.
+
+## 2. 화면과 실제 사용 순서
+
+| 화면 | 우선 표시 | 주요 동작·완료 조건 |
+|---|---|---|
+| 관리자 기본자료 | 학기, 교사/학급 수, 총 시수 차이, 미배정·중복·미확인 목록 | 기존 명부·배정 화면으로 이동해 수정 → 검토안 보기 → 기본자료 확정. 문제가 0인지와 확인한 예외를 표시 |
+| 담당자 시작 화면 | 현재 확정자료판, 이전 편성안, 자료 변경 알림, 다음 할 일 1개 | 조건 설정 이어하기/편성안 열기. 관리자 자료를 다시 입력하게 하지 않음 |
+| 조건 편집 | 필수/선호, 대상, 기간, 확인 여부, 지원 여부 | 직접 양식 입력 또는 AI와 입력. AI 초안과 실제 적용 조건을 나란히 확인 |
+| 편성 작업 | 진행 상태, 취소, 후보 수, 제한 도달 여부 | 가능한 후보만 제공. 3개를 요청했어도 1개만 유효하면 1개 표시 |
+| 조정 작업대 | 교사/학급/교실 시간표, 선택 수업 정보, 충돌 목록 | 드래그·키보드 이동, 고정/해제, 새 후보 저장, 두 후보 차이, 되돌리기, 선택 범위 재편성 |
+| 배포 확인 | 적용 기간, 변경 교사/학급 수, 충돌, 기존 교환/실시 영향 | 미해결 필수 영향이 0인 정확한 후보판만 확정. 예약 적용일도 명확히 표시 |
+| 교사용 시간표 | 오늘 내 수업, 변경 표시, 다음 수업 | 주/날짜 이동, 교사·학급·교실 검색, 변경 요청. 모바일은 일별 목록 우선 |
+| 변경 요청함 | 내 응답 필요, 승인 필요, 반영 결과 | 변경 전후 한눈 비교, 수락/거절, 담당자 승인, 만료·취소·실패 이유 |
+
+AI 대화는 위 화면의 보조 입구다. AI 연결 장애가 있어도 조건 양식·직접 편집·수동 변경 요청·승인으로 동일 업무를 마칠 수 있어야 한다. 모든 드래그 작업은 키보드/대체 버튼 경로를 제공한다. 단순 선택에 긴 대화를 요구하지 않는다. 홈과 메신저 업무카드는 실제 `change_set_id` 또는 `lesson_instance_id`로 이동하며 카드의 읽음 상태를 승인 상태로 쓰지 않는다.
+
+## 3. 관리자가 확정하는 기본자료판
+
+### 3.1 내용과 검사
+
+기준자료판에는 학교·학년도·학기, 학교 시간대, 일과/학년별 교시, 학급·수업집단, 교과 시수, 승인 교사·업무/수업 배정과 적용 기간, 사용 공간, 수강 중첩 검사에 필요한 최소 참여 관계를 고정한다. `course_groups.weekly_hours`와 `course_group_teachers`가 수업 요구의 원본이며 새 교과·교사 표를 만들지 않는다. 표시명과 ID는 분리한다. 동명이인을 이름으로 합치지 않는다.
+
+확정 전 서버가 수업집단별 필요 시간·가용 슬롯·담당 유효기간·블록 합계·교사 자원·교실 요구·미확인 수강 관계를 검사한다. 원본의 `version`이 없는 기간 관계도 정렬된 값과 시작/종료일을 포함한 서버 지문으로 고정한다. 소수 시수를 임의 반올림하지 않는다. 격주·순환 운영 등 별도 패턴이 필요한 경우 그 요구와 엔진 지원을 확인하며, 지원하지 않으면 자동편성 입력으로 확정하지 않는다.
+
+하나의 학기 중 담당 배정·학생 수강이 달라지면 기간별 관계를 유지한다. 하나의 주간 반복표로 안전하게 표현할 수 없는 변경은 적용 시작일부터 새 기본표로 나누거나 해당 운영형 지원을 요구한다. 현재 배정만 조회해서 과거 편성안을 재구성하지 않는다.
+
+### 3.2 저장 방식
+
+새 `timetable_basis_revisions`는 **확정된 불변판만** 저장한다. 관리자 수정 중 화면은 기존 원본 자료의 변경·검토 흐름을 사용하며 별도 미확정 명부 복사본을 만들지 않는다. `cmd_timetable_basis_preview` 결과에는 정규화한 snapshot·지문·원본 판 목록·오류/경고·영향이 들어간다. 확정 명령은 그 지문과 `terms.version`을 받아 원본을 다시 확인하고 불변판 생성과 `terms.current_timetable_basis_id` 갱신을 함께 커밋한다.
+
+기준자료 snapshot은 허용된 JSON Schema만 사용한다. 필수 루트 키는 `schema_version, school_id, term_id, timezone, valid_from, valid_to, sources, teachers, classes, courses, assignments, bells, spaces, participation_conflicts`다. 각 sources 항목은 `entity_kind, entity_key, source_version_or_hash, valid_from, valid_to`를 가진다. source kind는 허용 목록이며 학교·학기·실제 원본 존재·승인 관계를 검증한다. 검증되지 않은 원시 AI JSON은 저장하지 않는다. 참여 관계의 학생 실명·상담·사유 원문은 snapshot에 복제하지 않는다.
+
+**기준자료판 한 개는 학기 전체를 표현한다.** `[valid_from,valid_to)`는 정규화한 학기 전체 기간과 같아야 하며 그 안의 배정·명부·일과는 각자의 유효기간을 보존한다. 일부 기간 자료를 고쳐도 학기 전체 snapshot의 새판을 확정한다. 따라서 `terms.current_timetable_basis_id`는 학기 전체 자료의 최신 관리자 확정판 한 개를 가리킨다. 특정 날짜의 시간표를 고르는 포인터가 아니다. 이미 배포된 표는 당시 기준판을 참조하고 날짜별 조회는 배포판의 효력구간으로 결정한다. 부분기간 snapshot을 최신 포인터로 등록하여 다른 날짜의 기반이 사라지는 경우는 거부한다.
+
+원본 명부/시수/배정이 확정판 이후 변경되면 기존판을 수정하지 않고 `BASIS_SOURCE_CHANGED`로 차이를 알린다. 이미 배포된 시간표를 자동 재배포하지 않는다. 새 생성·확정에는 최신 확정판과 현재 원본의 일치가 필요하다. 학교 전체 마스터 변경이 해당 편성 범위에 영향을 주는지는 source 지문으로 판정하고, 관계없는 다른 학기의 변경 때문에 작업을 막지 않는다.
+
+### 3.3 담당자의 수정요청
+
+담당자가 `수학 A반 시수가 3이 아니라 4로 보입니다`라고 요청하면 `timetable_basis_change_requests`에 근거판·수정 대상·현재 값·제안 값·사유를 저장한다. 허용된 field key와 실제 ID만 받으며 JSON 경로나 SQL을 임의 실행하지 않는다.
+
+상태는 `requested → in_review → applied / rejected`, 검토 전후 신청자의 철회는 `withdrawn`, 같은 사안이 다른 새판으로 해결되어 요청 기준이 무효하면 `superseded`다. 이미 applied인 요청을 다시 열지 않는다. 관리자 승인만으로 applied라 하지 않고, 승인된 원본 변경과 새로운 기준자료판 확정이 실제 커밋되어 `resolved_basis_revision_id`가 생겨야 한다. 기준판이 달라지면 차이를 다시 보여 주고 수정요청을 새로 작성한다.
+
+## 4. 조건·AI·엔진 계약
+
+### 4.1 조건의 최소 형식
+
+기존 `constraint_sets`를 불변 잠금판으로 사용한다. 잠금 전에 편집할 수 있으며 잠금 후 변경은 based_on_id를 둔 새 조건판이다. 조건 한 건은 다음 필드를 가진다.
+
+`id, kind, strength(hard/school_hard/soft), weight(soft만), target_type/id, params, applies_from/to, source_type/ref, rationale, confirmed_by/at, engine_support, source_basis_revision_id, interpretation_schema_version`
+
+기존 내부 enum `school_hard`를 유지한다. 화면에서는 hard와 school_hard 모두 ‘필수’로 묶고 학교 규칙에서 온 항목에 근거 표시를 붙인다. 모든 편성·수동검증·배포의 필수조건 판정은 두 값을 모두 포함한다. school_hard는 학교 규칙·확정 불가시간의 승인 근거가 있으므로 시간표 담당자 선호 편집으로 soft로 바꾸거나 제외하지 못한다. 원본 근거를 승인된 절차로 변경한 뒤 새 조건판에서 반영한다.
+
+대상·날짜·시간·강도가 빠졌거나 서로 다른 뜻으로 해석될 수 있으면 확인 질문을 남긴다. 예를 들어 ‘수요일 못 와요’는 매주인지 특정 날짜인지 확인하고, 공식 확정 불가시간과 개인 선호를 구분한다. AI가 제안한 hard→soft 변경은 원래 조건과 새 조건, 영향을 보여 주고 담당자가 새 조건판에서 명시 확인해야 한다. 확정 복무 불가시간은 담당자 선호 편집으로 완화할 수 없다.
+
+`engine_support`는 해당 engine/adapter 버전에 대한 검사 결과다. 미확인 값을 supported로 기본 지정하지 않는다. `supported / unsupported / unknown`을 구분한다. 입력에 담을 수 없는 필수조건은 편성을 막고, 미지원 선호도 적용했다고 말하지 않는다. 담당자가 그 선호를 이번 실행에서 명시 제외한 기록이 있어야 나머지 조건으로 진행할 수 있다. 기간 내 단 한 번의 예외는 주간 조건에 뭉개지 않고 날짜별 운영 경로로 처리한다.
+
+### 4.2 실행과 결과
+
+서버는 `basis_revision_id + locked constraint_set_id + 실제 조건 목록 지문 + 기존 후보/배포판 + 달력 지문 + 지원기능판`으로 정규화 입력을 만든다. 원본 input을 보존하고 엔진별 adapter가 이를 변환한다. 수업 단위의 내부 순번은 영구 `lesson_instance_id`로 사용하지 않는다.
+
+기존 compositions의 실행 상태와 결과는 분리한다. 작업 상태는 `queued / running / completed / failed / cancelled`, 새 `result_kind`는 `feasible / optimal / infeasible / unresolved / invalid_input / unsupported / internal_error / cancelled`다. 기존 `timetable_compositions_status_check`와 옛 status를 사용하는 보조 CHECK 5개(`tt_compositions_finished`, `tt_compositions_limit_known`, `tt_compositions_proven`, `tt_compositions_infeasible_proof`, `tt_compositions_unresolved_limit`)를 아래 진리표로 함께 대체한다. 옛 status의 feasible 중 proven은 completed/optimal, 나머지는 completed/feasible이며 infeasible/unresolved는 completed와 동명 result_kind로 변환한다. 제한시간 내 해가 없다는 사실만으로 infeasible로 기록하지 않는다. infeasible은 엔진이 증명한 경우이고, 설명은 실제 충돌 근거/증명 범위만 사용한다. 특정 규정 탓이라는 추측을 확정 원인처럼 출력하지 않는다.
+
+| status | result_kind | finished_at | limit_reached | optimality·결과 조건 |
+|---|---|---|---|---|
+| queued/running | NULL | NULL | NULL | unknown; 최종 결과 아님 |
+| completed | feasible | 필수 | 실측 true/false | unknown; 독립 검증후보 1개 이상 |
+| completed | optimal | 필수 | false | proven; 검증후보와 전체 입력 최적성 증명 |
+| completed | infeasible | 필수 | false | unknown; 해당 전체 입력 불가능 증명 |
+| completed | unresolved | 필수 | 실측 true/false | unknown; outcome_reason 필수, 유효한 최종 후보·증명 없음 |
+| failed | invalid_input/unsupported/internal_error | 필수 | NULL | unknown; 자동배포 불가 |
+| cancelled | cancelled | 필수 | NULL | unknown; 늦은 결과는 fencing으로 차단 |
+
+표에 없는 조합은 거부한다. unresolved는 시간·자원 한도 등 실제 종료 이유를 제공하며 한도 도달 없이 결론을 얻지 못한 경우에도 false와 원인을 정확히 기록한다. 과거 failed는 진단에 따라 세 오류 종류를 구분하고 근거가 없으면 internal_error로 남긴다. 기존 진단·증명·실행 이력을 삭제하거나 성공 상태로 승격하지 않는다.
+
+후보가 있는 시간 제한 종료는 feasible+limit_reached다. unknown 최적성을 ‘최적 시간표’라고 표시하지 않는다. 엔진 취소는 가능한 한 빨리 작업을 중단하며 늦게 도착한 결과는 fencing 값이 맞는 실행에만 저장한다. 재시도는 기존 jobs/outbox/접수증을 사용하며 중복 과금 방지를 위한 정확한 상한·모델 설정은 별도 승인 사항이다.
+
+## 5. 임시저장·수동 수정·비교·고정
+
+후보 placements는 불변이다. 이름을 붙이거나 수정할 때도 기존 후보를 덮어쓰지 않고 `derived_from_id`를 둔 새 후보를 만든다. 수동 후보는 원본 기준자료·조건판을 직접 참조하므로 composition_id가 없어도 해석 가능하다. AI 수정도 같은 전용 명령을 사용한다.
+
+수동 이동은 먼저 변경안을 보여 준다. 충돌이 있어도 **초안 저장**은 허용하되 `validation_state=invalid`와 충돌 목록을 표시하며, 배포 버튼은 사용할 수 없다. unknown/stale도 배포 불가다. 구조화 검증 보고에는 code, 관련 수업/자원 ID, 실제 날짜/시각, violated_constraint_id, severity, 해결 가능한 입력 위치가 포함된다. 다른 교사의 개인 사유는 출력하지 않는다.
+
+기본 비교 단위는 수업의 교사·학급/참여집단·요일/교시·실제 시각·공간이다. 위치는 같고 교사가 바뀐 경우도 변경으로 센다. 시수·블록 변경은 구조 변경으로 별도 표시하고 기존 unit 순번으로 억지 매칭하지 않는다. 엔진의 previous 지원을 검사한 뒤 지원 범위 밖이면 새 편성 경로를 제시한다.
+
+고정 항목은 후보의 `locked_placements`에 영구 수업집단·회차키와 현재 배치 지문을 담는다. 새 기준자료에서 회차가 달라지면 고정이 무효라는 경고를 띄우며 해제/재연결 확인 없이는 탐색에 넣지 않는다. 잠긴 수업을 해제하는 AI 제안도 담당자 확인이 필요하다. 되돌리기는 과거 후보를 기반으로 새 후보를 만드는 행동이며 이미 공개된 표를 조용히 덮어쓰지 않는다.
+
+## 6. 확정·적용 기간·공유
+
+모든 날짜는 학교의 IANA 시간대 기준이며 국내 초기 학교는 확인된 `Asia/Seoul`을 사용한다. 날짜 효력은 `[effective_from, effective_to)`로 통일한다. 화면에서 ‘10월 31일까지’라고 받으면 다음 날을 exclusive 종료일로 저장하고 화면은 원래 의미로 표시한다. 학기의 기존 ends_on 의미는 별도 어댑터에서 변환하며 무조건 하루를 두 번 더하지 않는다. 시각 점유도 `[starts_at, ends_at)`이고 실제 시각으로 충돌을 계산한다.
+
+기본표 배포는 앞으로 적용할 기간을 명시한다. 같은 학교·학기·날짜에 적용될 기본표는 하나다. 새 표가 현재표의 일부 미래 기간을 대체하면 앞·대체·뒤 구간을 나누어 **남은 기간도 원자적으로 보존**한다. 예를 들어 기존 `[9월 1일, 다음 해 1월 1일)`에서 `[11월 1일, 12월 1일)`만 대체하면 앞 `[9월 1일, 11월 1일)`, 새표 `[11월 1일, 12월 1일)`, 뒤 복원판 `[12월 1일, 다음 해 1월 1일)`을 함께 확정한다. 한 version 행에 비연속 기간을 담지 않는다. 뒤 복원판은 기존 배치에서 새 candidate/version을 만들고 현재 기준자료·달력·승인된 미래 변경을 다시 검사한다. 뒤 기간을 보존할 수 없으면 전체 배포를 보류하며 해당 기간이 조용히 사라지지 않는다. 기존 기간 경계 변경과 파생 관계는 이력에 남기고 이미 실시한 수업의 원래 version 참조를 유지한다. 학교 달력·학년별 일과를 적용한 `lesson_instances`와 주간 표를 구분한다. 예정표 생성은 수업을 실제 실시했다는 기록이 아니다.
+
+배포 미리보기에서 다음을 확인한다.
+
+1. 현재 권한, 최신 기본자료판·조건판·후보 지문, solver/validator 지원 범위.
+2. 후보 전체 hard 검사와 적용 기간 날짜별 휴업·일과·교사 불가·자원 점유.
+3. 이미 승인된 미래 교환·보강·대강의 영향: 유지 가능, 재검토 필요, 대체할 변경을 항목별 분류.
+4. 이미 실시한 수업·학생 활동 연결은 보존. 미해결 영향이 있으면 배포 차단.
+5. 공개할 확정판·기간·영향 명세 지문에 대한 담당자의 확인.
+
+미래 변경을 새 주간표로 덮어 없애지 않는다. 영향 검토를 마친 새 timetable_version, 필요한 lesson/occupancy 변경, receipt, audit, outbox를 한 트랜잭션으로 커밋한다. 많은 날짜를 준비해야 하면 jobs에서 임시 데이터를 만들고 최종 재검사 후 공개판 포인터를 원자 전환한다. 작업 준비중 결과는 일반 교사에게 확정표로 보이지 않는다. 알림 실패는 시간표 확정 실패로 바꾸지 않고 알림만 재시도한다.
+
+교사용 DTO에는 현재 적용판·기준시각·변경 표시·갱신 여부를 포함한다. 오늘의 교사/학급/교실 표는 같은 날짜별 수업 원장을 읽는다. 임시 후보는 일반 교사 조회·검색·홈 집계에 노출하지 않는다. 캐시된 시간표가 오래됐거나 네트워크가 끊기면 마지막 갱신 시각을 보여 주고 변경 승인/반영은 온라인 최신 검사 없이 실행하지 않는다.
+
+## 7. 확정 이후 교환·대강·보강
+
+### 7.1 공통 요청 흐름
+
+`draft → awaiting_consent → ready_for_approval → applied`를 기본 상태로 한다. `rejected / withdrawn / expired / superseded`는 종결이다. 별도 approved 상태를 오래 유지하지 않고 최종 승인과 반영을 같은 명령으로 수행한다. 데이터 경합으로 반영이 실패하면 applied라고 표시하지 않으며 안전한 오류와 새 검토 경로를 제시한다.
+
+교사가 AI에게 요청하면 대상 날짜·수업·교환 범위를 확인한다. 서버가 현재 날짜별 수업과 승인된 교사 관계로 가능한 안을 계산한다. 교사는 실제 변경 전후와 관련 교사를 보고 동의 요청을 보낸다. 모든 필요한 참여자를 서버가 계산하므로 클라이언트가 참여자 목록에서 한 교사를 빼 동의를 생략할 수 없다.
+
+다자 교환은 전체 순환의 모든 교사가 같은 candidate_sha256와 base_snapshot_sha256에 동의해야 한다. 한 명의 거절·만료·소속 종료·기준판 변경은 전체 적용을 막는다. 요청자의 제출도 정확한 후보판에 대한 본인 동의로 기록한다. 응답 또는 AI 메시지가 있다는 것만으로 동의로 간주하지 않는다.
+
+내용·대상 교사·시각·영향·기준 수업판이 바뀌면 기존 change_set을 수정해 동의를 재사용하지 않는다. 새 change_set을 만들고 `supersedes_change_set_id`로 연결하여 필요한 동의를 다시 받는다. applied의 취소는 기존 원장을 삭제하는 동작이 아니라 현재 상태 기준의 새 역변경 요청이다.
+
+초기 운영은 담당자 최종 승인형을 **설계 권고 기본값**으로 둔다. 요청자 본인과 동일 account의 다른 membership을 이용한 자기승인도 막는 정책을 제안한다. 이는 DECISIONS의 확정 D번호 신설이나 이미 채택된 학교 운영규정이라는 뜻이 아니며 운영 재개 시 정책 채택을 확인한다. 이 정책을 채택한 학교에서 대리 승인자가 없으면 해당 요청은 대기시키고 지정 절차를 안내한다. AI가 긴급하다고 판단해서 승인을 생략하지 않는다.
+
+### 7.2 실제 수업 의미
+
+| 종류 | 처리 계약 |
+|---|---|
+| 교환 | 두 개 이상 수업이 날짜/시각을 바꿈. 관련 교사·학생집단·공간 모두 함께 검증·반영 |
+| 이동 | 한 수업의 날짜/시각 변경. 원래 칸이 빈칸인지 별도 활동인지 표시, 목적지 충돌 검사 |
+| 대강/대체 | 원수업과 학급을 유지하면서 실제 담당을 변경. 승인 가능한 교사인지 검사. 자동 시수/비용 정산 규칙을 임의 만들지 않음 |
+| 결강/휴강 | 예정 변경과 실제 미실시를 구분. 사유 분류·보강 필요·대체 활동을 기록 |
+| 보강 | 어떤 미실시 수업을 보충하는지 replaces_lesson_id와 원장 관계로 고정. 이미 충당된 부족분 중복 보강 금지 |
+| 장기 변경 | 특정 날짜 이후 새 주간 기본표로 처리. 날짜별 교환을 매주 반복 저장하지 않음 |
+| 실시 정정 | 새 lesson_executions revision와 필요한 cover_ledger 보상행을 작성. 이전 실시 사실과 학생 기록을 삭제하지 않음 |
+
+예정 시수·실제 시수·미실시·보강 필요·충당 완료를 분리해서 보여 준다. 시간이 지났다는 이유로 수업을 실시 완료로 바꾸지 않는다. 누계는 승인된 실시판과 계산식판에서 코드로 계산한다. 일시 교환으로 같은 수업을 서로 다른 ID로 중복 실시 처리하지 않는다.
+
+## 8. 원자성·권한·동시 변경
+
+공통 명령 계약의 현재 계정/학교/소속/정책 잠금과 멱등 선점 후, 관련 학교·학기 및 교사·학급·수업집단·학생·공간 자원키를 정렬해 동일 `lock_resources()` 규약으로 잠근다. 불가시간 등록·공간 예약·수강 관계 변경·기본표 배포·교환 반영도 이 규약을 사용한다. 아직 점유행이 없는 자원도 고정 자원키 잠금으로 경합시킨다.
+
+잠금 이후 최신값을 다시 읽고 다음을 확인한다: 모든 lesson 기대판, 당사자 활성 소속·승인 수업 담당, 정확한 후보/기준판의 동의, 필수 동의자 누락 없음, 담당 승인권한·자기승인 금지, 확정 불가시간·수강 중첩·학사일정·공간 용량, 효력일과 기한. 하나라도 다르면 전체 롤백한다. 여러 교사 중 일부 시간표만 바꾸는 부분 성공은 없다.
+
+표는 기존 복합 FK와 EXCLUDE/수용량 검증을 유지한다. 공유 공간은 개수만 세는 사전 검사로 끝내지 않고 동일 공간/시각 잠금 아래 합계를 검증한다. 적용 + 실시 관련 원장 변화 + audit + receipt + outbox는 같은 커밋이다. 알림 수신자는 실제 영향 대상에서 서버가 계산하며 불필요한 복무 상세 사유를 알림·메신저에 복제하지 않는다.
+
+동일 멱등키·같은 요청은 현재 조회권한 확인 후 기존 결과를 반환한다. 같은 키·다른 후보는 `IDEMPOTENCY_CONFLICT`다. 원자 반영 응답이 유실되어 재시도해도 두 번 이동·두 번 시수 계상하지 않는다. 서버 로그에는 학생 실명·사유 원문·AI 전체 대화를 무조건 남기지 않는다.
+
+## 9. DB 변경 범위와 관계
+
+정확한 열 목록·키·인덱스는 `timetable-extension.json`을 따른다. `columns.references`는 참조 위치이며 단일열 FK를 허용한다는 뜻이 아니다.
+
+| 변경 | 핵심 계약 |
+|---|---|
+| 신규 timetable_basis_revisions | id PK; (school_id,id,term_id) UNIQUE; 학기/확정자/이전판 복합 FK; revision_no·snapshot·source/전체 지문·기간·시간대·확정자. 불변판이며 일반 교사/AI 전체 조회 금지 |
+| 신규 timetable_basis_change_requests | id PK; 학교·학기·기준판·신청자·검토자·해결판 복합 FK; 제한된 제안·사유·상태·expected version. 원본 수정 권한을 부여하지 않음 |
+| terms | current_timetable_basis_id. 같은 school/term 판만 가리키며 기존 version으로 동시 확정 제어 |
+| constraint_sets / timetable_constraints | 정확한 basis판 연결·조건 스키마판·지원 여부 검증. 잠금 후 내용 불변 |
+| timetable_compositions | basis판·달력지문·adapter판·결과 종류. 기존 solver/job/seed/한도 활용 |
+| timetable_candidates | 수동 후보도 basis·조건판 고정, 검증상태·보고·validator판·고정항목·표시명. 기존 불변 placements/derived_from 활용 |
+| timetable_versions | basis판·달력지문 추가. 같은 학기 배포범위 중복·실시 보존·미래 변경 영향 검사 |
+| timetable_change_sets | supersedes, 유효기한, required_participants 지문, 승인정책판. 후보 변경은 새 ID, 기존 동의 재사용 금지 |
+| timetable_change_participants | 정확한 candidate/base와 required participant set에 응답 고정. 기존 response/role 재사용 |
+
+기존 26표의 기본키를 교체하지 않는다. `lesson_instances`, 실행판, 점유표, 보강원장은 새 중복 테이블을 만들지 않고 기존 원자성 계약을 보강한다. 표 삭제/이관 실행은 이 설계의 범위가 아니다. 설계 확정 후 SQL 작성자가 실제 CHECK/trigger/RLS와 공통 권한을 함께 구현하고 교차 검토해야 한다.
+
+기존 제약과 충돌하는 부분은 JSON `supersedes_constraints`에 정확한 이름을 적었다. `timetable_constraints_engine_support_check`는 partial을 unknown으로 재검증하는 지원상태 계약으로 대체하고 기본값도 unknown이다. 과거 supported도 엔진판 증거가 없으면 재검증한다. `timetable_change_sets_state_check`의 awaiting_peers는 awaiting_consent, awaiting_approval은 ready_for_approval로 매핑한다. 기존 reverted는 원장/역변경 연결을 확인해 applied와 reverts 관계로 보존하며, 근거가 없으면 수동 검토로 보류한다. `timetable_compositions_status_check`와 종료시각·한도·증명에 관한 보조 CHECK 5개의 변경은 4.2절의 전체 진리표를 따른다. 이는 미래 SQL의 명시 전환 요구이며 지금 기존 데이터나 제약을 변경하는 작업이 아니다.
+
+## 10. API와 명령 DTO
+
+공통 scope·idempotency_key·expected_version, 현재 JWT 해석, 오류·감사·outbox 규약은 05를 따른다. 아래는 API 기능군의 추가 세부명령이며 이 이름이 존재한다는 뜻은 아니다.
+
+| 기능군 | 구체화할 명령·입력 | 결과/원자 단위 |
+|---|---|---|
+| API-29 신규, M09/M15 | `cmd_timetable_basis_preview(scope,term_id)`; `cmd_timetable_basis_confirm(term_id,expected_term_version,preview_sha256,source_manifest_sha256)` | 확정 불변판+학기 포인터+접수증. 원본 바뀌면 재미리보기 |
+| API-29 | `cmd_timetable_basis_change_request(base_basis_revision_id,proposed_changes,reason)`; `cmd_timetable_basis_change_decide(request_id,expected_version,decision,preview_sha256)` | requested/검토결과. applied는 관리자 원본 변경+새 basis와 함께 확정 |
+| API-18 보강 | import preview/apply에 basis_revision_id, mapping_sha256, source_file_sha256; 조회에는 effective_date/범위/cursor | 매핑 완료한 후보만 생성. 가져오기 성공을 자동배포로 간주하지 않음 |
+| API-19 보강 | `cmd_save_timetable_conditions`, `cmd_lock_timetable_conditions`, 기존 start/validate/publish, `cmd_save_timetable_candidate`, `cmd_cancel_composition` | 조건 새판, 실행 ID, 충돌 초안, 불변 후보, 기간별 배포판 |
+| API-20 보강 | 기존 propose/respond/apply/revert/execution에 exact source versions·candidate/base/participants 지문·expires_at | 모든 동의자 확인 후 적용. 거절/취소/만료를 상태로 반환 |
+
+API-19 실행 요청 예시는 `{scope:{school_id,term_id}, basis_revision_id, constraint_set_id, base_candidate_id:null|id, input_sha256, expected_term_version, idempotency_key}`다. publish는 여기에 `candidate_id, placements_sha256, validation_sha256, effective_from, effective_to, impact_manifest_sha256`가 필요하다. 서버가 각 지문을 실물에서 다시 계산하며 클라이언트 해시끼리 맞는다는 이유로 검사하지 않는다.
+
+API-20 respond는 `{change_set_id,expected_version,candidate_sha256,base_snapshot_sha256,required_participants_sha256,response}`다. apply는 동일 지문과 모든 source expected_versions를 받고, 승인주체는 JWT로 결정한다. 클라이언트 approved=true를 승인 근거로 사용하지 않는다.
+
+읽기는 `timetable_basis_status / basis_change_requests / composition_status / candidate_diff / publish_impact / my_lessons / timetable_grid / change_candidates / consent_status / execution_ledger`로 분리한다. 교사 조회에 편성 원본 snapshot·개인 불가 사유를 싣지 않는다. 오류는 `BASIS_NOT_CONFIRMED, BASIS_SOURCE_CHANGED, BASIS_VERSION_CONFLICT, CONDITION_UNCONFIRMED, CONDITION_UNSUPPORTED, CANDIDATE_INVALID, CANDIDATE_STALE, SOLVER_UNRESOLVED, CONSENT_STALE, CONSENT_MISSING, CHANGE_EXPIRED, APPROVER_REQUIRED, SELF_APPROVAL_DENIED, RESOURCE_CONFLICT, EXECUTION_ALREADY_RECORDED`를 구별하고 안전한 다음 행동을 제공한다.
+
+## 11. 초·중·고 지원 범위와 검증
+
+DB로 표현할 수 있다는 사실과 자동편성 엔진이 지원한다는 사실은 다르다. `school_timetable_types`의 증거·판을 사용해 **가져오기/조회, 자동편성, 수동조정 검증, 날짜별 변경** 각각의 지원을 확인한다. 알려진 과거 엔진 한계를 현재 해결됐다고 추정하지 않는다. 2026-10-11 검토의 기준 커밋과 재개 시점 엔진의 차이를 다시 검증한다.
+
+| 학교 운영형 | 필수 시험 |
+|---|---|
+| 초등 | 학년별 다른 하루 교시, 담임 중심 수업+전담, 실제 비수업 칸, 쉬는 시간·블록 |
+| 중등 학급 중심 | 교과별 시수, 교사 중복, 특별실 용량, 고정수업, 업무 불가시간 |
+| 고교 선택·분반 | 행정학급과 실제 참여집단 분리, 동일 학생 수강 중첩, 합반·팀티칭, 참여기간 변경 |
+| 복수 캠퍼스/공동수업 | 이동시간·외부 교사 자원·학교 간 자료 경계. 미지원이면 명시 차단 |
+| 격주/특수 일과 | 회차·순환주·소수 시수·기간별 일과가 손실 없이 입력·출력·검증되는지 |
+
+지원되지 않는 자동편성은 명확히 보류한다. 외부에서 만든 표를 가져오는 대안도 해당 모델의 독립 검증기가 모든 필수 충돌을 검사할 때만 배포할 수 있다. AI를 끄거나 사람이 직접 배치했다는 이유로 검증 한계를 우회하지 않는다.
+
+## 12. 구현 티켓과 인수 기준
+
+`TT-T01 기준자료/권한 DTO → TT-T02 기준자료 불변판·수정요청 → TT-T03 조건·엔진 adapter → TT-T04 조정 작업대 → TT-T05 배포·공유 → TT-T06 교환·동의·승인 → TT-T07 실시·보강 → TT-T08 메신저/홈 연결·학교형 종단검증` 순서다. 실제 DB/시간표 구현 재개 승인 전에는 인터페이스·합성 fixture·설계 검토까지만 진행한다. SQL 확정·실행·메뉴 공개를 티켓 완료의 암묵적 권한으로 취급하지 않는다.
+
+각 티켓의 산출물과 인수시험은 JSON tickets/tests에 적었다. 핵심 인수는 관리자 자료를 담당자가 바꾸지 못함, 미지원 조건을 누락하지 않음, 충돌 초안은 저장하지만 배포 불가, 당사자 전원 최신판 동의, 자기승인 불가, 두 연결 경합에서 부분 반영 0건, 과거 실시/학생자료 보존, 신규 주간표가 미래 교환을 없애지 않음, AI 장애에서도 수동 운영 가능이다. 테스트 상태는 모두 `required_not_run_on_integrated_ddl`이며 이번 문서 검증을 운영 시험 통과로 표시하지 않는다.
+
+## 13. 판단해서 정한 기본값과 변경 위치
+
+| 기본값 | 이유 | 바꾸려면 |
+|---|---|---|
+| 관리자 기준자료 확정 후 담당자 편성 | 시수·공식 배정과 시간배치 권한을 분리 | 1·3절, API-29, 권한 계약을 함께 검토 |
+| 충돌 초안 저장 허용, 배포는 hard 충족 필수 | 조정 과정의 중간 상태를 잃지 않음 | 5·6절과 candidate publish 검증 변경 |
+| 교환은 모든 관련 교사 동의+담당 최종 승인 | 초기 운영의 책임·정합성을 명확히 함 | 학교별 승인정책 새판과 인수시험 필요 |
+| 담당자 자기 요청은 지정 대리 승인 | 단독 신청·승인으로 다른 교사 일정 변경 방지 | 공통 자기승인 정책과 7절을 함께 검토 |
+| 날짜별 변경과 주간 기본표 별도 | 이번 한 번과 매주 변경의 혼동 방지 | 6·7절의 원장 의미 변경은 DB 재검토 필요 |
+| 기본자료 신설은 2표로 제한 | 기존 26표를 재사용하고 중복 모델 방지 | JSON changes와 통합 계약 집계 동시 수정 |
+
+참고: `03-students-timetable.md` 7절, `05-api-site-contract.md` API-18~20, `Claude_시간표AI설계_인계요구사항.md`, `시간표알고리즘_검토보고서_2026-10-11.md`. 기존 엔진의 현재 구현 범위는 재개 시 실제 코드와 시험 결과를 기준으로 갱신한다.
+
+
+---
+
+<!-- SOURCE: 15-implementation-handoff.md -->
+
+# 메신저·양식 수합·시간표 구현 인계
+
+설계 보강 1.1 · 2026-10-13 · 사용자 요구 및 개선안 반영 · 실제 DB 구축/시간표 구현/문서 AI 구현 미실행
+
+## 1. 이번 요구의 효력과 정본
+
+사용자는 교사 DM·파일·AI 단체 발송, 담당자가 선택하는 파일 작성형/AI 문답형 수합, 관리자 기본자료 확정 뒤 담당자 편성 및 확정 후 교환을 명시했다. 이에 대한 개선안을 기획서와 DB 설계서에 반영하도록 요청했다. 이 요청은 설계 문서 변경의 근거이며 운영 SQL 실행, 로그인 변경, 메뉴 공개, Claude 비용/모델 설정 변경의 승인이 아니다.
+
+- 메신저: [12-messenger.md](12-messenger.md), API-25~26, MSG 시험·티켓.
+- 양식 기반 수합: [13-template-collection.md](13-template-collection.md), API-27~28 및 기존 API-08~10/16~17 보강, COL 시험·티켓.
+- 시간표: [14-timetable-operations.md](14-timetable-operations.md), API-29 및 기존 API-18~20 보강, TT 시험·티켓.
+- 공통: 01~07의 권한·명령·멱등·시도·파일·복구 원칙은 유지한다. 12~14의 명시적인 보강이 이전 축약 설명보다 우선한다. 보호된 양식/엔진/SQL은 이번 설계로 변경되지 않는다.
+- 각 `*-extension.json`은 추가/보강할 표, API, 시험, 티켓의 작성 원본이다. 생성된 카탈로그·사전·합본은 직접 수정하지 않는다. `implementation-backlog.json`은 세 영역 티켓을 합친 산출물이다.
+- 신규 화면의 실제 노출은 기존 `superadmin` 기본 규칙을 따른다. 모듈 번호 M00~M15는 유지하고 M05에 메신저를 포함한다. API-01~24의 번호를 바꾸지 않고 25~29를 추가한다.
+
+## 2. 교사의 한 작업이 여러 화면에 보이는 원리
+
+| 사용자 경험 | 상태의 원본 | 다른 화면에 표시할 내용 | 금지할 대체 동작 |
+|---|---|---|---|
+| 메시지 읽기 | 메신저 수신/읽음 기록 | 안 읽은 대화 수 | 수합 제출·교환 동의로 처리 |
+| 수합 작성 요청 | collections + collection_units | 홈·메신저에 같은 단위 링크 | 메시지마다 새로운 제출 의무 생성 |
+| 문답 작성 | unit_drafts와 확정 문항판 | 본인/공동작성자의 작성 중 상태 | 전체 AI 대화를 제출 본문으로 저장 |
+| 정식 제출 | submission_versions와 서버 접수증 | 홈·메신저 카드에 현재 처리 상태 | 생성/업로드/다운로드 성공을 제출로 취급 |
+| 교환 수락 | 정확한 교환안에 대한 participant 동의 | 동의 대기/담당자 승인 대기 | 상대 수락 즉시 일부 교사표 변경 |
+| 시간표 확정 | 배포판/날짜별 change set | 내·학급·교실 시간표와 변경 알림 | 알림 성공 여부로 시간표 반영 판단 |
+
+업무 카드의 제목·상태·행동 버튼은 표시 시 원본의 현재 권한을 검사해 조회한다. 메시지 본문에 과거 권한의 제출 내용이나 학생·출장 사유를 복제하지 않는다. 원본이 닫혔거나 변경되면 카드가 현재 상태와 가능한 다음 행동을 표시한다. 같은 사건의 홈/알림/대화 노출은 읽음 위치가 달라도 업무 원본을 중복 생성하지 않는다.
+
+## 3. 화면과 접근성 기준
+
+홈에는 답변·제출·승인·오늘 변경처럼 행동이 필요한 항목을 우선 보여 준다. 모든 대화와 처리 이력을 홈에 펼쳐 놓지 않는다. 모바일은 알림/업무 카드에서 작성 화면으로 바로 이동하고 뒤로 가면 기존 필터·스크롤·미작성 내용을 보존한다.
+
+AI 입력과 직접 입력은 같은 문항/명령 계약을 사용한다. AI가 중단되어도 메시지 작성·파일 제출·조건 편집·교환 동의가 가능해야 한다. 상태를 색만으로 구분하지 않는다. 파일 작업 진행/실패, 서버 저장/접수 여부를 보조기기로 읽을 수 있게 하고 중복 클릭을 막되 조회·취소 안내는 유지한다. 대화의 새 메시지 때문에 사용자가 읽던 위치를 강제로 이동하지 않는다.
+
+각 화면은 초기 로딩, 빈 결과, 권한 없음, 정책 미설정, 일부 실패, 버전 충돌, 오프라인, 완료를 구별한다. 네트워크가 끊긴 화면에서 발송/제출/승인 완료라고 표시하지 않는다. 미확정 입력을 보존하되 민감한 원문을 브라우저 영구 저장소에 자동 저장하지 않는다.
+
+## 4. 공통 API 통합 계약
+
+인증된 서버가 현재 계정·학교·membership을 해석한다. 클라이언트가 보낸 작성자/역할 값을 권한으로 신뢰하지 않는다. 쓰기는 기존 05의 공통 봉투와 멱등 접수증을 사용한다. AI 도구 역시 같은 명령을 호출하고 자체 DB 쓰기 경로를 갖지 않는다.
+
+1. **준비:** 대상 ID·대상/원본판·본문 또는 변경 내용·파일 지문·정책판을 고정한 구체안을 만든다.
+2. **사람 확인:** 화면에는 이름/업무/적용 날짜와 영향 범위, 확인할 차이를 표시한다. 일반 직접 입력은 해당 화면의 발송·제출·확정 동작이 확인이며 불필요한 추가 팝업을 반복하지 않는다.
+3. **확정:** 현재 권한·정확한 확인 대상·파일/원본 유효성·기대판을 재검사한다. 변경되면 안전한 차이와 재확인 경로를 반환한다. 서버 기록과 접수증·감사·outbox를 함께 확정한다.
+4. **후속 작업:** AI 호출·파일 생성·푸시는 별도 작업 상태다. 내부 확정 실패와 알림 지연을 분리한다. 결과 불명확 상태에서 외부 호출을 무조건 다시 하지 않는다.
+
+| 오류/상태 계열 | UI 처리 | 재시도 |
+|---|---|---|
+| 입력/문항 오류 | 해당 항목으로 이동, 입력 보존 | 수정 후 새 요청 |
+| 권한·소속 종료 | 원문 제거, 안전한 안내 | 자동 재시도 금지 |
+| 대상/양식/기본자료판 변경 | 변경 이유와 새 제안 비교 | 재확인 후 새 실행 |
+| 파일 생성 실패 | 답변 초안 유지, 실패 파일만 재생성 | 명시 재시도; 기존 제출 유지 |
+| 서버 접수 뒤 응답 유실 | 같은 키로 접수 조회 | 업무를 새로 만들지 않음 |
+| 알림 실패 | 업무는 완료, 알림만 지연 표시 | 알림 worker가 중복 제거 재시도 |
+| AI 실행 결과 불명확 | 처리 확인 중, 직접 업무 경로 제공 | 외부 결과 대조 후 재개 |
+
+오류 코드의 정확한 이름과 API별 요구 필드는 12~14에 따른다. 공통 계열에 매핑하되 서로 다른 의미의 상태를 단일 `done`으로 축약하지 않는다.
+
+## 5. 개발 순서와 보류 경계
+
+| 묶음 | 지금 준비 가능한 산출물 | 선행조건 | 실제 연결 재개 후 완료 기준 |
+|---|---|---|---|
+| P0 계약 고정 | 상세 명세·정형 카탈로그·API 예시·시험 목록·합성 fixture | 이번 설계 검토 | 파일·문서·표·API·티켓 추적 일치 |
+| P1 공통 화면/어댑터 | 메신저 목록·수합 마법사·상태/오류·읽기 DTO mock | P0, 현재 셸/권한 인터페이스 | AI 없이 직접 입력·재시도·접수 조회 |
+| P2 메신저 | DM·개별 일괄 발송·첨부·업무 카드, 그룹 흐름 | 승인된 학교/소속·파일·명령/알림 기반 | MSG의 권한·중복발송·부분실패 시험 |
+| P3 파일 수합 | 양식/대상/마감 설정→파일 제출→검토→완료본 ZIP | 기존 수합 계약, 파일 안전 정책 | COL 기본 제출/공동단위/보완/출력 |
+| P4 양식·AI 문답 | 분석→질문/매핑 확인→문답/직접 입력→정확한 파일 | P3, 지원 양식/출력 검증·Claude 실행 정책 | COL 분석 실패/판 변경/확인/생성 경합 |
+| P5 시간표 기준/편성 | 관리자 자료 확정→조건→후보/수동조정→배포 | 별도 시간표 구현 재개, 지원 학교 유형 표본 | TT 기준자료/조건/불가능/배포 충돌 |
+| P6 일상 변경 | 요청→모든 관계자 동의→담당 승인→일괄 적용 | P5, 일정 불가시간/공간 공통 검사 | TT 경합·취소·재동의·실시/보강 기록 |
+| P7 종단 검증 | 학교 간 격리·모바일·접근성·장애/복구·부하 | 각 기능 연결 | 아래 수용 여정과 기존 회귀 전부 |
+
+이 표는 착수 순서이며 현재 모든 단계의 실행 지시가 아니다. 이번 요청에서는 P0 문서 작업만 수행한다. DB 실제 구축은 보류한다. 시간표 및 문서 AI 실제 구현도 기존 보류를 이번 설계 문서 작성으로 자동 해제하지 않는다. 초기 시범 배포에서 제외한 기능을 새 메뉴로 노출하지 않는다.
+
+## 6. 종단 수용 여정
+
+- **E2E-MC01:** 수합 담당자가 양식을 올려 문항/매핑/표본 확인 → 교과별 공동 단위에 배포 → 교사가 메신저 카드에서 문답 작성 → 공동 작성자가 일부 편집 → 책임자가 최신 완성본 확인·제출 → 담당자가 보완 요청 → 재제출 검토 → 완료본 ZIP/현황표. 읽음/생성/접수/검토 상태가 서로 덮이지 않는다.
+- **E2E-MC02:** 담당자가 미제출자에게 재안내 준비 → 그중 한 명이 정식 제출 → 발송 전 최신 대상 재확인. 대상 목록 변경은 무단 추가하지 않고 차이 표시·새 확인; 같은 확인 재시도는 한 번만 발송.
+- **E2E-TT01:** 관리자 기준자료 v1 확정 → 담당자 조건 입력·후보 A 수동 고정 → 관리자 교사 배정 v2 확정 → A를 오래된 자료 사용으로 표시 → 차이 확인 후 재계산/검사 → 적용 시작일 배포.
+- **E2E-TT02:** 교환안 선택 → 관계자 동의 → 다른 요청이 같은 교사·교실 점유를 먼저 확정 → 기존 교환안 최종 확정 거부 → 영향 재제안·필요한 재동의. 한쪽 시간표만 변경되거나 승인된 옛안을 그대로 재사용하지 않는다.
+- **E2E-ACL01:** 학교 A 자료/대화/수합 파일을 열어 둔 채 학교 B로 전환하거나 소속 종료 → 과거 링크·서명 URL·AI 도구·캐시·ZIP·worker 결과에서도 원문 노출 차단. 새 학교 소속이 옛 학교 권한을 부활시키지 않는다.
+- **E2E-FAIL01:** 서버 저장 성공 직후 응답 유실/브라우저 재시작 → 동일 요청 접수 확인 → 메시지·제출·교환 각각 1회 반영. 알림 실패 시 실제 업무 상태 유지.
+
+이는 정의한 수용시험이며 실행 통과 결과가 아니다. 합성 자료에서 동작을 검증하고 운영 데이터로 이동하기 전에 기존 로그인·회원 보존, 각 학교 권한, 파일 실물 복구까지 별도 확인한다.
+
+## 7. 정책 미정 항목과 담당
+
+| 항목 | 설계 기본 처리 | 실제 적용 전 필요한 입력 |
+|---|---|---|
+| 메신저/첨부 보존·파기 | 임의 영구 보관/자동 삭제 기간 미지정 | 승인된 공통/학교 정책과 근거 |
+| 첨부 크기·형식·일괄 발송 한도 | 정책판으로 읽기, 미설정이면 제한 사유 표시 | 실제 Storage/검사/용량 검증값 |
+| 지원 양식 | 실제 표본 출력 검증된 범위만 자동 원형 작성 | 양식 소유자 확인·대표/최대/반복표 표본 |
+| Claude 모델/한도/비용 | 기존 승인 정책 참조, 문서가 새 값을 정하지 않음 | 별도 비용 승인 및 설정 |
+| 시간표 교환 승인 | 최초 운영은 담당자 최종 승인 | 담당·대리 지정 및 학교 운영 정책 |
+| 초중고 지원 | 구조 지원과 엔진 검증 완료를 분리 표시 | 학교급별 실제 제약 표본/수강 관계 검증 |
+
+Claude Web은 문서 분석/양식 매핑·확정 SQL 설계를, 구현 담당 AI는 맡은 브랜치의 화면·API·검증을 담당한다. 한 티켓의 구현 소유자는 한 AI로 정하고 상대가 검토한다. 특정 AI에게 이 문서만으로 실행 작업을 배정하거나 메시지를 전송하지 않았다. SQL 실행·운영 설정·main 병합은 기존 사용자 절차를 따른다.
+
+## 8. PR과 되돌림
+
+설계 PR은 앱 소스·migrations·보호 양식·인증 코드를 포함하지 않는다. 변경은 기획서·도메인 계약·정형 확장·생성기·산출물 검증으로 한정한다. PR 검토 시 12~15와 extension JSON을 먼저 읽고 생성된 합본/카탈로그는 대조용으로 사용한다.
+
+되돌림은 설계 PR의 이전 판으로 문서와 생성 원본을 함께 복구하고 산출물을 재생성한다. 실제 DB를 건드리지 않았으므로 이 문서 변경을 되돌리는 데 운영 데이터 복원은 필요하지 않다. 향후 SQL 적용 이후의 되돌림은 07의 별도 이관·복구 절차를 따른다.
+
+
 ---
 
 <!-- SOURCE: 08-coverage.md -->
 
 # 사이트 청사진과 통합 DB 대응표
 
-정확한 대상은 최종 업무혁신시스템 기획서의 M00~M15와 API-01~24다. 연결됨은 설계의 추적 가능성을 뜻하며 기능 구현 완료가 아니다.
+정확한 대상은 최종 업무혁신시스템 기획서 1.1의 M00~M15와 API-01~29다. 연결됨은 설계의 추적 가능성을 뜻하며 기능 구현 완료가 아니다.
 
 | 모듈 | 화면 | 주요 원본 | API | 보장할 규칙 |
 |---|---|---|---|---|
@@ -1823,18 +3737,18 @@ restore_runs는 해당 recovery_set FK, 격리 환경, 외부 전송 차단, 복
 | M01 프로필·업무분장·인계 | 업무/내 담당 | duties, assignments, profile_claims, handovers | API-03, API-04 | 신고는 권한이 아니며 의무 ID는 인계 때 유지 |
 | M02 일정·학사·시트 전환 | 일정 월/주/목록 | events, event_revisions, calendar_days, source_connections | API-05, API-06 | 원본 하나, 공식 확정과 공유 등록 분리 |
 | M03 오늘·개인 업무·협조 | 오늘/개인 할 일 | tasks, cooperation_requests, membership_home_layouts | API-07 | 홈은 권한 있는 원본 조합, 의무를 수동 체크로 완료하지 않음 |
-| M04 수합 | 업무/받은·보낸 수합 | collections, collection_schemas, collection_units, submission_versions | API-08, API-09, API-10 | 안내 공개와 완료본 공개 분리, 문항판·접수판 불변 |
-| M05 전달·알림·문의 | 알림함/전달사항/문의 | notices, notice_receipts, notifications, feedback | API-11 | 읽음·확인·완료를 구분 |
+| M04 수합 | 양식 분석/방식·질문 확인/받은·보낸 수합/문답·직접 입력/완료본 | collections, collection_schemas, collection_units, submission_versions, collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, file_objects, document_packs, document_revisions, document_validations, jobs, ai_runs, collection_fields, unit_drafts, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations, documents, file_links | API-08, API-09, API-10, API-27, API-28 | 안내 공개와 완료본 공개 분리, 문항판·접수판 불변; 양식·질문·답변·파일·최종확인의 정확한 판 연결 |
+| M05 메신저·전달·알림·문의 | 교사 대화/개별·단체 발송/알림함/전달사항/문의 | notices, notice_receipts, notifications, feedback, messenger_threads, messenger_participants, messenger_messages, messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files, tool_proposals, tool_runs, idempotency_receipts, outbox | API-11, API-25, API-26 | AI 대화와 교사 대화 분리, 발송 확인·현재 참가 권한, 읽음·제출·동의·확정 구분 |
 | M06 학교 지식 | 문서·학교 자료/규정 검색 | knowledge_documents, knowledge_revisions, knowledge_chunks | API-12, API-13 | 학교·시행일·확인판·정확 인용 |
-| M07 Claude 비서·기억 | 상주 AI/전문 화면 연결 | conversations, ai_runs, ai_run_sources, tool_proposals, memories | API-14, API-15 | 한 입구와 역할별 도구, 현재권한·명시확인 |
-| M08 문서·팩·파일함 | 내 초안/공용문서/양식 | documents, document_revisions, document_packs, file_objects | API-16, API-17 | AI 내용과 코드 서식/계산 분리, 파일지문마다 검사 |
-| M09 시간표 조회·편성 | 시간표/담당자 편성 | timetable_versions, timetable_compositions, timetable_candidates | API-18, API-19 | 최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지 |
+| M07 Claude 비서·기억 | 상주 AI/전문 화면 연결 | conversations, ai_runs, ai_run_sources, tool_proposals, memories, messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files, messenger_messages, tool_runs, idempotency_receipts, outbox | API-14, API-15, API-26 | 한 입구와 역할별 도구, 현재권한·명시확인 |
+| M08 문서·팩·파일함 | 내 초안/공용문서/양식 | documents, document_revisions, document_packs, file_objects, collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, document_validations, jobs, ai_runs, collection_schemas, collection_fields, unit_drafts, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations, file_links | API-16, API-17, API-27, API-28 | AI 내용과 코드 서식/계산 분리, 파일지문마다 검사 |
+| M09 시간표 조회·편성 | 관리자 기본자료/조건 설정/편성 작업대/확정 시간표 | timetable_versions, timetable_compositions, timetable_candidates, timetable_basis_revisions, timetable_basis_change_requests, terms, course_groups, course_group_teachers, academic_classes, assignments, bell_schedules, term_day_templates | API-18, API-19, API-29 | 최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지; 관리자 자료판·담당자 조건·초안과 배포 분리 |
 | M10 시간표 교체·실시 | 교체 요청/대강·보강 | timetable_change_sets, lesson_instances, lesson_executions, cover_ledger | API-20 | 동의·변경확정·실시·원장 분리, 구현 보류 |
 | M11 학생·수업·관찰 | 나의 수업/학생 | students, student_enrollments, observations, counselling_records | API-21, API-22 | 학적 기간과 불변 학생ID, 개인 관찰은 작성자 소유 |
 | M12 평가·생기부 초안 | 평가/문장별 근거 검토 | assessments, record_drafts, record_sentences, evidence_links | API-23 | 교사 확인 사실만 사용, 근거 바뀌면 출력 차단 |
 | M13 수업 사이트 연동 | 활동 받은함/디지털윤리 수업 | activity_instances, source_items, participant_mappings, adoptions | API-24 | 수동 CSV부터 자동 사건까지 같은 불변 원자료/채택 계약 |
 | M14 학년도 전환·연속성 | 관리/학년도·인계 | academic_years, terms, student_enrollments, handovers | API-03, API-04, API-21 | 새해에는 관계 새로, 학생ID·이력은 유지 |
-| M15 학교 운영·지원 | 관리/설정·작업·복구 | school_policies, policy_versions, jobs, support_sessions, restore_runs, legacy_access_gates | API-02, API-11 | 역할·정책·복구·옛 경로 폐쇄를 검증한 뒤 공개 |
+| M15 학교 운영·지원 | 관리/설정·작업·복구 | school_policies, policy_versions, jobs, support_sessions, restore_runs, legacy_access_gates, timetable_basis_revisions, timetable_basis_change_requests, terms, course_groups, course_group_teachers, academic_classes, assignments, bell_schedules, term_day_templates | API-02, API-11, API-29 | 역할·정책·복구·옛 경로 폐쇄를 검증한 뒤 공개 |
 
 ## 전체 표의 도메인 소유
 
@@ -1845,19 +3759,19 @@ restore_runs는 해당 recovery_set FK, 격리 환경, 외부 전송 차단, 복
 | 계정·학교·권한 | 23 | accounts, account_settings, schools, memberships, membership_roles, role_catalog, role_permissions, school_join_codes, departments, profile_claims, school_features, school_feature_pilots, service_features, service_switches, service_operators, operator_grants, service_principals, service_principal_scopes, policy_catalog, school_policies, policy_versions, support_sessions, membership_home_layouts |
 | 일정·시트 | 15 | events, event_revisions, calendar_days, calendar_day_grade_overrides, audience_sets, audience_groups, audience_conditions, audience_members, source_connections, source_connection_mappings, source_records, source_record_snapshots, import_runs, import_rows, import_row_candidates |
 | 업무·인계 | 8 | tasks, duties, assignments, duty_notes, cooperation_requests, handovers, handover_items, handover_acceptances |
-| 수합 | 16 | collections, collection_schemas, collection_fields, collection_reviewers, collection_units, collection_unit_members, collection_due_changes, unit_drafts, submission_versions, submission_files, submission_reviews, correction_requests, correction_windows, collection_correction_fulfillments, export_manifests, export_manifest_items |
+| 수합 | 23 | collections, collection_schemas, collection_fields, collection_reviewers, collection_units, collection_unit_members, collection_due_changes, unit_drafts, submission_versions, submission_files, submission_reviews, correction_requests, correction_windows, collection_correction_fulfillments, export_manifests, export_manifest_items, collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations |
 | 파일·문서 | 10 | file_objects, file_links, file_access_grants, documents, document_packs, document_revisions, document_inputs, document_actions, document_validations, document_revision_sources |
-| 전달·알림 | 9 | notices, notice_receipts, notifications, notification_kinds, notification_preferences, quiet_hours, push_subscriptions, feedback, feedback_events |
+| 메신저·전달·알림 | 15 | notices, notice_receipts, notifications, notification_kinds, notification_preferences, quiet_hours, push_subscriptions, feedback, feedback_events, messenger_threads, messenger_participants, messenger_dispatches, messenger_dispatch_targets, messenger_messages, messenger_dispatch_files |
 | 학교 지식 | 4 | knowledge_documents, knowledge_revisions, knowledge_chunks, knowledge_conflicts |
 | Claude·기억 | 9 | conversations, messages, ai_runs, ai_run_sources, ai_policy_versions, tool_proposals, tool_runs, memories, usage_events |
 | 학생·평가·생기부 | 24 | academic_years, terms, subjects, academic_classes, students, student_enrollments, course_memberships, observations, observation_revisions, counselling_records, counselling_revisions, rubrics, rubric_revisions, assessment_activities, assessments, assessment_revisions, record_rule_sets, record_drafts, record_draft_revisions, record_sentences, evidence_links, record_exports, record_correction_approvals, student_evidence_gates |
 | 수업 앱 연결 | 12 | activity_instances, classroom_imports, classroom_connections, classroom_event_receipts, source_items, source_item_revisions, participant_mappings, participant_mapping_revisions, inbox_items, adoptions, source_actions, impact_items |
-| 시간표 | 26 | spaces, bell_schedules, bell_periods, term_day_templates, course_groups, course_group_classes, course_group_teachers, constraint_sets, timetable_constraints, teacher_unavailability, timetable_compositions, timetable_candidates, timetable_versions, timetable_placements, timetable_version_impacts, lesson_instances, lesson_instance_teachers, space_reservations, resource_occupancy, timetable_change_sets, timetable_change_items, timetable_change_participants, lesson_executions, lesson_execution_teachers, cover_ledger, school_timetable_types |
+| 시간표 | 28 | spaces, bell_schedules, bell_periods, term_day_templates, course_groups, course_group_classes, course_group_teachers, constraint_sets, timetable_constraints, teacher_unavailability, timetable_compositions, timetable_candidates, timetable_versions, timetable_placements, timetable_version_impacts, lesson_instances, lesson_instance_teachers, space_reservations, resource_occupancy, timetable_change_sets, timetable_change_items, timetable_change_participants, lesson_executions, lesson_execution_teachers, cover_ledger, school_timetable_types, timetable_basis_revisions, timetable_basis_change_requests |
 | 작업·이관·복구 | 19 | jobs, job_attempts, job_external_calls, idempotency_receipts, audit_events, outbox, object_revisions, migration_runs, migration_items, migration_checks, data_write_authority, legacy_access_gates, retention_rules, retention_holds, resource_classes, deletion_ledger, restoration_ledger, recovery_sets, restore_runs |
 
 ## 검토 범위와 수치
 
-원본 160표 중 81표를 명시 보강하고 15표를 추가한 목표 175표, 2374열이다. 표 수 자체를 완성도 지표로 삼지 않는다. 신규 표는 정확한 정책/문항/채택 근거, 인계 수락, 외부 호출 경계 등 기존 반례를 닫거나 이미 기획된 기능의 최소 관계를 구현하기 위한 것이다.
+원본 160표 중 94표를 명시 보강하고 30표를 추가한 목표 190표, 2649열이다. 표 수 자체를 완성도 지표로 삼지 않는다. 신규 표는 정확한 정책/문항/채택 근거, 인계 수락, 외부 호출 경계 등 기존 반례를 닫거나 이미 기획된 기능의 최소 관계를 구현하기 위한 것이다.
 
 각 표의 최종 열은 09-table-dictionary.md, 기계 판독형 카탈로그는 schema-contract.json이다. 변경 JSON에 없는 원본 함수·정책도 통합 공통 계약을 따르도록 SQL 작성 단계에서 재검토한다.
 
@@ -1933,6 +3847,16 @@ restore_runs는 해당 recovery_set FK, 격리 환경, 외부 전송 차단, 복
 | V47 | 미채택 외부 답변·채택 후 원문 정정/철회 | 근거 사용 차단/허용 구별·관련 관찰/평가/초안 재검토 | R05, R06, IT13, IT15 |
 | V48 | 일부학생 원본 삭제·재수입·복구·이미 내보낸 문안 | 파일 실물 처리 범위 표시·삭제 부활 방지·외부 정정 안내 | IT15, IT24 |
 
+## 2026-10-13 보강 추적
+
+| 영역 | 추가 API | 상세 시험 | 구현 티켓 | 작성 원본 |
+|---|---|---|---|---|
+| 메신저·전달·알림 | API-25, API-26 | MSG01, MSG02, MSG03, MSG04, MSG05, MSG06, MSG07, MSG08, MSG09, MSG10, MSG11, MSG12, MSG13, MSG14 | MSG-T01, MSG-T02, MSG-T03, MSG-T04, MSG-T05 | messenger-extension.json |
+| 수합 | API-27, API-28 | COL01, COL02, COL03, COL04, COL05, COL06, COL07, COL08, COL09, COL10, COL11, COL12, COL13, COL14, COL15, COL16, COL17, COL18, COL19, COL20, COL21, COL22, COL23, COL24 | COL-T01, COL-T02, COL-T03, COL-T04, COL-T05, COL-T06, COL-T07, COL-T08 | collection-extension.json |
+| 시간표 | API-29 | TT01, TT02, TT03, TT04, TT05, TT06, TT07, TT08, TT09, TT10, TT11, TT12, TT13, TT14, TT15, TT16, TT17, TT18, TT19, TT20, TT21, TT22, TT23, TT24, TT25 | TT-T01, TT-T02, TT-T03, TT-T04, TT-T05, TT-T06, TT-T07, TT-T08 | timetable-extension.json |
+
+연결 여정은 15-implementation-handoff.md를 따른다. 기존 V01~V48의 원문 추적은 history의 v1.0 기획서이며 최신 보강은 extension JSON으로 추적한다. 운영 DB 시험은 미실행이다.
+
 
 ---
 
@@ -1966,11 +3890,70 @@ restore_runs는 해당 recovery_set FK, 격리 환경, 외부 전송 차단, 복
 설계 기준을 먼저 고정한 뒤 정책 값을 넣는 구조이므로 모든 화면 구현을 기다리게 하지 않는다. 합성 데이터로 입력·대기·정책미정·오류 화면을 구현하고, 운영 적용 전 해당 기능의 게이트만 통과시킨다.
 
 
+## 2026-10-13 사용자 요구 반영
+
+- 사용자 확정 방향: 교사 DM/파일/AI 단체 발송, 담당자가 고르는 파일형/문답형 수합, 관리자 자료→담당자 편성→확정 공유→교환 운영, 실제 DB 구축 보류.
+- 반영한 개선안: 발송 대상 미리보기·교사 완성본 확인, 질문+첨부 조합, 기본표와 날짜별 변경 구분, 관계자 동의 후 담당자 최종 승인, AI 장애 시 직접 입력.
+- 상세 구현 기준: 개인 대화/참가 episode, 양식·질문·답변·파일판, 기준자료·후보·배포·동의 지문. 변경 시 12~15와 extension JSON·API·시험을 함께 갱신한다.
+- 검토해야 할 운영 정책: 보존/파기 기한, 파일·발송 한도, 실제 지원 양식, 모델/비용 설정, 담당자 부재·본인 요청의 대리 승인자. 임의 수치를 정하거나 DECISIONS.md D번호를 신설하지 않았다.
+
+
 ---
 
 <!-- SOURCE: 11-review-and-verification.md -->
 
 # 통합 검토와 검증 결과
+
+2026-10-13 · 설계 v1.1 · 실제 DB 구축/문서 AI/시간표 구현 보류
+
+## 이번 보강의 범위
+
+사용자가 설명한 교사 메신저, 양식 업로드부터 시작하는 파일형/AI 문답형 수합, 관리자 기본자료→담당자 편성→확정 공유→일상 교환을 기존 기획서와 DB 설계에 반영했다. 앱 코드·SQL·인증·회원 데이터·외부 설정은 변경하지 않았다.
+
+- 새 상세 명세 12~15, 기존 제품 기획서 및 관련 도메인/API/이관 문서 보강.
+- 최종 목표 190표·2649열·29개 API 기능군. 기존 1.0보다 신규 15표이며 나머지는 기존 구조를 활용한다.
+- 이번 수용시험 63건을 추가 정의, 기존 포함 114건. 이는 실제 DB에서 실행하지 않은 시험 목록이다.
+- 상세 구현 티켓 21개에 선행·산출물·완료 기준을 정의했다.
+
+## 교차 검토에서 수정한 문제
+
+| 문제 | 반영 내용 |
+|---|---|
+| 미전송 대상의 선택 FK가 school_id NOT NULL 때문에 생성 불가 | MATCH SIMPLE와 선택 열 동시 NULL/존재 검사, 전달 완료 시 필수 검사 |
+| 다른 교사의 참가 episode를 수신 대상에 연결 가능 | 학교/방/참가/소속/계정을 함께 연결하는 키와 음성시험 |
+| 일반 참여자가 그룹을 나갈 권한이 불명확 | 본인 나가기와 관리자 참가 변경을 구분 |
+| 기존 업무 첨부를 메신저에 붙일 때 원부모 변경 위험 | 새 미연결 업로드만 1회 연결, 기존 업무 파일의 부모/intent/ACL 보존 |
+| 반복행 파일의 기존 PK/UNIQUE와 새 필드 종류 충돌 | 원본 제약·인덱스의 명시 대체, answer_path와 생성 출력 문항 유일성 검사 |
+| 오류 검증 결과를 생성 완료로 연결하거나 타 단위 문서를 재포장할 수 있음 | 필수 오류/미검사 0, 정확한 단위·답변·양식·매핑·문서판/실제 생성입력 연결 |
+| 시간표의 새 status/result_kind와 옛 CHECK 충돌 | 실행·결과·종료시각·한도·증명 진리표와 관련 CHECK 대체 |
+| 시간표 기준판 포인터와 기간 불일치, 부분기간 교체 뒤 잔여표 소실 | 학기 전체 기준 snapshot, 앞/신규/뒤 구간 보존과 원자 검증 |
+| 학교 필수조건 school_hard 누락 가능 | 내부 분류 유지, hard와 함께 필수 검사 |
+| 재생성 시 모듈 설명 누적·아직 없는 부모 FK 참조 | 생성기 멱등화, AI/시간표 후속 연결을 배치에 명시 |
+
+## 실제 실행한 검증
+
+| 검사 | 결과 | 확인한 범위 |
+|---|---|---|
+| validate-design.cjs | 오류 0, 경고 0 | 표/열 참조·모듈/API·신규 PK/정책/시험·티켓 의존/순환 |
+| check-delivery.cjs | 원본 18개·링크 61개 검사 통과 | 역사 지문·현행 기획서 사본·대체 제약/인덱스·문서 연결 |
+| check-overview.cjs | 실제 Chrome 통과 | 190표 검색·신규 3영역·6개 업무 흐름·키보드·1440/390 화면·외부 통신/오류 0 |
+| 저장소 npm test | 962건 통과 | 이번 설계 브랜치의 기존 코드 회귀. 별도 UI PR의 최신 테스트 수와 합산하지 않음 |
+
+설계 정적 검사와 실제 서비스 검증은 다르다. 통합 SQL 적재·RLS·동시성·Supabase Auth/Storage·Claude 실제 호출·양식 출력·시간표 알고리즘·복구/부하는 아직 이 통합 설계로 검증하지 않았다. 운영 가능 또는 100점이라고 판정하지 않는다.
+
+## 판단해서 정한 것과 되돌림
+
+- 메신저는 M05 확장, API는 기존 번호를 보존하고 25~29 추가: 기존 기능 추적을 유지하기 위해서다.
+- AI 대화와 교사 대화를 분리: 수신자·참여·읽음·공유 권한이 다르기 때문이다.
+- 원형 출력은 검증된 양식만 허용, 직접 입력/파일 경로 제공: 임의 양식을 완벽 편집한다고 약속하지 않기 위해서다.
+- 기본자료를 학기 전체 snapshot으로 고정하고 날짜별 실제 변경 분리: 과거 편성 재현과 적용 기간을 일관되게 관리하기 위해서다.
+- 실제 구축은 보류: 사용자의 명시 요청이다. 정책 수치·모델·비용·공개 범위는 임의 확정하지 않았다.
+
+되돌리려면 이 설계 PR의 기획서·extension JSON·기존 API 보강·생성기를 이전 판으로 함께 복구하고 합본/사전을 재생성한다. 운영 DB는 변경하지 않아 DB 복원 작업이 필요하지 않다.
+
+## 이전 v1.0 검토 기록
+
+아래 수치와 검증은 2026-10-12 당시 이력이다. 최신 결과는 위 1.1 표를 따른다.
 
 2026-10-12 · 설계 v1.0
 
@@ -2022,13 +4005,13 @@ restore_runs는 해당 recovery_set FK, 격리 환경, 외부 전송 차단, 복
 
 # Claude Web SQL 작성 인계서
 
-2026-10-12 · 목표: 업무혁신시스템 통합 DB 설계 v1.0을 검증 가능한 SQL로 전환
+2026-10-13 · 목표: 통합 DB 설계 v1.1의 후속 SQL 작성 기준. 실제 DB 구축은 보류
 
 ## 맡길 범위와 기준
 
 기존 Claude 최종 7개 파일은 좋은 출발점이지만 그대로 운영에 적용하지 않는다. 이 폴더의 통합 계약에 맞춰 DDL·권한·명령·시험을 함께 작성한다. SQL 확정본 작성은 Claude Web, 검토와 사이트 연결은 Codex, 실제 적용은 사용자라는 저장소 규칙을 유지한다. 이 인계서는 작업 지시 제안이며 Claude에게 메시지를 전송한 것은 아니다.
 
-정본 우선순위는 01~07의 동작 계약과 schema-contract.json의 mandatory_* → 통합 열 목록 → 충돌하지 않는 원본 관계다. 원본 정책/함수는 검토 근거이며 자동 승인 대상이 아니다. 특히 source_policies_not_target과 inherited_*는 최종 실행 코드가 아니다.
+정본 우선순위는 12~14의 명시 보강 + 01~07의 공통 동작 계약과 schema-contract.json의 mandatory_* → 통합 열 목록 → 충돌하지 않는 원본 관계다. 원본 정책/함수는 검토 근거이며 자동 승인 대상이 아니다. 특히 source_policies_not_target과 inherited_*는 최종 실행 코드가 아니다.
 
 SQL 작성 중 충돌을 발견하면 임의 선택으로 조용히 바꾸지 않는다. 충돌한 계약과 이유, 최소 수정안을 변경 목록으로 작성하고 관련 문서·정형 목록·수용 시험을 함께 맞춘다. 최종 SQL에서 열의 형식·NULL·생성식·FK·정책을 역추출하여 schema-contract.json과 비교하고 승인된 차이만 남긴다.
 
@@ -2039,14 +4022,14 @@ SQL 작성 중 충돌을 발견하면 임의 선택으로 조용히 바꾸지 �
 | Claude | 기존 160표의 구체적인 열·키와 업무 분해 | 실제 카탈로그를 추출해 열 이름을 보존하고 필요한 변경만 명시 |
 | Claude | 수합 단위, 시트 연계, 작업 시도, 이관·복원 표의 실행 가능한 출발점 | 권한·상태·원자성 계약을 통과하는 부분을 재사용 |
 | GPT | 계정과 학교 소속 기간, 소유와 담당의 구분 | 재임용·전근·다중 소속·개인 원문 접근 규칙을 분리 |
-| GPT | 교사의 전체 업무 여정과 화면/API 연결 | M00~M15, C01~C12, API01~24, V01~V48을 전부 추적 |
+| GPT | 교사의 전체 업무 여정과 화면/API 연결 | M00~M15, C01~C12, API01~29, V01~V48을 전부 추적 |
 | GPT | 근거판·정책판·멱등·권한 회수·동시성 검토 | R01~R12 반례와 통합 시험으로 SQL의 완료 조건을 명시 |
 | 통합 검토 | 공통 파일 입력, 선택형 FK, 감사 부트스트랩, 외부 응답 보관 경계 | 정상 경로도 막히지 않는지와 실패 경로 차단을 함께 시험 |
 
 ## 산출물 세트
 
 1. 배치별 DDL·인덱스·RLS·grant와 명령 SQL. 테이블만 만드는 배치를 ‘기능 완료’로 표시하지 않는다.
-2. 읽기 API 및 명령 입출력 JSON Schema. API-01~24는 기능군이므로 각 세부 RPC의 명칭·권한·오류·반환형을 확정한다.
+2. 읽기 API 및 명령 입출력 JSON Schema. API-01~29는 기능군이므로 각 세부 RPC의 명칭·권한·오류·반환형을 확정한다.
 3. 단일 연결 무결성/권한 시험, 실제 두 연결 경합 시험, worker 장애 시험을 분리한 실행기.
 4. 기존 회원 이관 dry-run, 차이 대조 보고서, 컷오버 절차, 실패 시 쓰기 권위 복구 절차.
 5. DB+Storage 실물 포함 복원 실습 결과, 부하 결과, 알려진 제한.
@@ -2091,3 +4074,11 @@ DDL의 물리 생성은 도메인 문서 순서와 다를 수 있다. 전체 표
 시험 결과에는 코드 commit, DB 버전, 적용한 SQL 지문, 테스트 ID, 역할/범위, 결과, 실제 오류 또는 응답, 경합 관측을 남긴다. fixture 실패·문법오류를 권한 차단 성공으로 판정하지 않는다. 실제 두 연결, Supabase JWT/Storage, 외부 호출 경계, 복원은 각각 그 환경에서 입증한다.
 
 통합 정본을 먼저 확정하고 SQL·API 계약을 연결하면 사이트 구현을 병렬로 진행할 수 있다. 다만 로그인/회원 보존·학교 경계·학생 근거·접수 원자성이 미검증인 상태에서는 ‘90% 완성’이라는 평균으로 공개를 허용하지 않는다.
+
+## 2026-10-13 설계 보강을 SQL로 옮길 때
+
+지금 SQL을 실행하라는 요청이 아니다. 재개 시 12~15, 세 extension JSON과 갱신된 API/시험/백로그를 기준으로 삼는다. AI conversations/messages는 교사 메신저로 전용하지 않는다. 신규 FK는 같은 학교·단위·판·소속을 검사하고, superseded_constraints로 표시한 옛 CHECK/PK/UNIQUE는 명시적으로 대체한다. 기존 baseline 함수·정책이 새 상태값을 계속 참조하지 않는지 역추출 비교한다.
+
+단계별 선행 관계는 07의 보강 배치 경계를 따른다. 아직 생성하지 않은 시간표 표를 메신저 FK로 미리 참조하지 않는다. 메신저의 시간표 카드 필드·FK는 시간표 스키마 재개 때 별도 배치로 추가하고 그전에는 해당 카드 API를 준비 상태로 둔다. 컬렉션의 AI 문답 판/출력 연결도 AI 및 작업 선행 표가 모두 존재하는 배치에서 함께 확정한다. 부모 없는 FK나 권한이 나중에 붙는 공개 테이블을 만들지 않는다.
+
+이번 카탈로그의 전체 목표와 최초 적용 배치는 다르다. 전체 목표를 줄이거나 임의 NULL/FK 삭제로 맞추지 않고, 배치별 target manifest와 허용 API를 명시해 카탈로그의 해당 단계와 대조한다. 운영 적용 여부는 사용자가 별도로 결정한다.

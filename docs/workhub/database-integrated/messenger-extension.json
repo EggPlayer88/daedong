@@ -1,0 +1,1174 @@
+{
+  "version": "1.1",
+  "domain": "communication",
+  "status": "design_only_no_db_execution",
+  "changes": [
+    {
+      "table": "workhub.messenger_threads",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 생성 식별자",
+          "immutable": true
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 학교 경계",
+          "references": "workhub.schools.id",
+          "immutable": true
+        },
+        {
+          "name": "kind",
+          "type": "text",
+          "nullable": false,
+          "description": "direct/group; 생성 후 불변",
+          "immutable": true
+        },
+        {
+          "name": "title",
+          "type": "text",
+          "nullable": true,
+          "description": "group 제목; direct는 NULL. 상대 이름은 현재 표시자료로 조립"
+        },
+        {
+          "name": "direct_low_membership_id",
+          "type": "text",
+          "nullable": true,
+          "description": "direct의 정렬상 작은 소속 ID",
+          "references": "workhub.memberships.id",
+          "immutable": true
+        },
+        {
+          "name": "direct_high_membership_id",
+          "type": "text",
+          "nullable": true,
+          "description": "direct의 정렬상 큰 소속 ID",
+          "references": "workhub.memberships.id",
+          "immutable": true
+        },
+        {
+          "name": "created_by_membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "방 생성 당시 소속",
+          "references": "workhub.memberships.id",
+          "immutable": true
+        },
+        {
+          "name": "created_by_account_id",
+          "type": "text",
+          "nullable": false,
+          "description": "방 생성 당시 계정",
+          "references": "workhub.accounts.id",
+          "immutable": true
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "active/archived; 보관은 삭제/권한회수가 아님"
+        },
+        {
+          "name": "participant_epoch",
+          "type": "bigint",
+          "nullable": false,
+          "description": "참여/탈퇴/역할변경마다 증가; 발송 확인 지문에 포함"
+        },
+        {
+          "name": "last_seq",
+          "type": "bigint",
+          "nullable": false,
+          "description": "0부터 시작. 이 방 마지막 커밋 메시지 순번; 순번 배정은 방 잠금 아래 실행"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "1부터 시작하는 낙관적 동시성 판"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 생성 시각"
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "서버 최신 활동 시각"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지",
+        "kind=direct iff 두 direct membership 존재 AND low<high; group이면 두 열 모두 NULL",
+        "UNIQUE(school_id,direct_low_membership_id,direct_high_membership_id) WHERE kind=direct",
+        "(school_id,direct_low_membership_id)/(school_id,direct_high_membership_id) FK memberships(school_id,id); 서로 다른 현재 소속, 계정도 서로 달라야 함",
+        "(school_id,created_by_membership_id,created_by_account_id) FK memberships(school_id,id,account_id)",
+        "last_seq>=0, participant_epoch>=1, version>=1; direct 방은 정확히 두 지정 소속만 참여 가능",
+        "group title은 공백제거 후 비어있지 않음; 직접 DM에는 title 없음. 길이 한도는 승인된 입력 규격에서 조회"
+      ],
+      "indexes": [
+        "(school_id,updated_at DESC,id)",
+        "(school_id,state,id)"
+      ],
+      "rules": [
+        "같은 학교 두 소속의 역순 동시 DM 생성은 UNIQUE와 멱등 명령으로 한 방으로 수렴한다.",
+        "전출 뒤 새 소속으로 돌아온 사용자는 새 membership이므로 옛 DM이 자동 재개되지 않는다.",
+        "group에서 현재 manager가 0명이 되는 변경은 현재 참여자에게 역할 인계하거나 방 archived 처리와 원자 결합한다. 학교 관리자 자동 manager 승격 금지.",
+        "나가기/멤버 추가/재입장은 participant_epoch 증가. 재입장은 새 참여 행과 새 visible_from_seq를 만든다."
+      ],
+      "read_policy": "현재 학교 소속이 활성이고 현재 참여 episode가 active인 사람만. 퇴직·탈퇴 시 목록/검색/본문/파일 즉시 차단. 관리자·플랫폼 자동 열람 불가.",
+      "tests": [
+        "MSG01",
+        "MSG02",
+        "MSG03",
+        "MSG04"
+      ]
+    },
+    {
+      "table": "workhub.messenger_participants",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 생성 식별자",
+          "immutable": true
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 학교 경계",
+          "references": "workhub.schools.id",
+          "immutable": true
+        },
+        {
+          "name": "thread_id",
+          "type": "text",
+          "nullable": false,
+          "description": "대화방",
+          "references": "workhub.messenger_threads.id",
+          "immutable": true
+        },
+        {
+          "name": "membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "참여 당시 고정 소속",
+          "references": "workhub.memberships.id",
+          "immutable": true
+        },
+        {
+          "name": "account_id",
+          "type": "text",
+          "nullable": false,
+          "description": "참여자 계정",
+          "references": "workhub.accounts.id",
+          "immutable": true
+        },
+        {
+          "name": "role",
+          "type": "text",
+          "nullable": false,
+          "description": "manager/member; direct는 member"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "active/left/removed; 종료 후 같은 행을 active로 되돌리지 않음"
+        },
+        {
+          "name": "visible_from_seq",
+          "type": "bigint",
+          "nullable": false,
+          "description": "참여 직후 볼 수 있는 첫 순번; 기본 last_seq+1",
+          "immutable": true
+        },
+        {
+          "name": "last_read_seq",
+          "type": "bigint",
+          "nullable": false,
+          "description": "실제 화면에 표시한 연속 읽음 경계; visible_from_seq-1 이상, 단조 증가"
+        },
+        {
+          "name": "joined_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "참여 시작"
+        },
+        {
+          "name": "ended_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "left/removed이면 필수"
+        },
+        {
+          "name": "ended_by_membership_id",
+          "type": "text",
+          "nullable": true,
+          "description": "자발적 나가기/제거 수행자; 소속 종료 worker는 NULL",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "1부터 시작하는 낙관적 동시성 판"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지",
+        "UNIQUE(school_id,thread_id,id)",
+        "(school_id,thread_id) FK messenger_threads(school_id,id)",
+        "(school_id,membership_id,account_id) FK memberships(school_id,id,account_id)",
+        "(school_id,ended_by_membership_id) FK memberships(school_id,id)",
+        "UNIQUE(thread_id,membership_id) WHERE state=active",
+        "state=active iff ended_at IS NULL; visible_from_seq>=1; last_read_seq>=visible_from_seq-1",
+        "동일 thread/membership episode 기간은 중첩 금지. 종료 시점은 joined_at 이상; 새 episode는 ended_at 뒤 생성",
+        "joined_at/visible_from_seq와 thread/member/account 정체성 불변; ended 상태에서 active로 역전 금지",
+        "UNIQUE(school_id,thread_id,id,membership_id,account_id)"
+      ],
+      "indexes": [
+        "(school_id,membership_id,thread_id) WHERE state=active",
+        "(school_id,thread_id,state,id)"
+      ],
+      "rules": [
+        "읽음 명령은 해당 episode의 접근 가능 메시지 순번만 허용하고 max(기존,입력)로 갱신한다.",
+        "페이지가 뒤에서 열리면 현재 화면 이전을 읽음으로 처리할지 UI에서 명시해 자동 과장하지 않는다. 미조회 앞부분이 있으면 연속 경계 이전까지만 갱신한다.",
+        "새 참여자/재입장자는 새 visible_from_seq 이후만 본다. 과거 파일/검색/인용/AI 문맥도 같은 경계 적용.",
+        "메시지를 읽어도 수합 제출/시간표 동의/공지 확인 상태는 바뀌지 않는다."
+      ],
+      "read_policy": "본인 episode와 현재 방의 최소 참여자 정보만. 다른 학교/관계없는 관리자 불가. 종료 참여자도 기존 메시지 발신 표시용 최소 탈퇴 표식만 반환.",
+      "tests": [
+        "MSG02",
+        "MSG03",
+        "MSG05",
+        "MSG14"
+      ]
+    },
+    {
+      "table": "workhub.messenger_dispatches",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 생성 식별자",
+          "immutable": true
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 학교 경계",
+          "references": "workhub.schools.id",
+          "immutable": true
+        },
+        {
+          "name": "sender_membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "발송 주체의 고정 소속",
+          "references": "workhub.memberships.id",
+          "immutable": true
+        },
+        {
+          "name": "sender_account_id",
+          "type": "text",
+          "nullable": false,
+          "description": "인증에서 파생한 발송 계정",
+          "references": "workhub.accounts.id",
+          "immutable": true
+        },
+        {
+          "name": "mode",
+          "type": "text",
+          "nullable": false,
+          "description": "direct/group/broadcast_direct; 수신자에게 서로 다른 의미",
+          "immutable": true
+        },
+        {
+          "name": "group_thread_id",
+          "type": "text",
+          "nullable": true,
+          "description": "group일 때만 대상 방",
+          "references": "workhub.messenger_threads.id",
+          "immutable": true
+        },
+        {
+          "name": "expected_participant_epoch",
+          "type": "bigint",
+          "nullable": true,
+          "description": "group 확인 당시 참여판"
+        },
+        {
+          "name": "body",
+          "type": "text",
+          "nullable": false,
+          "description": "정규화한 plain text 본문; 승인된 렌더러만 사용, HTML 실행 없음",
+          "immutable": true
+        },
+        {
+          "name": "content_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "본문·파일지문·업무카드·전달모드의 canonical SHA-256",
+          "immutable": true
+        },
+        {
+          "name": "confirmation_sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "content + 정확한 정렬 수신자 + 현재권한판 + 방참여판 + 정책판 + 만료의 지문",
+          "immutable": true
+        },
+        {
+          "name": "recipient_selector",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "직접 ID/부서/학년 등 명단 생성 조건. 실제 발송 대상은 targets 고정 집합",
+          "immutable": true
+        },
+        {
+          "name": "policy_bindings",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "적용 정책의 scope_key/id/version 및 명령 registry 판; 임의 실행문 불가",
+          "immutable": true
+        },
+        {
+          "name": "permission_context",
+          "type": "jsonb",
+          "nullable": false,
+          "description": "확인 당시 계정/학교/소속/역할 권한판. 실행 때 현재값과 비교",
+          "immutable": true
+        },
+        {
+          "name": "origin",
+          "type": "text",
+          "nullable": false,
+          "description": "manual/ai/workflow; AI도 교사가 발신자",
+          "immutable": true
+        },
+        {
+          "name": "tool_proposal_id",
+          "type": "text",
+          "nullable": true,
+          "description": "AI 확인 제안과의 1방향 연결; payload가 이 dispatch와 지문 참조",
+          "references": "workhub.tool_proposals.id",
+          "immutable": true
+        },
+        {
+          "name": "card_kind",
+          "type": "text",
+          "nullable": true,
+          "description": "collection/timetable_change; 없으면 다른 card 열도 NULL",
+          "immutable": true
+        },
+        {
+          "name": "collection_id",
+          "type": "text",
+          "nullable": true,
+          "description": "수합 안내 카드의 현재 원본",
+          "references": "workhub.collections.id",
+          "immutable": true
+        },
+        {
+          "name": "timetable_change_set_id",
+          "type": "text",
+          "nullable": true,
+          "description": "시간표 변경 카드의 현재 원본",
+          "references": "workhub.timetable_change_sets.id",
+          "immutable": true
+        },
+        {
+          "name": "card_version",
+          "type": "integer",
+          "nullable": true,
+          "description": "표시 제안 당시 원본 판; 행동 시 현재 원본 재검사",
+          "immutable": true
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "prepared/confirmed/sending/completed/partial/failed/cancelled/expired"
+        },
+        {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "확인 유효 시각; 구체 유효시간은 승인 정책"
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "교사가 정확한 지문을 확인한 서버 시각"
+        },
+        {
+          "name": "confirmed_by_membership_id",
+          "type": "text",
+          "nullable": true,
+          "description": "sender_membership_id와 같아야 함",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "target_count",
+          "type": "integer",
+          "nullable": false,
+          "description": "준비 시 고정 대상 수. 최소 1"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "1부터 시작하는 낙관적 동시성 판"
+        },
+        {
+          "name": "created_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "생성 시각"
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "모든 대상 최종결과가 있을 때"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지",
+        "(school_id,sender_membership_id,sender_account_id) FK memberships(school_id,id,account_id)",
+        "(school_id,group_thread_id) FK messenger_threads(school_id,id)",
+        "(school_id,collection_id) FK collections(school_id,id); (school_id,timetable_change_set_id) FK timetable_change_sets(school_id,id)",
+        "card_kind=collection이면 collection_id/card_version만 존재; timetable_change이면 timetable_change_set_id/card_version만 존재; 없음이면 전부 NULL",
+        "UNIQUE(school_id,id,sender_membership_id,sender_account_id)",
+        "group mode iff group_thread_id와 expected_participant_epoch 존재; direct는 target_count=1",
+        "tool_proposal_id는 동일 school·actor·origin membership의 tool_proposals이며 cmd_messenger_confirm 전용 tool registry; 일반 FK 외 명령 검증",
+        "confirmed_at/confirmed_by는 둘 다 NULL 또는 존재하고 confirmed_by=sender; confirmed 이후 상태에는 확인 필수",
+        "confirmed/completed 후 content/selector/정확한 대상/첨부/card/확인 맥락 불변; 수정은 새 dispatch",
+        "준비안은 trim(body) 비어있지 않음 OR 첨부 존재 OR 업무카드 존재; 실제 대상행 수=target_count, 학교/소속별 중복 없음",
+        "prepared 생성과 targets/files를 같은 transaction으로 생성하고 지연 무결성 검사. 정규화 본문/card/policy JSON은 서버 schema로 검증"
+      ],
+      "indexes": [
+        "(school_id,sender_membership_id,created_at DESC,id)",
+        "(school_id,state,created_at,id) WHERE state IN(prepared,confirmed,sending,partial)",
+        "(school_id,tool_proposal_id) WHERE tool_proposal_id IS NOT NULL"
+      ],
+      "rules": [
+        "본문은 이 불변 dispatch에 한 번만 보관하고 messenger_messages가 참조한다. 일반 수신자는 dispatch 직접 조회 불가, 메시지 DTO에서 본문만 받는다.",
+        "AI prepared만으로 전송하지 않는다. 확인 이후 target 고정. 명단 변화는 확인 전 STALE, 확인 후 새로운 교사를 자동 추가하지 않음.",
+        "confirmed 이후 권한 상실·소속 종료는 미전송 대상 blocked. 이미 전달된 사실은 지우지 않고 현재 메시지 열람권을 별도로 적용한다.",
+        "정정은 dispatch_targets.corrects_message_id가 가리키는 과거 본문을 덮어쓰지 않는 새 메시지. 원메시지 조회 시 정정 연결을 표시; 학교 일반관리자가 타인 메시지를 정정할 수 없음.",
+        "자동 workflow 알림은 기본 notifications로 처리. 사람 이름으로 DM을 자동 발송하지 않으며 반복 안내는 매번 현재 미제출/미동의 명단으로 새 확인안을 만든다."
+      ],
+      "read_policy": "발신자 본인 현재 origin membership만 준비안/전체 발송 결과를 조회. 수신자는 자기 messenger_messages 경로에서 본문과 본인 관련 카드만 받음. 관리자 일괄본문/수신명단 조회 금지.",
+      "tests": [
+        "MSG04",
+        "MSG06",
+        "MSG07",
+        "MSG08",
+        "MSG09",
+        "MSG10",
+        "MSG13"
+      ]
+    },
+    {
+      "table": "workhub.messenger_dispatch_targets",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 생성 식별자",
+          "immutable": true
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 학교 경계",
+          "references": "workhub.schools.id",
+          "immutable": true
+        },
+        {
+          "name": "dispatch_id",
+          "type": "text",
+          "nullable": false,
+          "description": "확인안",
+          "references": "workhub.messenger_dispatches.id",
+          "immutable": true
+        },
+        {
+          "name": "recipient_membership_id",
+          "type": "text",
+          "nullable": false,
+          "description": "고정 수신 소속",
+          "references": "workhub.memberships.id",
+          "immutable": true
+        },
+        {
+          "name": "recipient_account_id",
+          "type": "text",
+          "nullable": false,
+          "description": "고정 수신 계정",
+          "references": "workhub.accounts.id",
+          "immutable": true
+        },
+        {
+          "name": "recipient_participant_id",
+          "type": "text",
+          "nullable": true,
+          "description": "group의 정확한 참여 episode; direct는 전달 시 생성/선택",
+          "references": "workhub.messenger_participants.id"
+        },
+        {
+          "name": "result_thread_id",
+          "type": "text",
+          "nullable": true,
+          "description": "실제 생성/기존 DM 또는 고정 group 방",
+          "references": "workhub.messenger_threads.id"
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "pending/delivered/blocked/failed/cancelled; delivered는 DB 메시지 커밋"
+        },
+        {
+          "name": "safe_error_code",
+          "type": "text",
+          "nullable": true,
+          "description": "본문 없는 허용목록 실패 사유"
+        },
+        {
+          "name": "attempt_count",
+          "type": "integer",
+          "nullable": false,
+          "description": "내부 전달 시도 수; 재시도 정책에서 증가"
+        },
+        {
+          "name": "delivered_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "delivered일 때 서버 시각"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "1부터 시작하는 낙관적 동시성 판"
+        },
+        {
+          "name": "corrects_message_id",
+          "type": "text",
+          "nullable": true,
+          "references": "workhub.messenger_messages.id",
+          "immutable": true,
+          "description": "정정 발송 대상의 이전 메시지. prepared 시 고정하며 같은 학교·방·발신자 소유 검증"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지",
+        "(school_id,dispatch_id) FK messenger_dispatches(school_id,id)",
+        "(school_id,recipient_membership_id,recipient_account_id) FK memberships(school_id,id,account_id)",
+        "(school_id,result_thread_id,recipient_participant_id,recipient_membership_id,recipient_account_id) FK messenger_participants(school_id,thread_id,id,membership_id,account_id) MATCH SIMPLE",
+        "UNIQUE(dispatch_id,recipient_membership_id); 발신자 자신은 targets에 넣지 않음",
+        "delivered이면 result_thread/participant/delivered_at 필수이고 같은 dispatch/thread 메시지가 반드시 존재",
+        "sender/recipient 동일 계정 및 다른 학교 거부; recipient ID/account는 준비 후 불변",
+        "state delivered에서는 재시도/삭제/다른 thread 대입 금지; failed는 DB 효과 없음이 증명된 경우만",
+        "(school_id,corrects_message_id) FK messenger_messages(school_id,id); 정정대상은 현재 존재하는 이전 메시지이며 같은 발신자의 동일 결과방만 허용",
+        "CHECK((result_thread_id IS NULL) = (recipient_participant_id IS NULL)); delivered이면 두 선택열 모두 NOT NULL. 준비 단계는 두 선택열 모두 NULL 허용"
+      ],
+      "indexes": [
+        "(school_id,dispatch_id,state,id)",
+        "(school_id,recipient_membership_id,dispatch_id)",
+        "(school_id,corrects_message_id) WHERE corrects_message_id IS NOT NULL"
+      ],
+      "rules": [
+        "단체 개별발송은 대상별 독립 transaction: DM 확보+message 1개+target delivered+receipt/audit/outbox 원자.",
+        "group는 동결한 현재 참여집합 전체와 메시지 1개를 같은 transaction으로 처리한다. 그룹 전달 중 부분 성공은 허용하지 않음.",
+        "부서/학년 조건은 준비 시 대상 스냅숏; 실행은 현재 소속·접근검사를 다시 하며 selector를 재해석해 다른 사람에게 보내지 않는다.",
+        "성공행은 건너뛰고 실패행만 같은 dispatch/recipient 키로 재시도한다. blocked는 새 확인안을 만들기 전 자동 재시도하지 않는다.",
+        "수신자에게 타 수신자 목록·실패사유·단체발송 집계 반환 금지.",
+        "group 정정은 모든 targets가 같은 corrects_message_id를 갖거나 전부 NULL. 직접/개별발송 정정은 대상별 자기 DM의 원메시지만 참조한다. 정정 대상도 확인 지문에 포함한다.",
+        "같은 방의 다른 참여자 episode를 수신자 행에 연결할 수 없다. 복합 FK가 수신 소속·계정까지 묶으며 현재 active episode도 명령에서 재검사한다."
+      ],
+      "read_policy": "발신자는 전체 상태, 수신자는 본인 delivered 최소 접수만. 양쪽 모두 현재 해당 학교 origin 소속과 메시지 관계 확인.",
+      "tests": [
+        "MSG01",
+        "MSG04",
+        "MSG07",
+        "MSG08",
+        "MSG10",
+        "MSG11",
+        "MSG14"
+      ]
+    },
+    {
+      "table": "workhub.messenger_messages",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 생성 식별자",
+          "immutable": true
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 학교 경계",
+          "references": "workhub.schools.id",
+          "immutable": true
+        },
+        {
+          "name": "thread_id",
+          "type": "text",
+          "nullable": false,
+          "description": "실제 표시되는 방",
+          "references": "workhub.messenger_threads.id",
+          "immutable": true
+        },
+        {
+          "name": "dispatch_id",
+          "type": "text",
+          "nullable": false,
+          "description": "본문·파일·발신자의 불변 발송판",
+          "references": "workhub.messenger_dispatches.id",
+          "immutable": true
+        },
+        {
+          "name": "seq",
+          "type": "bigint",
+          "nullable": false,
+          "description": "방 잠금 아래 단조 증가 순번",
+          "immutable": true
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "nullable": false,
+          "description": "visible/withdrawn; 일반 수정으로 본문 대체 금지"
+        },
+        {
+          "name": "sent_at",
+          "type": "timestamptz",
+          "nullable": false,
+          "description": "DB 커밋에 대응하는 서버 기록시각"
+        },
+        {
+          "name": "withdrawn_at",
+          "type": "timestamptz",
+          "nullable": true,
+          "description": "회수 명령 시각"
+        },
+        {
+          "name": "withdrawn_by_membership_id",
+          "type": "text",
+          "nullable": true,
+          "description": "발신자 본인; 안전사건은 별도 승인 운영 경로",
+          "references": "workhub.memberships.id"
+        },
+        {
+          "name": "version",
+          "type": "integer",
+          "nullable": false,
+          "description": "1부터 시작하는 낙관적 동시성 판"
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지",
+        "(school_id,thread_id) FK messenger_threads(school_id,id); (school_id,dispatch_id) FK messenger_dispatches(school_id,id)",
+        "UNIQUE(thread_id,seq)",
+        "UNIQUE(dispatch_id,thread_id)",
+        "UNIQUE(school_id,id,dispatch_id)",
+        "seq>=1; visible이면 withdrawn 열 NULL; withdrawn이면 withdrawn_at 필수",
+        "dispatch sender가 방의 현재 참여자이며 group은 dispatch.group_thread_id와 같아야 함",
+        "direct/broadcast_direct는 그 DM 상대가 정확한 dispatch target이어야 함; sender/recipient 외 세 번째 참여 금지"
+      ],
+      "indexes": [
+        "(school_id,thread_id,seq DESC)",
+        "(school_id,dispatch_id,id)"
+      ],
+      "rules": [
+        "메시지 body 중복 열 없음. 읽기는 현재 participant episode의 seq범위+현재 소속+message visible 검사 후 dispatch 본문을 조립한다.",
+        "withdrawn은 대화에 회수 표식만 남기고 본문/첨부/검색/AI문맥을 막는다. 이미 상대가 읽거나 내려받은 파일까지 회수했다고 보장하지 않음.",
+        "회수와 read/download/AI 근거선택은 동일 메시지 gate로 직렬화한다. 캐시·색인 무효화는 후속이며 서버 읽기검사를 대체하지 않음.",
+        "정정은 새 dispatch_targets.corrects_message_id 참조이며 원본문을 덮어쓰지 않음. 메시지 직접삭제는 일반 API 없음."
+      ],
+      "read_policy": "현재 active origin membership + current active participant episode + seq>=visible_from_seq AND (발신자 또는 해당 dispatch 고정 수신자). withdrawn은 내용 없는 표식만.",
+      "tests": [
+        "MSG02",
+        "MSG03",
+        "MSG05",
+        "MSG08",
+        "MSG09",
+        "MSG10",
+        "MSG12"
+      ]
+    },
+    {
+      "table": "workhub.messenger_dispatch_files",
+      "action": "add",
+      "columns": [
+        {
+          "name": "id",
+          "type": "text",
+          "nullable": false,
+          "description": "서버 생성 식별자",
+          "immutable": true
+        },
+        {
+          "name": "school_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 학교 경계",
+          "references": "workhub.schools.id",
+          "immutable": true
+        },
+        {
+          "name": "dispatch_id",
+          "type": "text",
+          "nullable": false,
+          "description": "불변 발송판",
+          "references": "workhub.messenger_dispatches.id",
+          "immutable": true
+        },
+        {
+          "name": "file_object_id",
+          "type": "text",
+          "nullable": false,
+          "description": "같은 학교의 검증된 파일",
+          "references": "workhub.file_objects.id",
+          "immutable": true
+        },
+        {
+          "name": "sha256",
+          "type": "text",
+          "nullable": false,
+          "description": "준비 당시 실물 지문",
+          "immutable": true
+        },
+        {
+          "name": "size_bytes",
+          "type": "bigint",
+          "nullable": false,
+          "description": "검증된 실물 크기",
+          "immutable": true
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "nullable": false,
+          "description": "화면 표시용 정규화 파일명; 경로로 쓰지 않음",
+          "immutable": true
+        },
+        {
+          "name": "position",
+          "type": "integer",
+          "nullable": false,
+          "description": "본문 아래 표시 순서",
+          "immutable": true
+        }
+      ],
+      "constraints": [
+        "PRIMARY KEY(id)",
+        "UNIQUE(school_id,id)",
+        "school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지",
+        "(school_id,dispatch_id) FK messenger_dispatches(school_id,id); (school_id,file_object_id) FK file_objects(school_id,id)",
+        "UNIQUE(dispatch_id,file_object_id)",
+        "UNIQUE(dispatch_id,position)",
+        "size_bytes>=0; position>=0; sha256 64자리 hex",
+        "준비 시 안전검사/실물hash/학교/원본현재권한 일치. confirmed 이후 첨부 INSERT/UPDATE/DELETE 금지"
+      ],
+      "indexes": [
+        "(school_id,file_object_id,dispatch_id)"
+      ],
+      "rules": [
+        "새 파일은 기존 cmd_file_init으로 school 비공개 미연결 업로드를 예약하고 안전검사 후 prepare에 file ID/hash를 전달한다. 미연결 상태·업로드 주체·동일 학교를 확인한 새 업로드만 dispatch 생성+typed 첨부+intended_resource_type=messenger_dispatch/id 1회 bind를 원자 수행한다. 기존 업무 파일의 intended_resource_type/id·원부모·소유자는 변경하지 않고 typed 첨부 참조와 현재 원본 ACL을 유지한다.",
+        "기존 학교·개인 파일을 DM에 붙여 원본 ACL을 확대하지 않는다. 새 파일 업로드와 기존 업무자료 링크 공유를 구분한다.",
+        "이미 다른 원본에 속한 파일은 모든 수신자가 원본을 현재 읽을 수 있을 때만 현재 원본 ACL을 AND로 검사하는 링크로 제공; 권한이 다른 경우 업무카드/접근요청 안내.",
+        "다운로드는 messageId+fileId로 수행하고 message.dispatchId=이 행 dispatch를 서버 확인한다. 직접 dispatchId나 파일ID/Storage URL만으로 다운로드 불가.",
+        "파일 한도·형식·보존기간·URL 수명은 승인 정책값. 미정이면 해당 업로드/발송만 POLICY_UNSET, 임의 숫자 기본값 금지."
+      ],
+      "read_policy": "prepared는 현재 발신자만. delivered는 읽을 수 있는 정확한 message 부모 AND file 안전상태/실물일치/기존원본 현재 ACL. 관리자 우회 없음.",
+      "tests": [
+        "MSG04",
+        "MSG06",
+        "MSG09",
+        "MSG12",
+        "MSG14"
+      ]
+    },
+    {
+      "table": "workhub.ai_run_sources",
+      "action": "alter",
+      "columns": [
+        {
+          "name": "messenger_message_id",
+          "type": "text",
+          "nullable": true,
+          "description": "kind=messenger_message인 정확한 원본 메시지",
+          "references": "workhub.messenger_messages.id",
+          "immutable": true
+        },
+        {
+          "name": "messenger_dispatch_id",
+          "type": "text",
+          "nullable": true,
+          "description": "그 메시지가 참조하는 불변 본문판",
+          "references": "workhub.messenger_dispatches.id",
+          "immutable": true
+        },
+        {
+          "name": "messenger_message_version",
+          "type": "integer",
+          "nullable": true,
+          "description": "선택 당시 상태판; 현재 live version FK로 묶지 않고 변경 시 무효화",
+          "immutable": true
+        }
+      ],
+      "constraints": [
+        "kind=messenger_message 추가. 이 kind일 때 위 세 열 필수, 기존 다른 kind의 typed 출처 열은 NULL; 기존 kind에서는 위 열 모두 NULL",
+        "(school_id,messenger_message_id,messenger_dispatch_id) FK messenger_messages(school_id,id,dispatch_id)",
+        "school scope만 허용. source_sha256은 실제 선택 메시지/첨부·원문 locator의 지문, AI run origin membership으로 현재 메시지 read 재검사",
+        "기존 typed source CHECK를 단순 OR로 완화하지 않고 새 분기만 추가; 기존 FK/불변제약 보존"
+      ],
+      "indexes": [
+        "(school_id,messenger_message_id) WHERE messenger_message_id IS NOT NULL"
+      ],
+      "rules": [
+        "사용자가 명시 선택한 메시지/연속 범위 또는 해당 대화에서 허용한 요약만 AI에 제공. 학교 전체 메신저 자동 검색/지식색인 금지.",
+        "일반 대화검색은 AI 공급자 전송과 구분. AI source 선택 범위·출처·대상학교를 사용자에게 표시.",
+        "원본 회수·방 탈퇴·소속 종료·현재 참여범위 변경 시 AI 결과 출력/재사용 현재권한 검사 실패. 원본문/원문지문은 감사·outbox에 저장 금지.",
+        "메시지 속 명령은 자료다. 다른 교사가 써둔 명령으로 사용자 확인 없는 발송·학생자료 조회 불가."
+      ],
+      "read_policy": "기존 AI run 본인/origin 규칙 AND 현재 messenger message read. 학교 관리자·다른 대화 참가자는 이 AI run을 자동 열람하지 못한다.",
+      "tests": [
+        "MSG12",
+        "MSG13"
+      ]
+    }
+  ],
+  "apis": [
+    {
+      "id": "API-25",
+      "modules": [
+        "M05"
+      ],
+      "commands": [
+        "cmd_messenger_open_direct",
+        "cmd_messenger_create_group",
+        "cmd_messenger_update_participants",
+        "cmd_messenger_mark_read",
+        "cmd_messenger_withdraw_message"
+      ],
+      "reads": "messenger_inbox / messenger_thread_messages / messenger_participants / messenger_message_file / messenger_dispatch_status",
+      "tables": [
+        "messenger_threads",
+        "messenger_participants",
+        "messenger_messages",
+        "messenger_dispatches",
+        "messenger_dispatch_targets",
+        "messenger_dispatch_files"
+      ],
+      "authorization": "같은 학교 현재 활성 소속과 현재 참여 episode. 그룹 추가·제거·역할변경은 현재 manager; self leave는 일반 현재 참여자도 자기 episode만 종료 가능하며 마지막 manager는 인계/보관과 원자 처리. 타인 DM 관리자 열람 불가. 발신자 회수도 현재 원본소속 필요.",
+      "input": "school_id/origin_membership_id, resource ID, expected_version/participant_epoch, request_key; 목록은 불투명 cursor, 읽음은 through_seq",
+      "result": "접근 가능한 대화/메시지 DTO와 next_cursor; 전달됨/읽음/업무상태는 별도; 메시지본문 없는 상태 오류",
+      "tests": "MSG01~MSG05·MSG09~MSG12·MSG14: 격리/DM중복/재입장/읽음/회수/파일/경합/잘못된참여자FK",
+      "status": "target_contract_not_implemented"
+    },
+    {
+      "id": "API-26",
+      "modules": [
+        "M05",
+        "M07"
+      ],
+      "commands": [
+        "cmd_messenger_prepare",
+        "cmd_messenger_confirm",
+        "cmd_messenger_retry_failed",
+        "cmd_messenger_cancel_pending"
+      ],
+      "reads": "messenger_send_preview / messenger_dispatch_status",
+      "tables": [
+        "messenger_dispatches",
+        "messenger_dispatch_targets",
+        "messenger_dispatch_files",
+        "messenger_messages",
+        "tool_proposals",
+        "tool_runs",
+        "idempotency_receipts",
+        "outbox"
+      ],
+      "authorization": "현재 origin 소속의 발신자. AI 준비는 도구제안만, 확정은 같은 교사의 정확한 payload/수신자/파일 지문 확인. 명단·정책·권한·방참여판 최신 검증.",
+      "input": "mode/body/recipient_selector/정확한 files·card 참조; prepare의 dispatch_id+confirmation_sha256+expected_version+request_key로 confirm; retry는 고정 실패 대상 ID",
+      "result": "prepared이면 정확한 수신자/첨부/영향 미리보기; accepted이면 dispatch_id+진행상태, 완료로 오표시 금지; 수신자별 DB delivered/blocked/failed/cancelled와 알림전달 상태 구분",
+      "tests": "MSG04·MSG06~MSG08·MSG10·MSG11·MSG13: 미확인전송0/수신변경/부분실패/멱등/권한회수/AI주입",
+      "status": "target_contract_not_implemented"
+    }
+  ],
+  "tests": [
+    {
+      "id": "MSG01",
+      "severity": "높음",
+      "topic": "역순 동시 DM 생성",
+      "given": "같은 학교 동일 소속쌍 두 연결이 A→B/B→A 동시 생성; 다른 학교 동일 계정도 시도",
+      "expected": "해당 학교·소속쌍 방 1개, 참여자 정확히2명. 다른학교 거부",
+      "layer": "독립 DB 두 연결",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG02",
+      "severity": "높음",
+      "topic": "전출·겸임·재임용",
+      "given": "학교A 종료 후 B 전환; A에 새 membership 재가입; 옛 URL/파일/검색 조회",
+      "expected": "옛 membership DM/그룹/AI 근거 자동부활0; 겸임 학교별 독립",
+      "layer": "RLS+읽기API+Storage",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG03",
+      "severity": "높음",
+      "topic": "그룹 신규·재입장",
+      "given": "기존 메시지 뒤 멤버 추가, 나간 뒤 재초대; 과거 seq/file URL 접근",
+      "expected": "active episode visible_from_seq 이후만. 과거본문/파일/AI문맥0",
+      "layer": "DB+UI",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG04",
+      "severity": "높음",
+      "topic": "권한 경합",
+      "given": "발송 준비 뒤 수신자 전출·파일회수·학교스위치중지와 confirm/deliver 동시 실행",
+      "expected": "현재 gate에 따라 미전송 차단; 다른교사 자동치환0; 이미DB전달됨 사실 보존",
+      "layer": "독립 DB 두 연결",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG05",
+      "severity": "높음",
+      "topic": "읽음과 업무완료 분리",
+      "given": "메시지 열기·알림읽기·수합카드읽기·시간표카드읽기; 역순 읽음커서",
+      "expected": "읽음 경계 단조증가; 제출/동의/확정 상태 변경0",
+      "layer": "DB+UI",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG06",
+      "severity": "높음",
+      "topic": "확인 지문",
+      "given": "AI prepare 후 본문/파일/명단/방참여판/정책/registry/만료 변경",
+      "expected": "확인재요구, 과거지문으로 새 영향 전송0; 같은 확인 동시2회도1실행",
+      "layer": "명령+AI도구 대역",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG07",
+      "severity": "높음",
+      "topic": "개별 단체발송",
+      "given": "세 대상 중 한명 중간전출, 한명 DB commit 응답유실, 한명 정상",
+      "expected": "수신자 간 명단공개0; 성공2+blocked1 사실대로. 재시도 성공중복0",
+      "layer": "worker 장애주입",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG08",
+      "severity": "높음",
+      "topic": "그룹 전달 원자성",
+      "given": "여러 그룹참여자 target 갱신 중 중단; 동시에 참가자제거",
+      "expected": "메시지/전체대상/접수/outbox 전체커밋 또는0; stale 그룹 부분전달0",
+      "layer": "독립 DB 두 연결",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG09",
+      "severity": "높음",
+      "topic": "정정·회수·파기",
+      "given": "발신자 정정과 회수; 이미 파일 다운로드; 한 dispatch의 DM 일부회수",
+      "expected": "정정은 새메시지, 원문교체0; 회수내용 재조회0; 외부다운로드 회수완료 주장0; 다른정상DM 손실0",
+      "layer": "DB+파일+화면",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG10",
+      "severity": "높음",
+      "topic": "메시지와 알림 장애",
+      "given": "메시지 commit 직후 푸시 전송 실패·outbox 중복 소비",
+      "expected": "메시지1개 유지, 전달됨 유지; 푸시 재시도만. 읽음 조작0",
+      "layer": "outbox+화면",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG11",
+      "severity": "높음",
+      "topic": "목록과 모바일 복구",
+      "given": "큰 대화·순번중복시각·실시간단절·학교전환 중 지연응답·로딩실패",
+      "expected": "keyset 누락/중복0; seq 재동기화; 다른학교캐시비노출; 실패를0건으로표시0",
+      "layer": "API+브라우저+성능측정",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG12",
+      "severity": "높음",
+      "topic": "메시지·첨부·AI 출처 격리",
+      "given": "관리자 전체조회, 수신자 dispatch직접조회, 다른부모file혼합, 회수 중 AI출력",
+      "expected": "메타/본문 모두 계약범위만; 감사/로그/push/outbox 원문0; current ACL 실패시 AI출력 차단",
+      "layer": "RLS+Storage+AI대역",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG13",
+      "severity": "높음",
+      "topic": "AI 명령주입과 명단오해",
+      "given": "동명이인, 미확정 학년배정, 메시지에 비밀파일전송 지시, 미제출대상 재안내",
+      "expected": "모호한 대상을 임의선정0; 승인자료로명단계산; 콘텐츠지시를도구권한으로사용0; 매발송재확인",
+      "layer": "AI평가+명령",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    },
+    {
+      "id": "MSG14",
+      "severity": "높음",
+      "topic": "선택 FK·수신 episode·원파일 부모 보존",
+      "given": "준비 단계의 두 선택열 NULL, 한 열만 NULL, 같은 방 다른 참여자의 episode 연결, 기존 업무파일을 첨부하며 intent 변경, 일반 참여자의 자기나가기/타인제거를 각각 시도",
+      "expected": "두열NULL 준비만 허용; 부분NULL·다른수신episode 거부; 기존파일 부모/intent/ACL 불변; 일반회원 자기나가기만 허용",
+      "layer": "복합FK/파일명령/권한",
+      "contract": "12-messenger.md",
+      "status": "required_not_run_on_integrated_ddl"
+    }
+  ],
+  "tickets": [
+    {
+      "id": "MSG-T01",
+      "title": "대화방·학교격리·수신자 선택",
+      "depends_on": [],
+      "deliverables": [
+        "DM/그룹 읽기 DTO JSON Schema",
+        "현재소속쌍 유일성/episode 명령 계약",
+        "모바일 목록→대화→뒤로가기 시제품"
+      ],
+      "acceptance": [
+        "MSG01~MSG03 통과",
+        "관리자 전체본문 조회 경로 없음"
+      ],
+      "prerequisites": [
+        "공통 현재주체/권한 gate",
+        "학교 소속·업무배정 조회"
+      ]
+    },
+    {
+      "id": "MSG-T02",
+      "title": "기본 메시지와 읽음·정정·회수",
+      "depends_on": [
+        "MSG-T01"
+      ],
+      "deliverables": [
+        "멱등 발송·순번·keyset 목록",
+        "접속복구/읽음커서/전달표시",
+        "정정 새메시지와 회수 tombstone"
+      ],
+      "acceptance": [
+        "MSG05·MSG09·MSG10·MSG11 통과",
+        "화면 빈상태/로딩/실패/권한회수 구분"
+      ]
+    },
+    {
+      "id": "MSG-T03",
+      "title": "파일·업무카드 연결",
+      "depends_on": [
+        "MSG-T02"
+      ],
+      "deliverables": [
+        "메시지 부모를 요구하는 첨부 API",
+        "수합/시간표 카드 current read+전문명령 연결",
+        "현재 원본ACL 회수 전파"
+      ],
+      "acceptance": [
+        "MSG04·MSG09·MSG12 통과",
+        "읽음이 수합제출/시간표동의로 바뀌지 않음",
+        "MSG14: 선택 FK·수신 episode·파일 intent·자기나가기 음성시험 통과"
+      ],
+      "prerequisites": [
+        "공통 file_objects 안전검사·다운로드",
+        "수합/시간표 도메인 읽기 계약"
+      ]
+    },
+    {
+      "id": "MSG-T04",
+      "title": "AI 준비·확인과 개별 일괄발송",
+      "depends_on": [
+        "MSG-T02",
+        "MSG-T03"
+      ],
+      "deliverables": [
+        "정확한 수신자/첨부/영향 preview",
+        "부분실패 상태와 성공행 제외 재시도",
+        "선택 메시지 AI근거 typed 연결"
+      ],
+      "acceptance": [
+        "MSG06~MSG08·MSG13 통과",
+        "AI준비만으로메시지전송0",
+        "provider 비용값은 승인 설정을 사용"
+      ],
+      "prerequisites": [
+        "Claude 도구제안·확인·작업 계약"
+      ]
+    },
+    {
+      "id": "MSG-T05",
+      "title": "운영 공개 전 통합검증",
+      "depends_on": [
+        "MSG-T04"
+      ],
+      "deliverables": [
+        "실제 DB 독립두연결/RLS/Storage 시험 증거",
+        "실시간재연결·전출·모바일 검증",
+        "미정 정책값과 공개 승인 체크"
+      ],
+      "acceptance": [
+        "MSG01~MSG14 실제환경 통과",
+        "보존/첨부/알림정책 미정 기능은 공개 차단",
+        "신규 메뉴 공개는 기존 승인 절차"
+      ]
+    }
+  ]
+}

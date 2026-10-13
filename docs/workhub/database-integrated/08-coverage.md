@@ -1,6 +1,6 @@
 # 사이트 청사진과 통합 DB 대응표
 
-정확한 대상은 최종 업무혁신시스템 기획서의 M00~M15와 API-01~24다. 연결됨은 설계의 추적 가능성을 뜻하며 기능 구현 완료가 아니다.
+정확한 대상은 최종 업무혁신시스템 기획서 1.1의 M00~M15와 API-01~29다. 연결됨은 설계의 추적 가능성을 뜻하며 기능 구현 완료가 아니다.
 
 | 모듈 | 화면 | 주요 원본 | API | 보장할 규칙 |
 |---|---|---|---|---|
@@ -8,18 +8,18 @@
 | M01 프로필·업무분장·인계 | 업무/내 담당 | duties, assignments, profile_claims, handovers | API-03, API-04 | 신고는 권한이 아니며 의무 ID는 인계 때 유지 |
 | M02 일정·학사·시트 전환 | 일정 월/주/목록 | events, event_revisions, calendar_days, source_connections | API-05, API-06 | 원본 하나, 공식 확정과 공유 등록 분리 |
 | M03 오늘·개인 업무·협조 | 오늘/개인 할 일 | tasks, cooperation_requests, membership_home_layouts | API-07 | 홈은 권한 있는 원본 조합, 의무를 수동 체크로 완료하지 않음 |
-| M04 수합 | 업무/받은·보낸 수합 | collections, collection_schemas, collection_units, submission_versions | API-08, API-09, API-10 | 안내 공개와 완료본 공개 분리, 문항판·접수판 불변 |
-| M05 전달·알림·문의 | 알림함/전달사항/문의 | notices, notice_receipts, notifications, feedback | API-11 | 읽음·확인·완료를 구분 |
+| M04 수합 | 양식 분석/방식·질문 확인/받은·보낸 수합/문답·직접 입력/완료본 | collections, collection_schemas, collection_units, submission_versions, collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, file_objects, document_packs, document_revisions, document_validations, jobs, ai_runs, collection_fields, unit_drafts, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations, documents, file_links | API-08, API-09, API-10, API-27, API-28 | 안내 공개와 완료본 공개 분리, 문항판·접수판 불변; 양식·질문·답변·파일·최종확인의 정확한 판 연결 |
+| M05 메신저·전달·알림·문의 | 교사 대화/개별·단체 발송/알림함/전달사항/문의 | notices, notice_receipts, notifications, feedback, messenger_threads, messenger_participants, messenger_messages, messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files, tool_proposals, tool_runs, idempotency_receipts, outbox | API-11, API-25, API-26 | AI 대화와 교사 대화 분리, 발송 확인·현재 참가 권한, 읽음·제출·동의·확정 구분 |
 | M06 학교 지식 | 문서·학교 자료/규정 검색 | knowledge_documents, knowledge_revisions, knowledge_chunks | API-12, API-13 | 학교·시행일·확인판·정확 인용 |
-| M07 Claude 비서·기억 | 상주 AI/전문 화면 연결 | conversations, ai_runs, ai_run_sources, tool_proposals, memories | API-14, API-15 | 한 입구와 역할별 도구, 현재권한·명시확인 |
-| M08 문서·팩·파일함 | 내 초안/공용문서/양식 | documents, document_revisions, document_packs, file_objects | API-16, API-17 | AI 내용과 코드 서식/계산 분리, 파일지문마다 검사 |
-| M09 시간표 조회·편성 | 시간표/담당자 편성 | timetable_versions, timetable_compositions, timetable_candidates | API-18, API-19 | 최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지 |
+| M07 Claude 비서·기억 | 상주 AI/전문 화면 연결 | conversations, ai_runs, ai_run_sources, tool_proposals, memories, messenger_dispatches, messenger_dispatch_targets, messenger_dispatch_files, messenger_messages, tool_runs, idempotency_receipts, outbox | API-14, API-15, API-26 | 한 입구와 역할별 도구, 현재권한·명시확인 |
+| M08 문서·팩·파일함 | 내 초안/공용문서/양식 | documents, document_revisions, document_packs, file_objects, collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, document_validations, jobs, ai_runs, collection_schemas, collection_fields, unit_drafts, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations, file_links | API-16, API-17, API-27, API-28 | AI 내용과 코드 서식/계산 분리, 파일지문마다 검사 |
+| M09 시간표 조회·편성 | 관리자 기본자료/조건 설정/편성 작업대/확정 시간표 | timetable_versions, timetable_compositions, timetable_candidates, timetable_basis_revisions, timetable_basis_change_requests, terms, course_groups, course_group_teachers, academic_classes, assignments, bell_schedules, term_day_templates | API-18, API-19, API-29 | 최종 구조 포함, 알고리즘·실제 구현은 사용자 보류 유지; 관리자 자료판·담당자 조건·초안과 배포 분리 |
 | M10 시간표 교체·실시 | 교체 요청/대강·보강 | timetable_change_sets, lesson_instances, lesson_executions, cover_ledger | API-20 | 동의·변경확정·실시·원장 분리, 구현 보류 |
 | M11 학생·수업·관찰 | 나의 수업/학생 | students, student_enrollments, observations, counselling_records | API-21, API-22 | 학적 기간과 불변 학생ID, 개인 관찰은 작성자 소유 |
 | M12 평가·생기부 초안 | 평가/문장별 근거 검토 | assessments, record_drafts, record_sentences, evidence_links | API-23 | 교사 확인 사실만 사용, 근거 바뀌면 출력 차단 |
 | M13 수업 사이트 연동 | 활동 받은함/디지털윤리 수업 | activity_instances, source_items, participant_mappings, adoptions | API-24 | 수동 CSV부터 자동 사건까지 같은 불변 원자료/채택 계약 |
 | M14 학년도 전환·연속성 | 관리/학년도·인계 | academic_years, terms, student_enrollments, handovers | API-03, API-04, API-21 | 새해에는 관계 새로, 학생ID·이력은 유지 |
-| M15 학교 운영·지원 | 관리/설정·작업·복구 | school_policies, policy_versions, jobs, support_sessions, restore_runs, legacy_access_gates | API-02, API-11 | 역할·정책·복구·옛 경로 폐쇄를 검증한 뒤 공개 |
+| M15 학교 운영·지원 | 관리/설정·작업·복구 | school_policies, policy_versions, jobs, support_sessions, restore_runs, legacy_access_gates, timetable_basis_revisions, timetable_basis_change_requests, terms, course_groups, course_group_teachers, academic_classes, assignments, bell_schedules, term_day_templates | API-02, API-11, API-29 | 역할·정책·복구·옛 경로 폐쇄를 검증한 뒤 공개 |
 
 ## 전체 표의 도메인 소유
 
@@ -30,19 +30,19 @@
 | 계정·학교·권한 | 23 | accounts, account_settings, schools, memberships, membership_roles, role_catalog, role_permissions, school_join_codes, departments, profile_claims, school_features, school_feature_pilots, service_features, service_switches, service_operators, operator_grants, service_principals, service_principal_scopes, policy_catalog, school_policies, policy_versions, support_sessions, membership_home_layouts |
 | 일정·시트 | 15 | events, event_revisions, calendar_days, calendar_day_grade_overrides, audience_sets, audience_groups, audience_conditions, audience_members, source_connections, source_connection_mappings, source_records, source_record_snapshots, import_runs, import_rows, import_row_candidates |
 | 업무·인계 | 8 | tasks, duties, assignments, duty_notes, cooperation_requests, handovers, handover_items, handover_acceptances |
-| 수합 | 16 | collections, collection_schemas, collection_fields, collection_reviewers, collection_units, collection_unit_members, collection_due_changes, unit_drafts, submission_versions, submission_files, submission_reviews, correction_requests, correction_windows, collection_correction_fulfillments, export_manifests, export_manifest_items |
+| 수합 | 23 | collections, collection_schemas, collection_fields, collection_reviewers, collection_units, collection_unit_members, collection_due_changes, unit_drafts, submission_versions, submission_files, submission_reviews, correction_requests, correction_windows, collection_correction_fulfillments, export_manifests, export_manifest_items, collection_templates, collection_template_versions, collection_template_analyses, collection_template_mappings, collection_answer_snapshots, collection_output_artifacts, collection_output_confirmations |
 | 파일·문서 | 10 | file_objects, file_links, file_access_grants, documents, document_packs, document_revisions, document_inputs, document_actions, document_validations, document_revision_sources |
-| 전달·알림 | 9 | notices, notice_receipts, notifications, notification_kinds, notification_preferences, quiet_hours, push_subscriptions, feedback, feedback_events |
+| 메신저·전달·알림 | 15 | notices, notice_receipts, notifications, notification_kinds, notification_preferences, quiet_hours, push_subscriptions, feedback, feedback_events, messenger_threads, messenger_participants, messenger_dispatches, messenger_dispatch_targets, messenger_messages, messenger_dispatch_files |
 | 학교 지식 | 4 | knowledge_documents, knowledge_revisions, knowledge_chunks, knowledge_conflicts |
 | Claude·기억 | 9 | conversations, messages, ai_runs, ai_run_sources, ai_policy_versions, tool_proposals, tool_runs, memories, usage_events |
 | 학생·평가·생기부 | 24 | academic_years, terms, subjects, academic_classes, students, student_enrollments, course_memberships, observations, observation_revisions, counselling_records, counselling_revisions, rubrics, rubric_revisions, assessment_activities, assessments, assessment_revisions, record_rule_sets, record_drafts, record_draft_revisions, record_sentences, evidence_links, record_exports, record_correction_approvals, student_evidence_gates |
 | 수업 앱 연결 | 12 | activity_instances, classroom_imports, classroom_connections, classroom_event_receipts, source_items, source_item_revisions, participant_mappings, participant_mapping_revisions, inbox_items, adoptions, source_actions, impact_items |
-| 시간표 | 26 | spaces, bell_schedules, bell_periods, term_day_templates, course_groups, course_group_classes, course_group_teachers, constraint_sets, timetable_constraints, teacher_unavailability, timetable_compositions, timetable_candidates, timetable_versions, timetable_placements, timetable_version_impacts, lesson_instances, lesson_instance_teachers, space_reservations, resource_occupancy, timetable_change_sets, timetable_change_items, timetable_change_participants, lesson_executions, lesson_execution_teachers, cover_ledger, school_timetable_types |
+| 시간표 | 28 | spaces, bell_schedules, bell_periods, term_day_templates, course_groups, course_group_classes, course_group_teachers, constraint_sets, timetable_constraints, teacher_unavailability, timetable_compositions, timetable_candidates, timetable_versions, timetable_placements, timetable_version_impacts, lesson_instances, lesson_instance_teachers, space_reservations, resource_occupancy, timetable_change_sets, timetable_change_items, timetable_change_participants, lesson_executions, lesson_execution_teachers, cover_ledger, school_timetable_types, timetable_basis_revisions, timetable_basis_change_requests |
 | 작업·이관·복구 | 19 | jobs, job_attempts, job_external_calls, idempotency_receipts, audit_events, outbox, object_revisions, migration_runs, migration_items, migration_checks, data_write_authority, legacy_access_gates, retention_rules, retention_holds, resource_classes, deletion_ledger, restoration_ledger, recovery_sets, restore_runs |
 
 ## 검토 범위와 수치
 
-원본 160표 중 81표를 명시 보강하고 15표를 추가한 목표 175표, 2374열이다. 표 수 자체를 완성도 지표로 삼지 않는다. 신규 표는 정확한 정책/문항/채택 근거, 인계 수락, 외부 호출 경계 등 기존 반례를 닫거나 이미 기획된 기능의 최소 관계를 구현하기 위한 것이다.
+원본 160표 중 94표를 명시 보강하고 30표를 추가한 목표 190표, 2649열이다. 표 수 자체를 완성도 지표로 삼지 않는다. 신규 표는 정확한 정책/문항/채택 근거, 인계 수락, 외부 호출 경계 등 기존 반례를 닫거나 이미 기획된 기능의 최소 관계를 구현하기 위한 것이다.
 
 각 표의 최종 열은 09-table-dictionary.md, 기계 판독형 카탈로그는 schema-contract.json이다. 변경 JSON에 없는 원본 함수·정책도 통합 공통 계약을 따르도록 SQL 작성 단계에서 재검토한다.
 
@@ -117,3 +117,13 @@
 | V46 | 같은 활동/다른 활동 동일 파일·행 정렬·중복학생 | 범위별 중복 정확·확인형 연결·누락=삭제 아님 | IT14, IT15 |
 | V47 | 미채택 외부 답변·채택 후 원문 정정/철회 | 근거 사용 차단/허용 구별·관련 관찰/평가/초안 재검토 | R05, R06, IT13, IT15 |
 | V48 | 일부학생 원본 삭제·재수입·복구·이미 내보낸 문안 | 파일 실물 처리 범위 표시·삭제 부활 방지·외부 정정 안내 | IT15, IT24 |
+
+## 2026-10-13 보강 추적
+
+| 영역 | 추가 API | 상세 시험 | 구현 티켓 | 작성 원본 |
+|---|---|---|---|---|
+| 메신저·전달·알림 | API-25, API-26 | MSG01, MSG02, MSG03, MSG04, MSG05, MSG06, MSG07, MSG08, MSG09, MSG10, MSG11, MSG12, MSG13, MSG14 | MSG-T01, MSG-T02, MSG-T03, MSG-T04, MSG-T05 | messenger-extension.json |
+| 수합 | API-27, API-28 | COL01, COL02, COL03, COL04, COL05, COL06, COL07, COL08, COL09, COL10, COL11, COL12, COL13, COL14, COL15, COL16, COL17, COL18, COL19, COL20, COL21, COL22, COL23, COL24 | COL-T01, COL-T02, COL-T03, COL-T04, COL-T05, COL-T06, COL-T07, COL-T08 | collection-extension.json |
+| 시간표 | API-29 | TT01, TT02, TT03, TT04, TT05, TT06, TT07, TT08, TT09, TT10, TT11, TT12, TT13, TT14, TT15, TT16, TT17, TT18, TT19, TT20, TT21, TT22, TT23, TT24, TT25 | TT-T01, TT-T02, TT-T03, TT-T04, TT-T05, TT-T06, TT-T07, TT-T08 | timetable-extension.json |
+
+연결 여정은 15-implementation-handoff.md를 따른다. 기존 V01~V48의 원문 추적은 history의 v1.0 기획서이며 최신 보강은 extension JSON으로 추적한다. 운영 DB 시험은 미실행이다.

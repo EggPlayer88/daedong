@@ -6,3 +6,6 @@ source-baseline.json linguist-generated=true
 09-table-dictionary.md linguist-generated=true
 업무혁신시스템_통합DB설계서.md linguist-generated=true
 overview.html linguist-generated=true
+history/* -text -diff linguist-generated=true
+implementation-backlog.json linguist-generated=true
+*.png binary

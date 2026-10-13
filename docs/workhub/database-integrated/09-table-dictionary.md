@@ -1,8 +1,8 @@
 # 통합 테이블과 열 사전
 
-이 파일은 source-baseline.json의 실제 원본 열과 세 변경 목록을 합쳐 생성했다. 실행 SQL이 아니다. 단일 열의 참조 표시는 탐색용이며 실제 FK는 학교·부모·작성자·판을 포함한 복합 제약을 따른다. 원본 CHECK/정책/트리거를 무검토로 그대로 적용하면 안 된다.
+이 파일은 source-baseline.json의 실제 원본 열, 세 기본 변경 목록과 2026-10-13 확장 계약을 합쳐 생성했다. 실행 SQL이 아니다. 단일 열의 참조 표시는 탐색용이며 실제 FK는 학교·부모·작성자·판을 포함한 복합 제약을 따른다. 원본 CHECK/정책/트리거를 무검토로 그대로 적용하면 안 된다.
 
-추출 당시 원본은 160표다. 통합 목표는 175표와 2374열이다. NULL=허용은 항상 그 상태에서 생략 가능하다는 뜻이 아니며 상태별 필수 조건이 추가된다. 생성식은 SQL 확정 때 검증한다.
+추출 당시 원본은 160표다. 통합 목표는 190표와 2649열이다. NULL=허용은 항상 그 상태에서 생략 가능하다는 뜻이 아니며 상태별 필수 조건이 추가된다. 생성식은 SQL 확정 때 검증한다.
 
 ## workhub.academic_classes
 
@@ -259,7 +259,7 @@ Claude·기억 · 신규
 
 Claude·기억 · 신규
 
-열람: 실행 주인+현재 실행/원본 접근 모두 허용; 원문 복제 없음
+열람: 기존 AI run 본인/origin 규칙 AND 현재 messenger message read. 학교 관리자·다른 대화 참가자는 이 AI run을 자동 열람하지 못한다.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -290,6 +290,9 @@ Claude·기억 · 신규
 | invalidated_at | timestamptz | 허용 | — | 무효화 시각 | 통합 추가 |
 | invalid_reason | text | 허용 | — | 본문 없는 사유 코드 | 통합 추가 |
 | created_at | timestamptz | 불가 | now() | 근거 확정 시각 · 생성 후 불변 | 통합 추가 |
+| messenger_message_id | text | 허용 | — | workhub.messenger_messages.id · kind=messenger_message인 정확한 원본 메시지 · 생성 후 불변 | 통합 추가 |
+| messenger_dispatch_id | text | 허용 | — | workhub.messenger_dispatches.id · 그 메시지가 참조하는 불변 본문판 · 생성 후 불변 | 통합 추가 |
+| messenger_message_version | integer | 허용 | — | 선택 당시 상태판; 현재 live version FK로 묶지 않고 변경 시 무효화 · 생성 후 불변 | 통합 추가 |
 
 통합 필수 제약:
 
@@ -305,6 +308,10 @@ Claude·기억 · 신규
 - FK(school_id,owner_account_id,source_item_id,source_local_revision) REFERENCES workhub.source_item_revisions(school_id,created_by_account_id,source_item_id,local_revision)
 - 학생 kind이면 school_id/evidence_epoch NOT NULL; 모든 행의 school_id는 run.school_id와 IS NOT DISTINCT FROM
 - locator_sha256는 서버 정규화 locator 해시와 일치
+- kind=messenger_message 추가. 이 kind일 때 위 세 열 필수, 기존 다른 kind의 typed 출처 열은 NULL; 기존 kind에서는 위 열 모두 NULL
+- (school_id,messenger_message_id,messenger_dispatch_id) FK messenger_messages(school_id,id,dispatch_id)
+- school scope만 허용. source_sha256은 실제 선택 메시지/첨부·원문 locator의 지문, AI run origin membership으로 현재 메시지 read 재검사
+- 기존 typed source CHECK를 단순 OR로 완화하지 않고 새 분기만 추가; 기존 FK/불변제약 보존
 
 통합 동작 규칙:
 
@@ -312,10 +319,14 @@ Claude·기억 · 신규
 - 지식은 본교/common, 개인 실행은 common만
 - 원본 ACL/철회/판/해시 매회 재검사; 무효행 재활성화 금지
 - 같은 학교 재임용 새대화에서 과거 본인 학생 근거는 별도 접근정책 통과시만 허용
+- 사용자가 명시 선택한 메시지/연속 범위 또는 해당 대화에서 허용한 요약만 AI에 제공. 학교 전체 메신저 자동 검색/지식색인 금지.
+- 일반 대화검색은 AI 공급자 전송과 구분. AI source 선택 범위·출처·대상학교를 사용자에게 표시.
+- 원본 회수·방 탈퇴·소속 종료·현재 참여범위 변경 시 AI 결과 출력/재사용 현재권한 검사 실패. 원본문/원문지문은 감사·outbox에 저장 금지.
+- 메시지 속 명령은 자료다. 다른 교사가 써둔 명령으로 사용자 확인 없는 발송·학생자료 조회 불가.
 
-인덱스: (run_id); 종류별 정확한 원본 ID/판 partial index; (scope_key,owner_account_id,state); UNIQUE(run_id,knowledge_revision_id,locator_sha256) WHERE kind='knowledge_revision'; UNIQUE(run_id,knowledge_chunk_id,locator_sha256) WHERE kind='knowledge_chunk'; UNIQUE(run_id,document_id,document_revision_no,locator_sha256) WHERE kind='document_revision'; UNIQUE(run_id,observation_id,observation_revision_no,locator_sha256) WHERE kind='observation_revision'; UNIQUE(run_id,assessment_id,assessment_revision_no,locator_sha256) WHERE kind='assessment_revision'; UNIQUE(run_id,source_item_id,source_local_revision,locator_sha256) WHERE kind='source_item_revision'
+인덱스: (run_id); 종류별 정확한 원본 ID/판 partial index; (scope_key,owner_account_id,state); UNIQUE(run_id,knowledge_revision_id,locator_sha256) WHERE kind='knowledge_revision'; UNIQUE(run_id,knowledge_chunk_id,locator_sha256) WHERE kind='knowledge_chunk'; UNIQUE(run_id,document_id,document_revision_no,locator_sha256) WHERE kind='document_revision'; UNIQUE(run_id,observation_id,observation_revision_no,locator_sha256) WHERE kind='observation_revision'; UNIQUE(run_id,assessment_id,assessment_revision_no,locator_sha256) WHERE kind='assessment_revision'; UNIQUE(run_id,source_item_id,source_local_revision,locator_sha256) WHERE kind='source_item_revision'; (school_id,messenger_message_id) WHERE messenger_message_id IS NOT NULL
 
-필수 시험: AI01: 타인/타교/혼합revision 거부; AI02: 개인범위 학생근거 거부; AI04: 정정과 결과공개 경합
+필수 시험: AI01: 타인/타교/혼합revision 거부; AI02: 개인범위 학생근거 거부; AI04: 정정과 결과공개 경합; MSG12; MSG13
 
 ## workhub.ai_runs
 
@@ -872,6 +883,53 @@ Claude·기억 · 기존 보강
 - (school_id,file_object_id) → workhub.file_objects(school_id,id)
 - (school_id,owner_account_id,activity_instance_id,supersedes_import_id) → workhub.classroom_imports(school_id,owner_account_id,activity_instance_id,id)
 
+## workhub.collection_answer_snapshots
+
+수합 · 신규
+
+열람: 제출 전: 원초안의 현재 개인/공동 ACL. 제출 후: 명시 연결된 제출판 독자에게 그 snapshot만 허용. 관리자/검토자의 미제출 초안 우회 0건.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| collection_id | text | 불가 | — | workhub.collections.id · 요청 | 통합 추가 |
+| unit_id | text | 불가 | — | workhub.collection_units.id · 제출 단위 | 통합 추가 |
+| schema_id | text | 불가 | — | workhub.collection_schemas.id · 게시 문항판 | 통합 추가 |
+| draft_id | text | 불가 | — | workhub.unit_drafts.id · 출력 직전의 편집 원장 | 통합 추가 |
+| draft_version | integer | 불가 | — | 잠금 후 동결한 초안 버전 | 통합 추가 |
+| answers | jsonb | 불가 | — | 활성 문항 답변 projection; 초안 전체 대화 아님 | 통합 추가 |
+| provenance | jsonb | 불가 | — | 경로별 출처/제안/확인 구분 | 통합 추가 |
+| excluded_paths | jsonb | 불가 | — | 조건상 제외한 경로 목록; 원문값 제외 | 통합 추가 |
+| file_manifest | jsonb | 불가 | — | typed snapshot file_links의 표시 projection | 통합 추가 |
+| manifest_sha256 | text | 불가 | — | 답변/조건/문항판/정확한 첨부/출처의 canonical 지문 | 통합 추가 |
+| created_by_account_id | text | 불가 | — | workhub.accounts.id · 동결 요청자 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- UNIQUE(school_id,id,unit_id,schema_id); UNIQUE(school_id,unit_id,schema_id,id); UNIQUE(school_id,draft_id,draft_version,manifest_sha256)
+- (school_id,collection_id) FK collections(school_id,id)
+- (school_id,collection_id,unit_id) FK collection_units(school_id,collection_id,id)
+- (school_id,collection_id,schema_id) FK collection_schemas(school_id,collection_id,id)
+- (school_id,draft_id,unit_id,schema_id) FK unit_drafts(school_id,id,unit_id,schema_id)
+- draft_version>0; answers/provenance는 object, excluded_paths/file_manifest는 제한 배열
+- INSERT 시 현재 draft version 일치; 이후 draft 변경이 과거 snapshot 내용을 수정하지 않음
+
+통합 동작 규칙:
+
+- 기존 mutable unit_drafts와 장시간 출력 사이를 고정하는 불변 입력이다; 제출 이전에 동결한다.
+- 파일 관계는 목적 고정 file_links에 같은 동결 transaction으로 생성, manifest와 전수 일치 후 불변. JSON file ID만으로 접근권한을 부여하지 않는다.
+- 필드 provenance의 미확정 필수 값/지원하지 않는 타입·경로는 출력 불가. 숨은 항목은 출력·제출에 포함하지 않는다.
+
+인덱스: (school_id,unit_id,schema_id,created_at DESC,id); (school_id,draft_id,draft_version)
+
+필수 시험: COL04; COL05; COL06; COL07; COL08; COL09
+
 ## workhub.collection_correction_fulfillments
 
 수합 · 신규
@@ -939,7 +997,7 @@ Claude·기억 · 기존 보강
 
 수합 · 기존 보강
 
-열람: 수합 안내 권한. 값/답변은 포함하지 않는다.
+열람: 기존 schema 안내 권한, 실제 답변 접근은 별도.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -961,6 +1019,13 @@ Claude·기억 · 기존 보강
 | schema_id | text | 불가 | — | workhub.collection_schemas.id · 불변 정의 부모 | 통합 추가 |
 | max_length | integer | 허용 | — | short_text 코드포인트 상한 | 통합 추가 |
 | file_max_count | integer | 허용 | — | file 문항 최대수 | 통합 추가 |
+| parent_field_id | text | 허용 | — | workhub.collection_fields.id · 같은 schema의 repeat_group 부모 | 통합 추가 |
+| activation_rule | jsonb | 허용 | — | 같은 schema field_key를 참조하는 허용 조건식 AST | 통합 추가 |
+| repeat_min | integer | 허용 | — | 반복행 최소; repeat_group만 | 통합 추가 |
+| repeat_max | integer | 허용 | — | 검증된 출력 지원/정책 범위 내 최대; repeat_group만 | 통합 추가 |
+| field_role | text | 불가 | — | input 또는 generated_output, 기존값 input | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): collection_fields_kind_check
 
 통합 필수 제약:
 
@@ -969,19 +1034,133 @@ Claude·기억 · 기존 보강
 - UNIQUE(school_id,schema_id,id)
 - options는 key/label 객체 배열, key 유일·공백 불가
 - 종류별 불필요 옵션/한도 NULL; 숫자 한도 유한; max_length/file_count 양수
+- UNIQUE(school_id,schema_id,id); UNIQUE(school_id,schema_id,field_key)
+- (school_id,schema_id,parent_field_id) FK collection_fields(school_id,schema_id,id); 부모 cycle/다른 schema/중첩 지원 초과 거부
+- CHECK kind IN(boolean,single_choice,multi_choice,number,short_text,date,file,long_text,repeat_group); 기존 collection_fields_kind_check를 대체하며 arbitrary kind 금지
+- repeat_min/max는 repeat_group만 양의 정수 또는 0을 정책에 맞게 허용, max>=min; 정책 미정이면 게시 차단
+- field_role=generated_output이면 kind=file, parent_field_id NULL, activation_rule NULL, required=true, file_max_count=1, 사용자 질문에서 제외
+- schema/field 지연 제약: guided schema는 generated_output 정확히 1개이며 해당 id=output_file_field_id. 반대로 generated_output 행은 그 schema가 guided이고 자신을 output_file_field_id로 참조해야 함
+- file_upload schema는 generated_output 0개이며 output_file_field_id가 가리키는 필드는 field_role=input/kind=file/parent NULL/activation NULL/required=true/file_max_count=1. 기존 일반수합(response_mode NULL)에도 generated_output 0개
+- 조건식 참조 존재·type 일치·순환없음, 임의 실행문 불허; posted definition 불변
 
 통합 동작 규칙:
 
 - published/retired 부모의 field INSERT/UPDATE/DELETE 전부 거부.
 - 키·타입·옵션·필수값 검증은 validate_collection_answers에서 해당 schema만 사용.
+- field_key는 의미 안정키, label 변경으로 재발급하지 않음. 의미/유형 변경은 새 key.
+- 반복행 row_key 안정키와 answer_path가 첨부·출력 경로를 결정한다.
+- 필수 검사는 활성 문항만; 0/false와 NULL 구별; 숨은 값은 초안 보존·출력 제외 안내.
 
-인덱스: (school_id,schema_id,sort_order,id)
+인덱스: (school_id,schema_id,sort_order,id); (school_id,schema_id,parent_field_id,sort_order)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,collection_id) → workhub.collections(school_id,id)
 
-필수 시험: WF03; WF15
+필수 시험: WF03; WF15; COL05; COL06; COL07; COL08; COL16; COL21; COL22
+
+## workhub.collection_output_artifacts
+
+수합 · 신규
+
+열람: 원 answer snapshot 현재 ACL. 제출 후 exact 제출 연결만 collector 열람 가능; jobs/documents/raw file 경로도 동일 부모 재검사.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| unit_id | text | 불가 | — | workhub.collection_units.id · 제출 단위 | 통합 추가 |
+| schema_id | text | 불가 | — | workhub.collection_schemas.id · 출력 문항판 | 통합 추가 |
+| answer_snapshot_id | text | 불가 | — | workhub.collection_answer_snapshots.id · 고정 답변 | 통합 추가 |
+| template_version_id | text | 불가 | — | workhub.collection_template_versions.id · 정확 양식판 | 통합 추가 |
+| mapping_id | text | 허용 | — | workhub.collection_template_mappings.id · 문답형의 승인 매핑판 | 통합 추가 |
+| kind | text | 불가 | — | uploaded 또는 generated | 통합 추가 |
+| state | text | 불가 | — | queued/running/ready/failed/stale/cancelled | 통합 추가 |
+| job_id | text | 허용 | — | workhub.jobs.id · 생성/파일 검사 작업 | 통합 추가 |
+| document_id | text | 허용 | — | workhub.documents.id · 생성형 문서 | 통합 추가 |
+| document_revision_no | integer | 허용 | — | 생성된 정확한 문서판 | 통합 추가 |
+| validation_id | text | 허용 | — | workhub.document_validations.id · 생성형 검사 정확판 | 통합 추가 |
+| file_object_id | text | 허용 | — | workhub.file_objects.id · 최종 실물 파일 | 통합 추가 |
+| file_sha256 | text | 허용 | — | 검증 실물 지문 | 통합 추가 |
+| manifest_sha256 | text | 허용 | — | 답변·양식·매핑·팩·렌더러·파일 결합 지문 | 통합 추가 |
+| safe_error_code | text | 허용 | — | 원문 없는 실패 코드 | 통합 추가 |
+| ready_at | timestamptz | 허용 | — | 파일/본문 검증 완료 시각 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- UNIQUE(school_id,unit_id,schema_id,id); UNIQUE(school_id,id,answer_snapshot_id); UNIQUE(school_id,id,answer_snapshot_id,manifest_sha256)
+- (school_id,unit_id,schema_id,answer_snapshot_id) FK collection_answer_snapshots(school_id,unit_id,schema_id,id)
+- (school_id,template_version_id) FK collection_template_versions(school_id,id)
+- (school_id,template_version_id,mapping_id) FK collection_template_mappings(school_id,template_version_id,id)
+- (scope_key,job_id) FK jobs(scope_key,id)
+- (scope_key,document_id,document_revision_no) FK document_revisions(scope_key,document_id,revision_no)
+- (scope_key,document_id,document_revision_no,validation_id) FK document_validations(scope_key,document_id,revision_no,id)
+- (school_id,file_object_id) FK file_objects(school_id,id)
+- document/revision은 둘 다 NULL 또는 둘 다 존재; ready는 file/hash/manifest/ready_at 모두 NN
+- generated ready는 mapping/document/revision/validation 모두 NN; uploaded는 mapping/document/revision/validation 모두 NULL
+- 생성형 file ID/hash는 exact document_revisions.output과 일치; uploaded는 실제 검증 파일과 일치
+- schema의 template/mapping과 일치, 다른 schema 매핑 혼합 금지
+- (school_id,document_id,document_revision_no,unit_id,schema_id,answer_snapshot_id,template_version_id,mapping_id) FK document_revisions(school_id,document_id,revision_no,collection_unit_id,collection_schema_id,collection_answer_snapshot_id,collection_template_version_id,collection_mapping_id) MATCH SIMPLE. generated ready에서는 전 열 NN
+- generated ready는 document_validations.state=pass, 필수검사 skipped=0, findings의 error=0, unresolved_fields의 활성 필수 미확정=0. 검사 checked_sha256=exact output file hash=document_revisions.output_sha256
+- generated ready는 document_revisions의 팩 ID/범위/자산 hash와 mapping의 검증 팩 동일, renderer_contract_version과 검증 rule_set_ref가 승인된 registry 조합. material 입력 지문은 actual render job input_sha256와 같아야 함
+- generated ready 선언과 confirm/submit 때 위 검사 및 현재 파일 안전정책 재검사. needs_review/error/not_checked 또는 필수검사 skip은 ready 불가
+
+통합 동작 규칙:
+
+- 내용 저장은 documents/revisions를 재사용하고 이 표는 사슬 결합과 출력 준비 상태만 담당한다.
+- ready 후 파일/판/해시/입력은 불변. 답변/파일 교체/팩검증 변경은 새 artifact, 기존 사용은 stale.
+- ready는 제출 아님. 출력 완료 전 초안/권한 변경은 현재 제출에 연결하지 않는다.
+
+인덱스: (school_id,unit_id,schema_id,created_at DESC,id); (scope_key,job_id) WHERE job_id IS NOT NULL; (school_id,file_object_id) WHERE file_object_id IS NOT NULL
+
+필수 시험: COL01; COL04; COL09; COL10; COL11; COL12; COL13; COL19; COL23; COL24
+
+## workhub.collection_output_confirmations
+
+수합 · 신규
+
+열람: 확인 본인 및 현재 해당 초안/제출 권한자. 담당자에게 미제출 확인의 존재를 별도 노출하지 않음.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| unit_id | text | 불가 | — | workhub.collection_units.id · 단위 | 통합 추가 |
+| schema_id | text | 불가 | — | workhub.collection_schemas.id · 문항판 | 통합 추가 |
+| artifact_id | text | 불가 | — | workhub.collection_output_artifacts.id · 확인한 정확한 산출물 | 통합 추가 |
+| answer_snapshot_id | text | 불가 | — | workhub.collection_answer_snapshots.id · 확인한 답변 snapshot | 통합 추가 |
+| manifest_sha256 | text | 불가 | — | 서버의 exact artifact 지문과 일치 | 통합 추가 |
+| draft_version | integer | 불가 | — | 확인 당시 current draft version | 통합 추가 |
+| confirmed_by_membership_id | text | 불가 | — | workhub.memberships.id · 현재 책임자 또는 유효 대리 | 통합 추가 |
+| confirmed_by_account_id | text | 불가 | — | workhub.accounts.id · 실제 현재 인증 계정 | 통합 추가 |
+| confirmed_at | timestamptz | 불가 | — | 서버 확인 시각 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- UNIQUE(school_id,unit_id,schema_id,artifact_id,id); UNIQUE(school_id,artifact_id,confirmed_by_account_id,manifest_sha256)
+- (school_id,unit_id,schema_id,artifact_id) FK collection_output_artifacts(school_id,unit_id,schema_id,id)
+- (school_id,artifact_id,answer_snapshot_id,manifest_sha256) FK collection_output_artifacts(school_id,id,answer_snapshot_id,manifest_sha256)
+- (school_id,confirmed_by_membership_id,confirmed_by_account_id) FK memberships(school_id,id,account_id)
+- draft_version>0; 확인은 ready exact artifact에 대해서만; artifact snapshot의 draft_version과 일치
+
+통합 동작 규칙:
+
+- 불변 확인 사실이며 확인 주체를 제출자로 바꾸지 못한다. 실제 submitter 계정/현재 책임·대리 권한 재검사.
+- 같은 제출판에 연결할 때 draft/manifest/현재 schema가 달라졌으면 확인은 역사로만 남고 제출은 거부한다.
+
+인덱스: (school_id,artifact_id,confirmed_at DESC)
+
+필수 시험: COL04; COL09; COL10; COL11; COL12
 
 ## workhub.collection_reviewers
 
@@ -1008,7 +1187,7 @@ Claude·기억 · 기존 보강
 
 수합 · 신규
 
-열람: 안내 읽기 허용자. 개인/공동 답변은 이 표에 넣지 않는다.
+열람: 기존 안내 읽기. mapping 세부·답변·초안 ACL을 상속해 넓히지 않음.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -1027,6 +1206,11 @@ Claude·기억 · 기존 보강
 | published_at | timestamptz | 허용 | — | 최초 게시 시각 | 통합 추가 |
 | policy_scope_key | text | 허용 | — | workhub.policy_versions.scope_key · 본교 collection.submission 정책 scope | 통합 추가 |
 | policy_version_id | text | 허용 | — | workhub.policy_versions.id · 정확한 승인 정책판 | 통합 추가 |
+| response_mode | text | 허용 | — | 기존 일반수합 NULL, 신규 양식수합 file_upload 또는 guided | 통합 추가 |
+| template_version_id | text | 허용 | — | workhub.collection_template_versions.id · 양식 수합의 정확한 빈 양식 | 통합 추가 |
+| mapping_id | text | 허용 | — | workhub.collection_template_mappings.id · guided의 정확 승인 매핑 | 통합 추가 |
+| output_file_field_id | text | 허용 | — | workhub.collection_fields.id · 최종 문서가 들어가는 같은 schema의 file 문항 | 통합 추가 |
+| output_requirement | text | 허용 | — | original_required 또는 validated_output | 통합 추가 |
 
 통합 필수 제약:
 
@@ -1038,16 +1222,202 @@ Claude·기억 · 기존 보강
 - schema_version>0; state/review/self_review 허용값 CHECK
 - (policy_scope_key,policy_version_id) MATCH FULL FK policy_versions(scope_key,id); policy_scope_key='s:'||school_id
 - published/retired이면 hash/published_at/정책판 NN
+- (school_id,template_version_id) FK collection_template_versions(school_id,id)
+- (school_id,template_version_id,mapping_id) FK collection_template_mappings(school_id,template_version_id,id)
+- (school_id,id,output_file_field_id) FK collection_fields(school_id,schema_id,id) DEFERRABLE
+- response_mode NULL이면 이번 확장 연결 전부 NULL; file_upload/guided는 template/output field/requirement 모두 NN; guided만 mapping NN
+- published schema material 불변; output file field는 kind=file이며 같은 collection/schema; generated_output은 guided 전용
+- UNIQUE(school_id,id,template_version_id,mapping_id) 추가; 생성 문서판이 정확한 schema/양식/매핑 조합을 FK로 참조
+- guided에는 output_file_field_id가 가리키는 root/file/generated_output/required=true/file_max_count=1/activation NULL 필드 정확히 1개. 다른 generated_output 필드가 있거나 역참조가 없으면 지연 제약으로 거부
+- file_upload에는 output_file_field_id가 root/file/input/required=true/file_max_count=1/activation NULL이며 generated_output 필드 0개. 일반수합 모드 NULL도 generated_output 0개
 
 통합 동작 규칙:
 
 - draft에서만 문항 편집. publish 후 내용/정책/지문 불변; retired는 현재 적용 금지일 뿐 과거 참조 유지.
 - publish가 부모 FOR UPDATE를 잡고 child field 편집은 같은 부모 잠금과 충돌한다.
 - 정책판은 published·승인·시행일·applies_to_scopes·policy_key 검사.
+- 기존 수합 schema와 review/self_review/current/effective 계약 유지.
+- guided 게시 시 승인 mapping exact hash, field 정의, 검증 표본, 현재 renderer/pack capability를 재검사.
+- 게시 후 변경은 새 schema+단위별 영향승인, pending 제출/열린 보완 단위의 모드 변경 거부.
+- 게시 schema의 입력 필드 의미/타입/조건/반복 구조는 승인 mapping.field_definition과 일치; 다르면 새 mapping+표본 필요.
 
-인덱스: (school_id,collection_id,schema_version DESC)
+인덱스: (school_id,collection_id,schema_version DESC); (school_id,template_version_id,id) WHERE template_version_id IS NOT NULL
 
-필수 시험: WF03; WF15
+필수 시험: WF03; WF15; COL01; COL02; COL03; COL16; COL22
+
+## workhub.collection_template_analyses
+
+수합 · 신규
+
+열람: 현재 양식 관리자만; 분석 job/ai 결과로 초안 접근 범위를 넓히지 않음.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| template_version_id | text | 불가 | — | workhub.collection_template_versions.id · 분석한 정확한 원본판 | 통합 추가 |
+| job_id | text | 불가 | — | workhub.jobs.id · 분석 작업 | 통합 추가 |
+| ai_run_id | text | 허용 | — | workhub.ai_runs.id · Claude 실행; 호출 전/수동 분석은 NULL | 통합 추가 |
+| state | text | 불가 | — | queued/running/succeeded/needs_review/failed/outcome_unknown/cancelled | 통합 추가 |
+| recommendation | text | 허용 | — | file_upload 또는 guided_candidate | 통합 추가 |
+| result | jsonb | 허용 | — | 후보 필드·위치·불확실성·지원 capability, 성공 종료 시 불변 | 통합 추가 |
+| result_sha256 | text | 허용 | — | 정규화 분석 결과 지문 | 통합 추가 |
+| analysis_contract_version | text | 불가 | — | 분석 DTO와 출력 위치 계약 버전 | 통합 추가 |
+| completed_at | timestamptz | 허용 | — | 검증한 완료/실패 시각 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- (school_id,template_version_id) FK collection_template_versions(school_id,id)
+- (scope_key,job_id) FK jobs(scope_key,id); (scope_key,ai_run_id) FK ai_runs(scope_key,id)
+- UNIQUE(scope_key,job_id); UNIQUE(school_id,template_version_id,id)
+- 성공 또는 검토필요 결과는 result/result_sha256/completed_at 모두 존재; failed/unknown을 verified로 사용 금지
+- 상태·추천은 명시 enum; result는 제한된 object, 실행 코드/비밀/원시 전체 대화 저장 금지
+
+통합 동작 규칙:
+
+- jobs와 동일 lease token 및 현재 양식 접근 검사를 통과한 worker만 완료한다.
+- 원본 sha가 바뀌지 않아도 새 프롬프트/분석 재시도는 새 analysis로 기록한다.
+- 외부 결과 outcome_unknown은 04장 복구 규칙을 따르며 자동 중복 호출하지 않는다.
+
+인덱스: (school_id,template_version_id,created_at DESC,id)
+
+필수 시험: COL01; COL02; COL15; COL19
+
+## workhub.collection_template_mappings
+
+수합 · 신규
+
+열람: 현재 양식 관리자. 게시 수합 참가자는 질문·지원 요약만 읽고 분석 원문·관리 메타는 받지 않음.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| template_version_id | text | 불가 | — | workhub.collection_template_versions.id · 매핑한 정확한 원본판 | 통합 추가 |
+| analysis_id | text | 허용 | — | workhub.collection_template_analyses.id · 사용한 AI 분석 또는 수동 검토 근거 | 통합 추가 |
+| version_no | integer | 불가 | — | 해당 양식판 내 매핑판 | 통합 추가 |
+| source | text | 불가 | — | ai_reviewed 또는 human_review | 통합 추가 |
+| field_definition | jsonb | 불가 | — | 안정 field_key의 타입/질문/조건/반복 구조, 게시 schema의 원본 | 통합 추가 |
+| mapping_definition | jsonb | 불가 | — | field_key→target_key/구조 locator 및 허용 코드 변환 | 통합 추가 |
+| mapping_sha256 | text | 불가 | — | field+mapping+출력 계약의 canonical 지문 | 통합 추가 |
+| renderer_contract_version | text | 불가 | — | 실제 사용할 렌더러 계약판 | 통합 추가 |
+| pack_id | text | 허용 | — | workhub.document_packs.id · 검증된 출력 팩 | 통합 추가 |
+| pack_scope_key | text | 허용 | — | 같은 학교 또는 허용된 common 팩 | 통합 추가 |
+| pack_asset_sha256 | text | 허용 | — | 정확한 검증 팩 자산 지문 | 통합 추가 |
+| state | text | 불가 | — | candidate/verified/approved/retired | 통합 추가 |
+| sample_document_id | text | 허용 | — | workhub.documents.id · 합성 표본 문서 | 통합 추가 |
+| sample_revision_no | integer | 허용 | — | 표본의 정확한 불변판 | 통합 추가 |
+| sample_validation_id | text | 허용 | — | workhub.document_validations.id · 표본 정확판 검사 | 통합 추가 |
+| sample_manifest_sha256 | text | 허용 | — | 입력 fixture/양식/매핑/팩/출력 해시 묶음 | 통합 추가 |
+| approved_by_membership_id | text | 허용 | — | workhub.memberships.id · 표본 확인자 | 통합 추가 |
+| approved_at | timestamptz | 허용 | — | 확인 시각 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- UNIQUE(school_id,template_version_id,version_no); UNIQUE(school_id,template_version_id,id)
+- (school_id,template_version_id) FK collection_template_versions(school_id,id)
+- (school_id,template_version_id,analysis_id) FK collection_template_analyses(school_id,template_version_id,id); 선택 ID만 NULL인 경우 MATCH SIMPLE
+- (pack_scope_key,pack_id) MATCH FULL FK document_packs(scope_key,id); pack/asset 지문은 모두 NULL 또는 모두 존재
+- (scope_key,sample_document_id,sample_revision_no) FK document_revisions(scope_key,document_id,revision_no); sample document/revision은 동시 NULL
+- (scope_key,sample_document_id,sample_revision_no,sample_validation_id) FK document_validations(scope_key,document_id,revision_no,id); 선택 ID bundle 완전성 CHECK
+- (school_id,approved_by_membership_id) FK memberships(school_id,id)
+- approved/retired는 표본 정확판/검사/manifest/승인자/승인시각 모두 NN; verified도 exact sample 검사 성공 필수
+- source enum/상태 enum/version_no>0; 정의 JSON은 허용형식, target 중복/필드 누락/임의 실행문 금지
+- guided 승인 매핑은 pack_id/pack_scope_key/pack_asset_sha256 NN이고 현재 검증·활성 팩 및 renderer contract와 일치; 검증 없는 임의 renderer 사용 금지
+
+통합 동작 규칙:
+
+- field/mapping/renderer/pack/source material은 INSERT 후 불변, 내용 변경은 새 version_no.
+- 표본 필수 검사 skipped=0·실물 hash·원본/매핑/엔진/팩 지문 일치 후 verified; 담당자 명시 확인 후 approved.
+- 기존 보호 자산을 바꾸지 않고 지원된 팩 또는 승인된 새 출력 경로를 참조한다.
+
+인덱스: (school_id,template_version_id,state,version_no DESC)
+
+필수 시험: COL01; COL02; COL03; COL19
+
+## workhub.collection_template_versions
+
+수합 · 신규
+
+열람: 양식 관리자 또는 해당 판을 게시한 수합의 안내/양식 수신 권한. 미게시 초안 양식을 학교 전체에 공개하지 않음.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| template_id | text | 불가 | — | workhub.collection_templates.id · 재사용 양식 부모 | 통합 추가 |
+| version_no | integer | 불가 | — | 양식 파일의 증가 판번호 | 통합 추가 |
+| source_file_id | text | 불가 | — | workhub.file_objects.id · 검증된 원본 파일 | 통합 추가 |
+| source_sha256 | text | 불가 | — | 실물 검증된 원본 지문 | 통합 추가 |
+| registered_by_membership_id | text | 불가 | — | workhub.memberships.id · 등록자 | 통합 추가 |
+| capability_report | jsonb | 불가 | — | 등록 시점의 파일 이용 가능/분석 가능 정보, 분석 성공을 의미하지 않음 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- UNIQUE(school_id,template_id,version_no); UNIQUE(school_id,template_id,id)
+- (school_id,template_id) FK collection_templates(school_id,id)
+- (school_id,source_file_id) FK file_objects(school_id,id)
+- (school_id,registered_by_membership_id) FK memberships(school_id,id)
+- version_no>0; source_sha256는 64자리 hex이고 검증된 file_objects.sha256와 일치
+
+통합 동작 규칙:
+
+- 원본 파일/해시/부모/판은 INSERT 후 불변. 수정 파일은 새 file object와 새 판이다.
+- 현재 파일 정책을 통과하기 전 분석·전달·AI 입력 금지. 지원 형식은 승인 capability 설정으로 판정한다.
+
+인덱스: (school_id,template_id,version_no DESC); (school_id,source_file_id)
+
+필수 시험: COL01; COL02; COL18; COL19
+
+## workhub.collection_templates
+
+수합 · 신규
+
+열람: 현재 생성자 또는 명시 양식 관리권한; 게시 수합 대상자는 연결된 정확한 빈 양식판만 읽음.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 발급 UUID 문자열, PK | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 현재 학교 경계 | 통합 추가 |
+| scope_key | text | 불가 | — | 01장 학교 scope 규칙으로 서버 생성; 클라이언트 지정 불가 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| version | integer | 불가 | — | 명령 동시성용 양의 버전, 불변 material 판번호와 별개 | 통합 추가 |
+| title | text | 불가 | — | 양식 표시명; 권한·정체성 키로 사용하지 않음 | 통합 추가 |
+| created_by_membership_id | text | 불가 | — | workhub.memberships.id · 작성 당시 유효 소속 | 통합 추가 |
+| state | text | 불가 | — | active 또는 retired | 통합 추가 |
+| management_duty_id | text | 허용 | — | workhub.duties.id · 명시된 관리 업무; 그 자체가 모든 수합 답변 접근권은 아님 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(scope_key,id); version>0
+- school_id와 scope_key는 같은 학교를 나타냄; 모든 관계 삭제 기본 RESTRICT
+- (school_id,created_by_membership_id) FK memberships(school_id,id)
+- (school_id,management_duty_id) FK duties(school_id,id); NULL이면 작성자와 명시 위임자 관리
+- CHECK state IN(active,retired); title 공백 금지
+
+통합 동작 규칙:
+
+- 양식 재사용 카탈로그이며 답변이나 현재 제출 원장을 넣지 않는다.
+- retired는 신규 사용만 막고 기존 양식판/제출/파일 사슬을 보존한다.
+
+인덱스: (school_id,state,created_at DESC,id)
+
+필수 시험: COL01; COL18
 
 ## workhub.collection_unit_members
 
@@ -1215,9 +1585,9 @@ Claude·기억 · 기존 보강
 
 ## workhub.constraint_sets
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 시간표 담당 전용; 일반 교사에게 개별 불가 사유를 공개하지 않음
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -1232,12 +1602,30 @@ Claude·기억 · 기존 보강
 | locked_at | timestamp with time zone | 허용 | — |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| basis_revision_id | text | 불가 | — | workhub.timetable_basis_revisions.id · 이 조건판이 참조하는 관리자 기준자료판 | 통합 추가 |
+| conditions_sha256 | text | 허용 | — | locked 상태의 전체 정규화 조건 지문 | 통합 추가 |
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,basis_revision_id,term_id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- locked이면 conditions_sha256 필수; 하위 조건과 본문 불변; 변경은 based_on_id를 둔 새판
+- 기존 데이터에 NOT NULL 도입 전 사람이 확인한 기준판 연결 필요; 임의 채움 금지
+
+통합 동작 규칙:
+
+- 필수·선호·미지원·명시 제외 상태를 포함해 잠금
+- 조건 잠금과 compose가 현재 basis 원본 지문을 확인
+- 잠금/편성/배포의 hard 충족 검사는 strength=hard와 school_hard 모두 검사한다.
+
+인덱스: idx_constraint_sets_basis(school_id,basis_revision_id)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,based_on_id) → workhub.constraint_sets(school_id,id)
 - (school_id,created_by_membership_id) → workhub.memberships(school_id,id)
 - (school_id,term_id) → workhub.terms(school_id,id)
+
+필수 시험: TT07; TT08; TT09
 
 ## workhub.conversations
 
@@ -1592,9 +1980,9 @@ Claude·기억 · 기존 보강
 
 ## workhub.cover_ledger
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 해당 교사 및 지정 업무담당의 범위; 전교 공개 누계 금지
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -1612,6 +2000,16 @@ Claude·기억 · 기존 보강
 | confirmed_by_membership_id | text | 불가 | — |  | 원본 |
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 
+통합 필수 제약:
+
+- 기존 settles_id/reverses_id/lesson_instance/execution_revision FK와 멱등 제약 유지
+- 보강 대상/충당량은 같은 학교·교과/수업 맥락 검증. 원장 정정은 보상행; 중복 충당과 반대 부호 이중 계상 금지
+
+통합 동작 규칙:
+
+- 예정시수와 실제실시·보강필요를 분리
+- 금액·수당·규정은 확인된 계산식판만 사용, AI 임의 계산금지
+
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,cause_change_set_id) → workhub.timetable_change_sets(school_id,id)
@@ -1621,6 +2019,8 @@ Claude·기억 · 기존 보강
 - (school_id,membership_id) → workhub.memberships(school_id,id)
 - (school_id,reverses_id) → workhub.cover_ledger(school_id,id)
 - (school_id,settles_id) → workhub.cover_ledger(school_id,id)
+
+필수 시험: TT03; TT20
 
 ## workhub.data_write_authority
 
@@ -1904,7 +2304,7 @@ Claude·기억 · 기존 보강
 
 파일·문서 · 기존 보강
 
-열람: 문서 현재 권한; source 원문 접근은 별도 현재 ACL.
+열람: 기존 문서판 ACL AND 현재 연결 단위의 초안/제출 ACL. collection source FK가 원본 개인초안 전체 열람을 허용하지 않음.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -1926,20 +2326,39 @@ Claude·기억 · 기존 보강
 | pack_id_snapshot | text | 허용 | — | workhub.document_packs.id · 생성 당시 실제 팩 | 통합 추가 |
 | pack_scope_key_snapshot | text | 허용 | — | workhub.document_packs.scope_key · common 또는 본교 팩 scope | 통합 추가 |
 | pack_version_snapshot | integer | 허용 | — | 팩판 표시값 | 통합 추가 |
+| collection_unit_id | text | 허용 | — | workhub.collection_units.id · 수합 생성판의 정확한 단위, 원문서 linked_unit_id와 일치 | 통합 추가 |
+| collection_schema_id | text | 허용 | — | workhub.collection_schemas.id · 생성에 사용한 불변 수합 문항판 | 통합 추가 |
+| collection_answer_snapshot_id | text | 허용 | — | workhub.collection_answer_snapshots.id · 렌더러가 실제 소비한 불변 답변 snapshot | 통합 추가 |
+| collection_template_version_id | text | 허용 | — | workhub.collection_template_versions.id · 생성 원본 양식의 정확한 판 | 통합 추가 |
+| collection_mapping_id | text | 허용 | — | workhub.collection_template_mappings.id · 실제 사용한 승인 매핑판 | 통합 추가 |
+| collection_generation_input_sha256 | text | 허용 | — | 실제 job.input_sha256와 같은 생성 입력 지문 | 통합 추가 |
+| collection_renderer_contract_version | text | 허용 | — | 실제 생성에 사용한 검증 렌더러 계약판 | 통합 추가 |
 
 통합 필수 제약:
 
 - 팩 snapshot 세열 동시 NULL 또는 존재; (scope_key,pack_id) MATCH FULL 복합 FK
 - pack_version/hash는 해당 실제 팩과 일치
 - 원본 content/outputfile/hash와 팩 snapshot INSERT 후 불변
+- 수합 생성판의 7개 collection_* 열은 모두 NULL 또는 모두 NN. NN이면 school_id와 job_id NN이며 origin은 실제 생성 경로를 나타냄
+- (school_id,document_id,collection_unit_id) FK documents(school_id,id,linked_unit_id) MATCH SIMPLE; 수합판에서는 모든 FK 열 NN
+- (school_id,collection_unit_id,collection_schema_id,collection_answer_snapshot_id) FK collection_answer_snapshots(school_id,unit_id,schema_id,id)
+- (school_id,collection_template_version_id,collection_mapping_id) FK collection_template_mappings(school_id,template_version_id,id)
+- (school_id,collection_schema_id,collection_template_version_id,collection_mapping_id) FK collection_schemas(school_id,id,template_version_id,mapping_id)
+- UNIQUE(school_id,document_id,revision_no,collection_unit_id,collection_schema_id,collection_answer_snapshot_id,collection_template_version_id,collection_mapping_id)
+- collection_generation_input_sha256는 64자리 hex이며 해당 job.input_sha256와 일치. job.input의 unit/schema/snapshot/template/mapping/renderer/pack 식별자와 FK 사슬 전수 일치
+- collection_renderer_contract_version과 mapping.renderer_contract_version 동일, revision pack snapshot ID/scope/asset hash와 mapping 검증 팩 동일
+- 수합 source 열은 content/output/pack과 함께 INSERT 후 불변; file 재업로드/수동수정은 새 판과 재검증
 
 통합 동작 규칙:
 
 - 새생성은 현재 active 팩, 과거판은 당시 팩 근거 유지.
 - source_refs JSON은 document_revision_sources의 표시 snapshot, ACL/근거 단독 원장 아님.
 - 재업로드는 새 file+revision+validation. pass 승계 금지.
+- 원본문서·생성 입력·출력파일은 기존 문서판에 저장하며 별도 본문 사본을 만들지 않는다.
+- worker는 현재 job lease와 권한을 확인하고 실제 사용하는 snapshot/mapping 입력으로만 typed source 열을 채운다. 클라이언트가 제공한 임의 source 문자열로 대체 금지.
+- artifact 생성 시 이 정확 source 사슬을 FK로 고정해 같은 학교 다른 단위/초안의 정상 파일을 포장하는 경로를 차단한다.
 
-인덱스: (pack_scope_key_snapshot,pack_id_snapshot)
+인덱스: (pack_scope_key_snapshot,pack_id_snapshot); (school_id,collection_unit_id,collection_schema_id,collection_answer_snapshot_id) WHERE collection_answer_snapshot_id IS NOT NULL
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -1949,13 +2368,13 @@ Claude·기억 · 기존 보강
 - (scope_key,job_id) → workhub.jobs(scope_key,id)
 - (scope_key,output_file_id) → workhub.file_objects(scope_key,id)
 
-필수 시험: WF17
+필수 시험: WF17; COL04; COL09; COL19; COL23; COL24
 
 ## workhub.document_validations
 
 파일·문서 · 기존 보강
 
-열람: 문서 현재 read, findings도 원본문서와 같은 민감도.
+열람: 기존 원문서 현재 ACL 및 linked unit 경계.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -1977,10 +2396,13 @@ Claude·기억 · 기존 보강
 
 - 검사 sha=정확 revision 출력/내용 sha, pass에는 유효 규칙판·필수 skipped0
 - 결과 INSERT 후 불변; 현재판의 pass는 같은hash/팩판 검사에서만
+- UNIQUE(scope_key,document_id,revision_no,id) 추가하여 표본/산출물이 정확한 문서판 검사를 FK로 참조
 
 통합 동작 규칙:
 
 - 근거 stale면 과거 pass가 있어도 새 출력/제출 허용을 자동 승계하지 않는다.
+- 매핑 표본 필수검사 skipped>0 또는 exact checked hash 불일치이면 문답형 검증 통과 불가.
+- 파일 안전 검증·서식 검증·내용 규정 검증의 통과 범위를 구분한다.
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -1988,13 +2410,13 @@ Claude·기억 · 기존 보강
 - (scope_key,document_id,revision_no) → workhub.document_revisions(scope_key,document_id,revision_no)
 - (scope_key,job_id) → workhub.jobs(scope_key,id)
 
-필수 시험: WF17
+필수 시험: WF17; COL02; COL03; COL19; COL23
 
 ## workhub.documents
 
 파일·문서 · 기존 보강
 
-열람: 본인 또는 명시 현재 공유대상. 과거판/근거/파일도 현재 원본 ACL.
+열람: 기존 문서 권한과 수합 원본의 현재 권한 교집합.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -2025,11 +2447,19 @@ Claude·기억 · 기존 보강
 
 - owner_account_id는 학교 scope에서도 불변
 - current_revision_no는 정확한 동일 document revision이며 비어 있는 문서는0
+- linked_unit_id가 있는 수합 초안/산출물은 문서 ACL AND 해당 unit draft/submission 현재 ACL을 함께 만족
+- UNIQUE(school_id,id,linked_unit_id) 추가. 수합 생성 문서판의 정확 unit FK가 참조하며 linked_unit_id 변경으로 기존 판을 재배정하지 못함
+- 생성 document owner 변경으로 수합 비공개 초안 경계를 우회하지 못함
 
 통합 동작 규칙:
 
 - 문서 head의 팩 선택은 다음 판 입력이며 과거 revision의 팩판을 바꾸지 않는다.
 - private/shared_with는 현재 ACL. duty/linked_unit 접근이 학생기록이나 개인초안을 자동 공개하지 않음.
+- 기존 문서 저장/판 생성 사용, 단위 연결 산출물 공개는 실제 submission의 exact revision/file 연결 뒤에만.
+- 개인 문서함·검색·jobs·ai_runs·source ref에서 동일 부모 경계를 재검사한다.
+- 개인초안 산출물은 shared_with=none, 공동초안 산출물은 shared_with=unit_members로 생성하되 현재 유효 구성원 검사. linked unit의 개인초안 문서를 school/duty_members로 확대 금지.
+
+인덱스: (school_id,linked_unit_id,id) WHERE linked_unit_id IS NOT NULL
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -2040,7 +2470,7 @@ Claude·기억 · 기존 보강
 - (school_id,linked_unit_id) → workhub.collection_units(school_id,id)
 - (scope_key,conversation_id,owner_account_id) → workhub.conversations(scope_key,id,owner_account_id)
 
-필수 시험: WF17; WF18
+필수 시험: WF17; WF18; COL04; COL12; COL20; COL24
 
 ## workhub.duties
 
@@ -2291,7 +2721,7 @@ Claude·기억 · 기존 보강
 
 수합 · 기존 보강
 
-열람: 현재 요청관리/내보내기 권한; ZIP은 모든 포함판 현재 권한도 재확인.
+열람: 기존 현재 요청관리/내보내기 권한 및 포함 제출판 ACL.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -2316,9 +2746,12 @@ Claude·기억 · 기존 보강
 
 통합 동작 규칙:
 
-- none latest_valid, required chosen 접수판 기본; effective는 명시선택.
+- none latest_valid, required effective 완료본 기본; received 미승인 포함은 명시선택.
 - 시작/항목/최종연결/다운로드 권한 재검사, 권한 잃은 파일 섞인 구ZIP 재발급 금지.
 - 동일 고정 항목 실패만 재시도, 중간 새제출판 자동치환 금지.
+- 기본 selection은 effective. 검토 없는 수합도 current=effective 계약에 따라 같은 기본 사용.
+- 미승인 received 포함은 담당자 명시 선택·상태 표시; 완료본 없는 단위는 현황표에 미완료 사유 표시.
+- 02장 13절의 이전 1.0 received 기본을 대체하며 현재 02장과 동일; 고정 item ID/hash·부분실패·현재권한 규칙 유지.
 
 인덱스: (school_id,requested_by_membership_id,created_at DESC,id)
 
@@ -2329,11 +2762,11 @@ Claude·기억 · 기존 보강
 - (school_id,job_id) → workhub.jobs(school_id,id)
 - (school_id,requested_by_membership_id) → workhub.memberships(school_id,id)
 
-필수 시험: WF16
+필수 시험: WF16; COL14; COL17
 
 ## workhub.feedback
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -2366,7 +2799,7 @@ Claude·기억 · 기존 보강
 
 ## workhub.feedback_events
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -2435,7 +2868,7 @@ Claude·기억 · 기존 보강
 
 파일·문서 · 기존 보강
 
-열람: 원본 typed 부모의 현재 read; linked_by라는 이유만으로 계속 읽을 수 없음.
+열람: typed 원본 현재 ACL. 미제출 artifact/문서/파일은 collector에게 비공개.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -2452,6 +2885,11 @@ Claude·기억 · 기존 보강
 | unlinked_at | timestamp with time zone | 허용 | — |  | 원본 |
 | unlinked_by_account_id | text | 허용 | — |  | 원본 |
 | field_id | text | 허용 | — | workhub.collection_fields.id · unit_drafts file 문항일 때 정확한 정의 | 통합 추가 |
+| answer_path | text[] | 허용 | — | 문항 key 또는 반복행 group/row_key/field 경로; 수합 외 링크는 NULL | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): file_links_resource_type_resource_id_file_object_id_role_key
+
+이번 판에서 대체하는 인덱스(그대로 생성 금지): file_links_resource_type_resource_id_file_object_id_role_key, UNIQUE (scope_key,resource_type,resource_id,resource_version,field_id,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL
 
 통합 필수 제약:
 
@@ -2460,6 +2898,11 @@ Claude·기억 · 기존 보강
 - draft 파일은 동일 schema의 file 문항
 - resource resolver 허용 목록 외 종류·미지원 복합PK 거부; source·target·version·scope 검사
 - 기존 UNIQUE(resource_type,resource_id,file_object_id,role) 제거는 새 활성 연결 유일 인덱스로 대체할 때만 수행
+- 신규 typed resolver: collection_template_versions, collection_answer_snapshots, collection_output_artifacts. 정확 학교/판/원본권한 검증 구현 후 allowlist
+- 수합 경로는 exact schema field와 row_key 존재·형식 검증; file ID/raw path로 부모 권한 대체 금지
+- answer_path는 file_links의 불변 연결 정체성에 포함. 다른 반복행으로 UPDATE하지 못하며 기존 초안 관계 변경은 unlink+새 링크, 동결 snapshot 관계는 변경 금지
+- 활성 링크 UNIQUE(scope_key,resource_type,resource_id,resource_version,field_id,answer_path,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL; 기존 명명 UNIQUE 및 answer_path 없는 활성 UNIQUE를 대체
+- 불변 answer snapshot 링크는 freeze transaction에서만 INSERT, 그 후 UPDATE/unlink/추가 금지; 전체 접근 차단/정정은 별도 사건
 
 통합 동작 규칙:
 
@@ -2467,8 +2910,10 @@ Claude·기억 · 기존 보강
 - 기존 typed submission_files/document_inputs/document_revisions.output_file_id를 generic link로 우회 금지.
 - 연결 시 파일읽기+목적쓰기+공개범위 상승 허용 검사; unlink/원본권한회수와 grant revoke 같은 transaction.
 - 불변판의 파일 연결은 내용 수정용 unlink 불가. 전체 차단/정정판으로 처리.
+- snapshot file_manifest JSON과 typed link의 file/hash/path 전수 일치 검사.
+- 기존 파일 실물·안전정책·현재 다운로드 ACL·grant 회수 유지. 원본 양식 접근이 답변 파일 접근을 열지 않음.
 
-인덱스: UNIQUE (scope_key,resource_type,resource_id,resource_version,field_id,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL
+인덱스: (school_id,resource_type,resource_id,resource_version) WHERE unlinked_at IS NULL; UNIQUE (scope_key,resource_type,resource_id,resource_version,field_id,answer_path,file_object_id,role) NULLS NOT DISTINCT WHERE unlinked_at IS NULL
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -2478,7 +2923,7 @@ Claude·기억 · 기존 보강
 - (scope_key,file_object_id) → workhub.file_objects(scope_key,id)
 - (unlinked_by_account_id) → workhub.accounts(id)
 
-필수 시험: WF05; WF10; WF05: 연결→unlink→동일 파일 재연결 성공; 동일 문항의 동시 활성 연결 중복 거부; 서로 다른 문항의 동일 파일은 구별
+필수 시험: WF05; WF10; WF05: 연결→unlink→동일 파일 재연결 성공; 동일 문항의 동시 활성 연결 중복 거부; 서로 다른 문항의 동일 파일은 구별; COL01; COL04; COL08; COL12; COL21
 
 ## workhub.file_objects
 
@@ -3300,9 +3745,9 @@ Claude·기억 · 기존 보강
 
 ## workhub.lesson_executions
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 실제 수업 담당과 승인된 실시 확인 범위, 학생 기록 권한 확대 없음
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -3316,10 +3761,22 @@ Claude·기억 · 기존 보강
 | reason | text | 허용 | — |  | 원본 |
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 
+통합 필수 제약:
+
+- 기존 (lesson_instance_id,revision_no) 불변판과 동일 학교 복합 FK 유지
+- 정정은 새판; 같은 실시판의 원장 계상 멱등, 시간 경과로 실시 확정 금지
+
+통합 동작 규칙:
+
+- 대강·결강·보강·실시 정정은 lesson_execution_teachers/cover_ledger와 함께 처리
+- 실시 기록과 연결된 학생 활동·관찰을 삭제하지 않음
+
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,confirmed_by_membership_id) → workhub.memberships(school_id,id)
 - (school_id,lesson_instance_id) → workhub.lesson_instances(school_id,id)
+
+필수 시험: TT03; TT20
 
 ## workhub.lesson_instance_teachers
 
@@ -3341,9 +3798,9 @@ Claude·기억 · 기존 보강
 
 ## workhub.lesson_instances
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 확정 수업 최소 DTO는 현재 학교 교사, 학생 자료/개인사유는 별도 원본 권한
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -3367,6 +3824,16 @@ Claude·기억 · 기존 보강
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
 
+통합 필수 제약:
+
+- 기존 lesson 영구 ID와 school/term/course 복합 FK 보존; 엔진 unit 순번을 영구 ID로 재사용 금지
+- 이미 실시/학생자료 연결한 수업을 재생성·원복으로 삭제하거나 다른 수업 의미로 재귀속 금지
+
+통합 동작 규칙:
+
+- 기본표 재배포 시 승인 미래변경 영향 검토; 기존 수업 변경을 소실시키지 않음
+- 교사/학급/교실 DTO는 같은 날짜별 원장 조회; 캐시가 오래되면 최신성 표시
+
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,change_set_id) → workhub.timetable_change_sets(school_id,id)
@@ -3375,6 +3842,8 @@ Claude·기억 · 기존 보강
 - (school_id,space_id) → workhub.spaces(school_id,id)
 - (school_id,term_id) → workhub.terms(school_id,id)
 - (school_id,timetable_version_id) → workhub.timetable_versions(school_id,id)
+
+필수 시험: TT03; TT14; TT15; TT22
 
 ## workhub.membership_home_layouts
 
@@ -3557,6 +4026,299 @@ Claude·기억 · 기존 계승
 - (conversation_id) → workhub.conversations(id)
 - (conversation_id,run_id) → workhub.ai_runs(conversation_id,id)
 
+## workhub.messenger_dispatch_files
+
+메신저·전달·알림 · 신규
+
+열람: prepared는 현재 발신자만. delivered는 읽을 수 있는 정확한 message 부모 AND file 안전상태/실물일치/기존원본 현재 ACL. 관리자 우회 없음.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 생성 식별자 · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 불변 학교 경계 · 생성 후 불변 | 통합 추가 |
+| dispatch_id | text | 불가 | — | workhub.messenger_dispatches.id · 불변 발송판 · 생성 후 불변 | 통합 추가 |
+| file_object_id | text | 불가 | — | workhub.file_objects.id · 같은 학교의 검증된 파일 · 생성 후 불변 | 통합 추가 |
+| sha256 | text | 불가 | — | 준비 당시 실물 지문 · 생성 후 불변 | 통합 추가 |
+| size_bytes | bigint | 불가 | — | 검증된 실물 크기 · 생성 후 불변 | 통합 추가 |
+| filename | text | 불가 | — | 화면 표시용 정규화 파일명; 경로로 쓰지 않음 · 생성 후 불변 | 통합 추가 |
+| position | integer | 불가 | — | 본문 아래 표시 순서 · 생성 후 불변 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,dispatch_id) FK messenger_dispatches(school_id,id); (school_id,file_object_id) FK file_objects(school_id,id)
+- UNIQUE(dispatch_id,file_object_id)
+- UNIQUE(dispatch_id,position)
+- size_bytes>=0; position>=0; sha256 64자리 hex
+- 준비 시 안전검사/실물hash/학교/원본현재권한 일치. confirmed 이후 첨부 INSERT/UPDATE/DELETE 금지
+
+통합 동작 규칙:
+
+- 새 파일은 기존 cmd_file_init으로 school 비공개 미연결 업로드를 예약하고 안전검사 후 prepare에 file ID/hash를 전달한다. 미연결 상태·업로드 주체·동일 학교를 확인한 새 업로드만 dispatch 생성+typed 첨부+intended_resource_type=messenger_dispatch/id 1회 bind를 원자 수행한다. 기존 업무 파일의 intended_resource_type/id·원부모·소유자는 변경하지 않고 typed 첨부 참조와 현재 원본 ACL을 유지한다.
+- 기존 학교·개인 파일을 DM에 붙여 원본 ACL을 확대하지 않는다. 새 파일 업로드와 기존 업무자료 링크 공유를 구분한다.
+- 이미 다른 원본에 속한 파일은 모든 수신자가 원본을 현재 읽을 수 있을 때만 현재 원본 ACL을 AND로 검사하는 링크로 제공; 권한이 다른 경우 업무카드/접근요청 안내.
+- 다운로드는 messageId+fileId로 수행하고 message.dispatchId=이 행 dispatch를 서버 확인한다. 직접 dispatchId나 파일ID/Storage URL만으로 다운로드 불가.
+- 파일 한도·형식·보존기간·URL 수명은 승인 정책값. 미정이면 해당 업로드/발송만 POLICY_UNSET, 임의 숫자 기본값 금지.
+
+인덱스: (school_id,file_object_id,dispatch_id)
+
+필수 시험: MSG04; MSG06; MSG09; MSG12; MSG14
+
+## workhub.messenger_dispatch_targets
+
+메신저·전달·알림 · 신규
+
+열람: 발신자는 전체 상태, 수신자는 본인 delivered 최소 접수만. 양쪽 모두 현재 해당 학교 origin 소속과 메시지 관계 확인.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 생성 식별자 · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 불변 학교 경계 · 생성 후 불변 | 통합 추가 |
+| dispatch_id | text | 불가 | — | workhub.messenger_dispatches.id · 확인안 · 생성 후 불변 | 통합 추가 |
+| recipient_membership_id | text | 불가 | — | workhub.memberships.id · 고정 수신 소속 · 생성 후 불변 | 통합 추가 |
+| recipient_account_id | text | 불가 | — | workhub.accounts.id · 고정 수신 계정 · 생성 후 불변 | 통합 추가 |
+| recipient_participant_id | text | 허용 | — | workhub.messenger_participants.id · group의 정확한 참여 episode; direct는 전달 시 생성/선택 | 통합 추가 |
+| result_thread_id | text | 허용 | — | workhub.messenger_threads.id · 실제 생성/기존 DM 또는 고정 group 방 | 통합 추가 |
+| state | text | 불가 | — | pending/delivered/blocked/failed/cancelled; delivered는 DB 메시지 커밋 | 통합 추가 |
+| safe_error_code | text | 허용 | — | 본문 없는 허용목록 실패 사유 | 통합 추가 |
+| attempt_count | integer | 불가 | — | 내부 전달 시도 수; 재시도 정책에서 증가 | 통합 추가 |
+| delivered_at | timestamptz | 허용 | — | delivered일 때 서버 시각 | 통합 추가 |
+| version | integer | 불가 | — | 1부터 시작하는 낙관적 동시성 판 | 통합 추가 |
+| corrects_message_id | text | 허용 | — | workhub.messenger_messages.id · 정정 발송 대상의 이전 메시지. prepared 시 고정하며 같은 학교·방·발신자 소유 검증 · 생성 후 불변 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,dispatch_id) FK messenger_dispatches(school_id,id)
+- (school_id,recipient_membership_id,recipient_account_id) FK memberships(school_id,id,account_id)
+- (school_id,result_thread_id,recipient_participant_id,recipient_membership_id,recipient_account_id) FK messenger_participants(school_id,thread_id,id,membership_id,account_id) MATCH SIMPLE
+- UNIQUE(dispatch_id,recipient_membership_id); 발신자 자신은 targets에 넣지 않음
+- delivered이면 result_thread/participant/delivered_at 필수이고 같은 dispatch/thread 메시지가 반드시 존재
+- sender/recipient 동일 계정 및 다른 학교 거부; recipient ID/account는 준비 후 불변
+- state delivered에서는 재시도/삭제/다른 thread 대입 금지; failed는 DB 효과 없음이 증명된 경우만
+- (school_id,corrects_message_id) FK messenger_messages(school_id,id); 정정대상은 현재 존재하는 이전 메시지이며 같은 발신자의 동일 결과방만 허용
+- CHECK((result_thread_id IS NULL) = (recipient_participant_id IS NULL)); delivered이면 두 선택열 모두 NOT NULL. 준비 단계는 두 선택열 모두 NULL 허용
+
+통합 동작 규칙:
+
+- 단체 개별발송은 대상별 독립 transaction: DM 확보+message 1개+target delivered+receipt/audit/outbox 원자.
+- group는 동결한 현재 참여집합 전체와 메시지 1개를 같은 transaction으로 처리한다. 그룹 전달 중 부분 성공은 허용하지 않음.
+- 부서/학년 조건은 준비 시 대상 스냅숏; 실행은 현재 소속·접근검사를 다시 하며 selector를 재해석해 다른 사람에게 보내지 않는다.
+- 성공행은 건너뛰고 실패행만 같은 dispatch/recipient 키로 재시도한다. blocked는 새 확인안을 만들기 전 자동 재시도하지 않는다.
+- 수신자에게 타 수신자 목록·실패사유·단체발송 집계 반환 금지.
+- group 정정은 모든 targets가 같은 corrects_message_id를 갖거나 전부 NULL. 직접/개별발송 정정은 대상별 자기 DM의 원메시지만 참조한다. 정정 대상도 확인 지문에 포함한다.
+- 같은 방의 다른 참여자 episode를 수신자 행에 연결할 수 없다. 복합 FK가 수신 소속·계정까지 묶으며 현재 active episode도 명령에서 재검사한다.
+
+인덱스: (school_id,dispatch_id,state,id); (school_id,recipient_membership_id,dispatch_id); (school_id,corrects_message_id) WHERE corrects_message_id IS NOT NULL
+
+필수 시험: MSG01; MSG04; MSG07; MSG08; MSG10; MSG11; MSG14
+
+## workhub.messenger_dispatches
+
+메신저·전달·알림 · 신규
+
+열람: 발신자 본인 현재 origin membership만 준비안/전체 발송 결과를 조회. 수신자는 자기 messenger_messages 경로에서 본문과 본인 관련 카드만 받음. 관리자 일괄본문/수신명단 조회 금지.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 생성 식별자 · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 불변 학교 경계 · 생성 후 불변 | 통합 추가 |
+| sender_membership_id | text | 불가 | — | workhub.memberships.id · 발송 주체의 고정 소속 · 생성 후 불변 | 통합 추가 |
+| sender_account_id | text | 불가 | — | workhub.accounts.id · 인증에서 파생한 발송 계정 · 생성 후 불변 | 통합 추가 |
+| mode | text | 불가 | — | direct/group/broadcast_direct; 수신자에게 서로 다른 의미 · 생성 후 불변 | 통합 추가 |
+| group_thread_id | text | 허용 | — | workhub.messenger_threads.id · group일 때만 대상 방 · 생성 후 불변 | 통합 추가 |
+| expected_participant_epoch | bigint | 허용 | — | group 확인 당시 참여판 | 통합 추가 |
+| body | text | 불가 | — | 정규화한 plain text 본문; 승인된 렌더러만 사용, HTML 실행 없음 · 생성 후 불변 | 통합 추가 |
+| content_sha256 | text | 불가 | — | 본문·파일지문·업무카드·전달모드의 canonical SHA-256 · 생성 후 불변 | 통합 추가 |
+| confirmation_sha256 | text | 불가 | — | content + 정확한 정렬 수신자 + 현재권한판 + 방참여판 + 정책판 + 만료의 지문 · 생성 후 불변 | 통합 추가 |
+| recipient_selector | jsonb | 불가 | — | 직접 ID/부서/학년 등 명단 생성 조건. 실제 발송 대상은 targets 고정 집합 · 생성 후 불변 | 통합 추가 |
+| policy_bindings | jsonb | 불가 | — | 적용 정책의 scope_key/id/version 및 명령 registry 판; 임의 실행문 불가 · 생성 후 불변 | 통합 추가 |
+| permission_context | jsonb | 불가 | — | 확인 당시 계정/학교/소속/역할 권한판. 실행 때 현재값과 비교 · 생성 후 불변 | 통합 추가 |
+| origin | text | 불가 | — | manual/ai/workflow; AI도 교사가 발신자 · 생성 후 불변 | 통합 추가 |
+| tool_proposal_id | text | 허용 | — | workhub.tool_proposals.id · AI 확인 제안과의 1방향 연결; payload가 이 dispatch와 지문 참조 · 생성 후 불변 | 통합 추가 |
+| card_kind | text | 허용 | — | collection/timetable_change; 없으면 다른 card 열도 NULL · 생성 후 불변 | 통합 추가 |
+| collection_id | text | 허용 | — | workhub.collections.id · 수합 안내 카드의 현재 원본 · 생성 후 불변 | 통합 추가 |
+| timetable_change_set_id | text | 허용 | — | workhub.timetable_change_sets.id · 시간표 변경 카드의 현재 원본 · 생성 후 불변 | 통합 추가 |
+| card_version | integer | 허용 | — | 표시 제안 당시 원본 판; 행동 시 현재 원본 재검사 · 생성 후 불변 | 통합 추가 |
+| state | text | 불가 | — | prepared/confirmed/sending/completed/partial/failed/cancelled/expired | 통합 추가 |
+| expires_at | timestamptz | 불가 | — | 확인 유효 시각; 구체 유효시간은 승인 정책 | 통합 추가 |
+| confirmed_at | timestamptz | 허용 | — | 교사가 정확한 지문을 확인한 서버 시각 | 통합 추가 |
+| confirmed_by_membership_id | text | 허용 | — | workhub.memberships.id · sender_membership_id와 같아야 함 | 통합 추가 |
+| target_count | integer | 불가 | — | 준비 시 고정 대상 수. 최소 1 | 통합 추가 |
+| version | integer | 불가 | — | 1부터 시작하는 낙관적 동시성 판 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 생성 시각 | 통합 추가 |
+| completed_at | timestamptz | 허용 | — | 모든 대상 최종결과가 있을 때 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,sender_membership_id,sender_account_id) FK memberships(school_id,id,account_id)
+- (school_id,group_thread_id) FK messenger_threads(school_id,id)
+- (school_id,collection_id) FK collections(school_id,id); (school_id,timetable_change_set_id) FK timetable_change_sets(school_id,id)
+- card_kind=collection이면 collection_id/card_version만 존재; timetable_change이면 timetable_change_set_id/card_version만 존재; 없음이면 전부 NULL
+- UNIQUE(school_id,id,sender_membership_id,sender_account_id)
+- group mode iff group_thread_id와 expected_participant_epoch 존재; direct는 target_count=1
+- tool_proposal_id는 동일 school·actor·origin membership의 tool_proposals이며 cmd_messenger_confirm 전용 tool registry; 일반 FK 외 명령 검증
+- confirmed_at/confirmed_by는 둘 다 NULL 또는 존재하고 confirmed_by=sender; confirmed 이후 상태에는 확인 필수
+- confirmed/completed 후 content/selector/정확한 대상/첨부/card/확인 맥락 불변; 수정은 새 dispatch
+- 준비안은 trim(body) 비어있지 않음 OR 첨부 존재 OR 업무카드 존재; 실제 대상행 수=target_count, 학교/소속별 중복 없음
+- prepared 생성과 targets/files를 같은 transaction으로 생성하고 지연 무결성 검사. 정규화 본문/card/policy JSON은 서버 schema로 검증
+
+통합 동작 규칙:
+
+- 본문은 이 불변 dispatch에 한 번만 보관하고 messenger_messages가 참조한다. 일반 수신자는 dispatch 직접 조회 불가, 메시지 DTO에서 본문만 받는다.
+- AI prepared만으로 전송하지 않는다. 확인 이후 target 고정. 명단 변화는 확인 전 STALE, 확인 후 새로운 교사를 자동 추가하지 않음.
+- confirmed 이후 권한 상실·소속 종료는 미전송 대상 blocked. 이미 전달된 사실은 지우지 않고 현재 메시지 열람권을 별도로 적용한다.
+- 정정은 dispatch_targets.corrects_message_id가 가리키는 과거 본문을 덮어쓰지 않는 새 메시지. 원메시지 조회 시 정정 연결을 표시; 학교 일반관리자가 타인 메시지를 정정할 수 없음.
+- 자동 workflow 알림은 기본 notifications로 처리. 사람 이름으로 DM을 자동 발송하지 않으며 반복 안내는 매번 현재 미제출/미동의 명단으로 새 확인안을 만든다.
+
+인덱스: (school_id,sender_membership_id,created_at DESC,id); (school_id,state,created_at,id) WHERE state IN(prepared,confirmed,sending,partial); (school_id,tool_proposal_id) WHERE tool_proposal_id IS NOT NULL
+
+필수 시험: MSG04; MSG06; MSG07; MSG08; MSG09; MSG10; MSG13
+
+## workhub.messenger_messages
+
+메신저·전달·알림 · 신규
+
+열람: 현재 active origin membership + current active participant episode + seq>=visible_from_seq AND (발신자 또는 해당 dispatch 고정 수신자). withdrawn은 내용 없는 표식만.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 생성 식별자 · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 불변 학교 경계 · 생성 후 불변 | 통합 추가 |
+| thread_id | text | 불가 | — | workhub.messenger_threads.id · 실제 표시되는 방 · 생성 후 불변 | 통합 추가 |
+| dispatch_id | text | 불가 | — | workhub.messenger_dispatches.id · 본문·파일·발신자의 불변 발송판 · 생성 후 불변 | 통합 추가 |
+| seq | bigint | 불가 | — | 방 잠금 아래 단조 증가 순번 · 생성 후 불변 | 통합 추가 |
+| state | text | 불가 | — | visible/withdrawn; 일반 수정으로 본문 대체 금지 | 통합 추가 |
+| sent_at | timestamptz | 불가 | — | DB 커밋에 대응하는 서버 기록시각 | 통합 추가 |
+| withdrawn_at | timestamptz | 허용 | — | 회수 명령 시각 | 통합 추가 |
+| withdrawn_by_membership_id | text | 허용 | — | workhub.memberships.id · 발신자 본인; 안전사건은 별도 승인 운영 경로 | 통합 추가 |
+| version | integer | 불가 | — | 1부터 시작하는 낙관적 동시성 판 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- (school_id,thread_id) FK messenger_threads(school_id,id); (school_id,dispatch_id) FK messenger_dispatches(school_id,id)
+- UNIQUE(thread_id,seq)
+- UNIQUE(dispatch_id,thread_id)
+- UNIQUE(school_id,id,dispatch_id)
+- seq>=1; visible이면 withdrawn 열 NULL; withdrawn이면 withdrawn_at 필수
+- dispatch sender가 방의 현재 참여자이며 group은 dispatch.group_thread_id와 같아야 함
+- direct/broadcast_direct는 그 DM 상대가 정확한 dispatch target이어야 함; sender/recipient 외 세 번째 참여 금지
+
+통합 동작 규칙:
+
+- 메시지 body 중복 열 없음. 읽기는 현재 participant episode의 seq범위+현재 소속+message visible 검사 후 dispatch 본문을 조립한다.
+- withdrawn은 대화에 회수 표식만 남기고 본문/첨부/검색/AI문맥을 막는다. 이미 상대가 읽거나 내려받은 파일까지 회수했다고 보장하지 않음.
+- 회수와 read/download/AI 근거선택은 동일 메시지 gate로 직렬화한다. 캐시·색인 무효화는 후속이며 서버 읽기검사를 대체하지 않음.
+- 정정은 새 dispatch_targets.corrects_message_id 참조이며 원본문을 덮어쓰지 않음. 메시지 직접삭제는 일반 API 없음.
+
+인덱스: (school_id,thread_id,seq DESC); (school_id,dispatch_id,id)
+
+필수 시험: MSG02; MSG03; MSG05; MSG08; MSG09; MSG10; MSG12
+
+## workhub.messenger_participants
+
+메신저·전달·알림 · 신규
+
+열람: 본인 episode와 현재 방의 최소 참여자 정보만. 다른 학교/관계없는 관리자 불가. 종료 참여자도 기존 메시지 발신 표시용 최소 탈퇴 표식만 반환.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 생성 식별자 · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 불변 학교 경계 · 생성 후 불변 | 통합 추가 |
+| thread_id | text | 불가 | — | workhub.messenger_threads.id · 대화방 · 생성 후 불변 | 통합 추가 |
+| membership_id | text | 불가 | — | workhub.memberships.id · 참여 당시 고정 소속 · 생성 후 불변 | 통합 추가 |
+| account_id | text | 불가 | — | workhub.accounts.id · 참여자 계정 · 생성 후 불변 | 통합 추가 |
+| role | text | 불가 | — | manager/member; direct는 member | 통합 추가 |
+| state | text | 불가 | — | active/left/removed; 종료 후 같은 행을 active로 되돌리지 않음 | 통합 추가 |
+| visible_from_seq | bigint | 불가 | — | 참여 직후 볼 수 있는 첫 순번; 기본 last_seq+1 · 생성 후 불변 | 통합 추가 |
+| last_read_seq | bigint | 불가 | — | 실제 화면에 표시한 연속 읽음 경계; visible_from_seq-1 이상, 단조 증가 | 통합 추가 |
+| joined_at | timestamptz | 불가 | — | 참여 시작 | 통합 추가 |
+| ended_at | timestamptz | 허용 | — | left/removed이면 필수 | 통합 추가 |
+| ended_by_membership_id | text | 허용 | — | workhub.memberships.id · 자발적 나가기/제거 수행자; 소속 종료 worker는 NULL | 통합 추가 |
+| version | integer | 불가 | — | 1부터 시작하는 낙관적 동시성 판 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- UNIQUE(school_id,thread_id,id)
+- (school_id,thread_id) FK messenger_threads(school_id,id)
+- (school_id,membership_id,account_id) FK memberships(school_id,id,account_id)
+- (school_id,ended_by_membership_id) FK memberships(school_id,id)
+- UNIQUE(thread_id,membership_id) WHERE state=active
+- state=active iff ended_at IS NULL; visible_from_seq>=1; last_read_seq>=visible_from_seq-1
+- 동일 thread/membership episode 기간은 중첩 금지. 종료 시점은 joined_at 이상; 새 episode는 ended_at 뒤 생성
+- joined_at/visible_from_seq와 thread/member/account 정체성 불변; ended 상태에서 active로 역전 금지
+- UNIQUE(school_id,thread_id,id,membership_id,account_id)
+
+통합 동작 규칙:
+
+- 읽음 명령은 해당 episode의 접근 가능 메시지 순번만 허용하고 max(기존,입력)로 갱신한다.
+- 페이지가 뒤에서 열리면 현재 화면 이전을 읽음으로 처리할지 UI에서 명시해 자동 과장하지 않는다. 미조회 앞부분이 있으면 연속 경계 이전까지만 갱신한다.
+- 새 참여자/재입장자는 새 visible_from_seq 이후만 본다. 과거 파일/검색/인용/AI 문맥도 같은 경계 적용.
+- 메시지를 읽어도 수합 제출/시간표 동의/공지 확인 상태는 바뀌지 않는다.
+
+인덱스: (school_id,membership_id,thread_id) WHERE state=active; (school_id,thread_id,state,id)
+
+필수 시험: MSG02; MSG03; MSG05; MSG14
+
+## workhub.messenger_threads
+
+메신저·전달·알림 · 신규
+
+열람: 현재 학교 소속이 활성이고 현재 참여 episode가 active인 사람만. 퇴직·탈퇴 시 목록/검색/본문/파일 즉시 차단. 관리자·플랫폼 자동 열람 불가.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | — | 서버 생성 식별자 · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 불변 학교 경계 · 생성 후 불변 | 통합 추가 |
+| kind | text | 불가 | — | direct/group; 생성 후 불변 · 생성 후 불변 | 통합 추가 |
+| title | text | 허용 | — | group 제목; direct는 NULL. 상대 이름은 현재 표시자료로 조립 | 통합 추가 |
+| direct_low_membership_id | text | 허용 | — | workhub.memberships.id · direct의 정렬상 작은 소속 ID · 생성 후 불변 | 통합 추가 |
+| direct_high_membership_id | text | 허용 | — | workhub.memberships.id · direct의 정렬상 큰 소속 ID · 생성 후 불변 | 통합 추가 |
+| created_by_membership_id | text | 불가 | — | workhub.memberships.id · 방 생성 당시 소속 · 생성 후 불변 | 통합 추가 |
+| created_by_account_id | text | 불가 | — | workhub.accounts.id · 방 생성 당시 계정 · 생성 후 불변 | 통합 추가 |
+| state | text | 불가 | — | active/archived; 보관은 삭제/권한회수가 아님 | 통합 추가 |
+| participant_epoch | bigint | 불가 | — | 참여/탈퇴/역할변경마다 증가; 발송 확인 지문에 포함 | 통합 추가 |
+| last_seq | bigint | 불가 | — | 0부터 시작. 이 방 마지막 커밋 메시지 순번; 순번 배정은 방 잠금 아래 실행 | 통합 추가 |
+| version | integer | 불가 | — | 1부터 시작하는 낙관적 동시성 판 | 통합 추가 |
+| created_at | timestamptz | 불가 | — | 서버 생성 시각 | 통합 추가 |
+| updated_at | timestamptz | 불가 | — | 서버 최신 활동 시각 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id)
+- UNIQUE(school_id,id)
+- school_id와 모든 작성 주체/부모 관계는 불변; FK 삭제는 RESTRICT/NO ACTION, 학교/계정 CASCADE 금지
+- kind=direct iff 두 direct membership 존재 AND low<high; group이면 두 열 모두 NULL
+- UNIQUE(school_id,direct_low_membership_id,direct_high_membership_id) WHERE kind=direct
+- (school_id,direct_low_membership_id)/(school_id,direct_high_membership_id) FK memberships(school_id,id); 서로 다른 현재 소속, 계정도 서로 달라야 함
+- (school_id,created_by_membership_id,created_by_account_id) FK memberships(school_id,id,account_id)
+- last_seq>=0, participant_epoch>=1, version>=1; direct 방은 정확히 두 지정 소속만 참여 가능
+- group title은 공백제거 후 비어있지 않음; 직접 DM에는 title 없음. 길이 한도는 승인된 입력 규격에서 조회
+
+통합 동작 규칙:
+
+- 같은 학교 두 소속의 역순 동시 DM 생성은 UNIQUE와 멱등 명령으로 한 방으로 수렴한다.
+- 전출 뒤 새 소속으로 돌아온 사용자는 새 membership이므로 옛 DM이 자동 재개되지 않는다.
+- group에서 현재 manager가 0명이 되는 변경은 현재 참여자에게 역할 인계하거나 방 archived 처리와 원자 결합한다. 학교 관리자 자동 manager 승격 금지.
+- 나가기/멤버 추가/재입장은 participant_epoch 증가. 재입장은 새 참여 행과 새 visible_from_seq를 만든다.
+
+인덱스: (school_id,updated_at DESC,id); (school_id,state,id)
+
+필수 시험: MSG01; MSG02; MSG03; MSG04
+
 ## workhub.migration_checks
 
 작업·이관·복구 · 기존 보강
@@ -3691,7 +4453,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.notice_receipts
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -3714,7 +4476,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.notices
 
-전달·알림 · 기존 보강
+메신저·전달·알림 · 기존 보강
 
 열람: 현재 승인 관계와 대상. 확인 명단은 요청자/명시 관리권한만.
 
@@ -3766,7 +4528,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.notification_kinds
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -3779,7 +4541,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.notification_preferences
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -3798,7 +4560,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.notifications
 
-전달·알림 · 기존 보강
+메신저·전달·알림 · 기존 보강
 
 열람: 수신 현재 account/membership+원본 현재read. 알림ID만으로 원본 접근 금지.
 
@@ -4269,7 +5031,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.push_subscriptions
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -4293,7 +5055,7 @@ Claude·기억 · 기존 계승
 
 ## workhub.quiet_hours
 
-전달·알림 · 기존 계승
+메신저·전달·알림 · 기존 계승
 
 열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
 
@@ -4617,9 +5379,9 @@ Claude·기억 · 기존 계승
 
 ## workhub.resource_occupancy
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 당사자는 사용 가능 여부, 원인 본문은 현재 권한 범위
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -4630,6 +5392,18 @@ Claude·기억 · 기존 계승
 | source_type | text | 불가 | — |  | 원본 |
 | source_id | text | 불가 | — |  | 원본 |
 | exclusive | boolean | 불가 | true |  | 원본 |
+
+통합 필수 제약:
+
+- 기존 복합키/EXCLUDE 유지; 모든 teacher/class/group/student/space 원본은 같은 school 참조를 검증
+- 빈 자원에도 동일 정렬 resource-key 잠금을 사용. 공유 공간 용량은 잠금 아래 기간별 총량 재검사
+
+통합 동작 규칙:
+
+- 불가시간·명부변경·공간예약·배포·교환의 모든 작성 경로가 동일 잠금 규약 사용
+- 원자 변경 실패는 어느 교사/학급 점유도 남기지 않음
+
+필수 시험: TT01; TT02; TT19
 
 ## workhub.restoration_ledger
 
@@ -5018,9 +5792,9 @@ Claude·기억 · 기존 계승
 
 ## workhub.school_timetable_types
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 학교 담당자는 지원 상태, 내부 증거는 운영 권한 범위
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -5033,11 +5807,24 @@ Claude·기억 · 기존 계승
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| operation_support | jsonb | 불가 | '{}'::jsonb | import_read/compose/manual_validate/daily_change별 designed/unsupported/verified 및 evidence_ref·engine/adapter/validator판 | 통합 추가 |
+
+통합 필수 제약:
+
+- operation_support는 허용 키/상태 스키마; verified는 실측 evidence_ref와 확인자/시각·엔진/검증판 필요
+- 기존 support_state의 designed는 전체 지원완료가 아님; 새 엔진판에서 자동 계승하지 않음
+
+통합 동작 규칙:
+
+- 학교급 이름만으로 지원 판정하지 않음
+- 미검증 운영형은 자동편성뿐 아니라 검증되지 않은 수동 배포/교환도 차단
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id) → workhub.schools(id)
 - (verified_by_account_id) → workhub.accounts(id)
+
+필수 시험: TT02; TT21
 
 ## workhub.schools
 
@@ -5647,7 +6434,7 @@ Claude·기억 · 기존 계승
 
 수합 · 기존 보강
 
-열람: 정확한 제출판 현재 권한; raw file ID 직접 다운로드 금지.
+열람: 기존 exact 제출판 현재 ACL.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -5663,6 +6450,11 @@ Claude·기억 · 기존 계승
 | safety_policy_version_id | text | 불가 | — | workhub.policy_versions.id · 접수에 적용한 안전 정책 | 통합 추가 |
 | common_safety_policy_scope_key | text | 불가 | — | workhub.policy_versions.scope_key · 적용한 공통 안전 하한 정책 scope, 항상 c | 통합 추가 |
 | common_safety_policy_version_id | text | 불가 | — | workhub.policy_versions.id · 적용한 정확한 공통 안전 하한 정책판 | 통합 추가 |
+| answer_path | text[] | 불가 | — | 기존 단일 문항은 [field_key], 반복은 [group_key,row_key,field_key] | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): submission_files_pkey
+
+이번 판에서 대체하는 인덱스(그대로 생성 금지): submission_files_pkey
 
 통합 필수 제약:
 
@@ -5672,6 +6464,9 @@ Claude·기억 · 기존 계승
 - policy(scope_key,id) 복합 FK, file 목적별 허용 scope
 - INSERT 시 submission.receipt_xid=pg_current_xact_id(); UPDATE/DELETE 금지
 - (common_safety_policy_scope_key,common_safety_policy_version_id) MATCH FULL FK policy_versions(scope_key,id); scope_key=c
+- PRIMARY KEY(submission_id,answer_path,file_object_id); UNIQUE(school_id,submission_id,answer_path,file_object_id). 기존 submission_files_pkey와 동명 backing index를 대체
+- answer_path는 exact schema/답변 snapshot의 경로; 필드 ID/schema 학교 복합 FK 유지
+- generated_output의 file ID/hash는 submission.output_artifact의 exact file과 일치
 
 통합 동작 규칙:
 
@@ -5679,15 +6474,17 @@ Claude·기억 · 기존 계승
 - 시각 now 동등성을 같은 transaction의 증거로 사용하지 않는다.
 - 필수 파일 수/크기/형식 확인 뒤 접수 성공; 첨부 실패는 전체 rollback.
 - 학교 파일은 공통하한+학교판을 모두 고정하고 현재 유효 두 정책과 당시 두 판의 허용 교집합만 사용. common/account_private는 동일 common판을 두 쌍에 기록. 한 정책의 차단도 옛 허용판으로 우회 금지.
+- 신규 필드는 기존 행의 field_key로 명시 백필하는 계획만 정의하며 실제 SQL/백필 실행 금지.
+- 접수와 같은 transaction에서 exact file/hash/정책 snapshot을 고정하고 이후 불변.
 
-인덱스: (school_id,schema_id,field_id)
+인덱스: (school_id,schema_id,field_id); (school_id,submission_id,answer_path)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,file_object_id) → workhub.file_objects(school_id,id)
 - (school_id,submission_id) → workhub.submission_versions(school_id,id)
 
-필수 시험: WF03; WF05; WF09; WF10; WF11
+필수 시험: WF03; WF05; WF09; WF10; WF11; COL08; COL09; COL13; COL21
 
 ## workhub.submission_reviews
 
@@ -5730,7 +6527,7 @@ Claude·기억 · 기존 계승
 
 수합 · 기존 보강
 
-열람: 현재 단위/검토/요청관리 권한; 결과 공개자는 effective만. 초안과 별도.
+열람: 기존 exact 제출판 ACL. 이 FK가 원개인초안 전체나 다른 artifact 접근을 열지 않음.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -5769,6 +6566,9 @@ Claude·기억 · 기존 계승
 | review_mode_snapshot | text | 불가 | — | none/required 불변 | 통합 추가 |
 | due_kind_snapshot | text | 불가 | — | date/time | 통합 추가 |
 | receipt_xid | xid8 | 불가 | pg_current_xact_id() | 현재 transaction만 첨부 허용 · 생성 후 불변 | 통합 추가 |
+| answer_snapshot_id | text | 허용 | — | workhub.collection_answer_snapshots.id · 정확한 동결 답변 | 통합 추가 |
+| output_artifact_id | text | 허용 | — | workhub.collection_output_artifacts.id · 확인한 exact 파일 결합 | 통합 추가 |
+| output_confirmation_id | text | 허용 | — | workhub.collection_output_confirmations.id · 실제 제출자 확인 | 통합 추가 |
 
 통합 필수 제약:
 
@@ -5779,14 +6579,24 @@ Claude·기억 · 기존 계승
 - 계정=각 membership.account_id; source_draft shared이고 제출 actor 책임자/유효 delegate
 - receipt_at 서버 clock_timestamp; date 마감 >=, time > 지연 검사
 - withdrawn이면 review_state<>accepted AND external_state<>user_confirmed; exported만으로 공식처리 판정 금지
+- (school_id,unit_id,schema_id,answer_snapshot_id) FK collection_answer_snapshots(school_id,unit_id,schema_id,id)
+- (school_id,unit_id,schema_id,output_artifact_id) FK collection_output_artifacts(school_id,unit_id,schema_id,id)
+- (school_id,output_artifact_id,answer_snapshot_id) FK collection_output_artifacts(school_id,id,answer_snapshot_id)
+- (school_id,unit_id,schema_id,output_artifact_id,output_confirmation_id) FK collection_output_confirmations(school_id,unit_id,schema_id,artifact_id,id)
+- 기존 일반 수합은 세 연결 NULL 가능; 신규 양식수합은 셋 모두 NN, 부분 NULL 불가
+- submission.answers/schema/draft version과 exact snapshot 일치, confirmation actor=current actual submitter 계정 일치
 
 통합 동작 규칙:
 
 - 본문·정의판·실제제출자·당시책임자·마감/모드 snapshot·receipt_xid 불변.
 - JSON 답변 submit 검사 필수, 알 수 없는 key·형식·필수 누락 거부.
 - new판 external_state unknown, none not_required/required pending. 정정은 이전판+공백 아닌 사유.
+- cmd_submit에서 현재 source draft·unit/schema·안전 파일·확인 지문·현재 책임자/대리 재검사 후 제출/첨부/current/effective/receipt/outbox 원자.
+- output ready/AI 대화 완료/다운로드는 제출이 아니며 지연 계산은 기존 서버 접수시각만.
+- 기존 review/correction/withdraw/late/current/effective 전이 유지.
+- 개인초안에서 공동 제출용으로 복사할 때 새 shared draft snapshot/artifact/confirmation 필요; 개인 artifact 직접 공유 접수 금지.
 
-인덱스: (school_id,unit_id,version_no DESC); (school_id,collection_id,receipt_at,id)
+인덱스: (school_id,unit_id,version_no DESC); (school_id,collection_id,receipt_at,id); (school_id,output_artifact_id) WHERE output_artifact_id IS NOT NULL
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -5797,7 +6607,7 @@ Claude·기억 · 기존 계승
 - (school_id,withdrawn_by_membership_id) → workhub.memberships(school_id,id)
 - (school_id,unit_id,correction_request_id) → workhub.correction_requests(school_id,unit_id,id)
 
-필수 시험: WF02; WF03; WF06; WF08; WF09; WF15
+필수 시험: WF02; WF03; WF06; WF08; WF09; WF15; COL09; COL10; COL11; COL12; COL13; COL20
 
 ## workhub.support_sessions
 
@@ -5970,9 +6780,9 @@ Claude·기억 · 기존 계승
 
 ## workhub.terms
 
-학생·평가·생기부 · 기존 계승
+학생·평가·생기부 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 기존 학기 읽기 범위 유지; 포인터는 전용 관리자 확정 명령만 변경
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -5987,16 +6797,129 @@ Claude·기억 · 기존 계승
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| current_timetable_basis_id | text | 허용 | — | workhub.timetable_basis_revisions.id · 학기 전체 snapshot의 최신 관리자 확정판. 날짜별 적용표의 포인터가 아니며 미확정이면 NULL | 통합 추가 |
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,current_timetable_basis_id,id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- 기존 UNIQUE(school_id,id) 유지. 포인터 갱신은 term 잠금+expected version 조건으로 version 증가
+
+통합 동작 규칙:
+
+- 시간표 담당자·AI는 포인터 직접 UPDATE 금지
+- 현재 포인터판의 원본 지문이 바뀌면 stale; 자동으로 새 기준판을 만든 것으로 처리하지 않음
+- 모든 basis판은 해당 term 전체 기간을 포함하므로 대상 날짜별로 다른 기준판을 추측해 고르지 않는다. 배포판은 당시 basis를 고정하고 조회는 timetable_versions의 효력기간을 사용한다.
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,academic_year_id) → workhub.academic_years(school_id,id)
 
+필수 시험: TT04; TT05; TT06
+
+## workhub.timetable_basis_change_requests
+
+시간표 · 신규
+
+열람: 현재 해당 학교 기준자료 관리자와 요청한 시간표 담당자만 조회. 요청자는 미적용 요청 철회, 관리자는 검토만 전용 명령으로 처리.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | gen_random_uuid()::text | 관리자 기준자료 수정요청 ID · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 학교 · 생성 후 불변 | 통합 추가 |
+| term_id | text | 불가 | — | workhub.terms.id · 학기 · 생성 후 불변 | 통합 추가 |
+| base_basis_revision_id | text | 불가 | — | workhub.timetable_basis_revisions.id · 신청자가 본 정확한 기본자료판 · 생성 후 불변 | 통합 추가 |
+| requested_by_membership_id | text | 불가 | — | workhub.memberships.id · 현재 시간표 담당 신청자 · 생성 후 불변 | 통합 추가 |
+| proposed_changes | jsonb | 불가 | — | 허용 entity/field/현재값/제안값의 목록. 임의 JSON path·SQL 실행 불가 · 생성 후 불변 | 통합 추가 |
+| proposal_sha256 | text | 불가 | — | 기준판·제안·사유를 정규화한 서버 지문 · 생성 후 불변 | 통합 추가 |
+| reason | text | 불가 | — | 수정 사유. 복무 상세 등 불필요한 민감정보는 제외 · 생성 후 불변 | 통합 추가 |
+| state | text | 불가 | 'requested' | 요청/검토/반영/반려/철회/새 요청 대체 | 통합 추가 |
+| reviewed_by_membership_id | text | 허용 | — | workhub.memberships.id · 기준자료 확정 권한을 가진 검토자 | 통합 추가 |
+| reviewed_at | timestamptz | 허용 | — | 검토 결정 시각 | 통합 추가 |
+| review_note | text | 허용 | — | 안전한 검토 사유 | 통합 추가 |
+| resolved_basis_revision_id | text | 허용 | — | workhub.timetable_basis_revisions.id · 실제 반영 완료된 새 기준자료판 | 통합 추가 |
+| created_at | timestamptz | 불가 | now() | 신청 시각 · 생성 후 불변 | 통합 추가 |
+| updated_at | timestamptz | 불가 | now() | 현재 상태 갱신 시각 | 통합 추가 |
+| version | integer | 불가 | 1 | 조건부 상태 변경 버전 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(school_id,id,term_id)
+- FOREIGN KEY(school_id,term_id) REFERENCES workhub.terms(school_id,id)
+- FOREIGN KEY(school_id,base_basis_revision_id,term_id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- FOREIGN KEY(school_id,resolved_basis_revision_id,term_id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- FOREIGN KEY(school_id,requested_by_membership_id) REFERENCES workhub.memberships(school_id,id)
+- FOREIGN KEY(school_id,reviewed_by_membership_id) REFERENCES workhub.memberships(school_id,id)
+- CHECK(state IN requested,in_review,applied,rejected,withdrawn,superseded); CHECK(version>=1); proposal_sha256 64자리 소문자 hex
+- applied일 때만 resolved_basis_revision_id 필수, 다른 상태에서는 NULL; applied/rejected에는 reviewed_by와 reviewed_at 필수
+- applied의 해결판은 동일 term에서 base보다 새로운 판이며 원본 변경·새판 확정과 같은 커밋; 기존판 승인 재사용 금지
+- proposed_changes는 참조 ID·허용 field key·타입·현재값을 검증, client가 임의 원본/권한필드를 수정하도록 실행하지 않음
+- 상태·검토필드 외 본문/학교/학기/신청자/기준판 불변; 수정은 새 요청
+
+통합 동작 규칙:
+
+- timetable 담당자는 요청만; 관리자 검토 후 기존 원본 명령 경로를 통해 수정
+- 원본이 미리 바뀌었거나 기준판이 최신이 아니면 자동 적용하지 않고 diff를 보여 주며 새 요청/새 확인 요구
+- requested→in_review→applied/rejected; 미적용 상태→withdrawn 또는 superseded; 종결 상태 부활 금지
+- 일반 교사용 알림에는 요청 본문을 복제하지 않음
+
+인덱스: idx_timetable_basis_requests_pending(school_id,term_id,state,created_at); idx_timetable_basis_requests_requester(school_id,requested_by_membership_id,created_at DESC)
+
+필수 시험: TT04; TT05; TT06
+
+## workhub.timetable_basis_revisions
+
+시간표 · 신규
+
+열람: 현재 학교의 기준자료 확정/시간표 담당 capability만 최소 범위 조회. 일반 교사는 배포 DTO만, 브라우저 직접 쓰기 금지.
+
+| 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
+|---|---|---|---|---|---|
+| id | text | 불가 | gen_random_uuid()::text | 확정된 기본자료판 ID · 생성 후 불변 | 통합 추가 |
+| school_id | text | 불가 | — | workhub.schools.id · 학교 · 생성 후 불변 | 통합 추가 |
+| term_id | text | 불가 | — | workhub.terms.id · 대상 학기 · 생성 후 불변 | 통합 추가 |
+| revision_no | integer | 불가 | — | 학기 잠금 아래 증가하는 기본자료판 순번 · 생성 후 불변 | 통합 추가 |
+| based_on_id | text | 허용 | — | workhub.timetable_basis_revisions.id · 동일 학교·학기의 이전 기준판 · 생성 후 불변 | 통합 추가 |
+| schema_version | text | 불가 | — | 검증된 snapshot 스키마판 · 생성 후 불변 | 통합 추가 |
+| valid_from | date | 불가 | — | 학교 현지 학기 전체 시작일, 포함. 부분기간 기준자료판은 사용하지 않음 · 생성 후 불변 | 통합 추가 |
+| valid_to | date | 불가 | — | 학교 현지 학기 전체 종료일의 exclusive 경계. 부분기간 기준자료판은 사용하지 않음 · 생성 후 불변 | 통합 추가 |
+| timezone | text | 불가 | — | 확인된 학교 IANA 시간대 · 생성 후 불변 | 통합 추가 |
+| snapshot | jsonb | 불가 | — | 허용 스키마의 명부·시수·배정·일과·공간·참여 충돌 최소 사본 · 생성 후 불변 | 통합 추가 |
+| snapshot_sha256 | text | 불가 | — | 서버가 정규화 snapshot에서 계산한 지문 · 생성 후 불변 | 통합 추가 |
+| source_manifest_sha256 | text | 불가 | — | source 종류/ID/판 또는 정렬 지문/기간을 고정한 서버 지문 · 생성 후 불변 | 통합 추가 |
+| confirmed_by_membership_id | text | 불가 | — | workhub.memberships.id · 기본자료 확정 권한을 행사한 활성 소속 · 생성 후 불변 | 통합 추가 |
+| confirmed_at | timestamptz | 불가 | now() | 확정 시각 · 생성 후 불변 | 통합 추가 |
+| created_at | timestamptz | 불가 | now() | 생성 시각 · 생성 후 불변 | 통합 추가 |
+
+통합 필수 제약:
+
+- PRIMARY KEY(id); UNIQUE(school_id,id); UNIQUE(school_id,id,term_id); UNIQUE(school_id,term_id,revision_no)
+- FOREIGN KEY(school_id,term_id) REFERENCES workhub.terms(school_id,id)
+- FOREIGN KEY(school_id,confirmed_by_membership_id) REFERENCES workhub.memberships(school_id,id)
+- FOREIGN KEY(school_id,based_on_id,term_id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- CHECK(revision_no>0 AND valid_from<valid_to); [valid_from,valid_to)=정규화된 해당 학기 전체 기간; source와 snapshot 지문은 64자리 소문자 hex
+- 행은 확인된 불변판만 존재한다. 필수 승인·검사 누락 INSERT 거부, UPDATE/DELETE는 공통 보존·파기 전용 절차 외 금지
+- snapshot JSON Schema와 허용 source kind 검증; 모든 school/term/teacher/class/course/assignment/bell/space/participation 참조는 원본 존재·학교·학기·기간·승인을 검증하는 FK 동등 제약 트리거; source 삭제는 보존 정책과 영향 검사 없이 허용하지 않음
+- snapshot 저장 시 원본 잠금/지문 재검사; terms 포인터·receipt·감사와 같은 커밋
+
+통합 동작 규칙:
+
+- 공식 자료 원본은 기존 academic_classes/course_groups/course_group_teachers/assignments 등이며 snapshot은 확정 당시 재현용
+- revision_no는 term 잠금으로 할당; 이후 새판이 생겨도 이전 snapshot을 덮어쓰지 않음
+- 확정 담당은 관리자 capability; timetable.compose만 가진 교사는 생성 불가
+- 학생 실명·상담·개인 사유 원문은 snapshot에서 제외; 과거 재현에 필요한 최소 불변 ID/참여 충돌만 저장
+- AI prompt에는 전체 snapshot을 자동 전송하지 않고 필요한 비식별 조건 DTO만 전달
+- 새 확정판은 현재 배포 시간표를 자동 변경하지 않음
+- 한 판은 학기 전체의 기간별 원본 관계를 포함한다. terms.current_timetable_basis_id는 가장 최근 관리자 확정판이며 특정 날짜의 배포표 선택 포인터가 아니다. 부분기간만 수정해도 전체 학기 snapshot의 새판을 생성한다.
+
+인덱스: idx_timetable_basis_term_latest(school_id,term_id,revision_no DESC); idx_timetable_basis_confirmed_by(school_id,confirmed_by_membership_id,confirmed_at DESC)
+
+필수 시험: TT04; TT05; TT06; TT23
+
 ## workhub.timetable_candidates
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 시간표 담당자만 초안 조회·변경명령; 일반 교사는 배포판만
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6015,12 +6938,39 @@ Claude·기억 · 기존 계승
 | validated_at | timestamp with time zone | 허용 | — |  | 원본 |
 | created_by_membership_id | text | 허용 | — |  | 원본 |
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
+| basis_revision_id | text | 불가 | — | workhub.timetable_basis_revisions.id · 수동 후보도 반드시 고정하는 관리자 기준자료판 · 생성 후 불변 | 통합 추가 |
+| constraint_set_id | text | 불가 | — | workhub.constraint_sets.id · 검증할 잠금 조건판 · 생성 후 불변 | 통합 추가 |
+| label | text | 불가 | — | 담당자에게 보이는 편성안 이름 · 생성 후 불변 | 통합 추가 |
+| validation_state | text | 불가 | 'not_checked' | not_checked/valid/invalid/stale | 통합 추가 |
+| validation_report | jsonb | 허용 | — | 구조화 충돌/경고·판/지문 보고. 개인 사유 최소화 | 통합 추가 |
+| validator_version | text | 허용 | — | 실제 검사한 독립 검증기판 | 통합 추가 |
+| locked_placements | jsonb | 불가 | '[]'::jsonb | 회차키·위치·배치지문을 포함한 고정 목록 · 생성 후 불변 | 통합 추가 |
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,basis_revision_id) REFERENCES workhub.timetable_basis_revisions(school_id,id)
+- FOREIGN KEY(school_id,constraint_set_id) REFERENCES workhub.constraint_sets(school_id,id)
+- basis와 constraint의 term/basis 일치; composition이 있으면 동일 term/basis/constraint
+- validation_state=valid이면 hard_ok=true, validated_sha256/validated_at/validator_version/report 필수; report는 actual placements/기준판/조건/달력지문을 고정
+- placements/locked_placements/label/derived_from 불변; 변경은 새 candidate. 검증필드만 전용 검사명령으로 갱신; current 입력 불일치면 stale
+- candidate derived_from은 같은 school·term이며 cycle 금지. 다른 basis에서 파생할 때 명시 재매핑·신규검증 필수
+
+통합 동작 규칙:
+
+- 충돌 초안 저장 허용, invalid/stale/not_checked 배포 금지
+- 기존 placements/placements_sha256/derived_from_id 사용
+- 교사 변경과 위치 변경을 따로 계산; 구조 변경에 이전 unit 순번 재활용 금지
+- 고정해제·부분재생성도 정확한 전후 후보 지문 확인
+
+인덱스: idx_timetable_candidates_basis(school_id,basis_revision_id,created_at DESC); idx_timetable_candidates_condition(school_id,constraint_set_id)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,composition_id) → workhub.timetable_compositions(school_id,id)
 - (school_id,created_by_membership_id) → workhub.memberships(school_id,id)
 - (school_id,derived_from_id) → workhub.timetable_candidates(school_id,id)
+
+필수 시험: TT10; TT11; TT12; TT13
 
 ## workhub.timetable_change_items
 
@@ -6053,9 +7003,9 @@ Claude·기억 · 기존 계승
 
 ## workhub.timetable_change_participants
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 본인 응답 가능, 당사자에게 응답 상태만, 사유는 목적별 공개
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6072,17 +7022,34 @@ Claude·기억 · 기존 계승
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| bound_participants_sha256 | text | 불가 | — | 응답이 묶인 필수 참여자 전체 집합 지문 · 생성 후 불변 | 통합 추가 |
+
+통합 필수 제약:
+
+- 기존 school/change_set/membership FK 유지. bound_candidate_sha256/bound_base_snapshot_sha256/bound_participants_sha256 모두 부모와 일치해야 응답 채택
+- 요청자는 전체후보 제출로 정확한 판의 본인 동의를 남김. 무응답/단순 메시지 읽음은 accepted가 아님
+- 동의·거절·최종 승인자는 실제 JWT account로 판정. 관리자가 타인을 대신해 consent UPDATE 금지
+- 확정 시 참여자 명단은 서버가 실제 수업/교사에서 재계산; 누락한 참여자가 있으면 거부
+
+통합 동작 규칙:
+
+- 응답 상태변경은 expected version 명령과 감사 사용
+- 내용이 바뀐 새 요청은 전원 새 동의 필요
+
+인덱스: idx_timetable_participants_pending(school_id,membership_id,response,updated_at DESC)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,change_set_id,requested_by_membership_id) → workhub.timetable_change_sets(school_id,id,requested_by_membership_id)
 - (school_id,membership_id) → workhub.memberships(school_id,id)
 
+필수 시험: TT16; TT17; TT18; TT19
+
 ## workhub.timetable_change_sets
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 당사자는 자신의 요청/동의에 필요한 최소 정보, 담당자는 지정 범위, 상세 복무사유 별도 보호
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6090,7 +7057,7 @@ Claude·기억 · 기존 계승
 | school_id | text | 불가 | — |  | 원본 |
 | term_id | text | 불가 | — |  | 원본 |
 | kind | text | 불가 | — |  | 원본 |
-| state | text | 불가 | 'draft'::text |  | 원본 |
+| state | text | 불가 | 'draft' | draft/awaiting_consent/ready_for_approval/applied/rejected/withdrawn/expired/superseded. 기존 상태는 검증된 명시 매핑으로 전환 | 통합 변경 |
 | requested_by_membership_id | text | 불가 | — |  | 원본 |
 | reason_category | text | 불가 | — |  | 원본 |
 | reason_note | text | 허용 | — |  | 원본 |
@@ -6104,6 +7071,30 @@ Claude·기억 · 기존 계승
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| supersedes_change_set_id | text | 허용 | — | workhub.timetable_change_sets.id · 미적용 제안 변경 시 대체한 이전 요청 · 생성 후 불변 | 통합 추가 |
+| expires_at | timestamptz | 불가 | — | 동의·승인 가능 기한 | 통합 추가 |
+| required_participants_sha256 | text | 불가 | — | 서버가 계산한 실제 필수 참여자·역할 집합 지문 · 생성 후 불변 | 통합 추가 |
+| approval_policy_version | text | 불가 | — | 전원동의·최종승인·대리승인 기준 정책판 · 생성 후 불변 | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): timetable_change_sets_state_check
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,supersedes_change_set_id) REFERENCES workhub.timetable_change_sets(school_id,id)
+- 동일 학교·학기 대체만; 자기참조/cycle 금지; 후보/기준/대상/내용 변경은 새 change_set이며 이전 동의 가져오기 금지
+- state는 draft/awaiting_consent/ready_for_approval/applied/rejected/withdrawn/expired/superseded로 정규화; 기존 상태는 전환 명세 작성 후 승인된 이관에서 매핑
+- expires_at>created_at, 승인 시 현재시각<expires_at; applied에는 applied_by/at와 원자 변경 결과 필수
+- 필수 참여자 서버 계산 지문 일치, 전원 유효 consent, 자기 account 최종승인 금지, 모든 기대 lesson판/권한/가용성 재검사
+- 후보/기준/필수참여자/정책판은 draft를 떠난 뒤 불변; 변경은 supersedes 새 요청
+
+통합 동작 규칙:
+
+- 한 사람이 거절/만료/소속종료하면 전체 applied 불가
+- 최종 승인과 반영을 같은 명령으로 처리; 오래 유지되는 승인대기 적용 창을 만들지 않음
+- applied 취소는 reverts_change_set_id를 가진 현재판 역변경. 후속 변경/실시 보존
+- 기존 awaiting_peers→awaiting_consent, awaiting_approval→ready_for_approval. 기존 reverted는 삭제하지 않고 적용 원장/역변경 연결을 검증해 applied+reverts 관계로 표현한다. 이력 없는 reverted는 수동 검토로 보류한다.
+
+인덱스: idx_timetable_changes_actionable(school_id,state,expires_at); idx_timetable_changes_supersedes(school_id,supersedes_change_set_id) WHERE supersedes_change_set_id IS NOT NULL
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -6113,11 +7104,13 @@ Claude·기억 · 기존 계승
 - (school_id,reverts_change_set_id) → workhub.timetable_change_sets(school_id,id)
 - (school_id,term_id) → workhub.terms(school_id,id)
 
+필수 시험: TT01; TT03; TT16; TT17; TT18; TT19; TT20
+
 ## workhub.timetable_compositions
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 현재 시간표 담당자와 해당 job principal의 최소 범위
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6131,7 +7124,7 @@ Claude·기억 · 기존 계승
 | solver_version | text | 불가 | — |  | 원본 |
 | time_limit_ms | integer | 불가 | — |  | 원본 |
 | seed | bigint | 허용 | — |  | 원본 |
-| status | text | 불가 | 'queued'::text |  | 원본 |
+| status | text | 불가 | 'queued' | 작업 실행상태 queued/running/completed/failed/cancelled. 탐색 결과는 result_kind | 통합 변경 |
 | optimality | text | 불가 | 'unknown'::text |  | 원본 |
 | limit_reached | boolean | 허용 | — |  | 원본 |
 | diagnostics | jsonb | 허용 | — |  | 원본 |
@@ -6141,6 +7134,36 @@ Claude·기억 · 기존 계승
 | finished_at | timestamp with time zone | 허용 | — |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| basis_revision_id | text | 불가 | — | workhub.timetable_basis_revisions.id · 실행 당시 기준자료판 · 생성 후 불변 | 통합 추가 |
+| calendar_sha256 | text | 불가 | — | 실행이 사용한 학사일정·일과 지문 · 생성 후 불변 | 통합 추가 |
+| adapter_version | text | 불가 | — | 정규 입력을 엔진으로 바꾼 검증된 adapter판 · 생성 후 불변 | 통합 추가 |
+| result_kind | text | 허용 | — | 실행 완료 결과; 실행 진행 상태와 별개 | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): timetable_compositions_status_check, tt_compositions_finished, tt_compositions_limit_known, tt_compositions_proven, tt_compositions_infeasible_proof, tt_compositions_unresolved_limit
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,basis_revision_id,term_id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- 부모 constraint_set이 같은 term/basis이며 locked. input_sha256는 실제 input_file 또는 보존된 정규 입력을 해시한 값
+- status IN queued/running/completed/failed/cancelled; result_kind는 NULL 또는 feasible/optimal/infeasible/unresolved/invalid_input/unsupported/internal_error/cancelled
+- queued/running ⇒ result_kind NULL AND finished_at NULL AND limit_reached NULL AND optimality=unknown
+- completed ⇒ result_kind IN feasible/optimal/infeasible/unresolved AND finished_at NN AND limit_reached NN
+- failed ⇒ result_kind IN invalid_input/unsupported/internal_error AND finished_at NN AND limit_reached NULL AND optimality=unknown
+- cancelled ⇒ result_kind=cancelled AND finished_at NN AND limit_reached NULL AND optimality=unknown
+- result_kind=optimal ⇔ optimality=proven; optimal이면 검증후보>=1 AND limit_reached=false AND diagnostics의 증명범위=전체 입력
+- result_kind=feasible ⇒ 검증후보>=1 AND optimality=unknown; limit_reached는 실제 한도 도달 여부
+- result_kind=infeasible ⇒ limit_reached=false AND optimality=unknown AND diagnostics의 해당 전체 입력 불가능 증명 근거 필수
+- result_kind=unresolved ⇒ optimality=unknown AND diagnostics.outcome_reason NN; limit_reached는 실제 한도도달 여부이며 false라도 해결/불가능 증명 없음을 표시
+- 종료시각 조건은 status와 완전 동치로 적용; 기존 status 중심 5개 보조 CHECK는 새 진리표 계약으로 대체
+
+통합 동작 규칙:
+
+- status와 result_kind 분리; 기존 solver_version/seed/time_limit_ms/job 재사용
+- 작업 완료의 stale 결과는 자동 배포하지 않음
+- 외부 AI/solver 호출 동안 DB 잠금 유지하지 않음; jobs fencing으로 늦은 결과 차단
+- 기존 feasible 중 optimality=proven은 completed/optimal, 나머지는 completed/feasible. infeasible/unresolved는 completed/동명 result_kind. 기존 failed는 진단에 따라 failed/invalid_input 또는 unsupported 또는 internal_error로 분류하며 근거 없으면 internal_error. cancelled는 양쪽 cancelled. 이전 결과/진단/시각 이력 보존.
+
+인덱스: idx_timetable_compositions_basis(school_id,basis_revision_id,created_at DESC)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -6151,11 +7174,13 @@ Claude·기억 · 기존 계승
 - (school_id,term_id) → workhub.terms(school_id,id)
 - (school_id,base_version_id) → workhub.timetable_versions(school_id,id)
 
+필수 시험: TT08; TT09; TT10; TT25
+
 ## workhub.timetable_constraints
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 조건판 담당자 범위; 사유는 목적별 최소 공개
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6175,12 +7200,39 @@ Claude·기억 · 기존 계승
 | source_ref | text | 허용 | — |  | 원본 |
 | confirmed_by_membership_id | text | 허용 | — |  | 원본 |
 | confirmed_at | timestamp with time zone | 허용 | — |  | 원본 |
-| engine_support | text | 불가 | 'supported'::text |  | 원본 |
+| engine_support | text | 불가 | 'unknown' | 현재 engine/adapter에서의 supported/unsupported/unknown; 기존 partial은 unknown으로 재검증 | 통합 변경 |
+| source_basis_revision_id | text | 불가 | — | workhub.timetable_basis_revisions.id · 해석의 기준자료판 | 통합 추가 |
+| interpretation_schema_version | text | 불가 | — | 형식과 대상/기간을 검사한 조건 스키마판 | 통합 추가 |
+| excluded_from_run | boolean | 불가 | false | 미지원 선호를 담당자가 명시 제외했는지 | 통합 추가 |
+| exclusion_reason | text | 허용 | — | 이번 실행에서 제외한 사유 | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): timetable_constraints_engine_support_check
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,source_basis_revision_id) REFERENCES workhub.timetable_basis_revisions(school_id,id)
+- 부모 constraint_set의 basis와 같아야 함; params 대상 ID·kind·기간·strength의 허용 스키마를 서버와 제약 트리거에서 검사
+- engine_support 기본값은 unknown, 값은 supported/unsupported/unknown. 엔진/adapter판에 대한 검사 없이 supported 기록 금지
+- excluded_from_run이면 strength=soft이고 확인자/확인시각/사유 필수. hard의 명시 제외도 금지
+- 학교 날짜 applies_from/to는 [from,to); 기간제약은 해당 기준자료판 기간 안. strength IN(hard,school_hard)이면 weight NULL, soft의 weight는 확인된 허용범위
+- 기존 strength enum hard/school_hard/soft 유지. 필수조건 predicate는 hard와 school_hard 모두 포함. excluded_from_run은 soft만 허용.
+
+통합 동작 규칙:
+
+- 자료 안 프롬프트 명령을 조건이나 도구 권한으로 채택하지 않음
+- confirmed 불가시간은 선호 편집으로 완화 불가
+- 미확인/미지원 필수조건은 생성 차단
+- 기존 partial은 unknown으로 재검증한다. 과거 supported도 엔진/adapter판 근거가 없으면 unknown으로 전환한다. 이전값·전환사유 이력은 보존한다.
+- 화면의 필수조건은 hard와 school_hard를 포함. school_hard는 학교 규칙·확정 불가시간에서 온 필수조건으로 담당자의 soft 전환/제외를 허용하지 않음. 근거 원본의 승인 절차를 거친 새판만 반영.
+
+인덱스: idx_timetable_constraints_basis(school_id,source_basis_revision_id)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
 - (school_id,confirmed_by_membership_id) → workhub.memberships(school_id,id)
 - (school_id,constraint_set_id) → workhub.constraint_sets(school_id,id)
+
+필수 시험: TT07; TT08; TT09; TT23
 
 ## workhub.timetable_placements
 
@@ -6231,9 +7283,9 @@ Claude·기억 · 기존 계승
 
 ## workhub.timetable_versions
 
-시간표 · 기존 계승
+시간표 · 기존 보강
 
-열람: 01 공통 권한과 해당 도메인 문서 + 원본 현재권한. 원본 정책 SQL을 무검토 복사하지 않는다.
+열람: 현재 학교 교사는 배포된 안전한 DTO만; 내부 근거/후보는 담당자
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6253,6 +7305,25 @@ Claude·기억 · 기존 계승
 | created_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | updated_at | timestamp with time zone | 불가 | now() |  | 원본 |
 | version | integer | 불가 | 1 |  | 원본 |
+| basis_revision_id | text | 불가 | — | workhub.timetable_basis_revisions.id · 배포한 기준자료판 · 생성 후 불변 | 통합 추가 |
+| calendar_sha256 | text | 불가 | — | 확정 때 검증한 실제 적용 기간 달력/일과 지문 · 생성 후 불변 | 통합 추가 |
+
+통합 필수 제약:
+
+- FOREIGN KEY(school_id,basis_revision_id,term_id) REFERENCES workhub.timetable_basis_revisions(school_id,id,term_id)
+- source_candidate와 school/term/basis 동일; 모든 원본·조건·배포영향의 지문 재검사
+- 동일 학교·학기에 적용되는 공개판 [effective_from,effective_to) 겹침 금지. 새판 전환의 기존 기간 경계 변경은 감사/이력 남김
+- 이미 실시한 lesson과 학생 자료 관계는 변경/삭제 금지; unresolved timetable_version_impacts가 있으면 배포 차단
+- 부분 기간 대체 시 기존 유효구간의 앞/뒤 잔여 구간을 함께 원자 보존한다. 한 행으로 비연속 기간 표현 금지; 필요한 뒤 복원판은 새 version/candidate와 독립검증으로 생성.
+
+통합 동작 규칙:
+
+- 기존표·미래 교환·새표 영향을 전부 검토하여 원자 반영
+- 공개판과 lesson/occupancy/receipt/audit/outbox는 동일 최종 커밋; 큰 준비 작업의 staging은 비공개
+- 효력기간과 실제 날짜 변경 분리
+- 예: 기존 [9/1,1/1)에서 [11/1,12/1)을 대체하면 앞 [9/1,11/1), 새 [11/1,12/1), 뒤 [12/1,1/1) 총3구간. 뒤 복원판도 현재 기준자료/달력/승인 미래변경으로 재검증; 불가능하면 전체 배포 보류. 과거 실시판과 참조는 보존.
+
+인덱스: idx_timetable_versions_basis(school_id,basis_revision_id)
 
 기존 FK 관계(변경 계약과 충돌하면 대체):
 
@@ -6260,6 +7331,8 @@ Claude·기억 · 기존 계승
 - (school_id,published_by_membership_id) → workhub.memberships(school_id,id)
 - (school_id,source_candidate_id) → workhub.timetable_candidates(school_id,id)
 - (school_id,term_id) → workhub.terms(school_id,id)
+
+필수 시험: TT01; TT03; TT14; TT15; TT22
 
 ## workhub.tool_proposals
 
@@ -6340,7 +7413,7 @@ Claude·기억 · 기존 계승
 
 수합 · 기존 보강
 
-열람: personal은 작성자+현재 구성원; shared는 현재 구성원. 관리자/검토자에게 존재·건수·첨부명도 숨김.
+열람: 기존 개인/공동 현재 구성원 ACL 유지; collector에게 초안 존재·건수·파일명·AI 결과 비공개.
 
 | 열 | 형식 | NULL | 기본값/생성식 | 참조 또는 설명 | 출처 |
 |---|---|---|---|---|---|
@@ -6365,12 +7438,17 @@ Claude·기억 · 기존 계승
 - UNIQUE(school_id,id,unit_id,schema_id)
 - 공유 UNIQUE(unit_id,schema_id), 개인 UNIQUE(unit_id,schema_id,owner_account_id); 기존 schema 없는 unique 교체
 - unit/collection/schema/scope/owner 불변; 저장 시 active_schema 일치
+- UNIQUE(school_id,id,unit_id,schema_id) 보장; 기존 개인/공동 초안 유일키·schema 불변 계약 유지
+- answers 반복행/조건식은 exact schema의 validator로 검사; generated_output 문항의 값을 클라이언트가 임의 설정할 수 없음
 
 통합 동작 규칙:
 
 - 답변 JSON object·허용 key/type/범위 검사, draft는 필수 누락 허용.
 - 새 schema는 새 draft ID; 명시 변환·개인→공유 복사, 자동 합치기 없음.
 - 현재 유효 구성원과 expected_version 재검사.
+- AI 제안/직접 입력은 같은 version 원장 사용. AI 제안 반영도 expected_version 검사.
+- 초안 변경은 관련 ready artifact를 현재판용으로 stale 계산하며 기존 artifact의 파일/답변은 수정하지 않는다.
+- validator phase=draft/prepare_output/submit: prepare_output은 generated_output 누락을 허용, submit은 exact 생성파일 typed 관계를 필수 검사.
 
 인덱스: (school_id,unit_id,schema_id)
 
@@ -6380,7 +7458,7 @@ Claude·기억 · 기존 계승
 - (school_id,unit_id) → workhub.collection_units(school_id,id)
 - (updated_by_account_id) → workhub.accounts(id)
 
-필수 시험: WF01; WF03; WF15
+필수 시험: WF01; WF03; WF15; COL04; COL05; COL09; COL12
 
 ## workhub.usage_events
 
