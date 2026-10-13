@@ -149,7 +149,7 @@ function dateValue(value: string, label: string, errors: string[]): string {
   if (weekday) {
     const actualWeekday = '일월화수목금토'[date.getUTCDay()]
     if (weekday[1] !== actualWeekday) {
-      errors.push(`${label}의 요일 (${weekday[1]})이 실제 날짜 ${result} (${actualWeekday})과 다릅니다. 원본 날짜와 요일을 확인해 주세요.`)
+      errors.push(`${label}의 요일이 일치하지 않습니다. 입력한 요일: (${weekday[1]}), 실제 날짜: ${result} (${actualWeekday}). 원본 날짜와 요일을 확인해 주세요.`)
       return ''
     }
   }

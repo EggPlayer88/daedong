@@ -19,6 +19,7 @@ import { calendarSearchSource, taskSearchSource } from '../search/sources'
 import { useResourceNavigation } from './resource-navigation'
 import { createPendingRequests, PendingRequestsProvider, recoveryScope } from './pending-requests'
 import { watchSchoolDay } from './school-day'
+import { ConnectionRecoveryActions } from './ConnectionRecoveryActions'
 import { createEditDrafts, EditDraftsProvider } from './edit-drafts'
 
 const connectedPages = enabledModules('connected').map(module => module.id)
@@ -40,6 +41,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
   const editDrafts = useMemo(() => createEditDrafts(true), [connection, expectedUserId])
   const draftCount = useSyncExternalStore(editDrafts.subscribe, editDrafts.count, editDrafts.count)
+  const pendingCount = useSyncExternalStore(pendingRequests.subscribe, pendingRequests.count, pendingRequests.count)
   useEffect(() => () => editDrafts.clear(), [editDrafts])
   const [context, setContext] = useState<ConnectionContext>()
   const basisDateRef = useRef<string>()
@@ -123,7 +125,8 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   }, [connection, expectedUserId, attempt, pendingRequests, editDrafts])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
-  const navigationLocked = taskNavigationLocked || calendarNavigationLocked || (draftCount > 0 && (!context || !!error))
+  const connectionUnavailable = loading || !!error || !context || !member || !school
+  const navigationLocked = taskNavigationLocked || calendarNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
   const navigation = useWorkspaceNavigation({
     allowedPages: connectedPages,
     scopeKey: member ? `${expectedUserId}:${memberId}:${scopeEpoch}` : undefined,
@@ -135,9 +138,31 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const navigate = (next: PageId) => { resource.navigate(next) }
   const searchSources = useMemo(() => member && context ? [calendarSearchSource(adapter, member, context.basisDate), taskSearchSource(taskAdapter, member, context.basisDate)] : [], [adapter, taskAdapter, member, context])
   const requested = resource.current
+  function discardUnsentInput() {
+    if (pendingRequests.count() > 0) return false
+    editDrafts.clear()
+    setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
+    navigation.clearAnnouncement()
+    return true
+  }
   return <EditDraftsProvider store={editDrafts}><PendingRequestsProvider store={pendingRequests}><StyleBoundary>
     <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
-    {loading ? <section className="connected-empty" role="status"><h1>학교 연결 확인 중</h1><p>현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p></section> : error ? <section className="connected-empty"><h1>학교 연결을 완료하지 못했습니다</h1><p className="connected-error" role="alert">{error}</p><p>운영 연결 전에는 가상 자료로 대체하지 않습니다. 기존 업무 메뉴는 계속 이용할 수 있습니다.</p>{draftCount > 0 && <p role="status">작성 중인 내용은 현재 탭에 임시 보관했습니다. 연결을 다시 확인하면 같은 계정과 학교의 입력을 복원합니다. 새로고침하거나 탭을 닫으면 사라집니다.</p>}<button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> : !member || !school || !context ? <section className="connected-empty"><h1>연결된 학교 소속이 없습니다</h1><p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button></section> :
+    {connectionUnavailable ? <main id="main-content" className="connected-empty">
+      {loading ? <>
+        <h1>학교 연결 확인 중</h1>
+        <p role="status">현재 계정의 승인 상태와 학교 소속을 확인하고 있습니다.</p>
+      </> : error ? <>
+        <h1>학교 연결을 완료하지 못했습니다</h1>
+        <p className="connected-error" role="alert">{error}</p>
+        <p>운영 연결 전에는 가상 자료로 대체하지 않습니다.</p>
+      </> : <>
+        <h1>연결된 학교 소속이 없습니다</h1>
+        <p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p>
+      </>}
+      {!loading && <button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button>}
+      <ConnectionRecoveryActions hasDraft={draftCount > 0} hasPending={pendingCount > 0}
+        announcement={navigation.announcement} onDiscard={discardUnsentInput} />
+    </main> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
         storageLabel="현재 학교 서버에 저장" locked={navigationLocked} notice={navigation.announcement}
         quickActions={<WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={resource.openSearchItem} />}
