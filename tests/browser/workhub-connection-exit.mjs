@@ -1,17 +1,20 @@
 // 실제 연결 화면과 바깥 SPA 메뉴 사이의 이탈을 합성 RPC로 검사한다. 운영 서버에는 접속하지 않는다.
 import assert from 'node:assert/strict'
-import { buildSync } from 'esbuild'
+import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 
-const bundle = buildSync({
+const bundle = (await build({
   stdin: { resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx', contents: `
     import React from 'react'; import {createRoot} from 'react-dom/client';
     import {BrowserRouter,Routes,Route,Link,useLocation} from 'react-router-dom';
     import './apps/workhub/src/app/navigation-bridge';
     import {ConnectedWorkspace} from './apps/workhub/src/app/ConnectedWorkspace';
+    import WorkhubPage from './apps/main/src/pages/WorkhubPage';
+    import {AuthContext} from './apps/main/src/lib/AuthContext';
+    import {MODULES} from './apps/main/src/lib/modules';
     import {createSupabaseConnection} from './apps/workhub/src/connection/supabase-connection';
     import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
     import {fixtureData,relationLabels} from './apps/workhub/src/preview/fixtures';
@@ -53,17 +56,26 @@ const bundle = buildSync({
         }catch(error){return {data:null,error:{message:error.code||'QUERY_FAILED'}}}
       },
     };
-    const connection=createSupabaseConnection(services);
-    function Frame(){const location=useLocation();return <><header><Link to="/legacy">기존 메뉴</Link> <Link to="/workhub?view=tasks">신축 업무실</Link><output data-testid="router-location">{location.pathname+location.search}</output></header><Routes><Route path="/workhub" element={<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>}/><Route path="*" element={<main><h1>기존 학교 메뉴</h1></main>}/></Routes></>}
-    createRoot(document.getElementById('root')).render(<BrowserRouter><Frame/></BrowserRouter>);
+    window.qaServices=services;
+    const connection=createSupabaseConnection(services),query=new URL(window.location.href).searchParams;
+    const actualGate=query.has('actual-gate'),basename=query.get('basename')||'',legacyHomeHref=query.get('legacy-home')||'/';
+    // 시험에서만 메뉴 표의 주소를 바꾸어 루트 경로 하드코딩 회귀를 잡는다.
+    if(query.has('dashboard-path'))MODULES.find(module=>module.key==='dashboard').to=query.get('dashboard-path');
+    const auth={session:{user:{id:'fixture-soyeon'}},profile:{id:'fixture-soyeon',role:'superadmin',is_active:true},profileLoading:false,profileError:null};
+    function Frame(){const location=useLocation();return <><header><Link to="/legacy">기존 메뉴</Link> <Link to="/workhub?view=tasks">신축 업무실</Link><output data-testid="router-location">{location.pathname+location.search}</output></header><Routes><Route path="/workhub" element={actualGate?<AuthContext.Provider value={auth}><WorkhubPage/></AuthContext.Provider>:<ConnectedWorkspace expectedUserId="fixture-soyeon" legacyHomeHref={legacyHomeHref} connection={connection}/>}/><Route path="*" element={<main><h1>기존 학교 메뉴</h1></main>}/></Routes></>}
+    createRoot(document.getElementById('root')).render(<BrowserRouter basename={basename}><Frame/></BrowserRouter>);
   ` },
   bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' },
-  define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent',
-}).outputFiles[0].text
+  define: { 'import.meta.env': JSON.stringify({ VITE_SUPABASE_URL: 'http://localhost.invalid', VITE_SUPABASE_ANON_KEY: 'synthetic-key' }), 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent',
+  // 실제 WorkhubPage의 기본 연결 경로는 유지하고 인증·RPC 전송 경계만 합성한다.
+  plugins: [{ name: 'synthetic-legacy-services', setup(plugin) {
+    plugin.onLoad({ filter: /[\\/]connection[\\/]legacy-client\.ts$/ }, () => ({ contents: 'export const legacyServices = window.qaServices', loader: 'ts' }))
+  } }],
+})).outputFiles[0].text
 
 const browser = await launchBrowser(), origin = 'http://127.0.0.1:5176'
 let passed = 0, failures = 0
-async function test(name, run, viewport = { width: 1280, height: 1000 }) {
+async function test(name, run, viewport = { width: 1280, height: 1000 }, options = {}) {
   const context = await browser.newContext({ viewport }), page = await context.newPage(), errors = []
   page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message))
   page.on('dialog', dialog => dialog.accept())
@@ -71,7 +83,12 @@ async function test(name, run, viewport = { width: 1280, height: 1000 }) {
     ? { contentType: 'text/javascript', body: bundle }
     : { contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div><script src="/__connection-exit.js"></script></body></html>' }))
   try {
-    await page.goto(origin + '/legacy')
+    const query = new URLSearchParams()
+    if (options.actualGate) query.set('actual-gate', 'true')
+    if (options.basename) query.set('basename', options.basename)
+    if (options.legacyHomeHref) query.set('legacy-home', options.legacyHomeHref)
+    if (options.dashboardPath) query.set('dashboard-path', options.dashboardPath)
+    await page.goto(origin + (options.basename || '') + '/legacy' + (query.size ? '?' + query : ''))
     await page.getByRole('link', { name: '신축 업무실', exact: true }).click()
     await page.getByRole('article', { name: '원본 업무', exact: true }).waitFor()
     await run(page, context)
@@ -155,6 +172,8 @@ try {
     const before = page.url()
     await discard(page).click(); await confirmDiscard(page).click(); await settle(page)
     assert.equal(page.url(), before); await failureHeading(page).waitFor()
+    await page.getByRole('status').filter({ hasText: '임시 입력을 버렸습니다. 이제 기존 업무 메뉴로 이동할 수 있습니다.' }).waitFor()
+    assert.equal(await page.getByText('상단의', { exact: false }).count(), 0)
     assert.equal(await discard(page).count(), 0)
     assert.equal(await page.evaluate(() => { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented }), false)
     await legacyLink(page).click(); await page.getByRole('heading', { name: '기존 학교 메뉴', exact: true }).waitFor()
@@ -185,9 +204,13 @@ try {
     assert.equal(await discard(page).count(), 0); assert.equal(await confirmDiscard(page).count(), 0)
     const newTabLink = page.getByRole('link', { name: '기존 메뉴를 새 탭에서 이용', exact: true })
     assert.equal(await newTabLink.getAttribute('target'), '_blank')
+    assert.equal(await newTabLink.getAttribute('rel'), 'noopener noreferrer')
+    assert.equal(await newTabLink.getAttribute('href'), '/legacy')
     const before = page.url(), popupPromise = context.waitForEvent('page')
     await newTabLink.click(); const popup = await popupPromise
     await popup.getByRole('heading', { name: '기존 학교 메뉴', exact: true }).waitFor()
+    assert.equal(popup.url(), origin + '/legacy')
+    assert.equal(await popup.evaluate(() => window.opener), null)
     assert.equal(page.url(), before); await failureHeading(page).waitFor(); await popup.close()
     await page.evaluate(() => { qa.fail(false); qa.hold() }); await retry(page).click()
     await page.getByRole('heading', { name: '학교 연결 확인 중', exact: true }).waitFor()
@@ -200,7 +223,7 @@ try {
     const saved = await page.evaluate(() => qa.rows('task').find(row => row.id === qa.originalTaskId))
     assert.equal(saved.status, 'done'); assert.equal(saved.version, 2)
     await legacyLink(page).click(); await page.getByRole('heading', { name: '기존 학교 메뉴', exact: true }).waitFor()
-  })
+  }, undefined, { legacyHomeHref: '/legacy' })
 
   await test('일정 미확정 요청과 업무 초안이 함께 있으면 폐기하지 않고 둘을 각각 복구한다', async page => {
     await menu(page, '학교 일정').click()
@@ -258,6 +281,28 @@ try {
     await legacyLink(page).focus(); await page.keyboard.press('Enter')
     await page.getByRole('heading', { name: '기존 학교 메뉴', exact: true }).waitFor()
   }, { width: 320, height: 800 })
+  for (const { basename, dashboardPath, expectedHref } of [
+    { basename: '', expectedHref: '/' },
+    { basename: '/school', expectedHref: '/school' },
+    { basename: '/school', dashboardPath: '/legacy-home', expectedHref: '/school/legacy-home' },
+  ]) {
+    await test('실제 WorkhubPage가 메뉴 표와 Router 기준 경로를 새 탭 주소까지 전달한다: ' + expectedHref, async (page, context) => {
+      await draftTask(page, '실제 진입점에서 보관할 입력'); await fail(page); await blockedLink(page)
+      const link = page.getByRole('link', { name: '기존 메뉴를 새 탭에서 이용', exact: true })
+      assert.equal(await link.getAttribute('href'), expectedHref)
+      assert.equal(await link.getAttribute('target'), '_blank')
+      assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
+      const before = page.url(), popupPromise = context.waitForEvent('page')
+      await link.click(); const popup = await popupPromise
+      await popup.getByRole('heading', { name: '기존 학교 메뉴', exact: true }).waitFor()
+      assert.equal(popup.url(), origin + expectedHref)
+      assert.equal(await popup.evaluate(() => window.opener), null)
+      assert.equal(page.url(), before); await failureHeading(page).waitFor(); await popup.close()
+      await reconnect(page)
+      assert.equal(await taskTitle(page).inputValue(), '실제 진입점에서 보관할 입력')
+      assert.deepEqual(await page.evaluate(() => qa.writes), [])
+    }, undefined, { actualGate: true, basename, dashboardPath })
+  }
 } finally { await browser.close() }
 console.log('\n연결 오류 이탈 브라우저 ' + passed + '개 통과, ' + failures + '개 실패')
 if (failures) process.exitCode = 1
