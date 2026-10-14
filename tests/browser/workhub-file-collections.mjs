@@ -81,7 +81,7 @@ try {
     await form().getByLabel('검토자', { exact: true }).selectOption('gaon-minjun')
     await form().getByLabel('단위 1 이름', { exact: true }).fill('2학년 1반')
     await form().getByLabel('단위 1 최종 제출 책임자', { exact: true }).selectOption('gaon-soyeon')
-    await form().getByLabel('김서진', { exact: true }).check()
+    await form().getByRole('group', { name: '제출 단위 1', exact: true }).getByLabel('김서진', { exact: true }).check()
     await upload(form(), '양식 파일', template)
     assert(await form().getByRole('checkbox', { name: '제출 파일 필수', exact: true }).isChecked())
     assert.match(await form().innerText(), /새로고침하면 초기화/)

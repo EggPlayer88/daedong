@@ -96,7 +96,11 @@ test('두 보완 요청이 되살아난 철회에서는 홈과 상세 모두 가
   assert.equal(home.cards[0].dueDate, '2026-10-21'); assert.equal(home.cards[0].pendingSupplementCount, 2)
   assert(detail.includes('보완 제출 기한: 2026-10-21 · 가장 빠른 기한'))
   assert(detail.includes('남은 보완 요청 2건 · 기한이 빠른 순서'))
-  assert(detail.includes('<li>2026-10-21까지</li><li>2026-10-23까지</li>'))
+  const pending = detail.match(/aria-label="남은 보완 요청"[\s\S]*?<\/section>/)?.[0]
+  assert(pending, '남은 보완 요청 영역이 표시되어야 합니다')
+  assert(pending.indexOf('2026-10-21까지') < pending.indexOf('2026-10-23까지'))
+  assert(pending.includes('v1에 대한 보완 요청') && pending.includes('첫 보완'))
+  assert(pending.includes('v2에 대한 보완 요청') && pending.includes('두 번째 보완'))
 })
 test('다른 학교·무관 구성원은 자료를 얻지 못하고 종료 소속은 명시 실패한다', () => {
   const { store } = setup({ units: [{ label: '단독 단위', responsibleMemberId: author, contributorMemberIds: [] }] })

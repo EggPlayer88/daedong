@@ -80,6 +80,9 @@ export interface FileSelectionProps {
 export function FileSelection({ repository, policy, owner, readScope, files, onChange, label, disabled = false, onBusyChange }: FileSelectionProps) {
   const id = useId()
   const input = useRef<HTMLInputElement>(null)
+  const replacementInput = useRef<HTMLInputElement>(null)
+  const replacementTarget = useRef<string>()
+  const selectionOrigin = useRef<HTMLElement | null>(null)
   const restoreInputFocus = useRef(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
@@ -99,13 +102,18 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
   const blocked = disabled || !ready || !valid
   const totalBytes = selected.reduce((total, file) => total + file.bytes, 0)
   useEffect(() => {
-    if (restoreInputFocus.current && !operation.busy && !blocked) { restoreInputFocus.current = false; input.current?.focus() }
+    if (restoreInputFocus.current && !operation.busy && !blocked) { restoreInputFocus.current = false; (selectionOrigin.current?.isConnected ? selectionOrigin.current : input.current)?.focus() }
   }, [operation.busy, blocked])
 
-  async function choose(values: File[]) {
+  async function choose(values: File[], replaceId?: string) {
     if (!values.length || blocked || operation.busy) return
     setError(''); setNotice('')
-    if (selected.length + values.length > policy.maxFiles) {
+    const replaceIndex = replaceId === undefined ? -1 : selected.findIndex(file => file.id === replaceId)
+    if (replaceId !== undefined && (replaceIndex < 0 || values.length !== 1)) {
+      setError('바꿀 파일을 확인하고 새 파일 하나를 선택해 주세요. 기존 선택은 유지했습니다.')
+      return
+    }
+    if (selected.length + values.length - Number(replaceIndex >= 0) > policy.maxFiles) {
       setError(`파일은 최대 ${policy.maxFiles}개까지 선택할 수 있습니다. 기존 선택은 유지했습니다.`)
       return
     }
@@ -120,14 +128,18 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
         const reference = await repository.stage(file, policy, stagedOwner, current.controller.signal)
         acquired.push(reference)
         if (!operation.current(current)) return
-        next.push(reference)
+        // 새 파일의 검사까지 끝나야 기존 선택을 바꾼다. 저장된 초안·제출판의 실물은 유지한다.
+        if (replaceIndex >= 0) next[replaceIndex] = reference
+        else next.push(reference)
         repository.check(next, policy, scope)
         setProgress(value => ({ ...value, checked: value.checked + 1 }))
       }
       if (!operation.current(current)) return
       change.current(next)
       accepted = true
-      setNotice('기본 검사 완료 · 현재 창에 보관')
+      // 교체로 사라진 이전 버튼에 초점을 남기지 않는다.
+      if (replaceIndex >= 0) { selectionOrigin.current = input.current; restoreInputFocus.current = true }
+      setNotice(replaceIndex >= 0 ? '파일을 바꿨습니다. 기본 검사 완료 · 현재 창에 보관' : '기본 검사 완료 · 현재 창에 보관')
     } catch (failure) {
       if (operation.current(current)) setError(safeError(failure, '파일을 확인하지 못했습니다. 기존 선택은 유지했습니다. 다시 선택해 주세요.'))
     } finally {
@@ -144,13 +156,24 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
         const values = Array.from(event.currentTarget.files ?? [])
         // 같은 파일을 다시 골라도 검사 이벤트가 발생하게 입력만 비운다.
         event.currentTarget.value = ''
+        selectionOrigin.current = input.current
         void choose(values)
       }} />
     </label>
+    <input ref={replacementInput} hidden type="file" aria-label={`${label} 교체 파일 선택`} accept={ready ? policy.extensions.map(extension => `.${extension}`).join(',') : undefined} disabled={blocked || operation.busy} onChange={event => {
+      const values = Array.from(event.currentTarget.files ?? [])
+      event.currentTarget.value = ''
+      const target = replacementTarget.current
+      replacementTarget.current = undefined
+      if (target !== undefined) void choose(values, target)
+    }} />
     <p id={`${id}-policy`} className="wf-file-hint">{ready ? `${policy.extensions.map(extension => extension.toUpperCase()).join(' · ')} · 파일당 ${formatFileBytes(policy.maxFileBytes)} 이하 · 최대 ${policy.maxFiles}개` : '파일 형식과 용량 기준을 확인할 수 없습니다.'}</p>
     {selected.length > 0 && <ul className="wf-file-list" aria-labelledby={`${id}-title`}>{selected.map((file, index) => <li key={`${file.id}:${index}`}>
       <div className="wf-file-description"><span className="wf-file-name">{file.name}</span><small>{formatFileBytes(file.bytes)}</small></div>
-      <button type="button" className="wf-file-button" disabled={disabled || operation.busy} aria-label={`${file.name} 제거`} onClick={() => {
+      <button type="button" className="wf-file-button" disabled={blocked || operation.busy} aria-label={`${file.name} 바꾸기`} onClick={event => {
+        replacementTarget.current = file.id; selectionOrigin.current = event.currentTarget; replacementInput.current?.click()
+      }}>바꾸기</button>
+      <button type="button" className="wf-file-button" disabled={blocked || operation.busy} aria-label={`${file.name} 제거`} onClick={() => {
         change.current(selected.filter((_, position) => position !== index)); setError(''); setNotice('선택한 파일을 목록에서 제거했습니다.'); input.current?.focus()
       }}>제거</button>
     </li>)}</ul>}

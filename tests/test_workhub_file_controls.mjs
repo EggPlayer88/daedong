@@ -40,9 +40,19 @@ test('선택된 파일은 이름·크기·총개수·총용량과 최종 제출 
   assert.match(html, /최종 제출 전/)
   assert(!html.includes('서버 검사 완료')); assert(!html.includes('제출 완료'))
 })
-test('disabled 설정은 파일 선택과 모든 제거 버튼을 잠근다', () => {
+test('disabled 설정은 파일 선택·바꾸기·제거를 모두 잠근다', () => {
   const html = selection({ files: [reference()], disabled: true })
-  assert.equal((html.match(/disabled=""/g) ?? []).length, 2)
+  for (const name of ['합성 양식.pdf 바꾸기', '합성 양식.pdf 제거']) assert.match(html, new RegExp(`disabled="" aria-label="${name}"`))
+  assert.match(html, /type="file"[^>]*disabled=""/)
+  assert.match(html, /hidden="" type="file"[^>]*disabled=""/)
+})
+
+test('파일 교체는 파일별 이름이 있는 버튼과 단일 파일 입력을 제공한다', () => {
+  const html = selection({ files: [reference()] })
+  assert.match(html, /aria-label="합성 양식.pdf 바꾸기"/)
+  const replacement = html.match(/<input[^>]*hidden=""[^>]*>/)?.[0]
+  assert(replacement); assert.match(replacement, /aria-label="양식 파일 교체 파일 선택"/)
+  assert(!replacement.includes('multiple=')); assert.match(replacement, /accept=".pdf,.hwpx"/)
 })
 test('파일 목록의 손상된 값은 화면을 죽이거나 빈 정상값으로 표시하지 않는다', () => {
   const circular = reference(); circular.extra = circular

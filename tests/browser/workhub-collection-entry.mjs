@@ -61,7 +61,7 @@ try {
   await test('중복 대상 오류는 이름을 보존하고 수정 뒤 저장할 수 있다', async () => {
     await form().getByLabel('단위 1 이름', { exact: true }).fill('2학년 1반')
     await form().getByLabel('단위 1 최종 제출 책임자', { exact: true }).selectOption('gaon-soyeon')
-    await form().getByLabel('김서진', { exact: true }).check()
+    await form().getByRole('group', { name: '제출 단위 1', exact: true }).getByLabel('김서진', { exact: true }).check()
     await form().getByRole('button', { name: '+ 제출 단위 추가', exact: true }).click()
     await form().getByLabel('단위 2 이름', { exact: true }).fill('2학년 1반')
     await form().getByLabel('단위 2 최종 제출 책임자', { exact: true }).selectOption('gaon-soyeon')
