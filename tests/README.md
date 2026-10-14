@@ -186,6 +186,14 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 기본 파일형 문서 수합
 
+- `test_workhub_collection_server.mjs`: 실제 연결 어댑터의 봉투/학교/판 검증, 미확정 접수, 파일 예약·원문·다운로드 권한 재확인.
+- `test_workhub_collection_recovery.mjs`: 수합 명령의 동일 키·본문 보존, 다른 기능과의 복구 분리, 동일 소속 입력 복원.
+- `test_workhub_collection_server_ui.mjs`: 서버 확인 전 정적 렌더링이 조회·빈 목록·작성 성공을 만들지 않는지, 상위 화면과 제목·본문 영역이 겹치지 않는지 확인한다.
+- `test_workhub_collection_storage.mjs`: 기존 실제 인증 연결·SDK 래퍼에 합성 전송을 주입하여 권한 회수·계정 변경·업로드 응답 유실·다운로드 원문 검사를 확인한다.
+- `workhub-collection-server.mjs`: 비동기 수합 작성·파일 대기·제출·오류 복구를 합성 서버로 브라우저 검증한다. 전체 브라우저 러너에 포함된다.
+- `workhub-connection.mjs`는 실제 연결 셸에서 R1 함수 부재와 파일 검사 미준비를 빈 목록/성공으로 표시하지 않는지도 확인한다.
+- [서버 연결 인계](../docs/workhub/33-collection-server-connection.md), [Claude R1 SQL 요청서](../docs/workhub/32-collection-server-sql-request.md). 이 시험이 실제 Supabase/Storage 구축과 서버 파일 검사를 대신하지 않는다.
+
 - test_workhub_file_lifecycle.mjs: 미저장 파일 회수·용량 재사용·저장 실패·양식/공동 초안/과거 접수 결과 보호·초기화와 늦은 검사 응답 9개 시나리오.
 - workhub-file-controls 브라우저 검사는 개발 StrictMode에서도 선택·제거·교체·화면 종료의 수명을 확인한다.
 
