@@ -186,6 +186,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 기본 파일형 문서 수합
 
+- test_workhub_file_lifecycle.mjs: 미저장 파일 회수·용량 재사용·저장 실패·양식/공동 초안/과거 접수 결과 보호·초기화와 늦은 검사 응답 9개 시나리오.
+- workhub-file-controls 브라우저 검사는 개발 StrictMode에서도 선택·제거·교체·화면 종료의 수명을 확인한다.
+
 - test_workhub_collection_files.mjs: 실물·정책·취소/시간초과·메모리 회수·ZIP 원본/CRC 19건.
 - test_workhub_file_workflow.mjs: 기존 응답 호환·파일 초안/제출·읽기 경계·영구 저장 제외 20건.
 - test_workhub_file_controls.mjs: 깨진 입력·안내·접근성·파일 교체 SSR 12건.
