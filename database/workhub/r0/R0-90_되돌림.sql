@@ -37,25 +37,44 @@ BEGIN
   IF v IS NOT NULL THEN
     RAISE EXCEPTION 'R0-90 중단: R0 이후에 생긴 표가 있습니다(%). 이 파일은 R0 전용입니다. 해당 배치의 되돌림 절차를 쓰세요.', v;
   END IF;
-  -- 다른 스키마의 객체가 업무실 표·함수를 참조(FK·뷰·함수 등)하면 CASCADE 가 그것까지 지운다 → 멈춘다
-  SELECT string_agg(DISTINCT pg_describe_object(d.classid, d.objid, d.objsubid), ', ') INTO v
-    FROM pg_depend d
-    JOIN pg_namespace rn ON rn.oid = CASE d.refclassid
-           WHEN 'pg_class'::regclass THEN (SELECT relnamespace FROM pg_class WHERE oid = d.refobjid)
-           WHEN 'pg_proc'::regclass  THEN (SELECT pronamespace FROM pg_proc  WHERE oid = d.refobjid)
-           WHEN 'pg_type'::regclass  THEN (SELECT typnamespace FROM pg_type  WHERE oid = d.refobjid) END
-    JOIN pg_namespace dn ON dn.oid = CASE d.classid
-           WHEN 'pg_class'::regclass      THEN (SELECT relnamespace FROM pg_class WHERE oid = d.objid)
-           WHEN 'pg_proc'::regclass       THEN (SELECT pronamespace FROM pg_proc  WHERE oid = d.objid)
-           WHEN 'pg_type'::regclass       THEN (SELECT typnamespace FROM pg_type  WHERE oid = d.objid)
-           WHEN 'pg_constraint'::regclass THEN (SELECT connamespace FROM pg_constraint WHERE oid = d.objid)
-           WHEN 'pg_rewrite'::regclass    THEN (SELECT c.relnamespace FROM pg_rewrite r JOIN pg_class c ON c.oid = r.ev_class WHERE r.oid = d.objid)
-           WHEN 'pg_trigger'::regclass    THEN (SELECT c.relnamespace FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE t.oid = d.objid AND NOT t.tgisinternal) END
-   WHERE rn.nspname IN ('workhub','workhub_private')
-     AND d.deptype IN ('n','a')                       -- 내부 의존(toast 등)은 함께 지워지는 게 맞다
-     AND dn.nspname NOT IN ('workhub','workhub_private','pg_toast')
-     AND NOT (dn.nspname = 'public' AND d.classid = 'pg_proc'::regclass
-              AND (SELECT proname FROM pg_proc WHERE oid = d.objid) IN
+  -- 다른 스키마의 객체가 업무실을 참조(FK·뷰·DEFAULT·생성열·RLS 정책·트리거·함수 등)하면 CASCADE 가 그것까지
+  -- 지운다 → 멈춘다. 참조하는 쪽의 스키마는 그 객체(또는 그 객체가 붙은 표)의 스키마로 구한다.
+  -- 목록에 없는 catalog 는 pg_identify_object 의 스키마로 구하고, 그래도 스키마가 없는 종류(형 변환·이벤트 트리거 등)는
+  -- '업무실 밖' 으로 간주해 멈춘다(조용히 넘기지 않음).
+  WITH dep AS (
+    SELECT d.classid, d.objid, d.objsubid,
+           CASE d.refclassid
+             WHEN 'pg_class'::regclass      THEN (SELECT relnamespace FROM pg_class WHERE oid = d.refobjid)
+             WHEN 'pg_proc'::regclass       THEN (SELECT pronamespace FROM pg_proc WHERE oid = d.refobjid)
+             WHEN 'pg_type'::regclass       THEN (SELECT typnamespace FROM pg_type WHERE oid = d.refobjid)
+             WHEN 'pg_constraint'::regclass THEN (SELECT connamespace FROM pg_constraint WHERE oid = d.refobjid)
+             WHEN 'pg_namespace'::regclass  THEN d.refobjid
+             -- 그 밖의 종류(연산자·콜레이션 등 후속 배치가 만들 수 있는 것)는 catalog 가 알려 주는 스키마로
+             ELSE (SELECT oid FROM pg_namespace WHERE nspname = (pg_identify_object(d.refclassid, d.refobjid, 0)).schema)
+           END AS ref_ns,
+           CASE d.classid
+             WHEN 'pg_class'::regclass      THEN (SELECT relnamespace FROM pg_class WHERE oid = d.objid)
+             WHEN 'pg_proc'::regclass       THEN (SELECT pronamespace FROM pg_proc WHERE oid = d.objid)
+             WHEN 'pg_type'::regclass       THEN (SELECT typnamespace FROM pg_type WHERE oid = d.objid)
+             WHEN 'pg_constraint'::regclass THEN (SELECT COALESCE(c.relnamespace, t.typnamespace, k.connamespace)
+                                                    FROM pg_constraint k LEFT JOIN pg_class c ON c.oid = k.conrelid
+                                                    LEFT JOIN pg_type t ON t.oid = k.contypid WHERE k.oid = d.objid)
+             WHEN 'pg_attrdef'::regclass    THEN (SELECT c.relnamespace FROM pg_attrdef a JOIN pg_class c ON c.oid = a.adrelid WHERE a.oid = d.objid)
+             WHEN 'pg_policy'::regclass     THEN (SELECT c.relnamespace FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid WHERE p.oid = d.objid)
+             WHEN 'pg_rewrite'::regclass    THEN (SELECT c.relnamespace FROM pg_rewrite r JOIN pg_class c ON c.oid = r.ev_class WHERE r.oid = d.objid)
+             WHEN 'pg_trigger'::regclass    THEN (SELECT c.relnamespace FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE t.oid = d.objid)
+             ELSE (SELECT oid FROM pg_namespace WHERE nspname = (pg_identify_object(d.classid, d.objid, 0)).schema)
+           END AS dep_ns
+      FROM pg_depend d
+     WHERE d.deptype IN ('n','a')                    -- 내부 의존(toast·RI 트리거 등)은 주인과 함께 지워지는 게 맞다
+  )
+  SELECT string_agg(DISTINCT pg_describe_object(dep.classid, dep.objid, dep.objsubid), ', ') INTO v
+    FROM dep
+   WHERE dep.ref_ns IN (SELECT oid FROM pg_namespace WHERE nspname IN ('workhub','workhub_private'))
+     AND (dep.dep_ns IS NULL
+          OR dep.dep_ns NOT IN (SELECT oid FROM pg_namespace WHERE nspname IN ('workhub','workhub_private','pg_toast')))
+     AND NOT (dep.classid = 'pg_proc'::regclass AND dep.dep_ns = 'public'::regnamespace
+              AND (SELECT proname FROM pg_proc WHERE oid = dep.objid) IN
                   ('workhub_context','workhub_calendar_list','workhub_calendar_get','workhub_calendar_save',
                    'workhub_task_list','workhub_task_get','workhub_task_mutate'));
   IF v IS NOT NULL THEN
