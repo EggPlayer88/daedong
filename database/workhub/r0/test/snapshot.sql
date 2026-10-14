@@ -1,4 +1,6 @@
 -- public·auth·storage 상태 지문 (workhub_* 함수 제외)
+-- 범위: 구조(표·열·제약·함수·사용자 트리거·정책·권한) + 회원·Auth·제출·Storage 목록(buckets·objects)의 행 수·행 해시.
+-- 범위 밖: Storage 파일 본문 바이트(DB 밖 저장소), PostgreSQL 내부 트리거.
 \pset format unaligned
 \pset tuples_only on
 select 'rel', n.nspname, c.relname, c.relkind, c.relrowsecurity, coalesce(array_to_string(c.relacl,','),'')
@@ -18,4 +20,7 @@ select 'nsp', nspname, coalesce(array_to_string(nspacl,','),'') from pg_namespac
 select 'defacl', defaclrole::regrole, coalesce(defaclnamespace::regnamespace::text,''), defaclobjtype, array_to_string(defaclacl,',') from pg_default_acl order by 2,3,4;
 select 'data', 'users', md5(string_agg(u::text, '|' order by u.id)) from public.users u;
 select 'data', 'auth.users', md5(string_agg(a::text, '|' order by a.id)) from auth.users a;
-select 'data', 'doc_submissions', count(*) from public.doc_submissions;
+-- 자료: 행 수와 행 전체 해시(값·경로가 하나라도 바뀌거나 행이 빠지면 달라진다). Storage 는 목록(메타데이터) 표만 본다.
+select 'data', 'doc_submissions', count(*), md5(coalesce(string_agg(d::text, '|' order by d::text), '')) from public.doc_submissions d;
+select 'data', 'storage.buckets', count(*), md5(coalesce(string_agg(b::text, '|' order by b.id), '')) from storage.buckets b;
+select 'data', 'storage.objects', count(*), md5(coalesce(string_agg(o::text, '|' order by o.bucket_id, o.name, o.id), '')) from storage.objects o;
