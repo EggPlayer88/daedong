@@ -183,3 +183,12 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `test_workhub_connection_exit_ui.mjs`: 입력/미확정 요청별 안내와 접근성·새 탭 링크의 SSR 4건.
 - `tests/browser/workhub-connection-exit.mjs`: 바깥 BrowserRouter 링크·뒤로가기, 오류/로딩, 폐기 취소·확정, 미확정 요청·혼합 상태, 새 탭, 권한 회수, 모바일 키보드 9건. 전체 러너에 포함한다.
 - 재현 절차와 Linux/PowerShell 명령은 [검토 기록](../docs/workhub/24-connection-exit.md)에 있다. 합성 RPC를 사용하며 실제 운영 서버에는 접속하지 않는다.
+
+## 기본 파일형 문서 수합
+
+- test_workhub_collection_files.mjs: 실물·정책·취소/시간초과·메모리 회수·ZIP 원본/CRC 19건.
+- test_workhub_file_workflow.mjs: 기존 응답 호환·파일 초안/제출·읽기 경계·영구 저장 제외 20건.
+- test_workhub_file_controls.mjs: 깨진 입력·안내·접근성 SSR 11건.
+- test_workhub_file_export.mjs: 완료본/최신본·판 변경·CSV·권한·SSR 13건.
+- 고정 브라우저 러너에 workhub-file-controls, workhub-file-collections, workhub-file-persistence를 포함한다. 실제 파일 선택/다운로드·공동 작성·ZIP·PreviewApp 저장/새로고침을 합성 자료로 검사한다.
+- [파일 수합 인계](../docs/workhub/29-file-collections.md)에 한계와 재현 순서를 기록한다.
