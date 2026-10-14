@@ -90,7 +90,7 @@ try {
   await scoped('연결 모드에도 더보기와 설정이 있고 미연결 업무 메뉴를 공개하지 않는다', async () => {
    await page.setViewportSize({width:390,height:844});await page.goto('http://127.0.0.1:5176/?connected=1'+(shadow?'&shadow=1':''));await page.getByRole('heading',{name:'오늘',level:1,exact:true}).waitFor()
    const connected=page.getByRole('navigation',{name:'신축 업무 메뉴',exact:true});assert.deepEqual(await connected.getByRole('button').allTextContents(),['오늘','내 업무','학교 일정','•••더보기'])
-   await connected.getByRole('button',{name:'더보기',exact:true}).click();assert.equal(await sheet().getByRole('button',{name:'자료 수합',exact:true}).count(),0);assert.equal(await sheet().getByRole('button',{name:'수업과 학생',exact:true}).count(),0)
+   await connected.getByRole('button',{name:'더보기',exact:true}).click();assert.equal(await sheet().getByRole('button',{name:'자료 수합',exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'수업과 학생',exact:true}).count(),0)
    assert.equal(await sheet().getByRole('button',{name:'화면 설정',exact:true}).count(),1);await fits();await page.keyboard.press('Escape')
   })
   await context.close()
