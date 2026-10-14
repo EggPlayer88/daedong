@@ -1,4 +1,4 @@
-// 실제 파일 입력·읽기 취소·늦은 응답·현재 창 파일을 합성 자료로 확인한다.
+// 실제 파일 입력·읽기 취소·늦은 응답과 StrictMode의 effect 재실행을 합성 자료로 확인한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { launchBrowser } from './launch-browser.mjs'
@@ -17,14 +17,15 @@ const bundle = buildSync({ stdin: { contents: `
  const wait=()=>new Promise(resolve=>gates.push(resolve));window.releaseFiles=()=>{while(gates.length)gates.shift()()};
  const repository={...core,stage:async(file,policy,owner,signal)=>{try{let ref;if(window.fileMode==='stage-delay'){await wait();ref=await core.stage(file,policy,owner)}else{if(window.fileMode==='stage-raw')throw Error('secret-key-is-not-user-content');ref=await core.stage(file,policy,owner,signal)}window.stagedRefs.push({ref,owner:{...owner}});return ref}finally{window.finishedStages++}}};
  window.probeStaged=async index=>{const entry=window.stagedRefs[index];try{await core.read(entry.ref,{schoolId:entry.owner.schoolId,memberIds:[entry.owner.memberId]});return true}catch{return false}};
+ window.retainStaged=index=>core.retainSaved([window.stagedRefs[index].ref]);
  const read=async(ref,signal)=>{window.readCount++;try{if(window.fileMode==='read-delay'){await wait();return await core.read(ref,{schoolId:'school',memberIds:['teacher-a']})}if(window.fileMode==='read-raw')throw Error('private-stack-and-token');if(window.fileMode==='read-missing')throw new FileError('FILE_UNAVAILABLE');return await core.read(ref,{schoolId:'school',memberIds:['teacher-a']},signal)}finally{window.finishedReads++}};
  function Controls(){const[files,setFiles]=useState([]),[owner,setOwner]=useState('teacher-a'),[max,setMax]=useState(3),[visible,setVisible]=useState(true),[busy,setBusy]=useState(false),[moves,setMoves]=useState(0);window.fileRefs=files;window.setFileOwner=setOwner;window.setFilePolicy=setMax;window.setFileVisible=setVisible;window.setFileRefs=setFiles;const change=useEditSession();return <>
  <button type="button" onClick={()=>change(()=>setMoves(x=>x+1))}>다른 화면 이동</button><output data-moves>{moves}</output><output data-busy>{String(busy)}</output>
  {visible&&<><FileSelection repository={repository} policy={{extensions:['pdf'],maxFileBytes:1024*1024,maxFiles:max}} owner={{schoolId:'school',memberId:owner}} files={files} onChange={setFiles} label="양식 파일" onBusyChange={setBusy}/><FileDownloads files={files} read={read} label="다운로드 파일"/></>}
  </>}
  function App(){const[locked,setLocked]=useState(false);return <><style>{'body{margin:16px;font-family:Arial,sans-serif}button{font:inherit}#root{display:grid;gap:16px;max-width:650px}'+styles}</style><output data-locked>{String(locked)}</output><EditSession onLockChange={setLocked}><Controls/></EditSession></>}
- createRoot(document.getElementById('root')).render(<App/>);
- `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
+ createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
+ `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' })
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage()
 const results = [], errors = [], external = [], requestedDownloads = [], output = process.env.WORKHUB_QA_OUTPUT
 if (output) mkdirSync(output, { recursive: true })
@@ -79,7 +80,7 @@ try {
     await picker().setInputFiles([file('추가1.pdf'), file('추가2.pdf'), file('추가3.pdf')]); await selection().getByRole('alert').waitFor()
     assert.match(await selection().getByRole('alert').innerText(), /최대 3개/); assert.equal(await page.evaluate(() => window.fileRefs.length), 1)
   })
-  await test('최대 개수에서도 같은 이름의 새 파일을 원자적으로 바꾸고 이전 실물은 유지한다', async () => {
+  await test('최대 개수에서도 같은 이름의 새 파일을 원자적으로 바꾸고 미저장 이전 실물은 회수한다', async () => {
     await picker().setInputFiles([file('첫 문서.pdf'), file('둘째.pdf'), file('셋째.pdf')]); await selected(3)
     const before = await page.evaluate(() => window.fileRefs)
     await replace('첫 문서.pdf', file('첫 문서.pdf', '수정된 원문'))
@@ -87,7 +88,7 @@ try {
     const after = await page.evaluate(() => window.fileRefs)
     assert.equal(await picker().evaluate(node => document.activeElement === node), true, '교체 성공 후 파일 선택으로 초점 복귀')
     assert.equal(after.length, 3); assert.equal(after[0].name, before[0].name); assert.notEqual(after[0].sha256, before[0].sha256)
-    assert.deepEqual(after.slice(1), before.slice(1)); assert.equal(await page.evaluate(() => window.probeStaged(0)), true)
+    assert.deepEqual(after.slice(1), before.slice(1)); assert.equal(await page.evaluate(() => window.probeStaged(0)), false)
     const received = page.waitForEvent('download'); await downloads().getByRole('button', { name: '첫 문서.pdf 다운로드', exact: true }).click()
     assert.deepEqual(readFileSync(await (await received).path()), file('첫 문서.pdf', '수정된 원문').buffer)
   })
@@ -134,6 +135,42 @@ try {
       await startSlow(); await page.evaluate(kind => { if (kind === 'owner') window.setFileOwner('teacher-b'); else if (kind === 'policy') window.setFilePolicy(2); else window.setFileVisible(false) }, kind)
       await settle(); await page.evaluate(() => window.releaseFiles()); await page.waitForFunction(() => window.finishedStages === 1); await settle()
       assert.equal(await page.evaluate(() => window.fileRefs.length), 0); assert.equal(await page.locator('[data-busy]').innerText(), 'false')
+      assert.equal(await page.evaluate(() => window.probeStaged(0)), false)
+    }
+  })
+  await test('선택과 제거를 반복해도 미저장 파일 실물이 누적되지 않는다', async () => {
+    for (let i = 0; i < 12; i++) {
+      const name = `반복 선택 ${i}.pdf`
+      await picker().setInputFiles(file(name)); await selected(1)
+      await selection().getByRole('button', { name: name + ' 제거', exact: true }).click(); await selected(0)
+      assert.equal(await page.evaluate(index => window.probeStaged(index), i), false)
+    }
+    await picker().setInputFiles(file('마지막 선택.pdf')); await selected(1)
+    assert.equal(await page.evaluate(() => window.probeStaged(12)), true)
+  })
+  await test('저장된 원문을 교체한 뒤 편집을 닫으면 저장본은 남고 새 미저장본만 회수한다', async () => {
+    await picker().setInputFiles(file('저장 원문.pdf')); await selected(1)
+    await page.evaluate(() => window.retainStaged(0))
+    await replace('저장 원문.pdf', file('새 미저장본.pdf'))
+    await page.waitForFunction(() => window.fileRefs[0]?.name === '새 미저장본.pdf'); await settle()
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), true)
+    assert.equal(await page.evaluate(() => window.probeStaged(1)), true)
+    await page.evaluate(() => window.setFileVisible(false)); await settle()
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), true)
+    assert.equal(await page.evaluate(() => window.probeStaged(1)), false)
+  })
+  await test('저장된 파일을 선택 목록에서 제거해도 보관 원문은 유지한다', async () => {
+    await picker().setInputFiles(file('저장된 파일.pdf')); await selected(1)
+    await page.evaluate(() => window.retainStaged(0))
+    await selection().getByRole('button', { name: '저장된 파일.pdf 제거', exact: true }).click(); await selected(0)
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), true)
+  })
+  await test('선택 완료 후 소속 변경이나 화면 해제 시 이전 편집의 미저장 실물을 회수한다', async () => {
+    for (const kind of ['owner', 'unmount']) {
+      if (kind !== 'owner') await reset()
+      await picker().setInputFiles(file('임시 선택.pdf')); await selected(1)
+      await page.evaluate(kind => { if (kind === 'owner') { window.setFileRefs([]); window.setFileOwner('teacher-b') } else window.setFileVisible(false) }, kind)
+      await settle()
       assert.equal(await page.evaluate(() => window.probeStaged(0)), false)
     }
   })
