@@ -56,7 +56,8 @@ async function openSettings() { if (!await trigger().isVisible()) await page.get
 async function choose(value) { await dialog().locator(`input[type="radio"][value="${value}"]`).check(); await settle() }
 async function closeSettings() { await dialog().getByRole('button', { name: '완료', exact: true }).click(); await dialog().waitFor({ state: 'detached' }) }
 async function preferences() { return shell().evaluate(element => ({ theme: element.dataset.theme, density: element.dataset.density, textSize: element.dataset.textSize })) }
-async function screenshot(name) { if (output) await page.screenshot({ path: join(output, name + '.png'), fullPage: true }) }
+// 전체 페이지 캡처의 임시 화면 폭 변경이 반응형 모달을 닫지 않도록 지정한 뷰포트를 그대로 촬영한다.
+async function screenshot(name) { if (output) await page.screenshot({ path: join(output, name + '.png'), fullPage: false }) }
 async function assertFocus(locator) { assert.equal(await locator.evaluate(element => element === document.activeElement), true) }
 async function assertFits(label) {
   const bounds = await page.evaluate(() => ({ viewport: innerWidth, width: document.documentElement.scrollWidth }))
