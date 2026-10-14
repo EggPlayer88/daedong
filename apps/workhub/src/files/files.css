@@ -1,0 +1,22 @@
+.wf-file-control{display:grid;gap:10px;min-width:0;max-width:100%;padding:16px;border:1px solid var(--ui-line,#dce1e8);border-radius:10px;background:var(--ui-surface,#fff);color:var(--ui-text,#26313d);font-size:.84rem;line-height:1.6}
+.wf-file-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0}
+.wf-file-heading strong,.wf-file-control>strong{font-size:.87rem;overflow-wrap:anywhere}
+.wf-file-heading>span,.wf-file-description small,.wf-file-hint,.wf-file-status{font-size:.76rem;color:var(--ui-muted,#5d6a79);overflow-wrap:anywhere}
+.wf-file-control .wf-file-hint,.wf-file-control .wf-file-error{margin:0}
+.wf-file-picker{position:relative;justify-self:start;display:inline-flex;align-items:center;min-height:44px;padding:9px 13px;border:1px solid var(--ui-line,#dce1e8);border-radius:7px;background:var(--ui-accent-soft,#eef3fb);color:var(--ui-accent,#315b9e);font-size:.8rem;font-weight:500;min-width:0;max-width:100%;overflow-wrap:anywhere;cursor:pointer}
+/* 입력은 키보드와 보조기기에 남기고, 브라우저의 빈 파일명 문구 대신 선택 목록을 보여 준다. */
+.wf-file-control input[type=file]{position:absolute;inset:0;box-sizing:border-box;max-width:100%;width:100%;height:100%;min-width:0;opacity:0;cursor:pointer}
+.wf-file-picker:focus-within{outline:3px solid var(--ui-accent,#315b9e);outline-offset:3px}
+.wf-file-picker[data-disabled=true]{opacity:.58;cursor:not-allowed}
+.wf-file-list{list-style:none;display:grid;gap:0;min-width:0;margin:0;padding:0}
+.wf-file-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:11px 0;border-bottom:1px solid var(--ui-line,#e3e7ed)}
+.wf-file-list li:last-child{border-bottom:0;padding-bottom:2px}
+.wf-file-description{display:grid;gap:3px;flex:1;min-width:0}
+.wf-file-name{font-weight:500;overflow-wrap:anywhere;word-break:break-word;min-width:0}
+.wf-file-control .wf-file-button{flex-shrink:0;justify-self:start;max-width:100%;min-height:40px;border:1px solid var(--ui-line,#d9e0e9);border-radius:7px;padding:8px 11px;background:var(--ui-surface,#fff);color:var(--ui-accent,#315b9e);font:inherit;font-size:.77rem;font-weight:500;cursor:pointer;white-space:normal;overflow-wrap:anywhere}
+.wf-file-control .wf-file-button:hover:not(:disabled){background:var(--ui-accent-soft,#eef3fb)}
+.wf-file-control :is(button,input):disabled{opacity:.58;cursor:not-allowed}
+.wf-file-control :is(button,input):focus-visible{outline:3px solid var(--ui-accent,#315b9e);outline-offset:3px}
+.wf-file-control .wf-file-error{font-size:.79rem;line-height:1.75;padding:10px 12px;background:#fff4ef;border:1px solid #eacdc0;border-radius:7px;color:#873f2c;overflow-wrap:anywhere}
+.wf-file-status:empty{display:none}
+@media(max-width:520px){.wf-file-control{padding:12px;gap:9px}.wf-file-list li{gap:9px;align-items:flex-start}.wf-file-control .wf-file-button{min-height:44px;padding:9px 10px}.wf-file-control input[type=file]{font-size:16px}.wf-file-heading{gap:6px}}

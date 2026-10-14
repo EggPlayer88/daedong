@@ -1,0 +1,141 @@
+// 실제 파일 입력·읽기 취소·늦은 응답·현재 창 파일을 합성 자료로 확인한다.
+import assert from 'node:assert/strict'
+import { buildSync } from 'esbuild'
+import { launchBrowser } from './launch-browser.mjs'
+import { fileURLToPath } from 'node:url'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const bundle = buildSync({ stdin: { contents: `
+ import React,{useState} from 'react';import{createRoot}from'react-dom/client';
+ import{FileSelection,FileDownloads}from'./apps/workhub/src/files/FileControls';
+ import{createPreviewFileRepository}from'./apps/workhub/src/files/preview-repository';
+ import{FileError}from'./apps/workhub/src/files/contracts';
+ import{EditSession,useEditSession}from'./apps/workhub/src/app/EditSession';
+ import styles from './apps/workhub/src/files/files.css?inline';
+ const core=createPreviewFileRepository(),gates=[];window.fileMode='normal';window.readCount=0;window.finishedStages=0;window.finishedReads=0;window.stagedRefs=[];
+ const wait=()=>new Promise(resolve=>gates.push(resolve));window.releaseFiles=()=>{while(gates.length)gates.shift()()};
+ const repository={...core,stage:async(file,policy,owner,signal)=>{try{let ref;if(window.fileMode==='stage-delay'){await wait();ref=await core.stage(file,policy,owner)}else{if(window.fileMode==='stage-raw')throw Error('secret-key-is-not-user-content');ref=await core.stage(file,policy,owner,signal)}window.stagedRefs.push({ref,owner:{...owner}});return ref}finally{window.finishedStages++}}};
+ window.probeStaged=async index=>{const entry=window.stagedRefs[index];try{await core.read(entry.ref,{schoolId:entry.owner.schoolId,memberIds:[entry.owner.memberId]});return true}catch{return false}};
+ const read=async(ref,signal)=>{window.readCount++;try{if(window.fileMode==='read-delay'){await wait();return await core.read(ref,{schoolId:'school',memberIds:['teacher-a']})}if(window.fileMode==='read-raw')throw Error('private-stack-and-token');if(window.fileMode==='read-missing')throw new FileError('FILE_UNAVAILABLE');return await core.read(ref,{schoolId:'school',memberIds:['teacher-a']},signal)}finally{window.finishedReads++}};
+ function Controls(){const[files,setFiles]=useState([]),[owner,setOwner]=useState('teacher-a'),[max,setMax]=useState(3),[visible,setVisible]=useState(true),[busy,setBusy]=useState(false),[moves,setMoves]=useState(0);window.fileRefs=files;window.setFileOwner=setOwner;window.setFilePolicy=setMax;window.setFileVisible=setVisible;window.setFileRefs=setFiles;const change=useEditSession();return <>
+ <button type="button" onClick={()=>change(()=>setMoves(x=>x+1))}>다른 화면 이동</button><output data-moves>{moves}</output><output data-busy>{String(busy)}</output>
+ {visible&&<><FileSelection repository={repository} policy={{extensions:['pdf'],maxFileBytes:1024*1024,maxFiles:max}} owner={{schoolId:'school',memberId:owner}} files={files} onChange={setFiles} label="양식 파일" onBusyChange={setBusy}/><FileDownloads files={files} read={read} label="다운로드 파일"/></>}
+ </>}
+ function App(){const[locked,setLocked]=useState(false);return <><style>{'body{margin:16px;font-family:Arial,sans-serif}button{font:inherit}#root{display:grid;gap:16px;max-width:650px}'+styles}</style><output data-locked>{String(locked)}</output><EditSession onLockChange={setLocked}><Controls/></EditSession></>}
+ createRoot(document.getElementById('root')).render(<App/>);
+ `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
+const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage()
+const results = [], errors = [], external = [], requestedDownloads = [], output = process.env.WORKHUB_QA_OUTPUT
+if (output) mkdirSync(output, { recursive: true })
+page.setDefaultTimeout(10000); page.on('pageerror', error => errors.push(error.message)); page.on('download', download => requestedDownloads.push(download))
+await context.route('**/*', route => {
+  if (!route.request().url().startsWith('http://127.0.0.1:5176/')) { external.push(route.request().url()); return route.abort() }
+  return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div></body></html>' })
+})
+const file = (name, suffix = name) => ({ name, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\n' + suffix + '\n%%EOF') })
+const picker = () => page.getByLabel('양식 파일 선택', { exact: true })
+const selection = () => page.getByRole('region', { name: '양식 파일', exact: true })
+const downloads = () => page.getByRole('region', { name: '다운로드 파일', exact: true })
+async function settle() { await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) }
+async function reset() {
+  await page.goto('http://127.0.0.1:5176/file-controls'); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await picker().waitFor(); await settle()
+}
+async function test(name, action) { await reset(); await action(); results.push(name); console.log('  ✓ ' + name) }
+async function selected(count) { await page.waitForFunction(count => window.fileRefs.length === count, count); await settle() }
+async function startSlow(name = '느린 문서.pdf') {
+  await page.evaluate(() => { window.fileMode = 'stage-delay' }); await picker().setInputFiles(file(name)); await page.getByRole('button', { name: '파일 확인 취소', exact: true }).waitFor()
+}
+
+try {
+  await test('파일 선택을 실제 검사하고 기본 확인·개수·다운로드 동선을 표시한다', async () => {
+    await picker().setInputFiles(file('첫 문서.pdf')); await selected(1)
+    assert.match(await selection().innerText(), /기본 검사 완료 · 현재 창에 보관/)
+    assert.equal(await page.locator('[data-busy]').innerText(), 'false')
+    assert.equal(await page.locator('[data-locked]').innerText(), 'false')
+    assert.equal(await picker().inputValue(), '')
+  })
+  await test('묶음 중 한 파일이 형식 검사에 실패하면 기존 선택을 보존한다', async () => {
+    await picker().setInputFiles(file('기존.pdf')); await selected(1)
+    await picker().setInputFiles([file('정상.pdf'), { name: '손상.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a PDF') }])
+    await selection().getByRole('alert').waitFor(); assert.deepEqual(await page.evaluate(() => window.fileRefs.map(ref => ref.name)), ['기존.pdf'])
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), true); assert.equal(await page.evaluate(() => window.probeStaged(1)), false)
+  })
+  await test('같은 파일을 다시 선택할 수 있고 중복은 기존 목록을 바꾸지 않는다', async () => {
+    await picker().setInputFiles(file('같은 문서.pdf')); await selected(1)
+    await picker().setInputFiles(file('같은 문서.pdf')); await selection().getByRole('alert').waitFor()
+    assert.match(await selection().getByRole('alert').innerText(), /중복/); assert.equal(await page.evaluate(() => window.fileRefs.length), 1)
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), true); assert.equal(await page.evaluate(() => window.probeStaged(1)), false)
+    await selection().getByRole('button', { name: '같은 문서.pdf 제거', exact: true }).click(); await selected(0)
+    await picker().setInputFiles(file('같은 문서.pdf')); await selected(1)
+  })
+  await test('허용 개수를 넘는 선택을 읽기 전에 막고 이전 파일을 남긴다', async () => {
+    await picker().setInputFiles(file('기존.pdf')); await selected(1)
+    await picker().setInputFiles([file('추가1.pdf'), file('추가2.pdf'), file('추가3.pdf')]); await selection().getByRole('alert').waitFor()
+    assert.match(await selection().getByRole('alert').innerText(), /최대 3개/); assert.equal(await page.evaluate(() => window.fileRefs.length), 1)
+  })
+  await test('검사 중 이동을 잠그고 취소하면 늦은 결과를 반영하지 않는다', async () => {
+    await startSlow(); assert.equal(await page.locator('[data-locked]').innerText(), 'true')
+    await page.getByRole('button', { name: '다른 화면 이동', exact: true }).click(); assert.equal(await page.locator('[data-moves]').innerText(), '0')
+    await page.getByRole('button', { name: '파일 확인 취소', exact: true }).click(); await settle()
+    assert.equal(await picker().evaluate(element => element === document.activeElement), true)
+    assert.equal(await page.locator('[data-busy]').innerText(), 'false'); assert.equal(await page.locator('[data-locked]').innerText(), 'false')
+    await page.evaluate(() => window.releaseFiles()); await page.waitForFunction(() => window.finishedStages === 1); await settle(); assert.equal(await page.evaluate(() => window.fileRefs.length), 0)
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), false)
+    await page.getByRole('button', { name: '다른 화면 이동', exact: true }).click(); assert.equal(await page.locator('[data-moves]').innerText(), '1')
+  })
+  await test('검사 중 교사·정책이 바뀌거나 화면이 닫히면 늦은 응답을 버린다', async () => {
+    for (const kind of ['owner', 'policy', 'unmount']) {
+      if (kind !== 'owner') await reset()
+      await startSlow(); await page.evaluate(kind => { if (kind === 'owner') window.setFileOwner('teacher-b'); else if (kind === 'policy') window.setFilePolicy(2); else window.setFileVisible(false) }, kind)
+      await settle(); await page.evaluate(() => window.releaseFiles()); await page.waitForFunction(() => window.finishedStages === 1); await settle()
+      assert.equal(await page.evaluate(() => window.fileRefs.length), 0); assert.equal(await page.locator('[data-busy]').innerText(), 'false')
+      assert.equal(await page.evaluate(() => window.probeStaged(0)), false)
+    }
+  })
+  await test('원시 파일 오류는 상세 정보 없이 안전한 안내로 표시한다', async () => {
+    await page.evaluate(() => { window.fileMode = 'stage-raw' }); await picker().setInputFiles(file('오류.pdf')); await selection().getByRole('alert').waitFor()
+    assert.match(await selection().getByRole('alert').innerText(), /파일을 확인하지 못했습니다/)
+    assert(!(await page.locator('body').innerText()).includes('secret-key'))
+  })
+  await test('파일 읽기는 매번 다시 호출하며 실제 바이트로 다운로드를 요청한다', async () => {
+    const content = file('다운로드.pdf'); await picker().setInputFiles(content); await selected(1)
+    for (let i = 0; i < 2; i++) {
+      const pending = page.waitForEvent('download'); await downloads().getByRole('button', { name: '다운로드.pdf 다운로드', exact: true }).click(); const download = await pending
+      assert.equal(download.suggestedFilename(), content.name); assert.deepEqual(readFileSync(await download.path()), content.buffer)
+    }
+    assert.equal(await page.evaluate(() => window.readCount), 2)
+    assert.match(await downloads().innerText(), /다운로드를 요청했습니다/)
+  })
+  await test('다운로드 취소·화면 닫힘 뒤 읽기 응답이 도착해도 파일을 내보내지 않는다', async () => {
+    for (const kind of ['cancel', 'unmount']) {
+      if (kind !== 'cancel') await reset()
+      await picker().setInputFiles(file('늦은 다운로드.pdf')); await selected(1); await page.evaluate(() => { window.fileMode = 'read-delay' })
+      const before = requestedDownloads.length
+      await downloads().getByRole('button', { name: '늦은 다운로드.pdf 다운로드', exact: true }).click(); await page.getByRole('button', { name: '다운로드 취소', exact: true }).waitFor()
+      if (kind === 'cancel') await page.getByRole('button', { name: '다운로드 취소', exact: true }).click(); else await page.evaluate(() => window.setFileVisible(false))
+      await settle()
+      if (kind === 'cancel') assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), '늦은 다운로드.pdf 다운로드')
+      await page.evaluate(() => window.releaseFiles()); await page.waitForFunction(() => window.finishedReads === 1); await settle(); assert.equal(requestedDownloads.length, before)
+    }
+  })
+  await test('파일 부재와 예상하지 못한 읽기 오류를 구분하고 비밀을 노출하지 않는다', async () => {
+    await picker().setInputFiles(file('오류 다운로드.pdf')); await selected(1)
+    await page.evaluate(() => { window.fileMode = 'read-missing' }); await downloads().getByRole('button', { name: '오류 다운로드.pdf 다운로드', exact: true }).click(); await downloads().getByRole('alert').waitFor()
+    assert.match(await downloads().getByRole('alert').innerText(), /원본을 다시 선택/)
+    await page.evaluate(() => { window.fileMode = 'read-raw' }); await downloads().getByRole('button', { name: '오류 다운로드.pdf 다운로드', exact: true }).click()
+    await page.waitForFunction(() => document.querySelector('.wf-file-downloads [role=alert]')?.textContent.includes('다시 시도'))
+    assert(!(await page.locator('body').innerText()).includes('private-stack'))
+  })
+  await test('긴 한글 파일 이름과 키보드 포커스가 모바일 폭 안에 표시된다', async () => {
+    const name = '학교문서확인을위한긴이름'.repeat(5) + '.pdf'
+    await picker().setInputFiles(file(name)); await selected(1)
+    const width = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, viewport: innerWidth }))
+    assert(width.scroll <= width.viewport + 1, JSON.stringify(width))
+    await selection().getByRole('button', { name: name + ' 제거', exact: true }).focus()
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), name + ' 제거')
+    if (output) await page.screenshot({ path: join(output, 'file-controls-390.png'), fullPage: true })
+  })
+  assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  if (output) writeFileSync(join(output, 'file-controls.json'), JSON.stringify({ results, errors, external }, null, 2))
+} finally { await context.close(); await browser.close() }
