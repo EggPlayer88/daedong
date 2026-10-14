@@ -1,5 +1,5 @@
 import '../typography.css'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { activeAt } from '../domain'
@@ -21,6 +21,9 @@ import { createPendingRequests, PendingRequestsProvider, recoveryScope } from '.
 import { watchSchoolDay } from './school-day'
 import { ConnectionRecoveryActions } from './ConnectionRecoveryActions'
 import { createEditDrafts, EditDraftsProvider } from './edit-drafts'
+import { createSupabaseCollectionServer } from '../collections/supabase-collections'
+
+const CollectionServerPanel = lazy(() => import('../collections/CollectionServerPanel').then(module => ({ default: module.CollectionServerPanel })))
 
 const connectedPages = enabledModules('connected').map(module => module.id)
 
@@ -38,6 +41,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [connection] = useState(() => providedConnection ?? createSupabaseConnection())
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
+  const [collectionServer] = useState(() => createSupabaseCollectionServer(connection))
   const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
   const editDrafts = useMemo(() => createEditDrafts(true), [connection, expectedUserId])
   const draftCount = useSyncExternalStore(editDrafts.subscribe, editDrafts.count, editDrafts.count)
@@ -55,6 +59,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const [diagnosticEpoch, setDiagnosticEpoch] = useState(0)
   const [taskNavigationLocked, setTaskNavigationLocked] = useState(false)
   const [calendarNavigationLocked, setCalendarNavigationLocked] = useState(false)
+  const [collectionNavigationLocked, setCollectionNavigationLocked] = useState(false)
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
   const scopeFingerprint = useRef('')
@@ -114,7 +119,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); editDrafts.clear(); lastVerifiedMemberId.current = '' }
       else editDrafts.suspend()
       setDiagnosticEpoch(value => value + 1)
-      setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
+      setTaskNavigationLocked(false); setCalendarNavigationLocked(false); setCollectionNavigationLocked(false)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
     })
     // 계정·권한 판정은 기존 서버 경로를 유지한다. 새 날짜는 재조회 신호로만 사용한다.
@@ -126,7 +131,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
   const connectionUnavailable = loading || !!error || !context || !member || !school
-  const navigationLocked = taskNavigationLocked || calendarNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
+  const navigationLocked = taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
   const navigation = useWorkspaceNavigation({
     allowedPages: connectedPages,
     scopeKey: member ? `${expectedUserId}:${memberId}:${scopeEpoch}` : undefined,
@@ -141,7 +146,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
   function discardUnsentInput() {
     if (pendingRequests.count() > 0) return false
     editDrafts.clear()
-    setTaskNavigationLocked(false); setCalendarNavigationLocked(false)
+    setTaskNavigationLocked(false); setCalendarNavigationLocked(false); setCollectionNavigationLocked(false)
     navigation.clearAnnouncement()
     return true
   }
@@ -164,11 +169,11 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
         announcement={navigation.announcement} onDiscard={discardUnsentInput} />
     </main> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
-        storageLabel="현재 학교 서버에 저장" locked={navigationLocked} notice={navigation.announcement}
+        storageLabel={page === 'collections' ? '학교 계정으로 연결' : '현재 학교 서버에 저장'} locked={navigationLocked} notice={navigation.announcement}
         quickActions={<WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={resource.openSearchItem} />}
         contextControls={<label>사용할 학교<select disabled={navigationLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
-        <ModuleBoundary moduleName={page === 'tasks' ? '내 업무' : '학교 일정'} resetKey={`${resetKey}:${page}`}>
-          {page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
+        <ModuleBoundary moduleName={page === 'collections' ? '자료 수합' : page === 'tasks' ? '내 업무' : '학교 일정'} resetKey={`${resetKey}:${page}`}>
+          {page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}><CollectionServerPanel key={resetKey} server={collectionServer} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setCollectionNavigationLocked} /></Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
               page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked}
               relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장"
