@@ -43,6 +43,11 @@ async function reset() {
 }
 async function test(name, action) { await reset(); await action(); results.push(name); console.log('  ✓ ' + name) }
 async function selected(count) { await page.waitForFunction(count => window.fileRefs.length === count, count); await settle() }
+async function replace(name, value) {
+  const chosen = page.waitForEvent('filechooser')
+  await selection().getByRole('button', { name: name + ' 바꾸기', exact: true }).click()
+  await (await chosen).setFiles(value)
+}
 async function startSlow(name = '느린 문서.pdf') {
   await page.evaluate(() => { window.fileMode = 'stage-delay' }); await picker().setInputFiles(file(name)); await page.getByRole('button', { name: '파일 확인 취소', exact: true }).waitFor()
 }
@@ -73,6 +78,45 @@ try {
     await picker().setInputFiles(file('기존.pdf')); await selected(1)
     await picker().setInputFiles([file('추가1.pdf'), file('추가2.pdf'), file('추가3.pdf')]); await selection().getByRole('alert').waitFor()
     assert.match(await selection().getByRole('alert').innerText(), /최대 3개/); assert.equal(await page.evaluate(() => window.fileRefs.length), 1)
+  })
+  await test('최대 개수에서도 같은 이름의 새 파일을 원자적으로 바꾸고 이전 실물은 유지한다', async () => {
+    await picker().setInputFiles([file('첫 문서.pdf'), file('둘째.pdf'), file('셋째.pdf')]); await selected(3)
+    const before = await page.evaluate(() => window.fileRefs)
+    await replace('첫 문서.pdf', file('첫 문서.pdf', '수정된 원문'))
+    await page.waitForFunction(id => window.fileRefs[0].id !== id, before[0].id); await settle()
+    const after = await page.evaluate(() => window.fileRefs)
+    assert.equal(await picker().evaluate(node => document.activeElement === node), true, '교체 성공 후 파일 선택으로 초점 복귀')
+    assert.equal(after.length, 3); assert.equal(after[0].name, before[0].name); assert.notEqual(after[0].sha256, before[0].sha256)
+    assert.deepEqual(after.slice(1), before.slice(1)); assert.equal(await page.evaluate(() => window.probeStaged(0)), true)
+    const received = page.waitForEvent('download'); await downloads().getByRole('button', { name: '첫 문서.pdf 다운로드', exact: true }).click()
+    assert.deepEqual(readFileSync(await (await received).path()), file('첫 문서.pdf', '수정된 원문').buffer)
+  })
+  await test('교체 파일의 기본 형식이나 중복 검사가 실패해도 원래 목록과 실물을 그대로 둔다', async () => {
+    await picker().setInputFiles([file('기존.pdf'), file('다른.pdf')]); await selected(2)
+    const before = await page.evaluate(() => window.fileRefs)
+    await replace('기존.pdf', { name: '손상.pdf', mimeType: 'application/pdf', buffer: Buffer.from('invalid') })
+    await selection().getByRole('alert').waitFor(); assert.deepEqual(await page.evaluate(() => window.fileRefs), before)
+    await replace('기존.pdf', file('다른.pdf')); await selection().getByRole('alert').waitFor()
+    assert.match(await selection().getByRole('alert').innerText(), /중복/); assert.deepEqual(await page.evaluate(() => window.fileRefs), before)
+    assert.equal(await page.evaluate(() => window.probeStaged(0)), true); assert.equal(await page.evaluate(() => window.probeStaged(1)), true)
+    assert.equal(await page.evaluate(() => window.probeStaged(2)), false)
+  })
+  await test('교체 취소는 원래 파일을 보존하고 바꾸기 버튼으로 초점을 돌려준다', async () => {
+    await picker().setInputFiles(file('기존.pdf')); await selected(1)
+    const before = await page.evaluate(() => window.fileRefs)
+    await page.evaluate(() => { window.fileMode = 'stage-delay' }); await replace('기존.pdf', file('교체.pdf'))
+    await page.getByRole('button', { name: '파일 확인 취소', exact: true }).click(); await settle()
+    assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), '기존.pdf 바꾸기')
+    await page.evaluate(() => window.releaseFiles()); await page.waitForFunction(() => window.finishedStages === 2); await settle()
+    assert.deepEqual(await page.evaluate(() => window.fileRefs), before); assert.equal(await page.evaluate(() => window.probeStaged(1)), false)
+  })
+  await test('교체 중 다른 선택 목록이 반영되면 늦은 교체 결과로 덮어쓰지 않는다', async () => {
+    await picker().setInputFiles([file('기존.pdf'), file('남길 파일.pdf')]); await selected(2)
+    const before = await page.evaluate(() => window.fileRefs)
+    await page.evaluate(() => { window.fileMode = 'stage-delay' }); await replace('기존.pdf', file('늦은 교체.pdf'))
+    await page.evaluate(() => window.setFileRefs(window.fileRefs.slice(1))); await selected(1)
+    await page.evaluate(() => window.releaseFiles()); await page.waitForFunction(() => window.finishedStages === 3); await settle()
+    assert.deepEqual(await page.evaluate(() => window.fileRefs), before.slice(1)); assert.equal(await page.evaluate(() => window.probeStaged(2)), false)
   })
   await test('검사 중 이동을 잠그고 취소하면 늦은 결과를 반영하지 않는다', async () => {
     await startSlow(); assert.equal(await page.locator('[data-locked]').innerText(), 'true')
