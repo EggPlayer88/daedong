@@ -36,7 +36,7 @@ bash database/workhub/r0/test/run_all.sh
 
 | 환경 변수 | 기본값 | 뜻 |
 |---|---|---|
-| `R0_PG_BIN` | `pg_config --bindir` | PostgreSQL 17 bin 폴더 |
+| `R0_PG_BIN` | `pg_config --bindir` | PostgreSQL bin 폴더. **17 이 아니면 멈춘다**(PATH 의 다른 판을 모르고 쓰지 않게) |
 | `R0_PSQL` | `R0_PG_BIN/psql` → PATH | psql 경로 |
 | `R0_WORK` | `${TMPDIR:-/tmp}/r0-verify` | 시험 서버 작업 폴더. 이름에 `r0-verify` 가 있어야 하고, 이 도구가 만든 `data` 폴더만 지운다 |
 | `R0_PG_PORT` | `55433` | 소켓 번호 |
@@ -57,6 +57,7 @@ bash database/workhub/r0/test/run_all.sh
 | `run_all.sh` | 위 전부 + 설치·거부·되돌림 |
 | `capture.py` | `R0_호환함수_입출력예시.md` 의 예시 수집 (설치된 시험 서버에서 `. env.sh && python3 capture.py`) |
 | `gen_cons.py` | `R0_제약처분표.md` 다시 생성. 기준 계약은 `R0_CONTRACT`(기본: 저장소의 `schema-contract.json`) |
+| `gen_results.py` | `run_all.sh` 출력으로 `R0_시험결과.md` 생성: `bash run_all.sh > /tmp/r0-run.txt; python3 gen_results.py /tmp/r0-run.txt` |
 
 ## 실패 판정 확인 방법
 
