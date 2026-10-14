@@ -34,4 +34,5 @@ esac
 export R0_TEST_DIR R0_DIR R0_REPO R0_SQL_DIR R0_WORK R0_PG_PORT R0_PG_BIN R0_PG_VERSION
 # 시험 서버는 R0_WORK 안의 유닉스 소켓으로만 받는다(listen_addresses 비움 → 원격 연결 불가)
 export R0_PGHOST="$R0_WORK"
-PSQL="$R0_PSQL -h $R0_WORK -p $R0_PG_PORT -X -q -v ON_ERROR_STOP=1"
+# psql 은 함수로 부른다(경로에 공백이 있어도 인수가 쪼개지지 않게). 사용: r0_psql -U postgres -d r0 -f 파일
+r0_psql(){ "$R0_PSQL" -h "$R0_WORK" -p "$R0_PG_PORT" -X -q -v ON_ERROR_STOP=1 "$@"; }

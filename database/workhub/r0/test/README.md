@@ -5,6 +5,8 @@
 
 ## 준비 (한 번)
 
+**전제: Linux(또는 WSL·macOS 같은 Unix) + bash.** 시험 서버는 유닉스 소켓으로만 받으므로 Windows 의 PowerShell·cmd 에서는 돌지 않습니다(WSL 에서는 됩니다). 경로에 공백이 있어도 됩니다.
+
 | 필요한 것 | 확인·설치 |
 |---|---|
 | PostgreSQL **17** 의 `initdb`·`pg_ctl` | 시스템 패키지(`pg_config --bindir`)나 아래 npm 패키지. 운영과 같은 17.6 을 권장 |

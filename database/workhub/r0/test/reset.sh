@@ -20,15 +20,15 @@ fi
 as_pg "'$R0_PG_BIN/initdb' -D '$R0_WORK/data' -U supabase_admin -E UTF8 --no-locale" >/dev/null
 as_pg "touch '$R0_WORK/data/.r0-verify'"
 as_pg "'$R0_PG_BIN/pg_ctl' -D '$R0_WORK/data' -o \"-p $R0_PG_PORT -k '$R0_WORK' -c listen_addresses='' -c timezone=UTC\" -l '$R0_WORK/log.txt' -w start" >/dev/null
-$PSQL -U supabase_admin -d postgres -c "create database r0"
-$PSQL -U supabase_admin -d r0 -f "$R0_TEST_DIR/mock_supabase.sql" >/dev/null
+r0_psql -U supabase_admin -d postgres -c "create database r0"
+r0_psql -U supabase_admin -d r0 -f "$R0_TEST_DIR/mock_supabase.sql" >/dev/null
 if [ "$1" != bare ]; then
   for n in 001 002 003 004 005 006 007; do
     f=$(ls "$R0_REPO"/migrations/${n}_*.sql)
-    $PSQL -U postgres -d r0 -f "$f" >/dev/null
+    r0_psql -U postgres -d r0 -f "$f" >/dev/null
   done
 fi
 if [ "$1" = legacy ]; then
-  $PSQL -U supabase_admin -d r0 -f "$R0_TEST_DIR/seed.sql" >/dev/null
+  r0_psql -U supabase_admin -d r0 -f "$R0_TEST_DIR/seed.sql" >/dev/null
 fi
 echo "reset $1 done"
