@@ -1,5 +1,6 @@
-import json, psycopg2, uuid
-c = psycopg2.connect(host='/var/tmp/r0pg', port=55433, dbname='r0', user='authenticator'); c.autocommit = True
+# R0 시험: 기존 앱 구조 위에 R0-01~03 적용 후, 통합 설계 RPC 입출력 예시를 모은다 (R0_호환함수_입출력예시.md 용)
+import json, os, psycopg2, uuid
+c = psycopg2.connect(host=os.environ['R0_PGHOST'], port=int(os.environ.get('R0_PG_PORT', '55433')), dbname='r0', user='authenticator'); c.autocommit = True
 cur = c.cursor(); cur.execute('set role authenticated')
 cur.execute("select set_config('request.jwt.claims', %s, false)", (json.dumps({'sub': '00000000-0000-0000-0000-000000000001', 'role': 'authenticated'}),))
 out = []
@@ -30,4 +31,4 @@ run('workhub_task_get', 'select public.workhub_task_get(%s, %s)', (m, t['id']))
 run('다른 학교 소속 id 로 호출', 'select public.workhub_task_list(%s)', ('m-other-school',))
 cur.execute("select set_config('request.jwt.claims', %s, false)", (json.dumps({'sub': '00000000-0000-0000-0000-000000000003', 'role': 'authenticated'}),))
 run('승인 대기 계정', 'select public.workhub_context()')
-json.dump(out, open('/tmp/claude-0/b01/test/rpc_examples.json', 'w'), ensure_ascii=False, indent=1)
+json.dump(out, open(os.path.join(os.environ['R0_WORK'], 'rpc_examples.json'), 'w'), ensure_ascii=False, indent=1)

@@ -1,9 +1,21 @@
-import json,re
-d=json.load(open('/tmp/claude-0/b01/ref/schema-contract.json'));T={t['name']:t for t in d['tables']}
+# R0_제약처분표.md 생성: 통합 설계 schema-contract.json 의 제약과 시험 서버에 실제로 만들어진 제약을 대조한다.
+# 사용: (run_all.sh 로 설치된 시험 서버에서) . env.sh && python3 gen_cons.py
+# 기준 계약은 R0_CONTRACT(기본: 저장소의 schema-contract.json). R0 는 PR #28(docs/workhub-db-constraints)의
+# 판을 기준으로 썼다 — 그 PR 이 병합되기 전에는 그 브랜치의 파일을 R0_CONTRACT 로 지정한다.
+import json, os, re, psycopg2
+R0_DIR = os.environ['R0_DIR']
+d=json.load(open(os.environ.get('R0_CONTRACT') or os.path.join(os.environ['R0_REPO'], 'docs/workhub/database-integrated/schema-contract.json'), encoding='utf-8'));T={t['name']:t for t in d['tables']}
+_c = psycopg2.connect(host=os.environ['R0_PGHOST'], port=int(os.environ.get('R0_PG_PORT', '55433')), dbname='r0', user='supabase_admin'); _cur = _c.cursor()
+_cur.execute("""select cl.relname, co.conname, co.contype::text, pg_get_constraintdef(co.oid)
+  from pg_constraint co join pg_class cl on cl.oid = co.conrelid join pg_namespace n on n.oid = cl.relnamespace
+ where n.nspname = 'workhub' order by 1, 2""")
 live={}
-for r in json.load(open('live_cons.json')): live.setdefault(r['t'],{})[r['n']]=(r['k'],r['d'])
+for t, n, k, dd in _cur.fetchall(): live.setdefault(t,{})[n]=(k,dd)
+_cur.execute("""select cl.relname, tg.tgname from pg_trigger tg join pg_class cl on cl.oid = tg.tgrelid
+  join pg_namespace n on n.oid = cl.relnamespace where n.nspname = 'workhub' and not tg.tgisinternal""")
 trg={}
-for r in json.load(open('live_trg.json')): trg.setdefault(r['t'].split('.')[-1],[]).append(r['n'])
+for t, n in _cur.fetchall(): trg.setdefault(t,[]).append(n)
+_c.close()
 norm=lambda s: re.sub(r'\s+|::text|::[a-z ]+(\[\])?|\(|\)','',s.lower())
 B01=['schools','accounts','service_principals','service_principal_scopes','departments','role_catalog','role_permissions','memberships','membership_roles','academic_years','terms','idempotency_receipts','audit_events','outbox']
 B02=['audience_sets','audience_groups','audience_conditions','audience_members','events','event_revisions','tasks']
@@ -77,4 +89,4 @@ for batch,names in (('B01 (R0-01)',B01),('B02 (R0-02)',B02)):
     if trg.get(tn): body.append(f"\n트리거: {', '.join('`'+x+'`' for x in sorted(trg[tn]))}")
 L.append(f"**합계** — 유지 {tot['유지']} · 대체 {tot['대체']} · 보류(F5) {tot['보류(F5)']} · 삭제 0 · 추가 {tot['추가']}")
 L.append('\n카탈로그에 없는 내부 표: `workhub_private.db_identity_principals` (서비스 주체를 DB 실행 역할에 잇는 허용 목록. 인자·GUC 로 주체를 넘기지 않기 위한 것, 01-foundation-security 의 "서버 allowlist")')
-open('/tmp/claude-0/b01/out/R0_제약처분표.md','w').write('\n'.join(L+body)+'\n'); print(tot)
+open(os.path.join(R0_DIR, 'R0_제약처분표.md'),'w',encoding='utf-8').write('\n'.join(L+body)+'\n'); print(tot)
