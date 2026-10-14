@@ -1,8 +1,9 @@
 # R0 정상·거부 시험 (임시 PostgreSQL 17.6 + Supabase 흉내). 운영과 무관.
-import json, sys, threading, time, uuid
+import json, os, sys, threading, time, uuid
 import psycopg2, psycopg2.extras
 
-HOST = '/var/tmp/r0pg'; PORT = 55433; DB = 'r0'
+# 시험 서버 위치는 env.sh 가 정한다(유닉스 소켓 폴더·포트). 직접 실행할 때도 같은 변수를 쓴다.
+HOST = os.environ['R0_PGHOST']; PORT = int(os.environ.get('R0_PG_PORT', '55433')); DB = 'r0'
 U1 = '00000000-0000-0000-0000-000000000001'  # 첫 관리자(초기 설정으로 연결, 일정 관리자)
 U2 = '00000000-0000-0000-0000-000000000002'  # 일반 교사(legacy teacher, 승인됨)
 U3 = '00000000-0000-0000-0000-000000000003'  # 승인 대기 교사
@@ -184,7 +185,6 @@ def main():
            ('없는 날짜', {'draft': draft(startDate='2026-02-30', endDate='2026-02-30'), 'idempotencyKey': str(uuid.uuid4())}),
            ('생성인데 expectedVersion', {'draft': draft(), 'expectedVersion': 1, 'idempotencyKey': str(uuid.uuid4())}),
            ('대상 없음', {'draft': draft(visibility='audience', audience={'all': False, 'groups': [], 'includeMemberIds': [], 'excludeMemberIds': []}), 'idempotencyKey': str(uuid.uuid4())}),
-           ('포함·제외 겹침', {'draft': draft(visibility='audience', audience={'all': False, 'groups': [], 'includeMemberIds': ['m-09'], 'excludeMemberIds': ['m-09']}), 'idempotencyKey': str(uuid.uuid4())}),
            ('다른 학교 교사 포함', {'draft': draft(visibility='audience', audience={'all': False, 'groups': [], 'includeMemberIds': ['m-07'], 'excludeMemberIds': []}), 'idempotencyKey': str(uuid.uuid4())})]
     b4 = counts()
     for label, cmd in bad:
@@ -219,6 +219,37 @@ def main():
           and any(x['id'] == a0['id'] for x in call(c, 'select public.workhub_calendar_list(%s)', (m1,))))
     ex = save(c, m1, {'draft': draft('제외 시험', audience={'all': True, 'groups': [], 'includeMemberIds': [], 'excludeMemberIds': ['m-09']}, visibility='audience'), 'idempotencyKey': str(uuid.uuid4())})
     check('T24c 제외된 교사는 대상 일정 안 보임', not any(x['id'] == ex['id'] for x in call(c9, 'select public.workhub_calendar_list(%s)', ('m-09',))))
+    # 같은 교사를 직접 포함과 제외에 함께 두면 제외가 우선(앱 화면 안내와 같음). 거부하지 않는다.
+    def overlap(label, aud):
+        k = str(uuid.uuid4())
+        cmd = {'draft': draft(label, visibility='audience', audience=aud), 'idempotencyKey': k}
+        r = err(c, 'select public.workhub_calendar_save(%s,%s::jsonb)', (m1, json.dumps(cmd)))
+        if r[0] != 'OK':
+            return None, None, r
+        n1 = counts()
+        return save(c, m1, cmd), n1, r  # 같은 번호 재전송 → 첫 저장 원본을 돌려줌
+    for tag, label, aud in [
+            ('T24d', '전체+겹침', {'all': True, 'groups': [], 'includeMemberIds': ['m-09'], 'excludeMemberIds': ['m-09']}),
+            ('T24e', '조건+겹침', {'all': False, 'groups': [{'departmentIds': [], 'gradeIds': ['g1'], 'subjectIds': []}], 'includeMemberIds': ['m-09'], 'excludeMemberIds': ['m-09']}),
+            ('T24f', '유일한 포함자 제외', {'all': False, 'groups': [], 'includeMemberIds': ['m-09'], 'excludeMemberIds': ['m-09']})]:
+        b = counts()
+        ov, n1, r = overlap(label, aud)
+        if ov is None:
+            check(f'{tag} 포함·제외 겹침({label}) 저장됨', False, r); continue
+        n = counts()
+        check(f'{tag}0 같은 번호 재전송은 새 행을 만들지 않음', n == n1, (n, n1))
+        check(f'{tag} 포함·제외 겹침({label}) 저장, DTO 는 입력 그대로', ov['audience'] == aud and ov['version'] == 1, ov)
+        check(f'{tag}b 겹친 교사는 못 봄(제외 우선)', not any(x['id'] == ov['id'] for x in call(c9, 'select public.workhub_calendar_list(%s)', ('m-09',)))
+              and err(c9, 'select public.workhub_calendar_get(%s,%s)', ('m-09', ov['id']))[0] == 'NOT_FOUND')
+        modes = scalar("select jsonb_agg(m.mode order by m.mode) from workhub.audience_members m join workhub.events e on e.audience_set_id=m.audience_set_id where e.id=%s", (ov['id'],))
+        check(f'{tag}c 대상 표에는 효력만(제외 1행, 직접 포함 없음)', modes == ['exclude'], modes)
+        g = call(c, 'select public.workhub_calendar_get(%s,%s)', (m1, ov['id']))
+        check(f'{tag}d 다시 읽어도 입력 그대로, 일정은 1건만 생김', g == ov and n['events'] == b['events'] + 1, (g, n, b))
+    # 겹침 일정 수정: 겹침을 풀면 그 교사가 다시 보인다(새 대상 묶음)
+    u = save(c, m1, {'draft': draft('유일한 포함자 제외', visibility='audience', audience={'all': False, 'groups': [], 'includeMemberIds': ['m-09'], 'excludeMemberIds': []}),
+                     'id': ov['id'], 'expectedVersion': 1, 'idempotencyKey': str(uuid.uuid4())})
+    check('T24g 겹침을 푼 수정 → version 2, 그 교사가 다시 봄', u['version'] == 2 and u['audience']['excludeMemberIds'] == []
+          and any(x['id'] == ov['id'] for x in call(c9, 'select public.workhub_calendar_list(%s)', ('m-09',))), u)
     s9 = save(c9, 'm-09', {'draft': draft('교사 공유 일정'), 'idempotencyKey': str(uuid.uuid4())})
     mg = save(c, m1, {'draft': draft('관리자가 고침'), 'id': s9['id'], 'expectedVersion': 1, 'idempotencyKey': str(uuid.uuid4())})
     check('T25 일정 관리자는 남의 공유 일정 수정 가능', mg['version'] == 2 and mg['authorMemberId'] == 'm-09', mg)
@@ -348,7 +379,7 @@ def main():
     print()
     fails = [x for x in results if not x[1]]
     print(f'== {len(results) - len(fails)}/{len(results)} PASS')
-    json.dump([{'name': n, 'pass': p} for n, p, _ in results], open('/tmp/claude-0/b01/test/results.json', 'w'), ensure_ascii=False, indent=1)
+    json.dump([{'name': n, 'pass': p} for n, p, _ in results], open(os.path.join(os.environ['R0_WORK'], 'rpc_results.json'), 'w'), ensure_ascii=False, indent=1)
     sys.exit(1 if fails else 0)
 
 if __name__ == '__main__':

@@ -342,7 +342,11 @@ LANGUAGE sql STABLE SET search_path = '' AS $$
     'startTime', CASE WHEN e.all_day THEN '' ELSE to_char(e.starts_at AT TIME ZONE p_timezone, 'HH24:MI') END,
     'endTime',   CASE WHEN e.all_day THEN '' ELSE to_char(e.ends_at AT TIME ZONE p_timezone, 'HH24:MI') END,
     'visibility', e.visibility,
-    'audience', workhub_private.audience_json(e.school_id, e.audience_set_id),
+    -- 교사가 입력한 그대로(제외와 겹친 직접 포함 포함)를 현재 판에서 돌려준다. 판이 없으면 표에서 만든다.
+    -- 표는 효력만 담으므로 겹침이 사라져, 앱이 다시 검사할 때 '대상 없음' 으로 거부할 수 있기 때문이다.
+    'audience', COALESCE((SELECT r.snapshot -> 'audience' FROM workhub.event_revisions r
+                           WHERE r.event_id = e.id AND r.revision_no = e.current_revision_no),
+                         workhub_private.audience_json(e.school_id, e.audience_set_id)),
     'version', e.version,
     'updatedAt', to_char(e.updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))
 $$;
@@ -409,13 +413,14 @@ BEGIN
   END LOOP;
   inc := COALESCE((SELECT jsonb_agg(DISTINCT v ORDER BY v) FROM jsonb_array_elements_text(a -> 'includeMemberIds') v), '[]'::jsonb);
   exc := COALESCE((SELECT jsonb_agg(DISTINCT v ORDER BY v) FROM jsonb_array_elements_text(a -> 'excludeMemberIds') v), '[]'::jsonb);
-  IF EXISTS (SELECT 1 FROM jsonb_array_elements_text(inc) v WHERE exc ? v) THEN
-    RAISE EXCEPTION 'INVALID_INPUT' USING DETAIL = '같은 교사를 포함과 제외에 함께 둘 수 없습니다.';
-  END IF;
+  -- 같은 교사를 직접 포함과 제외에 함께 두면 제외가 우선한다(앱 화면 안내·matchesAudience 와 같음).
+  -- 거부하지 않고 받으며, 실제로 볼 수 있는 사람의 판정은 audience_matches 가 제외부터 본다.
   IF EXISTS (SELECT 1 FROM jsonb_array_elements_text(inc || exc) v
              WHERE NOT EXISTS (SELECT 1 FROM workhub.memberships m WHERE m.school_id = p_ctx.school_id AND m.id = v)) THEN
     RAISE EXCEPTION 'INVALID_INPUT' USING DETAIL = '다른 학교의 교사를 관련 대상에 포함할 수 없습니다.';
   END IF;
+  -- 빈 대상 판정은 앱 normalizeDraft 와 같이 '제외를 빼기 전' 직접 포함 목록으로 한다.
+  -- (유일한 직접 포함자를 제외해도 앱이 받는 입력이면 서버도 받는다 → 앱·서버 판정이 갈라지지 않게)
   IF a -> 'all' = 'false'::jsonb AND NOT has_group AND jsonb_array_length(inc) = 0 AND d ->> 'visibility' <> 'private' THEN
     RAISE EXCEPTION 'INVALID_INPUT' USING DETAIL = '관련 대상을 선택해 주세요.';
   END IF;
@@ -430,7 +435,9 @@ BEGIN
     'audience', jsonb_build_object('all', a -> 'all', 'groups', groups, 'includeMemberIds', inc, 'excludeMemberIds', exc));
 END $$;
 
--- 정규화된 관련 대상을 새 묶음으로 저장
+-- 정규화된 관련 대상을 새 묶음으로 저장.
+-- 표(audience_members)에는 '실제 효력' 을 담는다: 제외된 교사는 직접 포함에서 빼고 제외로만 둔다
+-- (한 묶음에 한 교사는 한 행 — PK). 교사가 입력한 그대로의 목록은 일정 판(snapshot)에 남고 앱에 돌려준다.
 CREATE FUNCTION workhub_private.store_audience(p_ctx workhub_private.actor_context, p_audience jsonb) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_set text; v_group text; g jsonb; n integer := 0; dim record;
@@ -448,6 +455,7 @@ BEGIN
   END LOOP;
   INSERT INTO workhub.audience_members (school_id, audience_set_id, membership_id, mode)
   SELECT p_ctx.school_id, v_set, v, 'include' FROM jsonb_array_elements_text(p_audience -> 'includeMemberIds') v
+   WHERE NOT (p_audience -> 'excludeMemberIds') ? v
   UNION ALL
   SELECT p_ctx.school_id, v_set, v, 'exclude' FROM jsonb_array_elements_text(p_audience -> 'excludeMemberIds') v;
   RETURN v_set;

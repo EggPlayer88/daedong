@@ -1,14 +1,15 @@
 // 앱의 실제 응답 검증 함수로 R0 호환 함수의 실제 출력을 검사한다 (임시 DB).
+// run_all.sh 가 esbuild 로 묶어 실행한다. 앱 코드는 저장소의 것을 그대로 가져온다.
 import pg from 'pg'
-import { contextResponse, eventResponse } from '/home/claude/daedong/apps/workhub/src/connection/validation'
-import { taskListResponse, taskResponse, normalizeTaskInput } from '/home/claude/daedong/apps/workhub/src/tasks/validation'
-import { normalizeDraft, canRead } from '/home/claude/daedong/apps/workhub/src/domain'
+import { contextResponse, eventResponse } from '../../../../apps/workhub/src/connection/validation'
+import { taskListResponse, taskResponse, normalizeTaskInput } from '../../../../apps/workhub/src/tasks/validation'
+import { normalizeDraft, canRead } from '../../../../apps/workhub/src/domain'
 
 const U1 = '00000000-0000-0000-0000-000000000001', U9 = '00000000-0000-0000-0000-000000000009'
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, info?: unknown) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  -- ' + JSON.stringify(info))) }
 async function as(uid: string) {
-  const c = new pg.Client({ host: '/var/tmp/r0pg', port: 55433, database: 'r0', user: 'authenticator' }); await c.connect()
+  const c = new pg.Client({ host: process.env.R0_PGHOST, port: Number(process.env.R0_PG_PORT ?? 55433), database: 'r0', user: 'authenticator' }); await c.connect()
   await c.query('set role authenticated'); await c.query(`select set_config('request.jwt.claims', $1, false)`, [JSON.stringify({ sub: uid, role: 'authenticated' })])
   return { rpc: async (fn: string, args: unknown[]) => {
     const ph = args.map((_, i) => `$${i + 1}`).join(',')
@@ -17,6 +18,8 @@ async function as(uid: string) {
   }, end: () => c.end() }
 }
 const key = () => crypto.randomUUID()
+// 키 순서와 무관한 비교(jsonb 는 키 순서를 바꿔 돌려준다)
+const canon = (v: unknown): string => JSON.stringify(v, (_k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map(k => [k, x[k]])) : x)
 async function main() {
   for (const uid of [U1, U9]) {
     const api = await as(uid)
@@ -58,6 +61,29 @@ async function main() {
     check('A9 업무 CONFLICT details 가 taskResponse 통과', tc.error?.message === 'CONFLICT' && tcur?.version === 1, [tc, tcur])
     const tg = (await api.rpc('workhub_task_get', [me.id, t.id])).data
     try { check('A10 업무 단건 taskResponse 통과', taskResponse(tg, scope, t.id).id === t.id) } catch (e: any) { check('A10', false, e.message) }
+    // 같은 교사를 직접 포함과 제외에 함께 선택(화면 안내: 제외 우선) → 앱 정규화 → 저장 → 앱 재검증
+    const other = ctx.memberships.find((m: any) => m.id !== me.id && m.active && m.schoolId === me.schoolId)
+    const base = { description: '', location: '', startDate: '2026-10-23', endDate: '2026-10-23', allDay: true, startTime: '', endTime: '', visibility: 'audience' }
+    for (const [tag, label, audience] of [
+      ['A11', '전체+겹침', { all: true, groups: [], includeMemberIds: [other.id], excludeMemberIds: [other.id] }],
+      ['A12', '조건+겹침', { all: false, groups: [{ departmentIds: [], gradeIds: ['g1'], subjectIds: [] }], includeMemberIds: [other.id], excludeMemberIds: [other.id] }],
+      ['A13', '유일한 포함자 제외', { all: false, groups: [], includeMemberIds: [other.id], excludeMemberIds: [other.id] }],
+    ] as const) {
+      let appDraft: any
+      try { appDraft = normalizeDraft({ ...base, title: label, audience } as any, me, ctx.memberships) } catch (e: any) { check(`${tag} ${label}: 앱 정규화 통과`, false, e.message); continue }
+      const k = key()
+      const r1 = await api.rpc('workhub_calendar_save', [me.id, JSON.stringify({ draft: appDraft, idempotencyKey: k })])
+      let ev: any = null
+      try { ev = eventResponse(r1.data, me.schoolId, ctx.memberships) } catch (e: any) { ev = { err: e.message, r1 } }
+      const otherMember = ctx.memberships.find((m: any) => m.id === other.id)
+      check(`${tag} ${label}: 앱 정규화 → 저장 → eventResponse 통과, 대상 입력 그대로, 상대는 앱 canRead 로도 못 봄`,
+        ev?.id && canon(ev.audience) === canon(audience) && !canRead(ev, otherMember, raw.basisDate), ev)
+      const again = await api.rpc('workhub_calendar_save', [me.id, JSON.stringify({ draft: appDraft, idempotencyKey: k })])
+      const got = await api.rpc('workhub_calendar_get', [me.id, ev?.id])
+      let same = false
+      try { same = canon(eventResponse(again.data, me.schoolId, ctx.memberships)) === canon(ev) && canon(eventResponse(got.data, me.schoolId, ctx.memberships)) === canon(ev) } catch (e: any) { same = false }
+      check(`${tag}b ${label}: 같은 번호 재전송·다시 읽기도 같은 원본(eventResponse 통과)`, same, [again, got])
+    }
     await api.end()
   }
   console.log(`== ${pass}/${pass + fail} PASS`); process.exit(fail ? 1 : 0)
