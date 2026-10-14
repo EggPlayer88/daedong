@@ -7,7 +7,9 @@ export interface CollectionFileRepository {
   stage(file: File, policy: FilePolicy, owner: FileOwnerScope, signal?: AbortSignal): Promise<FileReference>
   check(refs: readonly FileReference[], policy: FilePolicy, scope: FileReadScope): void
   read(ref: FileReference, scope: FileReadScope, signal?: AbortSignal): Promise<Blob>
-  // 이번 선택 작업에서 새로 stage했으나 목록에 반영하지 않은 참조만 돌려준다.
+  // 저장 성공한 원본은 초기화 전까지 선택 취소·제거로 회수하지 않는다.
+  retainSaved?(refs: readonly FileReference[]): void
+  // 해당 선택기에서 stage한 미저장 참조만 회수하며 저장 이력의 원본은 보존한다.
   discardStaged(refs: readonly FileReference[], owner: FileOwnerScope): void
   reset(): void
 }

@@ -69,6 +69,21 @@ function canonical(value: unknown): string {
   return JSON.stringify(value) ?? 'null'
 }
 
+function resultFileReferences(kind: CommandReceipt['kind'], value: unknown): FileReference[] {
+  if (!object(value)) return []
+  let refs: unknown
+  if (kind === 'request') {
+    if (value.fileCollection === undefined) return []
+    if (!object(value.fileCollection)) return fail('INVALID_INPUT', '저장된 양식 파일 참조의 형식이 올바르지 않습니다.')
+    refs = value.fileCollection.templates
+  } else if (kind === 'draft' || kind === 'submission') {
+    if (value.files === undefined) return []
+    refs = value.files
+  } else return []
+  if (!Array.isArray(refs)) return fail('INVALID_INPUT', '저장된 파일 참조의 형식이 올바르지 않습니다.')
+  return refs as FileReference[]
+}
+
 export function validateWorkflowSnapshot(raw: unknown): WorkflowSnapshot {
   if (!object(raw) || raw.schemaVersion !== 1 || !['tasks', 'requests', 'units', 'drafts', 'submissions', 'reviews', 'supplements', 'withdrawals', 'receipts'].every(key => Array.isArray(raw[key]))) return fail('INVALID_INPUT', '저장된 업무 자료의 형식이 올바르지 않습니다. 자동 초기화하지 않았습니다.')
   let result: WorkflowSnapshot
@@ -125,6 +140,14 @@ export function createWorkflowStore({ members, date, snapshot, onChange, files }
   let state = snapshot === undefined ? empty() : validateWorkflowSnapshot(snapshot)
   const repository = () => files ?? fail('INVALID_STATE', '파일 보관소가 연결되지 않았습니다. 현재 창의 파일 수합 환경을 확인해 주세요.')
   if (state.requests.some(request => request.fileCollection)) repository()
+  // 현재 목록에서 교체된 양식·초안도 과거 멱등 접수 결과가 참조하므로 함께 보호한다.
+  const initialFiles = [
+    ...state.requests.flatMap(value => resultFileReferences('request', value)),
+    ...state.drafts.flatMap(value => resultFileReferences('draft', value)),
+    ...state.submissions.flatMap(value => resultFileReferences('submission', value)),
+    ...state.receipts.flatMap(receipt => resultFileReferences(receipt.kind, receipt.result)),
+  ]
+  if (initialFiles.length) repository().retainSaved?.(initialFiles)
   let revision = 0
   const listeners = new Set<() => void>()
   const signal = () => { revision += 1; listeners.forEach(listener => listener()) }
@@ -178,8 +201,12 @@ export function createWorkflowStore({ members, date, snapshot, onChange, files }
     const next = clone(state)
     const result = apply(next, member)
     next.receipts.push({ key: requestKey, payload: fingerprint, kind, resourceId: result.id, result: clone(result) })
-    // 외부 영속 저장이 실패하면 이 메모리 원본과 접수 결과도 바뀌지 않는다.
-    try { onChange?.(clone(next)) } catch (error) { return fail('STORAGE_FAILED', error instanceof Error ? error.message : '브라우저 저장에 실패했습니다. 입력은 유지했습니다.') }
+    const savedFiles = resultFileReferences(kind, result)
+    // 저장이 실패한 새 파일은 회수 가능하게 두고, 화면의 정리가 시작되기 전에 성공 원본을 보호한다.
+    try {
+      onChange?.(clone(next))
+      if (savedFiles.length) repository().retainSaved?.(savedFiles)
+    } catch (error) { return fail('STORAGE_FAILED', error instanceof Error ? error.message : '브라우저 저장에 실패했습니다. 입력은 유지했습니다.') }
     state = next; signal()
     return clone(result)
   }

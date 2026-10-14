@@ -94,6 +94,22 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
   const filesKey = valid ? JSON.stringify(files) : 'invalid'
   const scope = readScope ?? { schoolId: owner.schoolId, memberIds: [owner.memberId] }
   const scopeKey = `${scope.schoolId}:${JSON.stringify(scope.memberIds)}`
+  // 이 선택기가 만든 임시 파일만 추적한다. 저장된 원문은 저장소의 보호 표시가 지킨다.
+  const staged = useMemo(() => ({ owner: { schoolId: owner.schoolId, memberId: owner.memberId }, refs: new Map<string, FileReference>() }), [repository, owner.schoolId, owner.memberId])
+  function releaseStaged(candidates: FileReference[]) {
+    // 보호 기능이 없는 외부 저장소에는 미저장 여부를 추정해 삭제를 요청하지 않는다.
+    if (!repository.retainSaved || !candidates.length) return
+    try {
+      repository.discardStaged(candidates, staged.owner)
+      for (const file of candidates) staged.refs.delete(file.id)
+    } catch { /* 회수 실패는 다음 목록 변경·편집 종료 때 다시 시도한다. */ }
+  }
+  useEffect(() => {
+    if (!valid) return
+    const keep = new Set(selected.map(file => file.id))
+    releaseStaged([...staged.refs.values()].filter(file => !keep.has(file.id)))
+  }, [staged, filesKey])
+  useEffect(() => () => releaseStaged([...staged.refs.values()]), [staged])
   const identity = useMemo(() => ({}), [repository, owner.schoolId, owner.memberId, policyKey, scopeKey, filesKey, disabled])
   const operation = useFileOperation(identity, onBusyChange)
   const change = useRef(onChange)
@@ -135,6 +151,7 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
         setProgress(value => ({ ...value, checked: value.checked + 1 }))
       }
       if (!operation.current(current)) return
+      for (const reference of acquired) staged.refs.set(reference.id, reference)
       change.current(next)
       accepted = true
       // 교체로 사라진 이전 버튼에 초점을 남기지 않는다.
@@ -144,7 +161,12 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
       if (operation.current(current)) setError(safeError(failure, '파일을 확인하지 못했습니다. 기존 선택은 유지했습니다. 다시 선택해 주세요.'))
     } finally {
       // 이번 묶음에서만 만든 실물을 회수한다. 기존 선택과 저장된 제출 파일은 건드리지 않는다.
-      if (!accepted) { try { repository.discardStaged(acquired, stagedOwner) } catch { /* 정리 오류가 원래 안내를 덮지 않게 한다. */ } }
+      if (!accepted) {
+        try {
+          repository.discardStaged(acquired, stagedOwner)
+          for (const reference of acquired) staged.refs.delete(reference.id)
+        } catch { /* 정리 오류가 원래 안내를 덮지 않게 한다. */ }
+      }
       operation.finish(current)
     }
   }
