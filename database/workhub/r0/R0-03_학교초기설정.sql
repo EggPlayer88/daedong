@@ -20,22 +20,22 @@ SELECT u.id, u.name, u.email, u.role, u.is_active,
 
 -- ---------------------------------------------------------------------
 -- [2단계] 초기 설정 — <...> 칸을 모두 채운 뒤 실행
---   날짜는 모두 "마지막 날 포함" 으로 적는다 (내부 저장은 다음날 0시 종료).
+--   날짜는 학교 공식 학사일정에서 확인해 적는다(추정하지 않는다). 모두 "마지막 날 포함" (내부 저장은 다음날 0시 종료).
 --   칸이 하나라도 <...> 로 남아 있으면 실행이 거부되고 아무것도 쓰이지 않는다.
 --   admin_roles 를 빼면 calendar_manager + school_admin 둘 다 준다.
 -- ---------------------------------------------------------------------
 SELECT workhub_private.bootstrap_first_school($json$
 {
   "admin_user_id":  "<1단계 결과의 superadmin id>",
-  "approval_ref":   "<승인 근거 예: 2026-10-14 계란 승인 R0 초기설정>",
+  "approval_ref":   "<승인 근거: 실제 승인일 + 승인자 + R0 초기설정>",
   "school_code":    "<학교 코드 소문자·숫자·하이픈 예: daedong-ms>",
-  "school_name":    "<학교 이름 예: 대동여자중학교>",
+  "school_name":    "<정식 학교 이름>",
   "school_level":   "<middle | elementary | high>",
   "grade_count":    "<학년 수 예: 3>",
   "timezone":       "Asia/Seoul",
-  "school_year":    "<학년도 예: 2026>",
-  "year_first_day": "<학년도 첫날 YYYY-MM-DD 예: 2026-03-01>",
-  "year_last_day":  "<학년도 마지막 날 YYYY-MM-DD 예: 2027-02-28>",
+  "school_year":    "<학년도 4자리>",
+  "year_first_day": "<학년도 첫날 YYYY-MM-DD — 학사일정에서 확인>",
+  "year_last_day":  "<학년도 마지막 날 YYYY-MM-DD — 학사일정에서 확인>",
   "terms": [
     {"term_no": 1, "label": "1학기", "first_day": "<YYYY-MM-DD>", "last_day": "<YYYY-MM-DD>"},
     {"term_no": 2, "label": "2학기", "first_day": "<YYYY-MM-DD>", "last_day": "<YYYY-MM-DD>"}
