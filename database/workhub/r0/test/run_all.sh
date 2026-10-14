@@ -78,6 +78,13 @@ echo "== V. 앱 검증 함수로 실제 응답 확인"
 NODE_PATH="$R0_REPO/node_modules" node "$R0_WORK/app_contract.cjs" > "$R0_WORK/app_log.txt" 2>&1; sub "V app_contract" "$R0_WORK/app_log.txt" $?
 
 echo "== VI. 되돌림"
+nsc(){ val "select count(*) from pg_namespace where nspname like 'workhub%'"; }
+need qa -qc "create view public.r0_later_view as select id from workhub.events"
+refuse "VI0 업무실 밖 객체(뷰)가 업무실을 참조하면 R0-90 이 지우기 전에 멈춤" "업무실 밖의 객체가 업무실을 참조" q -f "$S/R0-90_되돌림.sql"
+[ "$(nsc)" = 2 ] && [ "$(val "select count(*) from pg_views where viewname='r0_later_view'")" = 1 ] && ok "VI0b 멈춘 되돌림은 아무것도 지우지 않음" || ng VI0b
+need qa -qc "drop view public.r0_later_view; create table workhub.later_batch(id int)"
+refuse "VI0c R0 이후에 생긴 표가 있으면 R0-90 이 멈춤(R0 전용)" "R0 이후에 생긴 표" q -f "$S/R0-90_되돌림.sql"
+need qa -qc "drop table workhub.later_batch"
 rows "VI1 R0-90 실행, 확인 행 true" 1 '^ t +\| t +\| t$' q -f "$S/R0-90_되돌림.sql"
 need qa -qc "delete from public.users where id in ('00000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000008','00000000-0000-0000-0000-000000000009','00000000-0000-0000-0000-000000000010'); delete from auth.users where id::text in ('00000000-0000-0000-0000-000000000007','00000000-0000-0000-0000-000000000008','00000000-0000-0000-0000-000000000009','00000000-0000-0000-0000-000000000010')"
 need qa -f "$T/snapshot.sql" -o "$R0_WORK/snap_r.txt"

@@ -1,9 +1,12 @@
 -- =====================================================================
 -- R0-00 기존 구조 지문 (읽기 전용)
 --   R0-01 실행 "전"과 R0-03 실행 "후"에 한 번씩 실행해, 두 결과의 fingerprint 가 모두 같은지 본다.
---   같으면 기존 public · auth · storage 의 표·열·제약·함수·트리거·정책·권한이 바뀌지 않은 것이다.
+--   같으면 기존 public · auth · storage 의 표·열·제약·함수·(사용자 작성)트리거·정책·권한이 바뀌지 않은 것이다.
+--   범위 밖(지문이 같아도 보장하지 않는 것):
+--   - PostgreSQL 내부 트리거(tgisinternal). R0 의 accounts.auth_user_id → auth.users FK(ON DELETE RESTRICT)는
+--     auth.users 에 내부 참조 무결성 트리거를 더하고, 연결된 Auth 계정의 삭제를 막는다(의도한 변화, 설계결정 J8).
+--   - 자료 값. 행 수(rows)만 참고로 보이며, 그 사이 교사가 가입·제출하면 바뀔 수 있다.
 --   (public.workhub_* 호환 함수 7개는 R0 가 새로 만드는 것이라 지문에서 뺀다.)
---   rows 칸은 참고용이다. 그 사이 교사가 가입·제출하면 바뀔 수 있다.
 -- =====================================================================
 WITH ns AS (SELECT oid FROM pg_namespace WHERE nspname IN ('public','auth','storage'))
 SELECT 'tables' AS part, md5(string_agg(x, '|' ORDER BY x)) AS fingerprint, count(*) AS items FROM (
