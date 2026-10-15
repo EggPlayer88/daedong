@@ -240,3 +240,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 `test_workhub_deployment_audit.mjs`는 외부 네트워크를 차단한 mock HTTP 시험이다. 배포 자산 출처·GET 범위·익명 키의 대상 일치·리디렉션 차단·크기/시간 제한·키/본문 비출력과 익명 결과의 해석을 검증하며 `npm test`에 자동 포함된다.
 
 실제 공개 배포를 조사할 때만 `node scripts/check-workhub-deployment.mjs --site https://daedong-school.vercel.app/`를 별도로 실행한다. 이 명령은 DB 전체 준비·로그인 계정·SQL 적용 여부를 검증하지 않는다. 대상 비교·파일 출력·종료 코드·Claude Web 조사 인계는 [운영 연결 조사](../docs/workhub/28-connection-audit-handoff.md)를 따른다. 일반 회귀/CI에는 실제 배포 조회를 넣지 않는다.
+
+## 2차 통합 회귀와 원본 SQL 검증
+
+`npm run check:workhub:integration:r2`는 #26~#42의 고정 SHA, 1차 이력, 보류 #3/#5, R0/R1 원문과 기존 인증/자산/메뉴 공개 범위를 검사한다. 전체 Git 이력이 필요하며, 1차 가드는 당시 통합 후보 재현용으로 유지한다. `test_workhub_integration_r2.mjs`는 임시 Git 저장소를 변조해 누락·SQL 변경·공개 확대·보류 기능·예약 실행·미해결 충돌을 실제로 거부하는지 22건을 확인한다.
+
+`npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
