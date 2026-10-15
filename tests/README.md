@@ -182,7 +182,7 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 ## 연결 오류 화면의 이동·폐기 회귀
 
 - `test_workhub_connection_exit_ui.mjs`: 입력/미확정 요청별 안내와 접근성·새 탭 링크의 SSR 4건.
-- `tests/browser/workhub-connection-exit.mjs`: 바깥 BrowserRouter 링크·뒤로가기, 오류/로딩, 폐기 취소·확정, 미확정 요청·혼합 상태, 새 탭, 권한 회수, 모바일 키보드 9건. 전체 러너에 포함한다.
+- `tests/browser/workhub-connection-exit.mjs`: 바깥 BrowserRouter 링크·뒤로가기, 오류/로딩, 폐기 취소·확정, 미확정 요청·혼합 상태, 새 탭, 권한 회수, 모바일 키보드와 실제 WorkhubPage의 메뉴 주소·라우터 기준 경로 전달까지 12건. 전체 러너에 포함한다. 경로 보완은 [후속 검토 기록](../docs/workhub/25-task-view-refactor.md)에 있다.
 - 재현 절차와 Linux/PowerShell 명령은 [검토 기록](../docs/workhub/24-connection-exit.md)에 있다. 합성 RPC를 사용하며 실제 운영 서버에는 접속하지 않는다.
 
 ## 기본 파일형 문서 수합

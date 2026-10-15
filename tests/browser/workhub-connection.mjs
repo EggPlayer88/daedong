@@ -39,7 +39,7 @@ const bundle=buildSync({stdin:{contents:`
     return {data:null,error:{message:'UNKNOWN'}};
   }};
   const connection=createSupabaseConnection(services);
-  createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>);
+  createRoot(document.getElementById('root')).render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={connection}/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser()
 const context=await browser.newContext({viewport:{width:1280,height:1000}})

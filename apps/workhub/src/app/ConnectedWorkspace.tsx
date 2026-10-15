@@ -37,7 +37,7 @@ function StyleBoundary({ children }: { children: ReactNode }) {
   `}</style><div className="workhub-connected">{children}</div></>, root) : <p role="status">새 업무 화면을 준비하고 있습니다…</p>}</div>
 }
 
-export function ConnectedWorkspace({ expectedUserId, connection: providedConnection }: { expectedUserId: string; connection?: SupabaseConnection }) {
+export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection: providedConnection }: { expectedUserId: string; legacyHomeHref: string; connection?: SupabaseConnection }) {
   const [connection] = useState(() => providedConnection ?? createSupabaseConnection())
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
@@ -168,7 +168,7 @@ export function ConnectedWorkspace({ expectedUserId, connection: providedConnect
       </>}
       {!loading && <button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button>}
       <ConnectionRecoveryActions hasDraft={draftCount > 0} hasPending={pendingCount > 0}
-        announcement={navigation.announcement} onDiscard={discardUnsentInput} />
+        announcement={navigation.announcement} onDiscard={discardUnsentInput} legacyHomeHref={legacyHomeHref} />
     </main> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
         storageLabel={page === 'collections' ? '학교 계정으로 연결' : '현재 학교 서버에 저장'} locked={navigationLocked} notice={navigation.announcement}
