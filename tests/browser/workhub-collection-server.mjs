@@ -13,7 +13,7 @@ import{CollectionServerError}from'./apps/workhub/src/collections/contracts';
 import{createEditDrafts,EditDraftsProvider}from'./apps/workhub/src/app/edit-drafts';
 import{createPendingRequests,PendingRequestsProvider,recoveryScope}from'./apps/workhub/src/app/pending-requests';
 const clone=value=>structuredClone(value),memory=createEditDrafts(),pending=createPendingRequests();
-const members=['담당교사','검토교사','다른학교 교사'].map((name,index)=>({id:'member-'+index,userId:'user-'+index,schoolId:index===2?'school-other':'school',name,role:'calendar_manager',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}));
+const members=['담당교사','검토교사','다른학교 교사','공동교사','관리교사'].map((name,index)=>({id:'member-'+index,userId:'user-'+index,schoolId:index===2?'school-other':'school',name,role:'calendar_manager',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}));
 const policy={extensions:['pdf'],maxFileBytes:1024*1024,maxFiles:3},state={request:null,unit:null,draft:null,submissions:[],reviews:[],supplements:[],withdrawals:[]},receipts=new Map(),uploads=new Map(),gates=[];
 window.mode='normal';window.fileMode='ready';window.calls=[];window.uploadCalls=[];window.applied=0;window.release=()=>{while(gates.length)gates.shift()()};
 const wait=()=>new Promise(resolve=>gates.push(resolve));const now='2026-10-15T08:00:00Z';
@@ -21,19 +21,21 @@ function seed(){state.request={id:'request-1',schoolId:'school',managerMemberId:
 if(window.initial==='published'||window.initial==='review'||window.initial==='duplicate')seed();
 if(window.initial==='review'){const file={id:'file-seed',name:'제출.pdf',extension:'pdf',bytes:17,sha256:'a'.repeat(64)};uploads.set(file.id,{file,parent:{kind:'draft',requestId:'request-1',unitId:'unit-1',version:0},blob:new Blob(['%PDF-1.7\\nresult']),state:'ready'});state.draft={id:'draft-1',unitId:'unit-1',lastEditorMemberId:'member-0',version:1,text:'',number:null,files:[file]};state.unit.currentSubmissionId='submission-1';state.submissions=[{id:'submission-1',unitId:'unit-1',revision:1,submittedBy:'member-0',receiptAt:now,receiptDate:'2026-10-15',dueSnapshot:'2026-10-31',initiallyLate:false,correctionReason:'',previousSubmissionId:null,reviewMode:'required',requestKey:'seed',text:'',number:null,files:[file]}]}
 if(window.initial==='duplicate')members[1].name='담당교사';
-window.state=state;
+window.state=state;window.members=members;window.draftCalls=0;
 const server={
 async readiness(){return window.readinessReason?{available:false,reason:window.readinessReason,policy:null}:window.initial==='missing'?{available:false,reason:'database_missing',policy:null}:{available:true,reason:'ready',policy}},
 async list(member,cursor){if(member==='member-2')return{items:[],nextCursor:null};return{items:state.request?[clone(state.request)]:[],nextCursor:null}},
-async detail(member,id){if(window.mode==='read-denied'||member==='member-2')throw new CollectionServerError('FORBIDDEN','private-secret');if(window.mode==='detail-delay')await wait();if(!state.request)throw new CollectionServerError('NOT_FOUND','missing');return clone({request:state.request,units:state.unit?[state.unit]:[],submissions:state.submissions,reviews:state.reviews,supplements:state.supplements,withdrawals:state.withdrawals})},
-async draft(){if(window.mode==='draft-denied')throw new CollectionServerError('FORBIDDEN','private-secret');return clone(state.draft)},
+async detail(member,id){if(window.failDetail)throw new CollectionServerError('QUERY_FAILED','detail-failure');if(window.mode==='read-denied'||member==='member-2')throw new CollectionServerError('FORBIDDEN','private-secret');if(window.mode==='detail-delay')await wait();if(!state.request)throw new CollectionServerError('NOT_FOUND','missing');return clone({request:state.request,units:state.unit?[state.unit]:[],submissions:state.submissions,reviews:state.reviews,supplements:state.supplements,withdrawals:state.withdrawals})},
+async draft(){window.draftCalls++;if(window.mode==='draft-denied')throw new CollectionServerError('FORBIDDEN','private-secret');return clone(state.draft)},
 async mutate(member,command,key){window.calls.push(clone({member,command,key}));if(window.mode==='delay')await wait();if(receipts.has(key))return clone(receipts.get(key));if(window.mode==='conflict'){window.mode='normal';state.request={...state.request,version:state.request.version+1,instructions:'다른 교사의 최신 안내'};throw new CollectionServerError('CONFLICT','version');}let version=1,id='request-1';
 if(command.kind==='create'){state.request={...clone(command.input),id,schoolId:'school',managerMemberId:member,status:'draft',version:1,publishedAt:null};}
 if(command.kind==='update'){if(command.expectedVersion!==state.request.version)throw new CollectionServerError('CONFLICT','version');state.request={...state.request,...clone(command.input),version:state.request.version+1};version=state.request.version;}
 if(command.kind==='publish'){state.request={...state.request,status:'published',publishedAt:now,version:state.request.version+1};state.unit={id:'unit-1',requestId:'request-1',schoolId:'school',label:state.request.units[0].label,responsibleMemberId:state.request.units[0].responsibleMemberId,members:[{id:'member-0',userId:'user-0',name:'담당교사'}],version:1,currentSubmissionId:null,effectiveSubmissionId:null,withdrawnSubmissionIds:[],correctionUntil:'',correctionReason:''};version=state.request.version;}
 if(command.kind==='save_draft'){state.draft={...clone(command.input),id:'draft-1',unitId:command.unitId,lastEditorMemberId:member,version:(state.draft?.version??0)+1};id=state.draft.id;version=state.draft.version;}
-if(command.kind==='submit'){id='submission-'+(state.submissions.length+1);const submission={...clone(state.draft),id,unitId:command.unitId,revision:state.submissions.length+1,submittedBy:member,receiptAt:now,receiptDate:'2026-10-15',dueSnapshot:state.request.dueDate,initiallyLate:false,correctionReason:command.reason,previousSubmissionId:state.unit.currentSubmissionId,reviewMode:state.request.reviewMode,requestKey:key};state.submissions.push(submission);state.unit={...state.unit,version:state.unit.version+1,currentSubmissionId:id,effectiveSubmissionId:state.request.reviewMode==='none'?id:state.unit.effectiveSubmissionId};if(command.correctionRequestId){const supplement=state.supplements.find(value=>value.id===command.correctionRequestId);if(supplement){supplement.fulfilledSubmissionId=id;supplement.fulfilledAt=now;}}version=state.unit.version;}
-if(command.kind==='review'){id='review-'+(state.reviews.length+1);state.reviews.push({id,unitId:command.unitId,submissionId:command.submissionId,reviewerMemberId:member,decision:command.decision,note:command.note,recordedAt:now});state.unit.version++;if(command.decision==='changes_requested')state.supplements.push({id:'supplement-1',unitId:command.unitId,submissionId:command.submissionId,dueDate:command.dueDate,fulfilledSubmissionId:null,fulfilledAt:null});else state.unit.effectiveSubmissionId=command.submissionId;version=state.unit.version;}
+if(command.kind==='submit'){if(state.submissions.length&&!command.reason.trim())throw new CollectionServerError('INVALID_INPUT','reason');id='submission-'+(state.submissions.length+1);const submission={...clone(state.draft),id,unitId:command.unitId,revision:state.submissions.length+1,submittedBy:member,receiptAt:now,receiptDate:'2026-10-15',dueSnapshot:state.request.dueDate,initiallyLate:false,correctionReason:command.reason,previousSubmissionId:state.unit.currentSubmissionId,reviewMode:state.request.reviewMode,requestKey:key};state.submissions.push(submission);state.unit={...state.unit,version:state.unit.version+1,currentSubmissionId:id,effectiveSubmissionId:state.request.reviewMode==='none'?id:state.unit.effectiveSubmissionId};if(command.correctionRequestId){const supplement=state.supplements.find(value=>value.id===command.correctionRequestId);if(supplement){supplement.fulfilledSubmissionId=id;supplement.fulfilledAt=now;}}version=submission.revision;}
+if(command.kind==='review'){if(command.expectedVersion!==state.unit.version||command.submissionId!==state.unit.currentSubmissionId)throw new CollectionServerError('CONFLICT','version');id='review-'+(state.reviews.length+1);state.reviews.push({id,unitId:command.unitId,submissionId:command.submissionId,reviewerMemberId:member,decision:command.decision,note:command.note,recordedAt:now});state.unit.version++;if(command.decision==='changes_requested')state.supplements.push({id:'supplement-1',unitId:command.unitId,submissionId:command.submissionId,dueDate:command.dueDate,fulfilledSubmissionId:null,fulfilledAt:null});else state.unit.effectiveSubmissionId=command.submissionId;id=state.unit.id;version=state.unit.version;}
+if(command.kind==='open_correction'){if(command.expectedVersion!==state.unit.version)throw new CollectionServerError('CONFLICT','version');state.unit.correctionUntil=command.dueDate;state.unit.correctionReason=command.reason;state.unit.version++;id=state.unit.id;version=state.unit.version;}
+if(command.kind==='withdraw'){if(command.expectedVersion!==state.unit.version||command.submissionId!==state.unit.currentSubmissionId)throw new CollectionServerError('CONFLICT','version');state.unit.withdrawnSubmissionIds.push(command.submissionId);state.withdrawals.push({id:'withdrawal-'+(state.withdrawals.length+1),unitId:command.unitId,submissionId:command.submissionId,actorMemberId:member,reason:command.reason,recordedAt:now});for(const item of state.supplements)if(item.fulfilledSubmissionId===command.submissionId){item.fulfilledSubmissionId=null;item.fulfilledAt=null;}state.unit.currentSubmissionId=state.request.reviewMode==='required'?state.unit.effectiveSubmissionId:null;if(state.request.reviewMode==='none')state.unit.effectiveSubmissionId=null;state.unit.version++;id=state.unit.id;version=state.unit.version;}
 window.applied++;const receipt={requestId:'request-1',resourceId:id,resourceVersion:version,recordedAt:now,requestKey:key};receipts.set(key,receipt);if(window.mode==='unknown'){window.mode='normal';throw new CollectionServerError('RESULT_UNKNOWN','secret-trace')}return clone(receipt)},
 async prepareUpload(member,parent,file,filePolicy,key){window.uploadCalls.push(clone({kind:'prepare',member,parent,policy:filePolicy,key}));if(window.fileMode==='prepare-delay')await wait();let found=[...uploads.values()].find(value=>value.key===key);if(!found){const id='file-'+(uploads.size+1);found={key,parent,file:{id,name:file.name,extension:'pdf',bytes:file.size,sha256:'a'.repeat(64)},blob:file,state:'awaiting_upload'};uploads.set(id,found)}return{fileId:found.file.id,bucket:'private',path:found.file.id,expiresAt:'2099-01-01T00:00:00Z',state:found.state}},
 async upload(member,intent,file){window.uploadCalls.push({kind:'upload',id:intent.fileId});uploads.get(intent.fileId).blob=file},
@@ -103,7 +105,7 @@ try {
     await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('작성본.pdf')); await page.getByRole('button', { name: '작성본.pdf 제거', exact: true }).waitFor()
     await page.getByRole('button', { name: '제출 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).waitFor(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).click()
     const download = page.waitForEvent('download'); await page.getByRole('button', { name: '작성본.pdf 다운로드', exact: true }).click(); assert.deepEqual(readFileSync(await (await download).path()), file('작성본.pdf').buffer)
-    assert.equal(await page.evaluate(() => window.downloadParent.kind), 'submission'); assert.match(await page.locator('body').innerText(), /서버 접수 2026-10-15T08:00:00Z/)
+    assert.equal(await page.evaluate(() => window.downloadParent.kind), 'submission'); assert.equal(await page.locator('.cs-unit > .cs-muted time').getAttribute('datetime'), '2026-10-15T08:00:00Z'); assert.match(await page.locator('.cs-unit > .cs-muted time').innerText(), /17:00/)
     assert.equal(await page.locator('[data-lock]').innerText(), 'false')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
     if (output) await page.screenshot({ path: join(output, 'connected-collection-mobile.png'), fullPage: true })
@@ -139,7 +141,7 @@ try {
   await test('검토 의견은 재연결 후에도 남고 보완 요청→지정 보완 건 재제출이 이어진다', async () => {
     await page.evaluate(() => window.setActor(1)); await openRequest(); await page.getByRole('button', { name: '제출물 검토' }).click(); await page.getByLabel('검토 의견', { exact: true }).fill('근거 자료를 보완해 주세요'); await page.getByLabel('보완 기한', { exact: true }).fill('2026-11-03')
     assert.equal(await page.locator('[data-lock]').innerText(), 'true'); await remount(); assert.equal(await page.getByLabel('검토 의견', { exact: true }).inputValue(), '근거 자료를 보완해 주세요')
-    await page.getByRole('button', { name: '보완 요청', exact: true }).click(); await page.getByText(/보완 요청 1건/).waitFor()
+    await page.getByRole('button', { name: '보완 요청', exact: true }).click(); await page.getByText(/보완 요청 1건이 있습니다/).waitFor()
     await page.evaluate(() => window.setActor(0)); await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.getByLabel('재제출 사유', { exact: true }).fill('근거 자료 보완'); await page.getByLabel('응답할 보완 요청', { exact: true }).selectOption('supplement-1')
     await page.getByRole('button', { name: '제출 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '저장한 파일 다시 제출' }).waitFor()
     await page.waitForFunction(() => !document.querySelector('form[aria-label="제출 파일 작성"] fieldset').disabled)
@@ -166,6 +168,112 @@ try {
     await page.evaluate(() => { window.readinessReason = 'policy_missing'; window.refresh() }); await page.getByRole('button', { name: '입력 버리고 닫기' }).click()
     assert.equal(await page.locator('[data-lock]').innerText(), 'false'); assert.match(await page.locator('body').innerText(), /학교의 파일 허용 정책/)
   })
+  await test('개인별 대상과 공동 제출 단위를 함께 저장하며 중복 이름은 저장 전에 안내한다', async () => {
+    await createInput(); await page.getByRole('button', { name: '공동 제출 단위 추가' }).click()
+    await page.getByLabel('제출 단위 2 이름', { exact: true }).fill('담당교사'); await page.getByLabel('책임 교사 2', { exact: true }).selectOption('member-0')
+    await page.getByRole('checkbox', { name: '공동교사 · 공동 작성자 2', exact: true }).check()
+    assert.equal(await page.getByRole('button', { name: '수합 초안 저장', exact: true }).isDisabled(), true)
+    await page.getByLabel('제출 단위 2 이름', { exact: true }).fill('1학년 협의회'); await page.getByRole('button', { name: '수합 초안 저장', exact: true }).click()
+    await page.getByRole('region', { name: '수합 상세', exact: true }).waitFor()
+    assert.deepEqual(await page.evaluate(() => window.calls.at(-1).command.input.units), [{ label: '담당교사', responsibleMemberId: 'member-0', contributorMemberIds: [] }, { label: '1학년 협의회', responsibleMemberId: 'member-0', contributorMemberIds: ['member-3'] }])
+    await page.getByRole('button', { name: '양식 추가·초안 수정' }).click(); assert.equal(await page.getByLabel('제출 단위 2 이름', { exact: true }).inputValue(), '1학년 협의회')
+    assert.equal(await page.getByRole('checkbox', { name: '공동교사 · 공동 작성자 2', exact: true }).isChecked(), true)
+  })
+  await test('명부에서 사라진 공동 작성자는 입력을 보존하고 명시적으로 해제하기 전 저장을 막는다', async () => {
+    await createInput(); await page.getByRole('button', { name: '공동 제출 단위 추가' }).click(); await page.getByLabel('책임 교사 2', { exact: true }).selectOption('member-0'); await page.getByRole('checkbox', { name: '공동교사 · 공동 작성자 2', exact: true }).check()
+    await page.evaluate(() => { window.members[3].active = false; window.refresh() }); await page.getByRole('checkbox', { name: '명부에 없는 공동 작성자 1 · 제출 단위 2' }).waitFor()
+    assert.equal(await page.getByRole('button', { name: '수합 초안 저장', exact: true }).isDisabled(), true)
+    await page.getByRole('checkbox', { name: '명부에 없는 공동 작성자 1 · 제출 단위 2' }).click(); assert.equal(await page.getByRole('checkbox', { name: '명부에 없는 공동 작성자 1 · 제출 단위 2' }).count(), 0); assert.equal(await page.getByRole('button', { name: '수합 초안 저장', exact: true }).isDisabled(), false)
+    assert.equal(await page.evaluate(() => window.calls.length), 0)
+  })
+  await test('정정 기간은 확인 뒤 정확한 단위에 저장하고 응답 유실 후 같은 요청을 재확인한다', async () => {
+    await openRequest(); await page.getByRole('button', { name: '정정 기간 설정', exact: true }).click()
+    await page.getByLabel('정정 허용 사유', { exact: true }).fill('담당자 확인 후 수정 허용'); await page.getByLabel('정정 종료일').fill('2026-11-05')
+    assert.equal(await page.getByRole('button', { name: '정정 기간 저장' }).isDisabled(), true)
+    await page.getByRole('checkbox', { name: '대상과 처리 내용을 확인했습니다' }).check(); await page.evaluate(() => { window.mode = 'unknown' }); await page.getByRole('button', { name: '정정 기간 저장' }).click()
+    await page.getByRole('button', { name: '이전 요청 그대로 다시 확인' }).waitFor(); await page.evaluate(() => { window.failDetail = true }); await remount(); await page.getByRole('button', { name: '연결과 원본 다시 확인' }).waitFor(); assert.equal(await page.getByRole('button', { name: '입력 버리고 닫기' }).count(), 0); await page.evaluate(() => { window.failDetail = false }); await page.getByRole('button', { name: '이전 요청 그대로 다시 확인' }).click()
+    await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false')
+    const calls = await page.evaluate(() => window.calls); assert.deepEqual(calls[0], calls[1]); assert.equal(calls[0].command.kind, 'open_correction'); assert.equal(calls[0].command.unitId, 'unit-1'); assert.equal(calls[0].command.expectedVersion, 1)
+    assert.equal(await page.evaluate(() => window.applied), 1); assert.equal(await page.evaluate(() => window.state.request.dueDate), '2026-10-31'); assert.equal(await page.evaluate(() => window.state.unit.correctionUntil), '2026-11-05')
+  }, 'published')
+  await test('무검토 제출 철회는 같은 요청으로 한 번만 처리하고 이력을 남긴 채 사유를 넣어 재제출한다', async () => {
+    await page.evaluate(() => { const s = window.state; s.request.reviewMode = 'none'; s.request.reviewerMemberId = ''; s.submissions[0].reviewMode = 'none'; s.unit.effectiveSubmissionId = s.unit.currentSubmissionId })
+    await openRequest(); await page.getByRole('button', { name: '제출 철회', exact: true }).click(); await page.getByLabel('철회 사유', { exact: true }).fill('잘못 올린 파일을 정정합니다')
+    assert.equal(await page.getByRole('button', { name: '확인한 제출 철회 요청' }).isDisabled(), true); assert.equal(await page.evaluate(() => window.calls.length), 0)
+    await page.getByRole('checkbox', { name: '대상과 처리 내용을 확인했습니다' }).check(); await page.evaluate(() => { window.mode = 'unknown' }); await page.getByRole('button', { name: '확인한 제출 철회 요청' }).click()
+    await page.getByRole('button', { name: '이전 요청 그대로 다시 확인' }).waitFor(); await remount(); await page.getByRole('button', { name: '이전 요청 그대로 다시 확인' }).click(); await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false')
+    assert.equal(await page.evaluate(() => window.state.unit.currentSubmissionId), null); assert.equal(await page.evaluate(() => window.state.unit.effectiveSubmissionId), null); assert.equal(await page.evaluate(() => window.state.withdrawals.length), 1)
+    assert.deepEqual(await page.evaluate(() => window.calls[0]), await page.evaluate(() => window.calls[1]))
+    await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.getByLabel('재제출 사유', { exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: '저장한 파일 다시 제출' }).isDisabled(), true)
+    await page.getByLabel('재제출 사유', { exact: true }).fill('철회 후 올바른 파일로 재제출'); await page.getByRole('button', { name: '저장한 파일 다시 제출' }).click(); await page.getByText(/제출 v2 · 서버 접수/).waitFor()
+    assert.equal(await page.evaluate(() => window.state.submissions[1].previousSubmissionId), null); assert.equal(await page.evaluate(() => window.state.unit.effectiveSubmissionId), 'submission-2')
+  }, 'review')
+  await test('검토 중인 수정본을 철회해도 이전 완료본은 유지하며 완료본 직접 철회는 제공하지 않는다', async () => {
+    await page.evaluate(() => { const s = window.state; s.reviews.push({ id: 'accepted-1', unitId: 'unit-1', submissionId: 'submission-1', reviewerMemberId: 'member-1', decision: 'accepted', note: '완료 확인', recordedAt: '2026-10-15T08:00:00Z' }); s.submissions.push({ ...structuredClone(s.submissions[0]), id: 'submission-2', revision: 2, previousSubmissionId: 'submission-1', correctionReason: '수정 제출' }); s.unit.currentSubmissionId = 'submission-2'; s.unit.effectiveSubmissionId = 'submission-1'; s.unit.version = 3 })
+    await openRequest(); await page.getByText('새 제출의 검토가 끝나기 전에는 완료본 v1이 유지됩니다.').waitFor(); await page.getByRole('button', { name: '제출 철회', exact: true }).click(); await page.getByLabel('철회 사유', { exact: true }).fill('수정본 철회'); await page.getByRole('checkbox', { name: '대상과 처리 내용을 확인했습니다' }).check(); await page.getByRole('button', { name: '확인한 제출 철회 요청' }).click()
+    await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false'); assert.equal(await page.evaluate(() => window.state.unit.currentSubmissionId), 'submission-1'); assert.equal(await page.evaluate(() => window.state.unit.effectiveSubmissionId), 'submission-1')
+    assert.equal(await page.getByRole('button', { name: '제출 철회', exact: true }).count(), 0)
+  }, 'review')
+  await test('검토 중 새 제출판이 생기면 이전 의견을 새 제출에 자동 적용하지 않는다', async () => {
+    await page.evaluate(() => window.setActor(1)); await openRequest(); await page.getByRole('button', { name: '제출물 검토' }).click(); await page.getByLabel('검토 의견', { exact: true }).fill('이전 제출에 관한 의견')
+    await page.evaluate(() => { const s = window.state; s.submissions.push({ ...structuredClone(s.submissions[0]), id: 'submission-2', revision: 2, previousSubmissionId: 'submission-1' }); s.unit.currentSubmissionId = 'submission-2'; s.unit.version++; window.refresh() })
+    await page.getByRole('region', { name: '수합 변경 충돌' }).waitFor(); assert.equal(await page.getByRole('button', { name: '최신 버전 확인 · 내 입력 유지' }).count(), 0); assert.equal(await page.getByRole('button', { name: '검토 완료', exact: true }).count(), 0)
+    assert.match(await page.getByRole('region', { name: '수합 변경 충돌' }).innerText(), /이전 제출에 관한 의견/); assert.equal(await page.evaluate(() => window.calls.length), 0)
+    await page.getByRole('button', { name: '내 변경 버리고 다시 열기' }).click(); await page.getByRole('button', { name: '제출물 검토' }).click(); assert.equal(await page.getByLabel('검토 의견', { exact: true }).inputValue(), '')
+  }, 'review')
+  await test('같은 제출의 상태판 충돌은 명시적 비교 뒤에만 최신 판으로 검토한다', async () => {
+    await page.evaluate(() => window.setActor(1)); await openRequest(); await page.getByRole('button', { name: '제출물 검토' }).click(); await page.getByLabel('검토 의견', { exact: true }).fill('같은 원문 검토')
+    await page.evaluate(() => { window.state.unit.version++; window.state.unit.correctionUntil = '2026-11-05'; window.refresh() }); await page.getByRole('button', { name: '최신 버전 확인 · 내 입력 유지' }).click(); await page.getByRole('button', { name: '검토 완료', exact: true }).click()
+    await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false'); const command = await page.evaluate(() => window.calls.at(-1).command)
+    assert.equal(command.submissionId, 'submission-1'); assert.equal(command.expectedVersion, 2); assert.equal(command.note, '같은 원문 검토')
+  }, 'review')
+  await test('다른 창에서 이미 검토한 제출은 이전 의견을 유지해 다시 처리하지 않는다', async () => {
+    await page.evaluate(() => window.setActor(1)); await openRequest(); await page.getByRole('button', { name: '제출물 검토' }).click(); await page.getByLabel('검토 의견', { exact: true }).fill('아직 보내지 않은 의견')
+    await page.evaluate(() => { const s = window.state; s.reviews.push({ id: 'other-review', unitId: 'unit-1', submissionId: 'submission-1', reviewerMemberId: 'member-1', decision: 'accepted', note: '다른 창에서 처리', recordedAt: '2026-10-15T08:30:00Z' }); s.unit.effectiveSubmissionId = 'submission-1'; s.unit.version++; window.refresh() })
+    await page.getByRole('region', { name: '수합 변경 충돌' }).waitFor(); assert.equal(await page.getByRole('button', { name: '최신 버전 확인 · 내 입력 유지' }).count(), 0); assert.equal(await page.evaluate(() => window.calls.length), 0)
+    await page.getByRole('button', { name: '내 변경 버리고 다시 열기' }).click(); await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false'); assert.equal(await page.getByRole('button', { name: '제출물 검토' }).count(), 0)
+  }, 'review')
+  await test('철회 작성 중 새 제출판이 나타나면 확인했던 대상을 바꾸지 않고 작성을 멈춘다', async () => {
+    await openRequest(); await page.getByRole('button', { name: '제출 철회', exact: true }).click(); await page.getByLabel('철회 사유', { exact: true }).fill('기존 제출 철회'); await page.getByRole('checkbox', { name: '대상과 처리 내용을 확인했습니다' }).check()
+    await page.evaluate(() => { const s = window.state; s.submissions.push({ ...structuredClone(s.submissions[0]), id: 'submission-2', revision: 2, previousSubmissionId: 'submission-1' }); s.unit.currentSubmissionId = 'submission-2'; s.unit.version++; window.refresh() })
+    await page.getByRole('region', { name: '수합 변경 충돌' }).waitFor(); assert.equal(await page.getByRole('button', { name: '최신 버전 확인 · 내 입력 유지' }).count(), 0); assert.equal(await page.getByRole('button', { name: '확인한 제출 철회 요청' }).isDisabled(), true); assert.equal(await page.evaluate(() => window.calls.length), 0)
+  }, 'review')
+  await test('정정 관리 권한 회수는 보관한 사유를 폐기하고 이동 잠금을 해제한다', async () => {
+    await openRequest(); await page.getByRole('button', { name: '정정 기간 설정', exact: true }).click(); await page.getByLabel('정정 허용 사유', { exact: true }).fill('회수되어야 할 사유')
+    await page.evaluate(() => { window.state.request.managerMemberId = 'member-4'; window.refresh() }); await page.getByText('현재 변경 권한을 확인할 수 없어 보관한 관리 입력을 버렸습니다.').waitFor()
+    assert.equal(await page.getByRole('form', { name: '제출 관리' }).count(), 0); assert.equal(await page.locator('[data-lock]').innerText(), 'false'); assert.doesNotMatch(await page.locator('body').innerText(), /회수되어야 할 사유/)
+  }, 'published')
+  await test('공동 작성자는 초안을 저장할 수 있지만 최종 제출과 철회는 책임 교사에게만 보인다', async () => {
+    await page.evaluate(() => { window.state.unit.members.push({ id: 'member-3', userId: 'user-3', name: '공동교사' }); window.setActor(3) }); await openRequest(); assert.equal(await page.getByRole('button', { name: '제출 철회', exact: true }).count(), 0)
+    await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.getByRole('button', { name: '제출 초안 저장', exact: true }).click(); await page.waitForFunction(() => !document.querySelector('form[aria-label="제출 파일 작성"] fieldset').disabled)
+    assert.equal(await page.getByRole('button', { name: /저장한 파일 .*제출/ }).count(), 0); assert.equal(await page.evaluate(() => window.calls.at(-1).command.kind), 'save_draft')
+  }, 'review')
+  await test('제출 단위 밖의 수합 관리자는 초안을 조회하지 않고 정정 기간만 관리한다', async () => {
+    await page.evaluate(() => { window.state.request.managerMemberId = 'member-4'; window.setActor(4) }); await openRequest(); assert.equal(await page.getByRole('button', { name: '내 제출 파일 작성' }).count(), 0); assert.equal(await page.evaluate(() => window.draftCalls), 0)
+    await page.getByRole('button', { name: '정정 기간 설정', exact: true }).click(); assert.equal(await page.evaluate(() => window.draftCalls), 0)
+  }, 'review')
+  await test('과거 제출 다운로드는 선택한 제출판을 전달하고 철회판은 내려받기 버튼을 제공하지 않는다', async () => {
+    await page.evaluate(() => { const s = window.state; s.submissions.push({ ...structuredClone(s.submissions[0]), id: 'submission-2', revision: 2, previousSubmissionId: 'submission-1' }); s.unit.currentSubmissionId = 'submission-2'; s.unit.version++ })
+    await openRequest(); await page.locator('summary').filter({ hasText: '제출 이력 · 2판' }).click(); const downloaded = page.waitForEvent('download'); await page.getByRole('button', { name: '제출 v1 제출.pdf 내려받기', exact: true }).click(); await downloaded
+    assert.deepEqual(await page.evaluate(() => window.downloadParent), { kind: 'submission', requestId: 'request-1', unitId: 'unit-1', submissionId: 'submission-1' })
+    await page.getByRole('button', { name: '제출 철회', exact: true }).click(); await page.getByLabel('철회 사유', { exact: true }).fill('새 제출 철회'); await page.getByRole('checkbox', { name: '대상과 처리 내용을 확인했습니다' }).check(); await page.getByRole('button', { name: '확인한 제출 철회 요청' }).click(); await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false')
+    const history = page.locator('details.csh-details'); if (!(await history.evaluate(element => element.open))) await history.locator('summary').click()
+    await page.getByRole('heading', { name: '제출 v2 · 철회됨', exact: true }).waitFor(); assert.equal(await page.getByRole('button', { name: '제출 v2 제출.pdf 내려받기', exact: true }).count(), 0)
+    await page.setViewportSize({ width: 320, height: 740 }); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+    if (output) await page.screenshot({ path: join(output, 'collection-management-history-320.png'), fullPage: true })
+  }, 'review')
+  await test('상세 조회만 실패해 관리 폼이 숨겨져도 미전송 입력은 버리고 나갈 수 있다', async () => {
+    await openRequest(); await page.getByRole('button', { name: '제출 철회', exact: true }).click(); await page.getByLabel('철회 사유', { exact: true }).fill('아직 전송하지 않은 철회 사유')
+    await page.evaluate(() => { window.failDetail = true }); await page.getByRole('button', { name: '새로 확인', exact: true }).click(); await page.getByRole('button', { name: '입력 버리고 닫기', exact: true }).click()
+    assert.equal(await page.locator('[data-lock]').innerText(), 'false'); assert.equal(await page.evaluate(() => window.calls.length), 0); await page.evaluate(() => { window.failDetail = false }); await openRequest(); assert.equal(await page.getByRole('form', { name: '제출 관리' }).count(), 0)
+  }, 'review')
+  await test('보완 응답판 철회로 현재 제출이 비어도 미완료 보완을 선택해 다시 제출할 수 있다', async () => {
+    await page.evaluate(() => { const s = window.state; s.submissions.push({ ...structuredClone(s.submissions[0]), id: 'submission-2', revision: 2, previousSubmissionId: 'submission-1', correctionReason: '보완 응답' }); s.unit.currentSubmissionId = 'submission-2'; s.unit.version = 3; s.reviews.push({ id: 'review-1', unitId: 'unit-1', submissionId: 'submission-1', reviewerMemberId: 'member-1', decision: 'changes_requested', note: '근거 보완', recordedAt: '2026-10-15T08:00:00Z' }); s.supplements.push({ id: 'supplement-1', unitId: 'unit-1', submissionId: 'submission-1', dueDate: '2026-10-14', fulfilledSubmissionId: 'submission-2', fulfilledAt: '2026-10-15T08:00:00Z' }) })
+    await openRequest(); await page.getByRole('button', { name: '제출 철회', exact: true }).click(); await page.getByLabel('철회 사유', { exact: true }).fill('보완 파일 교체'); await page.getByRole('checkbox', { name: '대상과 처리 내용을 확인했습니다' }).check(); await page.getByRole('button', { name: '확인한 제출 철회 요청' }).click(); await page.waitForFunction(() => document.querySelector('[data-lock]').textContent === 'false')
+    assert.equal(await page.evaluate(() => window.state.unit.currentSubmissionId), null); assert.equal(await page.evaluate(() => window.state.supplements[0].fulfilledSubmissionId), null)
+    await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.getByLabel('재제출 사유', { exact: true }).fill('보완 응답 다시 제출'); await page.getByLabel('응답할 보완 요청', { exact: true }).selectOption('supplement-1'); await page.getByRole('button', { name: '저장한 파일 다시 제출' }).click(); await page.getByText(/제출 v3 · 서버 접수/).waitFor()
+    assert.equal(await page.evaluate(() => window.calls.at(-1).command.correctionRequestId), 'supplement-1'); assert.equal(await page.evaluate(() => window.state.supplements[0].fulfilledSubmissionId), 'submission-3')
+  }, 'review')
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
   if (output) writeFileSync(join(output, 'results.json'), JSON.stringify({ passed: results, pageErrors: errors, externalRequests: external }, null, 2))
   console.log('서버 문서 수합 브라우저 검사: ' + results.length + '개 통과')
