@@ -187,10 +187,11 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 기본 파일형 문서 수합
 
-- `test_workhub_file_pdf.py`: 실제 PDF xref/객체/페이지/스트림·압축량·JPEG·본문 토큰·스크립트/첨부/PostScript 차단·미지원 형식·손상 본문 로그 차단 **100건**.
-- `test_workhub_file_hwp.py`: 실제 합성 CFB/HWP의 FAT/MiniFAT/레코드/압축/CRC·ISIZE/기본 스크립트/이미지·미지원 헤더/옵션·예외 처리 **73건**. 도우미 `helpers/hwp_fixture.py`는 시험용이며 실제 파일 변환기가 아니다.
+- `test_workhub_file_pdf.py`: 실제 일반/압축 xref·객체 스트림·PNG predictor·페이지·JPEG·본문·원본 길이·확장량·내부 시작 보기·스크립트/첨부/외부 실행 차단 **197건**. `helpers/pdf_fixture.py`로 독립 PDF 원문을 만든다.
+- `test_workhub_file_hwp.py`: 실제 합성 CFB/HWP의 FAT/MiniFAT·레코드·압축·스크립트·이미지·빈 연결 옵션·평문 헤더·명시된 5.1 세 버전·ID/부모/번호 구조·미지원/예외 처리 **148건**. `helpers/hwp_fixture.py`는 시험용이며 실제 파일 변환기가 아니다.
 - `test_workhub_file_inspection.py`: 실제 ZIP/XML 파싱·압축 확장량/CRC·경로/관계·DTD/암호화·PDF/HWP 연결·제한된 HWPX 기본 스크립트·보호 HWPX 6종 읽기 전용 검사 **118건**.
-- `test_workhub_file_verification.py`: 실물 크기/SHA-256·정책·임대·스캐너 상태/결과 결합·접수 응답 유실과 동일 본문 재전송·변조/위조 접수 차단, PDF/HWP/HWPX의 파서→접수 연결 **55건**.
+- `test_workhub_file_verification.py`: 실물 크기/SHA-256·정책·임대·스캐너 상태/결과 결합·응답 유실·위조 접수 차단, PDF 압축/시작 보기·HWP 5.0/5.1·HWPX의 파서→접수 연결 **76건**.
+- `test_workhub_document_corpus.py`: 공개 원본 재현 도구의 누락·크기·해시·명세/경로 오류·종료 코드·미지원 집계 구분 **8건**. 실제 공개 파일은 [별도 재현 안내](fixtures/README.md)에 따라 검사하며 CI에서 다운로드하지 않는다.
 - `test_workhub_file_cleanup.py`: 기본 후보 조회·typed 참조/hold/진행 작업/보존기간·영구 차단 티켓·실물 변경/부재·응답 유실/재확인·임대/취소 **48건**.
 - 위 Python 시험은 `npm test`에 자동 포함된다. `npm test -- workhub_file_pdf` / `workhub_file_hwp` / `workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로 각각 실행할 수 있다. `workers/requirements.txt` 의존성이 필요하다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [실행 안내](../workers/collection_files/README.md), [처리 코어 인계](../docs/workhub/36-collection-file-workers.md), [최신 형식 지원과 실제 파일 실측](../docs/workhub/37-document-format-support.md)을 참고한다. 공개 HWP 원본 7개는 아직 미지원이며 합성 HWP 통과를 일반 문서 호환 완료로 계산하지 않는다.
 
