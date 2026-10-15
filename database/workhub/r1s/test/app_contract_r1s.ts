@@ -1,4 +1,4 @@
-// PR #45 앱(apps/workhub)의 실제 수합 어댑터·검증 함수에 R1S 의 "실제 출력"을 넣어 본다.
+// PR #48 앱(apps/workhub)의 실제 수합 어댑터·검증 함수에 R1S 의 "실제 출력"을 넣어 본다.
 // run_r1s.py 가 시험 중 받은 응답(기본 확인 준비 상태 · 확인 API 응답 · 내려받기 허가)을 R1S_CAPTURE 에 남기고,
 // 이 도구가 그것을 앱 코드에 그대로 넣는다. 앱 코드는 고치지 않고 가져다 쓰기만 한다.
 // run_all.sh 가 esbuild 로 묶는다: --alias:r1sapp=<앱 소스>/apps/workhub/src

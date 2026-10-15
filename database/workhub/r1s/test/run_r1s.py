@@ -1,6 +1,6 @@
 # R1S HWPX 기본 확인 시험 (임시 PostgreSQL 17 + Supabase 흉내). 운영과 무관.
 # 사람 요청은 PostgREST 와 같은 경로(authenticator → set role → request.jwt.claims)로, 확인 API 는 service_role 로 부른다.
-# 확인 API 는 PR #45 의 실제 코드(apps/main/api/collections/_hwpx_basic.py 의 check_file)를 그대로 쓰고,
+# 확인 API 는 PR #48 의 실제 코드(apps/main/api/collections/_hwpx_basic.py 의 check_file)를 그대로 쓰고,
 # 그 코드의 Supabase 연결만 시험용으로 바꾼다(rpc → 이 DB 의 service_role 호출, download → 시험 실물 바이트).
 # Storage 는 storage.objects 행으로 RLS·실물 정체성만 흉내 낸다(실제 Storage API·HTTP 경로는 미실행).
 #
@@ -18,7 +18,7 @@ from run_r1 import (admin, api, call, err, check, scalar, key, Who, data, code, 
 S = os.path.join(HERE, '..')
 R1_DIR = os.environ['R1_DIR']
 OUT = os.environ.get('R1S_CAPTURE', '')
-API_DIR = os.environ.get('R1S_API_DIR', '')            # PR #45 의 apps/main/api/collections (없으면 확인 API 왕복 미실행)
+API_DIR = os.environ.get('R1S_API_DIR', '')            # PR #48 의 apps/main/api/collections (없으면 확인 API 왕복 미실행)
 captures = []
 BLOBS = {}                                             # Storage 실물 흉내: 경로 → 바이트
 
@@ -79,14 +79,14 @@ def finish_err(*a):
     except psycopg2.Error as e: return e.pgerror.split('\n')[0].replace('ERROR:  ', '')
 
 def result_for(c, raw, **kw):
-    """PR #45 check_file 과 같은 결과 모양(직접 RPC 시험용)."""
+    """PR #48 check_file 과 같은 결과 모양(직접 RPC 시험용)."""
     r = {'profile': 'hwpx_basic_v1', 'outcome': 'ready', 'sizeBytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(),
          'rejectReason': None, 'checks': {'size': True, 'sha256': True, 'hwpx': True}}
     r.update(kw); return r
 
 
 class FakeClient:
-    """PR #45 SupabaseClient 대역: 인증은 시험 UID, rpc 는 이 DB, 내려받기는 BLOBS. DB 원시 오류는 실제처럼 RESULT_UNKNOWN."""
+    """PR #48 SupabaseClient 대역: 인증은 시험 UID, rpc 는 이 DB, 내려받기는 BLOBS. DB 원시 오류는 실제처럼 RESULT_UNKNOWN."""
     def __init__(self, uid, tamper=None):
         self.uid, self.tamper, self.calls = uid, tamper, []
     def user(self, authorization): return self.uid
@@ -105,11 +105,12 @@ class FakeClient:
         return v
     def download(self, bucket, path, maximum):
         raw = BLOBS[path]
+        if path in CUT: raw = raw[:CUT.pop(path)]   # 전송 중단 흉내: 이번 한 번만 짧게 받는다
         if len(raw) > maximum: raise hb.FileRejected('FILE_SIZE_LIMIT')
         return raw
 
 def api_check(who, fid, k=None, tamper=None):
-    """PR #45 check_file 을 그대로 실행. 성공 응답 또는 오류 코드."""
+    """PR #48 check_file 을 그대로 실행. 성공 응답 또는 오류 코드."""
     c = FakeClient(who.uid, tamper)
     try:
         out = hb.check_file({'memberId': who.member, 'fileId': fid, 'requestKey': k or key()}, 'Bearer ' + 'a' * 40, client=c)
@@ -133,6 +134,12 @@ def readiness(who):
     v = who.rpc('workhub_collection_basic_readiness')
     captures.append({'kind': 'readiness', 'raw': v, 'memberId': who.member, 'schoolId': who.school, 'userId': who.uid})
     return data(v)
+
+CUT = {}
+
+def storage_size(path, n):
+    """실제 Storage 처럼 객체 metadata.size 를 적는다(시험 DB 의 업로드 행은 metadata 가 비어 있다)."""
+    run_sql(f"update storage.objects set metadata = jsonb_build_object('size', {int(n)}) where bucket_id='workhub-collection-files' and name='{path}'", 'supabase_admin')
 
 def lease_age(fid, seconds):
     """임대 시각을 과거로 돌린다(만료 시험). 임대 보호 트리거를 잠시 끄고 되돌린다."""
@@ -238,12 +245,12 @@ def scenario_fresh():
           and scalar('select count(*) from workhub.file_verification_jobs where file_id=%s', (up['fileId'],)) == 0, st)
     if hb:
         out = api_check(t21, up['fileId'])
-        check('F18 PR #45 check_file 왕복 → ready (확인값 = 실물)', isinstance(out, dict) and out['data']['state'] == 'ready'
+        check('F18 PR #48 check_file 왕복 → ready (확인값 = 실물)', isinstance(out, dict) and out['data']['state'] == 'ready'
               and out['data']['file'] == {'id': up['fileId'], 'name': '보고.hwpx', 'extension': 'hwpx', **meta(raw)}, out)
         e = t21.mutate({'kind': 'save_draft', 'requestId': rid, 'unitId': uA, 'expectedVersion': 0, 'input': {'text': '보고', 'number': None, 'files': [out['data']['file']]}})
         check('F19 확인된 HWPX 로 초안 저장', data(e) is not None, e)
     else:
-        check('F18 PR #45 확인 API 코드(R1S_API_DIR) 없음 — 왕복 미실행', False, 'R1S_API_DIR')
+        check('F18 PR #48 확인 API 코드(R1S_API_DIR) 없음 — 왕복 미실행', False, 'R1S_API_DIR')
     return s1
 
 
@@ -348,7 +355,7 @@ def scenario_legacy():
                     r1.ready_result({'bytes': j['claimedBytes'], 'sha256': j['claimedSha256']}))
     check('L29 활성화 뒤에도 기존 작업자 경로 파일은 봉인되어 ready', data(t23.rpc('workhub_file_status', upP['fileId']))['state'] == 'ready')
 
-    # ------------------------------------------------------------ PR #45 확인 API 왕복
+    # ------------------------------------------------------------ PR #48 확인 API 왕복
     if hb:
         k1 = key()
         out = api_check(t21, up1['fileId'], k1)
@@ -391,10 +398,36 @@ def scenario_legacy():
         o = api_check(t21, u['fileId'])
         check('L43 실물이 신고 해시와 다름 → FILE_HASH_MISMATCH 로 rejected', isinstance(o, dict) and o['data']['state'] == 'rejected'
               and scalar('select reject_reason from workhub.file_objects where id=%s', (u['fileId'],)) == 'file_hash_mismatch', o)
+        # 크기 불일치는 두 가지로 나눈다(PR #48 의 앱은 짧게 받은 내려받기를 영구 거절하지 않고 RESULT_UNKNOWN 으로 둔다).
+        #  ① 실물 자체가 신고보다 짧다 — 근거는 Storage 객체 크기(metadata.size). claim 이 내려받기 전에 거절한다.
+        #  ② 실물 크기는 맞는데 이번 전송만 짧았다 — 확정하지 않고 확인 중으로 두며, 임대가 끝난 뒤 다시 확인하면 ready.
         u, s = prepare_put(t21, {'kind': 'draft', 'requestId': rid, 'unitId': uA, 'version': 2}, '크기.hwpx', raw, claimed={'bytes': len(raw) + 5, 'sha256': meta(raw)['sha256']})
-        o = api_check(t21, u['fileId'])
-        check('L44 실물 크기가 신고와 다름 → FILE_SIZE_MISMATCH 로 rejected', isinstance(o, dict) and o['data']['state'] == 'rejected'
-              and scalar('select reject_reason from workhub.file_objects where id=%s', (u['fileId'],)) == 'file_size_mismatch', o)
+        storage_size(u['path'], len(raw))
+        c = FakeClient(t21.uid)
+        try: o = hb.check_file({'memberId': t21.member, 'fileId': u['fileId'], 'requestKey': key()}, 'Bearer ' + 'a' * 40, client=c)
+        except hb.CheckError as e: o = e.code
+        check('L44 Storage 객체 크기가 신고와 다름 → 내려받지 않고 rejected(object_size_mismatch), 임대 0',
+              isinstance(o, dict) and o['data'] == {'fileId': u['fileId'], 'state': 'rejected', 'file': None}
+              and scalar("select f.reject_reason || '/' || b.close_reason from workhub.file_objects f join workhub.file_basic_checks b on b.file_id = f.id where f.id=%s", (u['fileId'],)) == 'object_size_mismatch/object_size_mismatch'
+              and scalar('select count(*) from workhub.file_basic_leases where file_id=%s', (u['fileId'],)) == 0
+              and [n for n, _ in c.calls] == ['workhub_file_basic_claim'], (o, c.calls))
+        raw = hwpx('끊김')
+        u, s = prepare_put(t21, {'kind': 'draft', 'requestId': rid, 'unitId': uA, 'version': 2}, '끊김.hwpx', raw)
+        storage_size(u['path'], len(raw))
+        CUT[u['path']] = len(raw) - 7
+        k44 = key()
+        o = api_check(t21, u['fileId'], k44)
+        check('L44a 실물 크기는 맞고 전송만 짧음 → RESULT_UNKNOWN, finish 없음, 확인 중·임대 유지',
+              o == 'RESULT_UNKNOWN' and scalar('select state from workhub.file_objects where id=%s', (u['fileId'],)) == 'verifying'
+              and scalar("select outcome is null and result is null from workhub.file_basic_checks where file_id=%s", (u['fileId'],))
+              and scalar("select count(*) from workhub.file_basic_leases where file_id=%s and state='issued'", (u['fileId'],)) == 1, o)
+        o = api_check(t21, u['fileId'], k44)
+        check('L44b 같은 요청 번호로 곧바로 재시도 → 임대 중이라 확인 중(pending_verification), 두 번째 내려받기 없음',
+              isinstance(o, dict) and o['data']['state'] == 'pending_verification', o)
+        lease_age(u['fileId'], 100)
+        o = api_check(t21, u['fileId'], k44)
+        check('L44c 임대가 끝난 뒤 같은 요청 번호로 재확인 → 온전히 받아 ready',
+              isinstance(o, dict) and o['data']['state'] == 'ready' and o['data']['file']['sha256'] == meta(raw)['sha256'], o)
         # API 결과가 앞뒤가 맞지 않으면 DB 가 막는다(크기·해시는 DB 가 신고값과 대조). HWPX 구조 판정 자체는 승인된 확인 주체를 믿는다.
         raw = hwpx('위조')
         u, s = prepare_put(t21, {'kind': 'draft', 'requestId': rid, 'unitId': uA, 'version': 2}, '위조.hwpx', raw)
@@ -404,7 +437,7 @@ def scenario_legacy():
         check('L45 해시 불일치를 ready 로 꾸민 결과 → DB 가 INVALID_INPUT 봉투(파일은 확인 중 그대로)', o == 'INVALID_INPUT'
               and scalar('select state from workhub.file_objects where id=%s', (u['fileId'],)) == 'verifying', o)
     else:
-        check('L30 PR #45 확인 API 코드(R1S_API_DIR) 없음 — 왕복 미실행', False, 'R1S_API_DIR')
+        check('L30 PR #48 확인 API 코드(R1S_API_DIR) 없음 — 왕복 미실행', False, 'R1S_API_DIR')
         return
 
     # ------------------------------------------------------------ claim/finish 직접 대조
@@ -570,7 +603,7 @@ def scenario_legacy():
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else 'legacy'
     if not hb:
-        print('미실행 PR #45 확인 API 코드 없음(R1S_API_DIR) — check_file 왕복 시험은 건너뛰지 않고 FAIL 로 센다')
+        print('미실행 PR #48 확인 API 코드 없음(R1S_API_DIR) — check_file 왕복 시험은 건너뛰지 않고 FAIL 로 센다')
     scenario_fresh() if mode == 'fresh' else scenario_legacy()
     if OUT:
         json.dump({'captures': captures}, open(OUT, 'w', encoding='utf-8'), ensure_ascii=False)

@@ -1,8 +1,8 @@
 #!/bin/bash
 # R1S 전체 검증: 교체 함수 대조 · 선행 조건 거부 · 비활성 설치 뒤 R1 시험 전체 · 기존 자료 시나리오 · 신규 DB 시나리오 · 앱 대조.
 # 하나라도 실패하면 종료 코드 1, 준비 단계(서버·빌드)가 실패하면 2.
-# 사용: R0_PG_BIN=<PostgreSQL 17 bin> R1S_APP_SRC=<PR #45 checkout> bash run_all.sh      (README 참고)
-#   R1S_APP_SRC  apps/main/api/collections/_hwpx_basic.py 와 apps/workhub/src 가 있는 checkout(PR #45 브랜치).
+# 사용: R0_PG_BIN=<PostgreSQL 17 bin> R1S_APP_SRC=<PR #48 checkout> bash run_all.sh      (README 참고)
+#   R1S_APP_SRC  apps/main/api/collections/_hwpx_basic.py 와 apps/workhub/src 가 있는 checkout(PR #48 브랜치).
 #                없으면 확인 API 왕복·앱 대조는 FAIL 로 센다(통과로 세지 않는다).
 set -uo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -55,7 +55,7 @@ echo "== IV. 신규 DB 시나리오(운영과 같은 상태: R1-05·06 미실행
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null
 R1S_CAPTURE=$W/cap_fresh.json python3 "$T/run_r1s.py" fresh > "$W/fresh_log.txt" 2>&1; sub "IV run_r1s.py fresh" "$W/fresh_log.txt" $?
 
-echo "== V. 앱(PR #45) 어댑터·검증 함수로 실제 응답 확인"
+echo "== V. 앱(PR #48) 어댑터·검증 함수로 실제 응답 확인"
 if [ -n "$APP" ] && [ -f "$APP/apps/workhub/src/collections/supabase-collections.ts" ]; then
   ESB="${ESBUILD:-$R0_REPO/node_modules/.bin/esbuild}"; [ -x "$ESB" ] || ESB="$(command -v esbuild || true)"
   [ -x "$ESB" ] || { echo "중단: 저장소 루트에서 npm ci 를 먼저 실행하거나 ESBUILD=<esbuild 경로> 를 주세요" >&2; exit 2; }
@@ -64,7 +64,7 @@ if [ -n "$APP" ] && [ -f "$APP/apps/workhub/src/collections/supabase-collections
   echo "  앱 소스: $APP ($(git -C "$APP" log -1 --format=%h 2>/dev/null || echo '판 모름'))"
   R1S_CAPTURE=$W/cap_legacy.json,$W/cap_fresh.json node "$W/app_contract_r1s.mjs" > "$W/app_log.txt" 2>&1; sub "V app_contract_r1s" "$W/app_log.txt" $?
 else
-  ng "V 앱 대조 — R1S_APP_SRC 에 PR #45 checkout 을 지정하지 않음"
+  ng "V 앱 대조 — R1S_APP_SRC 에 PR #48 checkout 을 지정하지 않음"
 fi
 
 echo "== 합계: PASS $PASS · FAIL $FAIL"
