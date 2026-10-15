@@ -51,6 +51,10 @@ need q -f "$S/R1-01_정책_파일_실행.sql" >/dev/null; need q -f "$S/R1-02_�
 need qa -qc "drop function storage.operation()"
 refuse "I6 Storage 가 요청 종류(storage.operation)를 알려 주지 않는 판이면 R1-03 이 멈춤" "storage.operation() 이 없습니다" q -f "$S/R1-03_공개함수_Storage.sql"
 [ "$(val "select count(*) from pg_namespace where nspname = 'workhub_storage'") $(val "select count(*) from storage.buckets where id = 'workhub-collection-files'")" = "0 0" ] && ok "I7 멈춘 R1-03 은 schema·버킷을 남기지 않음" || ng I7
+# Supabase 처럼 storage.objects 주인이 Storage 전용 역할이고 postgres 에게 정책 생성 허용이 없으면(시험 판에는 supautils 가 없음) 멈춤
+need qa -qc "create function storage.operation() returns text language sql stable as \$\$ select current_setting('storage.operation', true) \$\$; alter table storage.objects owner to supabase_storage_admin"
+refuse "I8 storage.objects 에 정책을 만들 수 없는 역할이면 R1-03 이 실제로 만들어 보고 멈춤" "정책을 만들 수 없습니다" q -f "$S/R1-03_공개함수_Storage.sql"
+[ "$(val "select count(*) from pg_policy where polrelid = 'storage.objects'::regclass and polname like 'workhub%'") $(val "select count(*) from pg_namespace where nspname = 'workhub_storage'")" = "0 0" ] && ok "I9 정책 생성 시험은 흔적(시험 정책·schema)을 남기지 않음" || ng I9
 r0_only; need q -f "$R0_WORK/inputs/R0-03_filled.sql" >/dev/null
 
 echo "== II. 설치 (R0 적용 + 기존 회원·제출·파일 자료가 있는 DB)"

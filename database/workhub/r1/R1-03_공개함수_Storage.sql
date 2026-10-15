@@ -37,11 +37,19 @@ BEGIN
      OR EXISTS (SELECT 1 FROM pg_policy WHERE polrelid = 'storage.objects'::regclass AND polname LIKE 'workhub\_%') THEN
     RAISE EXCEPTION 'R1 중단: workhub 버킷 또는 workhub_ 이름의 Storage 정책이 이미 있습니다.';
   END IF;
-  -- 정책을 만들려면 storage.objects 소유 역할의 권한이 필요하다. 함수가 파일 행을 읽으려면 RLS 우회가 필요하다.
+  -- 정책 생성 가능 여부는 실제로 만들어 보고(하위 트랜잭션) 되돌려서 판단한다.
+  -- Supabase 의 storage.objects 주인은 Storage 전용 역할이고, postgres 는 주인 권한을 물려받지 않은 채
+  -- 별도 허용(supautils 의 정책 허용 설정)으로 정책을 만든다. 그래서 "주인 역할의 권한이 있나"로 보면
+  -- 실제로는 만들 수 있는데도 멈춘다(2026-10-15 운영 적용에서 확인). 시험 정책은 이 블록과 함께 사라진다.
   SELECT relowner INTO v_owner FROM pg_class WHERE oid = 'storage.objects'::regclass;
-  IF NOT pg_has_role(current_user, v_owner, 'USAGE') THEN
-    RAISE EXCEPTION 'R1 중단: 현재 역할(%)이 storage.objects 에 정책을 만들 수 없습니다.', current_user;
-  END IF;
+  BEGIN
+    CREATE POLICY workhub_r1_probe ON storage.objects AS RESTRICTIVE FOR SELECT TO authenticated USING (false);
+    RAISE EXCEPTION USING ERRCODE = 'R1PRB', MESSAGE = 'R1-03 정책 생성 시험(되돌림)';
+  EXCEPTION
+    WHEN SQLSTATE 'R1PRB' THEN NULL;
+    WHEN insufficient_privilege THEN
+      RAISE EXCEPTION 'R1 중단: 현재 역할(%)이 storage.objects 에 정책을 만들 수 없습니다(%).', current_user, SQLERRM;
+  END;
   IF NOT (has_table_privilege(current_user, 'storage.objects', 'SELECT')
           AND ((SELECT rolbypassrls FROM pg_roles WHERE rolname = current_user) OR pg_has_role(current_user, v_owner, 'USAGE'))) THEN
     RAISE EXCEPTION 'R1 중단: 현재 역할(%)이 storage.objects 를 RLS 없이 읽을 수 없습니다.', current_user;
