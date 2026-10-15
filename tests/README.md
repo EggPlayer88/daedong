@@ -186,6 +186,11 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 기본 파일형 문서 수합
 
+- `test_workhub_file_inspection.py`: 실제 ZIP/XML 파싱·압축 확장량/CRC·경로/관계·DTD/암호화·PDF/HWP 미지원·보호 HWPX 읽기 전용 검사 **80건**.
+- `test_workhub_file_verification.py`: 실물 크기/SHA-256·정책·임대·스캐너 상태/결과 결합·접수 응답 유실과 동일 본문 재전송·변조/위조 접수 차단 **35건**.
+- `test_workhub_file_cleanup.py`: 기본 후보 조회·typed 참조/hold/진행 작업/보존기간·영구 차단 티켓·실물 변경/부재·응답 유실/재확인·임대/취소 **48건**.
+- 위 세 Python 시험은 `npm test`에 자동 포함된다. 각각 `npm test -- workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로도 실행할 수 있다. 기존 Python/lxml 환경을 사용한다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [서버 처리 코어 실행 안내](../workers/collection_files/README.md), [상세 인계와 지원 제한](../docs/workhub/36-collection-file-workers.md)을 참고한다.
+
 - `test_workhub_collection_export.mjs`: 실제 연결용 ZIP 계획·전체 단위 대조·완료/현재판 선택·원문/CSV·511개 경계·권한/판 변경·실패 재시도·취소 36건.
 - `test_workhub_collection_export_ui.mjs`: 접힌 화면·정확한 선택기 라벨·준비 전 다운로드 차단·범위/한도 안내 SSR 4건.
 - `workhub-collection-export.mjs`: 실제 연결 화면의 ZIP 다운로드·파일 내용 대조·누락 응답·오류/재시도·직전 권한 확인·계정 전환·관리 입력·320px/키보드 13개. 전체 브라우저 러너에 포함하며 [ZIP 인계](../docs/workhub/35-collection-server-export.md)에 보장 범위를 기록한다.
