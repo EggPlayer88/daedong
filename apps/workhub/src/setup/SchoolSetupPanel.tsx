@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { CLASS_KINDS, SCHOOL_TYPES, SETUP_LIMITS, createSetupDraft, newSetupRowId, validateSetupDraft, parseSetupDraft, exportSetupDraft, exportSetupPlan, type SetupDraft } from './contract'
+import { CLASS_KINDS, SCHOOL_TYPES, SETUP_LIMITS, setupGradeLimit, createSetupDraft, newSetupRowId, validateSetupDraft, parseSetupDraft, exportSetupDraft, exportSetupPlan, type SetupDraft } from './contract'
 import { ListPagination } from '../app/ListPagination'
 import { LIST_PAGE_SIZE, listWindow } from '../app/list-window'
 import styles from './school-setup.css?inline'
@@ -214,7 +214,7 @@ export function SchoolSetupPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bo
             {field('schoolName', '학교명', draft.schoolName, value => changeField('schoolName', value), { maxLength: SETUP_LIMITS.schoolName })}
             {field('schoolCode', '학교 구분 코드', draft.schoolCode, value => changeField('schoolCode', value), { maxLength: SETUP_LIMITS.schoolCode, hint: '영문·숫자·밑줄·하이픈 2~40자. NEIS 코드가 아니며 중복 여부는 운영 연결 시 확인합니다.' })}
             {select('schoolType', '학교급', draft.schoolType, value => changeField('schoolType', value), SCHOOL_TYPES)}
-            {field('gradeCount', '운영 학년 수', draft.gradeCount, value => changeField('gradeCount', value), { numeric: true, maxLength: 1, hint: '1~6학년 범위에서 학교에 맞게 입력합니다.' })}
+            {field('gradeCount', '운영 학년 수', draft.gradeCount, value => changeField('gradeCount', value), { numeric: true, maxLength: 2, hint: `선택한 학교급의 1~${setupGradeLimit(draft.schoolType)} 범위입니다. 특수·기타 학교는 실제 운영 체계를 확인해 입력합니다.` })}
           </div>
         </section>
         <section className="setup-section" aria-labelledby={`${id}-year`}><header><div><p className="setup-step">02</p><h2 id={`${id}-year`}>학년도와 학기</h2></div></header>
@@ -246,7 +246,7 @@ export function SchoolSetupPanel({ onDirtyChange }: { onDirtyChange?: (dirty: bo
           <p className="setup-section-help">담임·학생 명부를 넣지 않고 학급의 구성만 준비합니다. 반 번호는 필요한 경우 입력합니다.</p>
           {!draft.classes.length && <p className="setup-empty">운영할 학급을 추가해 주세요. 최대 {SETUP_LIMITS.classes.toLocaleString()}개까지 입력할 수 있습니다.</p>}
           <div className="setup-row-list">{classes.items.map((schoolClass, offset) => { const index = classes.start - 1 + offset; return <fieldset className="setup-row" key={schoolClass.id}><legend>학급 {index + 1}</legend><div className="setup-row-fields setup-class-row">
-            {field(`classes.${index}.grade`, '학년', schoolClass.grade, value => changeRow('classes', schoolClass.id, 'grade', value), { numeric: true, maxLength: 1 })}
+            {field(`classes.${index}.grade`, '학년', schoolClass.grade, value => changeRow('classes', schoolClass.id, 'grade', value), { numeric: true, maxLength: 2 })}
             {field(`classes.${index}.classNo`, '반 번호 (선택)', schoolClass.classNo, value => changeRow('classes', schoolClass.id, 'classNo', value), { numeric: true, maxLength: 2 })}
             {field(`classes.${index}.name`, '학급 이름', schoolClass.name, value => changeRow('classes', schoolClass.id, 'name', value), { maxLength: SETUP_LIMITS.className })}
             {select(`classes.${index}.kind`, '학급 유형', schoolClass.kind, value => changeRow('classes', schoolClass.id, 'kind', value), CLASS_KINDS)}

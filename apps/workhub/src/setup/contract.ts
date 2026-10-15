@@ -1,3 +1,4 @@
+import schoolAdminLimits from './assets/school-admin.json'
 // 학교 초기 설정의 검토 자료다. 운영 ID·회원·권한·활성화 상태를 만들지 않는다.
 export const SCHOOL_TYPES = [
   { value: 'elementary', label: '초등학교' }, { value: 'middle', label: '중학교' },
@@ -9,6 +10,11 @@ export const CLASS_KINDS = [
 ] as const
 // 명칭 한도는 통합 설계 원본 제약에 맞춘다. 배열·파일 한도는 이 준비 화면의 처리 한도다.
 export const SETUP_LIMITS = { schoolName: 100, schoolCode: 40, termName: 50, departmentName: 50, className: 30, terms: 4, departments: 100, classes: 2000, maxImportBytes: 1_000_000 } as const
+// 일반 학교급의 운영 범위와 특수·기타의 기술 한도를 구분한다. 특수학교의 법정 학년 수를 추정하지 않는다.
+export function setupGradeLimit(schoolType: string): number {
+  const bounds = schoolAdminLimits.gradeBounds as Record<string, number>
+  return bounds[schoolType] ?? schoolAdminLimits.customGradeTechnicalLimit
+}
 export interface SetupTerm { id: string; termNo: string; name: string; startsOn: string; lastDay: string }
 export interface SetupDepartment { id: string; name: string }
 export interface SetupClass { id: string; grade: string; classNo: string; name: string; kind: string }
@@ -108,8 +114,9 @@ export function validateSetupDraft(input: unknown): SetupIssue[] {
   name('schoolName', value.schoolName, SETUP_LIMITS.schoolName, '학교 이름')
   if (!/^[A-Za-z0-9_-]{2,40}$/.test(value.schoolCode.trim())) add('schoolCode', '학교 코드는 영문·숫자·밑줄·하이픈 2~40자로 입력해 주세요.')
   if (!SCHOOL_TYPES.some(item => item.value === value.schoolType)) add('schoolType', '학교급을 선택해 주세요.')
-  if (!integer(value.gradeCount, 1, 6)) add('gradeCount', '학년 수는 1~6으로 입력해 주세요.')
-  if (!integer(value.schoolYear, 2020, 2100)) add('schoolYear', '학년도는 2020~2100으로 입력해 주세요.')
+  const gradeLimit = setupGradeLimit(value.schoolType)
+  if (!integer(value.gradeCount, 1, gradeLimit)) add('gradeCount', `운영 학년 수는 선택한 학교급의 1~${gradeLimit} 범위로 입력해 주세요.`)
+  if (!integer(value.schoolYear, schoolAdminLimits.schoolYearBounds.min, schoolAdminLimits.schoolYearBounds.max)) add('schoolYear', `학년도는 ${schoolAdminLimits.schoolYearBounds.min}~${schoolAdminLimits.schoolYearBounds.max}으로 입력해 주세요.`)
   period('', value.startsOn, value.lastDay, '학년도')
   if (!value.terms.length) add('terms', '학기를 한 개 이상 입력해 주세요.')
   const termNos = new Set<string>(), termNames = new Set<string>()
@@ -134,14 +141,19 @@ export function validateSetupDraft(input: unknown): SetupIssue[] {
     if (departments.has(item.name.trim())) add('departments.' + index + '.name', '같은 부서 이름을 중복해서 사용할 수 없습니다.')
     departments.add(item.name.trim())
   })
-  const classes = new Set<string>()
+  const classes = new Set<string>(), classCoordinates = new Set<string>()
   value.classes.forEach((item, index) => {
     const path = 'classes.' + index
     name(path + '.name', item.name, SETUP_LIMITS.className, '학급 이름')
     if (classes.has(item.name.trim())) add(path + '.name', '학급 이름은 이 학년도 안에서 서로 달라야 합니다.')
     classes.add(item.name.trim())
-    if (!integer(item.grade, 1, 6) || (integer(value.gradeCount, 1, 6) && Number(item.grade) > Number(value.gradeCount))) add(path + '.grade', '학급의 학년은 학교의 학년 수 안에서 선택해 주세요.')
+    if (!integer(item.grade, 1, gradeLimit) || (integer(value.gradeCount, 1, gradeLimit) && Number(item.grade) > Number(value.gradeCount))) add(path + '.grade', '학급의 학년은 학교의 학년 수 안에서 선택해 주세요.')
     if (item.classNo !== '' && !integer(item.classNo, 1, 99)) add(path + '.classNo', '반 번호는 비워 두거나 1~99로 입력해 주세요.')
+    if (item.classNo && integer(item.grade, 1, gradeLimit) && integer(item.classNo, 1, 99)) {
+      const coordinate = `${Number(item.grade)}:${Number(item.classNo)}`
+      if (classCoordinates.has(coordinate)) add(path + '.classNo', '같은 학년·반 번호를 중복해서 등록할 수 없습니다.')
+      classCoordinates.add(coordinate)
+    }
     if (!CLASS_KINDS.some(kind => kind.value === item.kind)) add(path + '.kind', '학급 유형을 선택해 주세요.')
   })
   return issues
