@@ -16,6 +16,11 @@ from urllib.parse import unquote, urlsplit
 import zipfile
 import zlib
 
+from .pdf_inspection import inspect_pdf
+from .hwp_inspection import inspect_hwp
+
+from .boilerplate import is_empty_hancom_script
+
 try:
     from lxml import etree
 except ImportError:  # 설치 실패도 성공으로 바꾸지 않는다.
@@ -60,6 +65,9 @@ _FORBIDDEN_SUFFIXES = frozenset((
 ))
 _FORBIDDEN_TYPE_MARKERS = ("macroenabled", "vbaproject", "oleobject", "activex", "javascript", "embeddedpackage")
 _SPECIAL_XML = frozenset(("[Content_Types].xml", "Contents/content.hpf", "META-INF/container.xml", "META-INF/manifest.xml"))
+_HWPX_SCRIPT_PATHS = ("Scripts/headerScripts.js", "Scripts/sourceScripts.js")
+# 학교별 허용량이 아니라 이 제한 문법 프로필의 최대 입력 크기다.
+_HWPX_BOILERPLATE_BYTES = 4096
 
 
 class _Verdict(Exception):
@@ -242,7 +250,7 @@ def _entry_chunks(data, info, bound, physical_end):
         _fail("archive_corrupt")
 
 
-def _read_archive(data, limits):
+def _read_archive(data, limits, *, extension=None):
     central_start = _zip_preflight(data, limits)
     names, roots, children, special, prefixes = set(), {}, {}, {}, {}
     folded, total = set(), 0
@@ -276,10 +284,13 @@ def _read_archive(data, limits):
                 continue
             names.add(name)
             parts = name.lower().split("/")
-            if any(p in ("scripts", "embeddings", "activex") for p in parts) or parts[-1].split(".")[-1] in _FORBIDDEN_SUFFIXES or "vbaproject" in parts[-1]:
+            hwpx_script = extension == "hwpx" and name in _HWPX_SCRIPT_PATHS
+            if not hwpx_script and (any(p in ("scripts", "embeddings", "activex") for p in parts) or parts[-1].split(".")[-1] in _FORBIDDEN_SUFFIXES or "vbaproject" in parts[-1]):
                 _fail("embedded_content_forbidden")
             xml_part = name.lower().endswith((".xml", ".rels", ".hpf", ".rdf"))
             bound = min(limits["max_entry_bytes"], limits["max_xml_bytes"]) if xml_part else limits["max_entry_bytes"]
+            if hwpx_script:
+                bound = min(bound, _HWPX_BOILERPLATE_BYTES)
             if info.file_size > bound:
                 _fail("xml_bytes_limit" if xml_part and info.file_size > limits["max_xml_bytes"] else "archive_entry_limit")
             if info.file_size > max(1, info.compress_size) * limits["max_compression_ratio"]:
@@ -296,7 +307,7 @@ def _read_archive(data, limits):
                     _fail("archive_ratio_limit")
                 if len(prefix) < 16:
                     prefix = (prefix + chunk)[:16]
-                if xml_part or name == "mimetype":
+                if xml_part or name == "mimetype" or hwpx_script:
                     chunks.append(chunk)
             if actual != info.file_size:
                 _fail("archive_corrupt")
@@ -309,7 +320,7 @@ def _read_archive(data, limits):
                 children[name] = {node.tag for node in root if isinstance(node.tag, str)}
                 if name in _SPECIAL_XML or name.lower().endswith(".rels"):
                     special[name] = root
-            elif name == "mimetype":
+            elif name == "mimetype" or hwpx_script:
                 special[name] = b"".join(chunks)
     # 파일 a와 디렉터리 a/b 같은 서로 다른 추출 해석도 거부한다.
     file_names_folded = {n.casefold() for n in names}
@@ -428,6 +439,20 @@ def _check_ooxml(extension, names, roots, children, special):
         _fail("main_part_invalid")
 
 
+def _check_hwpx_boilerplate(special):
+    # 한컴 저장본에서 확인한 UTF-16 기본 스크립트만 인정한다. 원본을 지우거나
+    # 재작성하지 않으며 실행·주석 제거·표현식 해석을 전혀 하지 않는다.
+    for path, role in zip(_HWPX_SCRIPT_PATHS, ("header", "source")):
+        raw = special[path]
+        try:
+            encoding = "utf-16" if raw.startswith((b"\xff\xfe", b"\xfe\xff")) else "utf-16-le"
+            text = raw.decode(encoding, errors="strict")
+        except UnicodeError:
+            _fail("hwpx_script_encoding_invalid")
+        if not is_empty_hancom_script(text, role):
+            _fail("hwpx_script_content_forbidden")
+
+
 def _check_hwpx(names, roots, special):
     # HWPX 구성/스크립트/암호화: https://tech.hancom.com/hwpxformat/
     if special.get("mimetype") != b"application/hwp+zip":
@@ -444,12 +469,28 @@ def _check_hwpx(names, roots, special):
     paths = [_target(node.get("full-path"), "", names) for node in rootfiles]
     if paths.count("Contents/content.hpf") != 1:
         _fail("hwpx_manifest_invalid")
-    items = {}
+    script_paths = set(_HWPX_SCRIPT_PATHS) & names
+    if script_paths and (script_paths != set(_HWPX_SCRIPT_PATHS)
+                         or len(package.findall("{" + OPF + "}manifest")) != 1
+                         or len(package.findall("{" + OPF + "}spine")) != 1):
+        _fail("hwpx_script_manifest_invalid")
+    items, targets, script_items = {}, set(), {}
     for item in package.findall("{" + OPF + "}manifest/{" + OPF + "}item"):
         item_id, media = item.get("id"), item.get("media-type", "")
-        if not item_id or item_id in items or not media or _forbidden_type(media):
+        if not item_id or item_id in items or not media:
             _fail("hwpx_manifest_invalid")
         target = _target(item.get("href"), "", names)
+        if target in targets:
+            _fail("hwpx_manifest_invalid")
+        targets.add(target)
+        if target in script_paths:
+            # 경로 별칭/다른 MIME/추가 속성으로 다른 실행 의미를 끼워 넣지 못한다.
+            if (item.get("href") != target or set(item.attrib) != {"id", "href", "media-type"}
+                    or re.fullmatch(r"application/x-javascript[ \t]*;[ \t]*charset=utf-16", media, re.IGNORECASE) is None):
+                _fail("hwpx_script_manifest_invalid")
+            script_items[target] = item_id
+        elif _forbidden_type(media):
+            _fail("hwpx_manifest_invalid")
         if (media.endswith("+xml") or media == "application/xml") and target not in roots:
             _fail("hwpx_manifest_invalid")
         items[item_id] = target
@@ -457,6 +498,14 @@ def _check_hwpx(names, roots, special):
     if not spine or any(item.get("idref") not in items for item in spine):
         _fail("hwpx_manifest_invalid")
     spine_paths = [items[item.get("idref")] for item in spine]
+    if script_paths:
+        if (set(script_items) != script_paths or any(spine_paths.count(path) != 1 for path in script_paths)
+                or spine_paths.index(_HWPX_SCRIPT_PATHS[0]) > spine_paths.index(_HWPX_SCRIPT_PATHS[1])):
+            _fail("hwpx_script_manifest_invalid")
+        for item in spine:
+            if items[item.get("idref")] in script_paths and (set(item.attrib) - {"idref", "linear"} or item.get("linear", "yes") != "yes"):
+                _fail("hwpx_script_manifest_invalid")
+        _check_hwpx_boilerplate(special)
     if roots.get("Contents/header.xml") != "{" + HEAD + "}head" or "Contents/header.xml" not in items.values():
         _fail("hwpx_main_part_invalid")
     if not any(roots.get(path) == "{" + SECTION + "}sec" for path in spine_paths):
@@ -474,13 +523,11 @@ def inspect_document(data: bytes, extension: str, limits: dict) -> dict:
         return {"status": "unsupported", "code": "format_unsupported", "mime": None}
     mime = MIMES[extension]
     try:
-        if extension in ("pdf", "hwp"):
-            signature = b"%PDF-" if extension == "pdf" else b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
-            if not data.startswith(signature):
-                _fail("signature_mismatch")
-            # 표식은 형식 파서가 아니다. OLE 표식만으로 HWP라고 확정하지 않는다.
-            return {"status": "unsupported", "code": "format_parser_unavailable", "mime": mime if extension == "pdf" else None}
-        names, roots, children, special, _ = _read_archive(data, limits)
+        if extension == "pdf":
+            return inspect_pdf(data, limits)
+        if extension == "hwp":
+            return inspect_hwp(data, limits)
+        names, roots, children, special, _ = _read_archive(data, limits, extension=extension)
         if extension == "hwpx":
             _check_hwpx(names, roots, special)
         else:

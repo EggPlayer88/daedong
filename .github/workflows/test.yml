@@ -60,9 +60,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # Python 테스트(generate.py·extract.py)는 lxml 이 필요하다.
-      # 러너는 lxml 이 없으면 Python 몫을 건너뛰므로, 여기서 반드시 설치해 건너뛰는 일이 없게 한다.
-      - run: pip install lxml
+      # 기존 생성 시험의 lxml과 독립 파일 검사기의 PDF/OLE 파서를 함께 설치한다.
+      # 형식별 시험은 의존성 누락을 실패로 처리하므로 미지원 성공으로 건너뛰지 않는다.
+      - run: pip install -r workers/requirements.txt
       - run: npm ci
       # 이번 통합 후보의 범위만 고정한다. 향후 승인된 DB/API 변경을 영구 차단하지 않는다.
       - name: 1차 통합 후보의 포함 이력과 보호 경계
