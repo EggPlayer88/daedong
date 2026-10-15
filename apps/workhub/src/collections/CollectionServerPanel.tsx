@@ -9,6 +9,7 @@ import { requestBlobDownload } from '../files/download'
 import type { AnswerInput, CollectionDraft, CollectionInput, CollectionRequest } from '../workflows/types'
 import { CollectionServerError, type CollectionServer, type CollectionCommand, type CollectionDetail, type CollectionFileParent, type CollectionList, type CollectionReadiness, type CollectionUpload } from './contracts'
 import { CollectionUnitsEditor } from './CollectionUnitsEditor'
+import { AnswerInputComparison, CollectionInputComparison } from './CollectionInputComparison'
 import { collectionUnitMemberOptions, validateCollectionUnitInputs } from './unit-inputs'
 import { CollectionSubmissionHistory } from './CollectionSubmissionHistory'
 import { CollectionServerExport } from './CollectionServerExport'
@@ -17,16 +18,16 @@ import styles from './collection-server.css?inline'
 
 export interface CollectionServerPanelProps { server: CollectionServer; member: Membership; members: Membership[]; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void }
 type Editor = { original?: CollectionRequest; input: CollectionInput }
-type Answer = { requestId: string; unitId: string; original: CollectionDraft | null; input: AnswerInput; reason: string; correctionRequestId: string; confirmedVersion?: number }
+type Answer = { requestId: string; unitId: string; original: CollectionDraft | null; input: AnswerInput; reason: string; correctionRequestId: string; confirmedVersion?: number; confirmedInput?: AnswerInput }
 type Upload = { file: File; parent: CollectionFileParent; policy: FilePolicy; prepareKey: string; completeKey: string; intent?: CollectionUpload; phase: 'prepare' | 'upload' | 'complete' | 'status'; rejected?: boolean; cancelable?: boolean }
 type Review = { unitId: string; submissionId: string; expectedVersion: number; note: string; dueDate: string }
 type Management = { kind: 'withdraw' | 'open_correction'; unitId: string; submissionId: string | null; expectedVersion: number; reason: string; dueDate: string; confirmed: boolean }
-type Session = { selectedId?: string; editor?: Editor; answer?: Answer; upload?: Upload; review?: Review; management?: Management; conflict?: boolean }
+type Session = { selectedId?: string; editor?: Editor; answer?: Answer; upload?: Upload; review?: Review; management?: Management; conflict?: boolean; parked?: boolean; recoveryConflict?: boolean }
 const blank = (): CollectionInput => ({ title: '', instructions: '', dueDate: '', reviewMode: 'none', reviewerMemberId: '', textLabel: '', textRequired: false, numberLabel: '', numberRequired: false, units: [] })
 const inputOf = ({ title, instructions, dueDate, reviewMode, reviewerMemberId, textLabel, textRequired, numberLabel, numberRequired, units, fileCollection }: CollectionRequest): CollectionInput => ({ title, instructions, dueDate, reviewMode, reviewerMemberId, textLabel, textRequired, numberLabel, numberRequired, units, fileCollection })
 const knownRejection = (failure: unknown) => failure instanceof CollectionServerError && ['NOT_READY', 'INVALID_INPUT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND', 'CONFLICT', 'FILE_NOT_READY', 'FILE_FAILED'].includes(failure.code)
 const accessDenied = (failure: unknown) => failure instanceof CollectionServerError && ['FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND'].includes(failure.code)
-const failureMessage = (failure: unknown) => failure instanceof FileError ? failure.message : failure instanceof CollectionServerError && failure.code === 'CONFLICT' ? '다른 곳에서 먼저 변경했습니다. 내 입력은 유지했습니다. 최신 원본을 다시 확인한 뒤 편집해 주세요.' : knownRejection(failure) ? '서버가 이 작업을 허용하지 않았습니다. 현재 권한, 기한, 파일과 입력을 확인해 주세요. 입력은 유지했습니다.' : '처리 결과를 확인하지 못했습니다. 입력과 요청 번호를 보관했습니다. 같은 요청으로 다시 확인해 주세요.'
+const failureMessage = (failure: unknown) => failure instanceof FileError ? failure.message : failure instanceof CollectionServerError && failure.code === 'IDEMPOTENCY_CONFLICT' ? '저장 요청이 서버의 기존 기록과 일치하지 않습니다. 입력과 요청 번호는 보관했습니다. 새 요청으로 다시 저장하지 말고 관리자에게 확인해 주세요.' : failure instanceof CollectionServerError && failure.code === 'CONFLICT' ? '다른 곳에서 먼저 변경했습니다. 내 입력은 유지했습니다. 최신 원본을 다시 확인한 뒤 편집해 주세요.' : knownRejection(failure) ? '서버가 이 작업을 허용하지 않았습니다. 현재 권한, 기한, 파일과 입력을 확인해 주세요. 입력은 유지했습니다.' : '처리 결과를 확인하지 못했습니다. 입력과 요청 번호를 보관했습니다. 같은 요청으로 다시 확인해 주세요.'
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const layoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
@@ -46,8 +47,10 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   const pending = recovery.request, selectedId = session.selectedId ?? (pending?.command.kind !== 'create' ? pending?.command.requestId : undefined)
   const enabled = activeAt(member, date)
   const dirty = Boolean(session.editor || session.answer || session.upload || session.review || session.management || session.conflict)
-  const locked = Boolean(busy || pending || dirty || exportBusy)
-  const blocked = Boolean(busy || pending || restoring || session.upload || session.conflict || session.answer?.confirmedVersion || exportBusy)
+  const parked = Boolean(session.parked)
+  const hasWork = Boolean(pending || dirty)
+  const locked = Boolean(busy || exportBusy || (!parked && hasWork))
+  const blocked = Boolean(busy || pending || restoring || session.upload || session.conflict || session.answer?.confirmedVersion || exportBusy || parked || !readiness?.available)
   const selectedUnit = detail?.units.find(unit => unit.id === session.answer?.unitId)
   const policy = readiness?.policy
   function setSession(value: Session) { sessionRef.current = value; memory.save(value, Boolean(value.editor || value.answer || value.upload || value.review || value.management || value.conflict)); setSessionState(value) }
@@ -57,10 +60,10 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   useEffect(() => { return () => { life.current++; operation.current = false } }, [server])
   layoutEffect(() => { onNavigationLockChange?.(locked); return () => onNavigationLockChange?.(false) }, [locked, onNavigationLockChange])
   useEffect(() => {
-    if (!locked) return
+    if (!hasWork && !busy && !exportBusy) return
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', warn); return () => window.removeEventListener('beforeunload', warn)
-  }, [locked])
+  }, [hasWork, busy, exportBusy])
   useEffect(() => {
     let current = true
     setLoading(true); setReadError(''); setList(undefined)
@@ -75,7 +78,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   useEffect(() => {
     let current = true
     setDetail(undefined)
-    if (!selectedId || !readiness?.available) return
+    if (!selectedId || !readiness?.available || parked) { setRestoring(false); return }
     setRestoring(true); setReadError('')
     void server.detail(member.id, selectedId).then(async value => {
       // 보관한 공동 초안은 현재 읽기 권한까지 다시 확인한 뒤 표시한다. 원래 버전은 유지한다.
@@ -95,7 +98,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
         }
       }
       if (answer?.confirmedVersion) {
-        if (latestDraft?.version === answer.confirmedVersion) setSession({ ...sessionRef.current, answer: { ...answer, original: latestDraft, input: { text: latestDraft.text, number: latestDraft.number, files: latestDraft.files ?? [] }, confirmedVersion: undefined } })
+        if (latestDraft?.version === answer.confirmedVersion) setSession({ ...sessionRef.current, answer: { ...answer, original: latestDraft, input: { text: latestDraft.text, number: latestDraft.number, files: latestDraft.files ?? [] }, confirmedVersion: undefined, confirmedInput: undefined } })
         else { setSession({ ...sessionRef.current, conflict: true, answer: { ...answer, confirmedVersion: undefined } }); setComparison({ detail: value, draft: latestDraft }); setError('초안 저장 뒤 다른 변경이 확인되었습니다. 최신 내용과 내 입력을 비교해 주세요.') }
       }
     }).catch(failure => {
@@ -104,29 +107,43 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
       setReadError('수합 원본의 접근 권한과 최신 상태를 확인하지 못했습니다. 보관한 입력은 확인 전까지 표시하지 않습니다.')
     }).finally(() => { if (current) setRestoring(false) })
     return () => { current = false }
-  }, [server, member.id, selectedId, readiness?.available, reload, revision])
+  }, [server, member.id, selectedId, readiness?.available, parked, reload, revision])
 
   async function mutate(command: CollectionCommand, key: string = crypto.randomUUID()) {
-    if (operation.current || !readiness?.available || !enabled) return
-    const request = { command: structuredClone(command), key }, epoch = life.current
+    const saved = recovery.request
+    const retry = Boolean(saved && saved.key === key && same(saved.command, command))
+    // 미확정 명령만 준비 해제 중에도 같은 키/본문으로 재확인한다. 새 명령으로 대체하지 않는다.
+    if (operation.current || !enabled || sessionRef.current.parked || (saved && !retry) || (!retry && !readiness?.available)) return
+    const request = structuredClone(retry ? saved! : { command, key }), epoch = life.current
     operation.current = true; recovery.put(request); setBusy('서버에 저장 중…'); setError(''); setNotice('')
     try {
       const receipt = await server.mutate(member.id, request.command, request.key)
       if (!stillHere(epoch)) return
       recovery.remove(key)
       // 접수 확인 이후 조회가 실패하더라도 이미 확인된 저장을 다시 실행하지 않는다.
-      if (command.kind === 'save_draft' && sessionRef.current.answer?.unitId === command.unitId) {
-        // 재제출 사유·선택한 보완 건은 초안 데이터와 별개다. 저장 뒤에도 같은 편집 세션에 남긴다.
-        setSession({ ...sessionRef.current, answer: { ...sessionRef.current.answer, confirmedVersion: receipt.resourceVersion } }); setError('')
+      if (request.command.kind === 'save_draft' && sessionRef.current.answer?.unitId === request.command.unitId) {
+        // 재제출 사유는 유지하고, 접수 뒤 경합은 방금 저장한 원문을 기준으로 비교한다.
+        setSession({ ...sessionRef.current, recoveryConflict: undefined, answer: { ...sessionRef.current.answer, confirmedVersion: receipt.resourceVersion, confirmedInput: structuredClone(request.command.input) } }); setError('')
       } else resetEditing(receipt.requestId)
       setNotice(`서버에서 처리했습니다. 접수 시각 ${receipt.recordedAt}`); setReload(value => value + 1)
     } catch (failure) {
       if (!stillHere(epoch)) return
-      if (knownRejection(failure)) recovery.remove(key)
+      // 준비 해제는 복구를 기다릴 수 있다. 원래 요청을 보존해 새 키로 중복 저장하지 않는다.
+      const retryNotReady = retry && failure instanceof CollectionServerError && failure.code === 'NOT_READY'
+      if (knownRejection(failure) && !retryNotReady) recovery.remove(key)
+      if (failure instanceof CollectionServerError && failure.code === 'IDEMPOTENCY_CONFLICT') setSession({ ...sessionRef.current, recoveryConflict: true })
       if (accessDenied(failure)) hideDenied()
       else if (failure instanceof CollectionServerError && failure.code === 'CONFLICT') { setSession({ ...sessionRef.current, conflict: true }); setComparison(undefined) }
-      setError(failureMessage(failure))
+      setError(retryNotReady ? '서버가 아직 이 요청을 처리할 준비가 되지 않았습니다. 입력과 기존 요청 번호를 보관했습니다. 준비가 돌아오면 같은 요청으로 다시 확인해 주세요.' : failureMessage(failure))
     } finally { if (stillHere(epoch)) { operation.current = false; setBusy('') } }
+  }
+  function parkEditing() {
+    if (operation.current || busy || exportBusy || !hasWork) return
+    setSession({ ...sessionRef.current, parked: true }); setComparison(undefined); setError(''); setNotice('')
+  }
+  function resumeEditing() {
+    if (operation.current || busy || exportBusy) return
+    setDetail(undefined); setComparison(undefined); setSession({ ...sessionRef.current, parked: false }); setError(''); setNotice(''); setReload(value => value + 1)
   }
   async function openAnswer(unitId: string) {
     if (locked || !detail) return
@@ -208,16 +225,16 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   const actionTargetChanged = Boolean(action?.submissionId && comparisonUnit?.currentSubmissionId !== action.submissionId)
   const actionReviews = comparison?.detail.reviews.filter(value => value.submissionId === action?.submissionId) ?? []
   const canRetainAction = !action || Boolean(comparisonUnit && !actionTargetChanged && (session.management?.kind === 'open_correction' ? comparison?.detail.request.managerMemberId === member.id : session.management ? comparisonUnit.responsibleMemberId === member.id && !actionReviews.some(value => value.decision === 'accepted') : comparison?.detail.request.reviewerMemberId === member.id && !actionReviews.length))
-  function retainComparedInput() {
+  function retainComparedInput(resolved?: { editor?: CollectionInput; answer?: AnswerInput }) {
     if (!comparison || !canRetainAction) return
     setDetail(comparison.detail)
     setSession({ ...session, conflict: false,
-      editor: session.editor ? { ...session.editor, original: comparison.detail.request } : undefined,
-      answer: session.answer ? { ...session.answer, original: comparison.draft ?? null } : undefined,
+      editor: session.editor ? { ...session.editor, original: comparison.detail.request, input: resolved?.editor ?? session.editor.input } : undefined,
+      answer: session.answer ? { ...session.answer, original: comparison.draft ?? null, input: resolved?.answer ?? session.answer.input, confirmedInput: undefined } : undefined,
       review: session.review && comparisonUnit ? { ...session.review, expectedVersion: comparisonUnit.version } : undefined,
       management: session.management && comparisonUnit ? { ...session.management, expectedVersion: comparisonUnit.version, confirmed: false } : undefined,
     })
-    setComparison(undefined); setError(''); setNotice('최신 버전을 확인했습니다. 내 입력을 검토한 뒤 저장해 주세요.')
+    setComparison(undefined); setError(''); setNotice('최신 변경과 내 입력을 반영했습니다. 내용을 검토한 뒤 저장해 주세요.')
   }
   const managementUnit = detail?.units.find(value => value.id === session.management?.unitId)
   function submitManagement(event: FormEvent) {
@@ -238,22 +255,23 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     return filePolicy && <label className="cs-file-picker">{label}<input type="file" aria-label={label} disabled={blocked || files.length >= filePolicy.maxFiles} accept={filePolicy.extensions.map(value => `.${value}`).join(',')} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; chooseFile(file, parent, files, filePolicy) }} /><small>{filePolicy.extensions.join(', ')} · 파일당 {formatFileBytes(filePolicy.maxFileBytes)} · 최대 {filePolicy.maxFiles}개</small></label>
   }
   return <section className="collection-server" aria-label="서버 문서 수합"><style>{styles}</style>
-    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" disabled={locked || loading} onClick={() => { setSession({ editor: { input: { ...blank(), fileCollection: { policy: policy!, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
+    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && !parked && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" disabled={locked || loading} onClick={() => { setSession({ editor: { input: { ...blank(), fileCollection: { policy: policy!, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
     {busy && <p role="status">{busy}</p>}{notice && <p className="cs-notice" role="status">{notice}</p>}{error && <p className="cs-error" role="alert">{error}</p>}
-    {pending && <section className="cs-warning" aria-label="수합 저장 결과 확인"><h3>이전 저장 결과 확인이 필요합니다</h3><p>같은 내용과 요청 번호로 다시 확인합니다. 결과가 확인될 때까지 새 저장과 화면 이동을 잠시 멈춥니다. 새로고침하면 보관한 입력이 사라집니다.</p><button type="button" disabled={!!busy || !readiness?.available} onClick={() => { void mutate(pending.command, pending.key) }}>이전 요청 그대로 다시 확인</button></section>}
+    {parked && <section className="cs-notice" aria-label="보관한 수합 작업"><h3>작성 중인 수합 작업을 보관했습니다</h3><p>업무실 안의 다른 메뉴를 이용할 수 있습니다. 자료 수합으로 돌아와 보관한 입력{pending ? '과 기존 요청 번호로 결과를' : '을'} 다시 확인해 주세요.</p><p>새로고침·탭 닫기·로그아웃·학교 변경 시 보관 내용이 사라질 수 있습니다. 이 보관은 서버 저장이 아닙니다.</p><button type="button" disabled={!!busy || exportBusy} onClick={resumeEditing}>보관한 입력과 요청 다시 열기</button></section>}
+    {pending && !parked && <section className="cs-warning" aria-label="수합 저장 결과 확인"><h3>이전 저장 결과 확인이 필요합니다</h3><p>같은 내용과 요청 번호로 다시 확인합니다. 결과를 확인하기 전에는 새 저장을 하지 않습니다. 서버 준비가 해제돼도 이전 요청의 결과는 다시 확인할 수 있습니다.</p>{session.recoveryConflict && <p role="alert">기존 요청 기록과 일치하지 않아 자동으로 새 요청을 만들지 않습니다. 보관한 상태로 관리자에게 확인해 주세요.</p>}<button type="button" disabled={!!busy || !enabled} onClick={() => { void mutate(pending.command, pending.key) }}>이전 요청 그대로 다시 확인</button></section>}
+    {!parked && hasWork && (pending || !readiness?.available) && <section className="cs-warning" aria-label="수합 입력 임시 보관"><p>지금 확인하기 어렵다면 입력과 기존 요청 번호를 이 탭에 보관하고 업무실 안의 다른 메뉴를 이용할 수 있습니다. 새로고침하면 보관 내용이 사라집니다.</p><button type="button" disabled={!!busy || exportBusy} onClick={parkEditing}>입력 보관하고 다른 메뉴 이용</button></section>}
     {readError && <section className="cs-error" role="alert"><p>{readError}</p><button type="button" disabled={!!busy} onClick={() => setReload(value => value + 1)}>연결과 원본 다시 확인</button></section>}
     {loading && <p role="status">수합 연결과 목록을 확인 중…</p>}
     {!loading && readiness && !readiness.available && <section className="cs-empty"><h3>문서 수합 연결 준비가 필요합니다</h3><p>{readiness.reason === 'database_missing' ? '문서 수합용 DB 함수가 아직 준비되지 않았습니다.' : readiness.reason === 'storage_missing' ? '문서 수합용 파일 저장소 연결이 아직 준비되지 않았습니다.' : readiness.reason === 'verification_missing' ? '업로드한 파일을 서버에서 확인하는 기능이 아직 준비되지 않았습니다.' : '학교의 파일 허용 정책을 먼저 설정해야 합니다.'}</p><p>연결 확인 전에는 등록·업로드·제출을 실행하지 않습니다.</p><button type="button" onClick={() => setReload(value => value + 1)}>준비 상태 다시 확인</button></section>}
-    {(!readiness?.available || (readError && !detail && !restoring)) && dirty && !pending && (!session.upload || session.upload.cancelable || session.upload.rejected) && <button type="button" disabled={!!busy} onClick={() => { resetEditing(); setNotice('보관한 입력을 버렸습니다. 다른 메뉴로 이동할 수 있습니다.') }}>입력 버리고 닫기</button>}
-    {readiness?.available && <>
+    {!parked && (!readiness?.available || (readError && !detail && !restoring)) && dirty && !pending && (!session.upload || session.upload.cancelable || session.upload.rejected) && <button type="button" disabled={!!busy} onClick={() => { resetEditing(); setNotice('보관한 입력을 버렸습니다. 다른 메뉴로 이동할 수 있습니다.') }}>입력 버리고 닫기</button>}
+    {readiness?.available && !parked && <>
       {session.conflict && <section className="cs-warning" aria-label="수합 변경 충돌">
         <h3>최신 내용과 내 입력을 비교해 주세요</h3>
-        {comparison ? <><div className="cs-comparison"><div><h4>현재 서버 내용</h4>
-          {session.answer ? <p>{comparison.draft?.text || '추가 답변 없음'} · {(comparison.draft?.files ?? []).map(file => file.name).join(', ') || '파일 없음'}</p> : action ? <><p>{comparisonUnit?.label ?? '현재 열람할 수 없는 제출 단위'} · 상태 {comparisonUnit?.version ?? '확인 필요'}판</p><p>현재 제출: {comparison.detail.submissions.find(value => value.id === comparisonUnit?.currentSubmissionId)?.revision ?? '없음'}판</p><p>정정 기한: {comparisonUnit?.correctionUntil || '설정 없음'}</p><p>{comparisonUnit?.correctionReason}</p></> : <><strong>{comparison.detail.request.title}</strong><p>{comparison.detail.request.instructions}</p><p>기한 {comparison.detail.request.dueDate} · 제출 단위 {comparison.detail.request.units.length}개</p><p>{comparison.detail.request.fileCollection?.templates.map(file => file.name).join(', ') || '양식 없음'}</p></>}
-        </div><div><h4>내 입력</h4>
-          {session.answer ? <p>{session.answer.input.text || '추가 답변 없음'} · {(session.answer.input.files ?? []).map(file => file.name).join(', ') || '파일 없음'}</p> : session.editor ? <><strong>{session.editor.input.title}</strong><p>{session.editor.input.instructions}</p><p>기한 {session.editor.input.dueDate} · 제출 단위 {session.editor.input.units.length}개</p><p>{session.editor.input.fileCollection?.templates.map(file => file.name).join(', ') || '양식 없음'}</p></> : session.management ? <><p>{session.management.kind === 'withdraw' ? '철회' : '정정 허용'} 사유: {session.management.reason}</p><p>{session.management.dueDate && `정정 기한: ${session.management.dueDate}`}</p></> : <p>검토 의견: {session.review?.note || '없음'}</p>}
-        </div></div>
-          {canRetainAction ? <button type="button" disabled={!!busy} onClick={retainComparedInput}>최신 버전 확인 · 내 입력 유지</button> : <p role="alert">대상 제출 또는 변경 권한이 달라졌습니다. 이 입력을 새 제출에 적용할 수 없습니다. 기존 작성을 닫고 최신 제출을 확인해 주세요.</p>}
+        {comparison ? <>
+          {session.editor?.original ? <CollectionInputComparison base={inputOf(session.editor.original)} latest={inputOf(comparison.detail.request)} mine={session.editor.input} members={members.filter(person => person.schoolId === member.schoolId)} disabled={!!busy || !!pending} onResolve={input => retainComparedInput({ editor: input })} />
+            : session.answer ? <AnswerInputComparison base={session.answer.confirmedInput ?? { text: session.answer.original?.text ?? '', number: session.answer.original?.number ?? null, files: session.answer.original?.files ?? [] }} latest={{ text: comparison.draft?.text ?? '', number: comparison.draft?.number ?? null, files: comparison.draft?.files ?? [] }} mine={session.answer.input} labels={{ text: comparison.detail.request.textLabel, number: comparison.detail.request.numberLabel }} disabled={!!busy || !!pending} onResolve={input => retainComparedInput({ answer: input })} />
+            : <><div className="cs-comparison"><div><h4>현재 서버 내용</h4><p>{comparisonUnit?.label ?? '현재 열람할 수 없는 제출 단위'} · 상태 {comparisonUnit?.version ?? '확인 필요'}판</p><p>현재 제출: {comparison.detail.submissions.find(value => value.id === comparisonUnit?.currentSubmissionId)?.revision ?? '없음'}판</p><p>정정 기한: {comparisonUnit?.correctionUntil || '설정 없음'}</p><p>{comparisonUnit?.correctionReason}</p></div><div><h4>내 입력</h4>{session.management ? <><p>{session.management.kind === 'withdraw' ? '철회' : '정정 허용'} 사유: {session.management.reason}</p><p>{session.management.dueDate && `정정 기한: ${session.management.dueDate}`}</p></> : <p>검토 의견: {session.review?.note || '없음'}</p>}</div></div>
+              {canRetainAction ? <button type="button" disabled={!!busy} onClick={() => retainComparedInput()}>최신 버전 확인 · 내 입력 유지</button> : <p role="alert">대상 제출 또는 변경 권한이 달라졌습니다. 이 입력을 새 제출에 적용할 수 없습니다. 기존 작성을 닫고 최신 제출을 확인해 주세요.</p>}</>}
         </> : <button type="button" disabled={!!busy} onClick={() => { void compareLatest() }}>최신 원본과 비교</button>}
         <button type="button" disabled={!!busy || !!pending} onClick={() => { resetEditing(selectedId); setReload(value => value + 1) }}>내 변경 버리고 다시 열기</button>
       </section>}
