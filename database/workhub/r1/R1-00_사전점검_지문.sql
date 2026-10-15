@@ -13,7 +13,10 @@
 --   R0구조     R0 표 22개의 열·제약·트리거·RLS·권한, R0 함수 37개의 본문·설정·권한, actor_context 형
 --              (R0 작업 목록 CHECK service_principals_action_registry 는 R1-01 이 의도적으로 넓히므로 뺀다 — 설계결정 참고)
 --   R0자료     R0 표 22개의 행 수·행 해시 (R1-01~04 는 R0 자료를 쓰지 않는다. R1-05·06 은 쓴다 → 비교는 R1-04 까지)
---   기존자료   public 의 모든 표 행 수·행 해시, auth.users 의 id 목록, storage 의 다른 버킷·파일 목록
+--   기존자료   public 의 모든 표 행 수·행 해시, auth.users 의 id 목록, storage 의 다른 버킷 행·파일 목록
+--              ※ 범위의 한계: auth 는 id 만, storage.objects 는 버킷·경로·객체 ID·owner 네 열만 본다.
+--                 파일 본문 바이트·비밀번호·세션 같은 나머지 열은 지문에 없다 → "같음"은 그 범위에서만의 증거다.
+--                 파일 본문 보존은 실행안내 7번(기존 파일 1개 내려받아 열기)으로 따로 확인한다.
 -- ▣ 실제 운영 DB 에서는 두 번 실행하는 사이에 교사가 가입·제출·로그인하면 '자료' 지문이 달라질 수 있다.
 --   그때는 rows 수 변화가 그 사이 사용으로 설명되는지 보고, 구조 지문(기존구조·R0구조)은 반드시 같아야 한다.
 -- ============================================================================
@@ -80,6 +83,10 @@ SELECT '점검', 'P5 다른 버킷까지 여는 Storage 정책',
        CASE WHEN (SELECT count(*) FROM open_policies) = 0 THEN 'ok' ELSE 'WARN' END, NULL, (SELECT count(*) FROM open_policies),
        COALESCE('버킷을 한정하지 않은 정책: ' || (SELECT string_agg(polname, ', ' ORDER BY polname) FROM open_policies)
                 || ' → R1 준비 상태가 storage_missing 이 된다(설치는 됨).', '기존 정책은 모두 다른 버킷으로 한정됨')
+UNION ALL
+SELECT '점검', 'P8 Storage 요청 종류 표식(storage.operation)',
+       CASE WHEN to_regprocedure('storage.operation()') IS NOT NULL THEN 'ok' ELSE 'FAIL' END, NULL, NULL,
+       'R1-03 의 Storage 정책이 서명 URL 발급을 막으려면 이 함수가 있는 Storage 판이어야 한다. 없으면 R1-03 이 시작 전에 멈춘다.'
 UNION ALL
 SELECT '점검', 'P6 R1 적용 단계', 'info', NULL, NULL,
        CASE WHEN to_regclass('workhub_private.batch_installs') IS NULL THEN '미적용(R1-01 전)'
@@ -150,12 +157,12 @@ SELECT '지문', 'F9 기존자료: ' || c.oid::regclass::text, NULL,
        (xpath('/row/n/text()', query_to_xml(format('SELECT count(*) AS n FROM %s', c.oid::regclass), false, true, '')))[1]::text::bigint, NULL
   FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r','p')
 UNION ALL
-SELECT '지문', 'F9 기존자료: auth.users(id 목록)', NULL, md5(COALESCE(string_agg(id::text, '|' ORDER BY id), '')), count(*), NULL FROM auth.users
+SELECT '지문', 'F9 기존자료: auth.users(id 목록만)', NULL, md5(COALESCE(string_agg(id::text, '|' ORDER BY id), '')), count(*), NULL FROM auth.users
 UNION ALL
 SELECT '지문', 'F9 기존자료: storage.buckets(수합 버킷 제외)', NULL, md5(COALESCE(string_agg(b::text, '|' ORDER BY b.id), '')), count(*), NULL
   FROM storage.buckets b WHERE b.id NOT IN (SELECT id FROM r1_bucket)
 UNION ALL
-SELECT '지문', 'F9 기존자료: storage.objects(수합 버킷 제외, 목록)', NULL,
+SELECT '지문', 'F9 기존자료: storage.objects(수합 버킷 제외, 목록 4열 — 본문 아님)', NULL,
        md5(COALESCE(string_agg(o.bucket_id || '/' || o.name || ':' || o.id::text || ':' || COALESCE(o.owner::text, ''), '|' ORDER BY o.bucket_id, o.name, o.id), '')), count(*), NULL
   FROM storage.objects o WHERE o.bucket_id NOT IN (SELECT id FROM r1_bucket)
 ORDER BY 1, 2;

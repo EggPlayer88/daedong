@@ -529,6 +529,7 @@ CREATE TABLE workhub.deletion_ledger (
   blocked_at                timestamptz NOT NULL DEFAULT clock_timestamp(),
   lease_token               bigint NOT NULL,
   lease_expires_at          timestamptz NOT NULL,
+  leased_by_service_id      text NOT NULL,
   completed_at              timestamptz,
   retained_reason           text,
   manifest_sha256           text NOT NULL,
@@ -540,6 +541,7 @@ CREATE TABLE workhub.deletion_ledger (
   CONSTRAINT deletion_ledger_policy_fkey FOREIGN KEY (retention_policy_scope_key, retention_policy_version_id)
     REFERENCES workhub.policy_versions(scope_key, id) MATCH FULL,
   CONSTRAINT deletion_ledger_requested_by_fkey FOREIGN KEY (requested_by_service_id) REFERENCES workhub.service_principals(id),
+  CONSTRAINT deletion_ledger_leased_by_fkey FOREIGN KEY (leased_by_service_id) REFERENCES workhub.service_principals(id),
   CONSTRAINT deletion_ledger_resource_type_check CHECK (resource_type = 'file_object'),
   CONSTRAINT deletion_ledger_reason_check CHECK (reason IN ('upload_expired','rejected_file','unattached_retention')),
   CONSTRAINT deletion_ledger_state_check CHECK (state IN ('blocked','completed','retained')),
@@ -553,8 +555,8 @@ LANGUAGE plpgsql SET search_path = '' AS $$
 BEGIN
   IF TG_OP = 'DELETE' OR OLD.state <> 'blocked'
      -- scope_key 는 생성 열이라 BEFORE 트리거의 NEW 에서 NULL 이다 → 비교에서 뺀다(원천 열 school_id 는 비교됨).
-     OR (to_jsonb(NEW) - ARRAY['state','completed_at','retained_reason','lease_token','lease_expires_at','scope_key'])
-        IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['state','completed_at','retained_reason','lease_token','lease_expires_at','scope_key']) THEN
+     OR (to_jsonb(NEW) - ARRAY['state','completed_at','retained_reason','lease_token','lease_expires_at','leased_by_service_id','scope_key'])
+        IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['state','completed_at','retained_reason','lease_token','lease_expires_at','leased_by_service_id','scope_key']) THEN
     RAISE EXCEPTION 'IMMUTABLE_ROW' USING DETAIL = '정리 원장은 대상·근거·지문을 바꿀 수 없고, 끝난 행은 고치지 않습니다.';
   END IF;
   RETURN NEW;

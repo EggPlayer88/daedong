@@ -1,5 +1,5 @@
 -- ============================================================================
--- R1-03  수합 공개 함수 9개 · 검증 작업자 함수 6개 · 비공개 버킷 · Storage 정책 2개
+-- R1-03  수합 공개 함수 9개 · 검증 작업자 함수 8개 · 비공개 버킷 · Storage 정책 2개
 --
 -- 요청서: docs/workhub/32-collection-server-sql-request.md (PR #34) §3~§6·§8
 -- 입출력·오류 대응: R1_호환함수_입출력.md · 설계 근거: R1_설계결정.md
@@ -49,6 +49,11 @@ BEGIN
   IF (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'storage' AND table_name = 'objects'
         AND column_name IN ('id','bucket_id','name','owner','owner_id')) <> 5 THEN
     RAISE EXCEPTION 'R1 중단: storage.objects 에 id·bucket_id·name·owner·owner_id 열이 모두 있어야 합니다(Storage 판 확인).';
+  END IF;
+  -- 서명 URL 발급을 정책에서 막으려면 Storage 가 요청 종류를 storage.operation 설정으로 알려 주는 판이어야 한다.
+  -- storage.operation() 함수가 그 판의 표식이다(Supabase Storage tenant migration 0024).
+  IF to_regprocedure('storage.operation()') IS NULL THEN
+    RAISE EXCEPTION 'R1 중단: storage.operation() 이 없습니다. 서명 URL 차단을 판정할 수 없는 Storage 판입니다.';
   END IF;
   IF EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'workhub_storage') THEN
     RAISE EXCEPTION 'R1 중단: workhub_storage schema 가 이미 있습니다.';
@@ -743,6 +748,8 @@ BEGIN
     v_cur := ARRAY(SELECT file_id FROM workhub.unit_draft_files
                     WHERE school_id = p_ctx.school_id AND draft_id = p_draft AND unlinked_at IS NULL ORDER BY ordinal);
   END IF;
+  -- 개수 상한은 요청 정책(c_file_refs 가 이미 검사)과 오늘 유효한 정책(공통 ∩ 학교) 중 작은 값. 정책이 줄었으면 새 저장부터 따른다.
+  IF cardinality(v_new) > (p_eff -> 'file' ->> 'maxFiles')::integer THEN RAISE EXCEPTION 'FILE_FAILED'; END IF;
   -- 파일 잠금은 ID 순(정리 작업·검증 봉인과 같은 순서). GC 판단과 첨부 확정이 같은 행에서 경쟁한다.
   PERFORM 1 FROM workhub.file_objects WHERE school_id = p_ctx.school_id AND id = ANY (v_new) ORDER BY id FOR UPDATE;
   FOR e IN SELECT x FROM jsonb_array_elements(COALESCE(p_refs, '[]'::jsonb)) x LOOP
@@ -1001,7 +1008,10 @@ BEGIN
   SELECT * INTO d FROM workhub.unit_drafts WHERE school_id = p_ctx.school_id AND id = p_cmd ->> 'draftId' AND unit_id = u.id AND schema_id = s.id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
   IF d.version <> (p_cmd ->> 'expectedDraftVersion')::integer THEN RAISE EXCEPTION 'CONFLICT'; END IF;
-  -- 상세 1회 응답 한도(제출판 1,000)를 넘기면 이력이 잘린다 → 더 받지 않는다
+  -- 상세 1회 응답 한도(제출판 1,000)를 넘기면 이력이 잘린다 → 더 받지 않는다.
+  -- 단위 잠금만으로는 다른 단위의 동시 제출을 막지 못하므로, 세기 전에 수합 단위 잠금을 잡는다(트랜잭션 끝에 풀림).
+  -- 잠금 순서는 항상 단위 행 → 이 잠금이고, 이 잠금을 잡은 뒤 다른 단위 행을 잠그지 않으므로 순환 대기가 없다.
+  PERFORM pg_advisory_xact_lock(hashtextextended('workhub.collection.submit:' || c.school_id || chr(31) || c.id, 0));
   IF (SELECT count(*) FROM workhub.submission_versions WHERE school_id = c.school_id AND collection_id = c.id) >= 1000 THEN
     RAISE EXCEPTION 'NOT_READY';
   END IF;
@@ -1026,6 +1036,11 @@ BEGIN
   END IF;
   v_files := ARRAY(SELECT df.file_id FROM workhub.unit_draft_files df WHERE df.school_id = d.school_id AND df.draft_id = d.id AND df.unlinked_at IS NULL ORDER BY df.file_id);
   PERFORM 1 FROM workhub.file_objects WHERE school_id = p_ctx.school_id AND id = ANY (v_files) ORDER BY id FOR UPDATE;
+  -- 첨부 개수: 저장 당시가 아니라 제출 시점의 요청 정책 ∩ 오늘 유효한 정책으로 다시 본다(이미 받은 과거 제출판은 그대로).
+  IF cardinality(v_files) > 0 AND (s.file_policy IS NULL
+       OR cardinality(v_files) > least((s.file_policy ->> 'maxFiles')::integer, (p_eff -> 'file' ->> 'maxFiles')::integer)) THEN
+    RAISE EXCEPTION 'FILE_FAILED';
+  END IF;
   FOR f IN SELECT * FROM workhub.file_objects WHERE school_id = p_ctx.school_id AND id = ANY (v_files) LOOP
     v_code := workhub_private.c_file_problem(f, p_eff, s.file_policy);
     IF v_code IS NOT NULL THEN RAISE EXCEPTION '%', v_code; END IF;
@@ -1527,12 +1542,22 @@ END $$;
 -- ----------------------------------------------------------------------------
 -- 10. Storage 정책 판정 — 실제 업로드·내려받기 요청 시점에 Storage 가 부른다
 -- ----------------------------------------------------------------------------
--- 업로드: 이 JWT 가 소유한 만료 전 예약(uploading)의 정확한 경로만. 소속·승인 gate 를 다시 통과해야 한다.
+-- Storage 가 요청마다 넣는 요청 종류(storage.operation, 예: 'storage.object.upload'). 'storage.' 접두어는 떼고 비교한다.
+-- 허용 목록 방식: 로그인 사용자의 직접 업로드(object.upload)·직접 내려받기(object.get_authenticated)만 통과한다.
+-- 서명 URL 발급(object.sign·sign_many·sign_upload_url)·목록·이동·복사·TUS·S3 등은 모두 거부된다.
+--   서명 내려받기 URL 은 이후 접근 기록 회수·소속 종료를 다시 보지 않고, 서명 업로드 URL 은 검증 뒤 덮어쓰기 길을 연다.
+-- 값이 없으면(NULL) 거부한다 — 판정할 수 없으면 닫는 쪽.
+CREATE FUNCTION workhub_private.c_storage_op() RETURNS text
+LANGUAGE sql STABLE SET search_path = '' AS $$
+  SELECT CASE WHEN v LIKE 'storage.%' THEN substr(v, 9) ELSE v END FROM (SELECT NULLIF(current_setting('storage.operation', true), '') AS v) x
+$$;
+
+-- 업로드: 이 JWT 가 소유한 만료 전 예약(uploading)의 정확한 경로만, 직접 업로드 요청일 때만. 소속·승인 gate 를 다시 통과해야 한다.
 CREATE FUNCTION workhub_storage.object_insertable(p_name text) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_uid uuid := auth.uid(); f workhub.file_objects; ctx workhub_private.actor_context;
 BEGIN
-  IF v_uid IS NULL OR workhub_private.c_switch() <> 'open' THEN RETURN false; END IF;
+  IF v_uid IS NULL OR workhub_private.c_switch() <> 'open' OR workhub_private.c_storage_op() IS DISTINCT FROM 'object.upload' THEN RETURN false; END IF;
   SELECT * INTO f FROM workhub.file_objects WHERE bucket = 'workhub-collection-files' AND storage_key = p_name;
   IF f.id IS NULL OR f.state <> 'uploading' OR f.upload_expires_at <= clock_timestamp()
      OR NOT EXISTS (SELECT 1 FROM workhub.accounts a WHERE a.id = f.owner_account_id AND a.auth_user_id = v_uid)
@@ -1546,19 +1571,22 @@ BEGIN
   RETURN ctx.account_id = f.owner_account_id AND workhub_private.c_intent_ok(ctx, f.id);
 END $$;
 
--- 읽기: (1) 업로드 중 업로더 본인의 되읽기(INSERT ... RETURNING 이 SELECT 정책을 거치는 경우)
---       (2) ready 파일에 대해 이 계정의 만료 전·미회수 접근 기록이 있고, 그 소속으로 원본 해석을 지금 다시 통과
+-- 읽기: (1) 업로드 요청 안에서 업로더 본인의 되읽기(INSERT ... RETURNING 이 SELECT 정책을 거치는 경우)
+--       (2) 직접 내려받기 요청에서, ready 파일에 대해 이 계정의 만료 전·미회수 접근 기록이 있고 그 소속으로 원본 해석을 지금 다시 통과
+--       서명 URL 발급·목록 조회 등 다른 요청 종류는 거부(c_storage_op 설명).
 CREATE FUNCTION workhub_storage.object_readable(p_name text) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v_uid uuid := auth.uid(); f workhub.file_objects; g record; ctx workhub_private.actor_context; res jsonb;
+DECLARE v_uid uuid := auth.uid(); f workhub.file_objects; g record; ctx workhub_private.actor_context; res jsonb; v_op text := workhub_private.c_storage_op();
 BEGIN
-  IF v_uid IS NULL OR workhub_private.c_switch() = 'all_stopped' THEN RETURN false; END IF;
+  IF v_uid IS NULL OR workhub_private.c_switch() = 'all_stopped' OR v_op IS NULL OR v_op NOT IN ('object.upload', 'object.get_authenticated') THEN
+    RETURN false;
+  END IF;
   SELECT * INTO f FROM workhub.file_objects WHERE bucket = 'workhub-collection-files' AND storage_key = p_name;
   IF f.id IS NULL THEN RETURN false; END IF;
   IF f.state = 'uploading' THEN
     RETURN workhub_storage.object_insertable(p_name);
   END IF;
-  IF f.state <> 'ready' THEN RETURN false; END IF;
+  IF f.state <> 'ready' OR v_op <> 'object.get_authenticated' THEN RETURN false; END IF;
   FOR g IN SELECT ag.* FROM workhub.file_access_grants ag JOIN workhub.accounts a ON a.id = ag.granted_to_account_id
             WHERE ag.school_id = f.school_id AND ag.file_id = f.id AND a.auth_user_id = v_uid
               AND ag.revoked_at IS NULL AND ag.expires_at > clock_timestamp()
@@ -1630,9 +1658,47 @@ BEGIN
   RETURN jsonb_build_object('servicePrincipalId', ctx.service_principal_id, 'expiresAt', workhub_private.c_iso(v_exp));
 END $$;
 
+-- 작업의 검사 기준: 예약 당시 고정한 정책판(학교·공통) ∩ 오늘 유효한 정책(있으면). 검사 도중 정책이 줄었으면 더 엄격한 쪽.
+-- 압축 해제 한도(항목 수·확장 크기·압축률·XML 크기)는 아직 승인 정책 항목이 아니다 → 작업자의 기술 상한을 쓴다(후속 명세 3절).
+CREATE FUNCTION workhub_private.c_job_policy(f workhub.file_objects, p_today date) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE u jsonb; c jsonb; eff jsonb := workhub_private.c_effective(f.school_id, p_today); v_ext text[]; v_max bigint;
+BEGIN
+  SELECT value INTO u FROM workhub.policy_versions WHERE scope_key = f.safety_policy_scope_key AND id = f.safety_policy_version_id;
+  SELECT value INTO c FROM workhub.policy_versions WHERE scope_key = f.common_safety_policy_scope_key AND id = f.common_safety_policy_version_id;
+  v_ext := ARRAY(SELECT e FROM unnest(ARRAY['pdf','hwp','hwpx','docx','xlsx','pptx']) WITH ORDINALITY x(e, o)
+                 WHERE (u -> 'extensions') ? e AND (c -> 'extensions') ? e
+                   AND (eff IS NULL OR (eff -> 'file' -> 'extensions') ? e) ORDER BY o);
+  v_max := least((u ->> 'maxFileBytes')::bigint, (c ->> 'maxFileBytes')::bigint, (eff -> 'file' ->> 'maxFileBytes')::bigint);
+  RETURN jsonb_build_object('uploadPolicyId', f.safety_policy_version_id, 'commonPolicyId', f.common_safety_policy_version_id,
+    'currentUploadPolicyId', eff ->> 'uploadPolicyId', 'currentCommonPolicyId', eff ->> 'commonPolicyId',
+    'extensions', to_jsonb(v_ext), 'maxFileBytes', v_max,
+    'allowUnscanned', COALESCE((u ->> 'allowUnscanned')::boolean AND (c ->> 'allowUnscanned')::boolean
+                               AND (eff IS NULL OR (eff ->> 'allowUnscanned')::boolean), false));
+END $$;
+
+-- 검증 작업을 끝내지 못하고 닫을 때(시도 초과·실물 없음/바뀜·파일 상태): 작업 failed, 파일 rejected, 감사·outbox 를 한 트랜잭션에.
+-- 같은 작업은 failed 가 된 뒤 다시 고르지 않으므로 기록이 중복되지 않는다. 기록이 실패하면 호출 전체가 되돌아간다.
+CREATE FUNCTION workhub_private.c_job_close(p_ctx workhub_private.actor_context, j workhub.file_verification_jobs, f workhub.file_objects,
+  p_code text, p_worker text) RETURNS workhub.file_objects
+LANGUAGE plpgsql SET search_path = '' AS $$
+BEGIN
+  UPDATE workhub.file_verification_jobs SET state = 'failed', finished_at = clock_timestamp(), lease_owner = NULL, lease_expires_at = NULL,
+         leased_by_service_id = NULL, last_error_code = p_code
+   WHERE id = j.id;
+  IF f.state IN ('uploaded','verifying') THEN
+    UPDATE workhub.file_objects SET state = 'rejected', reject_reason = p_code, version = f.version + 1 WHERE id = f.id RETURNING * INTO f;
+    PERFORM workhub_private.emit_outbox(p_ctx, 'file.verified', 'file_object', f.id, f.version, jsonb_build_object('file_id', f.id, 'state', f.state));
+  END IF;
+  PERFORM workhub_private.write_audit(p_ctx, 'file.verify_fail', 'file_object', f.id, f.version, 'school', NULL,
+    jsonb_build_object('job_id', j.id, 'error_code', p_code, 'final', true, 'worker_id', p_worker));
+  RETURN f;
+END $$;
+
 CREATE FUNCTION public.workhub_file_worker_claim(p_school_id text, p_worker_id text, p_limit integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE ctx workhub_private.actor_context; j workhub.file_verification_jobs; f workhub.file_objects; o jsonb; v_out jsonb := '[]'::jsonb;
+DECLARE ctx workhub_private.actor_context; j workhub.file_verification_jobs; f workhub.file_objects; o jsonb; v_out jsonb := '[]'::jsonb; v_code text;
+  v_policy jsonb;
 BEGIN
   ctx := workhub_private.worker_actor('file.verify', p_school_id);
   IF p_worker_id IS NULL OR p_worker_id !~ '^[A-Za-z0-9_.:-]{1,100}$' OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 20 THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
@@ -1643,56 +1709,80 @@ BEGIN
             ORDER BY next_attempt_at, id LIMIT p_limit FOR UPDATE SKIP LOCKED LOOP
     SELECT * INTO f FROM workhub.file_objects WHERE school_id = j.school_id AND id = j.file_id FOR UPDATE;
     o := workhub_private.c_object_owner(f.bucket, f.storage_key);
-    IF j.attempts >= j.max_attempts OR o IS NULL OR (o ->> 'id')::uuid IS DISTINCT FROM f.storage_object_id OR f.state NOT IN ('uploaded','verifying') THEN
-      UPDATE workhub.file_verification_jobs SET state = 'failed', finished_at = clock_timestamp(), lease_owner = NULL, lease_expires_at = NULL,
-             leased_by_service_id = NULL,
-             last_error_code = CASE WHEN j.attempts >= j.max_attempts THEN 'verification_exhausted' WHEN o IS NULL THEN 'object_missing'
-                                    WHEN f.state NOT IN ('uploaded','verifying') THEN 'file_state' ELSE 'object_changed' END
-       WHERE id = j.id;
-      IF f.state IN ('uploaded','verifying') THEN
-        UPDATE workhub.file_objects SET state = 'rejected', version = f.version + 1,
-               reject_reason = CASE WHEN j.attempts >= j.max_attempts THEN 'verification_exhausted' WHEN o IS NULL THEN 'object_missing' ELSE 'object_changed' END
-         WHERE id = f.id;
-      END IF;
+    v_code := CASE WHEN f.state NOT IN ('uploaded','verifying') THEN 'file_state'
+                   WHEN j.attempts >= j.max_attempts THEN 'verification_exhausted'
+                   WHEN o IS NULL THEN 'object_missing'
+                   WHEN (o ->> 'id')::uuid IS DISTINCT FROM f.storage_object_id THEN 'object_changed' END;
+    IF v_code IS NOT NULL THEN
+      PERFORM workhub_private.c_job_close(ctx, j, f, v_code, p_worker_id);
       CONTINUE;
     END IF;
     UPDATE workhub.file_verification_jobs SET state = 'leased', attempts = j.attempts + 1, lease_owner = p_worker_id, lease_token = j.lease_token + 1,
            lease_expires_at = clock_timestamp() + interval '5 minutes', leased_by_service_id = ctx.service_principal_id
      WHERE id = j.id RETURNING * INTO j;
     IF f.state = 'uploaded' THEN UPDATE workhub.file_objects SET state = 'verifying', version = f.version + 1 WHERE id = f.id; END IF;
+    v_policy := workhub_private.c_job_policy(f, ctx.school_today);
     v_out := v_out || jsonb_build_array(jsonb_build_object('jobId', j.id, 'leaseToken', j.lease_token, 'leaseExpiresAt', workhub_private.c_iso(j.lease_expires_at),
       'fileId', f.id, 'bucket', f.bucket, 'path', f.storage_key, 'storageObjectId', f.storage_object_id, 'extension', f.extension,
-      'claimedBytes', f.claimed_bytes, 'claimedSha256', f.claimed_sha256, 'maxFileBytes', 104857600));
+      'claimedBytes', f.claimed_bytes, 'claimedSha256', f.claimed_sha256, 'maxFileBytes', v_policy -> 'maxFileBytes', 'policy', v_policy));
   END LOOP;
   RETURN v_out;
 END $$;
 
--- 봉인: lease·주체·경로·실물 정체성·결과 모양을 모두 대조한다. 같은 결과의 재봉인은 같은 응답(멱등).
+-- 검증 작업 lease 확인(읽기 전용): 작업자가 내려받기·검사 전후, 봉인 직전에 자기 lease 가 아직 유효한지와 현재 검사 기준을 본다.
+-- 끝난 작업이면 결과(outcome)와 파일 상태를 돌려준다 — 봉인 응답을 잃었을 때 복구용. 다른 주체의 작업은 NOT_FOUND.
+CREATE FUNCTION public.workhub_file_worker_job_inspect(p_job_id text, p_lease_token bigint) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE ctx workhub_private.actor_context; j workhub.file_verification_jobs; f workhub.file_objects; o jsonb;
+BEGIN
+  IF p_job_id IS NULL OR p_lease_token IS NULL THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
+  SELECT * INTO j FROM workhub.file_verification_jobs WHERE id = p_job_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
+  ctx := workhub_private.worker_actor('file.verify', j.school_id);
+  SELECT * INTO f FROM workhub.file_objects WHERE school_id = j.school_id AND id = j.file_id;
+  o := workhub_private.c_object_owner(f.bucket, f.storage_key);
+  RETURN jsonb_build_object('jobId', j.id, 'fileId', f.id, 'state', j.state, 'outcome', j.outcome, 'lastErrorCode', j.last_error_code,
+    'leaseValid', j.state = 'leased' AND j.lease_token = p_lease_token AND j.leased_by_service_id IS NOT DISTINCT FROM ctx.service_principal_id
+                  AND j.lease_expires_at > clock_timestamp() AND workhub_private.c_switch() <> 'all_stopped',
+    'leaseExpiresAt', workhub_private.c_iso(j.lease_expires_at), 'fileState', f.state,
+    'bucket', f.bucket, 'path', f.storage_key, 'storageObjectId', f.storage_object_id,
+    'objectMatches', o IS NOT NULL AND (o ->> 'id')::uuid IS NOT DISTINCT FROM f.storage_object_id,
+    'policy', workhub_private.c_job_policy(f, ctx.school_today));
+END $$;
+
+-- 봉인: lease·주체·만료·경로·실물 정체성·결과 모양을 모두 대조한다(NULL 인자는 INVALID_INPUT, 비교는 NULL 안전).
+-- 같은 인자·같은 결과의 재봉인은 같은 응답(멱등). 전체 중지(all_stopped) 중에는 새 봉인을 받지 않는다(NOT_READY).
 CREATE FUNCTION public.workhub_file_worker_seal(p_job_id text, p_lease_token bigint, p_file_id text, p_path text, p_storage_object_id uuid, p_result jsonb)
 RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE ctx workhub_private.actor_context; j workhub.file_verification_jobs; f workhub.file_objects; o jsonb; v_sha text; v_outcome text; v_checks jsonb;
+  v_worker text;
 BEGIN
+  IF p_job_id IS NULL OR p_lease_token IS NULL OR p_file_id IS NULL OR p_path IS NULL OR p_storage_object_id IS NULL OR p_result IS NULL THEN
+    RAISE EXCEPTION 'INVALID_INPUT';
+  END IF;
   SELECT * INTO j FROM workhub.file_verification_jobs WHERE id = p_job_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
   ctx := workhub_private.worker_actor('file.verify', j.school_id);
-  IF p_result IS NULL OR jsonb_typeof(p_result) <> 'object' OR octet_length(p_result::text) > 4096 THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
+  IF jsonb_typeof(p_result) <> 'object' OR octet_length(p_result::text) > 4096 THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
   v_sha := workhub_private.request_sha256(jsonb_build_object('job', p_job_id, 'token', p_lease_token, 'file', p_file_id, 'path', p_path,
                                                               'object', p_storage_object_id, 'result', p_result));
   IF j.state = 'done' THEN
-    IF j.result_sha256 = v_sha THEN
+    IF j.result_sha256 IS NOT DISTINCT FROM v_sha THEN
       SELECT * INTO f FROM workhub.file_objects WHERE school_id = j.school_id AND id = j.file_id;
       RETURN jsonb_build_object('fileId', f.id, 'state', f.state, 'replayed', true);
     END IF;
     RAISE EXCEPTION 'CONFLICT';
   END IF;
-  IF j.state <> 'leased' OR j.lease_token <> p_lease_token OR j.lease_expires_at <= clock_timestamp()
-     OR j.leased_by_service_id <> ctx.service_principal_id OR j.file_id <> p_file_id THEN
+  IF workhub_private.c_switch() = 'all_stopped' THEN RAISE EXCEPTION 'NOT_READY'; END IF;
+  IF j.state IS DISTINCT FROM 'leased' OR j.lease_token IS DISTINCT FROM p_lease_token
+     OR j.lease_expires_at IS NULL OR j.lease_expires_at <= clock_timestamp()
+     OR j.leased_by_service_id IS DISTINCT FROM ctx.service_principal_id OR j.file_id IS DISTINCT FROM p_file_id THEN
     RAISE EXCEPTION 'CONFLICT';
   END IF;
   SELECT * INTO f FROM workhub.file_objects WHERE school_id = j.school_id AND id = j.file_id FOR UPDATE;
   o := workhub_private.c_object_owner(f.bucket, f.storage_key);
-  IF f.state <> 'verifying' OR f.storage_key <> p_path OR f.storage_object_id IS DISTINCT FROM p_storage_object_id
+  IF f.state IS DISTINCT FROM 'verifying' OR f.storage_key IS DISTINCT FROM p_path OR f.storage_object_id IS DISTINCT FROM p_storage_object_id
      OR o IS NULL OR (o ->> 'id')::uuid IS DISTINCT FROM p_storage_object_id THEN
     RAISE EXCEPTION 'CONFLICT';
   END IF;
@@ -1734,32 +1824,39 @@ BEGIN
   RETURN jsonb_build_object('fileId', f.id, 'state', f.state, 'replayed', false);
 END $$;
 
+-- 일시 실패: 다시 대기열로. 시도 횟수를 다 썼으면 파일을 rejected 로 닫고 감사·outbox 를 같이 남긴다.
+-- lease 대조는 봉인과 같다(NULL 안전, 만료된 lease·다른 주체·옛 token 은 CONFLICT). 중지 중에도 받는다(작업을 되돌려 놓을 뿐).
 CREATE FUNCTION public.workhub_file_worker_fail(p_job_id text, p_lease_token bigint, p_error_code text, p_retry_after_seconds integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE ctx workhub_private.actor_context; j workhub.file_verification_jobs; f workhub.file_objects; v_final boolean;
 BEGIN
+  IF p_job_id IS NULL OR p_lease_token IS NULL THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
   SELECT * INTO j FROM workhub.file_verification_jobs WHERE id = p_job_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
   ctx := workhub_private.worker_actor('file.verify', j.school_id);
   IF p_error_code IS NULL OR p_error_code !~ '^[a-z_]{2,40}$' OR p_retry_after_seconds IS NULL OR p_retry_after_seconds NOT BETWEEN 10 AND 3600 THEN
     RAISE EXCEPTION 'INVALID_INPUT';
   END IF;
-  IF j.state <> 'leased' OR j.lease_token <> p_lease_token OR j.leased_by_service_id <> ctx.service_principal_id THEN RAISE EXCEPTION 'CONFLICT'; END IF;
+  IF j.state IS DISTINCT FROM 'leased' OR j.lease_token IS DISTINCT FROM p_lease_token
+     OR j.lease_expires_at IS NULL OR j.lease_expires_at <= clock_timestamp()
+     OR j.leased_by_service_id IS DISTINCT FROM ctx.service_principal_id THEN
+    RAISE EXCEPTION 'CONFLICT';
+  END IF;
   SELECT * INTO f FROM workhub.file_objects WHERE school_id = j.school_id AND id = j.file_id FOR UPDATE;
   v_final := j.attempts >= j.max_attempts;
-  UPDATE workhub.file_verification_jobs SET state = CASE WHEN v_final THEN 'failed' ELSE 'queued' END,
-         finished_at = CASE WHEN v_final THEN clock_timestamp() END,
-         next_attempt_at = clock_timestamp() + make_interval(secs => p_retry_after_seconds),
+  IF v_final THEN
+    f := workhub_private.c_job_close(ctx, j, f, 'verification_exhausted', j.lease_owner);
+    RETURN jsonb_build_object('fileId', f.id, 'state', f.state, 'final', true);
+  END IF;
+  UPDATE workhub.file_verification_jobs SET state = 'queued', next_attempt_at = clock_timestamp() + make_interval(secs => p_retry_after_seconds),
          lease_owner = NULL, lease_expires_at = NULL, leased_by_service_id = NULL, last_error_code = p_error_code
    WHERE id = j.id;
   IF f.state = 'verifying' THEN
-    UPDATE workhub.file_objects SET state = CASE WHEN v_final THEN 'rejected' ELSE 'uploaded' END,
-           reject_reason = CASE WHEN v_final THEN 'verification_exhausted' END, version = f.version + 1
-     WHERE id = f.id RETURNING * INTO f;
+    UPDATE workhub.file_objects SET state = 'uploaded', version = f.version + 1 WHERE id = f.id RETURNING * INTO f;
   END IF;
   PERFORM workhub_private.write_audit(ctx, 'file.verify_fail', 'file_object', f.id, f.version, 'school', NULL,
-    jsonb_build_object('job_id', j.id, 'error_code', p_error_code, 'final', v_final));
-  RETURN jsonb_build_object('fileId', f.id, 'state', f.state, 'final', v_final);
+    jsonb_build_object('job_id', j.id, 'error_code', p_error_code, 'final', false));
+  RETURN jsonb_build_object('fileId', f.id, 'state', f.state, 'final', false);
 END $$;
 
 -- 정리 대상 인수: 어디에도 연결된 적 없는(first_linked_at IS NULL) 파일 중 보존 기간이 지난 것만.
@@ -1777,7 +1874,8 @@ BEGIN
   -- 이전 인수의 lease 가 끝난 blocked 행을 다시 인수
   FOR l IN SELECT * FROM workhub.deletion_ledger WHERE school_id = p_school_id AND state = 'blocked' AND lease_expires_at <= clock_timestamp()
             ORDER BY seq LIMIT p_limit FOR UPDATE SKIP LOCKED LOOP
-    UPDATE workhub.deletion_ledger SET lease_token = l.lease_token + 1, lease_expires_at = clock_timestamp() + interval '10 minutes'
+    UPDATE workhub.deletion_ledger SET lease_token = l.lease_token + 1, lease_expires_at = clock_timestamp() + interval '10 minutes',
+           leased_by_service_id = ctx.service_principal_id
      WHERE id = l.id RETURNING * INTO l;
     SELECT * INTO f FROM workhub.file_objects WHERE school_id = l.school_id AND id = l.resource_id;
     v_out := v_out || jsonb_build_array(jsonb_build_object('ledgerId', l.id, 'leaseToken', l.lease_token, 'fileId', f.id, 'bucket', f.bucket,
@@ -1798,9 +1896,9 @@ BEGIN
       OR EXISTS (SELECT 1 FROM workhub.submission_files x WHERE x.school_id = f.school_id AND x.file_id = f.id);
     v_reason := CASE f.state WHEN 'uploading' THEN 'upload_expired' WHEN 'ready' THEN 'unattached_retention' ELSE 'rejected_file' END;
     INSERT INTO workhub.deletion_ledger (school_id, resource_id, file_sha256, storage_object_id, reason, retention_policy_scope_key,
-        retention_policy_version_id, requested_by_service_id, lease_token, lease_expires_at, manifest_sha256)
+        retention_policy_version_id, requested_by_service_id, lease_token, lease_expires_at, leased_by_service_id, manifest_sha256)
     VALUES (f.school_id, f.id, f.sha256, f.storage_object_id, v_reason, 's:' || f.school_id, eff ->> 'submissionPolicyId', ctx.service_principal_id,
-        1, clock_timestamp() + interval '10 minutes',
+        1, clock_timestamp() + interval '10 minutes', ctx.service_principal_id,
         workhub_private.request_sha256(jsonb_build_object('file', f.id, 'path', f.storage_key, 'object', f.storage_object_id, 'sha256', f.sha256, 'reason', v_reason)))
     RETURNING * INTO l;
     PERFORM workhub_private.write_audit(ctx, 'file.cleanup_block', 'file_object', f.id, f.version, 'school', NULL,
@@ -1811,19 +1909,63 @@ BEGIN
   RETURN v_out;
 END $$;
 
+-- 정리 원장 lease 확인(읽기 전용): Storage 삭제 직전에 원장이 아직 blocked·같은 lease·같은 주체인지, 파일이 어디에도 연결되지 않았는지,
+-- 실물이 원장에 적힌 그 객체인지를 본다. 끝난 행이면 결과(deleted/retained)를 돌려준다 — 확정 응답을 잃었을 때 복구용.
+CREATE FUNCTION public.workhub_file_worker_cleanup_inspect(p_ledger_id text, p_lease_token bigint) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
+DECLARE ctx workhub_private.actor_context; l workhub.deletion_ledger; f workhub.file_objects; o jsonb;
+BEGIN
+  IF p_ledger_id IS NULL OR p_lease_token IS NULL THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
+  SELECT * INTO l FROM workhub.deletion_ledger WHERE id = p_ledger_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
+  ctx := workhub_private.worker_actor('file.cleanup', l.school_id);
+  SELECT * INTO f FROM workhub.file_objects WHERE school_id = l.school_id AND id = l.resource_id;
+  o := workhub_private.c_object_owner(f.bucket, f.storage_key);
+  RETURN jsonb_build_object('ledgerId', l.id, 'fileId', f.id, 'state', l.state,
+    'outcome', CASE l.state WHEN 'completed' THEN 'deleted' WHEN 'retained' THEN 'retained' END, 'retainedReason', l.retained_reason,
+    'leaseValid', l.state = 'blocked' AND l.lease_token = p_lease_token AND l.leased_by_service_id = ctx.service_principal_id
+                  AND l.lease_expires_at > clock_timestamp() AND workhub_private.c_switch() <> 'all_stopped',
+    'leaseExpiresAt', workhub_private.c_iso(l.lease_expires_at),
+    'linked', f.first_linked_at IS NOT NULL
+              OR EXISTS (SELECT 1 FROM workhub.unit_draft_files x WHERE x.school_id = f.school_id AND x.file_id = f.id)
+              OR EXISTS (SELECT 1 FROM workhub.collection_template_files x WHERE x.school_id = f.school_id AND x.file_id = f.id)
+              OR EXISTS (SELECT 1 FROM workhub.submission_files x WHERE x.school_id = f.school_id AND x.file_id = f.id),
+    'verifying', f.state = 'verifying' OR EXISTS (SELECT 1 FROM workhub.file_verification_jobs vj WHERE vj.file_id = f.id AND vj.state = 'leased'),
+    'bucket', f.bucket, 'path', f.storage_key, 'storageObjectId', l.storage_object_id,
+    'objectPresent', o IS NOT NULL,
+    'objectMatches', o IS NOT NULL AND (o ->> 'id')::uuid IS NOT DISTINCT FROM l.storage_object_id);
+END $$;
+
 -- 정리 확정: deleted 는 Storage API 로 실물을 지운 뒤에만(실물 행이 남아 있으면 거부). retained 는 지우지 않고 사유를 남긴다.
+-- lease 대조는 NULL 안전(만료·다른 주체·옛 token 은 CONFLICT). 같은 token·같은 결과로 다시 보내면 같은 응답(replayed=true),
+-- 다른 결과면 CONFLICT. 전체 중지(all_stopped) 중에는 새 확정을 받지 않는다(NOT_READY) — 원장은 blocked 로 남아 파일은 계속 막힌다.
 CREATE FUNCTION public.workhub_file_worker_cleanup_done(p_ledger_id text, p_lease_token bigint, p_outcome text, p_reason text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE ctx workhub_private.actor_context; l workhub.deletion_ledger; f workhub.file_objects;
 BEGIN
+  IF p_ledger_id IS NULL OR p_lease_token IS NULL THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
   SELECT * INTO l FROM workhub.deletion_ledger WHERE id = p_ledger_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
   ctx := workhub_private.worker_actor('file.cleanup', l.school_id);
   IF p_outcome IS NULL OR p_outcome NOT IN ('deleted','retained')
-     OR (p_outcome = 'retained' AND (p_reason IS NULL OR p_reason !~ '^[a-z_]{2,40}$')) THEN
+     OR (p_outcome = 'retained' AND (p_reason IS NULL OR p_reason !~ '^[a-z_]{2,40}$'))
+     OR (p_outcome = 'deleted' AND p_reason IS NOT NULL) THEN
     RAISE EXCEPTION 'INVALID_INPUT';
   END IF;
-  IF l.state <> 'blocked' OR l.lease_token <> p_lease_token OR l.lease_expires_at <= clock_timestamp() THEN RAISE EXCEPTION 'CONFLICT'; END IF;
+  IF l.state IN ('completed','retained') THEN
+    -- 응답 유실 뒤 재전송: 마지막 lease 의 token·주체와 결과가 모두 같아야 한다
+    IF l.lease_token = p_lease_token AND l.leased_by_service_id = ctx.service_principal_id
+       AND ((l.state = 'completed' AND p_outcome = 'deleted') OR (l.state = 'retained' AND p_outcome = 'retained' AND l.retained_reason = p_reason)) THEN
+      RETURN jsonb_build_object('fileId', l.resource_id, 'ledgerId', l.id, 'outcome', p_outcome, 'replayed', true);
+    END IF;
+    RAISE EXCEPTION 'CONFLICT';
+  END IF;
+  IF workhub_private.c_switch() = 'all_stopped' THEN RAISE EXCEPTION 'NOT_READY'; END IF;
+  IF l.state IS DISTINCT FROM 'blocked' OR l.lease_token IS DISTINCT FROM p_lease_token
+     OR l.lease_expires_at IS NULL OR l.lease_expires_at <= clock_timestamp()
+     OR l.leased_by_service_id IS DISTINCT FROM ctx.service_principal_id THEN
+    RAISE EXCEPTION 'CONFLICT';
+  END IF;
   SELECT * INTO f FROM workhub.file_objects WHERE school_id = l.school_id AND id = l.resource_id FOR UPDATE;
   IF p_outcome = 'deleted' THEN
     IF workhub_private.c_object_owner(f.bucket, f.storage_key) IS NOT NULL OR f.state = 'verifying' THEN RAISE EXCEPTION 'CONFLICT'; END IF;
@@ -1834,7 +1976,7 @@ BEGIN
   END IF;
   PERFORM workhub_private.write_audit(ctx, 'file.cleanup', 'file_object', f.id, f.version, 'school', NULL,
     jsonb_build_object('ledger_id', l.id, 'outcome', p_outcome));
-  RETURN jsonb_build_object('fileId', f.id, 'ledgerId', l.id, 'outcome', p_outcome);
+  RETURN jsonb_build_object('fileId', f.id, 'ledgerId', l.id, 'outcome', p_outcome, 'replayed', false);
 END $$;
 
 -- ----------------------------------------------------------------------------
@@ -1978,7 +2120,7 @@ SELECT pol.polname, pol.polcmd,
   FROM pg_policy pol WHERE pol.polrelid = 'storage.objects'::regclass AND pol.polname IN ('workhub_collection_insert','workhub_collection_select');
 
 -- ----------------------------------------------------------------------------
--- 14. 권한 — 앱 함수 9개는 authenticated, 작업자 함수 6개는 service_role 만. 내부 함수는 API 역할에 0.
+-- 14. 권한 — 앱 함수 9개는 authenticated, 작업자 함수 8개는 service_role 만. 내부 함수는 API 역할에 0.
 -- ----------------------------------------------------------------------------
 REVOKE ALL ON FUNCTION public.workhub_collection_readiness(text), public.workhub_collection_list(text, text),
   public.workhub_collection_get(text, text), public.workhub_collection_draft_get(text, text, text),
@@ -1986,7 +2128,8 @@ REVOKE ALL ON FUNCTION public.workhub_collection_readiness(text), public.workhub
   public.workhub_file_complete(text, text, text), public.workhub_file_status(text, text), public.workhub_file_access(text, jsonb, text),
   public.workhub_file_worker_heartbeat(text, text, jsonb, integer), public.workhub_file_worker_claim(text, text, integer),
   public.workhub_file_worker_seal(text, bigint, text, text, uuid, jsonb), public.workhub_file_worker_fail(text, bigint, text, integer),
-  public.workhub_file_worker_cleanup_claim(text, text, integer), public.workhub_file_worker_cleanup_done(text, bigint, text, text)
+  public.workhub_file_worker_cleanup_claim(text, text, integer), public.workhub_file_worker_cleanup_done(text, bigint, text, text),
+  public.workhub_file_worker_job_inspect(text, bigint), public.workhub_file_worker_cleanup_inspect(text, bigint)
   FROM PUBLIC, anon, authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.workhub_collection_readiness(text), public.workhub_collection_list(text, text),
   public.workhub_collection_get(text, text), public.workhub_collection_draft_get(text, text, text),
@@ -1995,7 +2138,8 @@ GRANT EXECUTE ON FUNCTION public.workhub_collection_readiness(text), public.work
   TO authenticated;
 GRANT EXECUTE ON FUNCTION public.workhub_file_worker_heartbeat(text, text, jsonb, integer), public.workhub_file_worker_claim(text, text, integer),
   public.workhub_file_worker_seal(text, bigint, text, text, uuid, jsonb), public.workhub_file_worker_fail(text, bigint, text, integer),
-  public.workhub_file_worker_cleanup_claim(text, text, integer), public.workhub_file_worker_cleanup_done(text, bigint, text, text)
+  public.workhub_file_worker_cleanup_claim(text, text, integer), public.workhub_file_worker_cleanup_done(text, bigint, text, text),
+  public.workhub_file_worker_job_inspect(text, bigint), public.workhub_file_worker_cleanup_inspect(text, bigint)
   TO service_role;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA workhub, workhub_private, workhub_storage FROM PUBLIC, anon, authenticated, service_role;
 REVOKE ALL ON ALL TABLES IN SCHEMA workhub, workhub_private FROM PUBLIC, anon, authenticated, service_role;
@@ -2027,8 +2171,8 @@ COMMIT;
 -- ----------------------------------------------------------------------------
 -- 15. 검증 — 모든 행의 status 가 ok 여야 한다. R1-03-6 은 "준비 안 됨"이 정상이다(검증기·정책 전).
 -- ----------------------------------------------------------------------------
-SELECT 'R1-03-1' AS no, '앱 함수 9개·작업자 함수 6개 존재(SECURITY DEFINER, search_path 고정)' AS item,
-       CASE WHEN count(*) = 15 THEN 'ok' ELSE 'FAIL' END AS status, count(*)::text AS value
+SELECT 'R1-03-1' AS no, '앱 함수 9개·작업자 함수 8개 존재(SECURITY DEFINER, search_path 고정)' AS item,
+       CASE WHEN count(*) = 17 THEN 'ok' ELSE 'FAIL' END AS status, count(*)::text AS value
 FROM pg_proc p WHERE p.oid IN (
   'public.workhub_collection_readiness(text)'::regprocedure, 'public.workhub_collection_list(text,text)'::regprocedure,
   'public.workhub_collection_get(text,text)'::regprocedure, 'public.workhub_collection_draft_get(text,text,text)'::regprocedure,
@@ -2037,7 +2181,8 @@ FROM pg_proc p WHERE p.oid IN (
   'public.workhub_file_access(text,jsonb,text)'::regprocedure, 'public.workhub_file_worker_heartbeat(text,text,jsonb,integer)'::regprocedure,
   'public.workhub_file_worker_claim(text,text,integer)'::regprocedure, 'public.workhub_file_worker_seal(text,bigint,text,text,uuid,jsonb)'::regprocedure,
   'public.workhub_file_worker_fail(text,bigint,text,integer)'::regprocedure, 'public.workhub_file_worker_cleanup_claim(text,text,integer)'::regprocedure,
-  'public.workhub_file_worker_cleanup_done(text,bigint,text,text)'::regprocedure)
+  'public.workhub_file_worker_cleanup_done(text,bigint,text,text)'::regprocedure,
+  'public.workhub_file_worker_job_inspect(text,bigint)'::regprocedure, 'public.workhub_file_worker_cleanup_inspect(text,bigint)'::regprocedure)
   AND p.prosecdef AND p.proconfig = ARRAY['search_path=""']
 UNION ALL
 SELECT 'R1-03-2', '작업자 함수는 anon·authenticated 가 실행할 수 없음',

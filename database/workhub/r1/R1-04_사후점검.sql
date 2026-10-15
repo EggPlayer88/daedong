@@ -14,8 +14,8 @@ UNION ALL
 SELECT 'R1-04-02', '중지 스위치', CASE WHEN state = 'open' THEN 'ok' ELSE 'info' END, state || ' (' || reason || ')'
   FROM workhub_private.r1_switch
 UNION ALL
-SELECT 'R1-04-03', '앱 함수 9개·작업자 함수 6개(SECURITY DEFINER, search_path 고정)',
-       CASE WHEN count(*) = 15 THEN 'ok' ELSE 'FAIL' END, count(*)::text
+SELECT 'R1-04-03', '앱 함수 9개·작업자 함수 8개(SECURITY DEFINER, search_path 고정)',
+       CASE WHEN count(*) = 17 THEN 'ok' ELSE 'FAIL' END, count(*)::text
   FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
    AND (p.proname LIKE 'workhub\_collection\_%' OR p.proname LIKE 'workhub\_file\_%')
    AND p.prosecdef AND p.proconfig = ARRAY['search_path=""']
@@ -24,7 +24,7 @@ SELECT 'R1-04-04', '앱 함수: authenticated 만 / 작업자 함수: service_ro
        CASE WHEN count(*) FILTER (WHERE p.proname NOT LIKE 'workhub\_file\_worker\_%' AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
                                     AND NOT has_function_privilege('anon', p.oid, 'EXECUTE')) = 9
              AND count(*) FILTER (WHERE p.proname LIKE 'workhub\_file\_worker\_%' AND has_function_privilege('service_role', p.oid, 'EXECUTE')
-                                    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')) = 6
+                                    AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')) = 8
             THEN 'ok' ELSE 'FAIL' END, count(*)::text
   FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND (p.proname LIKE 'workhub\_collection\_%' OR p.proname LIKE 'workhub\_file\_%')
 UNION ALL
