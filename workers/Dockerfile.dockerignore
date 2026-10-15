@@ -1,0 +1,6 @@
+# 이 이미지에는 작업자 코드·의존성 명세만 전달한다. .env·앱·Git 이력은 제외한다.
+**
+!workers/
+!workers/requirements.txt
+!workers/collection_files/
+!workers/collection_files/*.py
