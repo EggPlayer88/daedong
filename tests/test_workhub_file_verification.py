@@ -6,6 +6,8 @@ from io import BytesIO
 from pathlib import Path
 import sys
 import zipfile
+from pypdf import PdfWriter
+from helpers.hwp_fixture import make_hwp
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from workers.collection_files.common import WorkerError, checked_ref, canonical_hash
@@ -130,14 +132,14 @@ for field, value in (("claimed_bytes", 8), ("claimed_sha256", "b" * 64), ("decla
         result = f.run(); assert result.decision == "rejected" and not f.scans
     test("신고값 " + field + "를 실물 확인 없이 채택하지 않는다", scenario)
 
-def unsupported():
+def invalid_pdf():
     f = Fixture(); f.body = b"%PDF-1.7\nnot a parsed document\n%%EOF"
     f.job["file"].update(name="응답.pdf", extension="pdf", claimed_bytes=len(f.body), claimed_sha256=hashlib.sha256(f.body).hexdigest(), declared_mime="application/pdf")
     f.policy["extensions"] = ["pdf"]; f.current_job, f.current_policy = deepcopy(f.job), deepcopy(f.policy)
     f.read = lambda *_args, **_kwargs: iter([f.body])
-    result = f.run(); assert result.decision == "pending" and not f.scans
-    assert f.commits[0]["evidence"]["format"]["status"] == "unsupported"
-test("PDF 표식만으로 통과시키지 않고 파서 미지원 상태를 보존한다", unsupported)
+    result = f.run(); assert result.decision == "rejected" and not f.scans
+    assert f.commits[0]["evidence"]["format"]["status"] == "rejected"
+test("PDF 표식만 있는 손상 문서는 파서 검사에서 거부하고 스캔하지 않는다", invalid_pdf)
 
 def mutated_object():
     f = Fixture()
@@ -268,6 +270,66 @@ def malformed():
         assert f.run(policy=policy).status == "error"
     assert not f.reads
 test("깨진 입력·검증됨 플래그 주입·불리언 숫자는 실행하지 않는다", malformed)
+
+
+def format_fixture(body, name):
+    f = Fixture()
+    extension = name.rsplit(".", 1)[-1]
+    mime = {"pdf": "application/pdf", "hwp": "application/x-hwp", "hwpx": "application/hwp+zip"}[extension]
+    f.body = body
+    f.job["file"].update(name=name, extension=extension, claimed_bytes=len(body),
+                         claimed_sha256=hashlib.sha256(body).hexdigest(), declared_mime=mime)
+    f.policy["extensions"] = [extension]
+    f.policy["max_file_bytes"] = 10 * 1024 * 1024
+    f.policy["limits"].update(max_archive_entries=1000, max_entry_bytes=32 * 1024 * 1024,
+                              max_expanded_bytes=64 * 1024 * 1024, max_xml_bytes=32 * 1024 * 1024,
+                              max_compression_ratio=1000)
+    f.current_job, f.current_policy = deepcopy(f.job), deepcopy(f.policy)
+    return f
+
+
+def pdf_document():
+    writer = PdfWriter()
+    writer.add_blank_page(width=595, height=842)
+    output = BytesIO()
+    writer.write(output)
+    writer.close()
+    return output.getvalue()
+
+
+for scanner in (False, True):
+    def pdf_pipeline(scanner=scanner):
+        f = format_fixture(pdf_document(), "수합.pdf")
+        result = f.run(scanner=scanner)
+        assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+        evidence = f.commits[0]["evidence"]
+        assert evidence["format"]["code"] == "pdf_structure_passed"
+        assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
+    test("실제 PDF 파서→검증 접수의 스캔 분리 " + str(scanner), pdf_pipeline)
+
+
+for compressed, footer in ((False, False), (True, False), (True, True)):
+    for scanner in (False, True):
+        def hwp_pipeline(compressed=compressed, footer=footer, scanner=scanner):
+            f = format_fixture(make_hwp(compressed=compressed, footer=footer), "수합.hwp")
+            result = f.run(scanner=scanner)
+            assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+            evidence = f.commits[0]["evidence"]
+            assert evidence["format"]["status"] == "passed"
+            assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
+        test("HWP 압축/검사 접수 " + str((compressed, footer, scanner)), hwp_pipeline)
+
+
+for template in sorted((Path(__file__).resolve().parents[1] / "apps/main/api/doc-ai/_assets").glob("tpl-*.hwpx")):
+    for scanner in (False, True):
+        def hwpx_pipeline(template=template, scanner=scanner):
+            f = format_fixture(template.read_bytes(), "수합.hwpx")
+            result = f.run(scanner=scanner)
+            assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+            evidence = f.commits[0]["evidence"]
+            assert evidence["format"]["status"] == "passed"
+            assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
+        test("보호 양식 원문→검증 접수 " + template.name + " 스캔=" + str(scanner), hwpx_pipeline)
 
 print(f"\n{passed} passed, {failed} failed")
 if failed:

@@ -56,6 +56,23 @@ def hwpx():
     }
 
 
+def hwpx_boilerplate(header=None, source=None, encoding="utf-16-le"):
+    # 시험용 내용이다. 보호된 학교 양식이나 그 해시를 면제 목록으로 사용하지 않는다.
+    parts = hwpx()
+    header = "var Documents = XHwpDocuments;\r\nvar Document = Documents.Active_XHwpDocument;\r\n" if header is None else header
+    source = "function OnDocument_New()\r\n{\r\n\t//todo : \r\n}\r\n" if source is None else source
+    parts["Scripts/headerScripts.js"] = header.encode(encoding)
+    parts["Scripts/sourceScripts.js"] = source.encode(encoding)
+    scripts = '<o:item id="headersc" href="Scripts/headerScripts.js" media-type="application/x-javascript ;charset=utf-16"/><o:item id="sourcesc" href="Scripts/sourceScripts.js" media-type="application/x-javascript ;charset=utf-16"/>'
+    spine = '<o:itemref idref="headersc" linear="yes"/><o:itemref idref="sourcesc" linear="yes"/>'
+    parts["Contents/content.hpf"] = parts["Contents/content.hpf"].replace('</o:manifest>', scripts + '</o:manifest>').replace('</o:spine>', spine + '</o:spine>')
+    return parts
+
+
+def change_hwpx_manifest(parts, before, after):
+    return {**parts, "Contents/content.hpf": parts["Contents/content.hpf"].replace(before, after)}
+
+
 def result(parts=None, ext="docx", limits=None, data=None):
     return inspect_document(data if data is not None else package(ooxml() if parts is None else parts), ext, LIMITS if limits is None else limits)
 
@@ -81,8 +98,8 @@ for ext in ("docx", "xlsx", "pptx", "hwpx"):
     check(ext + " 정상 기본 구조", lambda ext=ext: expect(result(hwpx() if ext == "hwpx" else ooxml(ext), ext), status="passed"))
 check("대문자 확장자 정규화", lambda: expect(result(ext=".DOCX"), status="passed"))
 check("확장자와 패키지 종류 불일치", lambda: expect(result(ext="xlsx"), code="main_part_invalid"))
-check("PDF 표식만으로 통과하지 않음", lambda: expect(result(ext="pdf", data=b"%PDF-1.7\nnot-a-parsed-document"), status="unsupported"))
-check("OLE 표식만으로 HWP라고 확정하지 않음", lambda: expect(result(ext="hwp", data=b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"x" * 20), status="unsupported"))
+check("PDF 표식만으로 통과하지 않음", lambda: expect(result(ext="pdf", data=b"%PDF-1.7\nnot-a-parsed-document"), status="rejected"))
+check("OLE 표식만으로 HWP라고 확정하지 않음", lambda: expect(result(ext="hwp", data=b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"x" * 20), status="rejected"))
 check("다른 파일을 PDF로 위장", lambda: expect(result(ext="pdf", data=b"plain text"), code="signature_mismatch"))
 check("미지원 확장자", lambda: expect(result(ext="exe"), status="unsupported"))
 check("필수 한도 누락", lambda: expect(result(limits={}), code="inspection_limits_invalid"))
@@ -114,7 +131,7 @@ def symlink():
 
 check("심볼릭 링크 거부", symlink)
 check("미지원 BZIP2 압축", lambda: expect(result(data=package(ooxml(), zipfile.ZIP_BZIP2)), status="unsupported"))
-check("스크립트 이름 거부", lambda: expect(result({**hwpx(), "Scripts/sourceScripts.js": ""}, "hwpx"), code="embedded_content_forbidden"))
+check("참조 없는 단독 HWPX 스크립트 거부", lambda: expect(result({**hwpx(), "Scripts/sourceScripts.js": ""}, "hwpx"), code="hwpx_script_manifest_invalid"))
 check("실행파일 표식을 자료로 위장", lambda: expect(result({**ooxml(), "payload.dat": b"MZhidden"}), code="embedded_content_forbidden"))
 check("중첩 ZIP 표식 거부", lambda: expect(result({**ooxml(), "payload.dat": package({"x": "y"})}), code="embedded_content_forbidden"))
 check("내장 OLE 거부", lambda: expect(result({**ooxml(), "payload.dat": b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"}), code="embedded_content_forbidden"))
@@ -146,6 +163,49 @@ check("관계 원본 누락", lambda: expect(result({**ooxml(), "word/_rels/miss
 check("암호화 HWPX manifest", lambda: expect(result({**hwpx(), "META-INF/manifest.xml": f'<m:manifest xmlns:m="{ODF}"><m:encryption-data/></m:manifest>'}, "hwpx"), code="archive_encrypted"))
 check("HWPX spine 참조 누락", lambda: expect(result({**hwpx(), "Contents/content.hpf": hwpx()["Contents/content.hpf"].replace('idref="section"', 'idref="absent"')}, "hwpx"), code="hwpx_manifest_invalid"))
 check("HWPX 본문 루트 위장", lambda: expect(result({**hwpx(), "Contents/section0.xml": "<sec/>"}, "hwpx"), code="hwpx_main_part_invalid"))
+check("HWPX 기본 별칭과 빈 문서 생성 훅", lambda: expect(result(hwpx_boilerplate(), "hwpx"), status="passed"))
+check("HWPX 기본 스크립트 BOM UTF-16", lambda: expect(result(hwpx_boilerplate(encoding="utf-16"), "hwpx"), status="passed"))
+check("HWPX UTF-16BE BOM", lambda: expect(result({**hwpx_boilerplate(), **{name: b"\xfe\xff" + raw.decode("utf-16-le").encode("utf-16-be") for name, raw in hwpx_boilerplate().items() if name.endswith(".js")}}, "hwpx"), status="passed"))
+check("HWPX 두 스크립트가 공백만인 경우", lambda: expect(result(hwpx_boilerplate(header="\t \r\n", source=""), "hwpx"), status="passed"))
+check("HWPX 주석 없는 빈 훅과 ASCII 공백 변형", lambda: expect(result(hwpx_boilerplate(source=" function\tOnDocument_New ( ) {\n } "), "hwpx"), status="passed"))
+for script in (
+    "function OnDocument_New(){ alert(1); }",
+    "function OnDocument_New(){}; alert(1)",
+    "function OnDocument_New(){/* benign */}",
+    "function OnDocument_New(){//todo : alert(1)\n}",
+    "function OnDocument_New(){//todo :\n alert(1)\n}",
+    "function OnDocument_New(){//todo :\u2028alert(1)\n}",
+    "function OnDocument_New(){//todo : }",
+    "function OnDocument_Open(){}",
+    "function OnDocument_New(x = alert(1)){}",
+    "function OnDocument_New(){} function OnDocument_New(){alert(1)}",
+    "function OnDocument_\\u004eew(){}",
+):
+    check("HWPX 동작/추가 문법 있는 소스 거부 " + repr(script), lambda script=script: expect(result(hwpx_boilerplate(source=script), "hwpx"), code="hwpx_script_content_forbidden"))
+for script in (
+    "var Documents = alert(1); var Document = Documents.Active_XHwpDocument;",
+    "var Documents = XHwpDocuments; var Document = Documents.Open();",
+    "var Documents = XHwpDocuments; var Document = Documents.Active_XHwpDocument; alert(1)",
+    "var Documents = XHwpDocuments; var Document = Documents.Active_XHwpDocument\u2028;",
+):
+    check("HWPX 기본 별칭 외 헤더 거부 " + repr(script), lambda script=script: expect(result(hwpx_boilerplate(header=script), "hwpx"), code="hwpx_script_content_forbidden"))
+check("HWPX 잘못된 UTF-16 길이", lambda: expect(result({**hwpx_boilerplate(), "Scripts/sourceScripts.js": b"x"}, "hwpx"), code="hwpx_script_encoding_invalid"))
+check("HWPX charset과 실제 UTF-8 불일치", lambda: expect(result(hwpx_boilerplate(encoding="utf-8"), "hwpx"), status="rejected"))
+check("HWPX 검사 문법 크기 상한", lambda: expect(result(hwpx_boilerplate(source=" " * 2049), "hwpx"), code="archive_entry_limit"))
+check("HWPX 미등록 기본 스크립트 쌍", lambda: expect(result({**hwpx_boilerplate(), "Contents/content.hpf": hwpx()["Contents/content.hpf"]}, "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 MIME 위장", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), 'application/x-javascript ;charset=utf-16', 'application/octet-stream'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 charset 위장", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), 'charset=utf-16', 'charset=utf-8'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 manifest 추가 속성", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), 'id="headersc"', 'id="headersc" fallback="header"'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 다른 id의 스크립트 대상 중복", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), '</o:manifest>', '<o:item id="alias" href="Scripts/headerScripts.js" media-type="application/x-javascript ;charset=utf-16"/></o:manifest>'), "hwpx"), code="hwpx_manifest_invalid"))
+check("HWPX 스크립트 경로 별칭", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), 'href="Scripts/headerScripts.js"', 'href="/Scripts/headerScripts.js"'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 spine 누락", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), '<o:itemref idref="sourcesc" linear="yes"/>', ''), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 spine 중복", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), '<o:itemref idref="sourcesc" linear="yes"/>', '<o:itemref idref="sourcesc"/><o:itemref idref="sourcesc"/>'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 spine 역순", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), '<o:itemref idref="headersc" linear="yes"/><o:itemref idref="sourcesc" linear="yes"/>', '<o:itemref idref="sourcesc"/><o:itemref idref="headersc"/>'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트 spine 해석 변경 속성", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), 'idref="sourcesc" linear="yes"', 'idref="sourcesc" linear="no"'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 스크립트가 있을 때 두 manifest 거부", lambda: expect(result(change_hwpx_manifest(hwpx_boilerplate(), '</o:manifest>', '</o:manifest><o:manifest/>'), "hwpx"), code="hwpx_script_manifest_invalid"))
+check("HWPX 추가 스크립트 거부", lambda: expect(result({**hwpx_boilerplate(), "Scripts/extra.js": b""}, "hwpx"), code="embedded_content_forbidden"))
+check("HWPX 기본 파일명도 대소문자 별칭 거부", lambda: expect(result({**hwpx(), "scripts/headerScripts.js": b""}, "hwpx"), code="embedded_content_forbidden"))
+check("OOXML에 HWPX 기본 스크립트를 넣어도 거부", lambda: expect(result({**ooxml(), "Scripts/headerScripts.js": hwpx_boilerplate()["Scripts/headerScripts.js"]}), code="embedded_content_forbidden"))
 
 
 def patch_entry(data, name, *, size=None, crc=None, flags=None):
@@ -227,8 +287,21 @@ def descriptor():
 
 check("데이터 디스크립터가 있는 정상 ZIP", descriptor)
 for fixture in sorted((ROOT / "apps/main/api/doc-ai/_assets").glob("tpl-*.hwpx")):
-    # 기존 문서의 스크립트도 예외 허용하지 않는다. 원본을 수정하거나 악성으로 단정하지 않는다.
-    if fixture.name in ("tpl-g2-exam1.hwpx", "tpl-g2-perf3-arts.hwpx", "tpl-g3-perf3.hwpx"):
-        check("스크립트 포함 기존 HWPX 제한 " + fixture.name, lambda fixture=fixture: expect(result(ext="hwpx", data=fixture.read_bytes()), code="embedded_content_forbidden"))
-    else:
-        check("읽기 전용 기존 HWPX " + fixture.name, lambda fixture=fixture: expect(result(ext="hwpx", data=fixture.read_bytes()), status="passed"))
+    # 원본과 파일명/해시 면제 목록 없이 모든 양식을 같은 내용 검사로 확인한다.
+    check("읽기 전용 기존 HWPX " + fixture.name, lambda fixture=fixture: expect(result(ext="hwpx", data=fixture.read_bytes()), status="passed"))
+
+
+def altered_existing_boilerplate():
+    # 파일명이 익숙해도 본문이 달라지면 거부한다. 양식은 읽기만 하고 메모리 사본을 변조한다.
+    for fixture in (ROOT / "apps/main/api/doc-ai/_assets").glob("tpl-*.hwpx"):
+        with zipfile.ZipFile(fixture) as archive:
+            if "Scripts/sourceScripts.js" not in archive.namelist():
+                continue
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        parts["Scripts/sourceScripts.js"] = "function OnDocument_New(){ alert(1); }".encode("utf-16-le")
+        expect(result(parts, "hwpx"), code="hwpx_script_content_forbidden")
+        return
+    raise AssertionError("기본 스크립트가 있는 읽기 전용 양식을 찾지 못함")
+
+
+check("실제 양식의 메모리 사본에 동작을 추가하면 거부", altered_existing_boilerplate)
