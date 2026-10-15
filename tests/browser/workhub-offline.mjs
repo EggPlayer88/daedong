@@ -24,7 +24,7 @@ async function heading(name){await page.getByRole('heading',{name,exact:true,lev
 async function settle(){await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))}
 try{
   await test('단일 파일에 일반·인라인 CSS를 담고 운영 연결 코드를 포함하지 않는다',async()=>{
-    assert.match(html,/12차 개발 · 화면 사용성 개선/)
+    assert.equal(/<title>(.*?)<\/title>/.exec(html)?.[1], '학교업무혁신시스템 · 개발 미리보기 · 파일형 수합')
     for(const value of ['.ws-shell','.task-panel','.wf-','.students-panel','.cv-month','.ws-search-dialog'])assert(html.includes(value),value)
     for(const value of ['workhub_calendar_list','workhub_task_save','createSupabaseConnection'])assert(!html.includes(value),value)
     assert.match(html,/connect-src 'none'/)

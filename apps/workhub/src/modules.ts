@@ -17,7 +17,7 @@ export const workhubModules: readonly WorkhubModule[] = [
   { id: 'home', title: '오늘', group: 'today', icon: '◷', modes: ['connected', 'preview'], visibility: 'superadmin', productionEnabled: false },
   { id: 'calendar', title: '학교 일정', group: 'school', icon: '▦', modes: ['connected', 'preview'], visibility: 'superadmin', productionEnabled: false },
   { id: 'tasks', title: '내 업무', group: 'today', parentId: 'home', icon: '✓', modes: ['connected', 'preview'], visibility: 'superadmin', productionEnabled: false },
-  { id: 'collections', title: '자료 수합', group: 'work', icon: '▤', modes: ['preview'], visibility: 'superadmin', productionEnabled: false },
+  { id: 'collections', title: '자료 수합', group: 'work', icon: '▤', modes: ['connected', 'preview'], visibility: 'superadmin', productionEnabled: false },
   { id: 'students', title: '수업과 학생', group: 'teaching', icon: '◎', modes: ['preview'], visibility: 'superadmin', productionEnabled: false },
 ]
 

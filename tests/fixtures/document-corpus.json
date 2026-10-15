@@ -1,0 +1,539 @@
+{
+  "description": "공개 원본 로컬 검사. 파일 자체 재배포 없음. URL은 출처이며 도구가 다운로드하지 않음.",
+  "files": [
+    {
+      "file": "hancom-hwp5-format.pdf",
+      "source": "https://cdn.hancom.com/link/docs/%ED%95%9C%EA%B8%80%EB%AC%B8%EC%84%9C%ED%8C%8C%EC%9D%BC%ED%98%95%EC%8B%9D_5.0_revision1.3.pdf",
+      "bytes": 830986,
+      "sha256": "1d1da9e6fe22563ae2c5285bbbfc6762974fb7f002278084cbc11e5266bdc782",
+      "baseline_pr38": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pypdf-google-doc.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/011-google-doc-document/google-doc-document.pdf",
+      "bytes": 80100,
+      "sha256": "69f6b7f493b1bc55d518942976cbeadc4ec0a36f6d8a6dc24feffc516d35b2c9",
+      "baseline_pr38": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pypdf-cmyk.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/023-cmyk-image/cmyk-image.pdf",
+      "bytes": 443953,
+      "sha256": "5a5f76a951e403a5b357992789afc5164fd6c2914583741de7a1dd08ec029ab2",
+      "baseline_pr38": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pypdf-minimal.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/001-trivial/minimal-document.pdf",
+      "bytes": 16978,
+      "sha256": "f723638db6e763cf4ccadad38a3d38a02d9ecab95dab1f0bbf00e801991b5f92",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "pdf_xref_stream_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "headerfooter.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/headerfooter.hwp",
+      "bytes": 8704,
+      "sha256": "8dcc2edecf32b86724819de3265529d57200b502b9cc5dbc0378daa041c274c8",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "hwplib-blank.hwp",
+      "source": "https://raw.githubusercontent.com/neolord0/hwplib/main/sample_hwp/blank.hwp",
+      "bytes": 22528,
+      "sha256": "ed637bb8ac8cd41c616bb02d707f2d32506291456290c2286fc215d4ec21ce4e",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "password-12345.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/password-12345.hwp",
+      "bytes": 8192,
+      "sha256": "e86aac42e3efbcc2e06cc50e628705dce710bec0c252961b7d52c87e3c6b0660",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_protected_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_protected_unsupported"
+      }
+    },
+    {
+      "file": "sample-5017.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/sample-5017.hwp",
+      "bytes": 40448,
+      "sha256": "ff3faae938610fcfbedc21c27c507ca0cc038b44872b65d10fcad0b55af67ba2",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_storage_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "shapepict-scaled.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/shapepict-scaled.hwp",
+      "bytes": 34816,
+      "sha256": "daf292ab2d91fad74091fb6a6b1cc2c2a1c203c5f7736aac075598b75bbfd4a3",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_storage_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-blank-win2020.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/main/Tests/CoreHwpTests/Fixtures/blank-win2020/document.hwp",
+      "bytes": 13312,
+      "sha256": "2ca1de4cd7fa3d613a56968be504e9001cb8278a2e1d999f995ad873b4df34cf",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-plain-text-minimal.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/main/Tests/CoreHwpTests/Fixtures/plain-text-minimal/document.hwp",
+      "bytes": 26112,
+      "sha256": "a2ab41c8f5009d497082aaf9a0b60ad4697dd7db90838174bb0e9356807ee4e7",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "pypdf-pdflatex-image.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/003-pdflatex-image/pdflatex-image.pdf",
+      "bytes": 74061,
+      "sha256": "64c5bc35008015936ef3ff60f6ad268a713b5271727b72ef308f87b9b495646f",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "pdf_xref_stream_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pypdf-pdflatex-4-pages.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/004-pdflatex-4-pages/pdflatex-4-pages.pdf",
+      "bytes": 24607,
+      "sha256": "f17a09190ad8a04964d78115d8ba7fc7a298557274fa14932ba58612342b7dec",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "pdf_xref_stream_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pypdf-pdflatex-outline.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/006-pdflatex-outline/pdflatex-outline.pdf",
+      "bytes": 48722,
+      "sha256": "17b5a4dac75613b82749c7538fc93991a385a5d419cc9832fdba24c1726a031a",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "pdf_xref_stream_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pypdf-multicolumn.pdf",
+      "source": "https://raw.githubusercontent.com/py-pdf/sample-files/main/026-latex-multicolumn/multicolumn.pdf",
+      "bytes": 78657,
+      "sha256": "bdb495e95b3e1afae95013099dc59b0cea047f1fa70f677ee9cb33f10faa1c6c",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "pdf_xref_stream_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "pdf_structure_passed"
+      }
+    },
+    {
+      "file": "pyhwp-aligns.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/aligns.hwp",
+      "bytes": 16384,
+      "sha256": "b101b4faff3c65f88ac9f8f583219cf5825d0747be85dbe45174dcd84207a3d1",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_storage_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "pyhwp-table.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/table.hwp",
+      "bytes": 14848,
+      "sha256": "df4746b82eea954a2aba36eb7dc51acf8cd975dced5e3331a1838932eaf123f9",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_storage_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "pyhwp-charstyle.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/charstyle.hwp",
+      "bytes": 16384,
+      "sha256": "7e519978e920e9b5ebb8532a92a19713c1e5a25da5482bddd6ca5e5a6b93cdd3",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "pyhwp-parashape.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/parashape.hwp",
+      "bytes": 9216,
+      "sha256": "1df75e74dff1b93f42ce88cfa0e362ae489756274eca0a2abcb2b34ddd7c9548",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_storage_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "pyhwp-issue30.hwp",
+      "source": "https://raw.githubusercontent.com/mete0r/pyhwp/master/tests/hwp5_tests/fixtures/issue30.hwp",
+      "bytes": 9216,
+      "sha256": "a6d16e4adf1ada7c39e7c570d84c36e95f3041f337133e94b1edbb0e3b6c58c3",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_storage_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "hwplib-basic-blank.hwp",
+      "source": "https://raw.githubusercontent.com/neolord0/hwplib/main/sample_hwp/basic/blank.hwp",
+      "bytes": 14848,
+      "sha256": "08550eb806392423df94d3ad39fd3cc031fa25f13aeb458f0f1382553800cb02",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_active_content_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "hwplib-source.hwp",
+      "source": "https://raw.githubusercontent.com/neolord0/hwplib/main/sample_hwp/source.hwp",
+      "bytes": 9216,
+      "sha256": "577ed53fc8a652e63485b000da0a71f733a155a4b2e067174415e27f97e41762",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "hwplib-target.hwp",
+      "source": "https://raw.githubusercontent.com/neolord0/hwplib/main/sample_hwp/target.hwp",
+      "bytes": 8704,
+      "sha256": "dd33e0825b7e48d2816adb704c2bc0999905a4deda284eec67e9877b0753f238",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "hwplib-change-paragraph.hwp",
+      "source": "https://raw.githubusercontent.com/neolord0/hwplib/main/sample_hwp/changing-paragraph-text.hwp",
+      "bytes": 8704,
+      "sha256": "42ebd913a044ef1dcb207990727b04c51e261e37bc045583e6035e120f39db01",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "hwplib-field.hwp",
+      "source": "https://raw.githubusercontent.com/neolord0/hwplib/main/sample_hwp/setting-fields.hwp",
+      "bytes": 9728,
+      "sha256": "b3670a168fa84e7ec525b64feb82677be8519116e2be66296d97b7daeefdff31",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_active_content_unsupported"
+      }
+    },
+    {
+      "file": "swift-2007.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/2007/document.hwp",
+      "bytes": 8704,
+      "sha256": "717be1e809a77b03fdbe38e1de5d23b30d6f29dac85c2a388ec82c42ae5d467a",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-2014VP.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/2014VP/document.hwp",
+      "bytes": 8704,
+      "sha256": "b756c384faa1fd3c3421344b7922a0bf789d82f49f9666a6e732fdbb1b4b8d62",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-blank-mac2014vp.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/blank-mac2014vp/document.hwp",
+      "bytes": 22528,
+      "sha256": "e31d7eda22eb2c2b9085e9e635f2f4512223002807c75f950e9614699c34b568",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-blank-win2018.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/blank-win2018/document.hwp",
+      "bytes": 13312,
+      "sha256": "eb27fdea84e3d066edeb42f728bd668f5f5227682ada1e16fafbf9d873f1a1df",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-CCL.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/CCL/document.hwp",
+      "bytes": 21504,
+      "sha256": "4e242d28ba688a1a750d7d7333d110d9ddef48dbc97901ea8faf017e90999997",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_features_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_active_content_unsupported"
+      }
+    },
+    {
+      "file": "swift-CharShape.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/CharShape/document.hwp",
+      "bytes": 42496,
+      "sha256": "6f9b4835e9ed0a20cde464b143998b0315e3a3125685f8a47a0fe34214dd1283",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-CharShapeProperty.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/CharShapeProperty/document.hwp",
+      "bytes": 38912,
+      "sha256": "1824dfbf8bfcaed6281e9d20a7f4478e61f74d19dd69f08c389ce20bf5536180",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "unsupported",
+        "code": "hwp_document_link_unsupported"
+      }
+    },
+    {
+      "file": "swift-plain-text-hancom-mac2026.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/plain-text-hancom-mac2026/document.hwp",
+      "bytes": 29696,
+      "sha256": "7da5f22a013cd66cd380188e545e11a3868eb93a8cdc643b35d16ed378acbb87",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "swift-header-footer.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/header-footer/document.hwp",
+      "bytes": 29696,
+      "sha256": "f4e16fa80c57c8081d0d2555e7de10be9bc3243b3f846180bc47270dcdf23f4e",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "swift-table-border-chains.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/table-border-chains/document.hwp",
+      "bytes": 32768,
+      "sha256": "b1ce5708daede29a56eae7f11a10a06ca0c304986fca1bfc5b4a1cb62c0de1fc",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "swift-multi-section.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/multi-section/document.hwp",
+      "bytes": 24064,
+      "sha256": "eebc6ff31e86263a8423f92f31f4e19d23986059aedd86bc32da693ab84179ef",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "swift-inline-object-baseline.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/inline-object-baseline/document.hwp",
+      "bytes": 67584,
+      "sha256": "8ea614adc4af293d9e846f20edad4fd43e192328df88535e8b11fe55aef7c503",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    },
+    {
+      "file": "swift-numbering-sequence.hwp",
+      "source": "https://raw.githubusercontent.com/sboh1214/hwp-swift/eebe90d160b3d437b97d0bb1ea7a5752f419f225/Tests/CoreHwpTests/Fixtures/numbering-sequence/document.hwp",
+      "bytes": 35328,
+      "sha256": "5b8c2d728ac43b3ebd2c6f676805201f150d7f4620517e154ed582f713836332",
+      "baseline_pr38": {
+        "status": "unsupported",
+        "code": "hwp_version_unsupported"
+      },
+      "expected": {
+        "status": "passed",
+        "code": "hwp_structure_checked"
+      }
+    }
+  ],
+  "baseline_commit": "a4b467759bf2774a5106f8b746ccff4491cb0866",
+  "baseline_method": "이전 PR38 당시 표본 11개와 이번 추가 표본 27개 모두를 이전 커밋 코드·동일 형식별 한도로 소급 검증했다."
+}

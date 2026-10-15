@@ -12,7 +12,7 @@ const scripts = [
   'workhub-navigation', 'workhub-foundation', 'workhub-calendar-views',
   'workhub-calendar-recovery', 'workhub-calendar-import', 'workhub-request-recovery',
   'workhub-home-search', 'workhub-home-layout', 'workhub-task-navigation',
-  'workhub-collection-workbench', 'workhub-collection-entry',
+  'workhub-collection-workbench', 'workhub-collection-entry', 'workhub-collection-followup', 'workhub-collection-server', 'workhub-collection-export', 'workhub-file-controls', 'workhub-file-collections', 'workhub-file-persistence',
   'workhub-student-workspace', 'workhub-student-entry',
   'workhub-accessibility', 'workhub-collection-accessibility', 'workhub-student-accessibility',
   'workhub-task-paging', 'workhub-collection-paging', 'workhub-student-paging',
