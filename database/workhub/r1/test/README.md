@@ -27,7 +27,7 @@ R0_PG_BIN=<PostgreSQL 17 bin> R1_APP_SRC=<앱 checkout> bash run_all.sh
 | `env.sh` | 공통 설정. 시험 서버 폴더 기본값 `${TMPDIR:-/tmp}/r1-r0-verify` |
 | `mock_storage_r1.sql` | R0 흉내에 Storage 판 차이(owner_id·버킷 크기 한도 등)를 더함 |
 | `setup.sh [r1]` | 기존 자료 DB + R0-01~03 적용, `r1` 이면 R1-01~03 까지 |
-| `run_r1.py` | 정상·거부 시나리오 184건 (PostgREST 와 같은 역할 경로로 호출) |
+| `run_r1.py` | 정상·거부 시나리오 235건 (PostgREST 와 같은 역할 경로로 호출, Storage 요청 종류는 `storage.operation` 으로 흉내) |
 | `app_contract.ts` | `run_r1.py` 가 받은 실제 응답 봉투를 앱의 검증 함수(`collections/validation.ts`)에 넣어 확인 |
 | `run_all.sh` | 선행 조건 거부 → 설치 → 전후 지문 → 지문 민감도 → 시나리오 → 앱 대조 → 중지 양식 |
 
