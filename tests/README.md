@@ -121,7 +121,7 @@ $env:PLAYWRIGHT_CHANNEL = 'chromium'
 npm run test:workhub:browser
 ```
 
-러너는 목록에 명시한 33개 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
+러너는 목록에 명시한 브라우저 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
 
 CI에서는 기존 필수 `test` job 안에 **실제 브라우저 회귀 검사** 단계가 있다. 화면·공통 앱·브라우저 시험·공통 시험 도우미·의존성·워크플로가 바뀌면 고정 Chromium과 한글 글꼴을 설치하고 같은 러너를 실행한다. 문서만 바뀐 경우에는 이 단계만 생략하며 `npm test`는 그대로 실행한다. 변경 경로 판정에 실패하면 브라우저 검사를 실행하는 쪽으로 처리한다. 브라우저 실패도 전체 `test` 실패이며, 화면·JSON·콘솔 결과를 `workhub-browser-results` 아티팩트에 7일간 보관한다.
 
@@ -226,3 +226,11 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - workhub-collection-followup.mjs: 실제 수합 작성→게시→보완→재제출→완료, 키보드·390px·학교 전환 9시나리오.
 - workhub-file-controls.mjs: 기존 11개에 최대 개수에서 교체·오류/중복·취소·외부 목록 변경 4시나리오 추가.
 - [수합 사용성 보완 인계](../docs/workhub/30-collection-followup.md)에 재검토 순서와 서버 연결 전 한계를 기록한다.
+
+## 학교 초기 설정 준비
+
+- `test_workhub_school_setup.mjs`: 초안 파일·기간·학기·조직·학급 계약 25개.
+- `test_workhub_school_setup_ui.mjs`: 실제 폼 SSR의 고유 ID/설명 연결과 운영 미반영 안내.
+- `workhub-school-setup.mjs`: 실제 브라우저의 입력→검사→파일 왕복, 실패 시 보존, 이동 보호, 모바일/키보드. 전체 러너에 포함한다.
+- 모듈 공개와 하위 경로 현재 메뉴 표시는 `test_visibility.mjs`에서 실제 Layout으로 확인한다.
+- [사용·검토 절차](../docs/workhub/26-school-setup-preparation.md). 실제 회원이나 운영 DB를 쓰지 않는다.
