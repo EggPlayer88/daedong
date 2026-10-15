@@ -32,8 +32,6 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.headers.get("Transfer-Encoding"):
             return self._send(400, {"error": {"code": "INVALID_INPUT"}})
-        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
-            return self._send(415, {"error": {"code": "INVALID_INPUT"}})
         try:
             lengths = self.headers.get_all("Content-Length", [])
             if len(lengths) != 1:
@@ -45,8 +43,19 @@ class handler(BaseHTTPRequestHandler):
             return self._send(400, {"error": {"code": "INVALID_INPUT"}})
         if length > REQUEST_LIMIT:
             return self._send(413, {"error": {"code": "INVALID_INPUT"}})
+        # 작은 본문도 읽지 않고 소켓을 닫으면 일부 환경에서 오류 응답 자체가 유실된다.
+        # 길이 검사를 먼저 끝내고 제한된 본문만 읽은 뒤 형식을 판정한다.
         try:
-            payload = parse_json(self.rfile.read(length), "INVALID_INPUT", 400)
+            self.connection.settimeout(5)
+            raw = self.rfile.read(length)
+        except (OSError, TimeoutError):
+            return self._send(400, {"error": {"code": "INVALID_INPUT"}})
+        if len(raw) != length:
+            return self._send(400, {"error": {"code": "INVALID_INPUT"}})
+        if self.headers.get("Content-Type", "").split(";", 1)[0].strip().lower() != "application/json":
+            return self._send(415, {"error": {"code": "INVALID_INPUT"}})
+        try:
+            payload = parse_json(raw, "INVALID_INPUT", 400)
             response = check_file(payload, self.headers.get("Authorization"))
         except CheckError as error:
             return self._send(error.status, {"error": {"code": error.code}})
