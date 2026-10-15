@@ -3,12 +3,13 @@ from io import BytesIO
 from pathlib import Path
 import struct
 import sys
+import zlib
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests" / "helpers"))
-from hwp_fixture import cfb, deflate, hwp_streams, make_hwp, record, FREE, END, FAT
+from hwp_fixture import cfb, deflate, hwp_streams, make_hwp, record, numbering_51, FREE, END, FAT
 from workers.collection_files.hwp_inspection import inspect_hwp
 import workers.collection_files.hwp_inspection as module
 from PIL import Image
@@ -83,6 +84,46 @@ def fat_offset(data, sector):
     return (fat + 1) * size + sector * 4
 
 
+def modern(version=0x05010100):
+    streams = hwp_streams(version=version, compatibility=True, empty_link=True, encrypt_version=4)
+    counts = [0] * 18
+    counts[9], counts[11], counts[13] = 1, 1, 1
+    info = zlib.decompress(streams["DocInfo"], -15)
+    first_end = 4 + (struct.unpack_from("<I", info)[0] >> 20)
+    map_end = first_end + 4 + 72
+    styles = (record(21, bytes(74), 1) + record(23, numbering_51(), 1)
+              + record(25, bytes(54 if version == 0x05010000 else 58), 1))
+    streams["DocInfo"] = deflate(info[:first_end] + record(17, struct.pack("<18I", *counts)) + styles + info[map_end:])
+    return streams
+
+
+def replace_doc_record(streams, tag, *, payload=None, level=None, remove=False, duplicate=False):
+    streams = dict(streams)
+    raw = zlib.decompress(streams["DocInfo"], -15)
+    position, parts = 0, []
+    while position < len(raw):
+        header = struct.unpack_from("<I", raw, position)[0]
+        current, old_level, size = header & 1023, (header >> 10) & 1023, header >> 20
+        assert size < 4095
+        position += 4
+        value = raw[position:position + size]
+        position += size
+        if current == tag and remove:
+            continue
+        item = record(current, value if current != tag or payload is None else payload,
+                      old_level if current != tag or level is None else level)
+        parts.append(item)
+        if current == tag and duplicate:
+            parts.append(item)
+    streams["DocInfo"] = deflate(b"".join(parts))
+    return streams
+
+
+def orphan_picture(*, compressed=True, corrupt=False):
+    images = picture(compressed=compressed, corrupt=corrupt)
+    return {**hwp_streams(compressed=compressed), "BinData/BIN0001.png": images["BinData/BIN0001.png"]}
+
+
 def run():
     count = 0
 
@@ -138,11 +179,67 @@ def run():
     for bit in (1, 2, 4, 8, 10, 13):
         check(f"암호·배포·DRM 계열 flag {bit}는 미지원이다", lambda bit=bit: expect(result(edited_header(36, 1 | (1 << bit))), "unsupported", "hwp_protected_unsupported"))
     check("알 수 없는 새 기능 flag는 통과시키지 않는다", lambda: expect(result(edited_header(36, 1 | (1 << 31))), "unsupported"))
-    check("암호화 flag 없이 알고리즘 값만 있으면 보호 문서로 단정하지 않는다", lambda: expect(result(edited_header(44, 4)), "unsupported", "hwp_features_unsupported"))
+    for algorithm in range(1, 5):
+        check(f"암호화 flag 없이 알고리즘 {algorithm}만 있으면 평문 구조까지 검사한다", lambda algorithm=algorithm: expect(result(edited_header(44, algorithm)), "passed"))
+    check("알 수 없는 암호화 알고리즘은 허용하지 않는다", lambda: expect(result(edited_header(44, 5)), "unsupported", "hwp_features_unsupported"))
+    check("평문 알고리즘 정보가 있어도 실제 암호 설정 flag는 미지원이다", lambda: _algorithm_with_protection())
+    check("알고리즘 정보가 올바르더라도 암호문 같은 잘못된 본문은 거부한다", lambda: expect(result({**hwp_streams(encrypt_version=4), "BodyText/Section0": b"ciphertext"}), "rejected"))
+    check("XML 서식 힌트만 있고 실제 서식 저장소가 없으면 검사한다", lambda: expect(result(edited_header(36, 33)), "passed"))
+    check("실제 XML 서식 저장소는 계속 미지원이다", lambda: expect(result({**edited_header(36, 33), "XMLTemplate/Schema": b"<schema/>"}), "unsupported", "hwp_storage_unsupported"))
     check("동일한 대소문자 이름의 두 stream을 거부한다", lambda: expect(result({**hwp_streams(), "docinfo": hwp_streams()["DocInfo"]}), "rejected"))
     check("구역 개수와 실제 Section 이름이 다르면 거부한다", lambda: expect(result({**hwp_streams(), "BodyText/Section2": hwp_streams()["BodyText/Section0"]}), "rejected", "hwp_section_mismatch"))
     check("임의 stream을 숨겨 통과할 수 없다", lambda: expect(result({**hwp_streams(), "Unknown": b"MZevil"}), "unsupported", "hwp_stream_unsupported"))
-    check("검증하지 못한 문서 연결 저장소는 미지원이다", lambda: expect(result({**hwp_streams(), "DocOptions/_LinkDoc": b"path"}), "unsupported", "hwp_storage_unsupported"))
+    check("524바이트 전체가 0인 빈 문서 연결 정보를 검사한다", lambda: expect(result(hwp_streams(empty_link=True, encrypt_version=4)), "passed"))
+    check("비압축 문서의 빈 연결 정보도 검사한다", lambda: expect(result(hwp_streams(compressed=False, empty_link=True, encrypt_version=4)), "passed"))
+    check("검증하지 못한 문서 연결 형식은 미지원이다", lambda: expect(result({**hwp_streams(), "DocOptions/_LinkDoc": b"path"}), "unsupported", "hwp_document_link_unsupported"))
+    for length in (0, 2, 522, 526):
+        check(f"빈 바이트여도 확인하지 못한 연결 길이 {length}는 미지원이다", lambda length=length: expect(result({**hwp_streams(), "DocOptions/_LinkDoc": bytes(length)}), "unsupported", "hwp_document_link_unsupported"))
+    check("첫 NUL 뒤의 비영 바이트를 임의의 여유 공간으로 간주하지 않는다", lambda: expect(result({**hwp_streams(), "DocOptions/_LinkDoc": bytes(2) + b"x" + bytes(521)}), "unsupported", "hwp_document_link_unsupported"))
+    check("외부 문서 경로를 실행하거나 가져오지 않는다", lambda: expect(result({**hwp_streams(), "DocOptions/_LinkDoc": "https://example.invalid/evil".encode("utf-16-le").ljust(524, b"\0")}), "unsupported", "hwp_document_link_unsupported"))
+    check("문서 연결 끝의 알 수 없는 옵션도 미지원이다", lambda: expect(result({**hwp_streams(), "DocOptions/_LinkDoc": bytes(520) + struct.pack("<I", 1)}), "unsupported", "hwp_document_link_unsupported"))
+    check("DocOptions 안의 DRM 자료는 계속 미지원이다", lambda: expect(result({**hwp_streams(empty_link=True), "DocOptions/_DRMOption": bytes(4)}), "unsupported", "hwp_stream_unsupported"))
+    check("DocOptions 안의 모르는 stream은 계속 미지원이다", lambda: expect(result({**hwp_streams(empty_link=True), "DocOptions/Unknown": b"MZ"}), "unsupported", "hwp_stream_unsupported"))
+    check("5.0 정적 변경 추적 메타데이터를 실행 기능으로 오분류하지 않는다", lambda: expect(result(hwp_streams(compatibility=True)), "passed"))
+    for target in (0, 1, 2):
+        check(f"공식 호환 대상 {target}의 구조를 검사한다", lambda target=target: expect(result(replace_doc_record(hwp_streams(compatibility=True), 30, payload=struct.pack("<I", target))), "passed"))
+    check("알 수 없는 호환 대상은 미지원이다", lambda: expect(result(replace_doc_record(hwp_streams(compatibility=True), 30, payload=struct.pack("<I", 3))), "unsupported", "hwp_compatibility_unsupported"))
+    for tag, size in ((30, 4), (31, 20), (32, 1032)):
+        check(f"호환 메타데이터 {tag}의 잘린 길이를 거부한다", lambda tag=tag, size=size: expect(result(replace_doc_record(hwp_streams(compatibility=True), tag, payload=bytes(size-1))), "rejected", "hwp_record_corrupt"))
+        check(f"호환 메타데이터 {tag} 중복을 거부한다", lambda tag=tag: expect(result(replace_doc_record(hwp_streams(compatibility=True), tag, duplicate=True)), "rejected", "hwp_record_corrupt"))
+        check(f"호환 메타데이터 {tag} 잘못된 레벨을 거부한다", lambda tag=tag: expect(result(replace_doc_record(hwp_streams(compatibility=True), tag, level=1 if tag==30 else 0)), "rejected", "hwp_record_corrupt"))
+    check("호환 문서 부모가 없는 변경 추적 정보는 거부한다", lambda: expect(result(replace_doc_record(hwp_streams(compatibility=True), 30, remove=True)), "rejected", "hwp_record_corrupt"))
+    check("사용중인 변경 추적 기능 flag는 계속 미지원이다", lambda: expect(result(edited_header(36, 1 | (1 << 14))), "unsupported", "hwp_features_unsupported"))
+    for compressed in (True, False):
+        check(f"미참조 PNG도 기본 압축 {compressed}에 따라 실제 해독한다", lambda compressed=compressed: expect(result(orphan_picture(compressed=compressed)), "passed"))
+    check("미참조 PNG의 잘린 바이트를 거부한다", lambda: expect(result(orphan_picture(corrupt=True)), "rejected", "hwp_image_corrupt"))
+    check("미참조 PNG에도 픽셀 메모리 한도를 적용한다", lambda: _orphan_image_limit())
+    check("참조된 BinData가 없으면 여전히 거부한다", lambda: expect(result({k:v for k,v in picture().items() if not k.startswith("BinData/")}), "rejected", "hwp_binary_mismatch"))
+    check("미참조 그림을 가장한 실행 바이트를 거부한다", lambda: expect(result({**hwp_streams(), "BinData/BIN0001.png": deflate(b"MZexecutable")}), "rejected", "hwp_image_signature_mismatch"))
+    for name in ("BIN0001.ole", "BIN0001.exe", "BIN0000.png", "other.png", "BIN00001.png"):
+        check(f"미참조 비지원 이름 {name}은 미지원이다", lambda name=name: expect(result({**hwp_streams(), f"BinData/{name}": b"MZ"}), "unsupported", "hwp_unreferenced_binary_unsupported"))
+    check("미참조 이미지 압축 모드를 추측하여 재시도하지 않는다", lambda: expect(result({**hwp_streams(compressed=False), "BinData/BIN0001.png": picture()["BinData/BIN0001.png"]}), "rejected", "hwp_image_signature_mismatch"))
+    for version in (0x05010000, 0x05010001, 0x05010100):
+        check(f"확인한 5.1 버전 {version:08x}의 확장 구조를 검사한다", lambda version=version: expect(result(modern(version)), "passed"))
+    for version in (0x05010002, 0x05010200, 0x05020000):
+        check(f"확인하지 못한 버전 {version:08x}는 미지원이다", lambda version=version: expect(result(edited_header(32, version)), "unsupported", "hwp_version_unsupported"))
+    for tag in (30, 31, 32):
+        check(f"5.1 필수 호환 레코드 {tag} 누락은 거부한다", lambda tag=tag: expect(result(replace_doc_record(modern(), tag, remove=True)), "rejected"))
+    for tag, wrong in ((16, 25), (17, 64), (21, 68), (25, 54)):
+        check(f"5.1 레코드 {tag}에 구버전 길이를 넣으면 거부한다", lambda tag=tag, wrong=wrong: expect(result(replace_doc_record(modern(), tag, payload=bytes(wrong))), "rejected", "hwp_version_record_mismatch"))
+    check("5.1 문단 헤더22바이트는 거부한다", lambda: expect(result({**modern(), "BodyText/Section0": deflate(record(66, bytes(22)))}), "rejected", "hwp_version_record_mismatch"))
+    for level in (0, 7, 9):
+        check(f"5.1 문단 수준 {level}은 마지막 DWORD에서 검사한다", lambda level=level: expect(result(replace_doc_record(modern(), 25, payload=bytes(54)+struct.pack("<I", level))), "passed"))
+    check("5.1 문단 수준10은 지원 범위 밖으로 분류한다", lambda: expect(result(replace_doc_record(modern(), 25, payload=bytes(54)+struct.pack("<I", 10))), "unsupported", "hwp_layout_extension_unsupported"))
+    check("5.1 ID 목록과 실제 정의 개수 불일치를 거부한다", lambda: expect(result(replace_doc_record(modern(), 17, payload=bytes(72))), "rejected", "hwp_id_mapping_mismatch"))
+    check("5.1 개수가 같아도 ID 목록 밖 레코드는 거부한다", lambda: expect(result(replace_doc_record(modern(), 21, level=0)), "rejected", "hwp_record_corrupt"))
+    check("5.1 ID 목록 레코드를 두 단계 아래에 숨기면 거부한다", lambda: expect(result(replace_doc_record(modern(), 23, level=2)), "rejected", "hwp_record_corrupt"))
+    number = numbering_51()
+    for label, value in (("기본 머리 절단", number[:10]), ("확장3단계 절단", number[:-20]),
+                         ("시작번호 끝 절단", number[:-1]), ("뒤쪽 추가 바이트", number+b"x"),
+                         ("문자 수 부풀림", mutate(number,12,65535,"<H")),
+                         ("깨진 UTF16", number[:14]+b"\0\xd8"+number[16:])):
+        check(f"5.1 문단 번호의 {label}를 거부한다", lambda value=value: expect(result(replace_doc_record(modern(),23,payload=value)), "rejected"))
+    check("5.1에도 사용자 스크립트 금지를 유지한다", lambda: expect(result({**modern(), **{k:v for k,v in scripts(source="Run();").items() if k.startswith("Scripts/")}}), "unsupported", "hwp_script_unsupported"))
     check("추가 스크립트 파일을 거부한다", lambda: expect(result({**scripts(), "Scripts/Extra": b"evil"}), "unsupported"))
     for label, kwargs in (("소스 호출", {"source": "function OnDocument_New(){Run();}"}),
                           ("헤더 호출", {"header": "alert(1);"}), ("pre 호출", {"pre": "Run();"}),
@@ -214,6 +311,19 @@ def _record_limit():
 def _image_configuration():
     with patch.object(module.ImageFile, "LOAD_TRUNCATED_IMAGES", True):
         expect(result(picture()), "error", "hwp_image_parser_configuration_invalid")
+
+
+def _algorithm_with_protection():
+    streams = hwp_streams(encrypt_version=4)
+    header = bytearray(streams["FileHeader"])
+    struct.pack_into("<I", header, 36, 3)
+    streams["FileHeader"] = bytes(header)
+    expect(result(streams), "unsupported", "hwp_protected_unsupported")
+
+
+def _orphan_image_limit():
+    raw = picture(size=(100, 100))["BinData/BIN0001.png"]
+    expect(result({**hwp_streams(), "BinData/BIN0001.png": raw}, limits={**LIMITS,"max_entry_bytes":10000}), "rejected", "hwp_image_expanded_limit")
 
 
 if __name__ == "__main__":

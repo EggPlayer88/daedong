@@ -2,6 +2,8 @@
 
 2026-10-15 · PR #37의 `feat/workhub-file-workers` → `feat/workhub-document-format-support`
 
+> 이 문서는 PR #38 당시 결과다. 압축 PDF 및 HWP 실문서 호환성의 후속 보완·현재 제한은 [후속 구현 인계](38-document-compatibility.md)를 확인한다.
+
 ## 1. 결과와 적용 범위
 
 기존 서버 파일 처리 코어에 PDF·HWP 전용 파서를 연결하고, 정상 HWPX의 기본 스크립트 호환성을 보완했다. 수합의 공개 RPC·DB 계약·준비 상태·실제 배포는 변경하지 않았다. 실제 문서 작성 AI나 시간표 작업도 포함하지 않는다.

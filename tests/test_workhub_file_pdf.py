@@ -13,6 +13,7 @@ from workers.collection_files import pdf_inspection as module
 from workers.collection_files.pdf_inspection import inspect_pdf
 from pypdf import PdfWriter
 from PIL import Image, ImageFile
+from helpers.pdf_fixture import modern_pdf, png_rows
 
 LIMITS = {"max_archive_entries": 1000, "max_entry_bytes": 32 * 1024 * 1024,
           "max_expanded_bytes": 64 * 1024 * 1024, "max_compression_ratio": 1000,
@@ -160,7 +161,7 @@ test("체인 동작 거부", lambda: verdict(objects=with_object(b"<< /Type /Act
 for label, body in (("없는 객체 참조", b"<< /Missing 55 0 R >>"),
                     ("직접 중복 키", b"<< /Title (a) /Title (b) >>"),
                     ("객체 스트림", stream(b"", b"/Type /ObjStm /N 1 /First 0"))):
-    test(label + "는 성공하지 않음", lambda body=body: verdict(objects=with_object(body), status="unsupported" if b"/ObjStm" in body else "rejected"))
+    test(label + "는 성공하지 않음", lambda body=body: verdict(objects=with_object(body)))
 
 
 def encoded(raw, filters):
@@ -194,7 +195,7 @@ test("압축 확장 바이트 한도", lambda: verdict(objects=encoded(zlib.comp
 test("압축 비율 한도", lambda: verdict(objects=encoded(zlib.compress(b"x" * 10000), b"/FlateDecode"), limits={**LIMITS, "max_compression_ratio": 3}))
 test("객체 수 한도", lambda: verdict(limits={**LIMITS, "max_archive_entries": 2}))
 test("전체 확장 합계 한도", lambda: verdict(objects={**basic(), 5: stream(b"A" * 20), 6: stream(b"B" * 20)}, limits={**LIMITS, "max_expanded_bytes": 30}))
-test("해석하지 않은 predictor는 미지원", lambda: verdict(objects={**basic(), 4: stream(zlib.compress(b"q Q"), b"/Filter /FlateDecode /DecodeParms << /Predictor 12 >>")}, status="unsupported"))
+test("행 경계가 맞지 않는 PNG predictor는 거부", lambda: verdict(objects={**basic(), 4: stream(zlib.compress(b"q Q"), b"/Filter /FlateDecode /DecodeParms << /Predictor 12 >>")}))
 
 
 def image_objects(width=16, height=16):
@@ -207,6 +208,21 @@ def image_objects(width=16, height=16):
 
 test("JPEG 스캔 이미지가 들어 있는 실제 PDF 구조 통과", lambda: verdict(objects=image_objects(), status="passed"))
 test("JPEG 이미지 픽셀 확장 한도", lambda: verdict(objects=image_objects(100, 100), limits={**LIMITS, "max_entry_bytes": 2000}))
+
+
+def chained_image_expansion():
+    output = BytesIO()
+    Image.new("RGB", (1, 1), (12, 24, 128)).save(output, "JPEG")
+    raw = output.getvalue()
+    comment = b"x" * 50000
+    raw = raw[:2] + b"\xff\xfe" + (len(comment) + 2).to_bytes(2, "big") + comment + raw[2:]
+    image = stream(zlib.compress(raw), b"/Type /XObject /Subtype /Image /Width 1 /Height 1 /BitsPerComponent 8 /ColorSpace /DeviceRGB /Filter [/FlateDecode /DCTDecode]")
+    objects = {**basic(), 5: image, 6: image}
+    verdict(objects=objects, status="passed", limits={**LIMITS, "max_expanded_bytes": 2 * len(raw) + 3})
+    verdict(objects=objects, limits={**LIMITS, "max_expanded_bytes": 2 * len(raw) + 2})
+
+
+test("Flate→JPEG 연쇄의 중간 확장량도 전체 한도에 포함", chained_image_expansion)
 
 
 def wrong_image_size():
@@ -364,6 +380,174 @@ def damaged_content_dictionary():
 test("손상 본문 dictionary는 복구하지 않고 거부하며 원문을 로그에 남기지 않음", damaged_content_dictionary)
 test("본문 dictionary의 중복 키도 복구하지 않음", lambda: verdict(objects={**basic(), 4: stream(b"<< /A 1 /A 2 >> xx")}))
 test("본문 끝에 연산자 없이 남은 인자 거부", lambda: verdict(objects={**basic(), 4: stream(b"1 2 3")}))
+
+test("xref·객체 스트림과 PNG Up을 함께 사용하는 PDF 통과", lambda: verdict(modern_pdf(), status="passed"))
+test("객체 압축 없이 xref만 압축한 PDF 통과", lambda: verdict(modern_pdf(compressed=False, predictor=1), status="passed"))
+test("xref W의 0폭은 type1·generation0 기본값으로 처리", lambda: verdict(modern_pdf(compressed=False, predictor=1, widths=(0, 4, 0), indices=[1, 4, 6, 1]), status="passed"))
+test("객체 스트림의 객체 번호 순서가 비정렬이어도 offset 순서가 맞으면 통과", lambda: verdict(modern_pdf(members={3: basic()[3], 1: basic()[1], 2: basic()[2]}), status="passed"))
+test("classic trailer 추가 활성 내용도 검사에서 누락하지 않음", lambda: verdict(pdf(trailer=b"/AA << >>"), code="pdf_active_content"))
+test("xref stream dictionary의 미참조 활성 내용도 거부", lambda: verdict(modern_pdf(xref_dictionary=b"/JS (hidden)"), code="pdf_active_content"))
+
+for label, changes in (
+        ("압축 객체 index 불일치", {1: (2, 5, 2)}),
+        ("압축 객체 index 중복", {2: (2, 5, 0)}),
+        ("없는 압축 객체 소유자", {1: (2, 99, 0)}),
+        ("압축 객체를 다시 압축 스트림 소유자로 지정", {1: (2, 2, 0)}),
+        ("xref 스트림을 객체 스트림으로 지정", {1: (2, 6, 0)}),
+        ("일반 내용 스트림을 객체 스트림으로 지정", {1: (2, 4, 0)}),
+        ("실제 객체 offset 변조", {4: (1, 16, 0)}),
+        ("실제 객체 generation 변조", {4: (1, 15, 1)}),
+        ("xref 자신 offset 변조", {6: (1, 15, 0)}),
+        ("0번 객체를 사용중 객체로 지정", {0: (1, 15, 0)}),
+        ("자유 객체 참조로 교체", {1: (0, 0, 0)})):
+    test(label + " 거부", lambda changes=changes: verdict(modern_pdf(xref_changes=changes)))
+test("알 수 없는 xref 엔트리 종류는 미지원", lambda: verdict(modern_pdf(xref_changes={1: (3, 5, 0)}), status="unsupported", code="pdf_xref_entry_unsupported"))
+
+for label, args in (
+        ("xref 범위 중복", {"indices": [0, 5, 4, 3]}),
+        ("xref 범위 누락", {"indices": [0, 4, 6, 1]}),
+        ("xref W 원소 누락", {"widths": (1, 4)}),
+        ("xref 해제 길이 불일치", {"index_payload": b"short"}),
+        ("객체 스트림 N가 0", {"object_count": 0}),
+        ("객체 스트림 N 과다", {"object_count": 999999}),
+        ("객체 스트림 First가 0", {"object_first": 0}),
+        ("객체 스트림 First가 바깥", {"object_first": 999999}),
+        ("객체 스트림 offset 중복", {"object_offsets": [0, 0, 0]}),
+        ("객체 스트림 offset 역순", {"object_offsets": [30, 10, 0]}),
+        ("객체 스트림 뒤 숨은 구문", {"object_payload": b"1 0 2 5 3 10 null null null hidden"})):
+    test(label + " 거부", lambda args=args: verdict(modern_pdf(**args)))
+test("객체 스트림 상속은 확정 지원하지 않음", lambda: verdict(modern_pdf(object_dictionary=b"/Extends 4 0 R"), status="unsupported"))
+test("증분 xref는 최신 revision만 검사하고 통과시키지 않음", lambda: verdict(modern_pdf(xref_dictionary=b"/Prev 15"), status="unsupported", code="pdf_incremental_unsupported"))
+test("혼합 xref는 명시 미지원", lambda: verdict(modern_pdf(xref_dictionary=b"/XRefStm 15"), status="unsupported"))
+
+for label, source, replacement in (
+        ("xref W 간접 참조", b"/W [1 4 2]", b"/W 4 0 R"),
+        ("xref W 음수 폭", b"/W [1 4 2]", b"/W [1 -4 2]"),
+        ("xref Index 간접 참조", b"/Index [0 7]", b"/Index 4 0 R"),
+        ("xref Index 홀수 배열", b"/Index [0 7]", b"/Index [0 7 1]"),
+        ("xref DecodeParms 간접 참조", b"/DecodeParms << /Predictor 12 /Columns 7 >>", b"/DecodeParms 4 0 R"),
+        ("xref DecodeParms 내부 간접 참조", b"/Columns 7", b"/Columns 4 0 R"),
+        ("xref Size 상한 초과", b"/Size 7", b"/Size 10000000")):
+    test(label + " 거부", lambda source=source, replacement=replacement: verdict(modern_pdf().replace(source, replacement)))
+
+for label, value in (
+        ("단독 간접 참조", b"2 0 R"), ("객체 안의 스트림", stream(b"data")),
+        ("객체 사이 숨은 값", b"null null"), ("중복 dictionary 키", b"<< /A 1 /A 2 >>"),
+        ("압축 안 JavaScript", b"<< /JS (alert) >>")):
+    test(label + "도 압축 객체에서 거부", lambda value=value: verdict(modern_pdf(members={1: value, 2: basic()[2], 3: basic()[3]})))
+
+
+def original_length_recovery():
+    data = modern_pdf()
+    xref_start = int(re.search(rb"startxref\n(\d+)", data)[1])
+    suffix = data[xref_start:]
+    suffix = re.sub(rb"/Length \d+", b"/Length -1", suffix, count=1)
+    suffix = suffix.replace(b"\nendstream", b"endstream", 1)
+    verdict(data[:xref_start] + suffix, code="pdf_stream_length_invalid")
+
+
+test("strict 파서도 복구하던 음수 stream Length를 원문에서 거부", original_length_recovery)
+
+
+def one_byte_length_recovery():
+    data = modern_pdf()
+    xref_start = int(re.search(rb"startxref\n(\d+)", data)[1])
+    suffix = data[xref_start:]
+    length = int(re.search(rb"/Length (\d+)", suffix)[1])
+    suffix = suffix.replace(b"/Length " + str(length).encode(), b"/Length " + str(length + 1).encode(), 1)
+    verdict(data[:xref_start] + suffix)
+
+
+test("라이브러리가 보정할 수 있는 한 바이트 Length 오차도 거부", one_byte_length_recovery)
+
+
+def predictor_case(colors, bits, columns):
+    row_size = (colors * bits * columns + 7) // 8
+    raw = bytes((i * 73 + 251) % 256 for i in range(row_size * 5))
+    encoded = png_rows(raw, row_size, [0, 1, 2, 3, 4], bytes_per_pixel=max(1, (colors * bits + 7) // 8))
+    from pypdf.generic import DictionaryObject, NameObject, NumberObject
+    parameters = DictionaryObject({NameObject(key): NumberObject(value) for key, value in
+                                  (("/Predictor", 15), ("/Colors", colors), ("/BitsPerComponent", bits), ("/Columns", columns))})
+    assert module._png_predictor(encoded, parameters, 100000) == raw
+
+
+for colors, bits, columns in ((1, 1, 13), (1, 2, 7), (3, 4, 5), (3, 8, 7), (4, 16, 3)):
+    test(f"PNG 5개 필터 실제 복원 colors={colors} bits={bits} columns={columns}",
+         lambda colors=colors, bits=bits, columns=columns: predictor_case(colors, bits, columns))
+
+
+def png_document(raw, params):
+    return {**basic(), 4: stream(zlib.compress(raw), b"/Filter /FlateDecode /DecodeParms << " + params + b" >>")}
+
+
+def png_inline_image():
+    content = b"BI /W 1 /H 1 ID x EI"
+    verdict(objects=png_document(png_rows(content, len(content), [1]),
+                                f"/Predictor 11 /Columns {len(content)}".encode()),
+            status="unsupported", code="pdf_inline_image_unsupported")
+
+
+test("본문 PNG Sub 복원 후 실제 BI 토큰도 거부", png_inline_image)
+test("PNG 실제 행 tag는 Predictor12 고정값과 달라도 유효한 tag면 처리", lambda: verdict(objects=png_document(b"\x00q Q", b"/Predictor 12 /Columns 3"), status="passed"))
+for label, raw, params in (
+        ("알 수 없는 PNG 행 필터", b"\x05q Q", b"/Predictor 15 /Columns 3"),
+        ("짧은 PNG 행", b"\x00q Q", b"/Predictor 12 /Columns 4"),
+        ("0열 PNG", b"", b"/Predictor 12 /Columns 0"),
+        ("불리언 PNG 열수", b"", b"/Predictor 12 /Columns true"),
+        ("잘못된 PNG 비트수", b"", b"/Predictor 12 /BitsPerComponent 3"),
+        ("음수 PNG 색수", b"", b"/Predictor 12 /Colors -1"),
+        ("빈 데이터여도 과대한 PNG 행", b"", b"/Predictor 12 /Columns 9999999999999999999")):
+    test(label + " 거부", lambda raw=raw, params=params: verdict(objects=png_document(raw, params)))
+test("TIFF predictor는 명시 미지원", lambda: verdict(objects=png_document(b"q Q", b"/Predictor 2"), status="unsupported"))
+
+
+def initial_view(value, extra=None):
+    objects = basic()
+    objects[1] = b"<< /Type /Catalog /Pages 2 0 R /OpenAction " + value + b" >>"
+    objects.update(extra or {})
+    return objects
+
+
+for destination in (b"[3 0 R /Fit]", b"[3 0 R /XYZ null null 0]", b"[3 0 R /XYZ 10 20 1.5]",
+                    b"[3 0 R /FitH null]", b"[3 0 R /FitV 0]", b"[3 0 R /FitR 0 0 595 842]",
+                    b"[3 0 R /FitB]", b"[3 0 R /FitBH null]", b"[3 0 R /FitBV null]"):
+    test("실제 문서 내부 시작 보기 " + destination.decode() + " 통과",
+         lambda destination=destination: verdict(objects=initial_view(destination), status="passed"))
+test("내부 GoTo 시작 보기는 간접 action·destination도 실물 대조", lambda: verdict(objects=initial_view(
+    b"5 0 R", {5: b"<< /Type /Action /S /GoTo /D 6 0 R >>", 6: b"[3 0 R /Fit]"}), status="passed"))
+test("압축 객체 Catalog의 시작 보기 설정도 검사", lambda: verdict(modern_pdf(members={
+    1: b"<< /Type /Catalog /Pages 2 0 R /OpenAction << /S /GoTo /D [3 0 R /Fit] >> >>",
+    2: basic()[2], 3: basic()[3]}), status="passed"))
+
+for label, destination in (
+        ("없는 페이지", b"[99 0 R /Fit]"), ("페이지 트리 자체", b"[2 0 R /Fit]"),
+        ("페이지 번호 정수", b"[0 /Fit]"), ("잘못된 generation", b"[3 1 R /Fit]"),
+        ("Fit 여분 인자", b"[3 0 R /Fit 0]"), ("XYZ 누락 인자", b"[3 0 R /XYZ 0 0]"),
+        ("XYZ 음수 배율", b"[3 0 R /XYZ 0 0 -1]"), ("불리언 좌표", b"[3 0 R /FitH true]"),
+        ("문자열 좌표", b"[3 0 R /FitV (0)]"), ("FitR null 좌표", b"[3 0 R /FitR null 0 10 10]"),
+        ("FitR 역전 사각형", b"[3 0 R /FitR 10 10 0 0]"),
+        ("무한대 좌표", b"[3 0 R /FitH " + b"9" * 400 + b".0]"),
+        ("자동 외부 URI", b"<< /S /URI /URI (https://example.test) >>"),
+        ("자동 JavaScript", b"<< /S /JavaScript /JS (alert) >>"),
+        ("연쇄 동작", b"<< /S /GoTo /D [3 0 R /Fit] /Next << /S /URI /URI (https://example.test) >> >>"),
+        ("잘못된 action Type", b"<< /Type /Catalog /S /GoTo /D [3 0 R /Fit] >>"),
+        ("이름이 아닌 action Type", b"<< /Type (/Action) /S /GoTo /D [3 0 R /Fit] >>")):
+    test("시작 보기의 " + label + " 거부", lambda destination=destination: verdict(objects=initial_view(destination)))
+test("페이지 그래프에 없는 고아 Page 목적지 거부", lambda: verdict(objects=initial_view(
+    b"[5 0 R /Fit]", {5: b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] >>"}), code="pdf_initial_view_invalid"))
+test("실제 Root가 아닌 가짜 Catalog의 OpenAction 거부", lambda: verdict(objects={
+    **basic(), 5: b"<< /Type /Catalog /OpenAction [3 0 R /Fit] >>"}, code="pdf_active_content"))
+test("Catalog를 stream으로 위장한 시작 보기 거부", lambda: verdict(objects={
+    **basic(), 1: stream(b"q Q", b"/Type /Catalog /Pages 2 0 R /OpenAction [3 0 R /Fit]")},
+    code="pdf_catalog_invalid"))
+test("문자열 Type을 사용한 가짜 Catalog 거부", lambda: verdict(objects={
+    **basic(), 1: b"<< /Type (/Catalog) /Pages 2 0 R /OpenAction [3 0 R /Fit] >>"},
+    code="pdf_catalog_invalid"))
+for label, destination in (
+        ("이름 목적지", b"(page1)"), ("미구현 보기 방식", b"[3 0 R /Other]"),
+        ("GoTo 추가 키", b"<< /S /GoTo /D [3 0 R /Fit] /Unknown 1 >>")):
+    test("시작 보기 " + label + "는 추정 없이 미지원", lambda destination=destination: verdict(
+        objects=initial_view(destination), status="unsupported", code="pdf_initial_view_unsupported"))
 
 print(f"\n{passed} passed, {failed} failed")
 if failed:
