@@ -1,0 +1,4 @@
+# 서버별 설정과 비밀값은 저장소에 올리지 않는다.
+runtime.env
+*.secret
+secrets/

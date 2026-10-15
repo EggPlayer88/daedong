@@ -1,0 +1,108 @@
+# 운영 준비 전용. 기본 compose.yaml과 합치지 않고 이 파일만 명시한다.
+# up만으로 작업자가 실행되지 않는다. 모든 서비스는 명시 프로필에 속한다.
+name: workhub-file-runtime
+x-worker-limits: &worker-limits
+  user: "10001:10001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  init: true
+  restart: "no"
+  mem_limit: 1536m
+  cpus: 1.0
+  pids_limit: 64
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
+  ulimits:
+    core: 0
+  logging:
+    driver: local
+    options:
+      max-size: 5m
+      max-file: "2"
+x-scanner: &scanner
+  build:
+    context: ../..
+    dockerfile: workers/deploy/clamav/Dockerfile
+  image: ${WORKHUB_SCANNER_IMAGE:-workhub-collection-clamav:1.4.6}
+  user: "10001:10001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  init: true
+  restart: "no"
+  cpus: 2.0
+  pids_limit: 64
+  environment:
+    TZ: Etc/UTC
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,nodev,size=512m,mode=1777
+  ulimits:
+    core: 0
+  logging:
+    driver: local
+    options:
+      max-size: 5m
+      max-file: "2"
+services:
+  signatures:
+    <<: *scanner
+    profiles: [scanner]
+    entrypoint: ["freshclam", "--config-file=/etc/clamav/freshclam.conf", "--daemon", "--foreground", "--stdout"]
+    mem_limit: 2g
+    volumes:
+      - signature-db:/var/lib/clamav
+      - scanner-socket:/run/clamav
+    healthcheck:
+      # 최초 서명 내려받기가 끝난 뒤에만 검사 데몬을 시작한다.
+      test: ["CMD-SHELL", "(test -s /var/lib/clamav/main.cvd || test -s /var/lib/clamav/main.cld) && (test -s /var/lib/clamav/daily.cvd || test -s /var/lib/clamav/daily.cld)"]
+      interval: 15s
+      timeout: 5s
+      retries: 120
+      start_period: 60s
+  clamav:
+    <<: *scanner
+    profiles: [scanner]
+    network_mode: none
+    mem_limit: 4g
+    depends_on:
+      signatures:
+        condition: service_healthy
+    volumes:
+      - signature-db:/var/lib/clamav:ro
+      - scanner-socket:/run/clamav
+    healthcheck:
+      test: ["CMD", "clamdscan", "--config-file=/etc/clamav/clamd.conf", "--ping=1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s
+  worker:
+    <<: *worker-limits
+    profiles: [execution]
+    build:
+      context: ../..
+      dockerfile: workers/Dockerfile
+    image: ${WORKHUB_WORKER_IMAGE:-workhub-collection-worker:local}
+    # 운영 파일에서도 기본값은 로컬 점검이다. --execute는 호출자가 명시한다.
+    command: ["check"]
+    environment:
+      WORKHUB_SUPABASE_URL: ${WORKHUB_SUPABASE_URL:?서버 주소를 입력하세요}
+      WORKHUB_EXPECTED_PROJECT_REF: ${WORKHUB_EXPECTED_PROJECT_REF:?프로젝트 ID를 입력하세요}
+      WORKHUB_SCHOOL_ID: ${WORKHUB_SCHOOL_ID:?학교 UUID를 입력하세요}
+      WORKHUB_WORKER_ID: ${WORKHUB_WORKER_ID:?승인할 작업자 ID를 입력하세요}
+      WORKHUB_WORKER_RELEASE: ${WORKHUB_WORKER_RELEASE:?검토한 코드 릴리스를 입력하세요}
+      WORKHUB_SCANNER_MODE: clamav
+      WORKHUB_CLAMAV_SOCKET: /run/clamav/clamd.ctl
+      WORKHUB_SERVICE_ROLE_KEY_FILE: /run/secrets/workhub_service_key
+      TZ: Etc/UTC
+    secrets:
+      - workhub_service_key
+    volumes:
+      - scanner-socket:/run/clamav:ro
+secrets:
+  workhub_service_key:
+    file: ${WORKHUB_SECRET_FILE:?저장소 밖 비밀 파일의 절대경로를 입력하세요}
+volumes:
+  signature-db:
+  scanner-socket:

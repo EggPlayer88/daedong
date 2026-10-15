@@ -1,0 +1,28 @@
+# 기본 구성: 클라우드·서명 서버 연결도, 비밀값도 없는 단발 자체 검사만 실행한다.
+name: workhub-file-check
+services:
+  worker:
+    build:
+      context: ../..
+      dockerfile: workers/Dockerfile
+    image: ${WORKHUB_WORKER_IMAGE:-workhub-collection-worker:local}
+    command: ["check"]
+    user: "10001:10001"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    init: true
+    restart: "no"
+    mem_limit: 1536m
+    cpus: 1.0
+    pids_limit: 64
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m,mode=1777
+    ulimits:
+      core: 0
+    logging:
+      driver: local
+      options:
+        max-size: 5m
+        max-file: "2"
