@@ -1,4 +1,4 @@
-"""HWP 5.0의 제한된 구조 검사. 내용 실행·렌더링·악성 검사를 대신하지 않는다.
+"""HWP 5 계열의 제한된 구조 검사. 내용 실행·렌더링·악성 검사를 대신하지 않는다.
 
 OLE 해석은 olefile 0.47에 맡기고, 그 결과에 체인 소유권/한도 검사를 더한다.
 근거: 한컴 한글문서파일형식_5.0_revision1.3.pdf 3·4절, MS-CFB 2절.
@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import math
+import re
 import struct
 import unicodedata
 import warnings
@@ -32,6 +33,7 @@ MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 FREE, END, FAT, DIF = 0xFFFFFFFF, 0xFFFFFFFE, 0xFFFFFFFD, 0xFFFFFFFC
 MAX_INPUT_BYTES = 100 * 1024 * 1024  # 운영 정책이 아닌 검사기 기술 상한
 MAX_RECORDS = 100_000  # 짧은 레코드가 만드는 반복 작업의 기술 상한
+VERSIONS_51 = frozenset((0x05010000, 0x05010001, 0x05010100))
 
 
 class _Verdict(Exception):
@@ -217,11 +219,40 @@ def _decode_stream(raw, compressed, limits, total):
     return result
 
 
-def _records(raw, *, docinfo=False):
+def _numbering_51(payload):
+    # 명세 표 38/39의 필드 합은 문단 머리 12B(4+2+2+4)다(표의 8B 합계는 불일치).
+    # 5.1의 실제 한컴 원본에서도 7+3단계 각각 머리+UTF16 문자열을 확인했다.
+    # 문자열/확장 시작번호까지 경계를 검사하며, 번호의 렌더링 의미는 평가하지 않는다.
+    position = 0
+
+    def levels(count):
+        nonlocal position
+        for _ in range(count):
+            if position + 14 > len(payload):
+                _fail("hwp_record_corrupt")
+            chars = struct.unpack_from("<H", payload, position + 12)[0]
+            position += 14
+            end = position + chars * 2
+            if end > len(payload):
+                _fail("hwp_record_corrupt")
+            payload[position:end].decode("utf-16-le")
+            position = end
+
+    levels(7)
+    position += 2 + 7 * 4  # 전체 시작번호 + 수준 1~7 시작번호
+    levels(3)
+    if position + 3 * 4 != len(payload):
+        _fail("hwp_record_corrupt")
+
+
+def _records(raw, *, docinfo=False, version=None):
     # 모든 레코드의 경계/레벨을 보되 모든 의미 필드를 해석한다고 주장하지 않는다.
-    position, previous, count = 0, 0, 0
+    position, previous, count, root_tag = 0, 0, 0, None
+    compatibility = set()
     known_doc = set(range(16, 33)) | {92, 94, 96, 97}
     known_body = set(range(66, 94)) | {95, 98, 115}
+    profile_51 = version in VERSIONS_51
+    profile_lengths = {16: 26, 17: 72, 21: 74, 25: 54 if version == 0x05010000 else 58} if docinfo else {66: 24}
     while position < len(raw):
         if count >= MAX_RECORDS:
             _fail("hwp_records_limit")
@@ -241,9 +272,37 @@ def _records(raw, *, docinfo=False):
             _fail("hwp_record_corrupt")
         if tag not in (known_doc if docinfo else known_body):
             _fail("hwp_record_unsupported", "unsupported")
-        if (docinfo and tag in (27, 28, 29, 32, 96, 97)) or (not docinfo and tag in (84, 87, 89, 91, 92, 95, 98, 115)):
+        if (docinfo and tag in (27, 28, 29, 96, 97)) or (not docinfo and tag in (84, 87, 89, 91, 92, 95, 98, 115)):
             _fail("hwp_active_content_unsupported", "unsupported")
         payload = raw[position:position + length]
+        if level == 0:
+            root_tag = tag
+        if profile_51:
+            # 5.1을 5.0의 느슨한 버전 별칭으로 취급하지 않는다. 공식 명세와
+            # 한컴 실측 버전표에 확인된 레코드 길이/확장 경계를 별도로 대조한다.
+            # https://github.com/STAIxBWLB/hwp-cli/blob/main/docs/design/19-hwp5-spec-supplement.md
+            if tag in profile_lengths and length != profile_lengths[tag]:
+                _fail("hwp_version_record_mismatch")
+            if docinfo and (18 <= tag <= 26 or tag in (92, 94)) and (level != 1 or root_tag != 17):
+                _fail("hwp_record_corrupt")
+            if docinfo and tag == 23:
+                _numbering_51(payload)
+            if docinfo and tag == 25 and length == 58:
+                # hwplib 원저자의 ForParaShape.read는 마지막 DWORD를 ParaLevel로
+                # 해석한다. 실제 한컴 5.1 문서도 수준 0..9이며 '항상 0인 패딩'이 아니다.
+                # https://github.com/neolord0/hwplib/blob/main/src/main/java/kr/dogfoot/hwplib/reader/docinfo/ForParaShape.java
+                if struct.unpack_from("<I", payload, 54)[0] > 9:
+                    _fail("hwp_layout_extension_unsupported", "unsupported")
+        if docinfo and tag in (30, 31, 32):
+            # 명세 표 4·13 및 4.2.14/15: 호환 문서와 그 하위의 수동적인
+            # 배치/변경 추적 메타데이터다. 스크립트나 실행 개체로 오분류하지 않는다.
+            # 글꼴/스타일과 마찬가지로 렌더링 의미 전체가 아닌 레코드 구조 검사다.
+            expected_length, expected_level = {30: (4, 0), 31: (20, 1), 32: (1032, 1)}[tag]
+            if tag in compatibility or length != expected_length or level != expected_level or root_tag != 30:
+                _fail("hwp_record_corrupt")
+            if tag == 30 and struct.unpack_from("<I", payload)[0] not in (0, 1, 2):
+                _fail("hwp_compatibility_unsupported", "unsupported")
+            compatibility.add(tag)
         if not docinfo and tag == 66 and length < 22:
             _fail("hwp_record_corrupt")
         if not docinfo and tag == 67 and length % 2:
@@ -255,6 +314,8 @@ def _records(raw, *, docinfo=False):
         yield tag, level, payload
     if not count:
         _fail("hwp_required_record_missing")
+    if docinfo and profile_51 and compatibility != {30, 31, 32}:
+        _fail("hwp_required_compatibility_missing")
 
 
 def _binary_metadata(records, compressed):
@@ -331,21 +392,24 @@ def _header(header):
     if len(header) != 256 or header[:32] != b"HWP Document File" + b"\x00" * 15:
         _fail("hwp_header_invalid")
     version, flags, license_flags, encrypt_version = struct.unpack_from("<4I", header, 32)
-    if version >> 16 != 0x0500:
+    if version >> 16 != 0x0500 and version not in VERSIONS_51:
         _fail("hwp_version_unsupported", "unsupported")
     if flags & ((1 << 1) | (1 << 2) | (1 << 4) | (1 << 8) | (1 << 10) | (1 << 13)):
         _fail("hwp_protected_unsupported", "unsupported")
-    # EncryptVersion은 알고리즘 정보이다. 단독으로 암호화됐다고 단정하지 않는다.
-    if encrypt_version or flags & ~((1 << 0) | (1 << 3) | (1 << 11) | (1 << 12) | (1 << 15) | (1 << 17)) or license_flags & ~7 or any(header[49:]):
+    # 표 3의 EncryptVersion(0..4)은 알고리즘 정보이며 암호 여부는 bit 1이다.
+    # 평문 DocInfo/BodyText 검사를 생략하지 않고, 알려지지 않은 알고리즘은 막는다.
+    # XML 서식의 존재 힌트(bit 5)만으로 실행 기능이라고 단정하지 않는다.
+    # 실제 XMLTemplate 저장소/stream은 아래 경로 허용 목록에서 계속 미지원이다.
+    if encrypt_version not in range(5) or flags & ~((1 << 0) | (1 << 3) | (1 << 5) | (1 << 11) | (1 << 12) | (1 << 15) | (1 << 17)) or license_flags & ~7 or any(header[49:]):
         _fail("hwp_features_unsupported", "unsupported")
-    return flags
+    return version, flags
 
 
 def _document(ole, limits):
     if not ole.exists("FileHeader") or ole.get_type("FileHeader") != 2:
         _fail("hwp_required_stream_missing")
     with ole.openstream("FileHeader") as stream:
-        flags = _header(stream.read())
+        version, flags = _header(stream.read())
     entries = ole.listdir(streams=True, storages=True)
     paths, streams = set(), {}
     for parts in entries:
@@ -361,7 +425,7 @@ def _document(ole, limits):
                 _fail("hwp_directory_invalid")
         kind = ole.get_type(parts)
         if kind == 1:
-            if path not in ("BodyText", "BinData", "Scripts"):
+            if path not in ("BodyText", "BinData", "Scripts", "DocOptions"):
                 _fail("hwp_storage_unsupported", "unsupported")
         elif kind == 2:
             with ole.openstream(parts) as stream:
@@ -375,16 +439,16 @@ def _document(ole, limits):
     doc = _decode_stream(streams["DocInfo"], compressed, limits, total)
     total += len(doc)
     # 모든 레코드를 리스트로 쌓으면 짧은 레코드 폭탄에서 객체 수가 폭증한다.
-    properties, id_map, images = None, False, {}
-    for tag, level, payload in _records(doc, docinfo=True):
+    properties, id_map, images, counts = None, None, {}, {}
+    for tag, level, payload in _records(doc, docinfo=True, version=version):
         if tag == 16:
             if properties is not None or level != 0 or len(payload) < 26:
                 _fail("hwp_record_corrupt")
             properties = payload
         elif tag == 17:
-            if id_map or level != 0 or len(payload) < 32 or len(payload) % 4:
+            if id_map is not None or level != 0 or len(payload) < 32 or len(payload) % 4:
                 _fail("hwp_record_corrupt")
-            id_map = True
+            id_map = payload
         elif tag == 18:
             addition = _binary_metadata([(tag, level, payload)], compressed)
             if images.keys() & addition.keys():
@@ -392,15 +456,31 @@ def _document(ole, limits):
             images.update(addition)
             if len(images) > limits["max_archive_entries"]:
                 _fail("hwp_entries_limit")
-    if properties is None or not id_map:
+        counts[tag] = counts.get(tag, 0) + 1
+    if properties is None or id_map is None:
         _fail("hwp_required_record_missing")
+    if version in VERSIONS_51:
+        # 구조 검사에는 5.1의 18개 ID 목록과 실제 레코드 개수 대조도 포함한다.
+        declared = struct.unpack("<18I", id_map)
+        expected = {18: declared[0], 19: sum(declared[1:8]), **dict(zip(range(20, 27), declared[8:15])),
+                    92: declared[15], 96: declared[16], 97: declared[17]}
+        if any(counts.get(tag, 0) != count for tag, count in expected.items()):
+            _fail("hwp_id_mapping_mismatch")
     section_count = struct.unpack_from("<H", properties)[0]
     sections = {name for name in streams if name.startswith("BodyText/")}
     if not section_count or sections != {f"BodyText/Section{i}" for i in range(section_count)}:
         _fail("hwp_section_mismatch")
     image_paths = {name.casefold() for name in streams if name.startswith("BinData/")}
-    if image_paths != images.keys():
+    if not images.keys() <= image_paths:
         _fail("hwp_binary_mismatch")
+    # 편집 후 남은 미참조 그림도 실제 바이트를 검사한다. 참조된 파일 누락은
+    # 위에서 거부하고, 잔재는 표준 BINxxxx.그림확장자/기본 압축만 지원한다.
+    # 압축 모드를 추측하며 여러 번 재시도하거나 OLE/실행 파일을 허용하지 않는다.
+    for path in image_paths - images.keys():
+        match = re.fullmatch(r"bindata/bin([0-9a-f]{4})\.(png|jpg|jpeg|gif|bmp)", path)
+        if not match or not int(match[1], 16):
+            _fail("hwp_unreferenced_binary_unsupported", "unsupported")
+        images[path] = (compressed, match[2])
     scripts = {name for name in streams if name.startswith("Scripts/")}
     if scripts and scripts != {"Scripts/DefaultJScript", "Scripts/JScriptVersion"}:
         _fail("hwp_script_unsupported", "unsupported")
@@ -413,7 +493,7 @@ def _document(ole, limits):
         value = _decode_stream(raw, is_compressed, limits, total)
         total += len(value)
         if name in sections:
-            for _ in _records(value):
+            for _ in _records(value, version=version):
                 pass
         elif name.casefold() in images:
             total += _image(value, limits, total, images[name.casefold()][1])
@@ -426,6 +506,12 @@ def _document(ole, limits):
         elif name == "Scripts/JScriptVersion":
             if value != struct.pack("<2I", 1, 0):
                 _fail("hwp_script_version_unsupported", "unsupported")
+        elif name == "DocOptions/_LinkDoc":
+            # 명세 3.2.8은 연결 문서 경로만 설명하고 버퍼 필드는 정의하지 않는다.
+            # 공개 원본/작성기의 524B 전체 0인 빈 형식만 확인한다. 첫 NUL 뒤의
+            # 비영 바이트를 임의 여유 공간으로 간주하거나 외부 경로를 열지 않는다.
+            if len(value) != 524 or any(value):
+                _fail("hwp_document_link_unsupported", "unsupported")
         elif name == "\x05HwpSummaryInformation":
             # OLEPS 메타데이터를 실행하지 않고 서명/최소 길이만 확인한다.
             if len(value) < 28 or not value.startswith(b"\xfe\xff"):

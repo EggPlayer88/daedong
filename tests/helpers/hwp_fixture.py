@@ -18,17 +18,32 @@ def deflate(raw, footer=False):
     return result + (struct.pack("<II", zlib.crc32(raw), len(raw)) if footer else b"")
 
 
-def hwp_streams(*, compressed=True, sections=1, footer=False):
+def hwp_streams(*, compressed=True, sections=1, footer=False, encrypt_version=0, empty_link=False, compatibility=False, version=0x05000300):
     header = bytearray(256)
     header[:17] = b"HWP Document File"
-    struct.pack_into("<II", header, 32, 0x05000300, int(compressed))
+    struct.pack_into("<II", header, 32, version, int(compressed))
+    struct.pack_into("<I", header, 44, encrypt_version)
     props = struct.pack("<7H3I", sections, 1, 1, 1, 1, 1, 1, 0, 0, 0)
     info = record(16, props) + record(17, bytes(72))
+    if compatibility:
+        # 명세의 정적 호환/변경 추적 정보. 실제 기록의 값을 복사하지 않는다.
+        info += record(30, struct.pack("<I", 0)) + record(31, bytes(20), 1) + record(32, bytes(range(256)) * 4 + bytes(8), 1)
     streams = {"FileHeader": bytes(header), "DocInfo": deflate(info, footer) if compressed else info}
+    if empty_link:
+        streams["DocOptions/_LinkDoc"] = bytes(524)
     for number in range(sections):
-        body = record(66, bytes(22)) + record(67, "학교 수합 시험\r".encode("utf-16-le"), 1)
+        body = record(66, bytes(24 if version >= 0x05000302 else 22)) + record(67, "학교 수합 시험\r".encode("utf-16-le"), 1)
         streams[f"BodyText/Section{number}"] = deflate(body, footer) if compressed else body
     return streams
+
+
+def numbering_51():
+    """원본 데이터를 복사하지 않는 10단계 문단 번호 구조."""
+    def level(number):
+        text = (f"^{number}.").encode("utf-16-le")
+        return struct.pack("<IHHIH", 0, 0, 50, FREE, len(text) // 2) + text
+    return (b"".join(level(n) for n in range(1, 8)) + struct.pack("<H7I", 1, *([1] * 7))
+            + b"".join(level(n) for n in range(8, 11)) + struct.pack("<3I", 1, 1, 1))
 
 
 def cfb(streams, *, version=3):
