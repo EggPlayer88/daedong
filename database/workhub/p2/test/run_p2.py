@@ -549,6 +549,14 @@ def main():
     call(run, "update workhub.accounts set status='suspended' where id='acc-25'")
     check('M09 계정 정지된 교사는 받는 사람 목록에서 빠짐', M[25] not in [r['memberId'] for r in t[21].catalog()['recipients']])
     call(run, "update workhub.accounts set status='active' where id='acc-25'")
+    # 2026-10-16 결정 "좁히기": 받는 사람 = 지금 업무실에 들어올 수 있는 사람(기존 회원표 활성 · superadmin)
+    call(run, "update public.users set role='teacher' where id=%s", (T[25],))
+    check('M10 업무실 자격(superadmin)이 없는 교사는 받는 사람 목록에서 빠지고 새 요청 → NOT_FOUND',
+          M[25] not in [r['memberId'] for r in t[21].catalog()['recipients']] and ecode(t[21].mutate(coop_create(M[25]))) == 'NOT_FOUND')
+    call(run, "update public.users set role='superadmin', is_active=false where id=%s", (T[25],))
+    check('M11 기존 회원표에서 비활성인 사람도 받는 사람 목록에서 빠짐', M[25] not in [r['memberId'] for r in t[21].catalog()['recipients']])
+    call(run, "update public.users set is_active=true where id=%s", (T[25],))
+    check('M12 자격을 되찾으면 다시 받는 사람 목록에 나옴', M[25] in [r['memberId'] for r in t[21].catalog()['recipients']])
 
     # ======================================================================= N. 협업 — 목록 · 검색 · 위치 값
     for i in range(45):

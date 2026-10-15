@@ -434,13 +434,17 @@ $$;
 -- 8. 협업용 내부 함수
 -- ----------------------------------------------------------------------------
 -- 지금 요청을 받을 수 있는 소속인가: 같은 학교 · 오늘 유효한 active 소속 · 계정 active · 가입 승인
+--   + 지금 업무실에 들어올 수 있는 사람(R0 legacy_gate 와 같은 기준: 기존 회원표 is_active · role = superadmin).
+--   시범 운영 동안 받은 요청을 열어 볼 수 없는 교사에게 보내지 않는다(2026-10-16 계란님 결정 "좁히기").
+--   메뉴를 일반 교사에게 넓힐 때 legacy_gate 와 이 조건을 함께 바꾼다.
 CREATE FUNCTION workhub_private.p2_member_reachable(p_school_id text, p_membership_id text) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
   SELECT EXISTS (
     SELECT 1 FROM workhub.memberships m JOIN workhub.accounts a ON a.id = m.account_id JOIN workhub.schools s ON s.id = m.school_id
      WHERE m.school_id = p_school_id AND m.id = p_membership_id AND m.status = 'active' AND s.status = 'active'
        AND workhub_private.today_in(s.timezone) <@ daterange(m.valid_from, m.valid_to, '[)')
-       AND a.status = 'active' AND a.legacy_approval_state = 'approved')
+       AND a.status = 'active' AND a.legacy_approval_state = 'approved'
+       AND EXISTS (SELECT 1 FROM public.users u WHERE u.id = a.auth_user_id::text AND u.is_active AND u.role = 'superadmin'))
 $$;
 
 -- 앱 CooperationRequest. taskLink 는 호출 계정 본인의 연결만.
