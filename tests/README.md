@@ -246,3 +246,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 `npm run check:workhub:integration:r2`는 #26~#42의 고정 SHA, 1차 이력, 보류 #3/#5, R0/R1 원문과 기존 인증/자산/메뉴 공개 범위를 검사한다. 전체 Git 이력이 필요하며, 1차 가드는 당시 통합 후보 재현용으로 유지한다. `test_workhub_integration_r2.mjs`는 임시 Git 저장소를 변조해 누락·SQL 변경·공개 확대·보류 기능·예약 실행·미해결 충돌을 실제로 거부하는지 22건을 확인한다.
 
 `npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
+
+## 파일 검사기 배포 준비 검증
+
+`test_workhub_worker_deployment.py`는 사전점검의 DB/Storage 비접속, 키·오류 원문 미출력, 파일형 키 권한/실물/크기 검사, 기본 명령의 키 미열람과 실제 파서 자체시험을 확인한다. `npm test`에 포함된다.
+
+Docker가 있는 Linux에서는 `bash tests/integration/workhub-worker-container.sh`를 실행한다. 실제 작업자/ClamAV 이미지를 빌드하고 Compose 해석, 비연결 기본 실행, 가짜 키 파일을 통한 preflight, ClamAV 설정 파싱을 확인한다. 실제 서명 다운로드·탐지와 Supabase 요청은 수행하지 않는다. CI는 관련 경로 변경 때 이 검사를 필수 test job에서 실행하고 결과를 보관한다.
