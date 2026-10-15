@@ -120,7 +120,7 @@ END $$;
 CREATE FUNCTION workhub_private.c_basic_claim(p_ctx workhub_private.actor_context, p_file_id text, p_key text) RETURNS jsonb
 LANGUAGE plpgsql SET search_path = '' AS $$
 DECLARE v_key text; v_id text; v_sha text; r workhub.idempotency_receipts; f workhub.file_objects; b workhub.file_basic_checks;
-  l workhub.file_basic_leases; eff jsonb; o jsonb; v_principal text; v_token text; v_max bigint;
+  l workhub.file_basic_leases; eff jsonb; o jsonb; v_principal text; v_token text; v_max bigint; v_size text;
 BEGIN
   v_key := workhub_private.c_request_key(p_key);
   v_id := workhub_private.c_id(to_jsonb(p_file_id));
@@ -154,6 +154,14 @@ BEGIN
   o := workhub_private.c_object_owner(f.bucket, f.storage_key);
   IF o IS NULL OR (o ->> 'id')::uuid IS DISTINCT FROM f.storage_object_id OR o ->> 'owner' IS DISTINCT FROM p_ctx.auth_user_id::text THEN
     f := workhub_private.c_basic_close(p_ctx, f, v_principal, CASE WHEN o IS NULL THEN 'object_missing' ELSE 'object_changed' END);
+    RETURN workhub_private.c_status_dto(f);
+  END IF;
+  -- 실물 크기: Storage 가 기록한 객체 크기(metadata.size)가 업로드 신고값과 다르면 실물 자체가 다르다 → 내려받지 않고 거절.
+  -- 이것이 "짧게 받은 것"(전송 중단)과 "실물이 짧은 것"(파일 결함)을 가르는 근거다. 크기가 같은데 API 가 짧게 받았다면
+  -- 전송 중단이므로 API 는 확정하지 않고(RESULT_UNKNOWN), 임대가 끝난 뒤 다시 확인한다. metadata 에 크기가 없으면 판정하지 않는다.
+  SELECT s.metadata ->> 'size' INTO v_size FROM storage.objects s WHERE s.id = f.storage_object_id;
+  IF v_size ~ '^[0-9]{1,18}$' AND v_size::bigint <> f.claimed_bytes THEN
+    f := workhub_private.c_basic_close(p_ctx, f, v_principal, 'object_size_mismatch');
     RETURN workhub_private.c_status_dto(f);
   END IF;
   -- 반복 호출 상한(실물 내려받기 증폭 방지): 파일당 10분에 6번, 계정당 10분에 60번

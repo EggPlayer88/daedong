@@ -203,7 +203,7 @@ CREATE TABLE workhub.file_basic_checks (
   CONSTRAINT file_basic_checks_reject_code_check CHECK (reject_code IN ('FILE_SIZE_LIMIT','FILE_SIZE_MISMATCH','FILE_HASH_MISMATCH',
     'FILE_SIGNATURE_MISMATCH','FILE_STRUCTURE_LIMIT','FILE_STRUCTURE_INVALID','FILE_ENCRYPTED','FILE_STRUCTURE_UNSUPPORTED','FILE_HWPX_REQUIRED_PART')),
   -- 실물 없음·바뀜처럼 API 결과 없이 DB 가 닫은 경우의 사유
-  CONSTRAINT file_basic_checks_close_reason_check CHECK (close_reason IN ('object_missing','object_changed')),
+  CONSTRAINT file_basic_checks_close_reason_check CHECK (close_reason IN ('object_missing','object_changed','object_size_mismatch')),
   CONSTRAINT file_basic_checks_result_check CHECK (result IS NULL OR (jsonb_typeof(result) = 'object' AND octet_length(result::text) <= 2048)),
   CONSTRAINT file_basic_checks_sha_check CHECK (result_sha256 ~ '^[0-9a-f]{64}$'),
   CONSTRAINT file_basic_checks_finished_check CHECK ((outcome IS NULL) = (finished_at IS NULL)
