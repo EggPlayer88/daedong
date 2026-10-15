@@ -107,5 +107,6 @@ R1S-04 의 `deployment_ref` 칸은 이 확인을 한 배포를 가리킵니다.
 - PostgREST 로 service_role 이 부를 때 `request.jwt.claims` 를 함수 안에서 바꿔 `auth.uid()` 를 사람 UID 로 보는 방식
   (`R1S_설계결정.md` 2절). 시험 DB 의 `auth.uid()` 는 Supabase 와 같은 식이지만 실제 PostgREST 를 거치지 않았습니다.
 - 실제 `is_approved`·`get_my_role` 의 기존 데이터에서의 결과
+- 실제 Storage 가 업로드 뒤 `storage.objects.metadata.size` 를 채우는지(실물 크기 불일치 판정의 근거)
 - Storage HTTP 로 실물을 내려받는 경로(PR #45 `_hwpx_basic.py`), `sb_secret_` 키로 Storage 접근
 - Vercel 서버 함수의 시간 제한·환경 변수 범위

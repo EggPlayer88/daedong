@@ -22,6 +22,18 @@ service_role 요청에 사람 JWT(sub)를 함께 실으면 거부됩니다(서�
   - 새 임대 → `{fileId, state:'checking', leaseToken(64 hex), leaseExpiresAt, bucket, path, storageObjectId, extension, name, claimedBytes, claimedSha256, maxFileBytes}`
   - 임대는 **90초**. API 의 다운로드·검사 예산이 이보다 짧아야 합니다.
   - 실물이 없거나(id·owner) 바뀌었으면 claim 단계에서 `rejected`(`object_missing`/`object_changed`)로 닫습니다.
+  - Storage 객체 크기(`storage.objects.metadata.size`)가 신고 크기와 다르면 내려받기 전에 `rejected`(`object_size_mismatch`)로 닫습니다.
+
+### 짧게 받은 내려받기 (2026-10-16, PR #48 과 맞춤)
+
+| 상황 | 판정 근거 | 결과 |
+|---|---|---|
+| 실물 자체가 신고보다 짧음/김 | claim 이 Storage 객체 크기와 신고 크기를 대조 | claim 단계에서 영구 `rejected`, 임대 0 |
+| 객체 크기는 맞는데 이번 전송만 짧음(Content-Length 불일치·연결 끊김) | API 가 받은 바이트 < 신고 크기 | `RESULT_UNKNOWN`, finish 하지 않음. 파일은 확인 중, 임대는 90초 뒤 만료 |
+| 위 뒤 같은 요청 번호로 재시도 | 임대 중이면 `checking`(→ `pending_verification`), 만료 뒤면 새 임대 | 온전히 받으면 `ready` |
+
+PR #48 의 `check_file` 이 짧은 전송을 영구 거절하지 않는 것은 맞습니다. 다만 그 근거만으로는 "실물이 짧은 파일"이 영원히 확인 중에
+남으므로, 실물 크기는 DB 가 Storage 기록으로 먼저 판정합니다. metadata 에 크기가 없는 객체는 claim 이 판정하지 않습니다(실제 Storage 는 업로드 뒤 크기를 적습니다 — 실환경 미검증).
 - finish → `{fileId, state: ready|rejected, file}`. ready 파일은 `scan_state:'not_scanned'`, `verification.malwareScan:false`.
 
 ## 3. 오류 — PR #45 가 지금과 다르게 다뤄야 할 것
