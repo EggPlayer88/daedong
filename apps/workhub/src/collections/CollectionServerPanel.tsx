@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent } from 'react'
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
 import { useEditDraft } from '../app/edit-drafts'
@@ -16,6 +16,8 @@ import { collectionUnitMemberOptions, validateCollectionUnitInputs } from './uni
 import { CollectionSubmissionHistory } from './CollectionSubmissionHistory'
 import { CollectionServerExport } from './CollectionServerExport'
 import { formatCollectionRecordedTime, summarizeCollectionSubmission } from './submission-summary'
+import { collectionSubmissionGuidance } from './submission-guidance'
+import { CollectionSubmissionGuide } from './CollectionSubmissionGuide'
 import styles from './collection-server.css?inline'
 
 export interface CollectionServerPanelProps { server: CollectionServer; member: Membership; members: Membership[]; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void }
@@ -25,6 +27,7 @@ type Upload = { file: File; parent: CollectionFileParent; policy: FilePolicy; pr
 type Review = { unitId: string; submissionId: string; expectedVersion: number; note: string; dueDate: string }
 type Management = { kind: 'withdraw' | 'open_correction'; unitId: string; submissionId: string | null; expectedVersion: number; reason: string; dueDate: string; confirmed: boolean }
 type Session = { selectedId?: string; editor?: Editor; answer?: Answer; upload?: Upload; review?: Review; management?: Management; conflict?: boolean; parked?: boolean; recoveryConflict?: boolean }
+type FocusTarget = { name: string; key?: string; field?: number; start?: number | null; end?: number | null }
 const blank = (): CollectionInput => ({ title: '', instructions: '', dueDate: '', reviewMode: 'none', reviewerMemberId: '', textLabel: '', textRequired: false, numberLabel: '', numberRequired: false, units: [] })
 const inputOf = ({ title, instructions, dueDate, reviewMode, reviewerMemberId, textLabel, textRequired, numberLabel, numberRequired, units, fileCollection }: CollectionRequest): CollectionInput => ({ title, instructions, dueDate, reviewMode, reviewerMemberId, textLabel, textRequired, numberLabel, numberRequired, units, fileCollection })
 const knownRejection = (failure: unknown) => failure instanceof CollectionServerError && ['NOT_READY', 'INVALID_INPUT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND', 'CONFLICT', 'FILE_NOT_READY', 'FILE_FAILED'].includes(failure.code)
@@ -40,6 +43,8 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   const memory = useEditDraft<Session>(member, 'collection-editor'), recovery = usePendingRequest(member, 'collection')
   const [session, setSessionState] = useState<Session>(() => memory.initial ?? {})
   const sessionRef = useRef(session), life = useRef(0), operation = useRef(false)
+  const panelRef = useRef<HTMLElement>(null), focusTarget = useRef<FocusTarget>(), pickerId = useId()
+  const focusNext = (name: string, key?: string) => { focusTarget.current = { name, key } }
   const [readiness, setReadiness] = useState<CollectionReadiness>(), [list, setList] = useState<CollectionList>(), [detail, setDetail] = useState<CollectionDetail>()
   const [cursor, setCursor] = useState<string>(), [history, setHistory] = useState<(string | undefined)[]>([])
   const [reload, setReload] = useState(0), [loading, setLoading] = useState(true), [restoring, setRestoring] = useState(false)
@@ -59,10 +64,41 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   if (policy) { try { newCollectionPolicy = hwpxCollectionPolicy(policy) } catch { /* 기존 기록은 표시하고 새 파일 선택만 닫는다. */ } }
   function setSession(value: Session) { sessionRef.current = value; memory.save(value, Boolean(value.editor || value.answer || value.upload || value.review || value.management || value.conflict)); setSessionState(value) }
   function resetEditing(selected?: string) { setSession({ selectedId: selected }); setError(''); setComparison(undefined) }
-  function hideDenied() { memory.remove(); sessionRef.current = {}; setSessionState({}); setDetail(undefined); setList(undefined); setReadiness(undefined); setComparison(undefined); setReadError('현재 자료의 접근 권한을 확인할 수 없어 이전 화면을 닫았습니다. 연결을 다시 확인해 주세요.') }
+  function hideDenied() { focusTarget.current = undefined; memory.remove(); sessionRef.current = {}; setSessionState({}); setDetail(undefined); setList(undefined); setReadiness(undefined); setComparison(undefined); setReadError('현재 자료의 접근 권한을 확인할 수 없어 이전 화면을 닫았습니다. 연결을 다시 확인해 주세요.') }
   const stillHere = (epoch: number) => life.current === epoch
   useEffect(() => { return () => { life.current++; operation.current = false } }, [server])
   layoutEffect(() => { onNavigationLockChange?.(locked); return () => onNavigationLockChange?.(false) }, [locked, onNavigationLockChange])
+  // 사용자가 연 화면만 이동한다. 재조회 중 사라진 입력은 같은 폼이 돌아올 때 복원한다.
+  function captureInputFocus() {
+    if (focusTarget.current || !panelRef.current) return
+    const root = panelRef.current.getRootNode() as Document | ShadowRoot
+    const active = root.activeElement as HTMLInputElement | HTMLTextAreaElement | null
+    const form = active?.closest<HTMLFormElement>('form[data-cs-form]')
+    if (!active || !form || !panelRef.current.contains(form)) return
+    const fields = [...form.querySelectorAll('input,textarea,select')]
+    const field = fields.indexOf(active)
+    if (field < 0) return
+    focusTarget.current = { name: 'restore-input', key: form.dataset.csForm, field, start: active.selectionStart, end: active.selectionEnd }
+  }
+  layoutEffect(() => {
+    const target = focusTarget.current, panel = panelRef.current
+    if (!target || !panel || busy || restoring || loading || parked) return
+    let node: HTMLElement | undefined
+    if (target.name === 'restore-input') {
+      const active = (panel.getRootNode() as Document | ShadowRoot).activeElement
+      // 조회를 기다리는 동안 사용자가 다른 곳으로 옮긴 초점은 되돌리지 않는다.
+      if (active && active !== document.body && active !== document.documentElement) { focusTarget.current = undefined; return }
+      const form = [...panel.querySelectorAll<HTMLFormElement>('form[data-cs-form]')].find(item => item.dataset.csForm === target.key)
+      node = form?.querySelectorAll<HTMLElement>('input,textarea,select')[target.field ?? -1]
+    } else node = [...panel.querySelectorAll<HTMLElement>('[data-cs-focus]')].find(item => item.dataset.csFocus === target.name && (!target.key || item.dataset.csKey === target.key))
+    if (!node || node.matches(':disabled')) return
+    focusTarget.current = undefined
+    node.focus({ preventScroll: true })
+    if (target.name === 'restore-input') {
+      if (typeof target.start === 'number' && typeof target.end === 'number' && (node instanceof HTMLTextAreaElement || (node instanceof HTMLInputElement && ['text', 'search', 'tel', 'url', 'password'].includes(node.type)))) node.setSelectionRange(target.start, target.end)
+    } else node.scrollIntoView({ block: ['editor', 'answer', 'detail', 'management', 'review'].includes(target.name) ? 'start' : 'nearest' })
+  })
+
   useEffect(() => {
     if (!hasWork && !busy && !exportBusy) return
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
@@ -81,6 +117,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   }, [server, member.id, enabled, cursor, reload, revision])
   useEffect(() => {
     let current = true
+    captureInputFocus()
     setDetail(undefined)
     if (!selectedId || !readiness?.available || parked) { setRestoring(false); return }
     setRestoring(true); setReadError('')
@@ -127,9 +164,11 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
       // 접수 확인 이후 조회가 실패하더라도 이미 확인된 저장을 다시 실행하지 않는다.
       if (request.command.kind === 'save_draft' && sessionRef.current.answer?.unitId === request.command.unitId) {
         // 재제출 사유는 유지하고, 접수 뒤 경합은 방금 저장한 원문을 기준으로 비교한다.
+        focusNext('answer')
         setSession({ ...sessionRef.current, recoveryConflict: undefined, answer: { ...sessionRef.current.answer, confirmedVersion: receipt.resourceVersion, confirmedInput: structuredClone(request.command.input) } }); setError('')
-      } else resetEditing(receipt.requestId)
-      setNotice(`서버에서 처리했습니다. 접수 시각 ${receipt.recordedAt}`); setReload(value => value + 1)
+      } else { focusNext('detail'); resetEditing(receipt.requestId) }
+      const message = request.command.kind === 'save_draft' ? '초안을 저장했습니다. 최종 제출은 아직 하지 않았습니다.' : request.command.kind === 'submit' ? '최종 제출을 접수했습니다. 아래 제출 현황에서 검토 상태를 확인해 주세요.' : request.command.kind === 'create' ? '수합 초안을 저장했습니다. 양식을 추가한 뒤 대상 교사에게 공개해 주세요.' : request.command.kind === 'update' ? '수합 초안 변경을 저장했습니다.' : request.command.kind === 'publish' ? '대상 교사에게 수합을 공개했습니다.' : request.command.kind === 'review' ? '검토 결과를 저장했습니다.' : request.command.kind === 'withdraw' ? '제출 철회를 처리했습니다.' : '정정 기간을 저장했습니다.'
+      setNotice(`${message} 접수 시각 ${formatCollectionRecordedTime(receipt.recordedAt)} (한국 표준시)`); setReload(value => value + 1)
     } catch (failure) {
       if (!stillHere(epoch)) return
       // 준비 해제는 복구를 기다릴 수 있다. 원래 요청을 보존해 새 키로 중복 저장하지 않는다.
@@ -143,7 +182,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   }
   function parkEditing() {
     if (operation.current || busy || exportBusy || !hasWork) return
-    setSession({ ...sessionRef.current, parked: true }); setComparison(undefined); setError(''); setNotice('')
+    focusTarget.current = undefined; setSession({ ...sessionRef.current, parked: true }); setComparison(undefined); setError(''); setNotice('')
   }
   function resumeEditing() {
     if (operation.current || busy || exportBusy) return
@@ -154,7 +193,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     const epoch = life.current; operation.current = true; setBusy('공동 초안을 확인 중…'); setError('')
     try {
       const draft = await server.draft(member.id, detail.request.id, unitId)
-      if (stillHere(epoch)) setSession({ selectedId: detail.request.id, answer: { requestId: detail.request.id, unitId, original: draft, input: { text: draft?.text ?? '', number: draft?.number ?? null, files: draft?.files ?? [] }, reason: '', correctionRequestId: '' } })
+      if (stillHere(epoch)) { focusNext('answer'); setSession({ selectedId: detail.request.id, answer: { requestId: detail.request.id, unitId, original: draft, input: { text: draft?.text ?? '', number: draft?.number ?? null, files: draft?.files ?? [] }, reason: '', correctionRequestId: '' } }) }
     } catch (failure) { if (stillHere(epoch)) { setDetail(undefined); if (accessDenied(failure)) hideDenied(); setError(failureMessage(failure)); setReadError('제출 초안을 확인하지 못해 수합 상세를 닫았습니다. 다시 연결해 주세요.') } }
     finally { if (stillHere(epoch)) { operation.current = false; setBusy('') } }
   }
@@ -196,7 +235,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
         } else if (job.parent.kind === 'draft' && current.answer?.unitId === job.parent.unitId) {
           setSession({ ...current, upload: undefined, answer: { ...current.answer, input: { ...current.answer.input, files: [...(current.answer.input.files ?? []).filter(file => file.id !== ref.id), ref] } } })
         } else throw new CollectionServerError('CONFLICT', '파일을 연결할 입력이 바뀌었습니다.')
-        setNotice('파일 준비가 완료되었습니다. 아래 저장 버튼을 눌러 문서에 연결해 주세요.')
+        setNotice('파일 준비가 완료되었습니다. 아래 저장 버튼을 눌러 문서에 연결해 주세요. 아직 최종 제출된 상태는 아닙니다.')
       } else {
         keep({ ...job, phase: status.state === 'awaiting_upload' ? 'upload' : status.state === 'pending_verification' ? 'complete' : 'status', rejected: status.state === 'rejected', cancelable: true })
         setNotice(status.state === 'rejected' ? '서버가 파일을 거부했습니다. 다른 파일을 선택해 주세요.' : status.state === 'awaiting_upload' ? '파일 전송이 아직 확인되지 않았습니다. 같은 파일을 다시 전송할 수 있습니다.' : '서버에서 HWPX 파일의 기본 형식을 확인하고 있습니다. 완료된 파일만 저장·제출할 수 있습니다.')
@@ -229,6 +268,14 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   const canShowEditor = session.editor && (!session.editor.original || detail?.request.id === session.editor.original.id) && !restoring
   const canShowAnswer = session.answer && detail?.request.id === session.answer.requestId && selectedUnit && !restoring
   const hadSubmission = Boolean(selectedUnit && detail?.submissions.some(value => value.unitId === selectedUnit.id))
+  const submissionGuide = session.answer && detail && selectedUnit ? collectionSubmissionGuidance({
+    input: session.answer.input, saved: session.answer.original, requiredFiles: Boolean(detail.request.fileCollection?.required),
+    textLabel: detail.request.textLabel, textRequired: detail.request.textRequired,
+    numberLabel: detail.request.numberLabel, numberRequired: detail.request.numberRequired,
+    responsible: selectedUnit.responsibleMemberId === member.id, hadSubmission, reason: session.answer.reason,
+    needsSupplement: detail.supplements.some(value => value.unitId === selectedUnit.id && !value.fulfilledSubmissionId),
+    correctionRequestId: session.answer.correctionRequestId, pendingFile: Boolean(session.upload),
+  }) : undefined
   const action = session.management ?? session.review
   const comparisonUnit = comparison?.detail.units.find(value => value.id === action?.unitId)
   const actionTargetChanged = Boolean(action?.submissionId && comparisonUnit?.currentSubmissionId !== action.submissionId)
@@ -257,7 +304,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     if (form.kind === 'open_correction' && form.dueDate && form.dueDate >= date) void mutate({ kind: 'open_correction', requestId: detail.request.id, unitId: form.unitId, expectedVersion: form.expectedVersion, dueDate: form.dueDate, reason: form.reason })
   }
   function filesView(files: FileReference[], parent?: CollectionFileParent, remove?: (id: string) => void) {
-    return <ul className="cs-files">{files.map(file => <li key={file.id}><span>{file.name} <small>{formatFileBytes(file.bytes)}</small></span><div>{parent && <button type="button" disabled={!!busy || exportBusy} onClick={() => { void download(parent, file) }}>{file.name} 다운로드</button>}{remove && <button type="button" disabled={blocked} onClick={() => remove(file.id)} aria-label={`${file.name} 제거`}>제거</button>}</div></li>)}</ul>
+    return <ul className="cs-files">{files.map(file => <li key={file.id}><span>{file.name} <small>{formatFileBytes(file.bytes)}</small></span><div>{parent && <button type="button" disabled={!!busy || exportBusy} aria-label={`${file.name} 다운로드`} onClick={() => { void download(parent, file) }}>내려받기</button>}{remove && <button type="button" disabled={blocked} onClick={() => remove(file.id)} aria-label={`${file.name} 제거`}>제거</button>}</div></li>)}</ul>
   }
   function picker(label: string, parent: CollectionFileParent, files: FileReference[]) {
     const originalPolicy = parent.kind === 'template' ? session.editor?.input.fileCollection?.policy : detail?.request.fileCollection?.policy
@@ -265,10 +312,11 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     let filePolicy: FilePolicy
     try { filePolicy = hwpxCollectionPolicy(originalPolicy) }
     catch { return <p className="cs-warning">이 수합의 파일 규칙에는 HWPX가 포함되어 있지 않습니다. 담당자가 규칙을 변경한 뒤 새 파일을 올릴 수 있습니다. 기존 파일은 그대로 내려받을 수 있습니다.</p> }
-    return <label className="cs-file-picker">{label}<input type="file" aria-label={label} disabled={blocked || files.length >= filePolicy.maxFiles} accept=".hwpx" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; chooseFile(file, parent, files, filePolicy) }} /><small>HWPX · 파일당 {formatFileBytes(filePolicy.maxFileBytes)} · 최대 {filePolicy.maxFiles}개</small></label>
+    const descriptionId = `${pickerId}-${parent.kind}-file-rule`
+    return <label className="cs-file-picker">{label}<input type="file" aria-label={label} aria-describedby={descriptionId} disabled={blocked || files.length >= filePolicy.maxFiles} accept=".hwpx" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; chooseFile(file, parent, files, filePolicy) }} /><small id={descriptionId}>HWPX · 파일당 {formatFileBytes(filePolicy.maxFileBytes)} · 첨부 {files.length}/{filePolicy.maxFiles}개{files.length >= filePolicy.maxFiles ? ' · 다른 파일을 올리려면 기존 첨부 선택을 먼저 제거해 주세요.' : ' · 한글에서 HWPX 형식으로 저장한 파일을 선택하세요.'}</small></label>
   }
-  return <section className="collection-server" aria-label="서버 문서 수합"><style>{styles}</style>
-    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>HWPX 양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && !parked && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" disabled={locked || loading || !newCollectionPolicy} onClick={() => { if (!newCollectionPolicy) return; setSession({ editor: { input: { ...blank(), fileCollection: { policy: newCollectionPolicy, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
+  return <section ref={panelRef} className="collection-server" aria-label="서버 문서 수합"><style>{styles}</style>
+    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>HWPX 양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && !parked && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" data-cs-focus="create-button" disabled={locked || loading || !newCollectionPolicy} onClick={() => { if (!newCollectionPolicy) return; focusNext('editor'); setSession({ editor: { input: { ...blank(), fileCollection: { policy: newCollectionPolicy, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
     {readiness?.available && !parked && !newCollectionPolicy && <p className="cs-warning">HWPX 수합 규칙을 먼저 연결해야 새 수합을 만들 수 있습니다. 기존 기록은 확인할 수 있습니다.</p>}
     {busy && <p role="status">{busy}</p>}{notice && <p className="cs-notice" role="status">{notice}</p>}{error && <p className="cs-error" role="alert">{error}</p>}
     {parked && <section className="cs-notice" aria-label="보관한 수합 작업"><h3>작성 중인 수합 작업을 보관했습니다</h3><p>업무실 안의 다른 메뉴를 이용할 수 있습니다. 자료 수합으로 돌아와 보관한 입력{pending ? '과 기존 요청 번호로 결과를' : '을'} 다시 확인해 주세요.</p><p>새로고침·탭 닫기·로그아웃·학교 변경 시 보관 내용이 사라질 수 있습니다. 이 보관은 서버 저장이 아닙니다.</p><button type="button" disabled={!!busy || exportBusy} onClick={resumeEditing}>보관한 입력과 요청 다시 열기</button></section>}
@@ -290,8 +338,8 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
         <button type="button" disabled={!!busy || !!pending} onClick={() => { resetEditing(selectedId); setReload(value => value + 1) }}>내 변경 버리고 다시 열기</button>
       </section>}
       {session.upload && <section className="cs-warning" aria-label="서버 파일 확인"><h3>{session.upload.file.name}</h3><p>{session.upload.rejected ? '이 파일은 사용할 수 없습니다.' : 'HWPX 기본 형식과 업로드 완료 여부를 확인하고 있습니다. 완료되면 양식이나 제출 파일로 저장할 수 있습니다.'}</p>{session.upload.rejected ? <button type="button" disabled={!!busy} onClick={() => setSession({ ...session, upload: undefined })}>거부된 파일 선택 해제</button> : <><button type="button" disabled={!!busy || restoring} onClick={() => { void uploadFile(session.upload!) }}>{session.upload.phase === 'upload' ? '같은 파일 전송 재시도' : '같은 파일 상태 다시 확인'}</button>{session.upload.cancelable && <button type="button" disabled={!!busy} onClick={() => { setSession({ ...session, upload: undefined }); setNotice('이 파일의 첨부 선택을 취소했습니다.') }}>첨부 선택 취소</button>}</>}</section>}
-      {canShowEditor && <form className="cs-card" aria-label="수합 초안 작성" onSubmit={(event: FormEvent) => { event.preventDefault(); if (!blocked && unitValidation?.valid) void mutate(session.editor!.original ? { kind: 'update', requestId: session.editor!.original.id, expectedVersion: session.editor!.original.version, input: session.editor!.input } : { kind: 'create', input: session.editor!.input }) }}>
-        <h3>{session.editor!.original ? '수합 초안 수정' : '새 수합 초안'}</h3><p className="cs-muted">제목·기한·제출 대상을 저장하고, HWPX 양식을 추가한 뒤 공개하세요.</p><fieldset disabled={blocked}><legend className="cs-sr-only">수합 내용</legend>
+      {canShowEditor && <form className="cs-card" data-cs-form="editor" aria-label="수합 초안 작성" onSubmit={(event: FormEvent) => { event.preventDefault(); if (!blocked && unitValidation?.valid) void mutate(session.editor!.original ? { kind: 'update', requestId: session.editor!.original.id, expectedVersion: session.editor!.original.version, input: session.editor!.input } : { kind: 'create', input: session.editor!.input }) }}>
+        <h3 tabIndex={-1} data-cs-focus="editor">{session.editor!.original ? '수합 초안 수정' : '새 수합 초안'}</h3><p className="cs-muted">제목·기한·제출 대상을 저장하고, HWPX 양식을 추가한 뒤 공개하세요.</p><fieldset disabled={blocked}><legend className="cs-sr-only">수합 내용</legend>
           <label>수합 제목<input required value={session.editor!.input.title} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, title: event.target.value } } })} /></label>
           <label>안내 내용<textarea aria-label="안내 내용" rows={3} value={session.editor!.input.instructions} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, instructions: event.target.value } } })} /></label>
           <label>제출 기한<input type="date" required value={session.editor!.input.dueDate} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, dueDate: event.target.value } } })} /></label>
@@ -300,13 +348,13 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
           </details>
           <CollectionUnitsEditor units={session.editor!.input.units} members={allowedMembers} reviewerMemberId={session.editor!.input.reviewerMemberId} disabled={blocked} onChange={units => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, units } } })} />
           {session.editor!.original ? <>{picker('양식 파일 선택', { kind: 'template', requestId: session.editor!.original.id, version: session.editor!.original.version }, session.editor!.input.fileCollection?.templates ?? [])}{filesView(session.editor!.input.fileCollection?.templates ?? [], undefined, id => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, fileCollection: { ...session.editor!.input.fileCollection!, templates: session.editor!.input.fileCollection!.templates.filter(file => file.id !== id) } } } }))}</> : <p className="cs-muted">먼저 초안을 저장한 뒤 양식 파일을 올릴 수 있습니다. 대상 교사에게는 공개한 뒤 표시됩니다.</p>}
-        </fieldset><div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked || !unitValidation?.valid}>{session.editor!.original ? '수합 초안 변경 저장' : '수합 초안 저장'}</button><button type="button" disabled={blocked} onClick={() => resetEditing(session.editor?.original?.id)}>작성 취소</button></div>
+        </fieldset><div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked || !unitValidation?.valid}>{session.editor!.original ? '수합 초안 변경 저장' : '수합 초안 저장'}</button><button type="button" disabled={blocked} onClick={() => { focusNext(session.editor?.original ? 'edit-button' : 'create-button'); resetEditing(session.editor?.original?.id) }}>작성 취소</button></div>
       </form>}
       {restoring && <p role="status">수합 원본과 보관한 입력의 접근 권한을 다시 확인 중…</p>}
-      {detail && !restoring && <section className="cs-card" aria-label="수합 상세"><div className="cs-heading"><div><h3>{detail.request.title}</h3><p>{detail.request.dueDate}까지 · {detail.request.status === 'draft' ? '담당자 초안' : '공개됨'} · v{detail.request.version}</p></div><button type="button" disabled={locked} onClick={() => { resetEditing(); setDetail(undefined) }}>목록으로</button></div><p className="cs-instructions">{detail.request.instructions}</p>
+      {detail && !restoring && <section className="cs-card" aria-label="수합 상세"><div className="cs-heading"><div><h3 tabIndex={-1} data-cs-focus="detail">{detail.request.title}</h3><p>{detail.request.dueDate}까지 · {detail.request.status === 'draft' ? '담당자 초안' : '공개됨'} · v{detail.request.version}</p></div><button type="button" disabled={locked} onClick={() => { focusNext('list-item', detail.request.id); resetEditing(); setDetail(undefined) }}>목록으로</button></div><p className="cs-instructions">{detail.request.instructions}</p>
         {filesView(detail.request.fileCollection?.templates ?? [], { kind: 'template', requestId: detail.request.id, version: detail.request.version })}
         {detail.request.status === 'published' && detail.request.managerMemberId === member.id && detail.request.fileCollection && <CollectionServerExport server={server} member={member} requestId={detail.request.id} date={date} disabled={Boolean(busy || pending || dirty || restoring || !enabled)} onBusyChange={setExportBusy} />}
-        {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" disabled={locked} onClick={() => setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } })}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked} onClick={() => { void mutate({ kind: 'publish', requestId: detail.request.id, expectedVersion: detail.request.version }) }}>대상 교사에게 공개</button></div>}
+        {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" data-cs-focus="edit-button" disabled={locked} onClick={() => { focusNext('editor'); setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } }) }}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked} onClick={() => { void mutate({ kind: 'publish', requestId: detail.request.id, expectedVersion: detail.request.version }) }}>대상 교사에게 공개</button></div>}
         {detail.request.status === 'published' && detail.units.map(unit => {
           const submission = detail.submissions.find(value => value.id === unit.currentSubmissionId), withdrawn = Boolean(submission && unit.withdrawnSubmissionIds.includes(submission.id))
           const review = submission && detail.reviews.find(value => value.submissionId === submission.id), participant = unit.members.some(value => value.id === member.id)
@@ -316,18 +364,18 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
             <CollectionSubmissionHistory detail={detail} unit={unit} members={allowedMembers} date={date} disabled={locked} onDownload={(parent, file) => { void download(parent, file) }} />
             {submission && <p className="cs-muted">제출 v{submission.revision} · 서버 접수 <time dateTime={submission.receiptAt}>{formatCollectionRecordedTime(submission.receiptAt)}</time></p>}
             {submission && !withdrawn && filesView(submission.files ?? [], { kind: 'submission', requestId: detail.request.id, unitId: unit.id, submissionId: submission.id })}
-            {participant && <button type="button" disabled={locked} onClick={() => { void openAnswer(unit.id) }}>내 제출 파일 작성</button>}
+            {participant && <button type="button" data-cs-focus="answer-button" data-cs-key={unit.id} disabled={locked} onClick={() => { void openAnswer(unit.id) }}>내 제출 파일 작성</button>}
             {supplements.length > 0 && <p className="cs-warning">보완 요청 {supplements.length}건이 있습니다. 제출 파일을 작성하고 응답할 보완 건을 선택해 주세요.</p>}
             <div className="cs-actions">
-              {submission && !withdrawn && unit.responsibleMemberId === member.id && summary.reviewState !== 'accepted' && <button type="button" disabled={locked} onClick={() => setSession({ selectedId: detail.request.id, management: { kind: 'withdraw', unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, reason: '', dueDate: '', confirmed: false } })}>제출 철회</button>}
-              {detail.request.managerMemberId === member.id && <button type="button" disabled={locked} onClick={() => setSession({ selectedId: detail.request.id, management: { kind: 'open_correction', unitId: unit.id, submissionId: null, expectedVersion: unit.version, reason: '', dueDate: unit.correctionUntil >= date ? unit.correctionUntil : '', confirmed: false } })}>정정 기간 설정</button>}
+              {submission && !withdrawn && unit.responsibleMemberId === member.id && summary.reviewState !== 'accepted' && <button type="button" data-cs-focus="manage-button" data-cs-key={`${unit.id}-withdraw`} disabled={locked} onClick={() => { focusNext('management'); setSession({ selectedId: detail.request.id, management: { kind: 'withdraw', unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, reason: '', dueDate: '', confirmed: false } }) }}>제출 철회</button>}
+              {detail.request.managerMemberId === member.id && <button type="button" data-cs-focus="manage-button" data-cs-key={`${unit.id}-open_correction`} disabled={locked} onClick={() => { focusNext('management'); setSession({ selectedId: detail.request.id, management: { kind: 'open_correction', unitId: unit.id, submissionId: null, expectedVersion: unit.version, reason: '', dueDate: unit.correctionUntil >= date ? unit.correctionUntil : '', confirmed: false } }) }}>정정 기간 설정</button>}
             </div>
-            {submission && !withdrawn && detail.request.reviewerMemberId === member.id && !review && (session.review?.unitId === unit.id && session.review.submissionId === submission.id ? <div className="cs-review"><p className="cs-muted">검토 대상: 제출 v{submission.revision}</p><label>검토 의견<textarea aria-label="검토 의견" maxLength={1000} value={session.review.note} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, note: event.target.value } })} /></label><label>보완 기한<input type="date" min={date} value={session.review.dueDate} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, dueDate: event.target.value } })} /></label><div className="cs-actions"><button type="button" disabled={blocked} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'accepted', note: session.review!.note, dueDate: '' }) }}>검토 완료</button><button type="button" disabled={blocked || !session.review.note.trim() || !session.review.dueDate || session.review.dueDate < date} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'changes_requested', note: session.review!.note, dueDate: session.review!.dueDate }) }}>보완 요청</button><button type="button" disabled={blocked} onClick={() => resetEditing(detail.request.id)}>검토 작성 취소</button></div></div> : <button type="button" disabled={locked} onClick={() => setSession({ selectedId: detail.request.id, review: { unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, note: '', dueDate: '' } })}>제출물 검토</button>)}
+            {submission && !withdrawn && detail.request.reviewerMemberId === member.id && !review && (session.review?.unitId === unit.id && session.review.submissionId === submission.id ? <div className="cs-review"><p className="cs-muted" tabIndex={-1} data-cs-focus="review">검토 대상: 제출 v{submission.revision}</p><label>검토 의견<textarea aria-label="검토 의견" maxLength={1000} value={session.review.note} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, note: event.target.value } })} /></label><label>보완 기한<input type="date" min={date} value={session.review.dueDate} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, dueDate: event.target.value } })} /></label><div className="cs-actions"><button type="button" disabled={blocked} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'accepted', note: session.review!.note, dueDate: '' }) }}>검토 완료</button><button type="button" disabled={blocked || !session.review.note.trim() || !session.review.dueDate || session.review.dueDate < date} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'changes_requested', note: session.review!.note, dueDate: session.review!.dueDate }) }}>보완 요청</button><button type="button" disabled={blocked} onClick={() => { focusNext('review-button', unit.id); resetEditing(detail.request.id) }}>검토 작성 취소</button></div></div> : <button type="button" data-cs-focus="review-button" data-cs-key={unit.id} disabled={locked} onClick={() => { focusNext('review'); setSession({ selectedId: detail.request.id, review: { unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, note: '', dueDate: '' } }) }}>제출물 검토</button>)}
           </article>
         })}
       </section>}
-      {session.management && managementUnit && detail && !restoring && <form className="cs-card" aria-label="제출 관리" onSubmit={submitManagement}>
-        <h3>{managementUnit.label} · {session.management.kind === 'withdraw' ? '제출 철회 확인' : '정정 기간 설정'}</h3>
+      {session.management && managementUnit && detail && !restoring && <form className="cs-card" data-cs-form="management" aria-label="제출 관리" onSubmit={submitManagement}>
+        <h3 tabIndex={-1} data-cs-focus="management">{managementUnit.label} · {session.management.kind === 'withdraw' ? '제출 철회 확인' : '정정 기간 설정'}</h3>
         <p>{session.management.kind === 'withdraw' ? '현재 제출의 철회를 요청합니다. 접수·검토·철회 이력은 남습니다. 처리 후 현재 제출과 완료본을 다시 확인해 주세요.' : '이 제출 단위의 정정 허용 기간을 설정합니다. 전체 수합 기한은 바뀌지 않습니다.'}</p>
         <fieldset disabled={blocked}><legend className="cs-sr-only">관리 입력</legend>
           <label>{session.management.kind === 'withdraw' ? '철회 사유' : '정정 허용 사유'}<textarea required maxLength={1000} value={session.management.reason} onChange={event => setSession({ ...session, management: { ...session.management!, reason: event.target.value, confirmed: false } })} /></label>
@@ -335,20 +383,20 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
           <label className="cs-confirmation"><input type="checkbox" checked={session.management.confirmed} onChange={event => setSession({ ...session, management: { ...session.management!, confirmed: event.target.checked } })} />대상과 처리 내용을 확인했습니다</label>
         </fieldset>
         <p className="cs-muted">처리 가능 여부와 기한은 서버에서 현재 권한·상태를 기준으로 확인합니다.</p>
-        <div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked || !session.management.confirmed || !session.management.reason.trim() || (session.management.kind === 'open_correction' && (!session.management.dueDate || session.management.dueDate < date))}>{session.management.kind === 'withdraw' ? '확인한 제출 철회 요청' : '정정 기간 저장'}</button><button type="button" disabled={blocked} onClick={() => resetEditing(detail.request.id)}>관리 작성 취소</button></div>
+        <div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked || !session.management.confirmed || !session.management.reason.trim() || (session.management.kind === 'open_correction' && (!session.management.dueDate || session.management.dueDate < date))}>{session.management.kind === 'withdraw' ? '확인한 제출 철회 요청' : '정정 기간 저장'}</button><button type="button" disabled={blocked} onClick={() => { focusNext('manage-button', `${session.management!.unitId}-${session.management!.kind}`); resetEditing(detail.request.id) }}>관리 작성 취소</button></div>
       </form>}
-      {canShowAnswer && <form className="cs-card" aria-label="제출 파일 작성" onSubmit={event => { event.preventDefault(); if (!blocked) void mutate({ kind: 'save_draft', requestId: session.answer!.requestId, unitId: session.answer!.unitId, expectedVersion: session.answer!.original?.version ?? 0, input: session.answer!.input }) }}><h3>{selectedUnit!.label} · 제출 준비</h3><p>공동 초안을 저장한 뒤 최종 제출합니다. 초안 저장만으로 제출되지는 않습니다.</p>
+      {canShowAnswer && <form className="cs-card" data-cs-form="answer" aria-label="제출 파일 작성" onSubmit={event => { event.preventDefault(); if (!blocked) void mutate({ kind: 'save_draft', requestId: session.answer!.requestId, unitId: session.answer!.unitId, expectedVersion: session.answer!.original?.version ?? 0, input: session.answer!.input }) }}><h3 tabIndex={-1} data-cs-focus="answer">{selectedUnit!.label} · 제출 준비</h3>{submissionGuide && <CollectionSubmissionGuide guidance={submissionGuide} />}
         <fieldset disabled={blocked}><legend className="cs-sr-only">제출 파일</legend>{picker('제출 파일 선택', { kind: 'draft', requestId: session.answer!.requestId, unitId: session.answer!.unitId, version: session.answer!.original?.version ?? 0 }, session.answer!.input.files ?? [])}
           {filesView(session.answer!.input.files ?? [], undefined, id => setSession({ ...session, answer: { ...session.answer!, input: { ...session.answer!.input, files: session.answer!.input.files?.filter(file => file.id !== id) } } }))}
           {detail!.request.textLabel && <label>{detail!.request.textLabel}<textarea aria-label={detail!.request.textLabel} value={session.answer!.input.text} required={detail!.request.textRequired} onChange={event => setSession({ ...session, answer: { ...session.answer!, input: { ...session.answer!.input, text: event.target.value } } })} /></label>}
           {detail!.request.numberLabel && <label>{detail!.request.numberLabel}<input type="number" value={session.answer!.input.number ?? ''} required={detail!.request.numberRequired} onChange={event => setSession({ ...session, answer: { ...session.answer!, input: { ...session.answer!.input, number: event.target.value === '' ? null : Number(event.target.value) } } })} /></label>}
           {hadSubmission && <label>재제출 사유<input maxLength={1000} value={session.answer!.reason} onChange={event => setSession({ ...session, answer: { ...session.answer!, reason: event.target.value } })} /></label>}
           {detail!.supplements.some(value => value.unitId === selectedUnit!.id && !value.fulfilledSubmissionId) && <label>응답할 보완 요청<select aria-label="응답할 보완 요청" value={session.answer!.correctionRequestId} onChange={event => setSession({ ...session, answer: { ...session.answer!, correctionRequestId: event.target.value } })}><option value="">보완 요청을 선택해 주세요</option>{detail!.supplements.filter(value => value.unitId === selectedUnit!.id && !value.fulfilledSubmissionId).map((value, index) => <option key={value.id} value={value.id}>보완 {index + 1} · {value.dueDate}까지</option>)}</select></label>}
-        </fieldset><div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked}>제출 초안 저장</button><button type="button" disabled={blocked} onClick={() => resetEditing(session.answer!.requestId)}>작성 닫기</button>
-          {session.answer!.original && selectedUnit!.responsibleMemberId === member.id && <button type="button" disabled={blocked || !same(session.answer!.input, { text: session.answer!.original.text, number: session.answer!.original.number, files: session.answer!.original.files ?? [] }) || Boolean(detail!.request.fileCollection?.required && !session.answer!.input.files?.length) || Boolean(hadSubmission && !session.answer!.reason.trim()) || Boolean(detail!.supplements.some(value => value.unitId === selectedUnit!.id && !value.fulfilledSubmissionId) && !session.answer!.correctionRequestId)} onClick={() => { void mutate({ kind: 'submit', requestId: session.answer!.requestId, unitId: session.answer!.unitId, draftId: session.answer!.original!.id, expectedDraftVersion: session.answer!.original!.version, expectedVersion: selectedUnit!.version, reason: session.answer!.reason, ...(session.answer!.correctionRequestId ? { correctionRequestId: session.answer!.correctionRequestId } : {}) }) }}>{hadSubmission ? '저장한 파일 다시 제출' : '저장한 파일 최종 제출'}</button>}
+        </fieldset><div className="cs-actions"><button type="submit" className={submissionGuide?.canSubmit ? undefined : "cs-primary"} disabled={blocked}>제출 초안 저장</button><button type="button" disabled={blocked} onClick={() => { focusNext('answer-button', session.answer!.unitId); resetEditing(session.answer!.requestId) }}>작성 닫기</button>
+          {session.answer!.original && selectedUnit!.responsibleMemberId === member.id && <button type="button" className={submissionGuide?.canSubmit ? "cs-primary" : undefined} disabled={blocked || !submissionGuide?.canSubmit} onClick={() => { void mutate({ kind: 'submit', requestId: session.answer!.requestId, unitId: session.answer!.unitId, draftId: session.answer!.original!.id, expectedDraftVersion: session.answer!.original!.version, expectedVersion: selectedUnit!.version, reason: session.answer!.reason, ...(session.answer!.correctionRequestId ? { correctionRequestId: session.answer!.correctionRequestId } : {}) }) }}>{hadSubmission ? '저장한 파일 다시 제출' : '저장한 파일 최종 제출'}</button>}
         </div><p className="cs-muted">최종 제출은 책임 교사만 할 수 있습니다. 서버에서 권한과 최신 버전을 다시 확인합니다.</p>
       </form>}
-      {!session.editor && !selectedId && !loading && list && <><div className="cs-list" aria-label="수합 목록">{list.items.length ? list.items.map(request => <button type="button" className="cs-list-item" key={request.id} disabled={locked} onClick={() => { setSession({ selectedId: request.id }); setError(''); setNotice('') }}><strong>{request.title}</strong><span>{request.dueDate}까지 · {request.status === 'draft' ? '초안' : '공개'}</span></button>) : <p className="cs-empty">현재 볼 수 있는 수합이 없습니다.</p>}</div><nav className="cs-actions" aria-label="수합 목록 페이지"><button type="button" disabled={locked || !history.length} onClick={() => { setCursor(history.at(-1)); setHistory(history.slice(0, -1)) }}>이전 페이지</button><span>{history.length + 1}쪽</span><button type="button" disabled={locked || !list.nextCursor} onClick={() => { setHistory([...history, cursor]); setCursor(list.nextCursor!) }}>다음 페이지</button></nav></>}
+      {!session.editor && !selectedId && !loading && list && <><div className="cs-list" aria-label="수합 목록">{list.items.length ? list.items.map(request => <button type="button" className="cs-list-item" data-cs-focus="list-item" data-cs-key={request.id} key={request.id} disabled={locked} onClick={() => { focusNext('detail'); setSession({ selectedId: request.id }); setError(''); setNotice('') }}><strong>{request.title}</strong><span>{request.dueDate}까지 · {request.status === 'draft' ? '초안' : '공개'}</span></button>) : <p className="cs-empty">현재 볼 수 있는 수합이 없습니다.</p>}</div><nav className="cs-actions" aria-label="수합 목록 페이지"><button type="button" disabled={locked || !history.length} onClick={() => { setCursor(history.at(-1)); setHistory(history.slice(0, -1)) }}>이전 페이지</button><span>{history.length + 1}쪽</span><button type="button" disabled={locked || !list.nextCursor} onClick={() => { setHistory([...history, cursor]); setCursor(list.nextCursor!) }}>다음 페이지</button></nav></>}
     </>}
   </section>
 }

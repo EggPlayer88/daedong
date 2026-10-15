@@ -246,3 +246,10 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 `npm run check:workhub:integration:r2`는 #26~#42의 고정 SHA, 1차 이력, 보류 #3/#5, R0/R1 원문과 기존 인증/자산/메뉴 공개 범위를 검사한다. 전체 Git 이력이 필요하며, 1차 가드는 당시 통합 후보 재현용으로 유지한다. `test_workhub_integration_r2.mjs`는 임시 Git 저장소를 변조해 누락·SQL 변경·공개 확대·보류 기능·예약 실행·미해결 충돌을 실제로 거부하는지 22건을 확인한다.
 
 `npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
+
+
+## 서버 문서 수합 사용성 후속
+
+- `test_workhub_collection_submission_guidance.mjs`: 필수 파일·글·숫자/0·저장판 비교·공동 작성·재제출/보완·깨진 입력·SSR 17건.
+- `workhub-collection-usability.mjs`: 실제 서버 패널의 일반 DOM/ShadowRoot 초점 이동·복귀, 320px/20단위/긴 파일명, 지연 조회 중 사용자 초점 유지, 메모·선택 범위 보존, 첨부 제한 설명, 초안 저장→최종 제출 명령 구분 11건. 전체 브라우저 러너에 등록했다.
+- `npm run test:workhub:browser -- workhub-collection-usability workhub-collection-server workhub-collection-hwpx workhub-collection-export`로 관련 4개 파일을 실행한다. 실제 운영 DB나 Storage를 사용하지 않는다. [검증·인계](../docs/workhub/44-collection-usability.md).
