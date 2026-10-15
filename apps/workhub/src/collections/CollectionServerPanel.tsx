@@ -11,6 +11,7 @@ import { CollectionServerError, type CollectionServer, type CollectionCommand, t
 import { CollectionUnitsEditor } from './CollectionUnitsEditor'
 import { collectionUnitMemberOptions, validateCollectionUnitInputs } from './unit-inputs'
 import { CollectionSubmissionHistory } from './CollectionSubmissionHistory'
+import { CollectionServerExport } from './CollectionServerExport'
 import { formatCollectionRecordedTime, summarizeCollectionSubmission } from './submission-summary'
 import styles from './collection-server.css?inline'
 
@@ -41,11 +42,12 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   const [reload, setReload] = useState(0), [loading, setLoading] = useState(true), [restoring, setRestoring] = useState(false)
   const [readError, setReadError] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState('')
   const [comparison, setComparison] = useState<{ detail: CollectionDetail; draft?: CollectionDraft | null }>()
+  const [exportBusy, setExportBusy] = useState(false)
   const pending = recovery.request, selectedId = session.selectedId ?? (pending?.command.kind !== 'create' ? pending?.command.requestId : undefined)
   const enabled = activeAt(member, date)
   const dirty = Boolean(session.editor || session.answer || session.upload || session.review || session.management || session.conflict)
-  const locked = Boolean(busy || pending || dirty)
-  const blocked = Boolean(busy || pending || restoring || session.upload || session.conflict || session.answer?.confirmedVersion)
+  const locked = Boolean(busy || pending || dirty || exportBusy)
+  const blocked = Boolean(busy || pending || restoring || session.upload || session.conflict || session.answer?.confirmedVersion || exportBusy)
   const selectedUnit = detail?.units.find(unit => unit.id === session.answer?.unitId)
   const policy = readiness?.policy
   function setSession(value: Session) { sessionRef.current = value; memory.save(value, Boolean(value.editor || value.answer || value.upload || value.review || value.management || value.conflict)); setSessionState(value) }
@@ -188,7 +190,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     setSession({ ...sessionRef.current, upload: job }); void uploadFile(job)
   }
   async function download(parent: CollectionFileParent, file: FileReference) {
-    if (operation.current) return
+    if (operation.current || exportBusy) return
     const epoch = life.current; operation.current = true; setBusy('파일을 내려받는 중…'); setError('')
     try { const blob = await server.download(member.id, parent, file); if (stillHere(epoch)) requestBlobDownload(blob, file.name) }
     catch (failure) { if (stillHere(epoch)) { if (accessDenied(failure)) hideDenied(); setError('현재 권한으로 파일을 내려받지 못했습니다. 잠시 뒤 다시 확인해 주세요.') } }
@@ -229,14 +231,14 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     if (form.kind === 'open_correction' && form.dueDate && form.dueDate >= date) void mutate({ kind: 'open_correction', requestId: detail.request.id, unitId: form.unitId, expectedVersion: form.expectedVersion, dueDate: form.dueDate, reason: form.reason })
   }
   function filesView(files: FileReference[], parent?: CollectionFileParent, remove?: (id: string) => void) {
-    return <ul className="cs-files">{files.map(file => <li key={file.id}><span>{file.name} <small>{formatFileBytes(file.bytes)}</small></span><div>{parent && <button type="button" disabled={!!busy} onClick={() => { void download(parent, file) }}>{file.name} 다운로드</button>}{remove && <button type="button" disabled={blocked} onClick={() => remove(file.id)} aria-label={`${file.name} 제거`}>제거</button>}</div></li>)}</ul>
+    return <ul className="cs-files">{files.map(file => <li key={file.id}><span>{file.name} <small>{formatFileBytes(file.bytes)}</small></span><div>{parent && <button type="button" disabled={!!busy || exportBusy} onClick={() => { void download(parent, file) }}>{file.name} 다운로드</button>}{remove && <button type="button" disabled={blocked} onClick={() => remove(file.id)} aria-label={`${file.name} 제거`}>제거</button>}</div></li>)}</ul>
   }
   function picker(label: string, parent: CollectionFileParent, files: FileReference[]) {
     const filePolicy = parent.kind === 'template' ? session.editor?.input.fileCollection?.policy : detail?.request.fileCollection?.policy
     return filePolicy && <label className="cs-file-picker">{label}<input type="file" aria-label={label} disabled={blocked || files.length >= filePolicy.maxFiles} accept={filePolicy.extensions.map(value => `.${value}`).join(',')} onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; chooseFile(file, parent, files, filePolicy) }} /><small>{filePolicy.extensions.join(', ')} · 파일당 {formatFileBytes(filePolicy.maxFileBytes)} · 최대 {filePolicy.maxFiles}개</small></label>
   }
   return <section className="collection-server" aria-label="서버 문서 수합"><style>{styles}</style>
-    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" disabled={locked || loading} onClick={() => { setSession({ editor: { input: { ...blank(), fileCollection: { policy: policy!, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
+    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" disabled={locked || loading} onClick={() => { setSession({ editor: { input: { ...blank(), fileCollection: { policy: policy!, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
     {busy && <p role="status">{busy}</p>}{notice && <p className="cs-notice" role="status">{notice}</p>}{error && <p className="cs-error" role="alert">{error}</p>}
     {pending && <section className="cs-warning" aria-label="수합 저장 결과 확인"><h3>이전 저장 결과 확인이 필요합니다</h3><p>같은 내용과 요청 번호로 다시 확인합니다. 결과가 확인될 때까지 새 저장과 화면 이동을 잠시 멈춥니다. 새로고침하면 보관한 입력이 사라집니다.</p><button type="button" disabled={!!busy || !readiness?.available} onClick={() => { void mutate(pending.command, pending.key) }}>이전 요청 그대로 다시 확인</button></section>}
     {readError && <section className="cs-error" role="alert"><p>{readError}</p><button type="button" disabled={!!busy} onClick={() => setReload(value => value + 1)}>연결과 원본 다시 확인</button></section>}
@@ -269,6 +271,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
       {restoring && <p role="status">수합 원본과 보관한 입력의 접근 권한을 다시 확인 중…</p>}
       {detail && !restoring && <section className="cs-card" aria-label="수합 상세"><div className="cs-heading"><div><h3>{detail.request.title}</h3><p>{detail.request.dueDate}까지 · {detail.request.status === 'draft' ? '담당자 초안' : '공개됨'} · v{detail.request.version}</p></div><button type="button" disabled={locked} onClick={() => { resetEditing(); setDetail(undefined) }}>목록으로</button></div><p className="cs-instructions">{detail.request.instructions}</p>
         {filesView(detail.request.fileCollection?.templates ?? [], { kind: 'template', requestId: detail.request.id, version: detail.request.version })}
+        {detail.request.status === 'published' && detail.request.managerMemberId === member.id && detail.request.fileCollection && <CollectionServerExport server={server} member={member} requestId={detail.request.id} date={date} disabled={Boolean(busy || pending || dirty || restoring || !enabled)} onBusyChange={setExportBusy} />}
         {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" disabled={locked} onClick={() => setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } })}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked} onClick={() => { void mutate({ kind: 'publish', requestId: detail.request.id, expectedVersion: detail.request.version }) }}>대상 교사에게 공개</button></div>}
         {detail.request.status === 'published' && detail.units.map(unit => {
           const submission = detail.submissions.find(value => value.id === unit.currentSubmissionId), withdrawn = Boolean(submission && unit.withdrawnSubmissionIds.includes(submission.id))
