@@ -1,0 +1,60 @@
+# Claude에게: 전체 시범 구축의 증분 SQL 작성 요청
+
+2026-10-16. 앱 통합 브랜치 `feat/workhub-pilot-completion`의 계약 기준이다. 이 문서는 실행 SQL이 아니다. 기존 R0/R1 적용 결과는 사용자 보고로 확인했으며 다시 설치하지 않는다. 프로젝트는 `dhaoszbqtbofqftgjfyb`다.
+
+## 1. 유지할 경계
+
+- `public.users`, `auth.users`, 기존 승인/로그인·제출·Storage·문서 AI 자료와 R0/R1 원문을 보존한다. 각 배치 전후 구조·자료·권한 지문을 비교한다.
+- Codex는 UI·API·어댑터를 작성했다. SQL 확정은 Claude, 실제 적용은 계란님이다. 앱에 맞추려고 기존 계약을 조용히 바꾸지 말고 증분 함수를 만든다.
+- 신규 모듈은 현재 superadmin 전용. 일반 교사 공개나 회원 역할 승격은 SQL 설치의 부수효과로 하지 않는다.
+- 응답 봉투가 모듈마다 동일하지 않을 수 있다. 각 TypeScript parser/Python claim validator가 정확한 기준이다. 문서와 코드가 다르면 실행 전에 차이를 협의한다.
+- 복구는 기존 요청·명령 hash를 조회하는 것과 새 실행을 구분한다. readiness가 내려갔어도 기존 접수증 읽기는 가능한 계약을 유지한다.
+- 학교ID를 포함한 관계, 현재 유효 소속, 실제 auth.uid/서버 검증 actor, 역할/대상/소유권을 DB에서 검사한다. private bucket, 기본 테이블 직접권한 차단, 고정 search_path를 유지한다.
+
+## 2. 권장 배치 순서
+
+앱 PR을 더 나누자는 뜻이 아니다. DB는 의존성을 검증할 수 있게 다음 순서로 작성한다. 임의 R 번호는 부여하지 않으며 Claude가 현재 SQL 이력과 맞춰 정한다.
+
+| 순서 | 배치 | 선행 조건 | 필수 계약 |
+|---|---|---|---|
+| 0 | R1S 재검토·프로필 비활성 설치 준비 | R0/R1 존재, PR #47 최신본 | 기존 R1S 문서, 아래 재현 메모 |
+| 1 | 학교 구성·소속·공식 담당 | 기존 가입자·학교·학년도 | [학교 관리](school-admin-contract.md) |
+| 2 | 일정 대량 입력·협업 | R0 일정/개인 업무, 1 | [일정](calendar-batch-contract.md), [협업](cooperation-contract.md) |
+| 3 | 메신저·알림·HWPX 첨부 | 1, private Storage, 0과 분리된 message wrapper | [메신저](messaging-contract.md) |
+| 4 | 지식 원문·문서함·질문형 양식/생성물 | 1, 0, private Storage | [지식](knowledge-home-contract.md), [지식 HWPX 수입](knowledge-import-contract.md), [문서](documents-contract.md) |
+| 5 | 수업·학생·관찰·상담·평가·활동 CSV | 1, 학생별/수업별 실제 배정 | [수업·학생](teaching-contract.md) |
+| 6 | Claude 근거·대화·예산·제안·단일 호출 원장 | 1~5의 권한/근거 조회, 승인 정책 | [비서](assistant-contract.md) |
+| 7 | 수합 운영·홈 요약·업무 인계·학년도 전환 | 관련 원본 모듈, 사이트 알림 | [수합 운영](collection-operations-contract.md), [홈](knowledge-home-contract.md), [전환](school-transitions-contract.md) |
+
+각 배치는 비활성 설치 → 합성 PG17 시험 → 실제 PostgREST JSON parser 대조 → 사용자 적용 → 설정/배포 확인 → 해당 모듈만 활성화 순서로 진행한다. 지원하지 않는 모듈이 있어도 홈은 그 항목을 unavailable/null로 표시하며 0건으로 위장하지 않는다.
+
+## 3. 빠뜨리면 실제 연결이 막히는 항목
+
+1. **현재 요청의 복구 함수**: create뿐 아니라 prepare/complete/check/render/AI와 인계 명령의 접수증을 원래 키·원래 내용으로 조회해야 한다. 모듈별 request_get/replay_only의 의미를 정확히 구현한다.
+2. **권한 변경 중 요청**: 쓰기 직전 승인/학교/소속/역할을 재확인하고, 완료 후 열람 권한이 사라진 결과는 공개하지 않는다. 감사·접수증을 삭제해 중복 실행을 가능하게 만들지 않는다.
+3. **원자성**: 상태 변경·불변 이력·접수증·사이트 알림/감사 사건을 같은 트랜잭션에 기록한다. 앱 테스트는 실제 DB 원자성을 증명하지 않는다.
+4. **학교 공식 관계**: 학교 관리의 승인된 학년/부서/교과 배정과 R0 context의 실제 대상 계산을 연결한다. 미확정 자기 입력을 공식 관계로 쓰지 않는다.
+5. **수합 마감**: 화면 버튼만 막지 말고 기존 R1 draft save/final submit/file prepare의 서버 진입점도 마감 상태를 재검사한다. 기존 성공 요청 재조회·권한 있는 다운로드는 유지한다.
+6. **파일 객체 고정**: bucket/path만 같다고 같은 파일로 보지 않는다. Storage 객체 ID·내용 hash·size·원본판을 고정하고 변경/삭제/철회 시 거부한다. 서버 claim/finish를 authenticated에게 열지 않는다.
+7. **학생 근거 철회**: 활동 원문 정정 이후 연결 기록의 sourceReviewRequired, revision/hash/epoch/range를 문서함·AI prepare/start/finish/get에서 다시 검사한다. 상담은 근거에 섞지 않는다.
+8. **Claude 비용**: 모델·가격표·입출력 상한·일/월 예산은 승인 설정이다. 준비되지 않으면 외부 호출 0회. start 후 lease 만료로 재호출하지 않는다. 공급자 결과 미상은 0원 성공/실패로 처리하지 않는다.
+9. **지식 원문 가져오기**: 원본/추출결과/교사확인 초안/게시된 지식 판의 연결을 보존한다. 페이지 번호를 추정하지 않고 HWPX section/paragraph 위치를 쓴다.
+10. **인계**: 허용한 업무만 명시 선택, 영향 미리보기 지문·만료·원본판 재검사, 수신자 수락 필요. 개인 상담·메시지·학생 사적 기록을 일괄 넘기지 않는다.
+
+## 4. 각 배치에 함께 제출할 산출물
+
+- 실행 안내: 대상 프로젝트, 선행 버전, 입력값, 정상 출력, 멈출 기준, 적용 전후 지문, 비파괴 비활성화/재개. DROP을 정상 순서에 넣지 않는다.
+- exact RPC 이름/인수/성공·오류 JSON 예시. 실제 PG 출력 파일을 현재 앱 parser와 Python validator에 직접 입력한 시험.
+- 두 학교·동명이인·승인대기/취소·기간만료·동시 편집·같은키/다른내용·타임아웃/응답유실·역할회수·객체교체를 포함한 자동 시험.
+- 합성 Storage 표와 실제 Storage SDK 정책 검증을 구분한 결과. 서버 claim 호출권·사용자 함수 권한을 역할별로 확인.
+- 학교별 활성화 기록·설정판·담당자. 정책값 미정은 빈칸/미준비로 남기고 예시값을 실제 값으로 심지 않는다.
+- fresh checkout, 공백 경로, PostgreSQL 17에서 실패 하나라도 전체 실패하는 실행 도구. 셸 스크립트는 LF 고정.
+
+## 5. R1S PR #47 재현 메모 — 먼저 확인할 두 항목
+
+기준 `884056f3f8e8668252d2df13c1827f1780dda958`. 실제 Supabase가 아닌 격리 PostgreSQL 17.6에서 현재 통합 앱과 대조했다.
+
+- 시험 결과 **410/411**, L44 한 건 불일치. 실제 응답 바이트가 예약된 크기보다 짧은 경우 현재 API는 전송 중 단절과 파일 자체 불일치를 구분할 수 없어 `RESULT_UNKNOWN`, finish 없음, `verifying` 유지로 처리한다. L44는 영구 `FILE_SIZE_MISMATCH/rejected`를 기대한다. 현재 앱의 의도는 불완전한 다운로드만으로 정상 원본을 영구 거절하지 않는 것이다. SQL 문제로 단정하지 말고 시험 기대/운송완료 증거를 합의해 수정 후 전체를 재시험해 달라.
+- GitHub 아카이브의 `.sh`가 CRLF여서 Linux에서 `pipefail\r` 오류가 났다. 시험용 사본에서 셸 파일만 LF로 정규화한 뒤 실행했다. SQL은 수정하지 않았다. published 원문을 아무 보정 없이 실행한 성공으로 기록하지 않는다. `.gitattributes` 또는 원본 줄바꿈을 정리해 fresh checkout으로 재검증해 달라.
+
+이 두 항목을 정리하기 전 본 문서를 R1S 적용 승인으로 해석하지 않는다. Codex는 Claude SQL 브랜치에 커밋하거나 운영 SQL을 실행하지 않았다.

@@ -39,7 +39,7 @@ const submit = () => answer().getByRole('button', { name: '최종 제출', exact
 const state = () => page.evaluate(() => window.qa.snapshot())
 const picked = (scope, label) => scope.getByRole('region', { name: label, exact: true })
 async function actor(memberId, requestId) { await page.getByLabel('검증 소속', { exact: true }).selectOption(memberId); if (requestId) await page.evaluate(id => window.qa.open(id), requestId) }
-async function upload(scope, label, value) { await scope.getByLabel(label + ' 선택', { exact: true }).setInputFiles(value); await picked(scope, label).getByText('기본 검사 완료 · 현재 창에 보관', { exact: true }).waitFor() }
+async function upload(scope, label, value) { await scope.getByLabel(label + ' 선택', { exact: true }).setInputFiles(value); await picked(scope, label).getByText('기본 확인 완료 · 현재 창에 보관', { exact: true }).waitFor() }
 async function receiveDownload(button) {
   const received = page.waitForEvent('download'); await button.click(); const file = await received
   const chunks = []; for await (const chunk of await file.createReadStream()) chunks.push(chunk)

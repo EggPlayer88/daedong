@@ -56,7 +56,7 @@ async function startSlow(name = '느린 문서.pdf') {
 try {
   await test('파일 선택을 실제 검사하고 기본 확인·개수·다운로드 동선을 표시한다', async () => {
     await picker().setInputFiles(file('첫 문서.pdf')); await selected(1)
-    assert.match(await selection().innerText(), /기본 검사 완료 · 현재 창에 보관/)
+    assert.match(await selection().innerText(), /기본 확인 완료 · 현재 창에 보관/)
     assert.equal(await page.locator('[data-busy]').innerText(), 'false')
     assert.equal(await page.locator('[data-locked]').innerText(), 'false')
     assert.equal(await picker().inputValue(), '')

@@ -71,6 +71,9 @@ jobs:
       - name: 2차 통합 후보의 포함 이력·SQL 원문·보류 경계
         if: github.event_name == 'pull_request' && github.head_ref == 'chore/workhub-integration-r2'
         run: npm run check:workhub:integration:r2
+      - name: 전체 시범 구축의 포함 이력·보존·보류 경계
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-pilot-completion'
+        run: npm run check:workhub:pilot
       - run: npm run check:workhub:design
       - run: npm test
         env:

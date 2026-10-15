@@ -84,7 +84,7 @@ async function fillRequest(title, label, requiredReview = false) {
 }
 async function upload(scope, label, payload) {
   await scope.getByLabel(label + ' 선택', { exact: true }).setInputFiles(payload)
-  await scope.getByRole('region', { name: label, exact: true }).getByText('기본 검사 완료 · 현재 창에 보관', { exact: true }).waitFor()
+  await scope.getByRole('region', { name: label, exact: true }).getByText('기본 확인 완료 · 현재 창에 보관', { exact: true }).waitFor()
 }
 async function test(name, run) { await run(); results.push(name); console.log('  ✓ ' + name) }
 let baseline, observedWrites = 0, generatedIds = 0

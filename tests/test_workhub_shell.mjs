@@ -15,7 +15,7 @@ let passed = 0, failed = 0
 function test(name, action) { try { action(); passed++; console.log(`  ✓ ${name}`) } catch(error) { failed++; console.log(`  ✗ ${name}: ${error.stack || error}`) } }
 const body = html => html.replace(/<style>[\s\S]*?<\/style>/g, '')
 test('메뉴의 실제 구현 범위와 공개 제한을 중앙 목록에서 고정한다', () => {
-  assert.deepEqual(enabledModules('connected').map(value=>value.id),['home','calendar','tasks','collections'])
+  assert.deepEqual(enabledModules('connected').map(value=>value.id),['home','calendar','tasks','collections','documents','cooperation','assistant','knowledge','messages','schoolAdmin','students'])
   assert.deepEqual(enabledModules('preview').map(value=>value.id),['home','calendar','tasks','collections','students'])
   assert(workhubModules.every(value=>value.visibility==='superadmin'&&value.productionEnabled===false))
   assert.equal(workhubModules.find(value=>value.id==='tasks').parentId,'home')
@@ -23,12 +23,12 @@ test('메뉴의 실제 구현 범위와 공개 제한을 중앙 목록에서 고
   assert.equal(workhubModules.find(value=>value.id==='students').group,'teaching')
   assert.deepEqual(enabledModules('unknown'),[])
 })
-test('연결 화면은 수합 서버 준비 화면까지 네 메뉴와 명시적 AI 준비 안내를 제공한다', () => {
+test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공한다', () => {
   const html=body(renderShell({mode:'connected',page:'tasks'}))
-  for(const name of ['오늘','학교 일정','내 업무','자료 수합'])assert(html.includes(`>${name}</span>`))
-  for(const name of ['수업과 학생','시간표','문서함'])assert(!html.includes(name))
+  for(const name of ['오늘','학교 일정','내 업무','자료 수합','학교 자료','메시지와 알림','학교 관리','수업과 학생'])assert(html.includes(`>${name}</span>`))
+  for(const name of ['시간표'])assert(!html.includes(name))
   const assistant=html.match(/<button[^>]*class="[^"]*ws-assistant-trigger[^"]*"[\s\S]*?<\/button>/g)||[]
-  assert.equal(assistant.length,1);assert(assistant[0].includes('AI 비서'));assert(assistant[0].includes('준비 중'))
+  assert.equal(assistant.length,1);assert(assistant[0].includes('AI 비서'));assert(!assistant[0].includes('준비 중'))
   assert(!html.includes('<textarea'));assert(!html.includes('대화 전송'))
   assert.match(html,/aria-label="신축 업무 메뉴"/)
   assert.match(html,/class="ws-more-button"[^>]*aria-haspopup="dialog"/)
@@ -60,9 +60,9 @@ test('미리보기 저장 안내와 이름은 안전한 텍스트로 표시한�
   assert.match(html,/&lt;script&gt;학교/)
 })
 test('지원하지 않는 모듈은 내용 대신 안전한 안내를 보여준다', () => {
-  const html=body(renderShell({mode:'connected',page:'students'}))
+  const html=body(renderShell({mode:'connected',page:'timetable'}))
   assert(!html.includes('기능 본문'));assert.match(html,/이 화면은 아직 연결되지 않았습니다/)
-  assert(!html.includes('>수업과 학생</span>'))
+  assert(!html.includes('>시간표</span>'))
 })
 test('누락되거나 깨진 표시 이름에도 셸과 오류 안내가 렌더된다', () => {
   const html=body(renderShell({schoolName:null,memberName:[]}))

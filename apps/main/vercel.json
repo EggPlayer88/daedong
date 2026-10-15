@@ -15,7 +15,28 @@
     "api/collections/check-hwpx.py": {
       "includeFiles": "api/collections/**",
       "maxDuration": 60
+    },
+    "api/messages/check-hwpx.py": {
+      "includeFiles": "{api/messages/**,api/collections/**}",
+      "maxDuration": 60
+    },
+    "api/workhub-ai/chat.py": {
+      "includeFiles": "{api/workhub-ai/**,api/collections/**}",
+      "maxDuration": 60
+    },
+    "api/workhub-documents/guided.py": {
+      "includeFiles": "{api/workhub-documents/**,api/collections/**}",
+      "maxDuration": 60
+    },
+    "api/workhub-documents/extract-knowledge.py": {
+      "includeFiles": "{api/workhub-documents/**,api/collections/**}",
+      "maxDuration": 60
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

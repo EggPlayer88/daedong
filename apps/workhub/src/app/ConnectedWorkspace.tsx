@@ -1,6 +1,13 @@
+import { assistantDocumentDraft, documentAssistantRequest, studentAssistantRequest } from './pilot-handoff'
+import type { AssistantContextRequest } from '../assistant/contracts'
+import type { DocumentAiDraft } from '../documents/contracts'
+import type { MessageComposeRequest } from '../messaging/MessagingWorkspace'
+import type { GeneratedDocument } from '../documents/guided-contracts'
+import { createCollectionOperations } from '../collections/operations'
 import '../typography.css'
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { HomeOverviewPanel } from '../home/HomeOverviewPanel'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { activeAt } from '../domain'
 import { createSupabaseConnection, type SupabaseConnection } from '../connection/supabase-connection'
@@ -23,6 +30,16 @@ import { ConnectionRecoveryActions } from './ConnectionRecoveryActions'
 import { createEditDrafts, EditDraftsProvider } from './edit-drafts'
 import { createSupabaseCollectionServer } from '../collections/supabase-collections'
 
+const AssistantPanel = lazy(() => import('../assistant/AssistantPanel').then(module => ({ default: module.AssistantPanel })))
+const DocumentsWorkspace = lazy(() => import('../documents/DocumentsWorkspace').then(module => ({ default: module.DocumentsWorkspace })))
+const CooperationWorkspace = lazy(() => import('../cooperation/CooperationWorkspace').then(module => ({ default: module.CooperationWorkspace })))
+const CalendarBatchImport = lazy(() => import('../calendar/CalendarBatchImport').then(module => ({ default: module.CalendarBatchImport })))
+
+const SchoolAdminPanel = lazy(() => import('../administration/SchoolAdministration').then(module => ({ default: module.SchoolAdministration })))
+const TeachingWorkspace = lazy(() => import('../teaching/TeachingWorkspace').then(module => ({ default: module.TeachingWorkspace })))
+const MessagingWorkspace = lazy(() => import('../messaging/MessagingWorkspace').then(module => ({ default: module.MessagingWorkspace })))
+const KnowledgeWorkspace = lazy(() => import('../knowledge/KnowledgeWorkspace').then(module => ({ default: module.KnowledgeWorkspace })))
+
 const CollectionServerPanel = lazy(() => import('../collections/CollectionServerPanel').then(module => ({ default: module.CollectionServerPanel })))
 
 const connectedPages = enabledModules('connected').map(module => module.id)
@@ -37,11 +54,12 @@ function StyleBoundary({ children }: { children: ReactNode }) {
   `}</style><div className="workhub-connected">{children}</div></>, root) : <p role="status">새 업무 화면을 준비하고 있습니다…</p>}</div>
 }
 
-export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection: providedConnection }: { expectedUserId: string; legacyHomeHref: string; connection?: SupabaseConnection }) {
+export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanHref, connection: providedConnection }: { expectedUserId: string; legacyHomeHref: string; legacyPlanHref?: string; connection?: SupabaseConnection }) {
   const [connection] = useState(() => providedConnection ?? createSupabaseConnection())
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
   const [collectionServer] = useState(() => createSupabaseCollectionServer(connection))
+  const [collectionOperations] = useState(() => createCollectionOperations(connection))
   const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
   const editDrafts = useMemo(() => createEditDrafts(true), [connection, expectedUserId])
   const draftCount = useSyncExternalStore(editDrafts.subscribe, editDrafts.count, editDrafts.count)
@@ -60,6 +78,17 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
   const [taskNavigationLocked, setTaskNavigationLocked] = useState(false)
   const [calendarNavigationLocked, setCalendarNavigationLocked] = useState(false)
   const [collectionNavigationLocked, setCollectionNavigationLocked] = useState(false)
+  const [extensionNavigationLocked, setExtensionNavigationLocked] = useState(false)
+  const [batchOpen, setBatchOpen] = useState(false)
+  const [batchNavigationLocked, setBatchNavigationLocked] = useState(false)
+  const [handoff, setHandoff] = useState<{scope:string; page:PageId; fromPage:PageId; requestId?:string}>()
+  const [assistantContext, setAssistantContext] = useState<{scope:string; id:string; request:AssistantContextRequest}>()
+  const [documentDraft, setDocumentDraft] = useState<{scope:string; draft:DocumentAiDraft}>()
+  const [messageDraft, setMessageDraft] = useState<{scope:string;draft:MessageComposeRequest}>()
+  const [generatedFile, setGeneratedFile] = useState<{scope:string; value:GeneratedDocument}>()
+  const [handoffError, setHandoffError] = useState('')
+  const clearHandoffs = useCallback(() => {setHandoff(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setBatchOpen(false);setBatchNavigationLocked(false)}, [])
+
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
   const scopeFingerprint = useRef('')
@@ -86,7 +115,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
           try {
             const identity = await connection.getIdentity()
             if (!alive || version !== generation.current) continue
-            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); editDrafts.clear(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
+            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
             const next = await connection.loadContext()
             if (!alive || version !== generation.current) continue
             const mine = next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate))
@@ -97,14 +126,14 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
             pendingRequests.retainScopes(mine.map(recoveryScope))
             if (selected) editDrafts.activate(fingerprint)
             else editDrafts.clear()
-            if (scopeFingerprint.current && fingerprint !== scopeFingerprint.current) setScopeEpoch(value => value + 1)
+            if (scopeFingerprint.current && fingerprint !== scopeFingerprint.current) { clearHandoffs(); setScopeEpoch(value => value + 1) }
             scopeFingerprint.current = fingerprint
             setError('')
             setContext(next)
             setRefreshEpoch(value => value + 1)
             setMemberId(selected?.id ?? '')
           } catch (failure) {
-            if (alive && version === generation.current) { editDrafts.suspend(); setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
+            if (alive && version === generation.current) { setHandoff(undefined); editDrafts.suspend(); setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
           } finally { if (alive && version === generation.current) setLoading(false) }
         }
       } finally { running = false }
@@ -116,10 +145,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
       generation.current += 1
       queued = undefined
       // 조회 실패도 화면은 숨긴다. 결과 미확정 명령은 같은 계정·소속 재검증 후에만 다시 표시한다.
-      if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); editDrafts.clear(); lastVerifiedMemberId.current = '' }
+      if (reason.code !== 'QUERY_FAILED') { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); lastVerifiedMemberId.current = '' }
       else editDrafts.suspend()
+      setHandoff(undefined)
       setDiagnosticEpoch(value => value + 1)
-      setTaskNavigationLocked(false); setCalendarNavigationLocked(false); setCollectionNavigationLocked(false)
+      setTaskNavigationLocked(false); setCalendarNavigationLocked(false); setCollectionNavigationLocked(false); setExtensionNavigationLocked(false)
       setContext(undefined); setMemberId(''); setLoading(false); setError(reason.message)
     })
     // 계정·권한 판정은 기존 서버 경로를 유지한다. 새 날짜는 재조회 신호로만 사용한다.
@@ -127,11 +157,12 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
     const onFocus = () => { refresh(true) }
     window.addEventListener('focus', onFocus)
     return () => { alive = false; queued = undefined; generation.current += 1; stopDayWatch(); unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
-  }, [connection, expectedUserId, attempt, pendingRequests, editDrafts])
+  }, [connection, expectedUserId, attempt, pendingRequests, editDrafts, clearHandoffs])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
   const connectionUnavailable = loading || !!error || !context || !member || !school
-  const navigationLocked = taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
+  const currentScope = member ? recoveryScope(member) : ''
+  const navigationLocked = batchNavigationLocked || taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
   const exitLocked = draftCount > 0 || pendingCount > 0
   const navigation = useWorkspaceNavigation({
     allowedPages: connectedPages,
@@ -142,13 +173,24 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
   const page = navigation.page as PageId
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
-  const navigate = (next: PageId) => { resource.navigate(next) }
+  const navigate = (next: PageId) => { setHandoff(undefined); resource.navigate(next) }
   const searchSources = useMemo(() => member && context ? [calendarSearchSource(adapter, member, context.basisDate), taskSearchSource(taskAdapter, member, context.basisDate)] : [], [adapter, taskAdapter, member, context])
   const requested = resource.current
+  useEffect(() => {
+    if (!handoff || !currentScope || navigationLocked || handoff.scope !== currentScope) return
+    if (handoff.fromPage !== page) {setHandoff(undefined);return}
+    const moved = handoff.requestId ? resource.openCollection(handoff.requestId) : resource.navigate(handoff.page)
+    if (moved) setHandoff(undefined)
+  }, [handoff, currentScope, navigationLocked, resource, page])
+  function sendToAssistant(request: AssistantContextRequest) {
+    if (!member) return
+    setHandoffError('');setAssistantContext({scope:currentScope,id:crypto.randomUUID(),request});setHandoff({scope:currentScope,fromPage:page,page:'assistant'})
+  }
+
   function discardUnsentInput() {
     if (pendingRequests.count() > 0) return false
-    editDrafts.clear()
-    setTaskNavigationLocked(false); setCalendarNavigationLocked(false); setCollectionNavigationLocked(false)
+    editDrafts.clear(); clearHandoffs()
+    setTaskNavigationLocked(false); setCalendarNavigationLocked(false); setCollectionNavigationLocked(false); setExtensionNavigationLocked(false)
     navigation.clearAnnouncement()
     return true
   }
@@ -172,15 +214,25 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, connection:
     </main> :
       <WorkspaceShell mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
         storageLabel={page === 'collections' ? '학교 계정으로 연결' : '현재 학교 서버에 저장'} locked={navigationLocked} notice={navigation.announcement}
-        quickActions={<WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={resource.openSearchItem} />}
-        contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
-        <ModuleBoundary moduleName={page === 'collections' ? '자료 수합' : page === 'tasks' ? '내 업무' : '학교 일정'} resetKey={`${resetKey}:${page}`}>
-          {page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}><CollectionServerPanel key={resetKey} server={collectionServer} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setCollectionNavigationLocked} /></Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
+        quickActions={<WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={item => {setHandoff(undefined);return resource.openSearchItem(item)}} />}
+        contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
+        <ModuleBoundary moduleName={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
+          {handoffError && <p role="alert">{handoffError}</p>}
+          {['schoolAdmin', 'students', 'messages', 'knowledge', 'documents', 'assistant', 'cooperation'].includes(page) ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>{enabledModules('connected').find(item => item.id === page)?.title}</h1></div></header><Suspense fallback={<p role="status">업무 화면을 준비하는 중…</p>}>
+            {page === 'schoolAdmin' ? <SchoolAdminPanel onUpdated={() => setAttempt(value => value + 1)} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
+             page === 'students' ? <TeachingWorkspace onRequestStudentDraft={source => { try { sendToAssistant(studentAssistantRequest(source,member)) } catch { setHandoffError('현재 학교와 학생 근거를 다시 확인해 주세요.') } }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
+             page === 'messages' ? <MessagingWorkspace composeRequest={messageDraft?.scope === currentScope ? messageDraft.draft : undefined} onComposeRequestConsumed={() => setMessageDraft(undefined)} canOpenSource={source => ['calendar', 'tasks', 'collections'].includes(source.module)} onOpenSource={source => { if (source.module === 'collections') resource.openCollection(source.id); else if (source.module === 'tasks' || source.module === 'calendar') resource.openSearchItem({ kind: source.module === 'tasks' ? 'task' : 'calendar', id: source.id, title: '', description: '', meta: '' }) }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
+             page === 'assistant' ? <AssistantPanel key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={value => {setMessageDraft({scope:currentScope,draft:{id:value.requestId,schoolId:member.schoolId,memberId:member.id,body:value.body}});setHandoff({scope:currentScope,fromPage:page,page:'messages'})}} onNavigationLockChange={setExtensionNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} onDraftReady={value => {try {setDocumentDraft({scope:currentScope,draft:assistantDocumentDraft(value,member)});setHandoff({scope:currentScope,fromPage:page,page:'documents'})} catch {setHandoffError('초안의 근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} /> :
+             page === 'documents' ? <DocumentsWorkspace legacyPlanHref={legacyPlanHref} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} aiDraft={documentDraft?.scope === currentScope ? documentDraft.draft : undefined} onRequestAi={input => {try{sendToAssistant(documentAssistantRequest(input))}catch{setHandoffError('AI로 전달할 제목·입력 길이와 근거를 확인해 주세요. 문서 입력은 보관되어 있습니다.')}}} onOpenCollection={requestId => setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId})} onUseGenerated={value => {setGeneratedFile({scope:currentScope,value});setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId:value.requestId})}} /> :
+             page === 'cooperation' ? <CooperationWorkspace key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} onOpenTask={id => resource.openSearchItem({kind:'task',id,title:'',description:'',meta:''})} /> :
+             <KnowledgeWorkspace key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} />}
+          </Suspense></main> : page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}><CollectionServerPanel key={resetKey} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setCollectionNavigationLocked} openRequest={requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} /></Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
+            page === 'calendar' && batchOpen ? <main id="main-content" className="main-content"><header className="page-header"><h1 tabIndex={-1}>시트에서 일정 가져오기</h1></header><Suspense fallback={<p role="status">일괄 가져오기를 준비하고 있습니다…</p>}><CalendarBatchImport connection={connection} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setBatchNavigationLocked} onClose={() => setBatchOpen(false)} onSaved={() => setRefreshEpoch(value => value + 1)} /></Suspense></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
-              page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked}
+              page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked} onOpenBatchImport={() => setBatchOpen(true)}
               relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장"
               openRequest={requested?.kind === 'calendar' && requested.id ? { key: requested.key, id: requested.id } : undefined}
-              homeExtras={<ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary>} />}
+              homeExtras={<><ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary><ModuleBoundary moduleName="확인할 일" resetKey={resetKey}><HomeOverviewPanel connection={connection} member={member} revision={refreshEpoch} onOpen={item => { if (item.kind === 'collection' || item.kind === 'supplement') resource.openCollection(item.sourceId); else navigate(item.kind === 'student_followup' ? 'students' : item.kind === 'message' ? 'messages' : 'cooperation') }} /></ModuleBoundary></>} />}
         </ModuleBoundary>
       </WorkspaceShell>}
     <ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} />

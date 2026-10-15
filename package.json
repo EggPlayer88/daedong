@@ -21,7 +21,8 @@
     "check:workhub:integration": "node scripts/check-workhub-integration.mjs",
     "check:workhub:design": "node docs/workhub/database-integrated/validate-design.cjs && node docs/workhub/database-integrated/check-delivery.cjs",
     "check:workhub:integration:r2": "node scripts/check-workhub-integration-r2.mjs",
-    "test:workhub:r2-sql": "bash scripts/verify-workhub-r2-sql.sh"
+    "test:workhub:r2-sql": "bash scripts/verify-workhub-r2-sql.sh",
+    "check:workhub:pilot": "node scripts/check-workhub-pilot.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
