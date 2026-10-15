@@ -53,7 +53,9 @@ step(){
   fi
 }
 step r0-full bash "$REPO/database/workhub/r0/test/run_all.sh"
-step r1-full bash "$REPO/database/workhub/r1/test/run_all.sh"
+# R1 합성 자료는 한국 날짜로 만든다. 이 자식 시험의 DB 세션만 같은 날짜 기준을 쓴다.
+# UTC 날짜가 하루 뒤처지는 시간에도 정책 교체 기간이 0일이 되지 않게 한다.
+step r1-full env PGOPTIONS='-c timezone=Asia/Seoul' bash "$REPO/database/workhub/r1/test/run_all.sh"
 grep -q 'FAIL 0 · 미실행 0' "$OUTPUT/r1-full.log" || fail "R1 전체 시험에 실패 또는 미실행이 있습니다."
 # 전체 시험이 바꾼 합성 자료를 재사용하지 않고, 원본 setup으로 설치 직후 상태를 새로 만든다.
 step worker-setup bash "$REPO/database/workhub/r1/test/setup.sh" r1
