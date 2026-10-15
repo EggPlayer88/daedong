@@ -1,0 +1,7 @@
+# 설정만 이미지에 전달한다. 저장소 파일·비밀값·문서 자료는 포함하지 않는다.
+**
+!workers/
+!workers/deploy/
+!workers/deploy/clamav/
+!workers/deploy/clamav/clamd.conf
+!workers/deploy/clamav/freshclam.conf

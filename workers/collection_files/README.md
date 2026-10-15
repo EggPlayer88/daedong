@@ -103,3 +103,7 @@ preview = run_cleanup(cleanup_job, cleanup_ledger, storage, now=clock)
 - 파서 프로세스 시간·Linux CPU/메모리 제한과 키 환경 제거를 구현했지만 OS 권한·네트워크까지 완전한 보안 샌드박스는 아니다.
 - R1 임대 만료 재인수/응답 유실 복구·실물 삭제 확인은 새 실행기에서 검증했다. 구 준비용 코어의 메모리 접수 계약과 구별한다.
 - PDF/HWP 미지원 변형, 다중 교사·실제 업로드/제출·서명 URL 차단은 별도 확인한다. **코드 병합만으로 수합 준비 상태를 켜지 않는다.**
+
+## 공통 배포 준비
+
+[Linux·Docker 배포 구성](../deploy/README.md)과 [R1-05/06 활성화 인계](../../docs/workhub/41-worker-activation-handoff.md)를 따른다. 컨테이너 기본 명령은 기존 파서 자체 점검이며 키 파일·클라우드에 접근하지 않는다. `python -m workers.collection_files.deployment`는 서버 설정과 로컬 키 형식을 검사하지만 서버 인증/권한을 확인하지 않는다. `--scanner`는 로컬 ClamAV 자체시험만 추가한다. 성공해도 DB 활성화나 실제 Storage 시험 완료를 뜻하지 않는다.

@@ -48,14 +48,17 @@ jobs:
           import { execFileSync } from 'node:child_process'
           import { appendFileSync } from 'node:fs'
           let run = true
+          let worker = true
           if (/^[0-9a-f]{40}$/i.test(process.env.BASE_SHA || '') && !/^0+$/.test(process.env.BASE_SHA)) {
             try {
               const files = execFileSync('git', ['diff', '--name-only', '-z', process.env.BASE_SHA, process.env.HEAD_SHA], { encoding: 'utf8' }).split('\0')
+              worker = files.some(path => /^(workers\/|tests\/test_workhub_worker_deployment\.py$|tests\/integration\/workhub-worker-container\.sh$|\.github\/workflows\/)/.test(path))
               run = files.some(path => /^(apps\/workhub\/|apps\/main\/src\/|packages\/shared\/|tests\/browser\/|tests\/helpers\/|scripts\/export-workhub-preview\.mjs$|package(?:-lock)?\.json$|\.github\/workflows\/)/.test(path))
             } catch { console.log('변경 경로를 판정하지 못해 브라우저 검사를 실행합니다.') }
           }
           appendFileSync(process.env.GITHUB_OUTPUT, `run=${run}\n`)
-          console.log(`브라우저 검사 실행: ${run}`)
+          appendFileSync(process.env.GITHUB_OUTPUT, `worker=${worker}\n`)
+          console.log(`브라우저 검사 실행: ${run}, 작업자 컨테이너 검사: ${worker}`)
           NODE
       - uses: actions/setup-python@v5
         with:
@@ -100,6 +103,20 @@ jobs:
         with:
           name: workhub-r2-sql-results
           path: ${{ runner.temp }}/workhub-r2-sql-results
+          if-no-files-found: ignore
+          retention-days: 7
+      # 공개 이미지·가짜 키로만 빌드/점검하며 실제 DB·Storage·정기 실행은 시작하지 않는다.
+      - name: 파일 검사기 실제 컨테이너와 배포 설정 검사
+        if: steps.browser-scope.outputs.worker == 'true'
+        run: bash tests/integration/workhub-worker-container.sh
+        env:
+          WORKHUB_CONTAINER_REPORT: ${{ runner.temp }}/workhub-worker-container-results
+      - name: 컨테이너 검사 결과 보관
+        if: always() && steps.browser-scope.outputs.worker == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-worker-container-results
+          path: ${{ runner.temp }}/workhub-worker-container-results
           if-no-files-found: ignore
           retention-days: 7
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
