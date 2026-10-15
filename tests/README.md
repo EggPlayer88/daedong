@@ -84,7 +84,7 @@ Python이 선택된 뒤 형식별 파서가 빠져 있으면 관련 시험이 �
 |---|---|
 | `test_workhub_browser_launcher.mjs` | 로컬 Chrome·CI 고정 Chromium·명시한 Edge 선택과 잘못된 채널 거부 |
 | `test_workhub_shell.mjs` | 연결 모드별 메뉴, 모바일 더보기, 현재 위치·본문 접근, 오류 안내의 SSR 구조 |
-| `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단 |
+| `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단, 보관 중 내부 이동과 외부 이탈 구분 |
 | `test_workhub_calendar_views.mjs` | 다일 겹침·월/주 범위·검색·추천·건수와 홈 7일 요약 |
 | `test_workhub_calendar_import.mjs` | CSV/TSV 인용·행 번호·한도·열 매핑·날짜/시간·중복·개인 공개 초안·깨진 입력 |
 | `test_workhub_calendar_import_ui.mjs` | 실제 가져오기/편집기의 SSR·고유 ID·초안 이관·문자열 이스케이프·저장 호출 없음 |
@@ -200,11 +200,12 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-collection-export.mjs`: 실제 연결 화면의 ZIP 다운로드·파일 내용 대조·누락 응답·오류/재시도·직전 권한 확인·계정 전환·관리 입력·320px/키보드 13개. 전체 브라우저 러너에 포함하며 [ZIP 인계](../docs/workhub/35-collection-server-export.md)에 보장 범위를 기록한다.
 - `test_workhub_collection_server.mjs`: 실제 연결 어댑터의 봉투/학교/판 검증, 미확정 접수, 파일 예약·원문·다운로드 권한 재확인.
 - `test_workhub_collection_recovery.mjs`: 수합 명령의 동일 키·본문 보존, 다른 기능과의 복구 분리, 동일 소속 입력 복원.
+- `test_workhub_collection_conflict.mjs`: 수합 설정 11항목·답변 3항목의 세 버전 비교, 최신 변경 보존·명시 선택·파일/교사 교체 감지, 손상 입력·SSR 접근성 26건.
 - `test_workhub_collection_server_ui.mjs`: 서버 확인 전 정적 렌더링이 조회·빈 목록·작성 성공을 만들지 않는지, 상위 화면과 제목·본문 영역이 겹치지 않는지 확인한다.
 - `test_workhub_collection_units_editor.mjs`: 개인/공동 단위 입력 보존·중복 이름·현재 명부·역할 선택과 깨진 입력·SSR를 확인한다.
 - `test_workhub_collection_submission_summary.mjs`: 현재판/완료본·보완·철회·정확한 과거 파일 부모와 검토자 이름·이력 지연 렌더링을 확인한다.
 - `test_workhub_collection_storage.mjs`: 기존 실제 인증 연결·SDK 래퍼에 합성 전송을 주입하여 권한 회수·계정 변경·업로드 응답 유실·다운로드 원문 검사를 확인한다.
-- `workhub-collection-server.mjs`: 비동기 수합 작성·파일 대기·제출·오류 복구, 공동 단위 설정·철회/정정·대상판 고정·과거 이력·상세 실패 이탈을 합성 서버로 브라우저 검증한다. 전체 브라우저 러너에 포함된다.
+- `workhub-collection-server.mjs`: 비동기 수합 작성·파일 대기·제출·오류 복구, 공동 단위 설정·철회/정정·대상판 고정·과거 이력·상세 실패 이탈·전체 항목 충돌 병합·미확정 요청 보관/재개를 합성 서버로 브라우저 검증한다. 전체 브라우저 러너에 포함된다.
 - `workhub-connection.mjs`는 실제 연결 셸에서 R1 함수 부재와 파일 검사 미준비를 빈 목록/성공으로 표시하지 않는지도 확인한다.
 - [서버 연결 인계](../docs/workhub/33-collection-server-connection.md), [Claude R1 SQL 요청서](../docs/workhub/32-collection-server-sql-request.md). 이 시험이 실제 Supabase/Storage 구축과 서버 파일 검사를 대신하지 않는다.
 
