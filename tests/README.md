@@ -186,6 +186,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 기본 파일형 문서 수합
 
+- `test_workhub_collection_export.mjs`: 실제 연결용 ZIP 계획·전체 단위 대조·완료/현재판 선택·원문/CSV·511개 경계·권한/판 변경·실패 재시도·취소 36건.
+- `test_workhub_collection_export_ui.mjs`: 접힌 화면·정확한 선택기 라벨·준비 전 다운로드 차단·범위/한도 안내 SSR 4건.
+- `workhub-collection-export.mjs`: 실제 연결 화면의 ZIP 다운로드·파일 내용 대조·누락 응답·오류/재시도·직전 권한 확인·계정 전환·관리 입력·320px/키보드 13개. 전체 브라우저 러너에 포함하며 [ZIP 인계](../docs/workhub/35-collection-server-export.md)에 보장 범위를 기록한다.
 - `test_workhub_collection_server.mjs`: 실제 연결 어댑터의 봉투/학교/판 검증, 미확정 접수, 파일 예약·원문·다운로드 권한 재확인.
 - `test_workhub_collection_recovery.mjs`: 수합 명령의 동일 키·본문 보존, 다른 기능과의 복구 분리, 동일 소속 입력 복원.
 - `test_workhub_collection_server_ui.mjs`: 서버 확인 전 정적 렌더링이 조회·빈 목록·작성 성공을 만들지 않는지, 상위 화면과 제목·본문 영역이 겹치지 않는지 확인한다.
