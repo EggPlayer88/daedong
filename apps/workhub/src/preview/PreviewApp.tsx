@@ -5,6 +5,7 @@ import { CalendarPanel } from '../calendar/CalendarPanel'
 import { createDemoPersistence, type DemoPersistence } from './persistence'
 import { createWorkflowStore } from '../workflows/store'
 import { persistentWorkflowSnapshot } from '../workflows/file-persistence'
+import { hwpxCollectionPolicy } from '../files/hwpx-basic-policy'
 import { createPreviewFileRepository, previewFixturePolicy } from '../files/preview-repository'
 import { HomeWorkSummary, WorkflowPanel } from '../workflows/WorkflowPanel'
 import { createStudentStore } from '../students/store'
@@ -104,7 +105,7 @@ export function PreviewApp({ persistence = createDemoPersistence() }: { persiste
           <main id="main-content" className="main-content">
             <header className="page-header"><div><p className="eyebrow">{school.name} · {info.basisDate} 기준</p><h1 tabIndex={-1}>{page === 'tasks' ? '내 업무' : page === 'collections' ? '자료 수합' : '수업과 학생'}</h1></div></header>
             <div className="basis-strip"><span className="small-tag">합성 자료</span><span>{pageStorageLabel}. 실제 학생·교사의 개인정보는 입력하지 마세요.</span></div>
-            {page === 'students' ? <StudentsPanel member={member} members={info.memberships} date={info.basisDate} store={stores.students} /> : page === 'tasks' ? <TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} onNavigationLockChange={setTaskLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /> : <WorkflowPanel key={`${scopeKey}:${requested?.key ?? 'list'}`} member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} files={stores.files} filePolicy={previewFixturePolicy} page="collections" initialRequestId={requested?.kind === 'collection' ? requested.id : undefined} initialUnitId={requested?.kind === 'collection' ? requested.unitId : undefined} />}
+            {page === 'students' ? <StudentsPanel member={member} members={info.memberships} date={info.basisDate} store={stores.students} /> : page === 'tasks' ? <TaskPanel member={member} date={info.basisDate} adapter={taskAdapter} revision={revision} onNavigationLockChange={setTaskLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /> : <WorkflowPanel key={`${scopeKey}:${requested?.key ?? 'list'}`} member={member} members={info.memberships} date={info.basisDate} store={stores.workflows} files={stores.files} filePolicy={hwpxCollectionPolicy(previewFixturePolicy)} page="collections" initialRequestId={requested?.kind === 'collection' ? requested.id : undefined} initialUnitId={requested?.kind === 'collection' ? requested.unitId : undefined} />}
             <footer className="workspace-footer">{pageStorageLabel}<span>업무혁신시스템 · 로컬 계약 검증</span></footer>
           </main>}
       </ModuleBoundary>

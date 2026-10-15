@@ -14,7 +14,7 @@ import{createEditDrafts,EditDraftsProvider}from'./apps/workhub/src/app/edit-draf
 import{createPendingRequests,PendingRequestsProvider,recoveryScope}from'./apps/workhub/src/app/pending-requests';
 const clone=value=>structuredClone(value),memory=createEditDrafts(),pending=createPendingRequests();
 const members=['담당교사','검토교사','다른학교 교사','공동교사','관리교사'].map((name,index)=>({id:'member-'+index,userId:'user-'+index,schoolId:index===2?'school-other':'school',name,role:'calendar_manager',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}));
-const policy={extensions:['pdf'],maxFileBytes:1024*1024,maxFiles:3},state={request:null,unit:null,draft:null,submissions:[],reviews:[],supplements:[],withdrawals:[]},receipts=new Map(),uploads=new Map(),gates=[];
+const policy={extensions:['hwpx'],maxFileBytes:1024*1024,maxFiles:3},state={request:null,unit:null,draft:null,submissions:[],reviews:[],supplements:[],withdrawals:[]},receipts=new Map(),uploads=new Map(),gates=[];
 window.mode='normal';window.fileMode='ready';window.calls=[];window.uploadCalls=[];window.applied=0;window.release=()=>{while(gates.length)gates.shift()()};
 const wait=()=>new Promise(resolve=>gates.push(resolve));const now='2026-10-15T08:00:00Z';
 function seed(){state.request={id:'request-1',schoolId:'school',managerMemberId:'member-0',status:'published',version:2,publishedAt:now,title:'서버 수합',instructions:'안내',dueDate:'2026-10-31',reviewMode:'required',reviewerMemberId:'member-1',textLabel:'',textRequired:false,numberLabel:'',numberRequired:false,units:[{label:'담당교사',responsibleMemberId:'member-0',contributorMemberIds:[]}],fileCollection:{policy:{...policy,maxFiles:1},required:true,templates:[]}};state.unit={id:'unit-1',requestId:'request-1',schoolId:'school',label:'담당교사',responsibleMemberId:'member-0',members:[{id:'member-0',userId:'user-0',name:'담당교사'}],version:1,currentSubmissionId:null,effectiveSubmissionId:null,withdrawnSubmissionIds:[],correctionUntil:'',correctionReason:''}}
@@ -37,7 +37,7 @@ if(command.kind==='review'){if(command.expectedVersion!==state.unit.version||com
 if(command.kind==='open_correction'){if(command.expectedVersion!==state.unit.version)throw new CollectionServerError('CONFLICT','version');state.unit.correctionUntil=command.dueDate;state.unit.correctionReason=command.reason;state.unit.version++;id=state.unit.id;version=state.unit.version;}
 if(command.kind==='withdraw'){if(command.expectedVersion!==state.unit.version||command.submissionId!==state.unit.currentSubmissionId)throw new CollectionServerError('CONFLICT','version');state.unit.withdrawnSubmissionIds.push(command.submissionId);state.withdrawals.push({id:'withdrawal-'+(state.withdrawals.length+1),unitId:command.unitId,submissionId:command.submissionId,actorMemberId:member,reason:command.reason,recordedAt:now});for(const item of state.supplements)if(item.fulfilledSubmissionId===command.submissionId){item.fulfilledSubmissionId=null;item.fulfilledAt=null;}state.unit.currentSubmissionId=state.request.reviewMode==='required'?state.unit.effectiveSubmissionId:null;if(state.request.reviewMode==='none')state.unit.effectiveSubmissionId=null;state.unit.version++;id=state.unit.id;version=state.unit.version;}
 window.applied++;const receipt={requestId:'request-1',resourceId:id,resourceVersion:version,recordedAt:now,requestKey:key};receipts.set(key,receipt);if(window.mode==='draft-after-receipt'&&command.kind==='save_draft'){window.mode='normal';state.draft={...state.draft,version:state.draft.version+1,text:'기존 메모',files:[{id:'receipt-race-file',name:'접수 후 다른 교사의 파일.pdf',extension:'pdf',bytes:23,sha256:'d'.repeat(64)}]};}if(window.mode==='unknown'||window.mode==='unknown-always'){if(window.mode==='unknown')window.mode='normal';throw new CollectionServerError('RESULT_UNKNOWN','secret-trace')}return clone(receipt)},
-async prepareUpload(member,parent,file,filePolicy,key){window.uploadCalls.push(clone({kind:'prepare',member,parent,policy:filePolicy,key}));if(window.fileMode==='prepare-delay')await wait();let found=[...uploads.values()].find(value=>value.key===key);if(!found){const id='file-'+(uploads.size+1);found={key,parent,file:{id,name:file.name,extension:'pdf',bytes:file.size,sha256:'a'.repeat(64)},blob:file,state:'awaiting_upload'};uploads.set(id,found)}return{fileId:found.file.id,bucket:'private',path:found.file.id,expiresAt:'2099-01-01T00:00:00Z',state:found.state}},
+async prepareUpload(member,parent,file,filePolicy,key){window.uploadCalls.push(clone({kind:'prepare',member,parent,policy:filePolicy,key}));if(window.fileMode==='prepare-delay')await wait();let found=[...uploads.values()].find(value=>value.key===key);if(!found){const id='file-'+(uploads.size+1);found={key,parent,file:{id,name:file.name,extension:'hwpx',bytes:file.size,sha256:'a'.repeat(64)},blob:file,state:'awaiting_upload'};uploads.set(id,found)}return{fileId:found.file.id,bucket:'private',path:found.file.id,expiresAt:'2099-01-01T00:00:00Z',state:found.state}},
 async upload(member,intent,file){window.uploadCalls.push({kind:'upload',id:intent.fileId});uploads.get(intent.fileId).blob=file},
 async completeUpload(member,id,key){window.uploadCalls.push({kind:'complete',id,key});if(window.fileMode==='reject')throw new CollectionServerError('FILE_FAILED','private-trace');const entry=uploads.get(id);entry.state=window.fileMode==='pending'?'pending_verification':'ready';if(window.fileMode==='unknown'){window.fileMode='ready';throw new CollectionServerError('RESULT_UNKNOWN','private-trace')}return{fileId:id,state:entry.state,file:entry.state==='ready'?clone(entry.file):null}},
 async fileStatus(member,id){const entry=uploads.get(id);if(window.fileMode==='ready')entry.state='ready';return{fileId:id,state:entry.state,file:entry.state==='ready'?clone(entry.file):null}},
@@ -54,7 +54,7 @@ await context.route('**/*', route => {
   if (!route.request().url().startsWith('http://127.0.0.1:5179/')) { external.push(route.request().url()); return route.abort() }
   return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div></body></html>' })
 })
-const file = name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7\n' + name + '\n%%EOF') })
+const file = name => ({ name, mimeType: 'application/hwp+zip', buffer: Buffer.from('PK\x03\x04\n' + name + '\n%%EOF') })
 async function settle() { await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) }
 async function reset(initial = '') {
   await page.goto('http://127.0.0.1:5179/collections'); await page.evaluate(value => { window.initial = value }, initial)
@@ -141,11 +141,11 @@ try {
   }, 'duplicate')
   await test('수합 생성·양식 업로드·공개·파일 초안·최종 제출·다운로드가 이어진다', async () => {
     await createInput(); await page.getByRole('button', { name: '수합 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '양식 추가·초안 수정' }).click()
-    await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(file('양식.pdf')); await page.getByRole('button', { name: '양식.pdf 제거', exact: true }).waitFor()
+    await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(file('양식.hwpx')); await page.getByRole('button', { name: '양식.hwpx 제거', exact: true }).waitFor()
     await page.getByRole('button', { name: '수합 초안 변경 저장' }).click(); await page.getByRole('button', { name: '대상 교사에게 공개' }).click(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click()
-    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('작성본.pdf')); await page.getByRole('button', { name: '작성본.pdf 제거', exact: true }).waitFor()
+    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('작성본.hwpx')); await page.getByRole('button', { name: '작성본.hwpx 제거', exact: true }).waitFor()
     await page.getByRole('button', { name: '제출 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).waitFor(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).click()
-    const download = page.waitForEvent('download'); await page.getByRole('button', { name: '작성본.pdf 다운로드', exact: true }).click(); assert.deepEqual(readFileSync(await (await download).path()), file('작성본.pdf').buffer)
+    const download = page.waitForEvent('download'); await page.getByRole('button', { name: '작성본.hwpx 다운로드', exact: true }).click(); assert.deepEqual(readFileSync(await (await download).path()), file('작성본.hwpx').buffer)
     assert.equal(await page.evaluate(() => window.downloadParent.kind), 'submission'); assert.equal(await page.locator('.cs-unit > .cs-muted time').getAttribute('datetime'), '2026-10-15T08:00:00Z'); assert.match(await page.locator('.cs-unit > .cs-muted time').innerText(), /17:00/)
     assert.equal(await page.locator('[data-lock]').innerText(), 'false')
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
@@ -153,23 +153,23 @@ try {
   })
   await test('파일 확인 대기는 저장·제출을 막고 확정된 대기는 첨부 선택을 취소할 수 있다', async () => {
     await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.evaluate(() => { window.fileMode = 'pending' })
-    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('확인중.pdf')); await page.getByRole('button', { name: '첨부 선택 취소' }).waitFor()
+    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('확인중.hwpx')); await page.getByRole('button', { name: '첨부 선택 취소' }).waitFor()
     assert.equal(await page.getByRole('button', { name: '제출 초안 저장', exact: true }).isDisabled(), true)
-    assert.equal(await page.getByRole('button', { name: '확인중.pdf 제거', exact: true }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: '확인중.hwpx 제거', exact: true }).count(), 0)
     assert.equal(await page.evaluate(() => window.uploadCalls.find(call => call.kind === 'prepare').policy.maxFiles), 1, '기본 정책 대신 현재 수합 정책을 사용')
     await page.getByRole('button', { name: '첨부 선택 취소' }).click(); assert.equal(await page.getByRole('button', { name: '제출 초안 저장', exact: true }).isDisabled(), false)
   }, 'published')
   await test('업로드 응답 유실은 같은 intent·완료 키로 확인하고 화면 재연결 뒤에도 복구한다', async () => {
     await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.evaluate(() => { window.fileMode = 'unknown' })
-    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('응답유실.pdf')); await page.getByRole('button', { name: '같은 파일 상태 다시 확인' }).waitFor()
+    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('응답유실.hwpx')); await page.getByRole('button', { name: '같은 파일 상태 다시 확인' }).waitFor()
     assert.equal(await page.getByRole('button', { name: '첨부 선택 취소' }).count(), 0)
-    await remount(); await page.getByRole('button', { name: '같은 파일 상태 다시 확인' }).click(); await page.getByRole('button', { name: '응답유실.pdf 제거', exact: true }).waitFor()
+    await remount(); await page.getByRole('button', { name: '같은 파일 상태 다시 확인' }).click(); await page.getByRole('button', { name: '응답유실.hwpx 제거', exact: true }).waitFor()
     const calls = await page.evaluate(() => window.uploadCalls); assert.equal(calls.filter(call => call.kind === 'prepare').length, 1); assert.equal(calls.filter(call => call.kind === 'upload').length, 1)
     assert.deepEqual(calls.filter(call => call.kind === 'complete')[0], calls.filter(call => call.kind === 'complete')[1])
   }, 'published')
   await test('예약 후 서버의 확정 파일 거절은 선택 해제가 가능하며 화면을 잠그지 않는다', async () => {
     await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.evaluate(() => { window.fileMode = 'reject' })
-    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('거절.pdf')); await page.getByRole('button', { name: '거부된 파일 선택 해제' }).click()
+    await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('거절.hwpx')); await page.getByRole('button', { name: '거부된 파일 선택 해제' }).click()
     await page.getByRole('button', { name: '작성 닫기' }).click(); assert.equal(await page.locator('[data-lock]').innerText(), 'false'); assert.doesNotMatch(await page.locator('body').innerText(), /private-trace/)
   }, 'published')
   await test('버전 충돌 때 입력을 유지하고 최신 원본 비교를 확인한 뒤에만 다시 저장한다', async () => {
@@ -247,9 +247,9 @@ try {
     await page.getByRole('button', { name: '저장한 파일 다시 제출' }).click(); await page.getByText(/제출 v2/).waitFor(); assert.equal(await page.evaluate(() => window.calls.at(-1).command.correctionRequestId), 'supplement-1')
   }, 'review')
   await test('실제 소속 변경은 보관 입력을 제거하고 이전 소속의 늦은 파일 응답을 반영하지 않는다', async () => {
-    await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.evaluate(() => { window.fileMode = 'prepare-delay' }); await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('이전학교.pdf'))
+    await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.evaluate(() => { window.fileMode = 'prepare-delay' }); await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('이전학교.hwpx'))
     await page.evaluate(() => window.setActor(2)); await page.getByText('현재 볼 수 있는 수합이 없습니다.').waitFor(); await page.evaluate(() => { window.fileMode = 'ready'; window.release() }); await settle()
-    assert.doesNotMatch(await page.locator('body').innerText(), /이전학교.pdf|서버 수합|제출 준비/); assert.equal(await page.evaluate(() => window.uploadCalls.filter(call => call.kind === 'upload').length), 0)
+    assert.doesNotMatch(await page.locator('body').innerText(), /이전학교.hwpx|서버 수합|제출 준비/); assert.equal(await page.evaluate(() => window.uploadCalls.filter(call => call.kind === 'upload').length), 0)
   }, 'published')
   await test('복원 시 권한이 사라지면 원본과 이전 입력을 표시하지 않는다', async () => {
     await openRequest(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click(); await page.evaluate(() => { window.mode = 'read-denied' }); await remount()

@@ -19,12 +19,12 @@ const { legacyStorage, createSupabaseCollectionServer, createSupabaseConnection 
 let passed = 0, failed = 0
 const test = async (name, run) => { try { storageCalls.length = 0; uploadResult = async () => ({ data: {}, error: null }); downloadResult = async () => ({ data: null, error: null }); await run(); passed++; console.log(`  ✓ ${name}`) } catch (error) { failed++; console.error(`  ✗ ${name}: ${error.message}`) } }
 const fails = (run, code) => assert.rejects(async () => run(), error => error.code === code)
-const file = new File(['%PDF-1.7\n원본'], '자료.pdf', { type: 'application/pdf' })
-const policy = { extensions: ['pdf'], maxFileBytes: 1024, maxFiles: 3 }
+const file = new File(['PK\x03\x04\n원본'], '자료.hwpx', { type: 'application/hwp+zip' })
+const policy = { extensions: ['hwpx'], maxFileBytes: 1024, maxFiles: 3 }
 const envelope = data => ({ contractVersion: 1, schoolId: 'school', memberId: 'member', data })
 const intent = { fileId: 'file', bucket: 'workhub-collection-files', path: 'school/file/0123456789abcdef', expiresAt: '2099-01-01T00:00:00Z', state: 'awaiting_upload' }
 const parent = { kind: 'template', requestId: 'request', version: 1 }
-const ref = { id: 'file', name: file.name, extension: 'pdf', bytes: file.size, sha256: createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex') }
+const ref = { id: 'file', name: file.name, extension: 'hwpx', bytes: file.size, sha256: createHash('sha256').update(Buffer.from(await file.arrayBuffer())).digest('hex') }
 async function connected(options = {}) {
   let userId = 'user', active = true, sessionFailure = false
   let rpc = async () => ({ data: envelope({ available: true, reason: 'ready', policy }), error: null })
@@ -44,7 +44,7 @@ async function connected(options = {}) {
 
 await test('공용 Storage는 비공개 원본을 덮어쓰지 않고 캐시를 허용하지 않음', async () => {
   await legacyStorage.upload(intent.bucket, intent.path, file)
-  assert.deepEqual(storageCalls[0], { kind: 'upload', bucket: intent.bucket, path: intent.path, file, options: { upsert: false, cacheControl: '0', contentType: 'application/pdf' } })
+  assert.deepEqual(storageCalls[0], { kind: 'upload', bucket: intent.bucket, path: intent.path, file, options: { upsert: false, cacheControl: '0', contentType: 'application/hwp+zip' } })
 })
 await test('Storage의 업로드 오류는 원시 오류 대신 결과 불명으로 전달', async () => {
   uploadResult = async () => ({ data: null, error: { message: 'internal bucket and path detail' } })
