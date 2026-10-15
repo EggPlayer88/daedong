@@ -713,6 +713,63 @@ def main():
     check('H24 retained 도 같은 사유 재전송은 replayed, 다른 사유는 CONFLICT', rr['replayed'] is True
           and gcd('gc-expired', 'retained', 'other_reason') == 'CONFLICT', rr)
 
+    # F7(K28): 업로드 확인(complete)이 오지 않은 파일 — 원장에 실제 객체 ID 를 고정하고 삭제 직전 다시 대조
+    def prep_only(name, f):
+        return data(t21.rpc('workhub_file_prepare', hp, {'name': name, 'extension': 'pdf', 'claimedBytes': f['bytes'], 'claimedSha256': f['sha256']}, key(), kind='upload'))
+    def obj_id(path):
+        return scalar("select id::text from storage.objects where bucket_id='workhub-collection-files' and name=%s", (path,))
+    upx, upr, upn = prep_only('미완료1.pdf', blob('nocomplete-1', 501)), prep_only('미완료2.pdf', blob('nocomplete-2', 502)), prep_only('실물없음.pdf', blob('noobject', 503))
+    ok_up = upload_object(t21.uid, upx['path']) == 'OK' and upload_object(t21.uid, upr['path']) == 'OK'
+    oid_x, oid_r = obj_id(upx['path']), obj_id(upr['path'])
+    # 시간 경과 흉내: 예약 시각은 바꿀 수 없는 열이라(IMMUTABLE_IDENTITY) 시험에서만 트리거를 끄고 3일 전으로 옮긴다
+    run_sql("set session_replication_role = replica; update workhub.file_objects set created_at = clock_timestamp() - interval '3 days', "
+            "upload_expires_at = clock_timestamp() - interval '2 days' where id in ('%s','%s','%s')" % (upx['fileId'], upr['fileId'], upn['fileId']), 'supabase_admin')
+    lgx = {x['fileId']: x for x in worker_call('workhub_file_worker_cleanup_claim', s1, 'gc-f7', 50)}
+    lx, lr, ln = lgx.get(upx['fileId']), lgx.get(upr['fileId']), lgx.get(upn['fileId'])
+    pinned = lambda l: scalar("select storage_object_id::text from workhub.deletion_ledger where id=%s", (l['ledgerId'],))
+    src = lambda fid: scalar("select details->>'object_source' from workhub.audit_events where resource_id=%s and operation='file.cleanup_block'", (fid,))
+    check('H25 complete 없이 Storage 에 올라간 파일: 인수 때 그 경로의 실제 객체 ID 를 원장·응답에 고정(파일 행은 NULL 그대로)',
+          ok_up and lx is not None and lx['reason'] == 'upload_expired' and lx['storageObjectId'] == oid_x and pinned(lx) == oid_x
+          and scalar("select storage_object_id from workhub.file_objects where id=%s", (upx['fileId'],)) is None and src(upx['fileId']) == 'storage', (lx, oid_x))
+    cix = worker_call('workhub_file_worker_cleanup_inspect', lx['ledgerId'], lx['leaseToken'])
+    check('H26 그 원장의 cleanup_inspect → objectPresent=true, objectMatches=true(삭제 가능)', cix['objectPresent'] is True and cix['objectMatches'] is True
+          and cix['leaseValid'] is True and cix['linked'] is False, cix)
+    r27 = t21.rpc('workhub_file_complete', upx['fileId'], key(), kind='status', extra={'fileId': upx['fileId']})
+    check('H27 원장에 오른 뒤 업로드 확인(complete)은 반영되지 않음(앱 상태 rejected 또는 거부, 파일 행·원장 고정값 그대로)',
+          (code(r27) is not None or (data(r27) or {}).get('state') == 'rejected')
+          and scalar("select state || '/' || coalesce(storage_object_id::text, '-') from workhub.file_objects where id=%s", (upx['fileId'],)) == 'uploading/-'
+          and pinned(lx) == oid_x, r27)
+    run_sql(f"update workhub.deletion_ledger set lease_expires_at = clock_timestamp() - interval '1 second' where id = '{lx['ledgerId']}'")
+    lx2 = {x['fileId']: x for x in worker_call('workhub_file_worker_cleanup_claim', s1, 'gc-f7b', 50)}.get(upx['fileId'])
+    cix2 = worker_call('workhub_file_worker_cleanup_inspect', lx['ledgerId'], lx2['leaseToken']) if lx2 else {}
+    check('H28 lease 만료 뒤 재인수(token+1)에도 같은 객체 ID 그대로, objectMatches=true',
+          lx2 is not None and lx2['leaseToken'] == lx['leaseToken'] + 1 and lx2['storageObjectId'] == oid_x and pinned(lx) == oid_x
+          and cix2.get('objectMatches') is True, (lx2, cix2))
+    check('H29 실물이 남아 있으면 deleted 확정 거부(CONFLICT) → Storage 삭제 뒤에는 deleted',
+          err(WORKER, 'select public.workhub_file_worker_cleanup_done(%s,%s,%s,%s)', (lx['ledgerId'], lx2['leaseToken'], 'deleted', None)) == 'CONFLICT'
+          and (run_sql("delete from storage.objects where bucket_id='workhub-collection-files' and name='%s'" % upx['path']) or True)
+          and worker_call('workhub_file_worker_cleanup_done', lx['ledgerId'], lx2['leaseToken'], 'deleted', None)['outcome'] == 'deleted'
+          and scalar("select state from workhub.file_objects where id=%s", (upx['fileId'],)) == 'deleted')
+    # 고정한 뒤 같은 경로의 실물이 다른 객체로 바뀐 경우(정상 경로로는 생길 수 없으므로 관리자 권한으로 흉내)
+    run_sql("delete from storage.objects where bucket_id='workhub-collection-files' and name='%s'" % upr['path'])
+    run_sql("insert into storage.objects(bucket_id,name,owner,owner_id,metadata) values ('workhub-collection-files','%s','%s'::uuid,'%s','{}')" % (upr['path'], t21.uid, t21.uid))
+    cir = worker_call('workhub_file_worker_cleanup_inspect', lr['ledgerId'], lr['leaseToken'])
+    check('H30 고정 뒤 객체가 바뀌면 objectPresent=true·objectMatches=false(삭제 금지), 원장 고정값은 그대로',
+          lr is not None and lr['storageObjectId'] == oid_r and obj_id(upr['path']) != oid_r and cir['objectPresent'] is True and cir['objectMatches'] is False
+          and pinned(lr) == oid_r, (lr, cir))
+    # 실물이 처음부터 없는 예약
+    cin = worker_call('workhub_file_worker_cleanup_inspect', ln['ledgerId'], ln['leaseToken'])
+    check('H31 실물이 처음부터 없으면 원장 객체 ID 는 NULL, inspect 는 objectPresent=false·objectMatches=false',
+          ln is not None and ln['storageObjectId'] is None and pinned(ln) is None and src(upn['fileId']) == 'absent'
+          and cin['objectPresent'] is False and cin['objectMatches'] is False, (ln, cin))
+    run_sql("insert into storage.objects(bucket_id,name,owner,owner_id,metadata) values ('workhub-collection-files','%s','%s'::uuid,'%s','{}')" % (upn['path'], t21.uid, t21.uid))
+    cin2 = worker_call('workhub_file_worker_cleanup_inspect', ln['ledgerId'], ln['leaseToken'])
+    check('H32 원장이 NULL 인데 나중에 실물이 나타나도 일치로 보지 않음(objectMatches=false), deleted 확정은 CONFLICT',
+          cin2['objectPresent'] is True and cin2['objectMatches'] is False
+          and err(WORKER, 'select public.workhub_file_worker_cleanup_done(%s,%s,%s,%s)', (ln['ledgerId'], ln['leaseToken'], 'deleted', None)) == 'CONFLICT', cin2)
+    run_sql("delete from storage.objects where bucket_id='workhub-collection-files' and name='%s'" % upn['path'])
+    check('H33 실물이 없으면 Storage 삭제 없이 deleted 확정', worker_call('workhub_file_worker_cleanup_done', ln['ledgerId'], ln['leaseToken'], 'deleted', None)['outcome'] == 'deleted')
+
     # ======================================================================= 제출판 총량 경계(동시)
     inp3 = coll_input(title='총량 경계', reviewMode='none', reviewerMemberId='', numberLabel='',
                       units=[{'label': f'u{i}', 'responsibleMemberId': M[n], 'contributorMemberIds': []} for i, n in enumerate((25, 21, 23))])
