@@ -87,10 +87,11 @@ try {
    await page.setViewportSize({width:390,height:844});await settled();await more().click();await sheet().getByRole('button',{name:'화면 설정',exact:true}).click();await page.setViewportSize({width:1200,height:900});await settled();assert.equal(await page.locator('dialog[open]').count(),0);await focusIs(page.getByRole('heading',{name:'자료 수합',level:1,exact:true}))
    await page.getByRole('button',{name:'화면 설정',exact:true}).click();await page.setViewportSize({width:390,height:844});await settled();assert.equal(await page.locator('dialog[open]').count(),0);await focusIs(page.getByRole('heading',{name:'자료 수합',level:1,exact:true}))
   })
-  await scoped('연결 모드에도 더보기와 설정이 있고 미연결 업무 메뉴를 공개하지 않는다', async () => {
+  await scoped('연결 모드에도 더보기와 설정이 있고 연결 모듈을 모으고 시간표는 공개하지 않는다', async () => {
    await page.setViewportSize({width:390,height:844});await page.goto('http://127.0.0.1:5176/?connected=1'+(shadow?'&shadow=1':''));await page.getByRole('heading',{name:'오늘',level:1,exact:true}).waitFor()
    const connected=page.getByRole('navigation',{name:'신축 업무 메뉴',exact:true});assert.deepEqual(await connected.getByRole('button').allTextContents(),['오늘','내 업무','학교 일정','•••더보기'])
-   await connected.getByRole('button',{name:'더보기',exact:true}).click();assert.equal(await sheet().getByRole('button',{name:'자료 수합',exact:true}).count(),0);assert.equal(await sheet().getByRole('button',{name:'수업과 학생',exact:true}).count(),0)
+   await connected.getByRole('button',{name:'더보기',exact:true}).click();assert.equal(await sheet().getByRole('button',{name:'자료 수합',exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'수업과 학생',exact:true}).count(),1)
+   for(const name of ['문서함','협업 요청','학교 관리','AI 비서'])assert.equal(await sheet().getByRole('button',{name,exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'시간표',exact:true}).count(),0)
    assert.equal(await sheet().getByRole('button',{name:'화면 설정',exact:true}).count(),1);await fits();await page.keyboard.press('Escape')
   })
   await context.close()

@@ -10,10 +10,10 @@ const bundle = buildSync({ stdin: { contents: `
   import{WorkflowPanel}from'./apps/workhub/src/workflows/WorkflowPanel';import{EditSession}from'./apps/workhub/src/app/EditSession';
   import{createWorkflowStore}from'./apps/workhub/src/workflows/store';import{fixtureData}from'./apps/workhub/src/preview/fixtures';
   import theme from './apps/workhub/src/style.css?inline';import workflow from './apps/workhub/src/workflows/workflows.css?inline';
-  const members=fixtureData.memberships;let serial=0,failWrite=false;const key=()=>String(++serial);
+  const members=fixtureData.memberships;let serial=0,openSerial=0,failWrite=false;const key=()=>String(++serial);
   const store=createWorkflowStore({members,date:fixtureData.basisDate,onChange(){if(failWrite){failWrite=false;throw Error('합성 저장 실패')}}});
   window.qa={snapshot:()=>store.exportState(),fail(){failWrite=true},externalRequest(id){const r=store.getCollection('gaon-minjun',id);store.updateCollection('gaon-minjun',id,{...r,title:'다른 창에서 바뀐 제목',textLabel:'바뀐 글 문항'},r.version,key())},externalAnswer(id){const d=store.getDraft('gaon-seojin',id);store.saveDraft('gaon-seojin',id,{text:'다른 작성자가 저장한 내용',number:9},d?.version??0,key())}};
-  function App(){const[id,setId]=useState('gaon-minjun'),[locked,setLocked]=useState(false),[generation,setGeneration]=useState(0),[target,setTarget]=useState(),[date,setDate]=useState(fixtureData.basisDate);window.qa.open=id=>{setTarget(id);setGeneration(n=>n+1)};window.qa.date=d=>{store.setContext({members,date:d});setDate(d)};const member=members.find(m=>m.id===id);return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:24px;max-width:1250px;margin:auto}'} </style><main><p>가상학교 수합 입력 검증 · 합성 자료</p><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={member} members={members} date={date} page="collections" initialRequestId={target}/></EditSession></main></>}
+  function App(){const[id,setId]=useState('gaon-minjun'),[locked,setLocked]=useState(false),[generation,setGeneration]=useState(0),[openToken,setOpenToken]=useState(0),[target,setTarget]=useState(),[date,setDate]=useState(fixtureData.basisDate);window.qa.open=id=>{const token=++openSerial;setTarget(id);setGeneration(n=>n+1);setOpenToken(token);return token};window.qa.date=d=>{store.setContext({members,date:d});setDate(d)};const member=members.find(m=>m.id===id);return <><style>{theme}{workflow}{'body{margin:0;background:#f5f7ef}main{padding:24px;max-width:1250px;margin:auto}'} </style><main data-qa-actor={id} data-qa-request={target??''} data-qa-open-token={openToken}><p>가상학교 수합 입력 검증 · 합성 자료</p><label>검증 소속<select aria-label="검증 소속" value={id} disabled={locked} onChange={e=>{setId(e.target.value);setGeneration(n=>n+1)}}>{members.filter(m=>m.active).map(m=><option value={m.id} key={m.id}>{m.name}</option>)}</select></label><EditSession onLockChange={setLocked}><WorkflowPanel key={id+generation} store={store} member={member} members={members} date={date} page="collections" initialRequestId={target}/></EditSession></main></>}
   createRoot(document.getElementById('root')).render(<App/>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1440, height: 1100 } }), page = await context.newPage()
@@ -29,7 +29,18 @@ const unit = () => page.getByRole('article', { name: '2학년 1반 제출 단위
 const response = () => unit().getByRole('form', { name: '2학년 1반 응답 초안', exact: true })
 const state = () => page.evaluate(() => window.qa.snapshot())
 async function test(name, run) { await run(); results.push(name); console.log('  ✓ ' + name) }
-async function actor(id, requestId) { await page.getByLabel('검증 소속', { exact: true }).selectOption(id); if (requestId) await page.evaluate(id => window.qa.open(id), requestId) }
+async function actor(id, requestId) {
+  await page.getByLabel('검증 소속', { exact: true }).selectOption(id)
+  await page.waitForFunction(id => document.querySelector('main')?.dataset.qaActor === id, id)
+  if (requestId) {
+    // evaluate 반환은 React 반영 완료가 아니다. 같은 요청을 다시 열 때도 새 원본 화면의 commit을 기다린다.
+    const openToken = await page.evaluate(requestId => window.qa.open(requestId), requestId)
+    await page.waitForFunction(({ id, requestId, openToken }) => {
+      const rendered = document.querySelector('main')?.dataset
+      return rendered?.qaActor === id && rendered.qaRequest === requestId && Number(rendered.qaOpenToken) === openToken
+    }, { id, requestId, openToken })
+  }
+}
 let requestId, unitId
 try {
   await page.goto('http://127.0.0.1:5176/collection-entry')
@@ -50,7 +61,7 @@ try {
   await test('중복 대상 오류는 이름을 보존하고 수정 뒤 저장할 수 있다', async () => {
     await form().getByLabel('단위 1 이름', { exact: true }).fill('2학년 1반')
     await form().getByLabel('단위 1 최종 제출 책임자', { exact: true }).selectOption('gaon-soyeon')
-    await form().getByLabel('김서진', { exact: true }).check()
+    await form().getByRole('group', { name: '제출 단위 1', exact: true }).getByLabel('김서진', { exact: true }).check()
     await form().getByRole('button', { name: '+ 제출 단위 추가', exact: true }).click()
     await form().getByLabel('단위 2 이름', { exact: true }).fill('2학년 1반')
     await form().getByLabel('단위 2 최종 제출 책임자', { exact: true }).selectOption('gaon-soyeon')
@@ -85,7 +96,10 @@ try {
     assert.equal((await state()).requests[0].title, '내가 보존할 수정 제목')
   })
   await test('초안은 작성 책임자에게 공개되지 않고 게시 후 응답할 수 있다', async () => {
-    await actor('gaon-soyeon', requestId); assert.match(await page.locator('.wf-request-detail').innerText(), /확인할 수 없습니다/)
+    // 같은 소속에서 같은 요청을 다시 열어도 직전 화면을 검사하지 않는다.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await actor('gaon-soyeon', requestId); assert.match(await page.locator('.wf-request-detail').innerText(), /확인할 수 없습니다/)
+    }
     await actor('gaon-minjun', requestId); await page.getByRole('button', { name: '대상 확인 · 게시', exact: true }).click()
     assert.equal((await state()).units.length, 2); unitId = (await state()).units[0].id
     await actor('gaon-soyeon', requestId); await unit().getByRole('button', { name: '응답 초안 작성', exact: true }).click()

@@ -62,7 +62,7 @@ const bundle = buildSync({
     };
     const connection=createSupabaseConnection(services),root=createRoot(document.getElementById('root'));
     qa.info=()=>connection.info();qa.unmount=()=>root.unmount();
-    root.render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>);
+    root.render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={connection}/>);
   `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' },
   bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' },
   define: { 'import.meta.env': JSON.stringify({ VITE_SUPABASE_URL: 'http://localhost.invalid', VITE_SUPABASE_ANON_KEY: 'synthetic' }), 'process.env.NODE_ENV': '"production"' },

@@ -1,0 +1,19 @@
+{
+  "gradeBounds": {
+    "elementary": 6,
+    "middle": 3,
+    "high": 3
+  },
+  "customGradeTechnicalLimit": 20,
+  "subjects": 200,
+  "memberships": 5000,
+  "assignments": 10000,
+  "years": 100,
+  "reasonLength": 1000,
+  "dutyLabelLength": 100,
+  "requestTimeoutMs": 20000,
+  "schoolYearBounds": {
+    "min": 2020,
+    "max": 2100
+  }
+}

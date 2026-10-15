@@ -1,0 +1,10 @@
+{
+  "version": "teaching-ui.v1",
+  "limits": { "csvBytes": 2097152, "csvRows": 500, "cellCharacters": 20000, "recordCharacters": 10000, "rubricCriteria": 30, "criterionMaximum": 10000, "courseStudents": 1000, "pageRecords": 100, "catalogEntries": 300, "importHistory": 100 },
+  "rosterHeaders": ["학교내학생번호", "이름", "학년", "반", "번호"],
+  "activityProfiles": {
+    "dilemmas": ["자리번호·별명", "현재 단계", "성찰 완료", "첫 입장", "첫 입장의 이유", "판단 기준", "자율주행 첫 선택", "자율주행 첫 이유", "자율주행 재선택", "자율주행 재선택 이유", "의료 AI 첫 선택", "의료 AI 첫 이유", "의료 AI 재선택", "의료 AI 재선택 이유", "맡길 수 있는 범위", "사람이 개입할 조건", "판단을 받아들일 조건", "최종 입장", "최종 입장 이유", "생각에 영향을 준 정보"],
+    "grading": ["자리번호·별명", "현재 단계", "제출 여부", "나의 결정", "직접 제안", "선택한 근거", "근거를 고른 이유", "다른 사람", "영향", "필요한 조건", "심화 (평가 제외)"]
+  },
+  "assessmentExcludedHeaders": ["심화 (평가 제외)"]
+}

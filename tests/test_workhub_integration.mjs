@@ -6,10 +6,11 @@ import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
 const { visibleModules, renderGate } = await loadBrowserModule(`
   import { renderToStaticMarkup } from 'react-dom/server'
+  import { StaticRouter } from 'react-router-dom'
   import { AuthContext } from '../apps/main/src/lib/AuthContext.jsx'
   import WorkhubPage from '../apps/main/src/pages/WorkhubPage.jsx'
   export { visibleModules } from '../apps/main/src/lib/modules.js'
-  export function renderGate(value) { return renderToStaticMarkup(<AuthContext.Provider value={value}><WorkhubPage /></AuthContext.Provider>) }
+  export function renderGate(value) { return renderToStaticMarkup(<StaticRouter location="/workhub"><AuthContext.Provider value={value}><WorkhubPage /></AuthContext.Provider></StaticRouter>) }
 `, { env: { MODE: 'test', VITE_SUPABASE_URL: 'http://localhost.invalid', VITE_SUPABASE_ANON_KEY: 'synthetic-key' } })
 let failures = 0
 function test(name, fn) { try { fn(); console.log('  ✓ ' + name) } catch (error) { failures++; console.error('  ✗ ' + name + ': ' + error.message) } }

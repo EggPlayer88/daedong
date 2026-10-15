@@ -1,0 +1,17 @@
+{
+  "contract": "assistant.v1",
+  "requestBytes": 32768,
+  "responseBytes": 1048576,
+  "promptChars": 4000,
+  "references": 20,
+  "sources": 30,
+  "sourceChars": 16000,
+  "historyMessages": 32,
+  "historyChars": 8000,
+  "segments": 60,
+  "segmentChars": 4000,
+  "answerChars": 40000,
+  "providerTimeoutSeconds": 30,
+  "clientTimeoutMs": 55000,
+  "intents": ["school_advice", "personal_assistant", "document_draft", "student_record_draft", "guided_collection"]
+}

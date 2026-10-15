@@ -1,0 +1,11 @@
+{
+  "profile": "explicit_paragraph_v1",
+  "maxAnchors": 300,
+  "maxQuestions": 50,
+  "maxSourceCharacters": 10000,
+  "maxAnswerCharacters": 10000,
+  "maxTotalAnswerCharacters": 100000,
+  "maxXmlBytes": 8388608,
+  "maxXmlNodes": 150000,
+  "maxOptions": 50
+}
