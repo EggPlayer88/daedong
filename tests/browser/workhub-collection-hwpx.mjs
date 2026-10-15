@@ -9,6 +9,7 @@ import { launchBrowser } from './launch-browser.mjs'
 
 const bundle = buildSync({ stdin: { contents: `
 import React from 'react';import{createRoot}from'react-dom/client';
+import{CollectionServerError}from'./apps/workhub/src/collections/contracts';
 import{CollectionServerPanel}from'./apps/workhub/src/collections/CollectionServerPanel';
 import{EditDraftsProvider,createEditDrafts}from'./apps/workhub/src/app/edit-drafts';
 import{PendingRequestsProvider,createPendingRequests}from'./apps/workhub/src/app/pending-requests';
@@ -20,7 +21,7 @@ const request={id:'request-1',schoolId:'school',managerMemberId:'member-0',title
 const unit={id:'unit-1',requestId:'request-1',schoolId:'school',label:'담당교사',responsibleMemberId:'member-0',members:[{id:'member-0',userId:'user-0',name:'담당교사'}],version:1,currentSubmissionId:null,effectiveSubmissionId:null,withdrawnSubmissionIds:[],correctionUntil:'',correctionReason:''};
 const drafts={id:'draft-1',unitId:'unit-1',version:1,lastEditorMemberId:'member-0',text:'기존 메모',number:null,files:[{...oldFile,id:'old-answer',name:'기존 작성본.pdf'}]};
 let latestFile;window.calls=[];window.prepares=[];window.downloads=[];window.completes=[];window.fileMode='ready';
-const server={async readiness(){return window.scenario==='missing'?{available:false,reason:'verification_missing',policy:null}:{available:true,reason:'ready',policy:clone(policy)}},async list(){return{items:[clone(request)],nextCursor:null}},async detail(){return{request:clone(request),units:[clone(unit)],submissions:[],reviews:[],supplements:[],withdrawals:[]}},async draft(){return clone(drafts)},async mutate(member,command,key){window.calls.push(clone({member,command,key}));if(command.kind==='create'||command.kind==='update'){Object.assign(request,clone(command.input));request.version++}return{requestId:'request-1',resourceId:'request-1',resourceVersion:request.version,recordedAt:now,requestKey:key}},async prepareUpload(member,parent,file,selectedPolicy,key){window.prepares.push(clone({parent,policy:selectedPolicy,key}));latestFile={id:'new-file',name:file.name,extension:'hwpx',bytes:file.size,sha256:'b'.repeat(64)};return{fileId:'new-file',bucket:'private',path:'new-file',expiresAt:'2099-01-01T00:00:00Z',state:'awaiting_upload'}},async upload(){},async completeUpload(member,id,key){window.completes.push({id,key});return{fileId:'new-file',state:window.fileMode==='pending'?'pending_verification':'ready',file:window.fileMode==='pending'?null:clone(latestFile)}},async fileStatus(){throw Error('예상하지 않은 상태 조회')},async download(member,parent,file){window.downloads.push(clone({parent,file}));return new Blob(['기존 PDF'])}};
+const server={async readiness(){if(window.scenario==='missing-rpc')throw Error('no RPC');return window.scenario==='missing'?{available:false,reason:'verification_missing',policy:null}:{available:true,reason:'ready',policy:clone(policy)}},async list(){return{items:[clone(request)],nextCursor:null}},async detail(){return{request:clone(request),units:[clone(unit)],submissions:[],reviews:[],supplements:[],withdrawals:[]}},async draft(){return clone(drafts)},async mutate(member,command,key){window.calls.push(clone({member,command,key}));if(command.kind==='create'||command.kind==='update'){Object.assign(request,clone(command.input));request.version++}return{requestId:'request-1',resourceId:'request-1',resourceVersion:request.version,recordedAt:now,requestKey:key}},async prepareUpload(member,parent,file,selectedPolicy,key){window.prepares.push(clone({parent,policy:selectedPolicy,key}));latestFile={id:'new-file',name:file.name,extension:'hwpx',bytes:file.size,sha256:'b'.repeat(64)};return{fileId:'new-file',bucket:'private',path:'new-file',expiresAt:'2099-01-01T00:00:00Z',state:'awaiting_upload'}},async upload(){},async completeUpload(member,id,key){window.completes.push({id,key});if(window.fileMode==='unavailable')throw new CollectionServerError('NOT_READY','서버 준비');return{fileId:'new-file',state:window.fileMode==='pending'?'pending_verification':'ready',file:window.fileMode==='pending'?null:clone(latestFile)}},async fileStatus(){throw Error('예상하지 않은 상태 조회')},async download(member,parent,file){window.downloads.push(clone({parent,file}));return new Blob(['기존 PDF'])}};
 createRoot(document.getElementById('root')).render(<EditDraftsProvider store={createEditDrafts()}><PendingRequestsProvider store={createPendingRequests()}><CollectionServerPanel server={server} member={members[0]} members={members} date="2026-10-15"/></PendingRequestsProvider></EditDraftsProvider>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' })
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage()
@@ -99,6 +100,29 @@ try {
     assert.equal(await page.getByRole('button', { name: '새 수합 만들기', exact: true }).isDisabled(), true)
     assert.equal(await page.getByRole('button', { name: /기존 수합/ }).count(), 1)
   }, 'policy-missing')
+  await test('쓰기 준비가 꺼져도 기존 목록과 PDF 양식 다운로드는 열리고 쓰기 진입은 닫힌다', async () => {
+    await page.getByRole('button', {name:/기존 수합/}).click()
+    assert.equal(await page.getByRole('button',{name:'양식 추가·초안 수정',exact:true}).isDisabled(),true)
+    assert.equal(await page.getByRole('button',{name:'대상 교사에게 공개',exact:true}).isDisabled(),true)
+    const download=page.waitForEvent('download');await page.getByRole('button',{name:'기존 양식.pdf 다운로드',exact:true}).click();await download
+    assert.equal(await page.evaluate(()=>window.downloads.length),1)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+  }, 'missing')
+  await test('R1S 준비 함수가 없어도 R1 목록과 상세는 독립적으로 읽는다', async () => {
+    await page.getByRole('button',{name:/기존 수합/}).click()
+    assert.equal(await page.getByRole('button',{name:'기존 양식.pdf 다운로드',exact:true}).isEnabled(),true)
+    assert.equal(await page.getByRole('button',{name:'양식 추가·초안 수정',exact:true}).isDisabled(),true)
+  }, 'missing-rpc')
+  await test('서버 설정 실패에서 작성 내용과 업로드 완료 요청을 유지하고 같은 번호로 복구한다',async()=>{
+    await openEditor();await page.getByLabel('수합 제목',{exact:true}).fill('유지할 제목')
+    await page.evaluate(()=>{window.fileMode='unavailable'});await page.getByLabel('양식 파일 선택',{exact:true}).setInputFiles(hwpx)
+    await page.getByText(/현재 파일 확인 연결을 준비 중이거나 요청이 많습니다/).waitFor()
+    assert.equal(await page.getByLabel('수합 제목',{exact:true}).inputValue(),'유지할 제목')
+    assert.equal(await page.getByRole('button',{name:'거부된 파일 선택 해제',exact:true}).count(),0)
+    await page.evaluate(()=>{window.fileMode='ready'});await page.getByRole('button',{name:'같은 파일 상태 다시 확인',exact:true}).click()
+    await page.getByRole('button',{name:'새 양식.hwpx 제거',exact:true}).waitFor()
+    const calls=await page.evaluate(()=>window.completes);assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1]);assert.equal(await page.evaluate(()=>window.prepares.length),1)
+  })
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
   if (output) { mkdirSync(output, { recursive: true }); writeFileSync(join(output, 'results.json'), JSON.stringify({ passed, pageErrors: errors, externalRequests: external }, null, 2)) }
   console.log('HWPX 전용 문서 수합 브라우저 검사: ' + passed.length + '개 통과')

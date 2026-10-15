@@ -32,11 +32,8 @@ export function createBasicFileCheck(options: { getSession(): Promise<LegacySess
         guard()
         // 실패 응답도 이전 계정에 속한 결과이므로 현재 로그인부터 확인한다.
         await sameSession()
-        if (!response.ok) {
-          if (response.status === 401 || response.status === 403) throw new CollectionServerError('FORBIDDEN', '현재 계정으로 파일을 확인할 수 없습니다.')
-          // 배포/연결 미완료와 통신 장애는 확정 파일 거절로 바꾸지 않는다.
-          throw unknown()
-        }
+        // 실제 사용자 인증 실패만 접근 거절이다. 서버 설정 실패는 입력·요청을 보존한다.
+        if (response.status === 401 || response.status === 403) throw new CollectionServerError('FORBIDDEN', '현재 계정으로 파일을 확인할 수 없습니다.')
         if (!response.body) throw unknown()
         reader = response.body.getReader()
         const chunks: Uint8Array[] = []
@@ -55,6 +52,14 @@ export function createBasicFileCheck(options: { getSession(): Promise<LegacySess
         const data: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes))
         // 본문 전송 도중의 계정 변경도 막는다. 응답 헤더를 받은 시점만 확인해서는 부족하다.
         await sameSession()
+        if (!response.ok) {
+          const value = data as { error?: { code?: unknown } } | null
+          const code = value && typeof value === 'object' && !Array.isArray(value) && value.error && typeof value.error === 'object' ? value.error.code : null
+          if (typeof code === 'string' && ['NOT_READY', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'FILE_FAILED', 'FILE_NOT_READY', 'INVALID_INPUT', 'NOT_FOUND'].includes(code)) {
+            throw new CollectionServerError(code as import('./contracts').CollectionFailureCode, code === 'NOT_READY' ? '파일 확인 연결을 준비 중이거나 요청이 많습니다. 입력은 유지되며 잠시 뒤 같은 요청으로 확인할 수 있습니다.' : '파일 확인 요청의 처리 상태를 확인해 주세요. 입력과 요청 번호는 보관했습니다.')
+          }
+          throw unknown()
+        }
         return data
       } catch (error) {
         guard()

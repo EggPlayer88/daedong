@@ -20,7 +20,7 @@ import { collectionSubmissionGuidance } from './submission-guidance'
 import { CollectionSubmissionGuide } from './CollectionSubmissionGuide'
 import styles from './collection-server.css?inline'
 
-export interface CollectionServerPanelProps { server: CollectionServer; member: Membership; members: Membership[]; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void }
+export interface CollectionServerPanelProps { server: CollectionServer; member: Membership; members: Membership[]; date: string; revision?: number; openRequest?: { key: string; id: string }; onNavigationLockChange?: (locked: boolean) => void }
 type Editor = { original?: CollectionRequest; input: CollectionInput }
 type Answer = { requestId: string; unitId: string; original: CollectionDraft | null; input: AnswerInput; reason: string; correctionRequestId: string; confirmedVersion?: number; confirmedInput?: AnswerInput }
 type Upload = { file: File; parent: CollectionFileParent; policy: FilePolicy; prepareKey: string; completeKey: string; intent?: CollectionUpload; phase: 'prepare' | 'upload' | 'complete' | 'status'; rejected?: boolean; cancelable?: boolean }
@@ -30,16 +30,16 @@ type Session = { selectedId?: string; editor?: Editor; answer?: Answer; upload?:
 type FocusTarget = { name: string; key?: string; field?: number; start?: number | null; end?: number | null }
 const blank = (): CollectionInput => ({ title: '', instructions: '', dueDate: '', reviewMode: 'none', reviewerMemberId: '', textLabel: '', textRequired: false, numberLabel: '', numberRequired: false, units: [] })
 const inputOf = ({ title, instructions, dueDate, reviewMode, reviewerMemberId, textLabel, textRequired, numberLabel, numberRequired, units, fileCollection }: CollectionRequest): CollectionInput => ({ title, instructions, dueDate, reviewMode, reviewerMemberId, textLabel, textRequired, numberLabel, numberRequired, units, fileCollection })
-const knownRejection = (failure: unknown) => failure instanceof CollectionServerError && ['NOT_READY', 'INVALID_INPUT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND', 'CONFLICT', 'FILE_NOT_READY', 'FILE_FAILED'].includes(failure.code)
+const knownRejection = (failure: unknown) => failure instanceof CollectionServerError && ['INVALID_INPUT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND', 'CONFLICT', 'FILE_NOT_READY', 'FILE_FAILED'].includes(failure.code)
 const accessDenied = (failure: unknown) => failure instanceof CollectionServerError && ['FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_FOUND'].includes(failure.code)
-const failureMessage = (failure: unknown) => failure instanceof FileError ? failure.message : failure instanceof CollectionServerError && failure.code === 'IDEMPOTENCY_CONFLICT' ? '저장 요청이 서버의 기존 기록과 일치하지 않습니다. 입력과 요청 번호는 보관했습니다. 새 요청으로 다시 저장하지 말고 관리자에게 확인해 주세요.' : failure instanceof CollectionServerError && failure.code === 'CONFLICT' ? '다른 곳에서 먼저 변경했습니다. 내 입력은 유지했습니다. 최신 원본을 다시 확인한 뒤 편집해 주세요.' : knownRejection(failure) ? '서버가 이 작업을 허용하지 않았습니다. 현재 권한, 기한, 파일과 입력을 확인해 주세요. 입력은 유지했습니다.' : '처리 결과를 확인하지 못했습니다. 입력과 요청 번호를 보관했습니다. 같은 요청으로 다시 확인해 주세요.'
+const failureMessage = (failure: unknown) => failure instanceof FileError ? failure.message : failure instanceof CollectionServerError && failure.code === 'NOT_READY' ? '현재 파일 확인 연결을 준비 중이거나 요청이 많습니다. 입력과 기존 요청 번호를 보관했습니다. 잠시 뒤 다시 확인해 주세요.' : failure instanceof CollectionServerError && failure.code === 'IDEMPOTENCY_CONFLICT' ? '저장 요청이 서버의 기존 기록과 일치하지 않습니다. 입력과 요청 번호는 보관했습니다. 새 요청으로 다시 저장하지 말고 관리자에게 확인해 주세요.' : failure instanceof CollectionServerError && failure.code === 'CONFLICT' ? '다른 곳에서 먼저 변경했습니다. 내 입력은 유지했습니다. 최신 원본을 다시 확인한 뒤 편집해 주세요.' : knownRejection(failure) ? '서버가 이 작업을 허용하지 않았습니다. 현재 권한, 기한, 파일과 입력을 확인해 주세요. 입력은 유지했습니다.' : '처리 결과를 확인하지 못했습니다. 입력과 요청 번호를 보관했습니다. 같은 요청으로 다시 확인해 주세요.'
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 const layoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 
 // 소속이 실제로 바뀌면 이전 화면을 첫 렌더부터 제거한다. 일시적인 연결 오류의 복구는 상위 메모리가 맡는다.
 export function CollectionServerPanel(props: CollectionServerPanelProps) { return <CollectionScope key={recoveryScope(props.member)} {...props} /> }
 
-function CollectionScope({ server, member, members, date, revision = 0, onNavigationLockChange }: CollectionServerPanelProps) {
+function CollectionScope({ server, member, members, date, revision = 0, openRequest, onNavigationLockChange }: CollectionServerPanelProps) {
   const memory = useEditDraft<Session>(member, 'collection-editor'), recovery = usePendingRequest(member, 'collection')
   const [session, setSessionState] = useState<Session>(() => memory.initial ?? {})
   const sessionRef = useRef(session), life = useRef(0), operation = useRef(false)
@@ -66,6 +66,13 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
   function resetEditing(selected?: string) { setSession({ selectedId: selected }); setError(''); setComparison(undefined) }
   function hideDenied() { focusTarget.current = undefined; memory.remove(); sessionRef.current = {}; setSessionState({}); setDetail(undefined); setList(undefined); setReadiness(undefined); setComparison(undefined); setReadError('현재 자료의 접근 권한을 확인할 수 없어 이전 화면을 닫았습니다. 연결을 다시 확인해 주세요.') }
   const stillHere = (epoch: number) => life.current === epoch
+  const openedRequest = useRef<string>()
+  useEffect(() => {
+    if (!openRequest || openedRequest.current === openRequest.key || hasWork || busy || exportBusy) return
+    openedRequest.current = openRequest.key
+    focusNext('detail'); setSession({ selectedId: openRequest.id }); setError(''); setNotice('')
+  }, [openRequest?.key, hasWork, busy, exportBusy])
+
   useEffect(() => { return () => { life.current++; operation.current = false } }, [server])
   layoutEffect(() => { onNavigationLockChange?.(locked); return () => onNavigationLockChange?.(false) }, [locked, onNavigationLockChange])
   // 사용자가 연 화면만 이동한다. 재조회 중 사라진 입력은 같은 폼이 돌아올 때 복원한다.
@@ -108,18 +115,21 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     let current = true
     setLoading(true); setReadError(''); setList(undefined)
     if (!enabled) { setReadiness(undefined); setLoading(false); setReadError('현재 이용 가능한 학교 소속이 아닙니다.'); return }
-    void server.readiness(member.id).then(async ready => {
+    // 쓰기 준비 상태와 기존 자료의 읽기는 독립적이다. 확인 API가 없어도 R1 읽기는 유지한다.
+    setReadiness(undefined)
+    void Promise.allSettled([server.readiness(member.id), server.list(member.id, cursor)]).then(([ready, result]) => {
       if (!current) return
-      setReadiness(ready)
-      if (ready.available) { const result = await server.list(member.id, cursor); if (current) setList(result) }
-    }).catch(() => { if (current) { setReadiness(undefined); setReadError('HWPX 전용 수합 연결을 준비 중입니다. 현재 연결을 확인하지 못해 원인을 확정할 수 없습니다. 수합이 없는 것으로 표시하지 않습니다.') } }).finally(() => { if (current) setLoading(false) })
+      if (ready.status === 'fulfilled') setReadiness(ready.value)
+      if (result.status === 'fulfilled') setList(result.value)
+      else { if (accessDenied(result.reason)) hideDenied(); setReadError('수합 목록을 확인하지 못했습니다. 빈 목록으로 판단하지 않습니다. 다시 확인해 주세요.') }
+    }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [server, member.id, enabled, cursor, reload, revision])
   useEffect(() => {
     let current = true
     captureInputFocus()
     setDetail(undefined)
-    if (!selectedId || !readiness?.available || parked) { setRestoring(false); return }
+    if (!selectedId || !enabled || parked) { setRestoring(false); return }
     setRestoring(true); setReadError('')
     void server.detail(member.id, selectedId).then(async value => {
       // 보관한 공동 초안은 현재 읽기 권한까지 다시 확인한 뒤 표시한다. 원래 버전은 유지한다.
@@ -148,7 +158,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
       setReadError('수합 원본의 접근 권한과 최신 상태를 확인하지 못했습니다. 보관한 입력은 확인 전까지 표시하지 않습니다.')
     }).finally(() => { if (current) setRestoring(false) })
     return () => { current = false }
-  }, [server, member.id, selectedId, readiness?.available, parked, reload, revision])
+  }, [server, member.id, selectedId, enabled, parked, reload, revision])
 
   async function mutate(command: CollectionCommand, key: string = crypto.randomUUID()) {
     const saved = recovery.request
@@ -238,7 +248,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
         setNotice('파일 준비가 완료되었습니다. 아래 저장 버튼을 눌러 문서에 연결해 주세요. 아직 최종 제출된 상태는 아닙니다.')
       } else {
         keep({ ...job, phase: status.state === 'awaiting_upload' ? 'upload' : status.state === 'pending_verification' ? 'complete' : 'status', rejected: status.state === 'rejected', cancelable: true })
-        setNotice(status.state === 'rejected' ? '서버가 파일을 거부했습니다. 다른 파일을 선택해 주세요.' : status.state === 'awaiting_upload' ? '파일 전송이 아직 확인되지 않았습니다. 같은 파일을 다시 전송할 수 있습니다.' : '서버에서 HWPX 파일의 기본 형식을 확인하고 있습니다. 완료된 파일만 저장·제출할 수 있습니다.')
+        setNotice(status.state === 'rejected' ? '서버가 파일을 거부했습니다. 다른 파일을 선택해 주세요.' : status.state === 'awaiting_upload' ? '파일 전송이 아직 확인되지 않았습니다. 같은 파일을 다시 전송할 수 있습니다.' : '서버에서 HWPX 파일의 기본 형식을 확인하고 있습니다. 잠시 뒤 같은 파일 상태 다시 확인을 눌러 주세요. 완료된 파일만 저장·제출할 수 있습니다.')
       }
     } catch (failure) { if (stillHere(epoch)) { if (accessDenied(failure)) hideDenied(); else if (knownRejection(failure) || failure instanceof FileError) keep({ ...job, rejected: true, cancelable: true }); setError(failureMessage(failure)) } }
     finally { if (stillHere(epoch)) { operation.current = false; setBusy('') } }
@@ -324,9 +334,9 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
     {!parked && hasWork && (pending || !readiness?.available) && <section className="cs-warning" aria-label="수합 입력 임시 보관"><p>지금 확인하기 어렵다면 입력과 기존 요청 번호를 이 탭에 보관하고 업무실 안의 다른 메뉴를 이용할 수 있습니다. 새로고침하면 보관 내용이 사라집니다.</p><button type="button" disabled={!!busy || exportBusy} onClick={parkEditing}>입력 보관하고 다른 메뉴 이용</button></section>}
     {readError && <section className="cs-error" role="alert"><p>{readError}</p><button type="button" disabled={!!busy} onClick={() => setReload(value => value + 1)}>연결과 원본 다시 확인</button></section>}
     {loading && <p role="status">수합 연결과 목록을 확인 중…</p>}
-    {!loading && readiness && !readiness.available && <section className="cs-empty"><h3>문서 수합 연결 준비가 필요합니다</h3><p>HWPX 전용 수합 연결을 준비 중입니다.</p><p>{readiness.reason === 'database_missing' ? '문서 수합용 DB 함수가 아직 준비되지 않았습니다.' : readiness.reason === 'storage_missing' ? '문서 수합용 파일 저장소 연결이 아직 준비되지 않았습니다.' : readiness.reason === 'verification_missing' ? 'HWPX 파일의 기본 확인 기능이 아직 연결되지 않았습니다.' : '학교의 파일 허용 정책을 먼저 설정해야 합니다.'}</p><p>연결 확인 전에는 등록·업로드·제출을 실행하지 않습니다.</p><button type="button" onClick={() => setReload(value => value + 1)}>준비 상태 다시 확인</button></section>}
+    {!loading && !readiness?.available && <section className="cs-empty"><h3>문서 수합 연결 준비가 필요합니다</h3><p>HWPX 전용 수합 연결을 준비 중입니다.</p><p>{readiness?.reason === 'database_missing' ? '문서 수합용 DB 함수가 아직 준비되지 않았습니다.' : readiness?.reason === 'storage_missing' ? '문서 수합용 파일 저장소 연결이 아직 준비되지 않았습니다.' : readiness?.reason === 'verification_missing' ? 'HWPX 파일의 기본 확인 기능이 아직 연결되지 않았습니다.' : '학교의 파일 허용 정책을 먼저 설정해야 합니다.'}</p><p>새 등록·업로드·제출은 준비 후 이용할 수 있습니다. 기존 자료는 현재 읽기 권한에 따라 조회하고 내려받을 수 있습니다.</p><button type="button" onClick={() => setReload(value => value + 1)}>준비 상태 다시 확인</button></section>}
     {!parked && (!readiness?.available || (readError && !detail && !restoring)) && dirty && !pending && (!session.upload || session.upload.cancelable || session.upload.rejected) && <button type="button" disabled={!!busy} onClick={() => { resetEditing(); setNotice('보관한 입력을 버렸습니다. 다른 메뉴로 이동할 수 있습니다.') }}>입력 버리고 닫기</button>}
-    {readiness?.available && !parked && <>
+    {enabled && !parked && <>
       {session.conflict && <section className="cs-warning" aria-label="수합 변경 충돌">
         <h3>최신 내용과 내 입력을 비교해 주세요</h3>
         {comparison ? <>
@@ -354,7 +364,7 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
       {detail && !restoring && <section className="cs-card" aria-label="수합 상세"><div className="cs-heading"><div><h3 tabIndex={-1} data-cs-focus="detail">{detail.request.title}</h3><p>{detail.request.dueDate}까지 · {detail.request.status === 'draft' ? '담당자 초안' : '공개됨'} · v{detail.request.version}</p></div><button type="button" disabled={locked} onClick={() => { focusNext('list-item', detail.request.id); resetEditing(); setDetail(undefined) }}>목록으로</button></div><p className="cs-instructions">{detail.request.instructions}</p>
         {filesView(detail.request.fileCollection?.templates ?? [], { kind: 'template', requestId: detail.request.id, version: detail.request.version })}
         {detail.request.status === 'published' && detail.request.managerMemberId === member.id && detail.request.fileCollection && <CollectionServerExport server={server} member={member} requestId={detail.request.id} date={date} disabled={Boolean(busy || pending || dirty || restoring || !enabled)} onBusyChange={setExportBusy} />}
-        {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" data-cs-focus="edit-button" disabled={locked} onClick={() => { focusNext('editor'); setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } }) }}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked} onClick={() => { void mutate({ kind: 'publish', requestId: detail.request.id, expectedVersion: detail.request.version }) }}>대상 교사에게 공개</button></div>}
+        {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" data-cs-focus="edit-button" disabled={locked || !readiness?.available} onClick={() => { focusNext('editor'); setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } }) }}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked || !readiness?.available} onClick={() => { void mutate({ kind: 'publish', requestId: detail.request.id, expectedVersion: detail.request.version }) }}>대상 교사에게 공개</button></div>}
         {detail.request.status === 'published' && detail.units.map(unit => {
           const submission = detail.submissions.find(value => value.id === unit.currentSubmissionId), withdrawn = Boolean(submission && unit.withdrawnSubmissionIds.includes(submission.id))
           const review = submission && detail.reviews.find(value => value.submissionId === submission.id), participant = unit.members.some(value => value.id === member.id)
@@ -364,13 +374,13 @@ function CollectionScope({ server, member, members, date, revision = 0, onNaviga
             <CollectionSubmissionHistory detail={detail} unit={unit} members={allowedMembers} date={date} disabled={locked} onDownload={(parent, file) => { void download(parent, file) }} />
             {submission && <p className="cs-muted">제출 v{submission.revision} · 서버 접수 <time dateTime={submission.receiptAt}>{formatCollectionRecordedTime(submission.receiptAt)}</time></p>}
             {submission && !withdrawn && filesView(submission.files ?? [], { kind: 'submission', requestId: detail.request.id, unitId: unit.id, submissionId: submission.id })}
-            {participant && <button type="button" data-cs-focus="answer-button" data-cs-key={unit.id} disabled={locked} onClick={() => { void openAnswer(unit.id) }}>내 제출 파일 작성</button>}
+            {participant && <button type="button" data-cs-focus="answer-button" data-cs-key={unit.id} disabled={locked || !readiness?.available} onClick={() => { void openAnswer(unit.id) }}>내 제출 파일 작성</button>}
             {supplements.length > 0 && <p className="cs-warning">보완 요청 {supplements.length}건이 있습니다. 제출 파일을 작성하고 응답할 보완 건을 선택해 주세요.</p>}
             <div className="cs-actions">
-              {submission && !withdrawn && unit.responsibleMemberId === member.id && summary.reviewState !== 'accepted' && <button type="button" data-cs-focus="manage-button" data-cs-key={`${unit.id}-withdraw`} disabled={locked} onClick={() => { focusNext('management'); setSession({ selectedId: detail.request.id, management: { kind: 'withdraw', unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, reason: '', dueDate: '', confirmed: false } }) }}>제출 철회</button>}
-              {detail.request.managerMemberId === member.id && <button type="button" data-cs-focus="manage-button" data-cs-key={`${unit.id}-open_correction`} disabled={locked} onClick={() => { focusNext('management'); setSession({ selectedId: detail.request.id, management: { kind: 'open_correction', unitId: unit.id, submissionId: null, expectedVersion: unit.version, reason: '', dueDate: unit.correctionUntil >= date ? unit.correctionUntil : '', confirmed: false } }) }}>정정 기간 설정</button>}
+              {submission && !withdrawn && unit.responsibleMemberId === member.id && summary.reviewState !== 'accepted' && <button type="button" data-cs-focus="manage-button" data-cs-key={`${unit.id}-withdraw`} disabled={locked || !readiness?.available} onClick={() => { focusNext('management'); setSession({ selectedId: detail.request.id, management: { kind: 'withdraw', unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, reason: '', dueDate: '', confirmed: false } }) }}>제출 철회</button>}
+              {detail.request.managerMemberId === member.id && <button type="button" data-cs-focus="manage-button" data-cs-key={`${unit.id}-open_correction`} disabled={locked || !readiness?.available} onClick={() => { focusNext('management'); setSession({ selectedId: detail.request.id, management: { kind: 'open_correction', unitId: unit.id, submissionId: null, expectedVersion: unit.version, reason: '', dueDate: unit.correctionUntil >= date ? unit.correctionUntil : '', confirmed: false } }) }}>정정 기간 설정</button>}
             </div>
-            {submission && !withdrawn && detail.request.reviewerMemberId === member.id && !review && (session.review?.unitId === unit.id && session.review.submissionId === submission.id ? <div className="cs-review"><p className="cs-muted" tabIndex={-1} data-cs-focus="review">검토 대상: 제출 v{submission.revision}</p><label>검토 의견<textarea aria-label="검토 의견" maxLength={1000} value={session.review.note} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, note: event.target.value } })} /></label><label>보완 기한<input type="date" min={date} value={session.review.dueDate} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, dueDate: event.target.value } })} /></label><div className="cs-actions"><button type="button" disabled={blocked} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'accepted', note: session.review!.note, dueDate: '' }) }}>검토 완료</button><button type="button" disabled={blocked || !session.review.note.trim() || !session.review.dueDate || session.review.dueDate < date} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'changes_requested', note: session.review!.note, dueDate: session.review!.dueDate }) }}>보완 요청</button><button type="button" disabled={blocked} onClick={() => { focusNext('review-button', unit.id); resetEditing(detail.request.id) }}>검토 작성 취소</button></div></div> : <button type="button" data-cs-focus="review-button" data-cs-key={unit.id} disabled={locked} onClick={() => { focusNext('review'); setSession({ selectedId: detail.request.id, review: { unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, note: '', dueDate: '' } }) }}>제출물 검토</button>)}
+            {submission && !withdrawn && detail.request.reviewerMemberId === member.id && !review && (session.review?.unitId === unit.id && session.review.submissionId === submission.id ? <div className="cs-review"><p className="cs-muted" tabIndex={-1} data-cs-focus="review">검토 대상: 제출 v{submission.revision}</p><label>검토 의견<textarea aria-label="검토 의견" maxLength={1000} value={session.review.note} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, note: event.target.value } })} /></label><label>보완 기한<input type="date" min={date} value={session.review.dueDate} disabled={blocked} onChange={event => setSession({ ...session, review: { ...session.review!, dueDate: event.target.value } })} /></label><div className="cs-actions"><button type="button" disabled={blocked} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'accepted', note: session.review!.note, dueDate: '' }) }}>검토 완료</button><button type="button" disabled={blocked || !session.review.note.trim() || !session.review.dueDate || session.review.dueDate < date} onClick={() => { void mutate({ kind: 'review', requestId: detail.request.id, unitId: unit.id, submissionId: session.review!.submissionId, expectedVersion: session.review!.expectedVersion, decision: 'changes_requested', note: session.review!.note, dueDate: session.review!.dueDate }) }}>보완 요청</button><button type="button" disabled={blocked} onClick={() => { focusNext('review-button', unit.id); resetEditing(detail.request.id) }}>검토 작성 취소</button></div></div> : <button type="button" data-cs-focus="review-button" data-cs-key={unit.id} disabled={locked || !readiness?.available} onClick={() => { focusNext('review'); setSession({ selectedId: detail.request.id, review: { unitId: unit.id, submissionId: submission.id, expectedVersion: unit.version, note: '', dueDate: '' } }) }}>제출물 검토</button>)}
           </article>
         })}
       </section>}

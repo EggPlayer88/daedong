@@ -87,6 +87,12 @@ await test('401·403만 권한 거절이며 다른 HTTP 실패는 원시 본문 
     await fails(() => checker.check(input, 'user'), [401, 403].includes(status) ? 'FORBIDDEN' : 'RESULT_UNKNOWN')
   }
 })
+await test('확인된 업무 오류는 결과 불명으로 감추지 않고 서버 준비 오류에도 입력 재시도 경로를 유지한다', async () => {
+  for (const [code, status] of [['NOT_READY',503], ['IDEMPOTENCY_CONFLICT',409], ['CONFLICT',409], ['FILE_FAILED',422], ['NOT_FOUND',404]]) {
+    const checker=createBasicFileCheck({getSession:async()=>session('user'),fetch:async()=>new Response(JSON.stringify({error:{code}}),{status})})
+    await fails(()=>checker.check(input,'user'),code)
+  }
+})
 await test('네트워크 예외는 결과 불명이며 도중 계정 변경이 있으면 취소된다', async () => {
   for (const switched of [false, true]) {
     let user = 'user'

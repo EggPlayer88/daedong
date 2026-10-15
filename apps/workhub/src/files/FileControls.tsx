@@ -156,7 +156,7 @@ export function FileSelection({ repository, policy, owner, readScope, files, onC
       accepted = true
       // 교체로 사라진 이전 버튼에 초점을 남기지 않는다.
       if (replaceIndex >= 0) { selectionOrigin.current = input.current; restoreInputFocus.current = true }
-      setNotice(replaceIndex >= 0 ? '파일을 바꿨습니다. 기본 검사 완료 · 현재 창에 보관' : '기본 검사 완료 · 현재 창에 보관')
+      setNotice(replaceIndex >= 0 ? '파일을 바꿨습니다. 기본 확인 완료 · 현재 창에 보관' : '기본 확인 완료 · 현재 창에 보관')
     } catch (failure) {
       if (operation.current(current)) setError(safeError(failure, '파일을 확인하지 못했습니다. 기존 선택은 유지했습니다. 다시 선택해 주세요.'))
     } finally {
