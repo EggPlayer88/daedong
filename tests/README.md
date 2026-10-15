@@ -234,3 +234,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-school-setup.mjs`: 실제 브라우저의 입력→검사→파일 왕복, 실패 시 보존, 이동 보호, 모바일/키보드. 전체 러너에 포함한다.
 - 모듈 공개와 하위 경로 현재 메뉴 표시는 `test_visibility.mjs`에서 실제 Layout으로 확인한다.
 - [사용·검토 절차](../docs/workhub/26-school-setup-preparation.md). 실제 회원이나 운영 DB를 쓰지 않는다.
+
+## 공개 배포 연결 조사 도구
+
+`test_workhub_deployment_audit.mjs`는 외부 네트워크를 차단한 mock HTTP 시험이다. 배포 자산 출처·GET 범위·익명 키의 대상 일치·리디렉션 차단·크기/시간 제한·키/본문 비출력과 익명 결과의 해석을 검증하며 `npm test`에 자동 포함된다.
+
+실제 공개 배포를 조사할 때만 `node scripts/check-workhub-deployment.mjs --site https://daedong-school.vercel.app/`를 별도로 실행한다. 이 명령은 DB 전체 준비·로그인 계정·SQL 적용 여부를 검증하지 않는다. 대상 비교·파일 출력·종료 코드·Claude Web 조사 인계는 [운영 연결 조사](../docs/workhub/28-connection-audit-handoff.md)를 따른다. 일반 회귀/CI에는 실제 배포 조회를 넣지 않는다.
