@@ -11,6 +11,10 @@
     "api/doc-ai/chat.js": {
       "includeFiles": "{api/doc-ai/_assets/**,src/lib/planMarker.js}",
       "maxDuration": 60
+    },
+    "api/collections/check-hwpx.py": {
+      "includeFiles": "api/collections/**",
+      "maxDuration": 60
     }
   },
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]

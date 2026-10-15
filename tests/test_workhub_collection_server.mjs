@@ -7,16 +7,16 @@ let passed = 0, failed = 0
 async function test(name, run) { try { await run(); passed++; console.log(`  ✓ ${name}`) } catch (error) { failed++; console.error(`  ✗ ${name}: ${error.stack}`) } }
 const fails = (run, code) => assert.rejects(async () => run(), error => error.code === code)
 const clone = value => structuredClone(value)
-const policy = { extensions: ['pdf'], maxFileBytes: 1024, maxFiles: 3 }
+const policy = { extensions: ['hwpx'], maxFileBytes: 1024, maxFiles: 3 }
 const input = { title: '파일 수합', instructions: '', dueDate: '2026-10-31', reviewMode: 'none', reviewerMemberId: '', textLabel: '', textRequired: false, numberLabel: '', numberRequired: false, units: [{ label: '담당 교사', responsibleMemberId: 'member', contributorMemberIds: [] }], fileCollection: { policy, required: true, templates: [] } }
 const request = { ...input, id: 'request', schoolId: 'school', managerMemberId: 'member', status: 'draft', version: 1, publishedAt: null }
 const published = { ...request, status: 'published', publishedAt: '2026-10-15T00:00:00Z' }
 const unit = { id: 'unit', requestId: 'request', schoolId: 'school', label: '담당 교사', responsibleMemberId: 'member', members: [{ id: 'member', userId: 'user', name: '교사' }], version: 1, currentSubmissionId: null, effectiveSubmissionId: null, withdrawnSubmissionIds: [], correctionUntil: '', correctionReason: '' }
 const detail = { request: published, units: [unit], submissions: [], reviews: [], supplements: [], withdrawals: [] }
 const parent = { kind: 'template', requestId: 'request', version: 1 }
-const file = new File(['%PDF-1.7\n원본'], '수합.pdf', { type: 'application/pdf' })
+const file = new File(['PK\x03\x04\n원본'], '수합.hwpx', { type: 'application/hwp+zip' })
 const fileHash = async value => createHash('sha256').update(Buffer.from(await value.arrayBuffer())).digest('hex')
-const ref = { id: 'file', name: file.name, extension: 'pdf', bytes: file.size, sha256: await fileHash(file) }
+const ref = { id: 'file', name: file.name, extension: 'hwpx', bytes: file.size, sha256: await fileHash(file) }
 const intent = { fileId: 'file', bucket: 'workhub-collection-files', path: 'school/file/0123456789abcdef', expiresAt: '2099-01-01T00:00:00Z', state: 'awaiting_upload' }
 const envelope = data => ({ contractVersion: 1, schoolId: 'school', memberId: 'member', data })
 const receipt = (key = 'test-key') => ({ requestId: 'request', resourceId: 'request', resourceVersion: 1, recordedAt: '2026-10-15T00:00:00Z', requestKey: key })
@@ -27,13 +27,13 @@ function setup(options = {}) {
   const calls = [], uploads = [], downloads = []
   let upload = async (...args) => { uploads.push(args) }, download = async (...args) => { downloads.push(args); return file }
   const connection = { info: () => clone(context), getIdentity: () => getIdentity(), rpcVerified: async (name, args) => { calls.push({ name, args: clone(args) }); return respond(name, args) } }
-  const server = createSupabaseCollectionServer(connection, { storage: { upload: (...args) => upload(...args), download: (...args) => download(...args) }, timeoutMs: 250, ...options })
+  const server = createSupabaseCollectionServer(connection, { storage: { upload: (...args) => upload(...args), download: (...args) => download(...args) }, timeoutMs: 250, basicCheck: { check: () => respond('basic-check', {}) }, ...options })
   return { server, calls, uploads, downloads, context: value => { context = value }, mutateContext: fn => fn(context), identity: fn => { getIdentity = fn }, respond: fn => { respond = fn }, upload: fn => { upload = fn }, download: fn => { download = fn } }
 }
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 const waitUntil = async fn => { for (let i = 0; i < 100; i++) { if (fn()) return; await new Promise(resolve => setTimeout(resolve, 1)) }; throw Error('요청 시작 대기 실패') }
 
-await test('준비 여부·파일 정책을 실제 RPC 응답에서 읽음', async () => { const s = setup(); assert.deepEqual(await s.server.readiness('member'), { available: true, reason: 'ready', policy }); assert.deepEqual(s.calls[0], { name: 'workhub_collection_readiness', args: { p_member_id: 'member' } }) })
+await test('준비 여부·파일 정책을 실제 RPC 응답에서 읽음', async () => { const s = setup(); assert.deepEqual(await s.server.readiness('member'), { available: true, reason: 'ready', policy }); assert.deepEqual(s.calls[0], { name: 'workhub_collection_basic_readiness', args: { p_member_id: 'member' } }) })
 await test('검증 미준비는 사용 가능으로 바꾸지 않음', async () => { const s = setup(); s.respond(async () => envelope({ available: false, reason: 'verification_missing', policy })); assert.equal((await s.server.readiness('member')).available, false) })
 await test('모순된 준비 응답 거부', async () => { const s = setup(); s.respond(async () => envelope({ available: true, reason: 'verification_missing', policy })); await fails(() => s.server.readiness('member'), 'INVALID_RESPONSE') })
 await test('없는 RPC와 네트워크 실패는 DB 부재로 단정하지 않음', async () => { const s = setup(); s.respond(async () => { throw new ContractError('QUERY_FAILED', 'PGRST202') }); await fails(() => s.server.readiness('member'), 'QUERY_FAILED') })
@@ -53,18 +53,18 @@ await test('조회 성공·거절 모두 학교 변경 후 이전 결과 폐기'
 await test('저장 성공·거절 모두 계정 변경 후 이전 결과 폐기', async () => { for (const reject of [false, true]) { const s = setup(), pending = deferred(); s.respond(() => pending.promise); const result = s.server.mutate('member', { kind: 'create', input }, 'test-key'); await waitUntil(() => s.calls.length === 1); s.identity(async () => ({ userId: 'different', approved: true })); reject ? pending.reject(Error('old user')) : pending.resolve(envelope(receipt())); await fails(() => result, 'CANCELLED') } })
 await test('응답 후 세션 확인 실패는 저장 결과 불명', async () => { const s = setup(); s.respond(async () => { s.identity(async () => { throw Error('session check') }); return envelope(receipt()) }); await fails(() => s.server.mutate('member', { kind: 'create', input }, 'test-key'), 'RESULT_UNKNOWN') })
 await test('응답 시간 초과는 읽기 실패·쓰기 결과 불명으로 구분', async () => { for (const writing of [false, true]) { const s = setup({ timeoutMs: 10 }); s.respond(() => new Promise(() => {})); await fails(() => writing ? s.server.mutate('member', { kind: 'create', input }, 'test-key') : s.server.list('member'), writing ? 'RESULT_UNKNOWN' : 'QUERY_FAILED') } })
-await test('업로드 준비는 실제 해시·크기·기본 형식만 주장', async () => { const s = setup(); s.respond(async () => envelope(intent)); assert.deepEqual(await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'), intent); assert.deepEqual(s.calls[0].args, { p_member_id: 'member', p_parent: parent, p_file: { name: file.name, extension: 'pdf', claimedBytes: file.size, claimedSha256: ref.sha256 }, p_request_key: 'prepare-key' }) })
-await test('확장자만 바꾼 파일은 서버 준비 호출 전에 거부', async () => { const s = setup(); await fails(() => s.server.prepareUpload('member', parent, new File(['invalid'], 'fake.pdf'), policy, 'prepare-key'), 'FILE_FAILED'); assert.equal(s.calls.length, 0) })
+await test('업로드 준비는 실제 해시·크기·기본 형식만 주장', async () => { const s = setup(); s.respond(async () => envelope(intent)); assert.deepEqual(await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'), intent); assert.deepEqual(s.calls[0].args, { p_member_id: 'member', p_parent: parent, p_file: { name: file.name, extension: 'hwpx', claimedBytes: file.size, claimedSha256: ref.sha256 }, p_request_key: 'prepare-key' }) })
+await test('확장자만 바꾼 파일은 서버 준비 호출 전에 거부', async () => { const s = setup(); await fails(() => s.server.prepareUpload('member', parent, new File(['invalid'], 'fake.hwpx'), policy, 'prepare-key'), 'FILE_FAILED'); assert.equal(s.calls.length, 0) })
 await test('다른 학교 경로·공개 버킷·경로 탐색 준비 응답 거부', async () => { for (const patch of [{ bucket: 'public' }, { path: 'other/file/0123456789abcdef' }, { path: 'school/other/0123456789abcdef' }, { path: 'school/file/../../escape' }]) { const s = setup(); s.respond(async () => envelope({ ...intent, ...patch })); await fails(() => s.server.prepareUpload('member', parent, file, policy, 'prepare-key'), 'RESULT_UNKNOWN') } })
-await test('발급하지 않은 업로드·변조한 의도·변조한 원문 거부', async () => { const s = setup(); await fails(() => s.server.upload('member', intent, file), 'INVALID_INPUT'); s.respond(async () => envelope(intent)); const issued = await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'); await fails(() => s.server.upload('member', { ...issued, path: 'school/file/0123456789abcdeg' }, file), 'INVALID_INPUT'); const changed = new File(['%PDF-1.7\n변조'], file.name, { type: file.type }); await fails(() => s.server.upload('member', issued, changed), 'INVALID_INPUT'); assert.equal(s.uploads.length, 0) })
+await test('발급하지 않은 업로드·변조한 의도·변조한 원문 거부', async () => { const s = setup(); await fails(() => s.server.upload('member', intent, file), 'INVALID_INPUT'); s.respond(async () => envelope(intent)); const issued = await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'); await fails(() => s.server.upload('member', { ...issued, path: 'school/file/0123456789abcdeg' }, file), 'INVALID_INPUT'); const changed = new File(['PK\x03\x04\n변조'], file.name, { type: file.type }); await fails(() => s.server.upload('member', issued, changed), 'INVALID_INPUT'); assert.equal(s.uploads.length, 0) })
 await test('업로드는 발급 위치만 사용하고 검증 완료를 선언하지 않음', async () => { const s = setup(); s.respond(async () => envelope(intent)); const issued = await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'); assert.equal(await s.server.upload('member', issued, file), undefined); assert.deepEqual(s.uploads[0], [intent.bucket, intent.path, file]); assert.equal(s.calls.length, 1) })
 await test('업로드 중 계정 전환과 Storage 거절에도 이전 결과 폐기', async () => { for (const rejected of [false, true]) { const s = setup(), pending = deferred(); s.respond(async () => envelope(intent)); const issued = await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'); let started = false; s.upload(() => { started = true; return pending.promise }); const uploading = s.server.upload('member', issued, file); await waitUntil(() => started); s.identity(async () => ({ userId: 'other', approved: true })); rejected ? pending.reject(Error('storage')) : pending.resolve(); await fails(() => uploading, 'CANCELLED') } })
 await test('파일 완료 요청도 동일 키로 재확인하며 pending은 파일 참조 없음', async () => { const s = setup(); s.respond(async () => envelope({ fileId: 'file', state: 'pending_verification', file: null })); const status = await s.server.completeUpload('member', 'file', 'complete-key'); assert.equal(status.file, null); await s.server.completeUpload('member', 'file', 'complete-key'); assert.deepEqual(s.calls[0].args, s.calls[1].args) })
 await test('ready 파일은 검증된 참조가 필수이며 pending 참조는 거부', async () => { for (const status of [{ state: 'ready', file: null }, { state: 'pending_verification', file: ref }, { state: 'ready', file: { ...ref, id: 'other' } }]) { const s = setup(); s.respond(async () => envelope({ fileId: 'file', ...status })); await fails(() => s.server.fileStatus('member', 'file'), 'INVALID_RESPONSE') } })
 await test('발급 원문과 서버 ready 해시가 다르면 거부', async () => { const s = setup(); s.respond(async () => envelope(intent)); await s.server.prepareUpload('member', parent, file, policy, 'prepare-key'); s.respond(async () => envelope({ fileId: 'file', state: 'ready', file: { ...ref, sha256: '0'.repeat(64) } })); await fails(() => s.server.fileStatus('member', 'file'), 'INVALID_RESPONSE') })
 await test('다운로드는 정확한 부모판 접근 검사 후 원문 해시 및 재접근 검사', async () => { const s = setup(); s.respond(async () => envelope({ file: ref, bucket: intent.bucket, path: intent.path })); assert.equal(await s.server.download('member', parent, ref), file); assert.equal(s.calls.length, 2); assert.deepEqual(s.calls[0].args, { p_member_id: 'member', p_parent: parent, p_file_id: 'file' }); assert.deepEqual(s.downloads[0], [intent.bucket, intent.path]) })
-await test('다운로드의 파일 이름·해시 바꿔치기는 Storage 읽기 전 거부', async () => { const s = setup(); s.respond(async () => envelope({ file: { ...ref, name: 'other.pdf' }, bucket: intent.bucket, path: intent.path })); await fails(() => s.server.download('member', parent, ref), 'INVALID_RESPONSE'); assert.equal(s.downloads.length, 0) })
-await test('Storage 원문 해시 불일치는 다운로드로 전달하지 않음', async () => { const s = setup(); s.respond(async () => envelope({ file: ref, bucket: intent.bucket, path: intent.path })); s.download(async () => new File(['%PDF-1.7\n변조'], file.name)); await fails(() => s.server.download('member', parent, ref), 'FILE_FAILED') })
+await test('다운로드의 파일 이름·해시 바꿔치기는 Storage 읽기 전 거부', async () => { const s = setup(); s.respond(async () => envelope({ file: { ...ref, name: 'other.hwpx' }, bucket: intent.bucket, path: intent.path })); await fails(() => s.server.download('member', parent, ref), 'INVALID_RESPONSE'); assert.equal(s.downloads.length, 0) })
+await test('Storage 원문 해시 불일치는 다운로드로 전달하지 않음', async () => { const s = setup(); s.respond(async () => envelope({ file: ref, bucket: intent.bucket, path: intent.path })); s.download(async () => new File(['PK\x03\x04\n변조'], file.name)); await fails(() => s.server.download('member', parent, ref), 'FILE_FAILED') })
 await test('다운로드 중 권한 회수는 본문 전달 전에 차단', async () => { const s = setup(); let access = 0; s.respond(async () => ++access === 1 ? envelope({ file: ref, bucket: intent.bucket, path: intent.path }) : ({ contractVersion: 1, schoolId: 'school', memberId: 'member', error: { code: 'FORBIDDEN' } })); await fails(() => s.server.download('member', parent, ref), 'FORBIDDEN') })
 await test('다운로드 중 이전 계정의 Storage 거절도 취소 처리', async () => { const s = setup(); s.respond(async () => envelope({ file: ref, bucket: intent.bucket, path: intent.path })); s.download(async () => { s.identity(async () => ({ userId: 'other', approved: true })); throw Error('old download') }); await fails(() => s.server.download('member', parent, ref), 'CANCELLED') })
 await test('보완 요청 ID를 명시한 재제출만 그대로 전달', async () => { const s = setup(); s.respond(async () => envelope(receipt())); const command = { kind: 'submit', requestId: 'request', unitId: 'unit', draftId: 'draft', expectedDraftVersion: 2, expectedVersion: 3, reason: '보완', correctionRequestId: 'supplement' }; await s.server.mutate('member', command, 'test-key'); assert.deepEqual(s.calls[0].args.p_command, command) })
@@ -98,6 +98,71 @@ await test('모든 비동기 경계는 소속 없음·잘못된 입력도 동기
   for (const call of calls) { const s = setup(); s.mutateContext(context => { context.memberships = [] }); let result; assert.doesNotThrow(() => { result = call(s.server) }); assert.ok(result instanceof Promise); await assert.rejects(result, error => error.code === 'INACTIVE_MEMBERSHIP') }
   const invalidCalls = [server => server.readiness(''), server => server.list('member', '../bad'), server => server.detail('member', ''), server => server.draft('member', 'request', ''), server => server.mutate('member', { kind: 'publish', requestId: 'request', expectedVersion: 0 }, 'test-key'), server => server.completeUpload('member', 'file', 'short'), server => server.fileStatus('member', '')]
   for (const call of invalidCalls) { const s = setup(); let result; assert.doesNotThrow(() => { result = call(s.server) }); assert.ok(result instanceof Promise); await assert.rejects(result, error => error.code === 'INVALID_INPUT'); assert.equal(s.calls.length, 0) }
+})
+
+await test('기본 확인 준비는 새 RPC만 쓰며 기존 다중 형식 ready를 허용하지 않음', async () => {
+  const s = setup(); await s.server.readiness('member'); assert.equal(s.calls[0].name, 'workhub_collection_basic_readiness')
+  s.respond(async () => envelope({ available: true, reason: 'ready', policy: { ...policy, extensions: ['hwpx','pdf'] } }))
+  await fails(() => s.server.readiness('member'), 'INVALID_RESPONSE')
+  s.respond(async () => { throw Error('missing new RPC') }); await fails(() => s.server.readiness('member'), 'QUERY_FAILED')
+  assert.ok(s.calls.every(call => call.name === 'workhub_collection_basic_readiness'))
+})
+await test('기본 확인 준비가 안 되면 파일 정책을 만들거나 기존 검사기로 우회하지 않음', async () => {
+  const s = setup(); s.respond(async () => envelope({ available: false, reason: 'verification_missing', policy: null }))
+  assert.deepEqual(await s.server.readiness('member'), { available: false, reason: 'verification_missing', policy: null })
+})
+await test('HWPX 기술 상한은 30MiB이고 더 낮은 학교 정책은 보존', async () => {
+  const s = setup(); s.respond(async () => envelope({ available: true, reason: 'ready', policy: { ...policy, maxFileBytes: 100 * 1024 * 1024 } }))
+  assert.equal((await s.server.readiness('member')).policy.maxFileBytes, 30 * 1024 * 1024)
+  s.respond(async () => envelope({ available: true, reason: 'ready', policy })); assert.deepEqual((await s.server.readiness('member')).policy, policy)
+})
+await test('기존 혼합 정책이어도 새 PDF는 예약 전 차단하고 HWPX는 허용', async () => {
+  const s = setup(), mixed = { ...policy, extensions: ['pdf', 'hwpx'] }; s.respond(async () => envelope(intent))
+  await fails(() => s.server.prepareUpload('member', parent, new File(['%PDF-1.7'], '새.pdf', { type: 'application/pdf' }), mixed, 'prepare-pdf'), 'FILE_FAILED')
+  assert.equal(s.calls.length, 0); await s.server.prepareUpload('member', parent, file, mixed, 'prepare-key'); assert.equal(s.calls.length, 1)
+})
+await test('완료 후 기본 확인은 기존 파일과 요청 번호 및 실제 계정만 전송', async () => {
+  const checks = [], s = setup({ basicCheck: { check: async (...args) => { checks.push(args); return envelope({ fileId: 'file', state: 'ready', file: ref }) } } })
+  s.respond(async () => envelope({ fileId: 'file', state: 'pending_verification', file: null }))
+  const result = await s.server.completeUpload('member', 'file', 'complete-key'); assert.deepEqual(result.file, ref)
+  assert.deepEqual(checks, [[{ memberId: 'member', fileId: 'file', requestKey: 'complete-key' }, 'user']])
+})
+await test('이미 확정된 파일과 업로드 대기는 기본 확인 API를 호출하지 않음', async () => {
+  let count = 0; const s = setup({ basicCheck: { check: async () => { count++; throw Error('unexpected check') } } })
+  for (const state of ['ready', 'rejected', 'awaiting_upload']) {
+    s.respond(async () => envelope({ fileId: 'file', state, file: state === 'ready' ? ref : null })); assert.equal((await s.server.completeUpload('member', 'file', 'complete-key')).state, state)
+  }
+  assert.equal(count, 0)
+})
+await test('기본 확인의 응답 유실 후 같은 완료 번호로 다시 확인', async () => {
+  const checks = []; let first = true
+  const s = setup({ basicCheck: { check: async (input) => { checks.push(input); if (first) { first = false; throw Error('lost reply') }; return envelope({ fileId: 'file', state: 'ready', file: ref }) } } })
+  s.respond(async () => envelope({ fileId: 'file', state: 'pending_verification', file: null }))
+  await fails(() => s.server.completeUpload('member', 'file', 'complete-key'), 'RESULT_UNKNOWN')
+  assert.equal((await s.server.completeUpload('member', 'file', 'complete-key')).state, 'ready'); assert.deepEqual(checks[0], checks[1]); assert.deepEqual(s.calls[0].args, s.calls[1].args)
+})
+await test('기본 확인 중 계정 변경은 성공 및 실패 결과를 모두 폐기', async () => {
+  for (const rejected of [false, true]) {
+    const pending = deferred(); let started = false
+    const s = setup({ basicCheck: { check: () => { started = true; return pending.promise } } }); s.respond(async () => envelope({ fileId: 'file', state: 'pending_verification', file: null }))
+    const result = s.server.completeUpload('member', 'file', 'complete-key'); await waitUntil(() => started); s.identity(async () => ({ userId: 'different', approved: true }))
+    rejected ? pending.reject(Error('old error')) : pending.resolve(envelope({ fileId: 'file', state: 'ready', file: ref })); await fails(() => result, 'CANCELLED')
+  }
+})
+await test('기본 확인이 다른 학교·다른 원문 해시를 반환하면 성공으로 확정하지 않음', async () => {
+  for (const response of [{ ...envelope({ fileId: 'file', state: 'ready', file: ref }), schoolId: 'other' }, envelope({ fileId: 'file', state: 'ready', file: { ...ref, sha256: '0'.repeat(64) } })]) {
+    const s = setup({ basicCheck: { check: async () => response } }); s.respond(async () => envelope(intent)); await s.server.prepareUpload('member', parent, file, policy, 'prepare-key')
+    s.respond(async () => envelope({ fileId: 'file', state: 'pending_verification', file: null })); await fails(() => s.server.completeUpload('member', 'file', 'complete-key'), 'RESULT_UNKNOWN')
+  }
+})
+await test('기본 확인이 멈추어도 요청 번호를 유지할 결과 불명 반환', async () => {
+  const s = setup({ timeoutMs: 10, basicCheck: { check: () => new Promise(() => {}) } }); s.respond(async () => envelope({ fileId: 'file', state: 'pending_verification', file: null }))
+  await fails(() => s.server.completeUpload('member', 'file', 'complete-key'), 'RESULT_UNKNOWN')
+})
+await test('기본 확인 전환 뒤에도 기존 PDF 다운로드 권한 및 원문 확인 유지', async () => {
+  const old = new File(['%PDF-1.7\nold'], '과거.pdf', { type: 'application/pdf' }), previous = { ...ref, name: old.name, extension: 'pdf', bytes: old.size, sha256: await fileHash(old) }
+  const s = setup(); s.respond(async () => envelope({ file: previous, bucket: intent.bucket, path: intent.path })); s.download(async () => old)
+  assert.equal(await s.server.download('member', parent, previous), old); assert.equal(s.calls.length, 2)
 })
 console.log(`\n문서 수합 서버 연결: ${passed}개 통과, ${failed}개 실패`)
 if (failed) process.exitCode = 1

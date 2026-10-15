@@ -3,18 +3,20 @@ import { activeAt } from '../domain'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { FILE_TECHNICAL_LIMITS, FileError, type FilePolicy, type FileReference } from '../files/contracts'
 import { fileOperation, readBlobBytes, validateFileMetadata, validateSignature } from '../files/validation'
+import { HWPX_BASIC_TIMEOUT_MS, hwpxCollectionPolicy } from '../files/hwpx-basic-policy'
+import type { BasicFileCheckPort } from './basic-file-check'
 import { CollectionServerError, type CollectionFailureCode, type CollectionFileParent, type CollectionServer, type CollectionUpload } from './contracts'
 import { collectionAccess, collectionCommand, collectionCursor, collectionDetail, collectionDraft, collectionEnvelope, collectionFiles, collectionFileStatus, collectionIdentifier, collectionInputCheck, collectionList, collectionParent, collectionReadiness, collectionReceipt, collectionRequestKey, collectionUpload, type CollectionScope } from './validation'
 
 export interface CollectionStoragePort { upload(bucket: string, path: string, file: File): Promise<void>; download(bucket: string, path: string): Promise<Blob> }
-export interface CollectionServerOptions { storage?: CollectionStoragePort; timeoutMs?: number; now?: () => number }
+export interface CollectionServerOptions { storage?: CollectionStoragePort; basicCheck?: BasicFileCheckPort; timeoutMs?: number; now?: () => number }
 const messages: Record<CollectionFailureCode, string> = {
   NOT_READY: '문서 수합 서버와 파일 보관 설정이 아직 준비되지 않았습니다.', INVALID_INPUT: '입력 내용과 확인한 버전을 다시 확인해 주세요.',
   INVALID_RESPONSE: '서버 응답을 확인하지 못했습니다. 새로 조회해 주세요.', FORBIDDEN: '현재 계정으로 이 자료를 처리할 수 없습니다.',
   INACTIVE_MEMBERSHIP: '현재 이용 가능한 학교 소속이 아닙니다.', NOT_FOUND: '자료가 없거나 열람할 수 없습니다.',
   CONFLICT: '다른 곳에서 먼저 변경했습니다. 최신 자료와 입력을 비교해 주세요.', IDEMPOTENCY_CONFLICT: '같은 요청 번호에 다른 내용이 포함되어 있습니다.',
   QUERY_FAILED: '서버 연결을 확인하지 못했습니다. 잠시 후 다시 확인해 주세요.', RESULT_UNKNOWN: '처리 결과를 확인하지 못했습니다. 같은 요청 번호로 다시 확인해 주세요.',
-  CANCELLED: '계정이나 학교 연결이 변경되어 이전 요청을 취소했습니다.', FILE_NOT_READY: '파일의 서버 검증이 아직 끝나지 않았습니다.', FILE_FAILED: '파일을 확인하지 못했습니다. 원본과 서버 검증 상태를 확인해 주세요.',
+  CANCELLED: '계정이나 학교 연결이 변경되어 이전 요청을 취소했습니다.', FILE_NOT_READY: '파일의 기본 확인이 아직 끝나지 않았습니다.', FILE_FAILED: 'HWPX 파일을 확인하지 못했습니다. 원본을 다시 확인해 주세요.',
 }
 const fail = (code: CollectionFailureCode): CollectionServerError => new CollectionServerError(code, messages[code])
 function canonical(value: unknown): string {
@@ -29,6 +31,8 @@ export function createSupabaseCollectionServer(connection: SupabaseConnection, o
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > 120000) throw fail('INVALID_INPUT')
   let storagePromise: Promise<CollectionStoragePort> | undefined
   const storage = () => storagePromise ??= options.storage ? Promise.resolve(options.storage) : import('./legacy-storage').then(value => value.legacyStorage)
+  let checkerPromise: Promise<BasicFileCheckPort> | undefined
+  const checker = () => checkerPromise ??= options.basicCheck ? Promise.resolve(options.basicCheck) : import('./legacy-basic-check').then(value => value.legacyBasicFileCheck)
   const intents = new Map<string, { scope: CollectionScope; parent: CollectionFileParent; intent: CollectionUpload; metadata: { name: string; extension: string; claimedBytes: number; claimedSha256: string } }>()
   const requestPayloads = new Map<string, string>()
   function scopeFor(memberId: string): CollectionScope {
@@ -42,9 +46,9 @@ export function createSupabaseCollectionServer(connection: SupabaseConnection, o
     try { if (canonical(scopeFor(scope.memberId)) !== canonical(scope)) throw fail('CANCELLED') }
     catch { throw fail('CANCELLED') }
   }
-  async function bounded<T>(run: () => PromiseLike<T>, code: CollectionFailureCode): Promise<T> {
+  async function bounded<T>(run: () => PromiseLike<T>, code: CollectionFailureCode, budgetMs = timeoutMs): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined
-    try { return await Promise.race([Promise.resolve().then(run), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(fail(code)), timeoutMs) })]) }
+    try { return await Promise.race([Promise.resolve().then(run), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(fail(code)), budgetMs) })]) }
     finally { clearTimeout(timer) }
   }
   async function identity(scope: CollectionScope, after = false): Promise<void> {
@@ -81,7 +85,7 @@ export function createSupabaseCollectionServer(connection: SupabaseConnection, o
   }
   async function metadata(file: File, policy: FilePolicy) {
     try {
-      const extension = validateFileMetadata(file, policy)
+      const extension = validateFileMetadata(file, hwpxCollectionPolicy(policy))
       return await fileOperation(undefined, timeoutMs, async operation => {
         const bytes = await readBlobBytes(file, policy.maxFileBytes, operation); validateSignature(bytes, extension)
         if (!globalThis.crypto?.subtle) throw new FileError('FILE_CRYPTO_UNAVAILABLE')
@@ -104,7 +108,17 @@ export function createSupabaseCollectionServer(connection: SupabaseConnection, o
     return status
   }
   return {
-    async readiness(memberId) { const scope = scopeFor(memberId); return rpc(scope, 'workhub_collection_readiness', {}, collectionReadiness) },
+    async readiness(memberId) {
+      const scope = scopeFor(memberId)
+      return rpc(scope, 'workhub_collection_basic_readiness', {}, raw => {
+        const ready = collectionReadiness(raw)
+        if (ready.available) {
+          if (!ready.policy || ready.policy.extensions.length !== 1 || ready.policy.extensions[0] !== 'hwpx') throw fail('INVALID_RESPONSE')
+          return { ...ready, policy: hwpxCollectionPolicy(ready.policy) }
+        }
+        return ready
+      })
+    },
     async list(memberId, cursor) {
       const scope = scopeFor(memberId), value = collectionInputCheck(() => cursor === undefined ? null : collectionCursor(cursor))
       return rpc(scope, 'workhub_collection_list', { p_cursor: value }, raw => collectionList(raw, scope))
@@ -160,7 +174,16 @@ export function createSupabaseCollectionServer(connection: SupabaseConnection, o
     async completeUpload(memberId, fileId, requestKey) {
       const scope = scopeFor(memberId), [id, key] = collectionInputCheck(() => [collectionIdentifier(fileId), collectionRequestKey(requestKey)])
       remember(scope, 'file_complete', key, { fileId: id })
-      return rpc(scope, 'workhub_file_complete', { p_file_id: id, p_request_key: key }, raw => checkedStatus(scope, id, raw), true)
+      const status = await rpc(scope, 'workhub_file_complete', { p_file_id: id, p_request_key: key }, raw => checkedStatus(scope, id, raw), true)
+      if (status.state !== 'pending_verification') return status
+      // 브라우저의 해시/표식만으로 ready를 만들지 않는다. 같은 요청 번호로 서버의 실물 확인을 요청한다.
+      await identity(scope)
+      let response: unknown, rejected = false, rejection: unknown
+      try { response = await bounded(async () => (await checker()).check({ memberId, fileId: id, requestKey: key }, scope.userId), 'RESULT_UNKNOWN', options.timeoutMs ?? HWPX_BASIC_TIMEOUT_MS) }
+      catch (error) { rejected = true; rejection = error }
+      try { await identity(scope, true) } catch (error) { throw mapped(error, true) }
+      if (rejected) throw mapped(rejection, true)
+      try { return checkedStatus(scope, id, collectionEnvelope(response, scope)) } catch (error) { throw mapped(error, true) }
     },
     async fileStatus(memberId, fileId) {
       const scope = scopeFor(memberId), id = collectionInputCheck(() => collectionIdentifier(fileId))
