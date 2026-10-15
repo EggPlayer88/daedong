@@ -629,6 +629,22 @@ def main():
     check('X01 요청 번호 7자 → INVALID_INPUT 봉투, 변경 0건', code(t21.mutate({'kind': 'publish', 'requestId': rid, 'expectedVersion': 1}, 'short')) == 'INVALID_INPUT' and counts() == before)
     check('X02 업무 오류 뒤에도 감사·outbox·접수증 증가 0', counts() == before)
 
+    # ======================================================================= 같은 키 동시 요청
+    n0 = scalar('select count(*) from workhub.collections'); kk = key(); same = {}
+    def create_as(tag): same[tag] = Who(U1, adm.member).mutate({'kind': 'create', 'input': coll_input(title='동시 같은 키', reviewMode='none', reviewerMemberId='', units=[{'label': 'x', 'responsibleMemberId': M[25], 'contributorMemberIds': []}])}, kk)
+    th = [threading.Thread(target=create_as, args=(x,)) for x in ('a', 'b', 'c')]
+    [t.start() for t in th]; [t.join() for t in th]
+    rs = [data(v) for v in same.values()]
+    check('X03 같은 키·같은 본문 동시 3건 → 같은 접수증 3개, 수합 1건만 생성', all(rs) and rs[0] == rs[1] == rs[2]
+          and scalar('select count(*) from workhub.collections') == n0 + 1, same)
+
+    # ======================================================================= 작업자 연결 끊기(R1_실행안내.md 의 두 줄)
+    run_sql("update workhub_private.api_role_principals set revoked_at = now() where service_principal_id = 'svc_file_worker' and revoked_at is null;"
+            "update workhub.service_principal_scopes set revoked_at = now() where service_principal_id = 'svc_file_worker' and revoked_at is null")
+    check('W01 연결 끊기 → 준비 상태 verification_missing', data(adm.rpc('workhub_collection_readiness'))['reason'] == 'verification_missing')
+    check('W02 연결 끊기 → 작업자 함수 FORBIDDEN', err(WORKER, "select public.workhub_file_worker_claim(%s,'w1',1)", (s1,)) == 'FORBIDDEN')
+    check('W03 끊어도 기존 제출 상세·내려받기 허가는 그대로', data(t24.rpc('workhub_collection_get', rid)) is not None and data(t24.rpc('workhub_file_access', parS, refA['id'])) is not None)
+
     if OUT:
         json.dump({'captures': captures, 'schoolId': s1}, open(OUT, 'w', encoding='utf-8'), ensure_ascii=False)
     print(f'run_r1: {sum(1 for _, ok in results if ok)}/{len(results)} 통과')
