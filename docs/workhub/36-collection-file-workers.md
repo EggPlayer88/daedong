@@ -2,6 +2,8 @@
 
 2026-10-15 · PR #36의 `feat/workhub-collection-export` → `feat/workhub-file-workers`
 
+> 이 문서는 PR #37 당시의 처리 코어와 지원 범위 기록이다. 이후 PDF/HWP 전용 검사와 HWPX 기본 스크립트 호환성을 추가한 최신 범위는 [형식 지원 보완](37-document-format-support.md)에 있다. 아래의 파서 미지원·양식 3개 거부는 이전 구현 상태다.
+
 ## 1. 이번 결과와 범위
 
 파일형 수합은 실제 원문 검사와 저장소 정리가 있어야 서버 연결을 완성할 수 있다. SQL 작성과 병행할 수 있도록 세 처리 코어를 구현했다.

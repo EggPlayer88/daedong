@@ -11,24 +11,25 @@ node tests/test_gate.mjs # 단독 실행
 
 ## Python 테스트 준비 (1회)
 
-`generate.py` / `extract.py` 는 `lxml` 이 필요하다.
+`generate.py` / `extract.py`는 `lxml`이 필요하다. 수합 파일 검사에는 고정 버전의 `pypdf`·`olefile`·`Pillow`도 사용한다. 전체 시험은 다음 의존성을 함께 설치한다. 웹 API의 배포 의존성은 변경하지 않는다.
 
 ```bash
 python3 -m venv tests/.venv
-tests/.venv/bin/pip install lxml
+tests/.venv/bin/pip install -r workers/requirements.txt
 ```
 
 Windows PowerShell에서는 다음과 같이 준비한다.
 
 ```powershell
 python -m venv tests/.venv
-tests/.venv/Scripts/python.exe -m pip install lxml
+tests/.venv/Scripts/python.exe -m pip install -r workers/requirements.txt
 npm test
 ```
 
 러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` → `python` 순으로 lxml 이 있는
 인터프리터를 찾는다. 못 찾으면 **Python 몫을 건너뛰고 그 사실을 출력한다**
 (조용히 통과시키지 않는다).
+Python이 선택된 뒤 형식별 파서가 빠져 있으면 관련 시험이 실패한다. 파서 부재를 정상 검사 결과로 계산하지 않는다.
 가상환경의 Windows `Scripts/python.exe`와 POSIX `bin/python` 경로를 모두 지원한다.
 `PYTHON`에는 실행 파일 경로 하나만 지정한다(공백·한글 허용). `py -3` 같은 명령문은 넣지 않는다.
 러너는 자식 프로세스의 작업 폴더를 저장소 루트로 고정하고 Python 출력을 UTF-8로 받는다.
@@ -186,10 +187,12 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 기본 파일형 문서 수합
 
-- `test_workhub_file_inspection.py`: 실제 ZIP/XML 파싱·압축 확장량/CRC·경로/관계·DTD/암호화·PDF/HWP 미지원·보호 HWPX 읽기 전용 검사 **80건**.
-- `test_workhub_file_verification.py`: 실물 크기/SHA-256·정책·임대·스캐너 상태/결과 결합·접수 응답 유실과 동일 본문 재전송·변조/위조 접수 차단 **35건**.
+- `test_workhub_file_pdf.py`: 실제 PDF xref/객체/페이지/스트림·압축량·JPEG·본문 토큰·스크립트/첨부/PostScript 차단·미지원 형식·손상 본문 로그 차단 **100건**.
+- `test_workhub_file_hwp.py`: 실제 합성 CFB/HWP의 FAT/MiniFAT/레코드/압축/CRC·ISIZE/기본 스크립트/이미지·미지원 헤더/옵션·예외 처리 **73건**. 도우미 `helpers/hwp_fixture.py`는 시험용이며 실제 파일 변환기가 아니다.
+- `test_workhub_file_inspection.py`: 실제 ZIP/XML 파싱·압축 확장량/CRC·경로/관계·DTD/암호화·PDF/HWP 연결·제한된 HWPX 기본 스크립트·보호 HWPX 6종 읽기 전용 검사 **118건**.
+- `test_workhub_file_verification.py`: 실물 크기/SHA-256·정책·임대·스캐너 상태/결과 결합·접수 응답 유실과 동일 본문 재전송·변조/위조 접수 차단, PDF/HWP/HWPX의 파서→접수 연결 **55건**.
 - `test_workhub_file_cleanup.py`: 기본 후보 조회·typed 참조/hold/진행 작업/보존기간·영구 차단 티켓·실물 변경/부재·응답 유실/재확인·임대/취소 **48건**.
-- 위 세 Python 시험은 `npm test`에 자동 포함된다. 각각 `npm test -- workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로도 실행할 수 있다. 기존 Python/lxml 환경을 사용한다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [서버 처리 코어 실행 안내](../workers/collection_files/README.md), [상세 인계와 지원 제한](../docs/workhub/36-collection-file-workers.md)을 참고한다.
+- 위 Python 시험은 `npm test`에 자동 포함된다. `npm test -- workhub_file_pdf` / `workhub_file_hwp` / `workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로 각각 실행할 수 있다. `workers/requirements.txt` 의존성이 필요하다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [실행 안내](../workers/collection_files/README.md), [처리 코어 인계](../docs/workhub/36-collection-file-workers.md), [최신 형식 지원과 실제 파일 실측](../docs/workhub/37-document-format-support.md)을 참고한다. 공개 HWP 원본 7개는 아직 미지원이며 합성 HWP 통과를 일반 문서 호환 완료로 계산하지 않는다.
 
 - `test_workhub_collection_export.mjs`: 실제 연결용 ZIP 계획·전체 단위 대조·완료/현재판 선택·원문/CSV·511개 경계·권한/판 변경·실패 재시도·취소 36건.
 - `test_workhub_collection_export_ui.mjs`: 접힌 화면·정확한 선택기 라벨·준비 전 다운로드 차단·범위/한도 안내 SSR 4건.
