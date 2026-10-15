@@ -116,11 +116,19 @@ def coll_input(**kw):
          'fileCollection': {'policy': {'extensions': ['pdf', 'hwpx'], 'maxFileBytes': 5000000, 'maxFiles': 3}, 'required': False, 'templates': []}}
     d.update(kw); return d
 
-def upload_object(uid, path):
-    c = api(uid); r = err(c, "insert into storage.objects(bucket_id,name,owner,owner_id,metadata) values ('workhub-collection-files',%s,%s::uuid,%s,'{}')", (path, uid, uid)); c.close(); return r
+# Storage 서버는 요청마다 storage.operation 을 넣는다(직접 업로드 = storage.object.upload, 직접 내려받기 = storage.object.get_authenticated,
+# 서명 URL 발급 = storage.object.sign / sign_many / sign_upload_url). op=None 은 값이 없는 요청.
+UP, GET = 'storage.object.upload', 'storage.object.get_authenticated'
+def storage_conn(uid, op):
+    c = api(uid)
+    if op is not None: call(c, "select set_config('storage.operation', %s, false)", (op,))
+    return c
 
-def can_read_object(uid, path):
-    c = api(uid); n = call(c, "select count(*) from storage.objects where bucket_id='workhub-collection-files' and name=%s", (path,)); c.close(); return n == 1
+def upload_object(uid, path, op=UP):
+    c = storage_conn(uid, op); r = err(c, "insert into storage.objects(bucket_id,name,owner,owner_id,metadata) values ('workhub-collection-files',%s,%s::uuid,%s,'{}')", (path, uid, uid)); c.close(); return r
+
+def can_read_object(uid, path, op=GET):
+    c = storage_conn(uid, op); n = call(c, "select count(*) from storage.objects where bucket_id='workhub-collection-files' and name=%s", (path,)); c.close(); return n == 1
 
 WORKER = None
 def worker_call(fn, *args):
@@ -543,8 +551,22 @@ def main():
     at = data(t21.rpc('workhub_file_access', {'kind': 'template', 'requestId': rid, 'version': 3}, tref['id'], kind='access', extra={'expected': tref}))
     check('G42 대상 교사 배부 파일 access(게시판 판 3)', at and at['file'] == tref, at)
     check('G43 배부 파일 판이 다르면 CONFLICT', code(t21.rpc('workhub_file_access', {'kind': 'template', 'requestId': rid, 'version': 2}, tref['id'])) == 'CONFLICT')
-    cc = api(T[24])
-    check('G44 버킷 전체 목록 조회 → access 받은 파일만 보임', call(cc, "select count(*) from storage.objects where bucket_id='workhub-collection-files'") == 1)
+    cc = storage_conn(T[24], GET)
+    check('G44 버킷 전체 행 조회 → access 받은 파일만 보임', call(cc, "select count(*) from storage.objects where bucket_id='workhub-collection-files'") == 1)
+    # 서명 URL 발급·목록 등 직접 업로드/내려받기가 아닌 요청 종류는 접근 기록이 있어도 거부(서명 URL 은 회수·소속 종료를 다시 보지 않음)
+    check('G53 서명 내려받기 URL 발급(storage.object.sign) → 접근 기록이 있어도 안 읽힘', not can_read_object(T[24], a1['path'], 'storage.object.sign'))
+    check('G54 여러 개 서명(storage.object.sign_many) → 안 읽힘', not can_read_object(T[24], a1['path'], 'storage.object.sign_many'))
+    check('G55 목록 조회(storage.object.list) → 0행', call(storage_conn(T[24], 'storage.object.list'), "select count(*) from storage.objects where bucket_id='workhub-collection-files'") == 0)
+    check('G56 요청 종류 값이 없으면(NULL) 안 읽힘', not can_read_object(T[24], a1['path'], None))
+    check('G57 접두어 없는 이름(object.get_authenticated)도 같은 종류로 인정 → 읽힘', can_read_object(T[24], a1['path'], 'object.get_authenticated'))
+    fs = blob('signed-upload', 333)
+    ps = data(t21.rpc('workhub_file_prepare', {'kind': 'draft', 'requestId': rid, 'unitId': uA, 'version': 6}, {'name': '서명.pdf', 'extension': 'pdf', 'claimedBytes': fs['bytes'], 'claimedSha256': fs['sha256']}, key()))
+    check('G58 서명 업로드 URL 발급(storage.object.sign_upload_url) → 본인 예약 경로여도 RLS 거부', 'row-level security' in upload_object(T[21], ps['path'], 'storage.object.sign_upload_url'))
+    check('G59 서명 업로드 사용(storage.object.upload_signed)·덮어쓰기(upload_update)·요청 종류 없음 → 거부',
+          all('row-level security' in upload_object(T[21], ps['path'], op) for op in ('storage.object.upload_signed', 'storage.object.upload_update', None)))
+    check('G60 같은 경로에 직접 업로드(storage.object.upload) → 허용(정상 SDK 경로 유지)', upload_object(T[21], ps['path']) == 'OK')
+    check('G61 업로드 중 파일을 내려받기 요청으로 읽기 → 안 읽힘(되읽기는 업로드 요청 안에서만)', not can_read_object(T[21], ps['path'], GET))
+    data(t21.rpc('workhub_file_complete', ps['fileId'], key())); verify_all(s1)
 
     # ======================================================================= 정리(GC)
     a = admin(); cur = a.cursor()
@@ -587,12 +609,146 @@ def main():
     check('G51 게시 정책판에 종료일 지정·은퇴는 허용(생성 열 비교 회귀)', cur2.rowcount == 1); a2.rollback()
     check('G52 게시 정책판 값 변경은 IMMUTABLE_ROW', err(admin('postgres'), "update workhub.policy_versions set approval_ref = 'x' where state = 'published'") == 'IMMUTABLE_ROW')
 
+    # ======================================================================= 작업자 lease·NULL·최종 거부 기록
+    def ev(fid, op):   # 감사 건수(파일별)
+        return scalar("select count(*) from workhub.audit_events where resource_id=%s and operation=%s", (fid, op))
+    def ob(fid):
+        return scalar("select count(*) from workhub.outbox where aggregate_id=%s and topic='file.verified'", (fid,))
+    def claim_mine(fid, worker='h1'):
+        """작업을 인수해 fid 작업만 돌려주고, 같이 잡힌 다른 작업은 바로 ready 로 봉인한다(다른 시험에 영향 없게)."""
+        mine = None
+        for x in worker_call('workhub_file_worker_claim', s1, worker, 20):
+            if x['fileId'] == fid: mine = x
+            else: worker_call('workhub_file_worker_seal', x['jobId'], x['leaseToken'], x['fileId'], x['path'], x['storageObjectId'], ready_result({'bytes': x['claimedBytes'], 'sha256': x['claimedSha256']}))
+        return mine
+    def gc_row(fid, tag):
+        a = admin(); cur = a.cursor()
+        cur.execute("""insert into workhub.file_objects (id, school_id, owner_account_id, owner_membership_id, storage_key, original_name, extension, claimed_bytes,
+            claimed_sha256, upload_expires_at, safety_policy_scope_key, safety_policy_version_id, common_safety_policy_version_id, created_at)
+          values (%s, %s, 'acc-21', %s, %s || '/' || %s || '/' || repeat(%s, 20), 'c.pdf', 'pdf', 10, repeat('c',64), now() - interval '3 days', 's:'||%s, %s, %s, now() - interval '3 days')""",
+          (fid, s1, M[21], s1, fid, tag, s1, pol, com))
+        a.close()
+    hp = {'kind': 'draft', 'requestId': rid, 'unitId': uA, 'version': 6}
+    fh = blob('lease-h', 444)
+    uph, _ = upload_file(t21, hp, '임대.pdf', fh, verify=False)
+    jh = claim_mine(uph['fileId'])
+    sealx = lambda j, f, **kw: err(WORKER, 'select public.workhub_file_worker_seal(%s,%s,%s,%s,%s,%s::jsonb)', (kw.get('job', j['jobId']), kw.get('token', j['leaseToken']),
+           kw.get('file', j['fileId']), kw.get('path', j['path']), kw.get('obj', j['storageObjectId']), json.dumps(ready_result(f))))
+    check('H01 seal 의 lease token·경로·실물 ID·파일 ID 가 NULL → INVALID_INPUT(변경 0)',
+          all(sealx(jh, fh, **{k: None}) == 'INVALID_INPUT' for k in ('token', 'path', 'obj', 'file'))
+          and scalar("select state from workhub.file_verification_jobs where id=%s", (jh['jobId'],)) == 'leased')
+    check('H02 fail 의 lease token 이 NULL → INVALID_INPUT', err(WORKER, 'select public.workhub_file_worker_fail(%s,%s,%s,%s)', (jh['jobId'], None, 'x_err', 10)) == 'INVALID_INPUT')
+    ins = worker_call('workhub_file_worker_job_inspect', jh['jobId'], jh['leaseToken'])
+    check('H03 job_inspect: 유효 lease, 실물 일치, 검사 기준 = 예약 정책판 ∩ 오늘 정책(형식·크기), claim 응답과 같음',
+          ins['leaseValid'] is True and ins['objectMatches'] is True
+          and ins['policy']['maxFileBytes'] == 8000000 and ins['policy']['extensions'] == ['pdf', 'hwpx', 'docx'] and ins['policy']['allowUnscanned'] is False
+          and jh['policy'] == ins['policy'] and jh['maxFileBytes'] == 8000000, (ins, jh.get('policy')))
+    check('H04 job_inspect 에 다른 token → leaseValid=false', worker_call('workhub_file_worker_job_inspect', jh['jobId'], jh['leaseToken'] + 1)['leaseValid'] is False)
+    run_sql(f"update workhub.file_verification_jobs set lease_expires_at = clock_timestamp() - interval '1 second' where id = '{jh['jobId']}'")
+    check('H05 lease 만료 뒤 seal → CONFLICT', sealx(jh, fh) == 'CONFLICT')
+    check('H06 lease 만료 뒤 fail → CONFLICT', err(WORKER, 'select public.workhub_file_worker_fail(%s,%s,%s,%s)', (jh['jobId'], jh['leaseToken'], 'late', 10)) == 'CONFLICT')
+    jh2 = claim_mine(uph['fileId'], 'h2')
+    check('H07 재인수 → 새 token(이전 +1)', jh2 is not None and jh2['leaseToken'] == jh['leaseToken'] + 1, jh2)
+    check('H08 재인수 뒤 옛 token 으로 seal·fail → CONFLICT', sealx(jh, fh) == 'CONFLICT'
+          and err(WORKER, 'select public.workhub_file_worker_fail(%s,%s,%s,%s)', (jh['jobId'], jh['leaseToken'], 'old', 10)) == 'CONFLICT')
+    check('H09 새 token 으로 seal → OK, inspect 는 done', sealx(jh2, fh) == 'OK'
+          and worker_call('workhub_file_worker_job_inspect', jh['jobId'], jh2['leaseToken'])['state'] == 'done')
+    # claim 의 최종 거부(실물 없음) → 감사·outbox 를 같이, 다시 불러도 중복 없음
+    fm = blob('missing-h', 321)
+    upm, _ = upload_file(t21, hp, '사라짐.pdf', fm, verify=False)
+    run_sql(f"delete from storage.objects where bucket_id='workhub-collection-files' and name='{upm['path']}'", 'supabase_admin')
+    a0, o0 = ev(upm['fileId'], 'file.verify_fail'), ob(upm['fileId'])
+    got = claim_mine(upm['fileId'])
+    check('H10 실물이 사라진 작업은 claim 이 rejected 로 닫고 돌려주지 않음', got is None
+          and scalar("select state || '/' || reject_reason from workhub.file_objects where id=%s", (upm['fileId'],)) == 'rejected/object_missing')
+    check('H11 그 최종 거부에 감사 1건·outbox(file.verified) 1건', ev(upm['fileId'], 'file.verify_fail') == a0 + 1 and ob(upm['fileId']) == o0 + 1)
+    claim_mine('none')
+    check('H12 다시 claim 해도 감사·outbox 중복 없음', ev(upm['fileId'], 'file.verify_fail') == a0 + 1 and ob(upm['fileId']) == o0 + 1)
+    # 기록이 실패하면 claim 전체가 되돌아간다(시험 전용 트리거로 감사 쓰기를 일부러 막음)
+    fz = blob('atomic-h', 222)
+    upz, _ = upload_file(t21, hp, '원자.pdf', fz, verify=False)
+    run_sql(f"delete from storage.objects where bucket_id='workhub-collection-files' and name='{upz['path']}'", 'supabase_admin')
+    run_sql("create function workhub_private.h_block() returns trigger language plpgsql as $f$ begin raise exception 'H_BLOCK'; end $f$;"
+            "create trigger h_block before insert on workhub.audit_events for each row when (new.operation = 'file.verify_fail') execute function workhub_private.h_block()")
+    r = err(WORKER, "select public.workhub_file_worker_claim(%s,'h3',20)", (s1,))
+    st_z = scalar("select f.state || '/' || j.state from workhub.file_objects f join workhub.file_verification_jobs j on j.file_id=f.id where f.id=%s", (upz['fileId'],))
+    run_sql("drop trigger h_block on workhub.audit_events; drop function workhub_private.h_block()")
+    check('H13 최종 거부 기록이 실패하면 작업·파일 상태도 되돌아감(부분 반영 없음)', 'H_BLOCK' in r and st_z == 'uploaded/queued', (r, st_z))
+    claim_mine('none')
+    # 시도 횟수를 다 쓴 fail → 최종 rejected + 감사·outbox
+    fe = blob('exhaust-h', 555)
+    upe, _ = upload_file(t21, hp, '소진.pdf', fe, verify=False)
+    run_sql(f"update workhub.file_verification_jobs set attempts = max_attempts - 1 where file_id = '{upe['fileId']}'")
+    je = claim_mine(upe['fileId'])
+    o0 = ob(upe['fileId'])
+    fr_ = worker_call('workhub_file_worker_fail', je['jobId'], je['leaseToken'], 'scanner_down', 10)
+    check('H14 마지막 시도의 fail → final, 파일 rejected(verification_exhausted), outbox 1건',
+          fr_ == {'fileId': upe['fileId'], 'state': 'rejected', 'final': True} and ob(upe['fileId']) == o0 + 1
+          and scalar("select reject_reason from workhub.file_objects where id=%s", (upe['fileId'],)) == 'verification_exhausted', fr_)
+
+    # 정리 원장: NULL·만료·옛 token·재전송·삭제 직전 확인
+    gc_row('gc-h', 'C')
+    lh = [x for x in worker_call('workhub_file_worker_cleanup_claim', s1, 'gc2', 50) if x['fileId'] == 'gc-h'][0]
+    ci = worker_call('workhub_file_worker_cleanup_inspect', lh['ledgerId'], lh['leaseToken'])
+    check('H15 cleanup_inspect: blocked·유효 lease·미연결·검증 중 아님·실물 없음', ci['state'] == 'blocked' and ci['leaseValid'] is True and ci['linked'] is False
+          and ci['verifying'] is False and ci['objectPresent'] is False and ci['outcome'] is None, ci)
+    gdone = lambda tok, out='deleted', reason=None: err(WORKER, 'select public.workhub_file_worker_cleanup_done(%s,%s,%s,%s)', (lh['ledgerId'], tok, out, reason))
+    check('H16 cleanup_done 의 lease token NULL → INVALID_INPUT', gdone(None) == 'INVALID_INPUT')
+    check('H17 deleted 에 사유를 붙이면 INVALID_INPUT', gdone(lh['leaseToken'], 'deleted', 'why') == 'INVALID_INPUT')
+    run_sql(f"update workhub.deletion_ledger set lease_expires_at = clock_timestamp() - interval '1 second' where id = '{lh['ledgerId']}'")
+    check('H18 lease 만료 뒤 cleanup_done → CONFLICT(원장은 blocked 유지)', gdone(lh['leaseToken']) == 'CONFLICT'
+          and scalar("select state from workhub.deletion_ledger where id=%s", (lh['ledgerId'],)) == 'blocked')
+    lh2 = [x for x in worker_call('workhub_file_worker_cleanup_claim', s1, 'gc3', 50) if x['fileId'] == 'gc-h'][0]
+    check('H19 재인수 → 같은 원장·새 token, 옛 token 은 CONFLICT', lh2['ledgerId'] == lh['ledgerId'] and lh2['leaseToken'] == lh['leaseToken'] + 1
+          and gdone(lh['leaseToken']) == 'CONFLICT', lh2)
+    first = worker_call('workhub_file_worker_cleanup_done', lh['ledgerId'], lh2['leaseToken'], 'deleted', None)
+    again = worker_call('workhub_file_worker_cleanup_done', lh['ledgerId'], lh2['leaseToken'], 'deleted', None)
+    check('H20 같은 token·같은 결과 재전송 → 같은 결과 + replayed=true(감사 1건만)', first['replayed'] is False and again == {**first, 'replayed': True}
+          and ev('gc-h', 'file.cleanup') == 1, (first, again))
+    check('H21 끝난 원장에 다른 결과(retained) → CONFLICT', gdone(lh2['leaseToken'], 'retained', 'manual_hold') == 'CONFLICT')
+    check('H22 끝난 원장에 옛 token → CONFLICT', gdone(lh['leaseToken']) == 'CONFLICT')
+    ci = worker_call('workhub_file_worker_cleanup_inspect', lh['ledgerId'], lh2['leaseToken'])
+    check('H23 cleanup_inspect 로 끝난 결과 복구(outcome=deleted, leaseValid=false)', ci['outcome'] == 'deleted' and ci['leaseValid'] is False, ci)
+    rr = worker_call('workhub_file_worker_cleanup_done', lg['gc-expired']['ledgerId'], lg['gc-expired']['leaseToken'], 'retained', 'manual_hold')
+    check('H24 retained 도 같은 사유 재전송은 replayed, 다른 사유는 CONFLICT', rr['replayed'] is True
+          and gcd('gc-expired', 'retained', 'other_reason') == 'CONFLICT', rr)
+
+    # ======================================================================= 제출판 총량 경계(동시)
+    inp3 = coll_input(title='총량 경계', reviewMode='none', reviewerMemberId='', numberLabel='',
+                      units=[{'label': f'u{i}', 'responsibleMemberId': M[n], 'contributorMemberIds': []} for i, n in enumerate((25, 21, 23))])
+    del inp3['fileCollection']
+    rid3 = data(adm.mutate({'kind': 'create', 'input': inp3}))['requestId']
+    adm.mutate({'kind': 'publish', 'requestId': rid3, 'expectedVersion': 1})
+    u3 = scalar("select jsonb_agg(id order by ordinal) from workhub.collection_units where collection_id=%s", (rid3,))
+    whos = {u3[0]: t25, u3[1]: t21, u3[2]: t23}
+    drafts3 = {u: data(w.mutate({'kind': 'save_draft', 'requestId': rid3, 'unitId': u, 'expectedVersion': 0, 'input': {'text': '총량', 'number': None}}))['resourceId'] for u, w in whos.items()}
+    seed = data(t25.mutate({'kind': 'submit', 'requestId': rid3, 'unitId': u3[0], 'draftId': drafts3[u3[0]], 'expectedDraftVersion': 1, 'expectedVersion': 1, 'reason': ''}))['resourceId']
+    cols = scalar("select array_agg(column_name::text order by ordinal_position) from information_schema.columns where table_schema='workhub' and table_name='submission_versions' and is_generated='NEVER' and column_name not in ('id','version_no','previous_submission_id','request_id','correction_reason')")
+    cl_ = ','.join(cols)
+    run_sql(f"insert into workhub.submission_versions ({cl_}, version_no, request_id, correction_reason) select {cl_}, version_no + g, 'clone-key-' || g, '시험 복제' from workhub.submission_versions, generate_series(1, 998) g where id = '{seed}'")
+    check('Q01 시험 준비: 이 수합의 제출판 999개', scalar("select count(*) from workhub.submission_versions where collection_id=%s", (rid3,)) == 999)
+    race = {}
+    def submit_as(uid, member, unit):
+        race[unit] = code(Who(uid, member).mutate({'kind': 'submit', 'requestId': rid3, 'unitId': unit, 'draftId': drafts3[unit], 'expectedDraftVersion': 1, 'expectedVersion': 1, 'reason': ''})) or 'OK'
+    th = [threading.Thread(target=submit_as, args=(T[21], M[21], u3[1])), threading.Thread(target=submit_as, args=(T[23], M[23], u3[2]))]
+    [t.start() for t in th]; [t.join() for t in th]
+    check('Q02 서로 다른 단위가 999 에서 동시에 제출 → 하나만 성공, 하나는 NOT_READY(교착 없음)', sorted(race.values()) == ['NOT_READY', 'OK'], race)
+    check('Q03 제출판은 정확히 1,000개, 상세는 계속 열림', scalar("select count(*) from workhub.submission_versions where collection_id=%s", (rid3,)) == 1000
+          and data(adm.rpc('workhub_collection_get', rid3)) is not None)
+
     # ======================================================================= 중지·재개(R1-80/81)
     def switch(state):
         txt = open(f'{R1_DIR}/R1-80_중지.sql' if state != 'open' else f'{R1_DIR}/R1-81_재개.sql', encoding='utf-8').read()
         txt = txt.replace("'<중지 단계: writes_stopped 또는 all_stopped>'", f"'{state}'").replace("'<사유: 날짜와 이유>'", "'시험'")
         run_sql(txt)
+    fs1, fs2 = blob('stop-1', 401), blob('stop-2', 402)
+    ups1, _ = upload_file(t21, hp, '중지1.pdf', fs1, verify=False); ups2, _ = upload_file(t21, hp, '중지2.pdf', fs2, verify=False)
+    jobs_s = {x['fileId']: x for x in worker_call('workhub_file_worker_claim', s1, 's1', 20)}
+    js1, js2 = jobs_s[ups1['fileId']], jobs_s[ups2['fileId']]
+    gc_row('gc-stop', 'D')
+    ls_ = [x for x in worker_call('workhub_file_worker_cleanup_claim', s1, 'gcs', 50) if x['fileId'] == 'gc-stop'][0]
     switch('writes_stopped')
+    check('S11 쓰기 중지: 이미 인수한 검증은 봉인 가능(진행 중 작업 마무리)', sealx(js1, fs1) == 'OK')
     check('S01 쓰기 중지: 준비 상태 database_missing', data(adm.rpc('workhub_collection_readiness'))['reason'] == 'database_missing')
     check('S02 쓰기 중지: 새 명령 NOT_READY', code(t21.mutate({'kind': 'save_draft', 'requestId': rid, 'unitId': uA, 'expectedVersion': 6, 'input': {'text': 'x', 'number': None}})) == 'NOT_READY')
     check('S03 쓰기 중지: 목록·상세·내려받기 허가는 그대로', data(t21.rpc('workhub_collection_list', None))['items'] and data(t24.rpc('workhub_file_access', parS, refA['id'])))
@@ -600,11 +756,19 @@ def main():
     check('S05 쓰기 중지: Storage 업로드 차단', 'row-level security' in upload_object(T[21], data(t21.rpc('workhub_file_prepare', par, meta, kp))['path'] + 'z'))
     check('S06 쓰기 중지: 작업자 인수 0건', worker_call('workhub_file_worker_claim', s1, 'w1', 5) == [])
     switch('all_stopped')
+    check('S12 전체 중지: 새 봉인 → NOT_READY(작업은 leased 그대로)', sealx(js2, fs2) == 'NOT_READY'
+          and scalar("select state from workhub.file_verification_jobs where id=%s", (js2['jobId'],)) == 'leased')
+    check('S13 전체 중지: 정리 확정 → NOT_READY(원장 blocked 유지 = 파일 계속 막힘)',
+          err(WORKER, 'select public.workhub_file_worker_cleanup_done(%s,%s,%s,%s)', (ls_['ledgerId'], ls_['leaseToken'], 'deleted', None)) == 'NOT_READY'
+          and scalar("select state from workhub.deletion_ledger where id=%s", (ls_['ledgerId'],)) == 'blocked')
+    check('S14 전체 중지: fail(작업을 대기열로 되돌림)은 받음', err(WORKER, 'select public.workhub_file_worker_fail(%s,%s,%s,%s)', (js2['jobId'], js2['leaseToken'], 'stopped', 10)) == 'OK')
+    check('S15 전체 중지: cleanup_inspect 는 leaseValid=false', worker_call('workhub_file_worker_cleanup_inspect', ls_['ledgerId'], ls_['leaseToken'])['leaseValid'] is False)
     check('S07 전체 중지: 조회도 NOT_READY, Storage 읽기 차단', code(t21.rpc('workhub_collection_list', None)) == 'NOT_READY' and not can_read_object(T[24], a1['path']))
     r0task = call(api(U1), "select public.workhub_task_mutate(%s, %s::jsonb, %s)", (m1, json.dumps({'kind': 'create', 'input': {'title': 'R1 중지 중 R0 업무', 'notes': '', 'dueDate': ''}}), key()))
     check('S08 R1 전체 중지 중에도 R0 개인 업무는 동작', r0task and r0task.get('title') == 'R1 중지 중 R0 업무', r0task)
     switch('open')
     check('S09 재개: ready', data(adm.rpc('workhub_collection_readiness'))['reason'] == 'ready')
+    check('S16 재개 뒤 같은 lease 로 정리 확정 → OK', err(WORKER, 'select public.workhub_file_worker_cleanup_done(%s,%s,%s,%s)', (ls_['ledgerId'], ls_['leaseToken'], 'deleted', None)) == 'OK')
     check('S10 중지·재개 이력 3건 기록', scalar('select count(*) from workhub_private.r1_switch_log') == 3)
 
     # ======================================================================= 목록 cursor
@@ -637,6 +801,33 @@ def main():
     rs = [data(v) for v in same.values()]
     check('X03 같은 키·같은 본문 동시 3건 → 같은 접수증 3개, 수합 1건만 생성', all(rs) and rs[0] == rs[1] == rs[2]
           and scalar('select count(*) from workhub.collections') == n0 + 1, same)
+
+    # ======================================================================= 현재 정책의 첨부 개수 상한(정책을 줄이므로 맨 끝에 둔다)
+    inp4 = coll_input(title='개수 상한', reviewMode='none', reviewerMemberId='', numberLabel='',
+                      units=[{'label': '담당', 'responsibleMemberId': M[25], 'contributorMemberIds': []}])
+    rid4 = data(adm.mutate({'kind': 'create', 'input': inp4}))['requestId']
+    adm.mutate({'kind': 'publish', 'requestId': rid4, 'expectedVersion': 1})
+    u4 = scalar('select id from workhub.collection_units where collection_id=%s', (rid4,))
+    refs4 = [upload_file(t25, {'kind': 'draft', 'requestId': rid4, 'unitId': u4, 'version': 0}, f'첨부{i}.pdf', blob(f'cap-{i}', 600 + i))[1]['file'] for i in range(3)]
+    d4 = data(t25.mutate({'kind': 'save_draft', 'requestId': rid4, 'unitId': u4, 'expectedVersion': 0, 'input': {'text': '세 개', 'number': None, 'files': refs4}}))['resourceId']
+    s4a = data(t25.mutate({'kind': 'submit', 'requestId': rid4, 'unitId': u4, 'draftId': d4, 'expectedDraftVersion': 1, 'expectedVersion': 1, 'reason': ''}))['resourceId']
+    # 학교 업로드 정책을 오늘부터 maxFiles 2 로 새로 게시(이전 판은 오늘 전까지로 종료). 승인 칸은 기존 판에서 복사한다.
+    run_sql("""update workhub.policy_versions set effective_to = current_date where policy_key = 'collection.file_upload' and state = 'published' and effective_to is null;
+      insert into workhub.policy_versions (scope, school_id, policy_key, policy_version, applies_to_scopes, value, state, effective_from,
+          approved_by_account_id, approved_by_membership_id, approved_at, approval_ref)
+      select scope, school_id, policy_key, policy_version + 1, applies_to_scopes, value || '{"maxFiles": 2}', 'published', current_date,
+          approved_by_account_id, approved_by_membership_id, approved_at, approval_ref || ' (개수 축소 시험)'
+        from workhub.policy_versions where policy_key = 'collection.file_upload' and state = 'published' and effective_to = current_date""")
+    check('M01 준비 상태 정책도 maxFiles 2', data(adm.rpc('workhub_collection_readiness'))['policy']['maxFiles'] == 2)
+    e = t25.mutate({'kind': 'save_draft', 'requestId': rid4, 'unitId': u4, 'expectedVersion': 1, 'input': {'text': '세 개', 'number': None, 'files': refs4}})
+    check('M02 새 초안 저장: 요청 정책(3)은 맞아도 오늘 정책(2)을 넘으면 FILE_FAILED', code(e) == 'FILE_FAILED', e)
+    e = t25.mutate({'kind': 'submit', 'requestId': rid4, 'unitId': u4, 'draftId': d4, 'expectedDraftVersion': 1, 'expectedVersion': 2, 'reason': '다시 제출'})
+    check('M03 저장 없이 바로 제출(축소 전 저장한 3개 초안) → FILE_FAILED', code(e) == 'FILE_FAILED', e)
+    det4 = data(t25.rpc('workhub_collection_get', rid4))
+    check('M04 이미 받은 3개 제출판은 그대로(이력 보존)', [x['id'] for x in det4['submissions']] == [s4a] and len(det4['submissions'][0]['files']) == 3, det4['submissions'])
+    e = t25.mutate({'kind': 'save_draft', 'requestId': rid4, 'unitId': u4, 'expectedVersion': 1, 'input': {'text': '두 개', 'number': None, 'files': refs4[:2]}})
+    e2 = t25.mutate({'kind': 'submit', 'requestId': rid4, 'unitId': u4, 'draftId': d4, 'expectedDraftVersion': 2, 'expectedVersion': 2, 'reason': '두 개로'})
+    check('M05 2개로 줄이면 저장·제출 통과', data(e) and data(e2), (e, e2))
 
     # ======================================================================= 작업자 연결 끊기(R1_실행안내.md 의 두 줄)
     run_sql("update workhub_private.api_role_principals set revoked_at = now() where service_principal_id = 'svc_file_worker' and revoked_at is null;"

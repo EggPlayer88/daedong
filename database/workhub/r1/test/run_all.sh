@@ -47,9 +47,14 @@ refuse "I4 R1-02 전에 R1-03 을 실행하면 멈춤" "R1-02(2026-10-15.1)가 �
 need qa -qc "insert into storage.buckets(id, name, public) values ('workhub-collection-files', 'workhub-collection-files', false)"
 refuse "I5 같은 이름 버킷이 이미 있으면 R1-01 이 멈춤(남의 버킷을 덮지 않음)" "버킷이 이미 있습니다" q -f "$S/R1-01_정책_파일_실행.sql"
 need qa -qc "delete from storage.buckets where id = 'workhub-collection-files'"
+need q -f "$S/R1-01_정책_파일_실행.sql" >/dev/null; need q -f "$S/R1-02_수합_원본.sql" >/dev/null
+need qa -qc "drop function storage.operation()"
+refuse "I6 Storage 가 요청 종류(storage.operation)를 알려 주지 않는 판이면 R1-03 이 멈춤" "storage.operation() 이 없습니다" q -f "$S/R1-03_공개함수_Storage.sql"
+[ "$(val "select count(*) from pg_namespace where nspname = 'workhub_storage'") $(val "select count(*) from storage.buckets where id = 'workhub-collection-files'")" = "0 0" ] && ok "I7 멈춘 R1-03 은 schema·버킷을 남기지 않음" || ng I7
+r0_only; need q -f "$R0_WORK/inputs/R0-03_filled.sql" >/dev/null
 
 echo "== II. 설치 (R0 적용 + 기존 회원·제출·파일 자료가 있는 DB)"
-rows "II1 R1-00 사전 점검 7행이 ok/info" 7 '^점검\|[^|]*\|(ok|info)\|' q -At -f "$S/R1-00_사전점검_지문.sql"
+rows "II1 R1-00 사전 점검 8행이 ok/info" 8 '^점검\|[^|]*\|(ok|info)\|' q -At -f "$S/R1-00_사전점검_지문.sql"
 need fp fp_before
 rows "II2 R1-01 검증 5행 ok" 5 '^ R1-01-[0-9] .*\| ok ' q -f "$S/R1-01_정책_파일_실행.sql"
 rows "II3 R1-02 검증 4행 ok" 4 '^ R1-02-[0-9] .*\| ok ' q -f "$S/R1-02_수합_원본.sql"
