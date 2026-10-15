@@ -20,7 +20,7 @@ const bundle=buildSync({stdin:{contents:`
   const services={async getSession(){return {user:{id:uid}}},async fetchMyProfile(id){if(delay) await new Promise(r=>setTimeout(r,delay));if(profileError)throw new Error('synthetic query failure');return {id,name:'가상 기존 회원',email:'synthetic@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}},onAuthStateChange(cb){callback=cb;return()=>{callback=()=>{}}},async signInWithGoogle(){},async signOut(){},async rpc(name,args){
     if(name==='workhub_context'){scenario.contextCalls++;return {error:null,data:{...memory.info(),schoolLabels:Object.fromEntries(fixtureData.schools.map(s=>[s.id,relationLabels]))}}}
     if(denied)return {data:null,error:{message:'INACTIVE_MEMBERSHIP'}};
-    if(name==='workhub_collection_readiness'){
+    if(name==='workhub_collection_basic_readiness'){
       if(!collectionReason)return {data:null,error:{code:'PGRST202',message:'synthetic missing function'}};
       const actor=fixtureData.memberships.find(member=>member.id===args.p_member_id);
       return {error:null,data:{contractVersion:1,schoolId:actor.schoolId,memberId:actor.id,data:{available:false,reason:collectionReason,policy:null}}};
@@ -107,13 +107,13 @@ try{
   assert.equal(await page.getByText('가온 학교의 내 업무',{exact:true}).count(),0)
   console.log('  ✓ 학교 전환 중 이전 학교의 늦은 업무 조회 결과 폐기')
   await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'자료 수합',exact:true}).click()
-  await page.getByText('문서 수합 연결을 확인하지 못했습니다. 수합이 없는 것으로 표시하지 않습니다.',{exact:true}).waitFor()
+  await page.getByText('HWPX 전용 수합 연결을 준비 중입니다. 현재 연결을 확인하지 못해 원인을 확정할 수 없습니다. 수합이 없는 것으로 표시하지 않습니다.',{exact:true}).waitFor()
   assert.equal(await page.getByText('현재 볼 수 있는 수합이 없습니다.',{exact:true}).count(),0)
   assert.equal(await page.getByRole('button',{name:'새 수합 만들기',exact:true}).count(),0)
   console.log('  ✓ 현재 R0에 수합 RPC가 없어도 빈 목록·저장 성공으로 바꾸지 않고 별도 안내한다')
   await page.evaluate(()=>window.scenario.collectionReason('verification_missing'))
   await page.getByRole('button',{name:'연결과 원본 다시 확인',exact:true}).click()
-  await page.getByText('업로드한 파일을 서버에서 확인하는 기능이 아직 준비되지 않았습니다.',{exact:true}).waitFor()
+  await page.getByText('HWPX 파일의 기본 확인 기능이 아직 연결되지 않았습니다.',{exact:true}).waitFor()
   assert.equal(await page.getByRole('button',{name:'새 수합 만들기',exact:true}).count(),0)
   console.log('  ✓ 실제 연결 셸에서도 서버 파일 검사 준비 전 등록·업로드를 열지 않는다')
   await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'내 업무',exact:true}).click()

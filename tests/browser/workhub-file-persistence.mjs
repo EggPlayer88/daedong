@@ -6,6 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
+import { loadBrowserModule } from '../helpers/load-browser-module.mjs'
 
 const bundle = buildSync({ stdin: { contents: `
   import React from 'react';import{createRoot}from'react-dom/client';
@@ -41,8 +42,18 @@ const taskTitle = '새로고침 후 남는 합성 개인 업무', taskNote = '�
 const textTitle = '새로고침 후 남는 글 숫자 수합', textAnswer = '합성 준비 내용 그대로 복원'
 const fileTitle = '새로고침 후 사라질 파일 수합', fileInstructions = '현재 탭 전용 합성 파일 안내'
 const fileAnswer = '현재 탭 전용 합성 제출 본문', reviewNote = '현재 탭 전용 합성 파일 검토 의견'
-const pdf = name => ({ name, mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\nONLY_MEMORY_SYNTHETIC_BODY_' + name + '\n%%EOF') })
-const template = pdf('ONLY_MEMORY_TEMPLATE.pdf'), response = pdf('ONLY_MEMORY_RESPONSE.pdf')
+// 실제 미리보기의 새 수합 정책에 맞춘 합성 HWPX다. 파일 보존 시험이며 문서 렌더링 검증은 아니다.
+const { buildStoredZip } = await loadBrowserModule(`export { buildStoredZip } from '../apps/workhub/src/files/download'`)
+const hwpx = async name => {
+  const entries = [
+    ['mimetype', 'application/hwp+zip'],
+    ['META-INF/container.xml', '<container/>'],
+    ['Contents/content.hpf', '<package/>'],
+    ['Contents/section0.xml', '<section>ONLY_MEMORY_SYNTHETIC_BODY_' + name + '</section>'],
+  ].map(([name, text]) => ({ name, bytes: new TextEncoder().encode(text) }))
+  return { name, mimeType: 'application/hwp+zip', buffer: Buffer.from(await buildStoredZip(entries).arrayBuffer()) }
+}
+const template = await hwpx('ONLY_MEMORY_TEMPLATE.hwpx'), response = await hwpx('ONLY_MEMORY_RESPONSE.hwpx')
 const form = () => page.getByRole('form', { name: '수합 만들기 양식', exact: true })
 const unit = name => page.getByRole('article', { name: name + ' 제출 단위', exact: true })
 const answer = name => unit(name).getByRole('form', { name: name + ' 응답 초안', exact: true })
