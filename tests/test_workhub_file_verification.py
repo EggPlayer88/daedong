@@ -7,7 +7,8 @@ from pathlib import Path
 import sys
 import zipfile
 from pypdf import PdfWriter
-from helpers.hwp_fixture import make_hwp
+from helpers.hwp_fixture import make_hwp, hwp_streams, cfb
+from helpers.pdf_fixture import modern_pdf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from workers.collection_files.common import WorkerError, checked_ref, canonical_hash
@@ -330,6 +331,85 @@ for template in sorted((Path(__file__).resolve().parents[1] / "apps/main/api/doc
             assert evidence["format"]["status"] == "passed"
             assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
         test("보호 양식 원문→검증 접수 " + template.name + " 스캔=" + str(scanner), hwpx_pipeline)
+
+for compressed, predictor in ((False, 1), (True, 1), (True, 12)):
+    for scanner in (False, True):
+        def modern_pipeline(compressed=compressed, predictor=predictor, scanner=scanner):
+            f = format_fixture(modern_pdf(compressed=compressed, predictor=predictor), "압축색인.pdf")
+            result = f.run(scanner=scanner)
+            assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+            evidence = f.commits[0]["evidence"]
+            assert evidence["format"]["status"] == "passed"
+            assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
+        test("PDF 압축 색인·객체·PNG 예측과 검사 접수 " + str((compressed, predictor, scanner)), modern_pipeline)
+
+
+for label, body in (
+    ("잘못된 압축 객체 색인", modern_pdf(xref_changes={1: (2, 5, 99)})),
+    ("압축 색인 문서의 추가 실행 객체", modern_pdf(extra_objects={8: b"<< /JS (forbidden) >>"})),
+):
+    def invalid_modern(body=body):
+        f = format_fixture(body, "손상.pdf")
+        result = f.run()
+        assert result.status == "recorded" and result.decision == "rejected", result
+        assert f.commits[0]["evidence"]["format"]["status"] == "rejected" and not f.scans
+    test(label + "는 새 접수 경로에서도 거부한다", invalid_modern)
+
+
+for empty_link in (False, True):
+    for scanner in (False, True):
+        def compatible_hwp(empty_link=empty_link, scanner=scanner):
+            f = format_fixture(make_hwp(encrypt_version=4, empty_link=empty_link), "평문문서.hwp")
+            result = f.run(scanner=scanner)
+            assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+            evidence = f.commits[0]["evidence"]
+            assert evidence["format"]["status"] == "passed"
+            assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
+        test("평문 HWP 알고리즘 정보·빈 연결 옵션과 검사 접수 " + str((empty_link, scanner)), compatible_hwp)
+
+
+def unknown_hwp_features():
+    bodies = [make_hwp(encrypt_version=99)]
+    streams = hwp_streams(empty_link=True)
+    streams["DocOptions/_LinkDoc"] = b"x\0" + streams["DocOptions/_LinkDoc"][2:]
+    bodies.append(cfb(streams))
+    for body in bodies:
+        f = format_fixture(body, "미지원.hwp")
+        result = f.run()
+        assert result.status == "recorded" and result.decision == "pending", result
+        assert f.commits[0]["evidence"]["format"]["status"] == "unsupported" and not f.scans
+
+
+test("알 수 없는 HWP 헤더·문서 연결은 완료 처리하거나 악성으로 단정하지 않는다", unknown_hwp_features)
+
+
+for scanner in (False, True):
+    def initial_view_pdf(scanner=scanner):
+        body = modern_pdf(members={
+            1: b"<< /Type /Catalog /Pages 2 0 R /OpenAction 8 0 R >>",
+            2: b"<< /Type /Pages /Count 1 /Kids [3 0 R] >>",
+            3: b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R >>",
+        }, extra_objects={8: b"<< /S /GoTo /D [3 0 R /Fit] >>"})
+        f = format_fixture(body, "첫페이지보기.pdf")
+        result = f.run(scanner=scanner)
+        assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+        assert f.commits[0]["evidence"]["format"]["status"] == "passed"
+        assert f.commits[0]["evidence"]["scan"]["status"] == ("clean" if scanner else "not_scanned")
+    test("내부 첫 페이지 보기 PDF도 구조·악성 검사 분리를 유지한다 " + str(scanner), initial_view_pdf)
+
+
+for version in (0x05010000, 0x05010001, 0x05010100):
+    for scanner in (False, True):
+        def versioned_hwp(version=version, scanner=scanner):
+            body = make_hwp(version=version, compatibility=True, empty_link=True, encrypt_version=4)
+            f = format_fixture(body, "최신형식.hwp")
+            result = f.run(scanner=scanner)
+            assert result.status == "recorded" and result.decision == ("ready" if scanner else "pending"), result
+            evidence = f.commits[0]["evidence"]
+            assert evidence["format"]["status"] == "passed"
+            assert evidence["scan"]["status"] == ("clean" if scanner else "not_scanned")
+        test("명시된 HWP 5.1 프로필의 검사·접수 " + str((hex(version), scanner)), versioned_hwp)
+
 
 print(f"\n{passed} passed, {failed} failed")
 if failed:
