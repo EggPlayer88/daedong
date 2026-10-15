@@ -1,0 +1,17 @@
+.wf-recipient-picker{min-width:0;padding:16px;margin:14px 0;border:1px solid var(--ui-line,#d9dee6);border-radius:var(--ui-radius,10px);background:var(--ui-surface,#fff);color:var(--ui-text,#252c36)}
+.wf-recipient-picker h4{margin:0 0 8px;font-size:var(--ui-body-size,15px)}
+.wf-recipient-picker>p,.wf-recipient-count,.wf-recipient-footer p{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#606b7a);line-height:1.7;margin:8px 0;overflow-wrap:anywhere}
+.wf-recipient-picker fieldset{min-width:0;margin:12px 0 0;padding:0;border:0}
+.wf-recipient-search{display:grid;gap:6px;min-width:0}
+.wf-recipient-search input{box-sizing:border-box;width:100%;min-width:0;min-height:44px;color:var(--ui-text,#252c36);background:var(--ui-surface,#fff);border:1px solid var(--ui-line,#d9dee6);border-radius:var(--ui-radius,8px);padding:9px 11px}
+.wf-recipient-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:10px 0}
+.wf-recipient-picker button{min-height:44px;white-space:normal;max-width:100%;overflow-wrap:anywhere}
+.wf-recipient-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 12px;min-width:0;border-top:1px solid var(--ui-line,#d9dee6);padding-top:8px}
+.wf-recipient-option{display:flex;align-items:center;gap:9px;min-width:0;min-height:44px;padding:6px 8px;border-radius:var(--ui-radius,7px);font-weight:400;cursor:pointer}
+.wf-recipient-option:hover{background:var(--ui-surface-muted,#f4f6f8)}
+.wf-recipient-option input{width:18px;height:18px;flex-shrink:0;accent-color:var(--ui-accent,#356bb1)}
+.wf-recipient-option span{min-width:0;overflow-wrap:anywhere;line-height:1.6}.wf-recipient-option small{display:block;color:var(--ui-muted,#606b7a);font-size:var(--ui-small-size,13px)}
+.wf-recipient-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:12px;border-top:1px solid var(--ui-line,#d9dee6);padding-top:8px}
+.wf-recipient-picker .wf-recipient-feedback{border-left:3px solid var(--ui-accent,#356bb1);padding:8px 12px;color:var(--ui-text,#252c36);background:var(--ui-surface-muted,#f4f6f8)}
+.wf-recipient-picker :is(button,input):focus-visible,.wf-recipient-options:focus{outline:3px solid var(--ui-focus,#356bb1);outline-offset:3px}
+@media(max-width:520px){.wf-recipient-picker{padding:12px}.wf-recipient-options{grid-template-columns:minmax(0,1fr)}.wf-recipient-search input{font-size:16px}.wf-recipient-footer{align-items:stretch;flex-direction:column}.wf-recipient-footer>button{width:100%}}

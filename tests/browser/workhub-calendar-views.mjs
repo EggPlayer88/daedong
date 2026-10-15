@@ -97,6 +97,8 @@ try {
   await page.getByRole('button', { name: '시트에서 가져오기', exact: true }).click()
   const importing = page.getByRole('dialog', { name: '시트에서 일정 가져오기', exact: true })
   await importing.getByLabel('원본 표 붙여넣기', { exact: true }).fill('제목\t시작일\n학교 화면에서 가져온 일정\t2026-10-20')
+  // 입력 뒤 가져오기 창의 효과가 부모 잠금에 반영될 때까지 실제 상태를 기다린다.
+  await page.waitForFunction(() => window.scenario.locked === true)
   assert.equal(await page.evaluate(() => window.scenario.locked), true)
   await importing.getByRole('button', { name: '열 연결 확인', exact: true }).click()
   await importing.getByRole('button', { name: '행 검사 · 기존 일정과 비교', exact: true }).click()

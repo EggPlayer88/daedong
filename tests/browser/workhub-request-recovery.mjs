@@ -34,7 +34,7 @@ const bundle = buildSync({ stdin: { contents: `
       return{data:result,error:null};
     }
   };
-  createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={createSupabaseConnection(services)}/>);
+  createRoot(document.getElementById('root')).render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={createSupabaseConnection(services)}/>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' }).outputFiles[0].text
 const browser = await launchBrowser()
 const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })

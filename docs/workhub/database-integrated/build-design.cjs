@@ -1,6 +1,7 @@
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const root=__dirname;
 const {release,extensions}=require('./integrate-extensions.cjs');
+const {validateDesignConstraints}=require('./design-constraints.cjs');
 const read=name=>JSON.parse(fs.readFileSync(path.join(root,name),'utf8').replace(/^\uFEFF/,''));
 const write=(name,value)=>fs.writeFileSync(path.join(root,name),typeof value==='string'?value:JSON.stringify(value,null,2)+'\n');
 const short=x=>x.replace(/^workhub\./,'');
@@ -52,6 +53,13 @@ for(const c of changes){
   if(!list(t.mandatory_constraints).includes(removed)&&!inherited)errors.push('대체할 제약 없음: '+c.table+' '+removed);
   t.superseded_constraints=[...list(t.superseded_constraints),inherited||{name:removed,definition:removed}];
   t.inherited_constraints=list(t.inherited_constraints).filter(x=>x.name!==removed);
+  // 같은 원본 FK의 두 카탈로그 표현을 함께 대체한다. 다른 FK를 추정 삭제하지 않는다.
+  if(inherited?.kind==='f'){
+   const foreignKey=list(t.inherited_foreign_keys).find(x=>x.name===removed);
+   if(!foreignKey)errors.push('대체 FK의 메타데이터 없음: '+c.table+' '+removed);
+   else t.superseded_foreign_keys=[...list(t.superseded_foreign_keys),foreignKey];
+   t.inherited_foreign_keys=list(t.inherited_foreign_keys).filter(x=>x.name!==removed);
+  }
   t.mandatory_constraints=list(t.mandatory_constraints).filter(x=>x!==removed);
  }
  t.contract_overrides=[...list(t.contract_overrides),...list(c.contract_overrides)];
@@ -110,6 +118,8 @@ for(const t of map.values()){
  }
  if(t.origin==='integrated_addition' && (!t.read_policy||!t.mandatory_constraints.length||!t.tests.length))errors.push('신규표 계약 누락: '+t.name);
 }
+const constraintCheck=validateDesignConstraints([...map.values()],changes);
+errors.push(...constraintCheck.errors);warnings.push(...constraintCheck.warnings);
 for(const a of apis){
  for(const n of a.tables)if(!map.has(n))errors.push(a.id+' 없는표 '+n);
  if(!a.commands.length||!a.authorization||!a.input||!a.result||!a.tests)errors.push('API 미완 '+a.id);
@@ -184,7 +194,7 @@ for(const t of tables){
  if(t.tests.length)dictionary+='\n필수 시험: '+t.tests.join('; ')+'\n';
 }
 write('09-table-dictionary.md',dictionary);
-const report={checked_at:new Date().toISOString(),kind:'static_design_consistency_only',version:release.version,counts:result.counts,extension_tests:extensions.reduce((n,e)=>n+e.tests.length,0),implementation_tickets:tickets.length,checks:['원본표와 add/alter 대상 일치','표/열 중복 없음','신규 열의 참조 대상 존재','모든 표 도메인 소유','M00~M15와 API01~29 대응','C01~C12와 V01~V48 원본 계약 추적','신규 표의 PK/제약/권한/시험 명세','R01~R12 차단 시나리오 존재','확장 시험 미실행 상태·티켓 선행/순환 검사'],errors,warnings,passed:errors.length===0,not_proven:['통합 DDL 적재','RLS 동작','실제 두 연결 경합','Supabase Auth/Storage','worker 외부 호출','성능·복원·화면 종단']};
+const report={checked_at:new Date().toISOString(),kind:'static_design_consistency_only',version:release.version,counts:result.counts,extension_tests:extensions.reduce((n,e)=>n+e.tests.length,0),implementation_tickets:tickets.length,checks:['원본표와 add/alter 대상 일치','표/열 중복 없음','신규 열의 참조 대상 존재','모든 표 도메인 소유','M00~M15와 API01~29 대응','C01~C12와 V01~V48 원본 계약 추적','신규 표의 PK/제약/권한/시험 명세','R01~R12 차단 시나리오 존재','확장 시험 미실행 상태·티켓 선행/순환 검사','상속 제약/FK/인덱스의 삭제 열 참조·NULL/PK 모순','명시 열 변경값의 생성 결과 일치·대체 FK 투영 동기화'],errors,warnings,passed:errors.length===0,not_proven:['통합 DDL 적재','RLS 동작','실제 두 연결 경합','Supabase Auth/Storage','worker 외부 호출','성능·복원·화면 종단']};
 write('validation-result.json',report);
 console.log(JSON.stringify(report,null,2));
 if(errors.length)process.exitCode=1;

@@ -1,4 +1,6 @@
-import type { PersonalTask } from './contracts'
+import type { PersonalTask, TaskStatus } from './contracts'
+
+export const taskStatusLabels: Readonly<Record<TaskStatus, string>> = { todo: '할 일', doing: '진행 중', waiting: '대기', done: '완료', cancelled: '취소' }
 
 export type TaskDueFilter = 'overdue' | 'today' | 'upcoming' | 'none'
 export const TASK_DUE_FILTERS: readonly TaskDueFilter[] = ['overdue', 'today', 'upcoming', 'none']

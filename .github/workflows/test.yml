@@ -13,7 +13,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       # 운영과 관계없는 합성 시험 DB이며 작업이 끝나면 함께 폐기된다.
       postgres:
@@ -60,14 +60,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      # Python 테스트(generate.py·extract.py)는 lxml 이 필요하다.
-      # 러너는 lxml 이 없으면 Python 몫을 건너뛰므로, 여기서 반드시 설치해 건너뛰는 일이 없게 한다.
-      - run: pip install lxml
+      # 기존 생성 시험의 lxml과 독립 파일 검사기의 PDF/OLE 파서를 함께 설치한다.
+      # 형식별 시험은 의존성 누락을 실패로 처리하므로 미지원 성공으로 건너뛰지 않는다.
+      - run: pip install -r workers/requirements.txt
       - run: npm ci
       # 이번 통합 후보의 범위만 고정한다. 향후 승인된 DB/API 변경을 영구 차단하지 않는다.
       - name: 1차 통합 후보의 포함 이력과 보호 경계
         if: github.event_name == 'pull_request' && github.head_ref == 'chore/workhub-integration'
         run: npm run check:workhub:integration
+      - name: 2차 통합 후보의 포함 이력·SQL 원문·보류 경계
+        if: github.event_name == 'pull_request' && github.head_ref == 'chore/workhub-integration-r2'
+        run: npm run check:workhub:integration:r2
       - run: npm run check:workhub:design
       - run: npm test
         env:
@@ -76,6 +79,29 @@ jobs:
         env:
           WORKHUB_TEST_DATABASE_URL: postgresql://workhub_test:workhub_test_only@127.0.0.1:5432/workhub_contract_test
           WORKHUB_TEST_ALLOW_FIXTURES: '1'
+      # 운영 DB와 연결하지 않는다. 전용 로컬 PG17에서 적용 SQL 원문·앱 계약을 함께 검사한다.
+      - name: R0·R1 시험용 PostgreSQL 17 준비
+        run: |
+          npm install --prefix "$RUNNER_TEMP/workhub-pg17" --no-save --package-lock=false @embedded-postgres/linux-x64@17.6.0-beta.15
+          pip install psycopg2-binary
+          command -v psql >/dev/null || { sudo apt-get update && sudo apt-get install -y postgresql-client; }
+      - name: R0·R1 원본 전체 및 서버 작업자 SQL 통합 검사
+        env:
+          R0_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          R0_WORK: ${{ runner.temp }}/workhub-r2-r0-verify
+          R0_PG_PORT: '55447'
+          WORKHUB_R2_SQL_REPORT: ${{ runner.temp }}/workhub-r2-sql-results
+        run: |
+          export R0_PSQL="$(command -v psql)"
+          npm run test:workhub:r2-sql
+      - name: R0·R1 검사 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-r2-sql-results
+          path: ${{ runner.temp }}/workhub-r2-sql-results
+          if-no-files-found: ignore
+          retention-days: 7
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub

@@ -70,7 +70,7 @@ const bundle = buildSync({
     };
     const connection=createSupabaseConnection(services);
     qa.info=()=>connection.info();
-    createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>);
+    createRoot(document.getElementById('root')).render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={connection}/>);
   ` },
   bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' },
   define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent',

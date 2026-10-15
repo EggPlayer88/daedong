@@ -49,7 +49,7 @@ const bundle = buildSync({ stdin: { contents: `
   const runCheck=()=>mode==='unexpected_error'?Promise.reject(new Error('SECRET-UNEXPECTED-TOKEN')):connection.checkReadiness();
   function render(){root.render(query.get('mode')==='panel'
     ?<ConnectionReadinessPanel runCheck={runCheck} expectedUserId={owner} onDownload={(json,filename)=>{scenario.downloads.push({json,filename})}}/>
-    :<ConnectedWorkspace expectedUserId={owner} connection={connection}/>)}
+    :<ConnectedWorkspace legacyHomeHref="/" expectedUserId={owner} connection={connection}/>)}
   render();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': JSON.stringify({ VITE_SUPABASE_URL: 'http://localhost.invalid', VITE_SUPABASE_ANON_KEY: 'synthetic' }), 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
 const browser = await launchBrowser()

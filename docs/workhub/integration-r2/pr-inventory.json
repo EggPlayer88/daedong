@@ -1,0 +1,407 @@
+{
+  "version": 2,
+  "captured_at": "2026-10-15",
+  "baseline_main": "ebdc06411d4224bf29b28915bd6695b2fbefadee",
+  "integration_branch": "chore/workhub-integration-r2",
+  "included": [
+    {
+      "number": 26,
+      "title": "refactor: 내 업무 표시 분리와 연결 오류 안내·메뉴 경로 보완",
+      "state": "open",
+      "draft": false,
+      "base": "main",
+      "head": "chore/workhub-task-views",
+      "sha": "0c4bd46c16c59c0a3cb83605ffd4b093add44e86",
+      "url": "https://github.com/EggPlayer88/daedong/pull/26",
+      "branch": "chore/workhub-task-views"
+    },
+    {
+      "number": 27,
+      "title": "학교 초기 설정 준비: 초안 파일 보관과 입력 검증",
+      "state": "open",
+      "draft": false,
+      "base": "main",
+      "head": "feat/workhub-school-setup",
+      "sha": "aaf24e7ece02d7992acaf255a33354d2a2859faf",
+      "url": "https://github.com/EggPlayer88/daedong/pull/27",
+      "branch": "feat/workhub-school-setup"
+    },
+    {
+      "number": 28,
+      "title": "DB 준비 재개: 4표 상속 제약 모순과 생성기 검사 보완",
+      "state": "open",
+      "draft": false,
+      "base": "main",
+      "head": "docs/workhub-db-constraints",
+      "sha": "026c166333779390d7dbbe14d8797b2001bec335",
+      "url": "https://github.com/EggPlayer88/daedong/pull/28",
+      "branch": "docs/workhub-db-constraints"
+    },
+    {
+      "number": 29,
+      "title": "chore: 학교 연결 읽기 조사 도구와 B00 DB 조사 인계",
+      "state": "open",
+      "draft": false,
+      "base": "main",
+      "head": "chore/workhub-connection-audit",
+      "sha": "e2361b50dda6e41cdc2b02a76a6940d46b07be7d",
+      "url": "https://github.com/EggPlayer88/daedong/pull/29",
+      "branch": "chore/workhub-connection-audit"
+    },
+    {
+      "number": 30,
+      "title": "feat: 기본 파일형 수합의 양식·제출·검토·ZIP 미리보기",
+      "state": "open",
+      "draft": false,
+      "base": "main",
+      "head": "feat/workhub-file-collections",
+      "sha": "751a1d96158ec6a18605121f30094976effece8d",
+      "url": "https://github.com/EggPlayer88/daedong/pull/30",
+      "branch": "feat/workhub-file-collections"
+    },
+    {
+      "number": 31,
+      "title": "업무실 DB 첫 구축(R0) SQL과 검증 도구",
+      "state": "open",
+      "draft": true,
+      "base": "main",
+      "head": "claude/project-thread-x5pbx1",
+      "sha": "2d766b57bbab9a6f291c7ce9c87fcace2500a99c",
+      "url": "https://github.com/EggPlayer88/daedong/pull/31",
+      "branch": "claude/project-thread-x5pbx1"
+    },
+    {
+      "number": 32,
+      "title": "문서 수합 사용성 보완: 교사 일괄 지정·검토 이력·파일 교체",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-file-collections",
+      "head": "feat/workhub-collection-followup",
+      "sha": "b0e24ddb0b0a336caa2c4623118e112d35db9501",
+      "url": "https://github.com/EggPlayer88/daedong/pull/32",
+      "branch": "feat/workhub-collection-followup"
+    },
+    {
+      "number": 33,
+      "title": "문서 수합 파일 수명 관리: 미저장 파일 회수와 저장 원문 보호",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-collection-followup",
+      "head": "fix/workhub-file-lifecycle",
+      "sha": "4299ef76d35abbe9c25bd93b48c003b1b021b337",
+      "url": "https://github.com/EggPlayer88/daedong/pull/33",
+      "branch": "fix/workhub-file-lifecycle"
+    },
+    {
+      "number": 34,
+      "title": "문서 수합 서버 연결 준비: 파일 전송·저장 복구·R1 SQL 인계",
+      "state": "open",
+      "draft": false,
+      "base": "fix/workhub-file-lifecycle",
+      "head": "feat/workhub-collection-server",
+      "sha": "fbb836903fba124470b8ac8a96f854c83e9ff2ff",
+      "url": "https://github.com/EggPlayer88/daedong/pull/34",
+      "branch": "feat/workhub-collection-server"
+    },
+    {
+      "number": 35,
+      "title": "문서 수합 공동 제출·철회·정정·이력 화면",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-collection-server",
+      "head": "feat/workhub-collection-management",
+      "sha": "4e07eb36ff52ca4d9c08d502da6ded92f820303f",
+      "url": "https://github.com/EggPlayer88/daedong/pull/35",
+      "branch": "feat/workhub-collection-management"
+    },
+    {
+      "number": 36,
+      "title": "문서 수합 전체 ZIP 다운로드: 완료본·현재판과 누락 방지",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-collection-management",
+      "head": "feat/workhub-collection-export",
+      "sha": "09dd8901f466139c46438e08f4bc0b5d8795e252",
+      "url": "https://github.com/EggPlayer88/daedong/pull/36",
+      "branch": "feat/workhub-collection-export"
+    },
+    {
+      "number": 37,
+      "title": "feat: 수합 서버 파일 검사·임시 파일 정리 코어 준비",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-collection-export",
+      "head": "feat/workhub-file-workers",
+      "sha": "977fa7e637491f229d8e7d4b0bbc7c3904207bec",
+      "url": "https://github.com/EggPlayer88/daedong/pull/37",
+      "branch": "feat/workhub-file-workers"
+    },
+    {
+      "number": 38,
+      "title": "feat: PDF 검사·HWP 기반과 HWPX 호환성 보완",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-file-workers",
+      "head": "feat/workhub-document-format-support",
+      "sha": "a4b467759bf2774a5106f8b746ccff4491cb0866",
+      "url": "https://github.com/EggPlayer88/daedong/pull/38",
+      "branch": "feat/workhub-document-format-support"
+    },
+    {
+      "number": 39,
+      "title": "R1 문서 수합 서버 SQL (DB·호환 함수·비공개 파일 권한·검증 작업자 계약)",
+      "state": "open",
+      "draft": true,
+      "base": "claude/project-thread-x5pbx1",
+      "head": "feat/workhub-r1-collection-sql",
+      "sha": "2d38c5b24308c892baa810c12f08c769da2dd573",
+      "url": "https://github.com/EggPlayer88/daedong/pull/39",
+      "branch": "feat/workhub-r1-collection-sql"
+    },
+    {
+      "number": 40,
+      "title": "feat: 압축 PDF와 HWP 실문서 호환성 보완",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-document-format-support",
+      "head": "feat/workhub-document-compatibility",
+      "sha": "6ad6694ca4a2861661f6b1fcc70592ce55a00086",
+      "url": "https://github.com/EggPlayer88/daedong/pull/40",
+      "branch": "feat/workhub-document-compatibility"
+    },
+    {
+      "number": 41,
+      "title": "fix: 수합 충돌 비교와 입력·요청 보관 복구",
+      "state": "open",
+      "draft": false,
+      "base": "feat/workhub-document-compatibility",
+      "head": "fix/workhub-collection-recovery",
+      "sha": "dbfe57cf82de682fe2b0463109a61106a94bf025",
+      "url": "https://github.com/EggPlayer88/daedong/pull/41",
+      "branch": "fix/workhub-collection-recovery"
+    },
+    {
+      "number": 42,
+      "title": "문서 수합 R1 서버 검사·정리 연결",
+      "state": "open",
+      "draft": false,
+      "base": "fix/workhub-collection-recovery",
+      "head": "feat/workhub-r1-worker-connection",
+      "sha": "ee087beec99b453f509145460b34b85f29876c3b",
+      "url": "https://github.com/EggPlayer88/daedong/pull/42",
+      "branch": "feat/workhub-r1-worker-connection"
+    }
+  ],
+  "preserved": [
+    {
+      "number": 2,
+      "title": "fix: Windows 회귀시험 실행 경로와 줄바꿈 정리",
+      "base": "main",
+      "branch": "fix/windows-test-baseline",
+      "sha": "2ebdba7373feedbb18b73abf4d6237697a33dd97",
+      "url": "https://github.com/EggPlayer88/daedong/pull/2"
+    },
+    {
+      "number": 4,
+      "title": "feat: 새 업무 앱의 일정·오늘 홈 개발 미리보기",
+      "base": "fix/windows-test-baseline",
+      "branch": "feat/workhub-shell",
+      "sha": "8b7e02ff2b682ab5ef8340bfb6483aa5a57855a2",
+      "url": "https://github.com/EggPlayer88/daedong/pull/4"
+    },
+    {
+      "number": 6,
+      "title": "기존 회원 보존과 신축 업무실 일정 연결 기반",
+      "base": "feat/workhub-shell",
+      "branch": "feat/workhub-foundation",
+      "sha": "d9758e3e42da42596b8cf0c84822646820bb4462",
+      "url": "https://github.com/EggPlayer88/daedong/pull/6"
+    },
+    {
+      "number": 7,
+      "title": "홈과 연결된 개인 업무·자료 수합·학생 기록 구현",
+      "base": "feat/workhub-foundation",
+      "branch": "feat/workhub-school-workflows",
+      "sha": "be472bb8d2aeae96748cb779f4ba2f627d45b789",
+      "url": "https://github.com/EggPlayer88/daedong/pull/7"
+    },
+    {
+      "number": 8,
+      "title": "기존 계정 보존을 위한 연결 진단과 PostgreSQL 경합 검증",
+      "base": "feat/workhub-school-workflows",
+      "branch": "feat/workhub-activation-readiness",
+      "sha": "34f10f50fb27115c1b2f85f3f60aea3eb7d4b1ea",
+      "url": "https://github.com/EggPlayer88/daedong/pull/8"
+    },
+    {
+      "number": 9,
+      "title": "feat: 개인 업무 서버 저장과 홈·내 업무 연결",
+      "base": "feat/workhub-activation-readiness",
+      "branch": "feat/workhub-task-persistence",
+      "sha": "fbaea80c0dcd1e4314ccf5277154998103f1abe7",
+      "url": "https://github.com/EggPlayer88/daedong/pull/9"
+    },
+    {
+      "number": 10,
+      "title": "feat: 업무실 공통 구조·화면 탐색·일정 보기와 입력 보호",
+      "base": "feat/workhub-task-persistence",
+      "branch": "feat/workhub-site-foundation",
+      "sha": "ff4a86531ae90026e54bd6d56e5556eecb5c800d",
+      "url": "https://github.com/EggPlayer88/daedong/pull/10"
+    },
+    {
+      "number": 11,
+      "title": "docs: 기존 회원을 보존하는 학교 업무 통합 DB 설계",
+      "base": "feat/workhub-site-foundation",
+      "branch": "docs/workhub-database-design",
+      "sha": "76e929e27b9edffa7d75befcfb6b803c8d9bf235",
+      "url": "https://github.com/EggPlayer88/daedong/pull/11"
+    },
+    {
+      "number": 12,
+      "title": "GPT·Claude 통합 DB 설계와 사이트 구현 계약",
+      "base": "docs/workhub-database-design",
+      "branch": "docs/workhub-integrated-db-contract",
+      "sha": "ce8c1c1c420716ff256b5bac57efc79c5a2aefed",
+      "url": "https://github.com/EggPlayer88/daedong/pull/12"
+    },
+    {
+      "number": 13,
+      "title": "feat: 오늘의 업무 분류와 업무 찾기 연결 (6차)",
+      "base": "feat/workhub-site-foundation",
+      "branch": "feat/workhub-home-navigation",
+      "sha": "bd3d769795e9a88df1ad8755bfad23c9ded1574d",
+      "url": "https://github.com/EggPlayer88/daedong/pull/13"
+    },
+    {
+      "number": 14,
+      "title": "수합 진행표와 학생 기록 찾기·근거 출력 보강",
+      "base": "feat/workhub-home-navigation",
+      "branch": "feat/workhub-workflow-records",
+      "sha": "1cc6121fb0509e87e650d59ae5392c026a8948d5",
+      "url": "https://github.com/EggPlayer88/daedong/pull/14"
+    },
+    {
+      "number": 15,
+      "title": "수합 작성·학생 기록 입력 안내와 오류 복구 개선",
+      "base": "feat/workhub-workflow-records",
+      "branch": "feat/workhub-guided-entry",
+      "sha": "d2c3574a88444c2728c7c3d3c2cc422173cbdd49",
+      "url": "https://github.com/EggPlayer88/daedong/pull/15"
+    },
+    {
+      "number": 16,
+      "title": "화면 사용성과 접근성 보완: 키보드 복귀·반복 입력·모바일",
+      "base": "feat/workhub-guided-entry",
+      "branch": "feat/workhub-accessibility",
+      "sha": "137a871af72f7d2570fafcea49eb83570d710e58",
+      "url": "https://github.com/EggPlayer88/daedong/pull/16"
+    },
+    {
+      "number": 17,
+      "title": "목록을 20개씩 표시하고 전체 집계·원본 이동·입력 복구 유지",
+      "base": "feat/workhub-accessibility",
+      "branch": "feat/workhub-scaled-lists",
+      "sha": "5788cc3f2ea58228913ae67f6dc16e90f10826b4",
+      "url": "https://github.com/EggPlayer88/daedong/pull/17"
+    },
+    {
+      "number": 18,
+      "title": "시트 일정 가져오기와 시범 운영 준비",
+      "base": "feat/workhub-scaled-lists",
+      "branch": "feat/workhub-calendar-import",
+      "sha": "4176175756d558b0ac4b650165d779bab90ddd24",
+      "url": "https://github.com/EggPlayer88/daedong/pull/18"
+    },
+    {
+      "number": 19,
+      "title": "디자인: 차분한 업무 홈·스킨 설정·한글 가독성 개선",
+      "base": "feat/workhub-calendar-import",
+      "branch": "feat/workhub-calm-ui",
+      "sha": "995c1760a9564b9f606e81be7df4671941475d52",
+      "url": "https://github.com/EggPlayer88/daedong/pull/19"
+    },
+    {
+      "number": 20,
+      "title": "수정: 저장 복구·수합·학생 입력 오류와 사용성 검토 반영",
+      "base": "feat/workhub-calm-ui",
+      "branch": "fix/workhub-review-recovery",
+      "sha": "6f7ac76fad1b09c17e395aeacc7c0e628bb54efc",
+      "url": "https://github.com/EggPlayer88/daedong/pull/20"
+    },
+    {
+      "number": 21,
+      "title": "개선: 오늘 중심 홈과 모바일 하단 탐색",
+      "base": "fix/workhub-review-recovery",
+      "branch": "feat/workhub-home-mobile",
+      "sha": "3e5d9d86f8eedad99b8633a16ad99fb375e587b0",
+      "url": "https://github.com/EggPlayer88/daedong/pull/21"
+    },
+    {
+      "number": 22,
+      "title": "문서: 메신저·문서 수합·시간표 기획과 DB 설계 보강",
+      "base": "docs/workhub-integrated-db-contract",
+      "branch": "docs/workhub-collaboration-design",
+      "sha": "9229aaba271af9c8744b9eb0b4bf44971a15b650",
+      "url": "https://github.com/EggPlayer88/daedong/pull/22"
+    }
+  ],
+  "deferred": [
+    {
+      "number": 3,
+      "title": "chore(ci): Supabase 일시정지 방지 — 주 2회 DB 조회 자동 작업",
+      "base": "main",
+      "branch": "claude/supabase-keepalive-429ron",
+      "sha": "4bd5f84dc80b2a419e55addb63392fa3927c548a",
+      "url": "https://github.com/EggPlayer88/daedong/pull/3"
+    },
+    {
+      "number": 5,
+      "title": "feat: 하드조건 검증과 60초 품질 최적화를 갖춘 시간표 엔진",
+      "base": "main",
+      "branch": "feat/timetable-solver",
+      "sha": "6595dbac5ba0b32c28e9a7f3bb2562c6a0df6acb",
+      "url": "https://github.com/EggPlayer88/daedong/pull/5"
+    }
+  ],
+  "sql_sources": [
+    {
+      "number": 31,
+      "sha": "2d766b57bbab9a6f291c7ce9c87fcace2500a99c",
+      "path": "database/workhub/r0"
+    },
+    {
+      "number": 39,
+      "sha": "2d38c5b24308c892baa810c12f08c769da2dd573",
+      "path": "database/workhub/r1"
+    }
+  ],
+  "module_source": {
+    "number": 27,
+    "sha": "aaf24e7ece02d7992acaf255a33354d2a2859faf",
+    "path": "apps/main/src/lib/modules.js"
+  },
+  "protected_paths": [
+    "packages/shared",
+    "migrations",
+    "apps/main/api",
+    "doc-ai-templates-v4",
+    "apps/main/public/examples",
+    "examples",
+    "apps/main/src/pages/LoginPage.jsx",
+    "apps/main/src/lib/AuthContext.jsx"
+  ],
+  "deferred_paths": [
+    "packages/timetable",
+    ".github/workflows/supabase-keepalive.yml"
+  ],
+  "allowed_workflow_changes": [
+    ".github/workflows/test.yml"
+  ],
+  "scope": "#26~#42의 이력과 R0/R1 원문 통합. 운영 main 병합·SQL 실행·서버 배포·시간표·보류 운영 자동화는 수행하지 않는다.",
+  "notes": [
+    "R0/R1은 계란님이 이미 적용한 SQL의 원문 기록이며 이번 통합에서 다시 실행하지 않는다.",
+    "서버 검사기 실행 코드는 포함하지만 실제 예약 실행·환경값 등록·R1-05/06 적용은 별도 단계다.",
+    "기존 시간표 패키지의 자리 표시 코드는 main과 동일하게 보존하며 #5 엔진은 포함하지 않는다."
+  ]
+}
