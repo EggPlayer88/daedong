@@ -114,6 +114,9 @@ try {
   })
   await test('관리 입력을 열면 준비한 ZIP을 버리고 작성 취소 후 다시 준비할 수 있다', async () => {
     await prepare().click(); await zipButton().waitFor(); await page.getByRole('button', { name: '정정 기간 설정', exact: true }).first().click()
+    // 편집 시작은 즉시 다운로드를 잠그고, 이어지는 effect가 캐시와 버튼을 제거한다.
+    // click 완료만으로 후속 렌더까지 끝났다고 가정하지 않고 실제 제거를 확인한다.
+    await zipButton().waitFor({ state: 'detached' })
     assert.equal(await zipButton().count(), 0); assert.equal(await prepare().isDisabled(), true)
     await page.getByRole('button', { name: '관리 작성 취소', exact: true }).click(); assert.equal(await prepare().isEnabled(), true)
     await prepare().click(); await zipButton().waitFor()
