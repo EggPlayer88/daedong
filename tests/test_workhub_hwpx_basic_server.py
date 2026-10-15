@@ -218,8 +218,8 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(client.calls[1][1]['p_result']['rejectReason'], 'FILE_HASH_MISMATCH')
     def test_08_size_mismatch(self):
         client = Client(claim(claimedBytes=len(RAW) + 1))
-        basic.check_file(PAYLOAD, TOKEN, client)
-        self.assertEqual(client.calls[1][1]['p_result']['rejectReason'], 'FILE_SIZE_MISMATCH')
+        self.failure(client, 'RESULT_UNKNOWN')
+        self.assertEqual(len(client.calls), 1)
     def test_09_invalid_document(self):
         raw = b'PK\x03\x04not-a-zip'
         client = Client(claim(claimedBytes=len(raw), claimedSha256=hashlib.sha256(raw).hexdigest()), raw)
@@ -276,6 +276,8 @@ class Response:
     def __init__(self, raw, status=200, headers=None):
         self.body, self.status, self.headers = io.BytesIO(raw), status, headers or {}
     def read1(self, size):
+        return self.body.read(size)
+    def read(self, size):
         return self.body.read(size)
     def getheader(self, name, default=None):
         return self.headers.get(name, default)
@@ -364,6 +366,39 @@ class TransportTests(unittest.TestCase):
     def test_14_existing_url_fallback(self):
         env = {'VITE_SUPABASE_URL': ENV['SUPABASE_URL'], 'SUPABASE_SERVICE_ROLE_KEY': SECRET}
         self.assertEqual(basic.SupabaseClient(env).host, 'a' * 20 + '.supabase.co')
+
+
+class ReviewRegressionTests(unittest.TestCase):
+    client = TransportTests.client
+    def test_service_denial_preserves_work(self):
+        for status in (401, 403):
+            for path in ('/rest/v1/rpc/workhub_file_basic_claim', '/storage/v1/object/authenticated/x'):
+                client, connection = self.client(Response(b'private-trace', status))
+                with self.assertRaises(basic.CheckError) as caught:
+                    client._request('POST', path)
+                self.assertEqual((caught.exception.code, caught.exception.status), ('NOT_READY', 503))
+                self.assertTrue(connection.closed)
+    def test_postgrest_gate_errors_only_allowlisted(self):
+        for code in ('FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'private-trace'):
+            client, _ = self.client(Response(json.dumps({'code':'P0001','message':code,'details':'secret'}).encode(), 400))
+            with self.assertRaises(basic.CheckError) as caught:
+                client.rpc('workhub_file_basic_claim', {})
+            self.assertEqual(caught.exception.code, code if code != 'private-trace' else 'RESULT_UNKNOWN')
+            self.assertNotIn('secret', str(caught.exception))
+    def test_object_id_rejected_before_download(self):
+        client = Client(claim(storageObjectId='not-a-uuid'))
+        with self.assertRaises(basic.CheckError) as caught:
+            basic.check_file(PAYLOAD, TOKEN, client)
+        self.assertEqual(caught.exception.code, 'INVALID_RESPONSE')
+        self.assertFalse(client.downloads)
+    def test_entry_count_rejected_before_zip_construction(self):
+        raw=bytearray(RAW)
+        end=raw.rfind(b'PK\x05\x06')
+        struct.pack_into('<HH',raw,end+8,50000,50000)
+        with patch.object(basic.zipfile, 'ZipFile', side_effect=AssertionError('must not parse entries')):
+            with self.assertRaises(basic.FileRejected) as caught:
+                basic.inspect_hwpx(bytes(raw))
+        self.assertEqual(caught.exception.code, 'FILE_STRUCTURE_LIMIT')
 
 
 class HttpTests(unittest.TestCase):

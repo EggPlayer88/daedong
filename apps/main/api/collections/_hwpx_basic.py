@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import struct
 import time
 import zipfile
 import zlib
@@ -137,7 +138,18 @@ class SupabaseClient:
             # 오류 본문은 토큰·DB 세부사항을 포함할 수 있으므로 읽어 공개하지 않는다.
             if response.status < 200 or response.status >= 300:
                 if response.status in (401, 403):
-                    raise CheckError("UNAUTHENTICATED" if authorization else "FORBIDDEN", response.status)
+                    raise CheckError("UNAUTHENTICATED", 401) if authorization else CheckError("NOT_READY", 503)
+                if response.status == 400 and path.startswith("/rest/v1/rpc/"):
+                    # PostgREST gate 오류 중 공개된 업무 코드만 읽는다. 원문은 밖으로 내보내지 않는다.
+                    error_raw = response.read(JSON_LIMIT + 1)
+                    if len(error_raw) <= JSON_LIMIT:
+                        try:
+                            detail = parse_json(error_raw)
+                        except CheckError:
+                            detail = None
+                        if isinstance(detail, dict) and detail.get("code") == "P0001" and detail.get("message") in ("FORBIDDEN", "INACTIVE_MEMBERSHIP"):
+                            raise CheckError(detail["message"], 403)
+                    raise CheckError("RESULT_UNKNOWN")
                 if response.status == 404 and path.startswith("/rest/v1/rpc/"):
                     raise CheckError("NOT_READY")
                 if response.status == 409:
@@ -206,6 +218,17 @@ def inspect_hwpx(raw):
     if not raw or not raw.startswith(b"PK\x03\x04"):
         raise FileRejected("FILE_SIGNATURE_MISMATCH")
     try:
+        # 중앙 디렉터리를 객체로 펼치기 전에 항목 수를 제한한다. ZIP64는 기본 확인 범위 밖이다.
+        end = raw.rfind(b"PK\x05\x06", max(0, len(raw) - 65557))
+        if end < 0 or len(raw) - end < 22:
+            raise FileRejected("FILE_STRUCTURE_INVALID")
+        disk, start_disk, on_disk, total, directory_bytes, offset, comment = struct.unpack_from("<4H2IH", raw, end + 4)
+        if disk or start_disk or on_disk != total or total == 65535 or directory_bytes == 0xffffffff or offset == 0xffffffff:
+            raise FileRejected("FILE_STRUCTURE_UNSUPPORTED")
+        if total > LIMITS["maxEntries"]:
+            raise FileRejected("FILE_STRUCTURE_LIMIT")
+        if end + 22 + comment != len(raw):
+            raise FileRejected("FILE_STRUCTURE_INVALID")
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             entries = archive.infolist()
             if not entries or len(entries) > LIMITS["maxEntries"]:
@@ -287,6 +310,9 @@ def _claim(data, school_id, file_id):
         instant = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
         if instant.tzinfo is None or instant <= datetime.now(timezone.utc):
             raise ValueError()
+        object_id = data.get("storageObjectId")
+        if not isinstance(object_id, str) or str(UUID(object_id)) != object_id:
+            raise ValueError()
         path = data["path"]
         if (data["bucket"] != BUCKET or not isinstance(path, str) or re.fullmatch(re.escape(school_id + "/" + file_id + "/") + r"[A-Za-z0-9_-]{16,100}", path) is None or
             not _id(data["storageObjectId"]) or data["extension"] != "hwpx" or not isinstance(data["name"], str) or
@@ -319,6 +345,9 @@ def check_file(payload, authorization, client=None):
         if claim["claimedBytes"] > maximum:
             raise FileRejected("FILE_SIZE_LIMIT")
         raw = client.download(claim["bucket"], claim["path"], maximum)
+        # 짧은 전송은 파일 결함인지 통신 중단인지 구분할 수 없다. 영구 거절로 확정하지 않는다.
+        if len(raw) < claim["claimedBytes"]:
+            raise CheckError("RESULT_UNKNOWN")
         result["sizeBytes"], result["sha256"] = len(raw), hashlib.sha256(raw).hexdigest()
         result["checks"]["size"] = len(raw) == claim["claimedBytes"] and 0 < len(raw) <= maximum
         result["checks"]["sha256"] = result["sha256"] == claim["claimedSha256"]
