@@ -1864,6 +1864,7 @@ END $$;
 CREATE FUNCTION public.workhub_file_worker_cleanup_claim(p_school_id text, p_worker_id text, p_limit integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE ctx workhub_private.actor_context; eff jsonb; v_days integer; f workhub.file_objects; l workhub.deletion_ledger; v_reason text; v_out jsonb := '[]'::jsonb;
+        o jsonb; v_obj uuid;
 BEGIN
   ctx := workhub_private.worker_actor('file.cleanup', p_school_id);
   IF p_worker_id IS NULL OR p_worker_id !~ '^[A-Za-z0-9_.:-]{1,100}$' OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50 THEN RAISE EXCEPTION 'INVALID_INPUT'; END IF;
@@ -1895,22 +1896,31 @@ BEGIN
       OR EXISTS (SELECT 1 FROM workhub.collection_template_files x WHERE x.school_id = f.school_id AND x.file_id = f.id)
       OR EXISTS (SELECT 1 FROM workhub.submission_files x WHERE x.school_id = f.school_id AND x.file_id = f.id);
     v_reason := CASE f.state WHEN 'uploading' THEN 'upload_expired' WHEN 'ready' THEN 'unattached_retention' ELSE 'rejected_file' END;
+    -- 원장에 고정할 객체 정체성(K28). 업로드 확인(complete)을 거친 파일은 그때 기록한 ID 를 그대로 쓴다 — 실물이 그사이 바뀌었으면
+    -- inspect 가 objectMatches=false 로 잡는다. complete 가 오지 않은 업로드(uploading)는 파일 행에 ID 가 없으므로, 이 경로의 실물을
+    -- 지금 읽어 고정한다. 이 시점은 예약 만료 1일 뒤이고 원장 행이 생기면 같은 경로 업로드가 영구히 거부되므로, 고정 뒤 바뀔 길이 없다.
+    -- 실물이 없으면 NULL 로 남는다(= 지울 실물 없음. NULL 을 '일치' 로 보지 않는다).
+    o := workhub_private.c_object_owner(f.bucket, f.storage_key);
+    v_obj := CASE WHEN f.storage_object_id IS NOT NULL THEN f.storage_object_id ELSE (o ->> 'id')::uuid END;
     INSERT INTO workhub.deletion_ledger (school_id, resource_id, file_sha256, storage_object_id, reason, retention_policy_scope_key,
         retention_policy_version_id, requested_by_service_id, lease_token, lease_expires_at, leased_by_service_id, manifest_sha256)
-    VALUES (f.school_id, f.id, f.sha256, f.storage_object_id, v_reason, 's:' || f.school_id, eff ->> 'submissionPolicyId', ctx.service_principal_id,
+    VALUES (f.school_id, f.id, f.sha256, v_obj, v_reason, 's:' || f.school_id, eff ->> 'submissionPolicyId', ctx.service_principal_id,
         1, clock_timestamp() + interval '10 minutes', ctx.service_principal_id,
-        workhub_private.request_sha256(jsonb_build_object('file', f.id, 'path', f.storage_key, 'object', f.storage_object_id, 'sha256', f.sha256, 'reason', v_reason)))
+        workhub_private.request_sha256(jsonb_build_object('file', f.id, 'path', f.storage_key, 'object', v_obj, 'sha256', f.sha256, 'reason', v_reason)))
     RETURNING * INTO l;
     PERFORM workhub_private.write_audit(ctx, 'file.cleanup_block', 'file_object', f.id, f.version, 'school', NULL,
-      jsonb_build_object('ledger_id', l.id, 'reason', v_reason, 'worker_id', p_worker_id));
+      jsonb_build_object('ledger_id', l.id, 'reason', v_reason, 'worker_id', p_worker_id,
+        'object_source', CASE WHEN f.storage_object_id IS NOT NULL THEN 'file' WHEN v_obj IS NOT NULL THEN 'storage' ELSE 'absent' END));
     v_out := v_out || jsonb_build_array(jsonb_build_object('ledgerId', l.id, 'leaseToken', l.lease_token, 'fileId', f.id, 'bucket', f.bucket,
-      'path', f.storage_key, 'storageObjectId', f.storage_object_id, 'reason', v_reason));
+      'path', f.storage_key, 'storageObjectId', l.storage_object_id, 'reason', v_reason));
   END LOOP;
   RETURN v_out;
 END $$;
 
 -- 정리 원장 lease 확인(읽기 전용): Storage 삭제 직전에 원장이 아직 blocked·같은 lease·같은 주체인지, 파일이 어디에도 연결되지 않았는지,
 -- 실물이 원장에 적힌 그 객체인지를 본다. 끝난 행이면 결과(deleted/retained)를 돌려준다 — 확정 응답을 잃었을 때 복구용.
+-- objectMatches 는 실물이 있고 그 ID 가 원장 고정값과 같을 때만 true(원장이 NULL 이면 항상 false). 작업자 판단:
+-- 실물 없음 → 지울 것 없이 deleted 확정 / 실물 있음 + 일치 → Storage 삭제 후 deleted / 실물 있음 + 불일치 → 지우지 않음(retained 또는 다음 실행).
 CREATE FUNCTION public.workhub_file_worker_cleanup_inspect(p_ledger_id text, p_lease_token bigint) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE ctx workhub_private.actor_context; l workhub.deletion_ledger; f workhub.file_objects; o jsonb;
