@@ -1,6 +1,8 @@
 # 수합 파일 검사·정리 처리 코어
 
-2026-10-15 · **DB·Storage·악성 검사 공급자를 연결하기 전의 독립 실행 코드**다. 웹 API, 배포 설정, 스케줄러, 서비스 키, 실제 SQL/Storage 어댑터는 포함하지 않는다. 모듈을 가져오는 것만으로 작업이 시작되지 않는다.
+2026-10-15 · **문서 검사 코어와 R1 서버 연결 실행기**다. 확정 R1 RPC·Storage HTTP·선택형 ClamAV 연결을 구현했다. 모듈을 가져오는 것만으로 작업이 시작되지 않는다. 실제 배포·R1-05/06 적용은 별도이며, 아래 기존 포트 설명은 준비용 코어에 해당한다.
+
+실제 연결은 [R1 실행·배포 인계](../../docs/workhub/40-collection-r1-connection.md)를 먼저 읽는다. `python -m workers.collection_files check`는 로컬 자체 검사만 한다. `verify --execute`는 승인된 학교의 검사 작업을, `cleanup --execute`는 승인 정책에 맞는 미첨부 파일 정리를 실제 실행하므로 배포 단계에서만 사용한다.
 
 ## 구성과 실행
 
@@ -13,6 +15,10 @@
 | `verification.py` | 원장·실물·정책 확인 → 원문 읽기 → 구조/악성 검사 분리 → 결과 접수 |
 | `cleanup.py` | 참조·보존·진행 작업 확인 → 정리 예약 → 실물 삭제 확인 → 원장 확정 |
 | `common.py` | 학교/파일 경로, 실물 식별, 작업 임대, 시각, 계약과 해시 검증 |
+| `r1_worker.py` | R1 실제 정책·정수 임대 토큰·응답으로 검사/정리/재전송 |
+| `transport.py` | 서버 전용 Supabase RPC·Storage HTTP 연결 |
+| `runtime.py` | 별도 파서 프로세스와 선택형 ClamAV Unix 소켓 |
+| `__main__.py` | 기본 로컬 점검과 명시적 단발 실행 CLI |
 
 저장소 루트에서 Python 3.12와 `workers/requirements.txt`의 의존성을 사용한다. 기존 `lxml`에 `pypdf==6.20.1`, `olefile==0.47`, `Pillow==12.3.0`을 추가했다. 웹 API의 배포 의존성·외부 서비스 설정은 변경하지 않았다.
 
@@ -60,7 +66,7 @@ tests/.venv/Scripts/python.exe tests/test_workhub_file_cleanup.py
 
 공개 원본은 [해시 고정 명세와 재현 안내](../../tests/fixtures/README.md)로 별도 검사한다. 코퍼스 도구는 파일 누락·변경을 실패로 보고하며 시험 한도를 출력한다. CI 회귀는 외부 다운로드 없이 합성 파일로 실행한다.
 
-## 호출과 신뢰 경계
+## 기존 준비용 코어의 호출과 신뢰 경계
 
 ```python
 from workers.collection_files.verification import run_verification, commit_verification
@@ -76,7 +82,7 @@ if result.status == "result_unknown":
 preview = run_cleanup(cleanup_job, cleanup_ledger, storage, now=clock)
 ```
 
-이 예시는 주입 인터페이스 설명이다. 운영용 인스턴스 생성 코드나 명령행 실행기는 없다. `scanner=None`은 `not_scanned`이고 `ready`가 되지 않는다. `dry_run=False`는 테스트 대역으로만 검증했다. 실제 삭제 어댑터를 연결할 때는 원자적 원장 잠금·영구 경로 차단과 승인 정책이 먼저 구현·검증돼야 한다.
+이 예시는 기존 준비용 코어의 주입 인터페이스 설명이다. 확정 R1 연결에는 별도 `r1_worker.py`와 명령행 실행기를 사용한다. `scanner=None`은 `not_scanned`이고 `ready`가 되지 않는다. `dry_run=False`는 테스트 대역으로만 검증했다. 실제 삭제 어댑터를 연결할 때는 원자적 원장 잠금·영구 경로 차단과 승인 정책이 먼저 구현·검증돼야 한다.
 
 주요 포트:
 
@@ -88,14 +94,12 @@ preview = run_cleanup(cleanup_job, cleanup_ledger, storage, now=clock)
 | 정리 원장 | `inspect(job)`, `reserve(job, inspection_hash)`, `recheck(ticket)`, `finalize(ticket, evidence_hash)` |
 | 정리 실물 | `head(ref)`, `remove(ref, ticket)` |
 
-**이 메서드 이름은 내부 Python 포트이며 확정 SQL/RPC 이름이 아니다.** Claude의 R1 계약이 확정되면 어댑터가 변환한다. 기존 [R1 SQL 요청서](../../docs/workhub/32-collection-server-sql-request.md)는 변경하지 않았다. 정확한 필드·원자성 요구·후속 작업은 [구현 인계](../../docs/workhub/36-collection-file-workers.md)를 참고한다.
+**이 메서드 이름은 내부 Python 포트이며 확정 SQL/RPC 이름이 아니다.** R1 전용 실행기는 없는 승인/manifest 필드를 꾸며내지 않고 확정 SQL 계약을 직접 사용한다. 기존 [R1 SQL 요청서](../../docs/workhub/32-collection-server-sql-request.md)는 변경하지 않았다. 정확한 필드·원자성 요구·후속 작업은 [구현 인계](../../docs/workhub/36-collection-file-workers.md)를 참고한다.
 
-## 연결 전에 남은 조건
+## 실제 활성화 전에 남은 조건
 
-- 실제 서비스 주체 검증, 작업 선점·임대·결과 봉인, 승인 정책 교집합, Storage 객체 불변성 증명.
-- 승인된 악성 검사기의 실제 판정, 엔진 신원·서명 최신성 검증. 현재 코어는 응답의 해시/실물/실행 ID·시각 연결을 확인한다.
-- PDF 개정 저장/미지원 코덱, HWP 문서 옵션/확장 등 실제 표본 호환성 확대. 런타임의 CPU·메모리·입출력 시간 제한, 프로세스 격리.
-- 임대 만료 후 재인수, 프로세스 재시작 뒤 접수 조회. 현재 메모리 재전송은 이를 대신하지 않는다.
-- 사전 검사 오류의 영속 분류·재시도 상한·미지원 대기 처리. `SIZE_LIMIT` 등은 접수 없이 반환되므로 후속 작업자가 무한 재시도를 막아야 한다.
-- 실제 Storage 삭제 API와 영구 정리 차단. `storage.objects` 행 삭제로 실물 삭제를 대신하지 않는다.
-- 준비 상태 활성화와 실제 서버 통합 시험. **이번 코드만으로 수합 준비 상태를 켜지 않는다.**
+- R1-05/06 실제 연결·정책 승인, 독립 서버 배포·비밀값·스케줄러 설정. 서버 키를 브라우저에 노출하지 않는다.
+- 실제 Supabase PostgREST·Storage·ClamAV 데몬 및 검사 한도/서명 갱신 확인. 현재 자동 시험은 HTTP/스캐너 대역과 로컬 실제 R1 SQL을 사용했다.
+- 파서 프로세스 시간·Linux CPU/메모리 제한과 키 환경 제거를 구현했지만 OS 권한·네트워크까지 완전한 보안 샌드박스는 아니다.
+- R1 임대 만료 재인수/응답 유실 복구·실물 삭제 확인은 새 실행기에서 검증했다. 구 준비용 코어의 메모리 접수 계약과 구별한다.
+- PDF/HWP 미지원 변형, 다중 교사·실제 업로드/제출·서명 URL 차단은 별도 확인한다. **코드 병합만으로 수합 준비 상태를 켜지 않는다.**
