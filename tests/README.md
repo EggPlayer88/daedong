@@ -266,3 +266,14 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-messaging-file-recovery.mjs`: 실제 첨부 컴포넌트·어댑터로 알려진/미상 ID, 거절·만료·응답 유실, 접수 전 실패·읽기 전용 복구·늦은 응답 14개 동선. 전체 브라우저 러너에 포함한다.
 
 `npm run test:workhub:browser -- cooperation messaging`로 관련 파일을 선택할 수 있다. 시험은 운영 DB·Storage를 호출하지 않으며 [수정·검증·인계](../docs/workhub/pilot-completion/app-contract-fixes.md)에 실제 서비스 검증 경계를 적었다.
+
+## 학생 출력·스킨·관계 목록·홈 메시지
+
+- `test_workhub_record_export.mjs`: 기존 읽기 어댑터의 학생/작성자 범위, 전체 페이지·중복·기술 한도, 과거 평가 기준과 점수, 재조회, CSV 수식 보호를 검증한다.
+- `workhub-record-export.mjs`: 실제 수업 화면과 출력 패널에서 미리보기→범위 확인→CSV/인쇄, 출력 전 자료/명부/학교/권한 변경, 늦은 응답과 인쇄 창 정리, 세 스킨·키보드·320px를 확인한다.
+- `test_workhub_relations_list.mjs`: 유효기간 경계, 검색 정규화, 수강/학적 상태 구분, 전체 1,000명 검색과 20개 표시, SSR/권한을 확인한다.
+- `workhub-relations-list.mjs`: 독립 검색·필터·페이지 보정·선택/사유 유지·원래 요청 복구·세 스킨·모바일 동선을 확인한다.
+- `workhub-home-message.mjs`: 실제 연결 셸과 메시지 어댑터로 목록 밖 대화 열기, 권한/없는 대화/조회 실패, 입력·전송 번호 보존, 자동 읽음/쓰기 없음과 모바일을 확인한다.
+- `workhub-document-appearance.mjs`: 문서함·질문형 양식의 세 스킨, 활성 텍스트 대비, 긴 내용, 200% 문자 확대 모사와 320px에서 입력/선택 보존·키보드를 확인한다.
+
+네 브라우저 파일은 전체 러너에 등록했다. `npm run test:workhub:browser -- workhub-record-export workhub-relations-list workhub-home-message workhub-document-appearance`로 이 묶음만 실행할 수 있다. React/어댑터/브라우저는 실제 코드이며 서버 응답은 합성이다. 운영 DB에 접속하지 않는다. [구현·검증·실서비스 경계](../docs/workhub/pilot-completion/usability-completion.md).
