@@ -565,18 +565,62 @@ def main():
         adm.opm(oc('close', CA, v)); v += 1
         sB = scalar("select current_submission_id from workhub.collection_units where id=%s", (uB,))
         e4 = t[24].r1({'kind': 'review', 'requestId': CA, 'unitId': uB, 'submissionId': sB, 'expectedVersion': uv(uB), 'decision': 'changes_requested', 'note': '보완', 'dueDate': DAY(3)})
-        check('H14 마감 뒤에도 검토 · 보완 요청은 됨', data(e4) is not None, e4)
+        check('H14 마감 뒤에도 검토 · 보완 요청은 됨(보완 기한 3일 뒤)', data(e4) is not None, e4)
+        # ---- 마감 뒤 보완(통합 검토 2번): 보완 요청 받은 단위만, 보완 기한까지 저장 · 파일 · 그 보완에 대한 제출 → 검토 수락까지
+        CRB = scalar("select id from workhub.correction_requests where unit_id=%s and state='open'", (uB,))
         d23 = data(t[23].home()) or {}
-        check('H15 마감된 수합은 홈에서 빠짐(보완 요청도)', d23.get('counts', {}).get('supplement') == 0 and d23['counts']['collection'] == 0, d23)
+        check('H15 마감된 수합: 미제출 항목은 빠지고 보완 요청 받은 교사(23) 홈에는 보완 1건(보완 기한)',
+              d23.get('counts', {}).get('supplement') == 1 and d23['counts']['collection'] == 0
+              and [(i['kind'], i['sourceId'], i['dueDate']) for i in d23['items'] if i['kind'] == 'supplement'] == [('supplement', CA, DAY(3))], d23)
+        r1n = lambda: scalar("select count(*) from workhub.unit_drafts") + scalar("select count(*) from workhub.submission_versions") + scalar("select count(*) from workhub.collection_file_intents")
+        c0 = r1n()
+        dAv = scalar("select version from workhub.unit_drafts where unit_id=%s", (uA,))
+        eA = [t[21].r1({'kind': 'save_draft', 'requestId': CA, 'unitId': uA, 'expectedVersion': dAv, 'input': {'text': '마감 뒤 수정', 'number': 1, 'files': []}}),
+              t[21].go('workhub_file_prepare', {'kind': 'draft', 'requestId': CA, 'unitId': uA, 'version': dAv},
+                       {'name': '추가.pdf', 'extension': 'pdf', 'claimedBytes': 1000, 'claimedSha256': 'a' * 64}, key())]
+        check('H15a 보완 요청이 없는 다른 단위(A): 초안 저장 · 파일 올리기 예약 → CONFLICT · R1 쓰기 0', [ecode(x) for x in eA] == ['CONFLICT', 'CONFLICT'] and r1n() == c0, eA)
+        dBv = scalar("select version from workhub.unit_drafts where unit_id=%s", (uB,))
+        eB = t[23].r1({'kind': 'save_draft', 'requestId': CA, 'unitId': uB, 'expectedVersion': dBv, 'input': {'text': '보완 반영', 'number': 2, 'files': []}})
+        fB = t[23].go('workhub_file_prepare', {'kind': 'draft', 'requestId': CA, 'unitId': uB, 'version': dBv + 1},
+                      {'name': '보완.pdf', 'extension': 'pdf', 'claimedBytes': 1000, 'claimedSha256': 'b' * 64}, key())
+        check('H15b 보완 대상 단위(B): 마감 뒤에도 초안 저장 · 파일 올리기 예약 됨', data(eB) is not None and data(fB) is not None, (eB, fB))
+        def set_fix_due(d):   # 보완 기한이 지난 상황 흉내(R1 표 가드를 잠깐 끄고 바꿈 — 시험 DB 에서만)
+            sqlfile(None, text=f"alter table workhub.correction_requests disable trigger correction_requests_guard; "
+                               f"update workhub.correction_requests set due_on='{d}' where id='{CRB}'; "
+                               f"alter table workhub.correction_requests enable trigger correction_requests_guard")
+        set_fix_due(DAY(-1))
+        ex = t[23].r1({'kind': 'save_draft', 'requestId': CA, 'unitId': uB, 'expectedVersion': dBv + 1, 'input': {'text': '기한 지남', 'number': 2, 'files': []}})
+        dx = data(t[23].home()) or {}
+        set_fix_due(DAY(3))
+        check('H15b2 보완 기한이 지나면(어제) 마감된 수합의 보완 저장도 CONFLICT · 홈 보완 0', ecode(ex) == 'CONFLICT' and dx.get('counts', {}).get('supplement') == 0, (ex, dx))
+        e6 = t[23].r1({'kind': 'submit', 'requestId': CA, 'unitId': uB, 'draftId': data(eB)['resourceId'], 'expectedDraftVersion': dBv + 1, 'expectedVersion': uv(uB), 'reason': '보완 없이 다시'})
+        e7 = t[23].r1({'kind': 'submit', 'requestId': CA, 'unitId': uB, 'draftId': data(eB)['resourceId'], 'expectedDraftVersion': dBv + 1, 'expectedVersion': uv(uB),
+                       'reason': '보완 반영', 'correctionRequestId': CRB})
+        check('H15c 마감 뒤 제출은 그 보완 요청을 가리킬 때만: 가리키지 않으면 CONFLICT, 가리키면 제출 · 보완 요청 충족',
+              ecode(e6) == 'CONFLICT' and data(e7) is not None
+              and scalar("select state from workhub.correction_requests where id=%s", (CRB,)) == 'fulfilled', (e6, e7))
+        sB3 = scalar("select current_submission_id from workhub.collection_units where id=%s", (uB,))
+        e8 = t[24].r1({'kind': 'review', 'requestId': CA, 'unitId': uB, 'submissionId': sB3, 'expectedVersion': uv(uB), 'decision': 'accepted', 'note': '', 'dueDate': ''})
+        d23 = data(t[23].home()) or {}
+        units = {u['id']: u['state'] for u in (data(adm.ops(CA)) or {}).get('units', [])}
+        check('H15d 마감 상태 그대로 검토 수락 → 단위 B accepted · 23 홈의 보완 0 · 운영 단계 closed 유지',
+              data(e8) is not None and units.get(uB) == 'accepted' and d23.get('counts', {}).get('supplement') == 0 and data(adm.ops(CA))['phase'] == 'closed', (e8, units, d23))
+        e9 = t[23].r1({'kind': 'save_draft', 'requestId': CA, 'unitId': uB, 'expectedVersion': scalar("select version from workhub.unit_drafts where unit_id=%s", (uB,)),
+                       'input': {'text': '수락 뒤 또', 'number': 3, 'files': []}})
+        check('H15e 보완을 마친 단위는 다시 막힘(열린 보완 요청 없음) → CONFLICT', ecode(e9) == 'CONFLICT', e9)
+        sB4 = sB3
+        e10 = t[24].r1({'kind': 'review', 'requestId': CA, 'unitId': uB, 'submissionId': sB4, 'expectedVersion': uv(uB), 'decision': 'changes_requested', 'note': '또 보완', 'dueDate': TODAY.isoformat()})
+        check('H15f 이미 수락한 제출판은 다시 검토할 수 없음(R1 규칙 그대로) → CONFLICT', ecode(e10) == 'CONFLICT', e10)
         subs = lambda: scalar("select md5(string_agg(x::text, ',' order by x::text)) from (select * from workhub.submission_versions where collection_id=%s) x", (CA,))
         before_sub = subs()
         r = adm.opm(oc('archive', CA, v)); v += 1
         check('H16 보관 → archived · 제출판(내용 · 해시) 그대로 · 관리자 · 담당 교사의 R1 읽기는 그대로', data(r) and data(adm.ops(CA))['phase'] == 'archived'
               and subs() == before_sub and data(adm.rpc('workhub_collection_get', CA)) is not None and data(t[23].rpc('workhub_collection_get', CA)) is not None, r)
         sB2 = scalar("select current_submission_id from workhub.collection_units where id=%s", (uB,))
+        nrev = n('submission_reviews')
         e5 = t[24].r1({'kind': 'review', 'requestId': CA, 'unitId': uB, 'submissionId': sB2, 'expectedVersion': uv(uB), 'decision': 'accepted', 'note': '', 'dueDate': ''})
         check('H16a 보관된 수합에는 R1 함수로 직접 검토해도 CONFLICT · 검토 0', (e5.get('error') or {}).get('code') == 'CONFLICT'
-              and n('submission_reviews', 'submission_id=%s and decision=%s', (sB2, 'accepted')) == 0, e5)
+              and n('submission_reviews') == nrev, e5)
         r = adm.opm(oc('reopen', CA, v, '다시 받기', dueDate=DAY(10)))
         check('H16b 보관 → 재개(open) 가능 · 다시 마감 · 보관', data(r) and data(adm.ops(CA))['phase'] == 'open'
               and data(adm.opm(oc('close', CA, v + 1))) and data(adm.opm(oc('archive', CA, v + 2))) and data(adm.ops(CA))['phase'] == 'archived', r)
