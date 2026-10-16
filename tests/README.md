@@ -277,3 +277,10 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-document-appearance.mjs`: 문서함·질문형 양식의 세 스킨, 활성 텍스트 대비, 긴 내용, 200% 문자 확대 모사와 320px에서 입력/선택 보존·키보드를 확인한다.
 
 네 브라우저 파일은 전체 러너에 등록했다. `npm run test:workhub:browser -- workhub-record-export workhub-relations-list workhub-home-message workhub-document-appearance`로 이 묶음만 실행할 수 있다. React/어댑터/브라우저는 실제 코드이며 서버 응답은 합성이다. 운영 DB에 접속하지 않는다. [구현·검증·실서비스 경계](../docs/workhub/pilot-completion/usability-completion.md).
+
+## C8 기존 인계와 원요청 복구
+
+- `test_workhub_school_transitions.mjs`: 총 34건. 구/신 목록의 협업·수합 인수·반려, 공식 담당 보호, 다음 페이지 기록, 반복 커서·기술 한도, 모듈 중지·목록 실패·목록 밖 기록에서 원키·원문 복구, 다른 내용/위조 접수증 거부를 확인한다.
+- `workhub-school-transitions.mjs`: 총 42개 브라우저 시나리오. 실제 React·어댑터에서 C8 수정 전 사라진 인수 버튼을 재현하고, 입력·기존 요청 번호 보존, 응답 유실 뒤 한 번 접수된 결과의 재조회, 공식 담당 보호와 학교·권한·판 변경을 확인한다.
+- `npm test -- workhub_school_transitions`, `npm run test:workhub:browser -- workhub-school-transitions`로 개별 실행한다. 브라우저의 요청 원장은 합성 서버이며 실제 DB 원자성·PostgREST 연결을 증명하지 않는다.
+- SQL 대조 도구에서도 새 명령(`mutate`)과 원요청 복구(`recover`)를 분리한다. [수정·검증·Claude 재검토](../docs/workhub/pilot-completion/transition-c8-fix.md).
