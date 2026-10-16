@@ -6,15 +6,22 @@ import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { ServiceError } from '../services/scoped-rpc'
 import { createTimetableOperationsServer } from './operations-server'
-import type { OperationCommand, OperationReceipt, OperationsReadiness, OperationsView, TimetableOperationsServer } from './operations-contracts'
+import type { OperationCommand, OperationLesson, OperationReceipt, OperationsReadiness, OperationsView, TimetableOperationsServer } from './operations-contracts'
 import { TimetablePublishPanel } from './TimetablePublishPanel'
 import { TimetableExchangePanel } from './TimetableExchangePanel'
-import { dateOffset, operationDate, OperationLessonLabel } from './OperationChangeList'
+import { dateOffset } from './OperationChangeList'
+import { PublishedTimetableBoard } from './PublishedTimetableBoard'
+import { createTimetableOperationsExtensions } from './operations-next-server'
+import type { OperationsExtensions, OperationReferenceView } from './operations-next-contracts'
+import { SchoolDayChangePanel } from './SchoolDayChangePanel'
+import { timetableWeekStart } from './operations-calendar'
+import nextLimits from './operations-next-limits.json'
 import styles from './operations.css?inline'
+import themeStyles from './timetable-theme.css?inline'
 
 type Tab = 'shared' | 'publish' | 'exchange'
-interface Props { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void }
-interface PanelProps extends Omit<Props, 'connection'> { server: TimetableOperationsServer }
+interface Props { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; initialLessonId?: string; initialDate?: string; onOpenLesson?: (lessonId: string, date: string) => void }
+interface PanelProps extends Omit<Props, 'connection'> { server: TimetableOperationsServer; extensions?: OperationsExtensions }
 const message = (error: unknown) => error instanceof ServiceError ? error.message : '처리 결과를 확인하지 못했습니다. 입력과 원래 요청 번호를 보관했습니다.'
 const rejected = (error: unknown) => error instanceof ServiceError && ['NOT_READY', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'CONFLICT'].includes(error.code)
 const readinessMessage = { not_installed: '확정·공유·교환 기능의 서버 연결을 준비 중입니다.', not_allowed: '현재 계정에는 시간표 운영 자료를 볼 권한이 없습니다.', basis_missing: '학교의 시간표 운영 기초 자료를 먼저 연결해야 합니다.' }
@@ -22,26 +29,34 @@ const receiptMessage = (receipt: OperationReceipt) => receipt.kind === 'publish'
 
 export function TimetableOperationsWorkspace(props: Props) {
   const server = useMemo(() => createTimetableOperationsServer(props.connection), [props.connection])
-  return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} />
+  const extensions = useMemo(() => createTimetableOperationsExtensions(props.connection), [props.connection])
+  return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} extensions={extensions} />
 }
-export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange }: PanelProps) {
+export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, initialLessonId, initialDate, onOpenLesson }: PanelProps) {
   const id = useId(), pendingStore = usePendingRequest(member, 'timetableOperations')
   const route = useEditDraft<Tab>(member, 'timetable-operations-tab'), publishMemory = useEditDraft<unknown>(member, 'timetable-publish'), exchangeMemory = useEditDraft<unknown>(member, 'timetable-exchanges')
+  const schoolDayMemory = useEditDraft<unknown>(member, 'timetable-school-day')
   const pending = pendingStore.request as { command: OperationCommand; key: string } | undefined
   const [tab, setTab] = useState<Tab>(() => pending ? pending.command.kind === 'publish' ? 'publish' : 'exchange' : route.initial ?? 'shared')
-  const [from, setFrom] = useState(date), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
+  const focusedDate = dateOffset(initialDate ?? date, 0) || date, focusSource = useRef(focusedDate)
+  const [from, setFrom] = useState(() => timetableWeekStart(focusedDate)), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
+  const [boardDate, setBoardDate] = useState(focusedDate), [schoolDayDirty, setSchoolDayDirty] = useState(false)
+  const [boardFilter, setBoardFilter] = useState({ teacher: member.id, group: '' })
+  const [boardMode, setBoardMode] = useState<'week' | 'day'>()
   const [fetched, setFetched] = useState<{ key: string; value: OperationsView }>(), [loading, setLoading] = useState(true), [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [discard, setDiscard] = useState(false)
   const [publishDirty, setPublishDirty] = useState(false), [exchangeDirty, setExchangeDirty] = useState(false), [publishEpoch, setPublishEpoch] = useState(0), [exchangeEpoch, setExchangeEpoch] = useState(0)
-  const [teacher, setTeacher] = useState(''), [day, setDay] = useState(''), [limit, setLimit] = useState(20)
+  const [sourceSelection, setSourceSelection] = useState<{ lessonId: string; token: number }>(), selectionToken = useRef(0)
+  const [references, setReferences] = useState<OperationReferenceView>(), [referenceError, setReferenceError] = useState('')
   const life = useRef(0), running = useRef(false), feedback = useRef<HTMLDivElement>(null)
-  const until = dateOffset(from, 28), enabled = activeAt(member, date), queryKey = JSON.stringify([date, from, until, revision, reload, enabled])
+  const until = dateOffset(from, nextLimits.sharedWindowDays), enabled = activeAt(member, date), queryKey = JSON.stringify([date, from, until, revision, reload, enabled])
   const view = !loading && !loadError && ready?.available && fetched?.key === queryKey && enabled ? fetched.value : null
   const current = useRef({ view, enabled, pending }); current.current = { view, enabled, pending }
-  const locked = busy || Boolean(pending), navLocked = locked || publishDirty || exchangeDirty
+  const locked = busy || Boolean(pending), navLocked = locked || publishDirty || exchangeDirty || schoolDayDirty
   const refresh = useCallback(() => setReload(value => value + 1), [])
   const changePublishDirty = useCallback((value: boolean) => setPublishDirty(value), [])
   const changeExchangeDirty = useCallback((value: boolean) => setExchangeDirty(value), [])
+  useEffect(() => { if (focusedDate !== focusSource.current && !locked) { focusSource.current = focusedDate; setBoardDate(focusedDate); setFrom(timetableWeekStart(focusedDate)) } }, [focusedDate, locked])
   useEffect(() => { life.current++; return () => { life.current++; running.current = false } }, [server])
   useEffect(() => { onNavigationLockChange?.(navLocked); return () => onNavigationLockChange?.(false) }, [navLocked, onNavigationLockChange])
   useEffect(() => { if (!navLocked) return; const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', beforeLeave); return () => window.removeEventListener('beforeunload', beforeLeave) }, [navLocked])
@@ -59,7 +74,12 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
     return () => { cancelled = true }
   }, [server, member.id, queryKey, enabled, from, until])
   useEffect(() => { if (error || notice) feedback.current?.focus() }, [error, notice])
-  useEffect(() => { setTeacher(''); setDay(''); setLimit(20) }, [fetched])
+  useEffect(() => {
+    let cancelled = false; setReferences(undefined); setReferenceError('')
+    if (!view || !extensions) return
+    void extensions.references(member.id, view).then(result => { if (!cancelled) setReferences(result) }).catch(() => { if (!cancelled) setReferenceError('학급별 조회 연결을 확인하지 못했습니다. 교사별 시간표와 기존 요청은 계속 이용할 수 있습니다.') })
+    return () => { cancelled = true }
+  }, [view, extensions, member.id])
   function open(next: Tab) { if (locked || next === tab) return; route.save(next, false); setTab(next); setDiscard(false) }
   function clearCommandDraft(command: OperationCommand) {
     if (command.kind === 'publish') { publishMemory.remove(); setPublishEpoch(value => value + 1); setPublishDirty(false) }
@@ -104,13 +124,15 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   }
   function discardInputs() {
     if (locked) return
-    publishMemory.remove(); exchangeMemory.remove(); setPublishEpoch(value => value + 1); setExchangeEpoch(value => value + 1)
-    setPublishDirty(false); setExchangeDirty(false); setDiscard(false); setNotice('보관한 입력을 버렸습니다. 다른 메뉴로 이동할 수 있습니다.'); setError('')
+    publishMemory.remove(); exchangeMemory.remove(); schoolDayMemory.remove(); setPublishEpoch(value => value + 1); setExchangeEpoch(value => value + 1)
+    setPublishDirty(false); setExchangeDirty(false); setSchoolDayDirty(false); setDiscard(false); setNotice('보관한 입력을 버렸습니다. 다른 메뉴로 이동할 수 있습니다.'); setError('')
   }
-  const teachers = useMemo(() => { const map = new Map<string, string>(); for (const lesson of view?.lessons ?? []) for (const item of lesson.teachers) map.set(item.id, item.name); return [...map].sort((a, b) => a[1].localeCompare(b[1], 'ko')) }, [view])
-  const lessons = useMemo(() => (view?.lessons ?? []).filter(lesson => (!teacher || lesson.teachers.some(item => item.id === teacher)) && (!day || operationDate(lesson.time.startsAt, view!.timeZone) === day)).sort((a, b) => a.time.startsAt.localeCompare(b.time.startsAt) || a.label.localeCompare(b.label, 'ko')), [view, teacher, day])
+  function requestLesson(lesson: OperationLesson) {
+    if (locked || !view?.canRequest || !lesson.canRequest) return
+    setSourceSelection({ lessonId: lesson.id, token: ++selectionToken.current }); open('exchange')
+  }
   return <section className="timetable-operations" aria-labelledby={`${id}-title`}>
-    <style>{styles}</style>
+    <style>{themeStyles + styles}</style>
     <header className="ttops-header"><div><p className="ttops-eyebrow">학교 시간표</p><h1 id={`${id}-title`}>시간표 운영</h1><p className="ttops-muted">확정된 수업을 함께 확인하고, 변경은 상대 확인과 승인을 거쳐 반영합니다.</p></div><button type="button" className="secondary" onClick={refresh} disabled={busy || loading}>최신 시간표 확인</button></header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="ttops-error">{error}</p>}{notice && <p role="status" className="ttops-notice">{notice}</p>}</div>
     {pending && <section className="ttops-pending" aria-labelledby={`${id}-pending`}>
@@ -122,21 +144,18 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
     {loading && <p role="status">시간표 운영 연결을 확인하고 있습니다…</p>}
     {!loading && loadError && <div role="alert" className="ttops-error"><h3>시간표 운영 자료를 불러오지 못했습니다</h3><p>{loadError}</p><p>이전 자료는 숨겼습니다. 작성한 입력은 연결 확인 뒤 이어서 사용할 수 있습니다.</p><button type="button" className="secondary" onClick={refresh} disabled={busy}>운영 연결 다시 확인</button></div>}
     {!loading && !loadError && ready && !ready.available && <div role="status" className="ttops-card"><h3>시간표 운영 연결 준비 중</h3><p>{readinessMessage[ready.reason]}</p><p className="ttops-muted">연결되지 않은 시간표를 임의로 만들거나 확정하지 않습니다. 편성 화면의 초안 작업은 별도로 이용할 수 있습니다.</p></div>}
-    <nav className="ttops-tabs" aria-label="시간표 운영 작업"><button type="button" aria-pressed={tab === 'shared'} disabled={locked && tab !== 'shared'} onClick={() => open('shared')}>공유 시간표</button><button type="button" aria-pressed={tab === 'publish'} disabled={locked && tab !== 'publish'} onClick={() => open('publish')}>시간표 확정{publishDirty ? ' · 작성 중' : ''}</button><button type="button" aria-pressed={tab === 'exchange'} disabled={locked && tab !== 'exchange'} onClick={() => open('exchange')}>교환·변경 요청{exchangeDirty ? ' · 작성 중' : ''}</button></nav>
+    <nav className="ttops-tabs" aria-label="시간표 운영 작업"><button type="button" aria-pressed={tab === 'shared'} disabled={locked && tab !== 'shared'} onClick={() => open('shared')}>공유 시간표</button>{(!view || view.canPublish || publishDirty || schoolDayDirty || tab === 'publish') && <button type="button" aria-pressed={tab === 'publish'} disabled={locked && tab !== 'publish'} onClick={() => open('publish')}>시간표 확정{publishDirty ? ' · 작성 중' : ''}</button>}<button type="button" aria-pressed={tab === 'exchange'} disabled={locked && tab !== 'exchange'} onClick={() => open('exchange')}>교환·변경 요청{exchangeDirty ? ' · 작성 중' : ''}</button></nav>
     <div hidden={tab !== 'shared'}>
-      {view && <section className="ttops-card" aria-labelledby={`${id}-shared`}>
-        <h3 id={`${id}-shared`}>학교가 확정한 수업</h3><p className="ttops-muted">현재 계정에 허용된 자료만 표시합니다. {view.timeZone} 기준 · 확인 시각 {new Date(view.asOf).toLocaleString('ko-KR', { timeZone: view.timeZone })}</p>
-        <div className="ttops-form-row"><label>조회 시작일<input aria-label="조회 시작일" type="date" value={from} disabled={locked} onChange={event => { if (dateOffset(event.target.value, 0)) setFrom(event.target.value) }} /></label><label>교사로 보기<select aria-label="교사로 보기" value={teacher} onChange={event => { setTeacher(event.target.value); setLimit(20) }}><option value="">허용된 전체 수업</option>{teachers.map(([key, name]) => <option key={key} value={key}>{name}</option>)}</select></label><label>하루만 보기<input aria-label="하루만 보기" type="date" min={view.from} max={dateOffset(view.until, -1)} value={day} onChange={event => { setDay(event.target.value); setLimit(20) }} /></label></div>
-        <p>{view.from} ~ {dateOffset(view.until, -1)} · 표시 수업 {lessons.length}건</p>
-        {lessons.length ? <ol className="ttops-lesson-list">{lessons.slice(0, limit).map(lesson => <li key={lesson.id}><OperationLessonLabel lesson={lesson} timeZone={view.timeZone} /></li>)}</ol> : <p className="ttops-empty">선택한 범위에서 확인할 수 있는 확정 수업이 없습니다.</p>}
-        {lessons.length > limit && <button type="button" className="secondary" onClick={() => setLimit(value => value + 20)}>수업 20건 더 보기 ({limit}/{lessons.length})</button>}
+      {view && <section className="ttops-card" aria-label="확정 수업 조회">
+        <PublishedTimetableBoard view={view} memberId={member.id} date={date} initialDate={boardDate} initialFilter={boardFilter} onFilterChange={setBoardFilter} initialMode={boardMode} onModeChange={setBoardMode} locked={locked} references={references} onRequest={requestLesson} onRangeChange={(first, selected) => { setBoardDate(selected); if (first < view.from || dateOffset(first, 7) > view.until) setFrom(first) }} initialLessonId={initialLessonId} onOpenLesson={onOpenLesson} />
+        {referenceError && <details><summary>학급 연결 상태</summary><p className="ttops-muted">{referenceError}</p></details>}
         <details className="ttops-publications"><summary>적용 중인 확정본 {view.publications.length}건</summary>{view.publications.length ? <ul>{view.publications.map(item => <li key={item.id}><strong>{item.title} · {item.version}판</strong><p>{item.from} ~ {dateOffset(item.until, -1)}</p><small>확정 시각 {new Date(item.publishedAt).toLocaleString('ko-KR', { timeZone: view.timeZone })}</small></li>)}</ul> : <p>이 조회 기간에 적용되는 확정본이 없습니다.</p>}</details>
       </section>}
     </div>
-    <div hidden={tab !== 'publish'}><TimetablePublishPanel key={publishEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changePublishDirty} /></div>
-    <div hidden={tab !== 'exchange'}><TimetableExchangePanel key={exchangeEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changeExchangeDirty} onReload={refresh} revision={revision + reload} /></div>
-    {(publishDirty || exchangeDirty) && !locked && (!view || tab === 'shared' || tab === 'publish' && !view.canPublish || tab === 'exchange' && !view.canRequest) && <section className="ttops-reset" aria-label="보관한 입력 정리">
-      {discard ? <><p>현재 탭에 보관한 확정·교환 입력을 모두 버립니다. 이미 서버에 반영된 시간표와 요청은 바뀌지 않습니다.</p><button type="button" className="secondary" onClick={discardInputs}>입력 버리고 메뉴 잠금 해제</button><button type="button" className="secondary" onClick={() => setDiscard(false)}>계속 작성하기</button></> : <button type="button" className="secondary" onClick={() => setDiscard(true)}>보관한 입력 정리</button>}
+    <div hidden={tab !== 'publish'}><TimetablePublishPanel key={publishEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changePublishDirty} extensions={extensions} /><SchoolDayChangePanel key={'school-day-' + publishEpoch} member={member} view={view} references={references} extensions={extensions} locked={locked} onDirtyChange={setSchoolDayDirty} /></div>
+    <div hidden={tab !== 'exchange'}><TimetableExchangePanel key={exchangeEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changeExchangeDirty} onReload={refresh} revision={revision + reload} sourceSelection={sourceSelection} onSelectionConsumed={() => setSourceSelection(undefined)} extensions={extensions} /></div>
+    {(publishDirty || exchangeDirty || schoolDayDirty) && !locked && (!view || tab === 'shared' || tab === 'publish' && !view.canPublish || tab === 'exchange' && (!view.canRequest || schoolDayDirty)) && <section className="ttops-reset" aria-label="보관한 입력 정리">
+      {discard ? <><p>현재 탭에 보관한 확정·교환·학사 변경 입력을 모두 버립니다. 이미 서버에 반영된 시간표와 요청은 바뀌지 않습니다.</p><button type="button" className="secondary" onClick={discardInputs}>입력 버리고 메뉴 잠금 해제</button><button type="button" className="secondary" onClick={() => setDiscard(false)}>계속 작성하기</button></> : <button type="button" className="secondary" onClick={() => setDiscard(true)}>보관한 입력 정리</button>}
     </section>}
   </section>
 }

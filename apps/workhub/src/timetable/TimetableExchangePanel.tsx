@@ -7,11 +7,13 @@ import type { ExchangeInput, ExchangePreview, ExchangeRequestView, OperationComm
 import { OperationChangeList, OperationLessonLabel } from './OperationChangeList'
 import styles from './timetable-exchanges.css?inline'
 import apiLimits from './operations-api-limits.json'
+import type { ExchangeRecommendations, OperationsExtensions } from './operations-next-contracts'
 
 export interface TimetableExchangePanelProps {
   server: TimetableOperationsServer; member: Membership; view: OperationsView | null; loading: boolean; locked: boolean
   onCommand: (command: OperationCommand) => Promise<OperationReceipt>; onDirtyChange: (dirty: boolean) => void
   onReload: () => void; revision?: number
+  sourceSelection?: { lessonId: string; token: number }; extensions?: OperationsExtensions; onSelectionConsumed?: () => void
 }
 interface ExchangeDraft { kind: 'move' | 'swap'; lessonId: string; targetKey: string; otherLessonId: string; reason: string }
 interface SelectedAction { requestId: string; expectedVersion: number; proposalHash: string; action: RequestAction }
@@ -42,12 +44,15 @@ function inputFor(draft: ExchangeDraft, view: OperationsView): ExchangeInput | n
 export function TimetableExchangePanel(props: TimetableExchangePanelProps) {
   return <ExchangePanelSession key={recoveryScope(props.member)} {...props} />
 }
-function ExchangePanelSession({ server, member, view, loading, locked, onCommand, onDirtyChange, onReload, revision = 0 }: TimetableExchangePanelProps) {
+function ExchangePanelSession({ server, member, view, loading, locked, onCommand, onDirtyChange, onReload, revision = 0, sourceSelection, extensions, onSelectionConsumed }: TimetableExchangePanelProps) {
   const id = useId(), memory = useEditDraft<ExchangeDraft>(member, 'timetable-exchanges')
   const [draft, setDraft] = useState<ExchangeDraft>(() => memory.initial ?? emptyDraft())
   const [preview, setPreview] = useState<ExchangePreview>(), [confirmed, setConfirmed] = useState(false)
   const [selected, setSelected] = useState<SelectedAction>(), [actionConfirmed, setActionConfirmed] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [clock, setClock] = useState(Date.now)
+  const [suggestions, setSuggestions] = useState<ExchangeRecommendations>(), [replaceSource, setReplaceSource] = useState<string>()
+  const [requestFilter, setRequestFilter] = useState<'all' | 'mine' | 'active' | 'finished'>('all'), [requestLimit, setRequestLimit] = useState(20)
+  const appliedSelection = useRef<number>()
   const life = useRef(0), operation = useRef(false), sequence = useRef(0), feedback = useRef<HTMLDivElement>(null), previewSource = useRef('')
   const sourceKey = view && !loading ? canonical([view.from, view.until, view.canRequest, view.lessons, view.requests]) : ''
   const current = useRef({ sourceKey, draft, view }); current.current = { sourceKey, draft, view }
@@ -65,16 +70,49 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
   useEffect(() => { life.current++; return () => { life.current++; sequence.current++; operation.current = false } }, [server])
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false) }, [dirty, onDirtyChange])
   useEffect(() => { setPreview(undefined); setConfirmed(false); setSelected(undefined); setActionConfirmed(false); sequence.current++ }, [sourceKey, revision])
+  useEffect(() => { setSuggestions(undefined) }, [sourceKey, revision, draft.lessonId, draft.reason])
   useEffect(() => {
-    if (!preview && !selected && !hasTimedRequests) return
+    if (!sourceSelection || sourceSelection.token === appliedSelection.current || unavailable || !view) return
+    appliedSelection.current = sourceSelection.token
+    onSelectionConsumed?.()
+    const source = view.lessons.find(lesson => lesson.id === sourceSelection.lessonId && lesson.canRequest && futureLesson(lesson))
+    if (!source || !view.canRequest) { setError('선택한 수업의 현재 판과 요청 권한을 다시 확인해 주세요.'); return }
+    if (dirtyDraft(draft)) { setReplaceSource(source.id); return }
+    const next = { ...emptyDraft(), lessonId: source.id }; setDraft(next); memory.save(next, true); setPreview(undefined); setConfirmed(false); setSelected(undefined); setActionConfirmed(false); setNotice('시간표에서 선택한 수업으로 변경 요청을 시작합니다.'); sequence.current++
+  }, [sourceSelection, unavailable, sourceKey])
+  useEffect(() => {
+    if (!preview && !selected && !hasTimedRequests && !suggestions) return
     const timer = setInterval(() => setClock(Date.now()), 1000)
     return () => clearInterval(timer)
-  }, [preview, selected, hasTimedRequests])
+  }, [preview, selected, hasTimedRequests, suggestions])
   useEffect(() => { if (error || notice) feedback.current?.focus() }, [error, notice])
   function update(patch: Partial<ExchangeDraft>) {
     if (unavailable) return
     const next = { ...draft, ...patch }; setDraft(next); memory.save(next, dirtyDraft(next))
     setPreview(undefined); setConfirmed(false); setError(''); setNotice(''); sequence.current++
+  }
+  function replaceSelectedSource() {
+    if (!replaceSource || unavailable || !view?.lessons.some(lesson => lesson.id === replaceSource && lesson.canRequest && futureLesson(lesson))) return
+    update({ ...emptyDraft(), lessonId: replaceSource }); setReplaceSource(undefined)
+  }
+  async function recommend() {
+    if (!extensions || !view || !view.canRequest || unavailable || operation.current || !draft.reason.trim()) return
+    const source = view.lessons.find(lesson => lesson.id === draft.lessonId && lesson.canRequest && futureLesson(lesson))
+    if (!source) return
+    const epoch = life.current, token = ++sequence.current, expectedSource = sourceKey
+    const expectedDraft = canonical(draft)
+    operation.current = true; setBusy(true); setSuggestions(undefined); setError(''); setNotice('')
+    try {
+      const result = await extensions.recommendations(member.id, { lessonId: source.id, expectedVersion: source.version, reason: draft.reason.trim(), from: view.from, until: view.until }, view)
+      if (epoch !== life.current || token !== sequence.current || current.current.sourceKey !== expectedSource || canonical(current.current.draft) !== expectedDraft) return
+      setSuggestions(result)
+    } catch (failure) { if (epoch === life.current && token === sequence.current) setError(failure instanceof ServiceError && failure.code === 'NOT_READY' ? '교환 추천 연결을 준비 중입니다. 아래에서 상대 수업을 직접 선택할 수 있습니다.' : failureText(failure)) }
+    finally { if (epoch === life.current) { operation.current = false; setBusy(false) } }
+  }
+  function selectRecommendation(input: ExchangeInput) {
+    if (unavailable) return
+    update(input.kind === 'swap' ? { kind: 'swap', lessonId: input.lessonId, otherLessonId: input.otherLessonId, targetKey: '', reason: input.reason } : { kind: 'move', lessonId: input.lessonId, targetKey: timeKey(input.target), otherLessonId: '', reason: input.reason })
+    setSuggestions(undefined); setNotice('추천안을 선택했습니다. 변경 전후를 다시 확인한 뒤 직접 요청을 보내 주세요.')
   }
   function clearDraft() {
     if (locked || busy) return
@@ -123,9 +161,11 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
   }
   const source = view?.lessons.find(lesson => lesson.id === draft.lessonId)
   const myLessons = view?.lessons.filter(lesson => lesson.canRequest && futureLesson(lesson)) ?? []
+  const shownRequests = (view?.requests ?? []).filter(request => requestFilter === 'all' || requestFilter === 'mine' && request.actions.some(action => action !== 'withdraw') || requestFilter === 'active' && ['awaiting_consent', 'awaiting_approval'].includes(request.state) || requestFilter === 'finished' && !['awaiting_consent', 'awaiting_approval'].includes(request.state)).sort((a, b) => Number(b.actions.some(action => action !== 'withdraw')) - Number(a.actions.some(action => action !== 'withdraw')) || b.createdAt.localeCompare(a.createdAt))
   return <section className="timetable-exchanges" aria-labelledby={id + '-title'}><style>{styles}</style>
     <header><h2 id={id + '-title'}>수업 변경 요청</h2><p className="timetable-muted">변경안을 먼저 확인하고, 관련 교사의 동의와 담당자 승인 후 시간표에 반영합니다.</p></header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status" className="timetable-notice">{notice}</p>}</div>
+    {replaceSource && visible && <section className="ttops-pending" aria-label="기존 변경 요청 입력 보존"><p>작성 중인 요청이 있습니다. 시간표에서 선택한 수업으로 바꾸면 보내지 않은 입력을 비웁니다.</p><button type="button" disabled={unavailable} onClick={replaceSelectedSource}>기존 입력을 비우고 선택한 수업으로 시작</button><button type="button" className="secondary" disabled={unavailable} onClick={() => setReplaceSource(undefined)}>기존 입력 계속 작성</button></section>}
     {!visible ? <p role="status">{loading ? '현재 수업과 요청 권한을 확인하고 있습니다.' : '현재 권한과 수업을 확인할 때까지 보관한 변경 요청 입력을 숨깁니다.'}</p> : view && <>
       <section className="timetable-card" aria-labelledby={id + '-compose'}>
         <h3 id={id + '-compose'}>새 변경 요청</h3>
@@ -140,10 +180,13 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
             {draft.kind === 'move' && source && !moveTargets(source).length && <p>이 수업에 등록된 다른 허용 시간이 없습니다. 담당자에게 공식 일과를 확인해 주세요.</p>}
             {draft.kind === 'swap' && source && !swapCandidates(source, view).length && <p>현재 기간에 시간이 맞는 교환 후보가 없습니다. 조회 기간이나 담당자가 정한 허용 시간을 확인해 주세요.</p>}
             <label>변경 요청 사유<textarea aria-label="변경 요청 사유" rows={3} maxLength={apiLimits.reason} value={draft.reason} onChange={event => update({ reason: event.target.value })} placeholder="관련 교사가 알아야 할 업무상 이유만 적어 주세요." /></label>
+            <div className="timetable-actions"><button type="button" className="secondary" disabled={!extensions || !source || !draft.reason.trim() || unavailable} onClick={() => void recommend()}>가능한 교환안 추천받기</button></div>
+            <p className="timetable-muted">추천은 현재 수업과 조건을 서버에서 검사한 후보입니다. 추천만으로 요청을 보내거나 시간표를 바꾸지 않습니다.{!extensions && ' 추천 서버 연결은 준비 중입니다.'}</p>
             <p className="timetable-muted">개인 상담이나 자세한 부재 사유는 넣지 마세요. 현재 화면은 한 수업의 이동 또는 두 수업 간 교환을 지원합니다.</p>
             <div className="timetable-actions"><button type="button" disabled={!input || unavailable} onClick={() => void inspect()}>{busy ? '확인 중…' : '변경 전후 미리보기'}</button><button type="button" className="secondary" disabled={unavailable || !dirtyDraft(draft)} onClick={clearDraft}>보내지 않은 요청 입력 비우기</button></div>
           </fieldset>
           {draft.lessonId && !source && <p role="status" className="timetable-error">선택했던 수업이 최신 조회에 없습니다. 내 입력은 유지했으니 수업을 다시 선택해 주세요.</p>}
+          {suggestions && <section className="timetable-exchange-preview" aria-label="검사된 교환 후보"><h4>교환 후보 비교</h4>{suggestions.explanations.map((explanation, index) => <p key={index}>{explanation}</p>)}{suggestions.status === 'search_limited' && <p role="status">탐색 한도 안에서 확인한 결과입니다. 다른 교환이 불가능하다는 뜻은 아닙니다.</p>}{suggestions.candidates.map((candidate, index) => <article key={candidate.id}><h5>후보 {index + 1}</h5><p>{candidate.explanation}</p><OperationChangeList changes={candidate.preview.changes} timeZone={view.timeZone} /><p>동의 대상: {candidate.preview.participants.map(person => person.name).join(' · ')}</p><button type="button" className="secondary" disabled={unavailable || Date.parse(candidate.preview.expiresAt) <= clock} onClick={() => selectRecommendation(candidate.input)}>후보 {index + 1} 선택</button></article>)}</section>}
         </>}
         {shownPreview && <section className="timetable-exchange-preview" aria-label="수업 변경 미리보기"><h4>변경 전후 확인</h4><OperationChangeList changes={shownPreview.changes} timeZone={view.timeZone} />
           <p><strong>동의가 필요한 교사:</strong> {shownPreview.participants.map(participant => participant.name).join(' · ')}</p>
@@ -155,7 +198,8 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
         </section>}
       </section>
       <section className="timetable-card" aria-labelledby={id + '-requests'}><div className="timetable-toolbar"><h3 id={id + '-requests'}>관련 변경 요청</h3><button type="button" className="secondary" disabled={locked || busy} onClick={onReload}>요청 상태 새로 확인</button></div><p className="timetable-muted">읽음 여부를 동의로 처리하지 않습니다. 동의 완료와 시간표 반영 완료도 구분합니다.</p>
-        {!view.requests.length ? <p>현재 조회할 수 있는 변경 요청이 없습니다.</p> : <div className="timetable-exchange-requests">{view.requests.map(request => <article key={request.id} className="timetable-exchange-request" aria-labelledby={id + '-request-' + request.id}>
+        <label>요청 상태로 보기<select aria-label="요청 상태로 보기" value={requestFilter} onChange={event => { setRequestFilter(event.target.value as typeof requestFilter); setRequestLimit(20) }}><option value="all">전체 요청</option><option value="mine">내 응답이 필요한 요청</option><option value="active">진행 중인 요청</option><option value="finished">끝난 요청</option></select></label>
+        {!shownRequests.length ? <p>현재 조회할 수 있는 변경 요청이 없습니다.</p> : <div className="timetable-exchange-requests">{shownRequests.slice(0, requestLimit).map(request => <article key={request.id} className="timetable-exchange-request" aria-labelledby={id + '-request-' + request.id}>
           <div className="timetable-toolbar"><h4 id={id + '-request-' + request.id}>{request.requester.name} · {request.kind === 'swap' ? '수업 교환' : '수업 이동'}</h4><strong className="timetable-badge">{statusText[request.state]}</strong></div><p className="timetable-exchange-reason">{request.reason}</p><OperationChangeList changes={request.changes} timeZone={view.timeZone} />
           <ul className="timetable-exchange-consents" aria-label="교사별 동의 상태">{request.participants.map(participant => <li key={participant.id}><span>{participant.name}</span><strong>{participant.response === 'accepted' ? '동의함' : participant.response === 'rejected' ? '동의하지 않음' : '응답 대기'}</strong></li>)}</ul>
           {request.state === 'awaiting_approval' && <p className="timetable-muted">관련 교사의 동의를 모았습니다. 담당자가 승인하기 전까지 실제 시간표는 그대로입니다.</p>}
@@ -167,6 +211,7 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
             <div className="timetable-actions"><button type="button" disabled={unavailable || !selectedCurrent || !responseBeforeExpiry || !actionConfirmed} onClick={() => void performAction()}>확인한 응답 보내기</button><button type="button" className="secondary" disabled={locked || busy} onClick={() => { setSelected(undefined); setActionConfirmed(false) }}>응답 확인 닫기</button></div>
           </section>}
         </article>)}</div>}
+        {shownRequests.length > requestLimit && <button type="button" className="secondary" onClick={() => setRequestLimit(value => value + 20)}>변경 요청 20건 더 보기 ({requestLimit}/{shownRequests.length})</button>}
       </section>
     </>}
   </section>

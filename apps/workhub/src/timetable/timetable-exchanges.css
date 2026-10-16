@@ -2,18 +2,18 @@
 .timetable-exchanges h2,.timetable-exchanges h3,.timetable-exchanges h4,.timetable-exchanges h5 { margin:0 0 10px; }
 .timetable-exchanges fieldset { margin:0; padding:0; border:0; min-width:0; }
 .timetable-exchanges label { display:grid; gap:7px; margin-bottom:12px; min-width:0; font-weight:600; }
-.timetable-exchanges input,.timetable-exchanges select,.timetable-exchanges textarea { box-sizing:border-box; min-width:0; width:100%; max-width:100%; font:inherit; border:1px solid #cbd5e1; border-radius:8px; padding:10px; background:#fff; color:#172033; }
+.timetable-exchanges input,.timetable-exchanges select,.timetable-exchanges textarea { box-sizing:border-box; min-width:0; width:100%; max-width:100%; font:inherit; border:1px solid var(--border,#e2e6ed); border-radius:8px; padding:10px; background:var(--surface,#fff); color:var(--text,#242a33); }
 .timetable-exchanges select { text-overflow:ellipsis; }
 .timetable-exchanges textarea { resize:vertical; }
 .timetable-exchanges .timetable-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); }
 .timetable-exchanges .timetable-exchange-check { display:flex; gap:9px; align-items:flex-start; line-height:1.5; }
-.timetable-exchanges .timetable-exchange-check input { width:18px; height:18px; flex:0 0 auto; margin:3px 0 0; accent-color:#315ca8; }
-.timetable-exchange-preview,.timetable-exchange-confirm { padding:16px; margin-top:16px; border:1px solid #c7d8ef; border-radius:10px; background:#f8fbff; min-width:0; }
+.timetable-exchanges .timetable-exchange-check input { width:18px; height:18px; flex:0 0 auto; margin:3px 0 0; accent-color:var(--accent,#315ed3); }
+.timetable-exchange-preview,.timetable-exchange-confirm { padding:16px; margin-top:16px; border:1px solid var(--border,#e2e6ed); border-radius:10px; background:var(--surface-soft,#f6f7f9); min-width:0; }
 .timetable-exchange-requests { display:grid; gap:16px; }
-.timetable-exchange-request { padding:16px; border:1px solid #dbe2eb; border-radius:10px; min-width:0; }
+.timetable-exchange-request { padding:16px; border:1px solid var(--border,#e2e6ed); border-radius:10px; min-width:0; }
 .timetable-exchange-reason { white-space:pre-wrap; overflow-wrap:anywhere; }
 .timetable-exchange-consents { display:flex; flex-wrap:wrap; list-style:none; padding:0; gap:8px; }
-.timetable-exchange-consents li { display:flex; gap:10px; padding:7px 10px; background:#f1f4f8; border-radius:7px; }
-.timetable-exchange-consents strong { font-weight:600; color:#34445b; }
+.timetable-exchange-consents li { display:flex; gap:10px; padding:7px 10px; background:var(--surface-soft,#f6f7f9); border-radius:7px; }
+.timetable-exchange-consents strong { font-weight:600; color:var(--text,#242a33); }
 .timetable-exchanges-sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
 @media(max-width:600px) { .timetable-exchange-preview,.timetable-exchange-confirm,.timetable-exchange-request {padding:12px;} .timetable-exchanges .timetable-actions button {width:100%;} }

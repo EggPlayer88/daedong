@@ -43,6 +43,8 @@ const bundle = (await build({
           if(name==='workhub_calendar_get')return {data:await calendar.get(args.p_member_id,args.p_event_id),error:null};
           if(name==='workhub_task_list')return {data:tasks.listTasks(args.p_member_id),error:null};
           if(name==='workhub_task_get')return {data:tasks.listTasks(args.p_member_id).find(row=>row.id===args.p_task_id),error:null};
+          // 이 시험에 없는 조회 모듈을 할 일 저장으로 잘못 계수하지 않는다.
+          if(name==='workhub_timetable_operations_readiness')return {data:null,error:{code:'PGRST202',message:'not installed'}};
           qa.writes.push({name,args:clone(args)});
           const kind=name==='workhub_calendar_save'?'calendar':'task';
           let saved;

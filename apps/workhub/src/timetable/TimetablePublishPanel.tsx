@@ -4,16 +4,19 @@ import { useEditDraft } from '../app/edit-drafts'
 import { canonical, ServiceError } from '../services/scoped-rpc'
 import type { OperationCommand, OperationReceipt, OperationsView, PublishInput, PublishPreview, TimetableOperationsServer } from './operations-contracts'
 import { dateOffset, OperationChangeList } from './OperationChangeList'
+import type { OperationsExtensions } from './operations-next-contracts'
+import { PublicationManifestPanel } from './PublicationManifestPanel'
 
 interface PublishForm { draftId: string; draftVersion: number; from: string; lastDay: string; dirty: boolean }
 interface Props {
   server: TimetableOperationsServer; member: Membership; view: OperationsView | null; loading: boolean; locked: boolean
   onCommand: (command: OperationCommand) => Promise<OperationReceipt>; onDirtyChange: (dirty: boolean) => void
+  extensions?: OperationsExtensions
 }
 const message = (error: unknown) => error instanceof ServiceError ? error.message : '검토 결과를 확인하지 못했습니다. 입력을 보관했습니다.'
 const blank = (view: OperationsView | null): PublishForm => ({ draftId: '', draftVersion: 0, from: view?.from ?? '', lastDay: view ? dateOffset(view.until, -1) : '', dirty: false })
 
-export function TimetablePublishPanel({ server, member, view, loading, locked, onCommand, onDirtyChange }: Props) {
+export function TimetablePublishPanel({ server, member, view, loading, locked, onCommand, onDirtyChange, extensions }: Props) {
   const id = useId(), memory = useEditDraft<PublishForm>(member, 'timetable-publish')
   const [form, setForm] = useState(() => memory.initial ?? blank(view)), [preview, setPreview] = useState<PublishPreview>()
   const [confirmed, setConfirmed] = useState(false), [previewing, setPreviewing] = useState(false), [error, setError] = useState('')
@@ -83,6 +86,7 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
       {staleDraft && <p role="alert" className="ttops-error">선택한 초안의 판이나 공개 권한이 바뀌었습니다. 최신 초안을 다시 선택해 주세요.</p>}
       <button type="button" disabled={!validInput} onClick={() => void inspect()}>{previewing ? '변경 영향 확인 중…' : '적용 전 변경 영향 확인'}</button>
     </fieldset>
+    <PublicationManifestPanel extensions={extensions} memberId={member.id} input={input} sourceKey={identity} timeZone={view!.timeZone} disabled={locked || previewing || !validInput} />
     {preview && <section className="ttops-preview" aria-labelledby={`${id}-preview`}>
       <h4 id={`${id}-preview`}>2. 적용 전 최종 확인</h4>
       <p><strong>{preview.input.from} ~ {dateOffset(preview.input.until, -1)}</strong>에 적용할 수업 {preview.changes.length}건을 확인했습니다.</p>

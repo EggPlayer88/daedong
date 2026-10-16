@@ -61,6 +61,8 @@ function changes(v: unknown): OperationLessonChange[] {
   })
   unique(result.map(c => c.after.id)); return result
 }
+/** 분할된 확정 미리보기에서도 기존 수업 판·상태 검사를 그대로 재사용한다. */
+export function parseOperationLessonChange(value: unknown): OperationLessonChange { return response(() => changes([value])[0]) }
 function relatedTeachers(changed: OperationLessonChange[]): OperationTeacher[] {
   const map = new Map<string, OperationTeacher>()
   for (const row of changed) for (const t of [...(row.before?.teachers ?? []), ...row.after.teachers]) {
