@@ -91,23 +91,43 @@ export function transitionActionAllowed(catalog:TransitionCatalog,command:Extrac
  const target=catalog.records.find(item=>item.id===command.recordId&&item.version===command.expectedVersion)
  if(!target)return false
  if(command.kind==='cancel')return target.canCancel
- if(catalog.dutyApproval!=='admin_review_v1'||target.requiresAdminReview===null)return false
- return command.kind==='admin_confirm'||command.kind==='admin_reject'?target.canAdminReview:target.canAccept
+ if(command.kind==='reject')return target.canAccept
+ if(command.kind==='accept')return target.canAccept&&(target.requiresAdminReview!==true||catalog.dutyApproval==='admin_review_v1')
+ return catalog.dutyApproval==='admin_review_v1'&&target.canAdminReview
 }
 export function createTransitionService(connection:SupabaseConnection){
  const rpc=createScopedRpc(connection,'school-transitions.v1')
  const list=(memberId:string,cursor:string|null=null)=>{if(cursor!==null)text(cursor,1000,true);return rpc.call(memberId,'workhub_school_transition_list',{p_cursor:cursor},(raw,member)=>transitionCatalog(raw,member.id))}
- async function requireApprovalContract(memberId:string,recovering=false){
-  try{const catalog=await list(memberId);if(catalog.dutyApproval!=='admin_review_v1')throw new ServiceError('NOT_READY');return catalog}
-  catch(error){if(recovering)throw new ServiceError('NOT_READY');throw error}
+ async function requireApprovalContract(memberId:string){
+  const catalog=await list(memberId)
+  if(catalog.dutyApproval!=='admin_review_v1')throw new ServiceError('NOT_READY')
+  return catalog
+ }
+ async function recordContext(memberId:string,recordId:string){
+  let cursor:string|null=null
+  const cursors=new Set<string>()
+  for(let page=0;page<schoolAdminLimits.transitionLookupPages;page++){
+   const catalog=await list(memberId,cursor),target=catalog.records.find(item=>item.id===recordId)
+   if(target||catalog.nextCursor===null)return{catalog,target}
+   if(cursors.has(catalog.nextCursor))throw new ServiceError('INVALID_RESPONSE')
+   cursors.add(catalog.nextCursor);cursor=catalog.nextCursor
+  }
+  throw new ServiceError('QUERY_FAILED')
  }
  async function mutate(memberId:string,input:TransitionCommand,key:string,recovering=false){
   const command=transitionCommand(input,{recovering})
-  if(command.kind==='apply'?needsAdminReview(command.plan):command.kind!=='cancel'){
-   const catalog=await requireApprovalContract(memberId,recovering)
-   if(!recovering&&(command.kind==='admin_confirm'||command.kind==='admin_reject')){
-    const target=catalog.records.find(item=>item.id===command.recordId)
-    if(!catalog.canManageYear||target?.requesterMemberId===memberId)throw new ServiceError('FORBIDDEN')
+  // 복구는 원키·원문으로 서버의 접수 원장을 먼저 확인한다. 현재 목록/모듈 상태로 재생을 막지 않는다.
+  if(!recovering){
+   if(command.kind==='apply'&&needsAdminReview(command.plan))await requireApprovalContract(memberId)
+   if(command.kind==='accept'||command.kind==='admin_confirm'||command.kind==='admin_reject'){
+    const{catalog,target}=await recordContext(memberId,command.recordId)
+    if(command.kind==='accept'){
+     // 구 목록은 종류를 추측하지 않는다. 공식 담당으로 확인된 기록만 추가 준비 조건을 적용한다.
+     if(target?.requiresAdminReview===true&&catalog.dutyApproval!=='admin_review_v1')throw new ServiceError('NOT_READY')
+    }else{
+     if(catalog.dutyApproval!=='admin_review_v1')throw new ServiceError('NOT_READY')
+     if(!catalog.canManageYear||target?.requesterMemberId===memberId)throw new ServiceError('FORBIDDEN')
+    }
    }
   }
   return rpc.call(memberId,'workhub_school_transition_mutate',{p_command:command,p_request_key:key},raw=>{
@@ -126,7 +146,7 @@ export function createTransitionService(connection:SupabaseConnection){
   list,
   async preview(memberId:string,input:TransitionPlan){const plan=transitionPlan(input);if(needsAdminReview(plan))await requireApprovalContract(memberId);return rpc.call(memberId,'workhub_school_transition_preview',{p_plan:plan},raw=>{exact(raw,['fingerprint','expiresAt','summary','excluded','affectedCount']);if(typeof raw.fingerprint!=='string'||!/^[a-f0-9]{64}$/.test(raw.fingerprint)||typeof raw.expiresAt!=='string'||!Number.isFinite(Date.parse(raw.expiresAt))||!Number.isSafeInteger(raw.affectedCount)||(raw.affectedCount as number)<0)fail();return{fingerprint:raw.fingerprint as string,expiresAt:raw.expiresAt as string,summary:lines(raw.summary),excluded:lines(raw.excluded),affectedCount:raw.affectedCount as number}})},
   mutate:(memberId:string,input:TransitionCommand,key:string)=>mutate(memberId,input,key),
-  // 원래 명령과 번호의 복구는 새 입력과 구분한다. 서버는 기존 접수증을 먼저 확인한다.
+  // 접수증이 없으면 서버의 현재 권한·상태 검사 후 최초 실행될 수 있다. 읽기 전용 요청은 아니다.
   recover:(memberId:string,input:TransitionCommand,key:string)=>mutate(memberId,input,key,true)
  }
 }

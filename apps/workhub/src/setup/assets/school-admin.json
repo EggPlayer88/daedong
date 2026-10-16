@@ -12,6 +12,7 @@
   "reasonLength": 1000,
   "dutyLabelLength": 100,
   "requestTimeoutMs": 20000,
+  "transitionLookupPages": 50,
   "schoolYearBounds": {
     "min": 2020,
     "max": 2100
