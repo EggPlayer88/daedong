@@ -8,6 +8,9 @@
 -- ▣ 바꾸는 것(R1 · P2 원본 정의가 이 파일이 아는 판과 다르면 아무것도 바꾸지 않고 멈춘다):
 --   R1  1) 쓰기 게이트 트리거 — 운영 단계가 closed · archived 인 수합에는 새 초안 저장 · 파일 의도 · 제출 · 철회 · 정정창을,
 --          archived 인 수합에는 검토 · 보완 요청도 막는다(R1 함수를 직접 불러도 막힌다 → CONFLICT).
+--          단, closed 에서도 "열린 보완 요청(R1 correction_requests, 기한 = 학교 오늘 이후)이 있는 단위"는 그 보완 기한까지
+--          초안 저장 · 파일 올리기 · 그 보완 요청에 대한 제출만 할 수 있다(다른 단위의 새 제출 · 철회 · 정정창은 계속 막힘).
+--          마감 뒤 검토자가 만든 보완 요청이 처리할 수 없는 요청이 되지 않게 하기 위해서다(2026-10-16 통합 검토 2번, 결정표 참고).
 --       2) collections_guard 교체 — 게시된 수합은 여전히 바꿀 수 없고, P7 명령이 켠 표시(이 트랜잭션 한정)가 있을 때만
 --          기한(due_on · due_at · due_change_revision) · 관리자(owner_*) · 판만 바뀐다.
 --       3) collections_identity 다시 만들기 — 관리자 칸을 고정 목록에서 빼고(2)가 대신 지킨다).
@@ -62,29 +65,40 @@ END $$;
 -- ----------------------------------------------------------------------------
 CREATE FUNCTION workhub_private.p7_phase_gate() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
-DECLARE v jsonb := to_jsonb(NEW); v_school text; v_coll text; v_phase text;
+DECLARE v jsonb := to_jsonb(NEW); v_school text; v_coll text; v_unit text; v_phase text; v_today date;
 BEGIN
   v_school := v ->> 'school_id';
   v_coll := v ->> 'collection_id';
+  v_unit := v ->> 'unit_id';
   IF v_coll IS NULL AND v ? 'draft_id' THEN
-    SELECT collection_id INTO v_coll FROM workhub.unit_drafts WHERE school_id = v_school AND id = v ->> 'draft_id';
+    SELECT collection_id, unit_id INTO v_coll, v_unit FROM workhub.unit_drafts WHERE school_id = v_school AND id = v ->> 'draft_id';
   END IF;
-  IF v_coll IS NULL AND v ? 'unit_id' THEN
-    SELECT collection_id INTO v_coll FROM workhub.collection_units WHERE school_id = v_school AND id = v ->> 'unit_id';
+  IF v_coll IS NULL AND v_unit IS NOT NULL THEN
+    SELECT collection_id INTO v_coll FROM workhub.collection_units WHERE school_id = v_school AND id = v_unit;
   END IF;
   IF v_coll IS NULL THEN RETURN NEW; END IF;
   PERFORM 1 FROM workhub.collections WHERE school_id = v_school AND id = v_coll FOR SHARE;
   v_phase := workhub_private.p7_phase(v_school, v_coll);
-  IF v_phase = 'archived' OR (TG_ARGV[0] = 'closed' AND v_phase = 'closed') THEN
-    RAISE EXCEPTION 'CONFLICT' USING DETAIL = '마감 · 보관된 수합에는 제출 · 저장할 수 없습니다(수합 운영 단계).';
+  IF v_phase = 'archived' THEN
+    RAISE EXCEPTION 'CONFLICT' USING DETAIL = '보관된 수합에는 제출 · 저장 · 검토할 수 없습니다(수합 운영 단계).';
+  END IF;
+  IF v_phase = 'closed' AND TG_ARGV[0] IN ('closed', 'closed_supplement') THEN
+    -- 마감 뒤 보완: 그 단위에 열린 보완 요청이 있고 보완 기한이 학교 오늘 이후일 때만. 제출은 그 보완 요청을 가리켜야 한다.
+    SELECT workhub_private.today_in(s.timezone) INTO v_today FROM workhub.schools s WHERE s.id = v_school;
+    IF TG_ARGV[0] = 'closed' OR v_unit IS NULL OR NOT EXISTS (
+         SELECT 1 FROM workhub.correction_requests cr
+          WHERE cr.school_id = v_school AND cr.unit_id = v_unit AND cr.state = 'open' AND cr.due_on >= v_today
+            AND (TG_TABLE_NAME <> 'submission_versions' OR cr.id = v ->> 'correction_request_id')) THEN
+      RAISE EXCEPTION 'CONFLICT' USING DETAIL = '마감된 수합에는 보완 요청을 받은 단위만 보완 기한까지 저장 · 제출할 수 있습니다(수합 운영 단계).';
+    END IF;
   END IF;
   RETURN NEW;
 END $$;
--- 마감(closed)부터 막는 것: 초안 저장 · 초안 파일 · 파일 업로드 의도 · 제출 · 철회 · 정정창
-CREATE TRIGGER p7_phase_gate BEFORE INSERT OR UPDATE ON workhub.unit_drafts FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed');
-CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.unit_draft_files FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed');
-CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.collection_file_intents FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed');
-CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.submission_versions FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed');
+-- 마감(closed)부터 막는 것: 초안 저장 · 초안 파일 · 파일 업로드 의도 · 제출(보완 기한 안의 보완 대상 단위는 예외) · 철회 · 정정창
+CREATE TRIGGER p7_phase_gate BEFORE INSERT OR UPDATE ON workhub.unit_drafts FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed_supplement');
+CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.unit_draft_files FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed_supplement');
+CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.collection_file_intents FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed_supplement');
+CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.submission_versions FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed_supplement');
 CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.submission_withdrawals FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed');
 CREATE TRIGGER p7_phase_gate BEFORE INSERT ON workhub.correction_windows FOR EACH ROW EXECUTE FUNCTION workhub_private.p7_phase_gate('closed');
 -- 보관(archived)부터 막는 것: 검토 · 보완 요청(마감 뒤에도 검토는 마칠 수 있다)

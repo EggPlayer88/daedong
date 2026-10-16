@@ -232,22 +232,25 @@ DECLARE
 BEGIN
   IF NOT workhub_private.p7_ready(p_ctx.school_id, 'home') THEN RAISE EXCEPTION 'NOT_READY'; END IF;
 
-  -- 수합 · 보완: 내가 구성원인 제출 단위(게시 · 운영 open). 수합 하나에 항목 하나.
+  -- 수합 · 보완: 내가 구성원인 제출 단위(게시). 수합 하나에 항목 하나.
+  --   미제출은 운영 open 일 때만. 보완은 open 이거나, 마감(closed)이어도 보완 기한이 학교 오늘 이후인 열린 보완 요청이 있을 때
+  --   (P7-05 게이트가 그 단위의 보완 저장 · 제출을 받는 조건과 같다 — 할 수 없는 일을 홈에 띄우지 않는다).
   IF workhub_private.p7_r1_readable() THEN
     WITH mine AS (
       SELECT c.id, c.title, c.due_on, c.created_at, workhub_private.p7_unit_state(u.school_id, u.id) AS st,
+             workhub_private.p7_phase(c.school_id, c.id) AS phase,
              (SELECT min(cr.due_on) FROM workhub.correction_requests cr WHERE cr.school_id = u.school_id AND cr.unit_id = u.id AND cr.state = 'open') AS fix_due
         FROM workhub.collection_unit_members m
         JOIN workhub.collection_units u ON u.school_id = m.school_id AND u.id = m.unit_id
         JOIN workhub.collections c ON c.school_id = u.school_id AND c.id = u.collection_id
        WHERE m.school_id = p_ctx.school_id AND m.membership_id = p_ctx.membership_id AND m.account_id = p_ctx.account_id
-         AND m.removed_at IS NULL AND c.state = 'published' AND workhub_private.p7_phase(c.school_id, c.id) = 'open'),
+         AND m.removed_at IS NULL AND c.state = 'published' AND workhub_private.p7_phase(c.school_id, c.id) IN ('open','closed')),
     agg AS (
       SELECT 'collection' AS kind, id, min(title) AS title, min(due_on) AS due, min(created_at) AS created, count(*) AS n
-        FROM mine WHERE st = 'missing' GROUP BY id
+        FROM mine WHERE st = 'missing' AND phase = 'open' GROUP BY id
       UNION ALL
       SELECT 'supplement', id, min(title), min(fix_due), min(created_at), count(*)
-        FROM mine WHERE st = 'changes_requested' GROUP BY id)
+        FROM mine WHERE st = 'changes_requested' AND (phase = 'open' OR fix_due >= v_today) GROUP BY id)
     SELECT COALESCE(jsonb_agg(jsonb_build_object('kind', kind, 'source', id, 'title', title, 'due', due, 'created', created,
                        'label', CASE WHEN kind = 'collection' THEN CASE WHEN n > 1 THEN '미제출 ' || n || '건' ELSE '미제출' END
                                      ELSE CASE WHEN n > 1 THEN '보완 요청 ' || n || '건' ELSE '보완 요청' END END)), '[]'::jsonb)
