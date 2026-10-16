@@ -32,59 +32,71 @@ function refused(path, extra, expected) {
 }
 try {
   const clean = join(task, 'workhub-release-r0-verify-clean')
-  check('정상 전용 경로의 사전 검사에는 파일 생성이나 서버 시작이 없다', () => {
-    const result = run(clean)
-    assert.equal(result.status, 0, result.stderr)
-    assert.equal(existsSync(clean), false)
-  })
-  check('다른 이름의 작업 폴더는 시작 전에 거부', () => refused(join(task, 'important-data'), {}, /끝 이름/))
-  check('상대 작업 경로 거부', () => refused(clean, { R0_WORK: 'workhub-release-r0-verify-relative' }, /절대 경로/))
-  check('원본 대조 도구의 인자가 나뉘는 DB 임시 경로 공백을 시작 전 거부', () => refused(clean, { R0_WORK: unix(clean) + ' with spaces' }, /공백 없이/))
-  for (const key of ['DATABASE_URL', 'PGHOST', 'PGSERVICE', 'PGOPTIONS', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'VITE_SUPABASE_URL', 'ANTHROPIC_API_KEY', 'WORKHUB_TEST_DATABASE_URL', 'R0_SQL_DIR', 'INT_APP_SRC', 'P8_APP_SRC', 'P7_BRIDGE', 'P8_BRIDGE', 'INT_R1S_MODE', 'R1S_API_DIR', 'P4_APP_SRC', 'P8_CAPTURE', 'R1_CAPTURE', 'P7_COOP_CASES']) {
-    check(`${key}를 상속하면 값 노출 없이 실행 거부`, () => refused(clean, { [key]: 'do-not-disclose' }, /외부 접속 또는 시험 범위 변경/))
-  }
-  for (const port of ['abc', '0', '65536', '55463;echo']) {
-    check(`잘못된 포트 ${port} 거부`, () => refused(clean, { R0_PG_PORT: port }, /시험 포트/))
-  }
-  for (const ending of ["quote'", 'dollar$', 'backtick`', 'newline\n']) {
-    check('reset 셸의 경계가 될 수 있는 경로 문자 거부: ' + JSON.stringify(ending), () => {
-      refused(clean, { R0_WORK: unix(clean) + ending }, /셸 특수문자/)
+  // 실행기는 root를 경로 검사보다 먼저 막는다. 이 안전장치를 우회하지 않고 실제 거부를 확인한다.
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    for (const args of [['--check-safety'], []]) {
+      check(`root는 ${args.length ? '사전 검사' : '실제 실행'}에서도 DB와 폴더를 만들기 전에 거부`, () => {
+        const result = run(clean, {}, args)
+        assert.equal(result.status, 2, result.stdout + result.stderr)
+        assert.match(result.stderr, /일반 OS 사용자로 실행/)
+        assert.equal(existsSync(clean), false)
+      })
+    }
+  } else {
+    check('정상 전용 경로의 사전 검사에는 파일 생성이나 서버 시작이 없다', () => {
+      const result = run(clean)
+      assert.equal(result.status, 0, result.stderr)
+      assert.equal(existsSync(clean), false)
+    })
+    check('다른 이름의 작업 폴더는 시작 전에 거부', () => refused(join(task, 'important-data'), {}, /끝 이름/))
+    check('상대 작업 경로 거부', () => refused(clean, { R0_WORK: 'workhub-release-r0-verify-relative' }, /절대 경로/))
+    check('원본 대조 도구의 인자가 나뉘는 DB 임시 경로 공백을 시작 전 거부', () => refused(clean, { R0_WORK: unix(clean) + ' with spaces' }, /공백 없이/))
+    for (const key of ['DATABASE_URL', 'PGHOST', 'PGSERVICE', 'PGOPTIONS', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'VITE_SUPABASE_URL', 'ANTHROPIC_API_KEY', 'WORKHUB_TEST_DATABASE_URL', 'R0_SQL_DIR', 'INT_APP_SRC', 'P8_APP_SRC', 'P7_BRIDGE', 'P8_BRIDGE', 'INT_R1S_MODE', 'R1S_API_DIR', 'P4_APP_SRC', 'P8_CAPTURE', 'R1_CAPTURE', 'P7_COOP_CASES']) {
+      check(`${key}를 상속하면 값 노출 없이 실행 거부`, () => refused(clean, { [key]: 'do-not-disclose' }, /외부 접속 또는 시험 범위 변경/))
+    }
+    for (const port of ['abc', '0', '65536', '55463;echo']) {
+      check(`잘못된 포트 ${port} 거부`, () => refused(clean, { R0_PG_PORT: port }, /시험 포트/))
+    }
+    for (const ending of ["quote'", 'dollar$', 'backtick`', 'newline\n']) {
+      check('reset 셸의 경계가 될 수 있는 경로 문자 거부: ' + JSON.stringify(ending), () => {
+        refused(clean, { R0_WORK: unix(clean) + ending }, /셸 특수문자/)
+      })
+    }
+    const foreign = join(task, 'workhub-release-r0-verify-foreign')
+    mkdirSync(foreign)
+    writeFileSync(join(foreign, 'keep.txt'), '기존 자료')
+    check('기존 자료가 있는 폴더의 내용 보존', () => {
+      refused(foreign, {}, /다른 자료/)
+      assert.deepEqual(readdirSync(foreign), ['keep.txt'])
+      assert.equal(readFileSync(join(foreign, 'keep.txt'), 'utf8'), '기존 자료')
+    })
+    check('캡처 출력으로 바깥 파일을 지정해도 그 파일을 덮어쓰지 않고 시작 전에 거부', () => {
+      refused(clean, { R1_CAPTURE: unix(join(foreign, 'keep.txt')) }, /외부 접속 또는 시험 범위 변경/)
+      refused(clean, { P7_COOP_CASES: unix(join(foreign, 'keep.txt')) }, /외부 접속 또는 시험 범위 변경/)
+      assert.equal(readFileSync(join(foreign, 'keep.txt'), 'utf8'), '기존 자료')
+    })
+    writeFileSync(join(foreign, '.codex-workhub-release-sql'), '다른 도구')
+    check('다른 도구의 표식은 인정하지 않음', () => refused(foreign, {}, /다른 자료/))
+    const owned = join(task, 'workhub-release-r0-verify-owned')
+    mkdirSync(owned)
+    writeFileSync(join(owned, '.codex-workhub-release-sql'), 'workhub-release-local-sql-v1\n')
+    check('정상 표식의 경로도 안전 검사만 하고 변경하지 않음', () => {
+      const before = readdirSync(owned)
+      assert.equal(run(owned).status, 0)
+      assert.deepEqual(readdirSync(owned), before)
+    })
+    mkdirSync(join(owned, 'data'))
+    writeFileSync(join(owned, 'data', 'existing.txt'), '다른 DB')
+    check('원본 reset 표식 없는 기존 DB 보존', () => {
+      refused(owned, {}, /표식이 없는 DB/)
+      assert.equal(readFileSync(join(owned, 'data', 'existing.txt'), 'utf8'), '다른 DB')
+    })
+    check('알 수 없는 실행 인자는 실행 전에 거부', () => {
+      const result = run(clean, {}, ['--use-production'])
+      assert.equal(result.status, 2)
+      assert.equal(existsSync(clean), false)
     })
   }
-  const foreign = join(task, 'workhub-release-r0-verify-foreign')
-  mkdirSync(foreign)
-  writeFileSync(join(foreign, 'keep.txt'), '기존 자료')
-  check('기존 자료가 있는 폴더의 내용 보존', () => {
-    refused(foreign, {}, /다른 자료/)
-    assert.deepEqual(readdirSync(foreign), ['keep.txt'])
-    assert.equal(readFileSync(join(foreign, 'keep.txt'), 'utf8'), '기존 자료')
-  })
-  check('캡처 출력으로 바깥 파일을 지정해도 그 파일을 덮어쓰지 않고 시작 전에 거부', () => {
-    refused(clean, { R1_CAPTURE: unix(join(foreign, 'keep.txt')) }, /외부 접속 또는 시험 범위 변경/)
-    refused(clean, { P7_COOP_CASES: unix(join(foreign, 'keep.txt')) }, /외부 접속 또는 시험 범위 변경/)
-    assert.equal(readFileSync(join(foreign, 'keep.txt'), 'utf8'), '기존 자료')
-  })
-  writeFileSync(join(foreign, '.codex-workhub-release-sql'), '다른 도구')
-  check('다른 도구의 표식은 인정하지 않음', () => refused(foreign, {}, /다른 자료/))
-  const owned = join(task, 'workhub-release-r0-verify-owned')
-  mkdirSync(owned)
-  writeFileSync(join(owned, '.codex-workhub-release-sql'), 'workhub-release-local-sql-v1\n')
-  check('정상 표식의 경로도 안전 검사만 하고 변경하지 않음', () => {
-    const before = readdirSync(owned)
-    assert.equal(run(owned).status, 0)
-    assert.deepEqual(readdirSync(owned), before)
-  })
-  mkdirSync(join(owned, 'data'))
-  writeFileSync(join(owned, 'data', 'existing.txt'), '다른 DB')
-  check('원본 reset 표식 없는 기존 DB 보존', () => {
-    refused(owned, {}, /표식이 없는 DB/)
-    assert.equal(readFileSync(join(owned, 'data', 'existing.txt'), 'utf8'), '다른 DB')
-  })
-  check('알 수 없는 실행 인자는 실행 전에 거부', () => {
-    const result = run(clean, {}, ['--use-production'])
-    assert.equal(result.status, 2)
-    assert.equal(existsSync(clean), false)
-  })
   const total = '\n== 합계: PASS 2309 · FAIL 0\n'
   const warning = 'WARN 앱이 보내기 전에 막았지만 코드가 다름(PR #60 앱 쪽 확인): '
   const known = { 'rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED': 1 }
