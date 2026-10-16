@@ -59,6 +59,7 @@
   "unavailable":["student_followup"]}}
 ```
 
+- 미제출(`collection`)은 운영 단계 open 수합만. 보완(`supplement`)은 open 수합의 열린 보완 요청 + **마감(closed) 수합에서는 기한이 오늘 이상인 열린 보완 요청만**(설계결정 D-P7-1i). 보관 수합은 넣지 않음.
 - 항목 최대 8개(개수는 전부). 꺼진 출처는 `null` + `unavailable`. 학생 후속 항목(P5 켜짐)은 `{"kind":"student_followup","title":"학생 기록 근거 확인: <수업>","sourceId":"<수업 ID>","label":"근거 변경 N건"}`.
 
 ## 업무 전환 `school-transitions.v1` (모듈 `transitions`, 공식 담당은 `duty_handover` 도)
