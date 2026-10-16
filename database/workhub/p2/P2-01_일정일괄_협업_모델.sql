@@ -254,6 +254,8 @@ CREATE TRIGGER cooperation_requests_identity BEFORE UPDATE ON workhub.cooperatio
     'recipient_membership_id','recipient_account_id','title','description','due_on','created_at');
 
 -- 상태 이력(불변). 첫 행 = version 1 · create · 발신자. 상태가 바뀔 때마다 version 과 함께 1행.
+-- previous_recipient_* 는 받는 사람이 바뀌는 행(P7 업무 인계 'handover', P7-05 승인 뒤에만 생김)에서만 채운다.
+--   P2 만으로는 handover 가 없으므로 언제나 비어 있다. 과거 행의 actor 는 그때 처리한 사람 그대로 두고 고치지 않는다.
 CREATE TABLE workhub.cooperation_history (
   id                  text NOT NULL DEFAULT gen_random_uuid()::text,
   school_id           text NOT NULL,
@@ -262,12 +264,19 @@ CREATE TABLE workhub.cooperation_history (
   action              text NOT NULL,
   actor_membership_id text NOT NULL,
   actor_account_id    text NOT NULL,
+  previous_recipient_membership_id text,
+  previous_recipient_account_id    text,
   comment             text NOT NULL DEFAULT '',
   recorded_at         timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT cooperation_history_pkey PRIMARY KEY (id),
   CONSTRAINT cooperation_history_version_key UNIQUE (request_id, version),
   CONSTRAINT cooperation_history_request_fkey FOREIGN KEY (school_id, request_id) REFERENCES workhub.cooperation_requests(school_id, id),
   CONSTRAINT cooperation_history_actor_fkey FOREIGN KEY (school_id, actor_membership_id, actor_account_id) REFERENCES workhub.memberships(school_id, id, account_id),
+  CONSTRAINT cooperation_history_previous_fkey FOREIGN KEY (school_id, previous_recipient_membership_id, previous_recipient_account_id)
+    REFERENCES workhub.memberships(school_id, id, account_id),
+  CONSTRAINT cooperation_history_previous_check CHECK ((previous_recipient_membership_id IS NULL) = (previous_recipient_account_id IS NULL)
+    AND (action = 'handover') = (previous_recipient_membership_id IS NOT NULL)
+    AND previous_recipient_membership_id IS DISTINCT FROM actor_membership_id),
   CONSTRAINT cooperation_history_action_check CHECK (action IN ('create','accept','decline','request_completion','confirm_completion','return_completion','retract_completion','cancel')),
   CONSTRAINT cooperation_history_comment_check CHECK (length(comment) <= 2000),
   CONSTRAINT cooperation_history_version_check CHECK (version BETWEEN 1 AND 1000 AND ((version = 1) = (action = 'create')))

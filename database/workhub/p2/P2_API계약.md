@@ -43,7 +43,7 @@ PR #48 앱(`5f3d40f`)의 어댑터·parser 가 받아들이는 형태입니다. 
 |---|---|---|
 | `workhub_cooperation_catalog(p_member_id, p_task_cursor text = null)` | 위치 값(16진, ≤1024) | `{recipients[≤500]: {memberId, name, description}, sourceTasks[≤40]: {id, title, version}, nextTaskCursor}` |
 | `workhub_cooperation_list(p_member_id, p_filter jsonb)` | `{box: received|sent, status: all|요청 상태, query(≤200), cursor}` | `{items[≤40]: 요청, nextCursor}` 최신순 |
-| `workhub_cooperation_get(p_member_id, p_request_id text)` | | `{request, history[]: {id, action, actorMemberId, comment, recordedAt, version}}` 이력 수 = 판 |
+| `workhub_cooperation_get(p_member_id, p_request_id text)` | | `{request, history[]: {id, action, actorMemberId, actorName, recipientMemberId, previousRecipientMemberId, comment, recordedAt, version}}` 이력 수 = 판. `actorMemberId` 는 그때 처리한 사람 그대로(인계 뒤에도 고치지 않음), `recipientMemberId` 는 그 행이 적용된 뒤의 받는 사람, `previousRecipientMemberId` 는 인계(`handover`, P7-05 뒤) 행에서만 넘겨준 사람 |
 | `workhub_cooperation_mutate(p_member_id, p_command jsonb, p_request_key text)` | create / transition | `{requestKey, commandKind, entityId, version, appliedAt, outcome}` |
 
 요청: `{id, schoolId, version, senderMemberId, recipientMemberId, senderName, recipientName, title, description, dueDate('' 또는 YYYY-MM-DD), status, createdAt, updatedAt, taskLink}`.
