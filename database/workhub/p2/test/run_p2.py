@@ -308,6 +308,10 @@ def main():
     p2b = t[21].prepare(inp('haksa-2026', [row('r2', 3, 'S-002', db_rev)]))
     check('F01b 같은 내용이라도 직접 포함 교사 순서만 다르면 changed(서버 기준선은 정렬본, 비교는 앱이 보낸 원문 그대로 — 앱 parser 규칙과 같음)',
           states(p2b) == {'r2': 'changed'}, p2b)
+    db_sorted = copy.deepcopy(db); db_sorted['audience']['includeMemberIds'] = sorted(db_rev['audience']['includeMemberIds'])
+    p2c = t[21].prepare(inp('haksa-2026', [row('r2', 3, 'S-002', db_sorted)]))
+    check('F01c 같은 파일을 직접 포함 교사 순서만 정렬해 다시 비교(Codex C4 앱이 보내는 모양) → duplicate',
+          states(p2c) == {'r2': 'duplicate'}, p2c)
     da2 = dict(da, title='2학기 기말고사(변경)')
     db_site = dict(db, location='진로실')
     e_b = got[ev['r2']]
