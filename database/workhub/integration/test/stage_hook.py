@@ -11,7 +11,7 @@ import psycopg2
 HERE = os.path.dirname(os.path.abspath(__file__))
 WH = os.path.abspath(os.path.join(HERE, '..', '..'))
 suite, trigger, later = sys.argv[1], sys.argv[2], sys.argv[3:]
-sys.argv = [suite] + (['legacy'] if suite.endswith('run_r1s.py') else [])
+sys.argv = [suite] + ([os.environ.get('INT_R1S_MODE', 'fresh')] if suite.endswith('run_r1s.py') else [])   # R1S: fresh(운영과 같은 상태) · legacy
 sys.path.insert(0, os.path.dirname(suite))
 spec = importlib.util.spec_from_file_location('stage_suite', suite)
 mod = importlib.util.module_from_spec(spec); sys.modules['stage_suite'] = mod; spec.loader.exec_module(mod)
@@ -31,9 +31,15 @@ def run_file(path):
     c = admin(); cur = c.cursor(); cur.execute(text); r = cur.fetchall() if cur.description else []; c.close(); return r
 
 def subst(cur, hook, last):
+    # 행마다 앞 3칸을 이름으로 본다. 뒷 단계를 설치한 직후(hook)와 같은 행은 설치 전 값(last)으로 읽고,
+    # 뒷 단계가 더한 행(last 에 없음)은 hook 때와 같으면 뺀다. hook 이후 바뀐 행 · 없어진 행은 그대로 남아 비교에서 FAIL 이 된다.
     if isinstance(cur, tuple): return tuple(subst(c, h, l) for c, h, l in zip(cur, hook, last))
-    if isinstance(cur, list) and len(cur) == len(hook) == len(last): return [l if c == h else c for c, h, l in zip(cur, hook, last)]
-    return cur
+    if not isinstance(cur, list): return cur
+    key = lambda r: tuple(r[:3])
+    cm, hm, lm = ({key(r): r for r in x} for x in (cur, hook, last))
+    if len(cm) != len(cur) or len(hm) != len(hook) or len(lm) != len(last): return cur
+    out = [l if k in cm and cm[k] == hm.get(k) else cm.get(k, ('없어짐',) + k) for k, l in lm.items()]
+    return out + [r for k, r in cm.items() if k not in lm and hm.get(k) != r]
 
 def fingerprint(*a, **k):
     cur = orig_fp(*a, **k)
