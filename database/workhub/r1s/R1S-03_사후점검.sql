@@ -17,10 +17,11 @@ UNION ALL
 SELECT 'R1S-03-02', '중지 스위치(R1-80/81)', CASE WHEN state = 'open' THEN 'ok' ELSE 'info' END, state || ' (' || reason || ')'
   FROM workhub_private.r1_switch
 UNION ALL
-SELECT 'R1S-03-03', '공개 함수 20개(R1 17 + R1S 3, SECURITY DEFINER, search_path 고정)',
+-- 03 · 04 는 이름 목록으로 센다(접두어로 세면 뒤 단계가 같은 접두어 함수를 더할 때 — 예: P7 workhub_collection_operations_* — FAIL 로 보인다).
+SELECT 'R1S-03-03', '공개 함수 20개(R1 17 + R1S 3, 이름 목록, SECURITY DEFINER, search_path 고정)',
        CASE WHEN count(*) = 20 THEN 'ok' ELSE 'FAIL' END, count(*)::text
   FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
-   AND (p.proname LIKE 'workhub\_collection\_%' OR p.proname LIKE 'workhub\_file\_%')
+   AND p.proname = ANY (ARRAY['workhub_collection_basic_readiness','workhub_collection_draft_get','workhub_collection_get','workhub_collection_list','workhub_collection_mutate','workhub_collection_readiness','workhub_file_access','workhub_file_basic_claim','workhub_file_basic_finish','workhub_file_complete','workhub_file_prepare','workhub_file_status','workhub_file_worker_claim','workhub_file_worker_cleanup_claim','workhub_file_worker_cleanup_done','workhub_file_worker_cleanup_inspect','workhub_file_worker_fail','workhub_file_worker_heartbeat','workhub_file_worker_job_inspect','workhub_file_worker_seal'])
    AND p.prosecdef AND p.proconfig = ARRAY['search_path=""']
 UNION ALL
 SELECT 'R1S-03-04', '앱 함수 10개: authenticated 만 / 서버 함수 10개(작업자 8 + 기본 확인 2): service_role 만',
@@ -32,7 +33,8 @@ SELECT 'R1S-03-04', '앱 함수 10개: authenticated 만 / 서버 함수 10개(�
                                     AND has_function_privilege('service_role', p.oid, 'EXECUTE')
                                     AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('authenticated', p.oid, 'EXECUTE')) = 10
             THEN 'ok' ELSE 'FAIL' END, count(*)::text
-  FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND (p.proname LIKE 'workhub\_collection\_%' OR p.proname LIKE 'workhub\_file\_%')
+  FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+   AND p.proname = ANY (ARRAY['workhub_collection_basic_readiness','workhub_collection_draft_get','workhub_collection_get','workhub_collection_list','workhub_collection_mutate','workhub_collection_readiness','workhub_file_access','workhub_file_basic_claim','workhub_file_basic_finish','workhub_file_complete','workhub_file_prepare','workhub_file_status','workhub_file_worker_claim','workhub_file_worker_cleanup_claim','workhub_file_worker_cleanup_done','workhub_file_worker_cleanup_inspect','workhub_file_worker_fail','workhub_file_worker_heartbeat','workhub_file_worker_job_inspect','workhub_file_worker_seal'])
 UNION ALL
 SELECT 'R1S-03-05', '내부 함수(workhub·workhub_private)는 API 역할 실행 0',
        CASE WHEN count(*) = 0 THEN 'ok' ELSE 'FAIL' END, count(*)::text
