@@ -1,0 +1,1401 @@
+{
+ "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+ "note": "기대 응답 사례 — expect 는 제안 계약(cooperation_history_contract.ts) 기준, app 은 이 시험을 돌린 앱의 판정",
+ "cases": [
+  {
+   "name": "정상: m-21 조회 · 이력 4행(인계 1번)",
+   "expect": "accept",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-21",
+    "ownerUserId": "00000000-0000-0000-0000-000000000021"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completion_requested",
+     "dueDate": "",
+     "version": 4,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": {
+      "taskId": "a06600cc-0c19-4e57-8262-71ce4181b004",
+      "ownerUserId": "00000000-0000-0000-0000-000000000021"
+     },
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:05.967Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사24",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-24"
+    },
+    "memberId": "m-21",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000021",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "정상: m-24 조회 · 이력 4행(인계 1번)",
+   "expect": "accept",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-24",
+    "ownerUserId": "00000000-0000-0000-0000-000000000024"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completion_requested",
+     "dueDate": "",
+     "version": 4,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:05.967Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사24",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-24"
+    },
+    "memberId": "m-24",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000024",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "정상: m-25 조회 · 이력 8행(인계 2번)",
+   "expect": "accept",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "정상: m-21 조회 · 이력 8행(인계 2번)",
+   "expect": "accept",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-21",
+    "ownerUserId": "00000000-0000-0000-0000-000000000021"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": {
+      "taskId": "a06600cc-0c19-4e57-8262-71ce4181b004",
+      "ownerUserId": "00000000-0000-0000-0000-000000000021"
+     },
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-21",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000021",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "과거 처리자를 새 받는 사람으로 바꿈",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "reject:INVALID_INPUT"
+  },
+  {
+   "name": "인계 행의 넘겨준 사람 바꿈",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-21"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "행의 받는 사람을 지금 받는 사람으로 덮음",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "인계 행을 지움",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 4,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 5,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 6,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 7,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 7,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "reject:INVALID_INPUT"
+  },
+  {
+   "name": "인계가 아닌 행에 넘겨준 사람",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": "m-21"
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "보낸 사람에게 인계",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-21",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "reject:INVALID_INPUT"
+  },
+  {
+   "name": "인계 전 한 행의 받는 사람만 지금 받는 사람으로 바꿈",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-24"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  },
+  {
+   "name": "두 번째 인계의 넘겨준 사람을 첫 받는 사람으로 바꿈",
+   "expect": "reject",
+   "scope": {
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "memberId": "m-25",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025"
+   },
+   "requestId": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+   "raw": {
+    "ok": true,
+    "history": [
+     {
+      "id": "53bf9406-7b08-4948-84ca-3106fdd5ad46",
+      "action": "create",
+      "comment": "",
+      "version": 1,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:05.863Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "be796578-25f2-4144-99f7-93d1bd9a4cdc",
+      "action": "accept",
+      "comment": "",
+      "version": 2,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.883Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "fd729c3f-a91c-4ec1-8a04-d48378d88a61",
+      "action": "request_completion",
+      "comment": "1차 완료",
+      "version": 3,
+      "actorName": "김하늘",
+      "recordedAt": "2026-10-16T04:15:05.889Z",
+      "actorMemberId": "m-22",
+      "recipientMemberId": "m-22",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "9abe4d40-62d1-4800-a894-11d85ad40a38",
+      "action": "handover",
+      "comment": "업무 인계 수락(ef496cfd-2e4e-49d1-b261-0189e86bd520)",
+      "version": 4,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:05.968Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "57205795-31db-4510-8fb0-bcc32d21e3a6",
+      "action": "return_completion",
+      "comment": "보완 부탁",
+      "version": 5,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.040Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "e2d2bfd6-8091-4c7a-9ede-a2d6823ae63c",
+      "action": "request_completion",
+      "comment": "보완 완료",
+      "version": 6,
+      "actorName": "교사24",
+      "recordedAt": "2026-10-16T04:15:06.048Z",
+      "actorMemberId": "m-24",
+      "recipientMemberId": "m-24",
+      "previousRecipientMemberId": null
+     },
+     {
+      "id": "6a8a62cf-5152-4415-8f90-a7c3008fe86a",
+      "action": "handover",
+      "comment": "업무 인계 수락(9b7bb63e-552a-4b1b-8382-9d2e382bdbb4)",
+      "version": 7,
+      "actorName": "교사25",
+      "recordedAt": "2026-10-16T04:15:06.115Z",
+      "actorMemberId": "m-25",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": "m-22"
+     },
+     {
+      "id": "aac000f6-3c1a-4a11-b3ae-20f82495d191",
+      "action": "confirm_completion",
+      "comment": "",
+      "version": 8,
+      "actorName": "교사21",
+      "recordedAt": "2026-10-16T04:15:06.124Z",
+      "actorMemberId": "m-21",
+      "recipientMemberId": "m-25",
+      "previousRecipientMemberId": null
+     }
+    ],
+    "request": {
+     "id": "60e0264d-8de8-4e85-b2f3-5a23df1441da",
+     "title": "인계 이력 확인",
+     "status": "completed",
+     "dueDate": "",
+     "version": 8,
+     "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+     "taskLink": null,
+     "createdAt": "2026-10-16T04:15:05.863Z",
+     "updatedAt": "2026-10-16T04:15:06.124Z",
+     "senderName": "교사21",
+     "description": "",
+     "recipientName": "교사25",
+     "senderMemberId": "m-21",
+     "recipientMemberId": "m-25"
+    },
+    "memberId": "m-25",
+    "schoolId": "f0eb3b07-b89e-454d-8c61-a6a0a961d335",
+    "ownerUserId": "00000000-0000-0000-0000-000000000025",
+    "contractVersion": "cooperation.v1"
+   },
+   "app": "accept"
+  }
+ ]
+}
