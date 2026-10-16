@@ -36,7 +36,7 @@ export function SchoolConfigurationEditor({value,subjects,createYear,disabled,on
       {input('학년도','schoolYear',value.schoolYear,v=>change('schoolYear',v),'text',4,!createYear)}
       {input('학년도 시작일','startsOn',value.startsOn,v=>change('startsOn',v),'date')}
       {input('학년도 마지막 날 (포함)','lastDay',value.lastDay,v=>change('lastDay',v),'date')}
-    </div><p>공식 날짜를 확인해 입력해 주세요. 마지막 날을 포함합니다. 특수·기타 학교의 학년 수는 실제 운영 체계를 따릅니다.</p></section>
+    </div><p>공식 날짜를 확인해 입력해 주세요. 마지막 날을 포함합니다. 특수·기타 학교의 학년 수는 실제 운영 체계를 따릅니다.</p>{createYear&&<p>학년도 숫자와 시작일의 연도를 맞춰 주세요. 마지막 날은 다음 해여도 됩니다.</p>}</section>
     {(['terms','departments','classes','subjects'] as const).map(group=>{
       const labels={terms:'학기',departments:'부서',classes:'학급',subjects:'교과'},label=labels[group]
       const all=(group==='subjects'?subjects:value[group]) as unknown as Record<string,string>[], page=listWindow(all,pages[group]??0)

@@ -70,6 +70,26 @@ await check('다른 교사의 알림과 외부 URL 형식의 원본 링크를 �
   assert.throws(() => m.validation.notice({ ...notification(), source: { module: 'collections', id: 'https://example.com' } }, scope))
   assert.throws(() => m.validation.notice({ ...notification(), source: { module: 'javascript', id: 'x' } }, scope))
 })
+await check('협업 알림은 원 요청 ID만 받고 현재 학교와 알림 소유자를 확인한다', () => {
+  const value = { ...notification(), title: '협업 요청 도착', source: { module: 'cooperation', id: 'cooperation-one' } }
+  assert.deepEqual(m.validation.notice(value, scope), value)
+  for (const patch of [{ schoolId: 'other-school' }, { ownerMemberId: 'other-member' }, { source: { module: 'cooperation', id: 'https://example.com' } }, { source: { module: 'cooperation', id: 'cooperation-one', status: 'completed' } }]) assert.throws(() => m.validation.notice({ ...value, ...patch }, scope))
+})
+await check('협업 알림이 기존 수합 알림과 섞여도 알림함 전체를 정상 조회한다', async () => {
+  const notices = [notification(), { ...notification(), id: 'cooperation-notice', source: { module: 'cooperation', id: 'cooperation-one' } }]
+  const h = harness(() => envelope({ items: notices, nextCursor: null }))
+  assert.deepEqual((await h.server.inbox(member.id, true)).items, notices)
+  assert.deepEqual(h.calls.map(call => call.name), ['workhub_inbox_list'])
+})
+await check('협업 알림 읽음은 알림 ID·판만 전송하며 원본 상태전환 명령을 만들지 않는다', async () => {
+  const command = { kind: 'read_notice', noticeId: 'cooperation-notice', expectedVersion: 2 }
+  const h = harness((name, args) => envelope(receipt(args.p_command, args.p_request_key)))
+  await h.server.readiness(member.id)
+  const result = await h.server.mutate(member.id, command, 'cooperation-read-one')
+  assert.equal(result.noticeId, command.noticeId); assert.equal(result.version, 3)
+  const sent = h.calls.at(-1); assert.equal(sent.name, 'workhub_message_mutate'); assert.deepEqual(sent.args.p_command, command)
+  assert.deepEqual(h.calls.map(call => call.name), ['workhub_messaging_readiness', 'workhub_message_mutate'])
+})
 await check('새 대화 입력은 자기 자신·중복·빈 메시지·중복 첨부 ID를 거부한다', () => {
   for (const value of [{ ...start(), recipients: [{ memberId: scope.memberId, expectedVersion: 1 }] }, { ...start(), mode: 'individual', recipients: [...start().recipients, ...start().recipients] }, { ...start(), body: '   ' }, { ...start(), attachmentIds: ['same-file', 'same-file'] }]) assert.throws(() => m.validation.command(value, scope.memberId), error => error.code === 'INVALID_INPUT')
 })

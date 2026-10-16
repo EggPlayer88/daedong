@@ -5,6 +5,7 @@ const api = await loadBrowserModule(`
  export * from '../apps/workhub/src/setup/school-admin-server.ts'
  export * from '../apps/workhub/src/setup/school-admin-edit.ts'
  export * from '../apps/workhub/src/setup/contract.ts'
+ export * from '../apps/workhub/src/setup/academic-year.ts'
  export { ContractError } from '../apps/workhub/src/contracts.ts'
  import React from 'react'
  import { renderToStaticMarkup } from 'react-dom/server'
@@ -177,6 +178,34 @@ await test('구성 편집 화면은 레이블과 읽기 전용 연도·코드를
 })
 await test('연결 전 화면은 서버 확인 중이며 실제 저장 완료나 학교 자료를 지어내지 않는다',()=>{
  const html=api.renderPanel({connection:fixture().connection,member,date:'2026-10-16',server:fixture().server});assert(html.includes('학교 관리 정보를 확인하고 있습니다'));assert(!html.includes('학교 구성 수정'));assert(!html.includes('반영을 확인했습니다'));assert(!html.includes('합성 중학교'))
+})
+
+await test('새 학년도 숫자와 시작 연도가 다르면 서버 호출 전에 거부한다',async()=>{
+ const cmd=command();cmd.mode='create_year';cmd.configuration.schoolYear='2027'
+ throwsCode(()=>api.schoolAdminCommand(cmd),'INVALID_RESPONSE')
+ const f=fixture();await rejectsCode(async()=>f.server.mutate(member.id,cmd,'year-mismatch'),'INVALID_INPUT');assert.equal(f.calls.length,0)
+})
+await test('새 학년도는 시작 월·일을 강제하지 않고 다음 해 종료를 허용한다',()=>{
+ const cmd=command();cmd.mode='create_year';cmd.configuration.schoolYear='2027';cmd.configuration.startsOn='2027-03-02';cmd.configuration.lastDay='2028-02-29';cmd.configuration.terms=[{id:'new-term',termNo:'1',name:'확인한 학기',startsOn:'2027-03-02',lastDay:'2028-02-29'}]
+ assert.equal(api.schoolAdminCommand(cmd).configuration.startsOn,'2027-03-02')
+ assert.equal(api.academicYearStartMatches(2027,'2027-08-13'),true)
+ assert.equal(api.academicYearStartMatches(2027,'2027-02-29'),false)
+ assert.equal(api.academicYearStartMatches(2027.5,'2027-03-02'),false)
+})
+await test('과거 학년도 불일치 자료는 읽고 기존 구성을 수정할 수 있다',()=>{
+ const old=snapshot();old.configuration.schoolYear='2027';old.availableYears=[2027]
+ assert.equal(api.schoolAdminSnapshot(old,2027).configuration.startsOn,'2026-03-01')
+ const cmd=command();cmd.configuration.schoolYear='2027';assert.equal(api.schoolAdminCommand(cmd).mode,'update')
+})
+await test('정책 변경 전 미확정 요청은 원문과 기존 번호로만 접수 결과를 확인한다',async()=>{
+ const cmd=command();cmd.mode='create_year';cmd.configuration.schoolYear='2027';const copy=structuredClone(cmd)
+ const f=fixture();assert.equal((await f.server.mutate(member.id,cmd,'existing-year-request',{existingRequest:true})).requestKey,'existing-year-request')
+ assert.deepEqual(f.calls[0].args,{p_member_id:member.id,p_command:copy,p_request_key:'existing-year-request'});assert.deepEqual(cmd,copy)
+ await rejectsCode(async()=>f.server.mutate(member.id,{...cmd,reason:'새 원문'},'existing-year-request',{existingRequest:true}),'IDEMPOTENCY_CONFLICT');assert.equal(f.calls.length,1)
+})
+await test('새 학년도 화면은 연도 확인과 이듬해 종료 허용을 설명한다',()=>{
+ const html=api.renderEditor({value:config(),subjects:[],createYear:true,disabled:false,onChange(){}})
+ assert(html.includes('학년도 숫자와 시작일의 연도'));assert(html.includes('마지막 날은 다음 해여도 됩니다.'))
 })
 console.log(`\n학교 관리 검증: ${passed} 통과, ${failed} 실패`)
 if(failed) process.exit(1)

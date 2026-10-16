@@ -1,4 +1,5 @@
 import limits from './assets/school-admin.json'
+import { academicYearStartMatches } from './academic-year'
 import { isSetupDate, parseSetupDraft, exportSetupDraft, validateSetupDraft, type SetupDraft } from './contract'
 
 export const SCHOOL_ADMIN_SCHEMA_VERSION = 1 as const
@@ -106,11 +107,13 @@ export function schoolAdminSnapshot(value: unknown, requestedYear?: number): Sch
   const capabilities = exact(row.capabilities, ['configuration','memberships','assignments'])
   return {version:schoolAdminVersion(row.version),asOfDate:date(row.asOfDate),availableYears:years,configuration:config,subjects,memberships,assignments,capabilities:{configuration:bool(capabilities.configuration),memberships:bool(capabilities.memberships),assignments:bool(capabilities.assignments)}}
 }
-export function schoolAdminCommand(value: unknown): SchoolAdminCommand {
+export function schoolAdminCommand(value: unknown, options: { existingRequest?: boolean } = {}): SchoolAdminCommand {
   const row = object(value), expectedVersion = schoolAdminVersion(row.expectedVersion), reason = text(row.reason,limits.reasonLength,false,true).trim()
   if (row.kind === 'save_configuration') {
     exact(row,['kind','expectedVersion','mode','configuration','subjects','reason'])
     const config = configuration(row.configuration), subjects = schoolAdminSubjects(row.subjects)
+    // 이미 보낸 원 요청은 새 정책으로 고쳐 보내지 않고 같은 번호로 서버의 접수 결과를 확인한다.
+    if (row.mode === 'create_year' && !options.existingRequest && !academicYearStartMatches(Number(config.schoolYear), config.startsOn)) return invalid()
     const ids = [config.draftId,...config.terms.map(x=>x.id),...config.departments.map(x=>x.id),...config.classes.map(x=>x.id),...subjects.map(x=>x.id)]
     if (new Set(ids).size !== ids.length) return invalid()
     return {kind:row.kind,expectedVersion,mode:oneOf(row.mode,['update','create_year'] as const),configuration:config,subjects,reason}
@@ -147,5 +150,5 @@ export function cloneSchoolConfiguration(value: SetupDraft): SetupDraft { return
 export interface SchoolAdminServer {
   readiness(memberId: string): Promise<SchoolAdminReadiness>
   get(memberId: string, schoolYear?: number): Promise<SchoolAdminSnapshot>
-  mutate(memberId: string, command: SchoolAdminCommand, requestKey: string): Promise<SchoolAdminReceipt>
+  mutate(memberId: string, command: SchoolAdminCommand, requestKey: string, options?: { existingRequest?: boolean }): Promise<SchoolAdminReceipt>
 }

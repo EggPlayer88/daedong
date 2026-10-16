@@ -10,7 +10,7 @@ import React,{useState}from'react';import{createRoot}from'react-dom/client';
 import{SchoolAdminPanel}from'./apps/workhub/src/setup/SchoolAdminPanel';
 import{SchoolAdminError}from'./apps/workhub/src/setup/school-admin-contract';
 import{EditDraftsProvider,createEditDrafts}from'./apps/workhub/src/app/edit-drafts';
-import{PendingRequestsProvider,createPendingRequests}from'./apps/workhub/src/app/pending-requests';
+import{PendingRequestsProvider,createPendingRequests,recoveryScope}from'./apps/workhub/src/app/pending-requests';
 const member={id:'member-one',userId:'user-one',schoolId:'school-one',name:'학교 관리자',role:'calendar_manager',active:true,validFrom:'2026-03-01',validThrough:'2027-02-28',departmentIds:[],gradeIds:[],subjectIds:[]};
 const configuration={draftId:'year-one',schoolName:'합성 중학교',schoolCode:'synthetic-middle',schoolType:'middle',gradeCount:'3',schoolYear:'2026',startsOn:'2026-03-01',lastDay:'2027-02-28',terms:[{id:'term-one',termNo:'1',name:'1학기',startsOn:'2026-03-01',lastDay:'2026-08-12'},{id:'term-two',termNo:'2',name:'2학기',startsOn:'2026-08-13',lastDay:'2027-02-28'}],departments:[{id:'dept-one',name:'교육과정부'}],classes:[{id:'class-one',grade:'1',classNo:'1',name:'1학년 1반',kind:'regular'}]};
 window.data={version:3,asOfDate:'2026-10-16',availableYears:[2026],configuration,subjects:[{id:'subject-one',name:'도덕'}],memberships:[{id:'member-one',name:'학교 관리자',status:'active',startsOn:'2026-03-01',lastDay:'2027-02-28',version:1},...Array.from({length:24},(_,i)=>({id:'teacher-'+i,name:'교사 '+String(i).padStart(2,'0'),status:i===23?'pending':'active',startsOn:'2026-03-01',lastDay:'2027-02-28',version:1}))],assignments:[],capabilities:{configuration:true,memberships:true,assignments:true}};
@@ -21,6 +21,7 @@ else if(command.kind==='review_membership'){const target=window.data.memberships
 else if(command.kind==='assign_duty')window.data.assignments.push({id:'assignment-'+window.data.version,memberId:command.memberId,kind:command.assignmentKind,targetId:command.targetId,label:command.label,startsOn:command.startsOn,lastDay:command.lastDay,status:'active',version:1});
 else if(command.kind==='end_assignment'){const target=window.data.assignments.find(x=>x.id===command.assignmentId);target.lastDay=command.lastDay;target.status='ended';target.version++;}
 const receipt={requestKey:key,kind:command.kind,version:window.data.version,schoolYear:command.kind==='save_configuration'?Number(command.configuration.schoolYear):command.schoolYear,recordedAt:'2026-10-16T09:20:00+09:00'};receipts.set(key,structuredClone(receipt));if(window.unknownOnce){window.unknownOnce=false;throw new SchoolAdminError('RESULT_UNKNOWN')}return receipt;}};
+window.seedPending=(cmd,key)=>{receipts.set(key,{requestKey:key,kind:cmd.kind,version:cmd.expectedVersion+1,schoolYear:Number(cmd.configuration.schoolYear),recordedAt:'2026-10-16T09:20:00+09:00'});window.pending.put(recoveryScope(member),'schoolAdmin',{command:cmd,key})};
 const connection={};window.memory=createEditDrafts();window.pending=createPendingRequests();
 function App(){const[revision,setRevision]=useState(0),[show,setShow]=useState(true);window.refresh=()=>setRevision(x=>x+1);window.setShow=setShow;return<EditDraftsProvider store={window.memory}><PendingRequestsProvider store={window.pending}><button type="button">학교 관리 밖</button>{show&&<SchoolAdminPanel connection={connection} server={server} member={member} date="2026-10-16" revision={revision} onNavigationLockChange={value=>{window.navigationLocked=value}} onUpdated={()=>{window.updated++}}/>}</PendingRequestsProvider></EditDraftsProvider>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
@@ -66,6 +67,20 @@ try{
  })
  await test('320px 화면에서 긴 이름과 변경 검토가 가로로 넘치지 않는다',async()=>{
   await page.setViewportSize({width:320,height:740});await edit();await page.getByLabel('학교명',{exact:true}).fill('학교이름'.repeat(20));await review();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,'school-admin-320.png'),fullPage:true})}
+ })
+
+ await test('연도 불일치는 구체적으로 안내하고 입력을 유지하며 수정 뒤에만 새 학년도를 저장한다',async()=>{
+  await page.getByRole('button',{name:'새 학년도 준비',exact:true}).click()
+  await page.getByLabel('학년도',{exact:true}).fill('2027');await page.getByLabel('학년도 시작일',{exact:true}).fill('2026-03-02');await page.getByLabel('학년도 마지막 날 (포함)',{exact:true}).fill('2028-02-29')
+  await page.getByLabel('학기 시작일',{exact:true}).nth(0).fill('2027-03-02');await page.getByLabel('학기 마지막 날 (포함)',{exact:true}).nth(0).fill('2027-08-12');await page.getByLabel('학기 시작일',{exact:true}).nth(1).fill('2027-08-13');await page.getByLabel('학기 마지막 날 (포함)',{exact:true}).nth(1).fill('2028-02-29')
+  await review();assert.match(await page.locator('[data-admin-focus="issues"]').innerText(),/학년도 숫자와 학년도 시작일의 연도/);assert.equal(await page.evaluate(()=>window.calls.length),0);assert.equal(await page.getByLabel('학년도',{exact:true}).inputValue(),'2027');assert.equal(await page.getByLabel('학기 시작일',{exact:true}).nth(0).inputValue(),'2027-03-02')
+  await page.getByLabel('학년도 시작일',{exact:true}).fill('2027-03-02');await review();await save();assert.equal(await page.evaluate(()=>window.calls[0].command.configuration.startsOn),'2027-03-02');assert.equal(await page.evaluate(()=>window.calls[0].command.configuration.lastDay),'2028-02-29')
+ })
+ await test('정책 전 미확정 학년도 요청은 화면 재마운트에도 원문·번호를 보존한다',async()=>{
+  await page.evaluate(()=>window.setShow(false));await settle()
+  const original=await page.evaluate(()=>{const command={kind:'save_configuration',expectedVersion:3,mode:'create_year',configuration:{...structuredClone(window.data.configuration),schoolYear:'2027'},subjects:structuredClone(window.data.subjects),reason:'정책 변경 전 접수 확인'};window.seedPending(command,'preserved-year-request');return command})
+  await page.evaluate(()=>window.setShow(true));await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();assert.equal(await page.getByLabel('학년도',{exact:true}).inputValue(),'2027');assert.equal(await page.getByLabel('학년도 시작일',{exact:true}).inputValue(),'2026-03-01');assert.equal(await page.evaluate(()=>window.pending.count()),1)
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).click();await page.getByText(/변경 반영을 확인했습니다/).waitFor();const sent=await page.evaluate(()=>window.calls);assert.equal(sent.length,1);assert.equal(sent[0].key,'preserved-year-request');assert.deepEqual(sent[0].command,original);assert.equal(await page.evaluate(()=>window.data.version),3);assert.equal(await page.evaluate(()=>window.pending.count()),0)
  })
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);if(output){mkdirSync(output,{recursive:true});writeFileSync(join(output,'results.json'),JSON.stringify({passed,pageErrors:errors,externalRequests:external},null,2))}console.log('학교 관리 브라우저 검사: '+passed.length+'개 통과')
 }finally{await browser.close()}

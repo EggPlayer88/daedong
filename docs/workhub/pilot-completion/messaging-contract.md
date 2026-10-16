@@ -54,7 +54,18 @@ RPC는 현재 로그인 JWT를 사용하는 기존 `SupabaseConnection.rpcVerifi
 
 대화 목록 검색은 **서버 전체 목록**의 제목·참여자 검색이다. 현재 로드한 일부 목록만 검색하지 않는다. 메시지 본문 전문 검색은 이 계약에 포함하지 않는다.
 
-`InboxNotice`: `{id,schoolId,ownerMemberId,title,body,createdAt,readAt:null|timestamp,version,source:null|{module,id}}`. source.module은 `calendar|tasks|collections|messages|students|knowledge`. 임의 URL은 허용하지 않는다. 원본 열기는 상위 화면의 `canOpenSource`가 정확한 자원 열기를 지원하는 경우만 표시한다. 최초 연결 대상은 일정(eventId), 업무(taskId), 수합(requestId)이다. 알림 생성 시 민감한 학생/상담/DM 본문을 알림 제목에 복제하지 않는다.
+`InboxNotice`: `{id,schoolId,ownerMemberId,title,body,createdAt,readAt:null|timestamp,version,source:null|{module,id}}`. source.module은 `calendar|tasks|collections|messages|students|knowledge|cooperation`. 임의 URL은 허용하지 않는다. 원본 열기는 상위 화면의 `canOpenSource`가 정확한 자원 열기를 지원하는 경우만 표시한다. 연결 대상은 일정(eventId), 업무(taskId), 수합(requestId), 협업(cooperation requestId)이다. 알림 생성 시 민감한 학생/상담/DM 본문을 알림 제목에 복제하지 않는다.
+
+### 협업 알림 출처 (C6)
+
+협업 알림의 출처는 정확히 `{"module":"cooperation","id":"협업 요청 ID"}`다. `sourceType`이나 별도 상태·담당자 필드를 추가하지 않는다. 알림 봉투의 schoolId와 ownerMemberId는 현재 학교·소속과 같아야 하며, 출처 ID는 내부 식별자만 허용한다.
+
+- 알림은 발생 당시 안내다. 현재 받는 사람·처리 상태·허용 동작은 원본 협업의 `workhub_cooperation_get` 응답과 이력 검증으로 다시 확인한다. 해당 요청 ID로 협업 화면을 열고, 원본 검증이 성공하기 전에는 상세와 상태 전환 동작을 표시하지 않는다.
+- 원본을 열어도 읽음·수락·완료 요청·완료 확인을 자동 기록하지 않는다. 읽음 버튼은 기존 `read_notice` 명령만 보낸다.
+- 이동 전 요청이 실패하면 알림함에, 협업 화면의 원본 조회가 실패하거나 현재 권한이 없으면 해당 협업 화면에 오류를 안내한다. 알림을 삭제하거나 완료 처리하지 않으며 임의로 비슷한 제목의 다른 협업을 열지 않는다. 같은 원본을 확인하는 중 중복 클릭은 한 번만 처리한다.
+- 읽음 결과가 미상이면 기존 noticeId·expectedVersion·requestKey를 탭 메모리에 보존하고 같은 요청으로 확인한다. 명확한 버전 충돌이면 최신 알림을 다시 읽은 뒤 사용자가 새 읽음 요청을 한다. 읽음 복구는 메시지 새 전송이나 협업 전이를 만들지 않는다.
+- 원본의 알림 생성·수신자 선택·중복 방지는 Claude가 작성할 P2/P3 증분 SQL의 책임이다. 앱은 협업 알림을 임의 생성하지 않는다. 원본 변경과 알림 생성은 같은 트랜잭션에서 처리하고, 원 명령 재전송으로 알림이 중복되지 않도록 해야 한다.
+- 순서: cooperation 출처를 받는 앱 배포 → P2/P3 CHECK 및 생성 SQL 검토·적용 → 승인된 범위에서 활성화. 이번 앱 변경만으로 실제 알림이 생기지 않는다. 외부 메일·푸시·예약 작업과 공개 범위는 바꾸지 않는다.
 
 ## 4. 변경 명령과 원자성
 
