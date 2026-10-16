@@ -19,6 +19,7 @@ const captures = (JSON.parse(readFileSync(file, 'utf8')) as { captures: Capture[
 let pass = 0, fail = 0
 const check = (name: string, ok: boolean, info?: unknown) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 'FAIL ') + name + (ok ? '' : '  -- ' + JSON.stringify(info).slice(0, 500))) }
 const code = (e: unknown) => (e as { code?: string })?.code ?? String(e)
+const reservationEnded = { app: 0, plain: 0, leaked: 0 }
 const b64 = (s: string) => Uint8Array.from(Buffer.from(s, 'base64'))
 const DEFAULT_POLICY = { extensions: ['hwpx'], maxFileBytes: 31457280, maxFiles: 1 }
 
@@ -137,6 +138,12 @@ for (const c of captures) {
     const t = note(label); t.ok++; t.codes.ok = (t.codes.ok ?? 0) + 1
   } catch (e) {
     const got = code(e), t = note(label)
+    // C5: prepare 의 CONFLICT(끝난 예약)는 전용 오류로, 다른 함수의 CONFLICT 는 그 오류가 아니어야 한다
+    if (want === 'CONFLICT' && got === 'CONFLICT') {
+      const ended = (e as Error)?.name === 'MessageFileReservationEndedError'
+      if (c.kind === 'prepare') { ended ? reservationEnded.app++ : reservationEnded.plain++ }
+      else if (ended) reservationEnded.leaked++
+    }
     if (want && got === want) {
       t.ok++; t.codes[want] = (t.codes[want] ?? 0) + 1
       if (!sent.some(s => s.name === expected?.name)) localFirst++          // 앱이 보내기 전에 같은 이유로 막음
@@ -152,6 +159,11 @@ for (const c of captures) {
   }
 }
 
+if (reservationEnded.app + reservationEnded.plain)
+  reservationEnded.plain === 0
+    ? check(`prepare 의 CONFLICT ${reservationEnded.app}건(끝난 첨부 예약)을 앱이 "끝난 예약" 전용 오류로 바꿈(C5)`, reservationEnded.app >= 8, reservationEnded)
+    : console.log(`KNOWN 지금 앱은 prepare 의 CONFLICT(끝난 첨부 예약) ${reservationEnded.plain}건을 일반 CONFLICT 로 보임 — Codex C5`)
+check('다른 함수의 CONFLICT 를 "끝난 첨부 예약"으로 바꾸지 않음(C5 경계)', reservationEnded.leaked === 0, reservationEnded)
 for (const [k, v] of Object.entries(tally))
   check(`${k}: 실제 응답 ${v.ok + v.bad}건을 앱 어댑터가 서버와 같은 결과로 해석 (${Object.entries(v.codes).map(([a, b]) => `${a} ${b}`).join(' · ')})`, v.bad === 0 && v.ok > 0, v)
 const kinds = ['readiness', 'recipients', 'threads', 'get', 'inbox', 'mutate', 'file_readiness', 'prepare', 'status', 'complete', 'access']
