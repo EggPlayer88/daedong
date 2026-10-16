@@ -20,7 +20,7 @@ export interface MessagingWorkspaceProps {
   onComposeRequestConsumed?: () => void
   connection: SupabaseConnection; member: Membership; date: string; revision?: number
   onNavigationLockChange?: (locked: boolean) => void
-  onOpenSource?: (source: NotificationSource) => void
+  onOpenSource?: (source: NotificationSource) => void | Promise<void>
   canOpenSource?: (source: NotificationSource) => boolean
   /** 시험과 상위 모듈 조합에만 사용한다. 기본 연결은 기존 공용 로그인이다. */
   server?: MessagingServer
@@ -29,7 +29,7 @@ export interface MessagingWorkspaceProps {
 type DraftMemory = { draft: MessageDraft; composing: boolean; pending: MessageAttempt | null }
 const errorOf = (error: unknown) => error instanceof MessagingError ? error : new MessagingError('QUERY_FAILED')
 const timeLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
-const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료' }
+const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료', cooperation: '협업 요청' }
 function mergePage<T>(before: T[], after: T[], key: (item: T) => string): T[] {
   const result = new Map(before.map(item => [key(item), item]))
   for (const item of after) result.set(key(item), item)
@@ -67,12 +67,14 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   const [selected, setSelected] = useState<ThreadSummary | null>(null), [messages, setMessages] = useState<Message[]>([]), [messageCursor, setMessageCursor] = useState<string | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false), [messageError, setMessageError] = useState('')
   const [inbox, setInbox] = useState<Page<InboxNotice>>({ items: [], nextCursor: null }), [loadingInbox, setLoadingInbox] = useState(false), [inboxError, setInboxError] = useState('')
+  const [openingSource, setOpeningSource] = useState<string | null>(null), [sourceError, setSourceError] = useState<{ noticeId: string; message: string } | null>(null)
+  const sourceInFlight = useRef(false)
   const [recipientQuery, setRecipientQuery] = useState(''), [recipientSearch, setRecipientSearch] = useState(''), [recipientRefresh, setRecipientRefresh] = useState(0)
   const [recipients, setRecipients] = useState<Page<Recipient>>({ items: [], nextCursor: null }), [loadingRecipients, setLoadingRecipients] = useState(false), [recipientError, setRecipientError] = useState('')
   const alive = useRef(true), inFlight = useRef(false), listGeneration = useRef(0), messageGeneration = useRef(0), recipientGeneration = useRef(0), inboxGeneration = useRef(0)
   const heading = useRef<HTMLHeadingElement>(null), composerInput = useRef<HTMLTextAreaElement>(null), id = useId()
   const enabled = activeAt(member, date), usable = enabled && !denied && readiness?.available === true
-  const dirty = composing && isMessageDraftDirty(draft), locked = busy || fileLocked || Boolean(pending || preview)
+  const dirty = composing && isMessageDraftDirty(draft), locked = busy || fileLocked || Boolean(pending || preview || openingSource)
   const navigationLocked = busy || fileLocked || Boolean(preview) || (!folded && (dirty || Boolean(pending)))
   const hasAnyDraft = dirty || Boolean(pending)
   useEffect(() => { alive.current = true; return () => { alive.current = false; listGeneration.current++; messageGeneration.current++; recipientGeneration.current++; inboxGeneration.current++ } }, [server])
@@ -202,11 +204,31 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
       if (!alive.current) return
       const problem = errorOf(failure)
       if (!['RESULT_UNKNOWN', 'QUERY_FAILED', 'INVALID_RESPONSE', 'IDEMPOTENCY_CONFLICT', 'CANCELLED', 'NOT_READY'].includes(problem.code)) { setPending(null); recovery.remove(saved.key) }
-      if (problem.code === 'CONFLICT') setConflict(true)
-      report(problem, setError)
+      if (problem.code === 'CONFLICT' && saved.command.kind === 'read_notice') {
+        setError('알림의 읽음 상태가 변경되었습니다. 최신 알림을 다시 불러온 뒤 확인해 주세요.')
+        setRefresh(value => value + 1)
+      } else {
+        if (problem.code === 'CONFLICT') setConflict(true)
+        report(problem, setError)
+      }
     } finally { inFlight.current = false; if (alive.current) setBusy(false) }
   }
-  function mark(command: MessageCommand) { void send({ key: newMessageKey(), command, recipientNames: [] }) }
+  function mark(command: MessageCommand) { if (locked || inFlight.current) return; void send({ key: newMessageKey(), command, recipientNames: [] }) }
+  async function openNoticeSource(item: InboxNotice) {
+    if (!item.source || !onOpenSource || !canOpenSource?.(item.source) || navigationLocked || sourceInFlight.current) return
+    sourceInFlight.current = true; setOpeningSource(item.id); setSourceError(null)
+    try {
+      // 알림의 문구로 현재 담당자나 완료 상태를 추정하지 않는다. 원본 화면이 현재 권한과 상태를 다시 확인한다.
+      await onOpenSource(item.source)
+    } catch (failure) {
+      if (!alive.current) return
+      const code = failure && typeof failure === 'object' && 'code' in failure ? failure.code : undefined
+      const label = sourceLabels[item.source.module]
+      setSourceError({ noticeId: item.id, message: ['FORBIDDEN', 'NOT_FOUND', 'INACTIVE_MEMBERSHIP'].includes(String(code))
+        ? `${label} 원본이 없거나 현재 권한으로 열 수 없습니다. 알림의 읽음이나 업무 처리 상태는 바꾸지 않았습니다.`
+        : `${label} 원본을 불러오지 못했습니다. 잠시 뒤 다시 열어 주세요. 알림과 작성 중인 내용은 그대로 남아 있습니다.` })
+    } finally { sourceInFlight.current = false; if (alive.current) setOpeningSource(null) }
+  }
   async function refreshReplyParticipants() {
     if (!draft.thread || locked) return
     setBusy(true)
@@ -288,9 +310,9 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
         <div className="messaging-actions"><button type="button" className="messaging-primary" disabled={locked || dirty || !selected.canSend || loadingMessages || Boolean(messageError)} onClick={() => start(selected)}>답장</button><button type="button" disabled={locked || !canRead || loadingMessages || Boolean(messageError)} onClick={() => mark({ kind: 'read_thread', threadId: selected.id, throughSequence: selectedSequence })}>화면에 연 메시지까지 읽음 표시</button></div>
         {!selected.canSend && <p className="messaging-muted">현재 대화에 답장할 수 없습니다.</p>}
       </> : <p className="messaging-empty">대화를 선택해 주세요.</p>}</section></div> : <section className="messaging-panel messaging-inbox" aria-label="내 업무 알림">
-        <p className="messaging-muted">알림을 읽어도 업무 완료, 수합 제출, 승인 상태가 바뀌지는 않습니다.</p>
+        <p className="messaging-muted">알림을 읽거나 원본을 열어도 협업 수락·완료 확인, 업무 완료, 수합 제출, 승인 상태가 바뀌지는 않습니다. 협업의 현재 담당자와 처리 상태는 원본에서 확인해 주세요.</p>
         {inboxError && <p role="alert">{inboxError}</p>}{loadingInbox && <p role="status">알림을 불러오는 중…</p>}
-        {inbox.items.map(item => <article key={item.id}><div className="messaging-message-meta"><h3>{item.title}</h3><time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></div><p className="messaging-body">{item.body}</p><div className="messaging-actions">{item.readAt ? <span className="messaging-muted">읽음</span> : <button type="button" disabled={locked} onClick={() => mark({ kind: 'read_notice', noticeId: item.id, expectedVersion: item.version })}>읽음으로 표시</button>}{item.source && onOpenSource && canOpenSource?.(item.source) && <button type="button" disabled={navigationLocked} onClick={() => onOpenSource(item.source!)}>{sourceLabels[item.source.module]} 원본 열기</button>}</div></article>)}
+        {inbox.items.map(item => <article key={item.id}><div className="messaging-message-meta"><h3>{item.title}</h3><time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></div><p className="messaging-body">{item.body}</p><div className="messaging-actions">{item.readAt ? <span className="messaging-muted">읽음</span> : <button type="button" disabled={locked} onClick={() => mark({ kind: 'read_notice', noticeId: item.id, expectedVersion: item.version })}>읽음으로 표시</button>}{item.source && onOpenSource && canOpenSource?.(item.source) && <button type="button" disabled={navigationLocked || Boolean(openingSource)} onClick={() => void openNoticeSource(item)}>{openingSource === item.id ? `${sourceLabels[item.source.module]} 원본 확인 중…` : `${sourceLabels[item.source.module]} 원본 열기`}</button>}</div>{sourceError?.noticeId === item.id && <p role="alert">{sourceError.message}</p>}</article>)}
         {!loadingInbox && !inboxError && inbox.items.length === 0 && <p className="messaging-empty">조건에 맞는 알림이 없습니다.</p>}
         {inbox.nextCursor && <button type="button" disabled={loadingInbox} onClick={() => void loadInbox(true)}>알림 더 보기</button>}
       </section>}
