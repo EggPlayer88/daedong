@@ -319,3 +319,8 @@ observation_save도 `input.followUpOn` 키는 필수이며 값은 빈 문자열�
 이 부록은 앱 계약의 명칭·중첩·판 대응을 명확히 적은 것이며 새로운 열람권이나 학교 정책을 승인하지 않는다. 실제 SQL의 역할·기간·학교·작성자·원문 재검증은 앞 절의 요구를 모두 유지한다.
 
 학생/명부 학년의 브라우저 기술 상한은 `teaching/school-limits.ts`가 `setup/assets/school-admin.json`의 gradeBounds와 customGradeTechnicalLimit에서 공통으로 읽는다(현재 최대 20). CSV·명부 명령·학생 응답을 같은 범위로 검사한다. 이는 모든 학교에 20학년을 허용한다는 정책이 아니며 SQL은 실제 해당 학교의 gradeCount, 학년도와 수업/학적 기간을 다시 검사해야 한다.
+
+
+## 11. 담당·수강 종료와 전출 확장
+
+기존 teaching.v1을 유지하는 별도 `teaching-relations.v1`의 앱·SQL 요청 계약은 [teaching-relations-contract.md](teaching-relations-contract.md)를 따른다. 담당 교체·종료, 선택 수업 수강 종료, 선택 학적 전출은 서버 영향 미리보기 후 확정한다. 원래 관계·학생·개인 기록은 삭제하거나 자동 양도하지 않는다. 새 SQL이 없는 환경에서는 관계 패널만 준비 중이고 기존 수업 조회·기록은 계속 사용할 수 있다.
