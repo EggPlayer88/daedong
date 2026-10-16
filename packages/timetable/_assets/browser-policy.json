@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "maxLessons": 1000,
+  "maxResources": 3000,
+  "maxSlots": 3000,
+  "maxDomainEntries": 300000,
+  "maxConditions": 20000,
+  "maxIssues": 100,
+  "maxCapacity": 1000,
+  "maxPeriods": 16,
+  "maxCoursePeriods": 1000,
+  "maxWeight": 1000000,
+  "defaultMaxNodes": 50000,
+  "maximumMaxNodes": 500000,
+  "defaultMaxMs": 1500,
+  "maximumMaxMs": 10000
+}
