@@ -48,12 +48,24 @@ SELECT 'P2-03-09', '일정 일괄: 계보가 가리키는 일정이 같은 학�
 FROM workhub.calendar_import_rows l LEFT JOIN workhub.events e ON e.id = l.event_id AND e.school_id = l.school_id
 WHERE e.id IS NULL OR l.applied_event_version > e.version
 UNION ALL
-SELECT 'P2-03-10', '협업: 요청마다 이력 수 = 판, 첫 이력 = 발신자 create',
+SELECT 'P2-03-10', '협업: 요청마다 이력 수 = 판, 첫 이력 = 발신자 create, 행마다 처리자 = 그때의 당사자(인계 포함)',
        CASE WHEN count(*) = 0 THEN 'ok' ELSE 'FAIL' END, count(*)::text
 FROM workhub.cooperation_requests r
 WHERE (SELECT count(*) FROM workhub.cooperation_history h WHERE h.request_id = r.id) <> r.version
    OR NOT EXISTS (SELECT 1 FROM workhub.cooperation_history h WHERE h.request_id = r.id AND h.version = 1 AND h.action = 'create'
                    AND h.actor_membership_id = r.sender_membership_id)
+   -- 행 h 직전의 받는 사람 = h 이상 판의 첫 인계 행이 넘겨준 사람, 없으면 지금 받는 사람
+   OR EXISTS (SELECT 1 FROM workhub.cooperation_history h
+               CROSS JOIN LATERAL (SELECT COALESCE((SELECT n.previous_recipient_membership_id FROM workhub.cooperation_history n
+                                                     WHERE n.request_id = r.id AND n.action = 'handover' AND n.version >= h.version
+                                                     ORDER BY n.version LIMIT 1), r.recipient_membership_id) AS before_recipient,
+                                          COALESCE((SELECT n.previous_recipient_membership_id FROM workhub.cooperation_history n
+                                                     WHERE n.request_id = r.id AND n.action = 'handover' AND n.version > h.version
+                                                     ORDER BY n.version LIMIT 1), r.recipient_membership_id) AS after_recipient) x
+               WHERE h.request_id = r.id AND h.version > 1
+                 AND CASE WHEN h.action = 'handover'
+                          THEN h.actor_membership_id <> x.after_recipient OR h.actor_membership_id = r.sender_membership_id
+                          ELSE h.actor_membership_id NOT IN (r.sender_membership_id, x.before_recipient) END)
 UNION ALL
 SELECT 'P2-03-11', '학교 × 모듈 상태', 'info',
        COALESCE((SELECT string_agg(s.code || ':' || a.module || '=' || a.state, ', ' ORDER BY s.code, a.module)

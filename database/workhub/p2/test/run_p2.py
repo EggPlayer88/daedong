@@ -493,6 +493,10 @@ def main():
           [x[1] for x in seq] == list(range(2, 9)) and scalar('select status from workhub.cooperation_requests where id=%s', (rid,)) == 'completed', seq)
     det = t[21].get(rid)
     check('L02 상세: 이력 8건 = 판, 1..8 차례, 첫 이력 create', [h['version'] for h in det['history']] == list(range(1, 9)) and det['history'][0]['action'] == 'create', det)
+    check('L02a 이력 행마다 처리자 이름 · 그 뒤의 받는 사람(인계 없음 = 지금 받는 사람) · 이전 받는 사람 null',
+          [(h['actorMemberId'], h['actorName'], h['recipientMemberId'], h['previousRecipientMemberId']) for h in det['history']]
+          == [(M[w], scalar('select a.display_name from workhub.memberships m join workhub.accounts a on a.id=m.account_id where m.id=%s', (M[w],)), M[22], None)
+             for w in [21] + [x[0] for x in path]], det['history'])
     check('L03 원본 업무 연결은 보낸 사람에게만 보임', det['request']['taskLink'] == {'taskId': tk['id'], 'ownerUserId': T[21]} and t[22].get(rid)['request']['taskLink'] is None)
     check('L04 제3자(m-23) 상세 → NOT_FOUND', ecode(t[23].get(rid)) == 'NOT_FOUND')
     check('L05 다른 학교(m-27) 상세 → NOT_FOUND', ecode(t[27].get(rid)) == 'NOT_FOUND')

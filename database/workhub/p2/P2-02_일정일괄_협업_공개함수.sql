@@ -511,7 +511,16 @@ BEGIN
     RETURN workhub_private.p2_fail(ctx, C, 'NOT_FOUND');
   END IF;
   RETURN workhub_private.p2_ok(ctx, C, jsonb_build_object('request', workhub_private.p2_coop_dto(r, ctx),
+    -- 이력의 actor 는 그때 처리한 사람 그대로다. 받는 사람이 바뀐 요청(P7 인계)에서도 앱이 행마다 당사자를 다시 맞춰 볼 수 있게
+    --   recipientMemberId = 이 행이 적용된 뒤의 받는 사람(다음 인계 행의 이전 받는 사람, 없으면 지금 받는 사람)
+    --   previousRecipientMemberId = 인계 행에서만 넘겨준 사람, 그 밖에는 null
+    --   actorName = 처리한 사람 이름(이전 받는 사람은 요청 본문의 이름과 다르다)
     'history', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', h.id, 'action', h.action, 'actorMemberId', h.actor_membership_id,
+                          'actorName', (SELECT left(a.display_name, 120) FROM workhub.accounts a WHERE a.id = h.actor_account_id),
+                          'recipientMemberId', COALESCE((SELECT n.previous_recipient_membership_id FROM workhub.cooperation_history n
+                                                          WHERE n.request_id = r.id AND n.action = 'handover' AND n.version > h.version
+                                                          ORDER BY n.version LIMIT 1), r.recipient_membership_id),
+                          'previousRecipientMemberId', h.previous_recipient_membership_id,
                           'comment', h.comment, 'recordedAt', workhub_private.p2_ts(h.recorded_at), 'version', h.version) ORDER BY h.version)
                          FROM workhub.cooperation_history h WHERE h.request_id = r.id), '[]'::jsonb)));
 END $$;
