@@ -1,3 +1,4 @@
+import { TASK_INPUT_LIMITS } from './validation'
 import type { FormEvent, RefObject } from 'react'
 import type { PersonalTask, TaskInput } from './contracts'
 
@@ -28,7 +29,7 @@ export function TaskEditor({
       <div className="task-form-row">
         <label className="task-title-field" htmlFor={`${id}-title`}>해야 할 일
           <input ref={titleRef} id={`${id}-title`} aria-describedby={`${id}-title-hint`} name="task-title" aria-label="해야 할 일" required value={input.title} onChange={event => onTitleChange(event.target.value)} placeholder="예: 체험학습 안내 내용 확인" />
-          <small id={`${id}-title-hint`}>필수 · {Array.from(input.title).length}/120자</small>
+          <small id={`${id}-title-hint`}>필수 · {Array.from(input.title).length}/{TASK_INPUT_LIMITS.titleChars}자</small>
         </label>
         <label htmlFor={`${id}-due`}>기한 (선택)
           <input id={`${id}-due`} name="task-due" aria-label="기한 (선택)" type="date" value={input.dueDate} onChange={event => onDueDateChange(event.target.value)} />
@@ -36,7 +37,7 @@ export function TaskEditor({
       </div>
       <label htmlFor={`${id}-notes`}>나만 보는 메모
         <textarea id={`${id}-notes`} aria-describedby={`${id}-notes-hint`} name="task-notes" aria-label="나만 보는 메모" rows={3} value={input.notes} onChange={event => onNotesChange(event.target.value)} />
-        <small id={`${id}-notes-hint`}>선택 · {Array.from(input.notes).length.toLocaleString()}/2,000자</small>
+        <small id={`${id}-notes-hint`}>선택 · {Array.from(input.notes).length.toLocaleString()}/{TASK_INPUT_LIMITS.notesChars.toLocaleString()}자</small>
       </label>
     </fieldset>
     <div className="task-actions">

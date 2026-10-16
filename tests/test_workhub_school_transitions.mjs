@@ -18,4 +18,27 @@ await test('인계 요청 접수와 수신 교사 인수 완료를 혼동하지 
 await test('인수 판과 접수증 기록이 어긋나면 성공으로 표시하지 않는다',async()=>{const x=setup();x.set(env({requestKey:'accept-key',recordId:'other',version:3,state:'accepted',recordedAt:'2026-10-16T01:00:00Z'}));await assert.rejects(()=>x.client.mutate('m',{kind:'accept',recordId:'r',expectedVersion:2,reason:'확인'},'accept-key'),e=>e.code==='RESULT_UNKNOWN')})
 await test('계획 수정은 기존 결과미확정 요청 번호를 재사용하지 못한다',async()=>{const x=setup();x.set(null);const command={kind:'apply',plan:year,fingerprint:'a'.repeat(64)};await assert.rejects(()=>x.client.mutate('m',command,'year-key'),e=>e.code==='RESULT_UNKNOWN');await assert.rejects(()=>x.client.mutate('m',{...command,plan:{...year,targetYear:2028}},'year-key'),e=>e.code==='IDEMPOTENCY_CONFLICT');assert.equal(x.calls.length,1)})
 await test('조회 전 화면에는 서버 처리 완료나 복사된 학생 자료가 없다',()=>{const x=setup(),html=render({connection:x.connection,member});assert.match(html,/업무 인계와 새 학년도 준비/);assert.doesNotMatch(html,/인계 요청을 저장했습니다/)})
+await test('인계 계획의 모양·판·종류 오류는 입력 오류이며 미리보기 RPC를 시작하지 않는다',async()=>{
+ const inputs=[null,[],{}, {...handover,extra:'민감 원문'},{...handover,recipientVersion:0},{...handover,resources:[null]},{...handover,resources:[{...handover.resources[0],version:0}]},{...handover,resources:[{...handover.resources[0],kind:'counseling'}]},{...handover,resources:[{...handover.resources[0],extra:'비공개'}]}]
+ const x=setup();for(const input of inputs){assert.throws(()=>api.transitionPlan(input),e=>e.code==='INVALID_INPUT'&&!e.message.includes('민감'));await assert.rejects(async()=>x.client.preview('m',input),e=>e.code==='INVALID_INPUT')};assert.equal(x.calls.length,0)
+})
+await test('인계 명령과 학년도 계획의 깨진 필드는 전송 전에 입력 오류로 구분한다',async()=>{
+ const action={kind:'accept',recordId:'r',expectedVersion:2,reason:'확인'}
+ const inputs=[null,[],{}, {...action,extra:'원문'},{...action,expectedVersion:0},{...action,expectedVersion:'2'}, {kind:'apply',plan:null,fingerprint:'a'.repeat(64)}, {kind:'apply',plan:{...year,extra:'원문'},fingerprint:'a'.repeat(64)}]
+ const x=setup();for(const input of inputs){assert.throws(()=>api.transitionCommand(input),e=>e.code==='INVALID_INPUT');await assert.rejects(async()=>x.client.mutate('m',input,'input-key'),e=>e.code==='INVALID_INPUT')};assert.equal(x.calls.length,0)
+})
+await test('목록 커서의 길이·형식 오류는 서버 호출 전에 막는다',async()=>{
+ const x=setup();for(const cursor of ['',{},'a'.repeat(1001),'비공개\u0007'])await assert.rejects(async()=>x.client.list('m',cursor),e=>e.code==='INVALID_INPUT');assert.equal(x.calls.length,0)
+ await x.client.list('m','a'.repeat(1000));assert.equal(x.calls[0].args.p_cursor.length,1000)
+})
+await test('서버가 보낸 잘못된 판·자원·미리보기는 입력 오류로 바뀌지 않는다',async()=>{
+ for(const value of [{...catalog,recipients:[{...catalog.recipients[0],version:0}]},{...catalog,resources:[{...handover.resources[0],kind:'counseling'}]},{...catalog,extra:'서버 원문'}]){const x=setup();x.set(env(value));await assert.rejects(()=>x.client.list('m'),e=>e.code==='INVALID_RESPONSE')}
+ const x=setup();x.set(env({fingerprint:'a'.repeat(64),expiresAt:'2099-01-01T00:00:00Z',summary:[],excluded:[],affectedCount:1,extra:'원문'}));await assert.rejects(()=>x.client.preview('m',year),e=>e.code==='INVALID_RESPONSE')
+})
+await test('로컬 입력 거절 뒤에도 이미 전송한 인계의 원래 키·명령을 보존한다',async()=>{
+ const x=setup(),command={kind:'apply',plan:handover,fingerprint:'a'.repeat(64)};x.set(null)
+ await assert.rejects(()=>x.client.mutate('m',command,'same-key'),e=>e.code==='RESULT_UNKNOWN')
+ await assert.rejects(async()=>x.client.mutate('m',{...command,plan:{...handover,recipientVersion:0}},'same-key'),e=>e.code==='INVALID_INPUT');assert.equal(x.calls.length,1)
+ x.set(env({requestKey:'same-key',recordId:'r',version:1,state:'pending',recordedAt:'2026-10-16T01:00:00Z'}));await x.client.mutate('m',command,'same-key');assert.deepEqual(x.calls[0].args,x.calls[1].args)
+})
 console.log('학교 전환 '+count+'건 통과')

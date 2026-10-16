@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
 import {fileURLToPath} from 'node:url'
-import {mkdirSync,writeFileSync} from 'node:fs'
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {launchBrowser} from './launch-browser.mjs'
+const yearBounds=JSON.parse(readFileSync(new URL('../../apps/workhub/src/setup/assets/school-admin.json',import.meta.url),'utf8')).schoolYearBounds
 const bundle=buildSync({stdin:{contents:`import React,{useState} from 'react';import{createRoot}from'react-dom/client';import{SchoolTransitions}from'./apps/workhub/src/administration/SchoolTransitions';import{EditDraftsProvider,createEditDrafts}from'./apps/workhub/src/app/edit-drafts';import{PendingRequestsProvider,createPendingRequests}from'./apps/workhub/src/app/pending-requests';
 const member={id:'m',schoolId:'s',userId:'u',name:'교사',role:'teacher',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]};window.calls=[];window.mode='ok';window.failRead=false;window.resourceVersion=3;window.pending=createPendingRequests();window.drafts=createEditDrafts();const envelope=data=>({contract:'school-transitions.v1',schoolId:'s',memberId:'m',data});const connection={info:()=>({memberships:[member],schools:[{id:'s'}],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:'u',approved:true}),rpcVerified:async(name,args)=>{window.calls.push({name,args:structuredClone(args)});if(name.endsWith('_list')){if(window.failRead)throw Error('private');return envelope({canManageYear:true,years:[{id:'y26',year:2026,label:'2026학년도'}],recipients:[{memberId:'next',name:'인수 교사',version:2}],resources:[{kind:'collection',id:'c1',version:window.resourceVersion,label:'평가 자료'}],records:[{id:'incoming',kind:'handover',title:'받은 인계',version:2,state:'pending',canAccept:true,canCancel:false,summary:['공식 업무 1건']}],nextCursor:null})}if(name.endsWith('_preview'))return envelope({fingerprint:'a'.repeat(64),expiresAt:'2099-01-01T00:00:00Z',summary:['확인한 공식 구조 1건'],excluded:['개인 상담과 학생 자료'],affectedCount:1});if(window.mode==='unknown')throw Error('private');const cmd=args.p_command;return envelope({requestKey:args.p_request_key,recordId:cmd.recordId??'new',version:cmd.expectedVersion?cmd.expectedVersion+1:1,state:cmd.kind==='apply'?(cmd.plan.kind==='handover'?'pending':'completed'):cmd.kind==='accept'?'accepted':cmd.kind==='reject'?'rejected':'cancelled',recordedAt:'2026-10-16T01:00:00Z'})}};
 function Harness(){const[revision,refresh]=useState(0);window.refresh=()=>refresh(x=>x+1);return <EditDraftsProvider store={window.drafts}><PendingRequestsProvider store={window.pending}><SchoolTransitions connection={connection} member={member} revision={revision}/></PendingRequestsProvider></EditDraftsProvider>};window.mount=(clear=false)=>{if(clear)window.drafts=createEditDrafts();window.root=createRoot(document.getElementById('root'));window.root.render(<Harness/>)};window.mount();`,loader:'tsx',resolveDir:fileURLToPath(new URL('../../',import.meta.url))},bundle:true,format:'iife',write:false,jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':'{}','process.env.NODE_ENV':'"development"'},logLevel:'silent'})
@@ -24,6 +25,27 @@ await test('320px에서 학년도 입력이 가로로 넘치지 않는다',async
 await test('인계 대상 재조회 실패 중에는 이전 원문을 숨기고 재연결 뒤 복원한다',async()=>{await prepareHandover();await page.evaluate(()=>{window.failRead=true;window.refresh()});await page.getByText('현재 인계 권한과 대상을 다시 확인할 때까지 보관한 입력을 숨깁니다.',{exact:true}).waitFor();assert.equal(await page.getByLabel('인계 내용',{exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'확인한 변경 요청'}).count(),0);await page.evaluate(()=>{window.failRead=false});await page.getByRole('button',{name:'인계 서버 다시 확인'}).click();await page.getByLabel('인계 내용',{exact:true}).waitFor();assert.equal(await page.getByLabel('인계 내용',{exact:true}).inputValue(),'담당 업무 변경')})
 await test('공식 업무의 판이 바뀌면 오래된 미리보기와 최종 확인을 폐기한다',async()=>{await prepareHandover();await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check();await page.evaluate(()=>{window.resourceVersion=4;window.refresh()});await page.getByLabel('평가 자료 · 4판').waitFor();assert.equal(await page.getByRole('region',{name:'인계 변경 미리보기'}).count(),0);assert.equal(await page.getByRole('button',{name:'확인한 변경 요청'}).isDisabled(),true)})
 await test('편집 기억이 없어져도 미확정 인계는 원래 명령과 키로 조회한다',async()=>{await prepareHandover();await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check();await page.evaluate(()=>{window.mode='unknown'});await page.getByRole('button',{name:'확인한 변경 요청'}).click();await page.getByRole('button',{name:'원래 인계 요청 결과 확인'}).waitFor();await page.evaluate(()=>{window.mode='ok';window.root.unmount();window.mount(true)});await page.getByRole('button',{name:'원래 인계 요청 결과 확인'}).waitFor();await page.getByRole('button',{name:'원래 인계 요청 결과 확인'}).click();await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.').waitFor();const calls=await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')));assert.deepEqual(calls[0].args,calls[1].args)})
+
+await test('인계 미리보기의 입력 오류는 서버 오류로 표시하지 않고 입력을 보존한다',async()=>{
+ await page.getByRole('button',{name:'업무 인계 준비'}).click();await page.getByLabel('인수 교사',{exact:true}).selectOption('next');await page.getByLabel('평가 자료 · 3판').check()
+ const note=page.getByLabel('인계 내용',{exact:true});await note.fill('보존할 인계 내용\u0007');await page.getByRole('button',{name:'변경 대상 미리보기'}).click()
+ await page.getByRole('alert').filter({hasText:'입력 내용과 형식을 확인해 주세요.'}).waitFor()
+ assert.equal(await note.inputValue(),'보존할 인계 내용\u0007');assert.equal(await page.getByLabel('인수 교사',{exact:true}).inputValue(),'next');assert.equal(await page.getByLabel('평가 자료 · 3판').isChecked(),true)
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_preview')||x.name.endsWith('_mutate')).length),0)
+ assert.equal(await page.evaluate(()=>window.pending.count()),0);assert.doesNotMatch(await page.locator('body').innerText(),/서버 자료의 형식/)
+ await note.fill('정정한 인계 내용');await page.getByRole('button',{name:'변경 대상 미리보기'}).click();await page.getByRole('region',{name:'인계 변경 미리보기'}).waitFor()
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_preview')).length),1)
+})
+await test('학교관리와 새 학년도 화면이 같은 학년도 입력 범위를 사용한다',async()=>{
+ await page.getByRole('button',{name:'새 학년도 준비',exact:true}).click();const target=page.getByLabel('새 학년도',{exact:true})
+ assert.equal(await target.getAttribute('min'),String(yearBounds.min));assert.equal(await target.getAttribute('max'),String(yearBounds.max))
+})
+await test('서버의 잘못된 인계 대상 판은 입력 오류로 바꾸지 않는다',async()=>{
+ await page.evaluate(()=>{window.resourceVersion=0;window.refresh()})
+ await page.getByRole('alert').filter({hasText:'서버 자료의 형식을 확인하지 못했습니다.'}).waitFor()
+ assert.equal(await page.getByRole('button',{name:'업무 인계 준비',exact:true}).count(),0)
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')).length),0)
+})
 
 assert.deepEqual(errors,[]);if(process.env.WORKHUB_QA_OUTPUT)writeFileSync(join(process.env.WORKHUB_QA_OUTPUT,'results.json'),JSON.stringify({passed,errors},null,2))
 }finally{await browser.close()}

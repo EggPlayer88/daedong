@@ -80,10 +80,28 @@ version 양수, 당사자 서로 다름. dueDate는 빈 문자열 또는 실제 
 
 ```ts
 {...envelope,request:CooperationRequest,
- history:{id,action,actorMemberId,comment,recordedAt,version}[]}
+ history:{id,action,actorMemberId,actorName,recipientMemberId,previousRecipientMemberId,comment,recordedAt,version}[]}
 ```
 
 각 상태 변경마다 version+1, 원자 이력 1건. 첫 이력 version=1/action=create/actor=발신자. 그 뒤는 위 상태 전이와 actor에 일치, 마지막 상태가 request.status와 일치해야 한다. 클라이언트도 재구성해 검사한다. 이력 1000건까지 전체 반환. 상한을 넘으면 조용히 생략하지 말고 기능 한계를 명시하며, 이력을 무한 축약하는 기능은 이번 구현에 없다.
+
+### P7 인계 이력 계약 보완 (2026-10-16, C1)
+
+SQL 통합 #58 `7877840`의 P2/P7 응답에 맞춘다. `history.action`의 `handover`는 읽기 이력이며 협업 mutate 명령이 아니다. 인계는 기존 학년도·인계 서비스가 처리한다.
+
+새 이력의 모든 행은 다음 세 필드를 포함한다.
+
+- `actorName`: 그 행을 처리한 교사의 표시명(비어 있지 않은 최대 120자 문자열). 요청 본문의 현재 담당자 이름으로 대신 표시하지 않는다.
+- `recipientMemberId`: 해당 행 처리 **이후**의 수신자 ID.
+- `previousRecipientMemberId`: handover 행에서만 직전 수신자 ID, 다른 행에서는 명시적 `null`.
+
+처음 create의 수신자부터 각 행의 담당자와 상태를 버전 순서로 재생한다. handover의 actor는 수락한 새 담당자이며 previousRecipientMemberId는 직전 담당자, recipientMemberId는 새 담당자와 일치해야 한다. 같은 담당자·발신자로의 인계, 종료 상태에서의 인계, 과거 구간의 행동자나 수신자 변경, 끊긴 버전과 최종 요청 상태/담당자 불일치를 거절한다. 기존 학교·현재 당사자·본인 업무 링크 검증도 유지한다.
+
+배포 호환: 새 세 필드가 전혀 없고 인계도 없는 구형 P2 응답만 기존 방식으로 읽는다. 필드가 하나라도 등장하면 모든 행에 완전한 세 필드가 있어야 한다. 구형 handover, 일부 누락, 신·구 혼합을 추론으로 통과시키지 않는다. 중간 P7 계약만 설치된 환경은 최신 SQL 계약으로 맞춘 뒤 인계를 활성화해야 한다. 이 앱 수정이 SQL 적용을 수행하는 것은 아니다.
+
+상세를 열린 뒤 다시 조회한 응답이 손상되면 과거 상세로 새 처리를 진행하지 않는다. 작성하던 사유와 미확정 원 요청은 보존하고, 자료 재확인 후 복구한다. 브라우저 종료 후 복원은 제공하지 않는다.
+
+`test_workhub_cooperation.mjs`와 `workhub-cooperation-handover.mjs`에서 정상·연속·완료확인 대기 인계, 필드 변조/누락, 구형 무인계 호환, 당시 처리자 표시와 복구를 검증한다. 실제 SQL/PostgREST 권한·동시성 시험은 Claude의 최종 SQL과 별도 대조해야 한다.
 
 ### workhub_cooperation_mutate(p_member_id, p_command jsonb, p_request_key text/uuid)
 
@@ -115,6 +133,6 @@ create version=1; transition entityId=requestId, version=expectedVersion+1. 멱�
 
 ## 자동 검증·잔여
 
-`node tests/test_workhub_cooperation.mjs`: 16건. `tests/browser/workhub-cooperation-batch.mjs`: 협업 6개 + 일괄 5개, 총 11개 동선. 브라우저는 실제 React와 실제 어댑터 + 합성 RPC, 외부 네트워크 차단. 수락/완료확인 역할 분리, 원본 task ID, 입력·커서 보존, 결과 유실 same key replay, 버전 충돌 명시 채택, 권한 회수 비노출·복구, 확정 거절 시 pending 해제를 확인했다.
+`node tests/test_workhub_cooperation.mjs`: 43건. `tests/browser/workhub-cooperation-handover.mjs`: 인계·재인계·입력 보존·같은 요청 복구 15개. `tests/browser/workhub-cooperation-batch.mjs`: 협업·일괄 가져오기 13개. 브라우저는 실제 React와 실제 어댑터 + 합성 RPC를 사용하며 외부 네트워크는 차단한다.
 
-남은 일: Claude SQL 작성·검토·계란님 적용, 실제 PostgREST 권한/경합/수신증·알림 연결 검증, 교사 실사용 피드백. 신규 메뉴 공개 권한과 실제 DB 적용은 이번 코드로 넓히지 않았다.
+남은 일: Claude 최신 SQL과 최종 앱 parser 재대조, 사용자 SQL 직접 적용, 실제 PostgREST 권한/경합/수신증·알림 연결 검증, 교사 실사용 피드백. 신규 메뉴 공개 범위와 실제 DB 적용은 이번 코드에서 바꾸지 않았다. 전체 결과와 C1~C7 상태는 [앱 보완 인계](app-contract-fixes.md)를 참고한다.

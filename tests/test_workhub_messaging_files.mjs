@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 const m = await loadBrowserModule(`
-  export { createMessageFileServer, messageFileStatus, messageFileReadiness } from '../apps/workhub/src/messaging/files'
+  export { createMessageFileServer, messageFileStatus, messageFileReadiness, MessageFileReservationEndedError } from '../apps/workhub/src/messaging/files'
   export { createMessageFileCheck } from '../apps/workhub/src/messaging/message-file-check'
   export { MessagingError } from '../apps/workhub/src/messaging/contracts'
 `)
@@ -164,6 +164,41 @@ await check('첨부 완료가 서버에서 끝나고 응답만 늦으면 같은 
   release(); await new Promise(resolve => setTimeout(resolve, 10))
   assert.equal((await server.complete(scope.memberId, ref.id, 'late-complete')).state, 'ready')
   assert.equal(saved, 1); assert.deepEqual(h.calls[0].args, h.calls[1].args)
+})
+await check('prepare의 같은 학교·사용자 검증을 통과한 CONFLICT만 종료된 첨부로 구분한다', async () => {
+  const raw = { contractVersion: 1, ...scope, ok: false, error: { code: 'CONFLICT' } }
+  const h = harness(() => raw)
+  await assert.rejects(() => h.server.prepare(scope.memberId, file(), policy, 'ended', { replayOnly: true }), error => error instanceof m.MessageFileReservationEndedError && error.code === 'CONFLICT')
+  assert.equal(h.calls[0].args.p_replay_only, true); assert.equal(h.uploads.length, 0)
+})
+await check('다른 범위·추가 필드·운송 계층의 CONFLICT는 첨부 종료로 판단하지 않는다', async () => {
+  const raw = { contractVersion: 1, ...scope, ok: false, error: { code: 'CONFLICT' } }
+  for (const response of [{ ...raw, schoolId: 'other' }, { ...raw, userId: 'other' }, { ...raw, memberId: 'other' }, { ...raw, error: { code: 'CONFLICT', reason: 'extra' } }]) {
+    const h = harness(() => response)
+    await assert.rejects(() => h.server.prepare(scope.memberId, file(), policy, 'not-ended'), error => !(error instanceof m.MessageFileReservationEndedError) && error.code === 'RESULT_UNKNOWN')
+  }
+  const h = harness(() => { throw new m.MessagingError('CONFLICT') })
+  await assert.rejects(() => h.server.prepare(scope.memberId, file(), policy, 'transport-conflict'), error => !(error instanceof m.MessageFileReservationEndedError) && error.code === 'CONFLICT')
+})
+await check('complete·status의 일반 CONFLICT는 종료된 예약 오류로 바꾸지 않는다', async () => {
+  const h = harness(() => ({ contractVersion: 1, ...scope, ok: false, error: { code: 'CONFLICT' } }))
+  for (const run of [() => h.server.complete(scope.memberId, ref.id, 'complete-conflict'), () => h.server.status(scope.memberId, ref.id)]) {
+    await assert.rejects(run, error => !(error instanceof m.MessageFileReservationEndedError) && error.code === 'CONFLICT')
+  }
+})
+await check('화면 재연결로 예약 캐시가 없어도 파일 원본과 조회한 ready 메타데이터를 대조한다', async () => {
+  const h = harness(() => envelope(status('ready')))
+  assert.equal((await h.server.status(scope.memberId, ref.id, { file: file(), policy })).state, 'ready')
+  assert.deepEqual(h.calls.map(call => call.name), ['workhub_message_file_status'])
+  for (const changed of [{ name: '다른파일.hwpx' }, { bytes: bytes.length + 1 }, { sha256: 'a'.repeat(64) }]) {
+    const wrong = harness(() => envelope({ ...status('ready'), file: { ...ref, ...changed } }))
+    await rejects(() => wrong.server.status(scope.memberId, ref.id, { file: file(), policy }), 'INVALID_RESPONSE')
+  }
+})
+await check('복구 조회의 거절과 기한 만료는 파일을 성공 첨부하지 않고 terminal 상태 그대로 반환한다', async () => {
+  const h = harness(() => envelope(status('rejected')))
+  const result = await h.server.status(scope.memberId, ref.id, { file: file(), policy })
+  assert.equal(result.state, 'rejected'); assert.equal(result.file, null); assert.equal(h.uploads.length, 0)
 })
 console.log(`메신저 HWPX 전용 첨부 ${count}건 통과`)
 

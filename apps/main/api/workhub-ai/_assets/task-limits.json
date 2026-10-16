@@ -1,0 +1,8 @@
+{
+  "titleChars": 120,
+  "notesChars": 2000,
+  "legacyAssistantRead": {
+    "titleChars": 200,
+    "notesChars": 4000
+  }
+}

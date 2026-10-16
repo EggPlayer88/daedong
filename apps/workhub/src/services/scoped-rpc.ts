@@ -16,6 +16,11 @@ const messages: Record<ServiceCode,string> = {
   INVALID_RESPONSE:'서버 자료의 형식을 확인하지 못했습니다. 다시 조회해 주세요.',
 }
 export class ServiceError extends Error { constructor(readonly code: ServiceCode) { super(messages[code]); this.name='ServiceError' } }
+// exact·version 등 응답 검증기를 재사용하는 경우, 전송 전 입력 검사 안에서만 오류를 구분한다.
+export function validateLocalInput<T>(validate:()=>T):T {
+  try{return validate()}
+  catch(error){if(error instanceof ServiceError&&error.code==='INVALID_RESPONSE')throw new ServiceError('INVALID_INPUT');throw error}
+}
 export const object = (value: unknown): value is Record<string,unknown> => !!value && typeof value==='object' && !Array.isArray(value)
 export function exact(value: unknown, keys: readonly string[]): asserts value is Record<string,unknown> { if (!object(value) || Object.keys(value).length!==keys.length || keys.some(key=>!Object.hasOwn(value,key))) throw new ServiceError('INVALID_RESPONSE') }
 export function identifier(value: unknown): string { if(typeof value!=='string'||!/^[a-zA-Z0-9_-]{1,100}$/.test(value))throw new ServiceError('INVALID_INPUT');return value }

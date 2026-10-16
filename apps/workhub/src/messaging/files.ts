@@ -12,12 +12,16 @@ import { messageOperation } from './deadline'
 export interface MessageFileReadiness { available: boolean; reason: 'ready' | 'database_missing' | 'storage_missing' | 'verification_missing' | 'disabled'; policy: FilePolicy | null }
 export interface MessageFileIntent { fileId: string; bucket: 'workhub-message-files'; path: string; expiresAt: string; state: 'awaiting_upload' | 'pending_basic' | 'ready' }
 export interface MessageFileStatus { fileId: string; state: 'awaiting_upload' | 'pending_basic' | 'ready' | 'rejected'; storageObjectId: string | null; file: MessageAttachment | null }
+// 이 종료 표시는 prepare의 검증된 업무 응답에서만 만든다. 다른 단계의 충돌은 종료를 뜻하지 않는다.
+export class MessageFileReservationEndedError extends MessagingError {
+  constructor() { super('CONFLICT'); this.name = 'MessageFileReservationEndedError'; this.message = '이 첨부는 확인에서 거절되었거나 업로드 기한이 지났습니다. 원본을 확인한 뒤 다시 선택해 주세요.' }
+}
 export interface MessageFileServer {
   readiness(memberId: string): Promise<MessageFileReadiness>
   prepare(memberId: string, file: File, policy: FilePolicy, requestKey: string, options?: { replayOnly?: boolean }): Promise<MessageFileIntent>
   upload(memberId: string, intent: MessageFileIntent, file: File): Promise<void>
   complete(memberId: string, fileId: string, requestKey: string): Promise<MessageFileStatus>
-  status(memberId: string, fileId: string): Promise<MessageFileStatus>
+  status(memberId: string, fileId: string, expected?: { file: File; policy: FilePolicy }): Promise<MessageFileStatus>
   download(memberId: string, threadId: string, messageId: string, file: MessageAttachment): Promise<Blob>
 }
 export interface MessageFilePort {
@@ -85,6 +89,7 @@ export function createMessageFileServer(connection: SupabaseConnection, options:
     if (!user.approved) throw new MessagingError('FORBIDDEN')
   }
   function mapped(failure: unknown, writing: boolean): MessagingError {
+    if (failure instanceof MessageFileReservationEndedError) return failure
     if (failure instanceof MessagingError) return new MessagingError(writing && ['QUERY_FAILED', 'INVALID_RESPONSE'].includes(failure.code) ? 'RESULT_UNKNOWN' : failure.code)
     if (failure instanceof ContractError && ['FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'CANCELLED', 'NOT_FOUND', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'INVALID_INPUT'].includes(failure.code)) return new MessagingError(failure.code as MessagingError['code'])
     return new MessagingError(writing ? 'RESULT_UNKNOWN' : 'QUERY_FAILED')
@@ -141,7 +146,18 @@ export function createMessageFileServer(connection: SupabaseConnection, options:
       const scope = scopeFor(memberId), claimed = await run(scope, () => metadata(file, policy), false)
       const args = { p_file: claimed, p_request_key: requestKey, p_replay_only: prepareOptions.replayOnly === true }
       remember(scope, 'prepare', requestKey, { p_file: claimed, p_request_key: requestKey })
-      const result = await rpc(scope, 'workhub_message_file_prepare', args, value => intent(value, scope), true), previous = issued.get(result.fileId)
+      const result = await run(scope, async guard => {
+        guard()
+        const raw = await connection.rpcVerified('workhub_message_file_prepare', { p_member_id: scope.memberId, ...args })
+        guard()
+        let data: unknown
+        try { data = envelope(raw, scope) } catch (error) {
+          // P3 prepare의 CONFLICT는 이미 거절되었거나 만료된 원 예약이다. 운송 오류와 범용 CONFLICT를 섞지 않는다.
+          if (error instanceof MessagingError && error.code === 'CONFLICT') throw new MessageFileReservationEndedError()
+          throw error
+        }
+        return intent(data, scope)
+      }, true), previous = issued.get(result.fileId)
       if (previous && (canonical(previous.scope) !== canonical(scope) || canonical(previous.metadata) !== canonical(claimed) || previous.intent.bucket !== result.bucket || previous.intent.path !== result.path)) throw new MessagingError('RESULT_UNKNOWN')
       issued.set(result.fileId, { scope, intent: structuredClone(result), metadata: claimed }); return result
     },
@@ -165,7 +181,16 @@ export function createMessageFileServer(connection: SupabaseConnection, options:
         return status(envelope(raw, scope), scope, fileId)
       }, true)
     },
-    status(memberId, fileId) { const scope = scopeFor(memberId); identifier(fileId); return rpc(scope, 'workhub_message_file_status', { p_file_id: fileId }, value => status(value, scope, fileId)) },
+    async status(memberId, fileId, expected) {
+      const scope = scopeFor(memberId); identifier(fileId)
+      // 화면을 다시 열면 예약 캐시가 비어 있을 수 있다. 복구한 파일 원본과 응답의 메타데이터를 다시 대조한다.
+      const claimed = expected ? await run(scope, () => metadata(expected.file, expected.policy), false) : undefined
+      return rpc(scope, 'workhub_message_file_status', { p_file_id: fileId }, value => {
+        const result = status(value, scope, fileId)
+        if (claimed && result.file && (result.file.name !== claimed.name || result.file.bytes !== claimed.claimedBytes || result.file.sha256 !== claimed.claimedSha256)) return invalid()
+        return result
+      })
+    },
     async download(memberId, threadId, messageId, file) {
       const scope = scopeFor(memberId), expected = messageAttachment(file), args = { p_thread_id: identifier(threadId), p_message_id: identifier(messageId), p_file_id: expected.id }
       function access(value: unknown) {
