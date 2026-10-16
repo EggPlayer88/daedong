@@ -1,4 +1,4 @@
-// PR #48 앱(apps/workhub)의 실제 비서 연결(createAssistantServer · createAssistantHttp)과 parser 에 P6 의 "실제 출력"을 넣어 본다.
+// 앱(apps/workhub, P6_APP_SRC 로 고른 판)의 실제 비서 연결(createAssistantServer · createAssistantHttp)과 parser 에 P6 의 "실제 출력"을 넣어 본다.
 // run_p6.py 가 시험 중 받은 응답과 그때의 workhub_context 를 P6_CAPTURE 에 남기고, 이 도구가 앱 코드에 그대로 넣는다.
 //   질문·준비 상태: 실제 서버 코드(PR #48 _assistant.py execute)가 낸 HTTP 응답(chat.py 와 같은 상태 코드 · 본문)을 fetch 자리에 돌려준다.
 //   대화 목록·대화·할 일 확정: DB 함수가 낸 봉투를 rpcVerified 자리에 돌려준다.
@@ -25,8 +25,7 @@ function canonical(v: unknown): string {
 const BUSINESS = ['NOT_READY', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'BUDGET_EXCEEDED']
 
 // 앱의 연결(로그인·학교 소속)을 그때의 실제 workhub_context 로 대신한다. rpc 는 기록한 실제 응답을 돌려주고, 앱이 보낸 이름·인자를 남긴다.
-function connection(c: Capture, sent: { name: string; args: any }[]) {
-  const ctx = contextResponse(c.context, c.scope.schoolId)
+function connection(c: Capture, sent: { name: string; args: any }[], ctx: any) {
   return {
     info: () => structuredClone(ctx),
     getIdentity: async () => ({ userId: c.scope.userId, approved: true,
@@ -48,6 +47,11 @@ const note = (k: string) => (tally[k] ??= { ok: 0, bad: 0, codes: {} })
 let localFirst = 0
 const localDiff: Record<string, number> = {}
 const skipped: Record<string, number> = {}
+// 서버에 거절된 요청을 앱이 "어느 단계에서" 막았는지 따로 센다.
+//   connBlocked: 연결 단계 — 화면이 고른 학교를 workhub_context 로 검증(contextResponse)할 때 그 학교가 없어 FORBIDDEN(비서 코드까지 가지 않음)
+//   directSame : 같은 요청을 비서 서비스에 직접 넣었을 때(학교 선택 검증 없이) 비서가 서버와 같은 코드로 먼저 막음
+const connBlocked: Record<string, number> = {}
+const directSame: Record<string, number> = {}
 
 for (const c of captures) {
   if (!c.context) { bump(skipped, `${c.kind}: workhub_context 가 없는 계정(앱이 연결 단계에서 막음)`); continue }
@@ -62,8 +66,30 @@ for (const c of captures) {
   const sent: { name: string; args: any }[] = [], posted: any[] = []
   const m = c.scope.memberId
   const t = c.kind
+  let ctx: any
+  try { ctx = contextResponse(c.context, c.scope.schoolId) } catch (e) {
+    // 연결 단계에서 막힘 — 서버도 거절한 요청이어야 하고, 이때 비서 직접 경로가 서버와 같은 코드를 내는지 따로 본다
+    const got = code(e)
+    if (!want) { note(t).bad++; console.log(`  불일치 ${t} 서버=ok 인데 연결 단계가 ${got}`); continue }
+    bump(connBlocked, `${t}: 서버 ${want} · 연결 단계(학교 선택 검증) ${got}`)
+    const s2: { name: string; args: any }[] = [], p2: any[] = []
+    let direct = 'ok'
+    try {
+      const app = createAssistantServer(connection(c, s2, contextResponse(c.context)), http(c, p2))
+      if (t === 'ask') await app.ask(m, c.payload.input, c.payload.requestKey)
+      else if (t === 'readiness') await app.readiness(m)
+      else if (t === 'list') await app.list(m, c.mode, c.cursor ?? null)
+      else if (t === 'get') await app.get(m, c.threadId, c.cursor ?? null)
+      else if (t === 'confirm') await app.confirmTask(m, c.input, c.key)
+    } catch (e2) { direct = code(e2) }
+    const calls = s2.length + p2.length
+    if (direct === want && calls === 0) { note(t).ok++; bump(note(t).codes, want); bump(directSame, `${t}: ${want} · HTTP/RPC 0`) }
+    else if (calls === 0 && direct !== 'ok' && direct !== 'RESULT_UNKNOWN' && direct !== 'QUERY_FAILED') { note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 비서 직접 경로가 먼저 ${direct}`) }
+    else { note(t).bad++; console.log(`  불일치 ${t} 서버=${want} 비서 직접 경로=${direct} 보냄=${calls}`) }
+    continue
+  }
   try {
-    const app = createAssistantServer(connection(c, sent), http(c, posted))
+    const app = createAssistantServer(connection(c, sent, ctx), http(c, posted))
     let out: any, expected: any
     switch (c.kind) {
       case 'readiness': expected = { action: 'readiness', memberId: m }; out = await app.readiness(m); break
@@ -102,7 +128,11 @@ const asks = tally.ask?.codes ?? {}
 check('질문 결과 세 모양(completed · pending · rejected)을 모두 앱이 받아들임', ['ok:completed', 'ok:pending', 'ok:rejected'].every(k => (asks[k] ?? 0) > 0), asks)
 check('서버가 낸 질문 업무 거절 코드 8종(NOT_READY · FORBIDDEN · INACTIVE_MEMBERSHIP · INVALID_INPUT · NOT_FOUND · CONFLICT · IDEMPOTENCY_CONFLICT · BUDGET_EXCEEDED)이 모두 시험에 나오고 앱이 거절로 받음',
       BUSINESS.every(k => (asks[k] ?? 0) > 0), asks)
-if (Object.keys(localDiff).length) console.log('WARN 앱이 보내기 전에 막았지만 코드가 다름(PR #48 앱 쪽 확인 필요): ' + JSON.stringify(localDiff))
+if (Object.keys(localDiff).length) console.log('WARN 앱이 보내기 전에 막았지만 코드가 다름(앱 쪽 확인 필요): ' + JSON.stringify(localDiff))
+if (Object.keys(connBlocked).length) console.log('INFO 연결 단계(학교 선택 검증)에서 HTTP/RPC 0 으로 막힘 — 비서 코드와 별개 경로: ' + JSON.stringify(connBlocked)
+  + ' · 같은 요청의 비서 직접 경로: ' + JSON.stringify(directSame))
+{ const nc = Object.values(connBlocked).reduce((a, b) => a + b, 0), nd = Object.values(directSame).reduce((a, b) => a + b, 0)
+  if (nc) check(`연결 단계에서 막힌 요청 ${nc}건: 비서 직접 경로에서도 서버와 같은 코드 · HTTP/RPC 0 (${nd}건)`, nc === nd, { connBlocked, directSame }) }
 check('건너뛴 응답 없음 외(workhub_context 없는 계정 · 봉투 없는 예외만)', Object.keys(skipped).every(k => k.includes('workhub_context') || k.includes('봉투 없는 예외')), skipped)
 console.log(`앱이 보내기 전에 같은 코드로 먼저 막은 요청 ${localFirst}건 · 건너뜀 ${JSON.stringify(skipped)}`)
 console.log(`합계: PASS ${pass} · FAIL ${fail}`)
