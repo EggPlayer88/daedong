@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 const m=await loadBrowserModule(`
 export * from '../apps/workhub/src/teaching/record-export'
+export * from '../apps/workhub/src/teaching/record-export-print'
 export {TeachingError} from '../apps/workhub/src/teaching/contracts'
 export {parseCsv} from '../apps/workhub/src/teaching/csv'
 import React from 'react';import {renderToStaticMarkup} from 'react-dom/server'
@@ -53,5 +54,8 @@ await check('페이지 기술 한도를 넘기면 일부 자료를 내보내지 
 await check('기록 기술 한도를 넘기면 선택한 기간이 짧아도 완전성을 속이지 않는다',async()=>{const f=fixture();f.state.pages=Array.from({length:21},(_,page)=>({observations:Array.from({length:100},(_,i)=>observation('id-'+page+'-'+i,{occurredOn:'2025-01-01'})),assessments:[],nextCursor:page===20?null:String(page+1)}));await assert.rejects(read(f),e=>e.code==='INCOMPLETE')})
 await check('CSV는 한글·인용·개행을 보존하고 공백 앞 수식도 텍스트로 만든다',async()=>{const f=fixture();f.state.students[0].name=' =SUM(1,2)';f.state.course.label='@수업';f.state.pages[0].observations[0].text='\n  =HYPERLINK("https://example.invalid")';const r=await read(f),raw=m.recordExportCsv(r),table=m.parseCsv(raw);assert.equal(raw[0],'\uFEFF');assert.equal(table[1][0],"'@수업");assert.equal(table[1][1],"' =SUM(1,2)");const observationRow=table.find(x=>x[7]==='관찰');assert.equal(observationRow[13],"'\n  =HYPERLINK(\"https://example.invalid\")");assert.equal(table[1].length,table[0].length);assert.match(table[1].at(-1),/상담/);assert.equal(table.flat().some(c=>c==='user-a'||c==='key-a'),false)})
 await check('깨진 서버 배열은 입력 오류로 오인하지 않고 응답 오류로 분류한다',async()=>{const f=fixture();f.state.pages[0].observations=null;await assert.rejects(read(f),e=>e.code==='RESPONSE')})
+await check('팝업 차단과 브라우저 창 열기 예외를 동일한 재시도 안내로 반환한다',()=>{const original=globalThis.window;try{for(const open of [()=>null,()=>{throw Error('브라우저 창 열기 실패')}]){globalThis.window={open};assert.throws(()=>m.openRecordPrintWindow(),e=>e.code==='POPUP'&&/팝업을 허용/.test(e.message))}}finally{if(original===undefined)delete globalThis.window;else globalThis.window=original}})
+await check('인쇄 창 초기화가 실패하면 열린 창을 정리하고 출력 오류로 반환한다',()=>{const original=globalThis.window;let closed=0;const popup={document:{body:{replaceChildren(){}},set title(value){throw Error('문서 초기화 실패')}},close(){closed++}};try{globalThis.window={open:()=>popup};assert.throws(()=>m.openRecordPrintWindow(),e=>e.code==='POPUP');assert.equal(closed,1)}finally{if(original===undefined)delete globalThis.window;else globalThis.window=original}})
+await check('인쇄 문서 접근 자체가 막혀도 열린 빈 창 닫기를 따로 시도한다',()=>{const original=globalThis.window;let closed=0;const popup={get document(){throw Error('문서 접근 실패')},close(){closed++}};try{globalThis.window={open:()=>popup};assert.throws(()=>m.openRecordPrintWindow(),e=>e.code==='POPUP');assert.equal(closed,1)}finally{if(original===undefined)delete globalThis.window;else globalThis.window=original}})
 await check('화면 서버 렌더는 기간과 상담 제외·미리보기 동선을 명시한다',()=>{const html=m.render({adapter:fixture().adapter,member,courseId:'course-a',studentId:'student-a',firstDay:selection.firstDay,lastDay:selection.lastDay,onClose(){}});assert.match(html,/출력 시작일/);assert.match(html,/상담 기록은 포함하지 않습니다/);assert.match(html,/기록 미리보기/);assert.doesNotMatch(html,/CSV 내려받기/);assert.doesNotMatch(html,/합성 학생/)})
 console.log('학생 기록 출력 단위 검사: '+passed+'개 통과')

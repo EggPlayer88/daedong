@@ -3,9 +3,10 @@ import { RecordExportError, RECORD_EXPORT_NOTICE, recordConfirmationLabel, recor
 export interface RecordPrintSession { isOpen:()=>boolean; close:()=>void; print:(report:RecordExportReport)=>void }
 export function openRecordPrintWindow():RecordPrintSession {
   // 클릭 이벤트 안에서 빈 창을 열고, 최신 자료 확인이 끝난 뒤에만 본문을 넣는다.
-  const popup=window.open('about:blank','_blank','popup')
+  let popup:Window|null
+  try{popup=window.open('about:blank','_blank','popup')}catch{throw new RecordExportError('POPUP','인쇄 창을 열지 못했습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.')}
   if(!popup)throw new RecordExportError('POPUP','인쇄 창을 열지 못했습니다. 이 사이트의 팝업을 허용한 뒤 다시 눌러 주세요.')
-  const close=()=>{try{popup.document.body?.replaceChildren();popup.close()}catch{/* 이미 닫힌 인쇄 창은 다시 열지 않는다. */}}
+  const close=()=>{try{popup.document.body?.replaceChildren()}catch{/* 문서를 비울 수 없어도 창 닫기를 시도한다. */}try{popup.close()}catch{/* 이미 닫힌 인쇄 창은 다시 열지 않는다. */}}
   try {
     popup.opener=null
     popup.document.title='학생 기록 출력'

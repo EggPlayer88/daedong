@@ -47,7 +47,7 @@ export function RelationsPanel({adapter,member,courseId,revision=0,blockedReason
   const selectedRelation=snapshot&&draft.intent?[...snapshot.assignments,...snapshot.students.flatMap(student=>[student.membership,student.enrollment])].find(row=>row.id===draft.intent?.relationId):undefined
   return <section className="teaching-card" aria-label="담당·수강 관계 관리"><header className="teaching-toolbar"><h3>담당·수강 관계 관리</h3><button type="button" className="secondary" disabled={locked} onClick={close}>{draft.intent?'입력 버리고 관계 관리 닫기':'관계 관리 닫기'}</button></header>
     <p>종료는 학생 삭제가 아닙니다. 기존 관찰·상담·평가와 작성자 이력을 남기고 앞으로의 관계만 변경합니다. 새 교사에게 개인 기록을 넘기지 않습니다.</p>
-    {(error||notice||loadError)&&<div ref={feedback} tabIndex={-1} role={error||loadError?'alert':'status'} className={error||loadError?'teaching-error':'teaching-notice'}>{error||loadError||notice}</div>}
+    {(error||notice||loadError)&&<div ref={feedback} tabIndex={-1} role={error||loadError?'alert':'status'} className={error||loadError?'teaching-error':'teaching-notice'}>{error&&<p>{error}</p>}{loadError&&loadError!==error&&<p>{loadError}</p>}{!error&&!loadError&&<p>{notice}</p>}</div>}
     {pending&&<section aria-label="관계 변경 결과 확인"><h4>원래 요청 결과를 먼저 확인해 주세요</h4><p>입력·명령·요청 번호는 현재 탭에 보관했습니다. 새 미리보기나 다른 변경을 보내지 않고 같은 요청으로 확인합니다.</p><button type="button" disabled={busy} onClick={()=>void commit(pending.command as RelationCommit,pending.key)}>같은 관계 변경 요청으로 결과 확인</button></section>}
     {blockedReason&&<p role="alert">{blockedReason} 보관한 입력과 원래 요청은 유지합니다.</p>}
     {loading&&<p role="status">담당·수강 관계를 확인하는 중…</p>}

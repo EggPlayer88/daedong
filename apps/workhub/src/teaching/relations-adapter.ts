@@ -23,7 +23,7 @@ export function createTeachingRelationsAdapter(connection:SupabaseConnection,opt
   const timeoutMs=options.timeoutMs??30000
   if(!Number.isFinite(timeoutMs)||timeoutMs<=0||timeoutMs>120000)throw new TeachingError('INVALID_INPUT',messages.INVALID_INPUT)
   // 원문 대신 명령 지문만 이 어댑터 메모리에 둔다. 최종 멱등성의 근거는 서버 원장이다.
-  const requests=new Map<string,string>(),snapshots=new Map<string,RelationsSnapshot>(),snapshotGeneration=new Map<string,number>()
+  const requests=new Map<string,string>(),snapshots=new Map<string,RelationsSnapshot>(),snapshotGeneration=new Map<string,number>(),unavailableSnapshots=new Set<string>()
   const snapshotKey=(s:Scope,courseId:string)=>JSON.stringify([s.schoolId,s.ownerUserId,s.memberId,s.accessStamp,courseId])
   function scope(memberId:string):Scope {
     identifier(memberId)
@@ -81,12 +81,18 @@ export function createTeachingRelationsAdapter(connection:SupabaseConnection,opt
   }
   return {
     async snapshot(memberId,courseId) {
-      const key=snapshotKey(scope(memberId),identifier(courseId)),generation=(snapshotGeneration.get(key)??0)+1;snapshotGeneration.set(key,generation);snapshots.delete(key)
-      const result=await request(memberId,'workhub_teaching_relations',{p_course_id:courseId},(raw,s)=>relationsSnapshot(raw,s,courseId));if(snapshotGeneration.get(key)===generation)snapshots.set(key,result);return result
+      const key=snapshotKey(scope(memberId),identifier(courseId)),generation=(snapshotGeneration.get(key)??0)+1;snapshotGeneration.set(key,generation);snapshots.delete(key);unavailableSnapshots.delete(key)
+      try{
+        const result=await request(memberId,'workhub_teaching_relations',{p_course_id:courseId},(raw,s)=>relationsSnapshot(raw,s,courseId));if(snapshotGeneration.get(key)===generation)snapshots.set(key,result);return result
+      }catch(error){
+        // 같은 조회 범위의 최신 준비 상태만 기억한다. 확정·원요청 복구에는 적용하지 않는다.
+        if(snapshotGeneration.get(key)===generation&&error instanceof TeachingError&&error.code==='UNAVAILABLE')unavailableSnapshots.add(key)
+        throw error
+      }
     },
     async preview(memberId,intent:RelationIntent) {
       const normalized=validateRelationIntent(intent),key=snapshotKey(scope(memberId),normalized.courseId),snapshot=snapshots.get(key)
-      if(!snapshot)throw new TeachingError('QUERY_FAILED','최신 관계를 먼저 조회한 뒤 변경 영향을 확인해 주세요.')
+      if(!snapshot){if(unavailableSnapshots.has(key))throw new TeachingError('UNAVAILABLE',messages.UNAVAILABLE);throw new TeachingError('QUERY_FAILED','최신 관계를 먼저 조회한 뒤 변경 영향을 확인해 주세요.')}
       validateRelationSelection(normalized,snapshot)
       return request(memberId,'workhub_teaching_relation_preview',{p_intent:normalized},(raw,s)=>{
         if(snapshots.get(key)!==snapshot)throw new TeachingError('CONFLICT',messages.CONFLICT)
