@@ -16,6 +16,7 @@ node tests/test_gate.mjs # 단독 실행
 ```bash
 python3 -m venv tests/.venv
 tests/.venv/bin/pip install -r workers/requirements.txt
+tests/.venv/bin/pip install -r packages/timetable/requirements.txt
 ```
 
 Windows PowerShell에서는 다음과 같이 준비한다.
@@ -23,6 +24,7 @@ Windows PowerShell에서는 다음과 같이 준비한다.
 ```powershell
 python -m venv tests/.venv
 tests/.venv/Scripts/python.exe -m pip install -r workers/requirements.txt
+tests/.venv/Scripts/python.exe -m pip install -r packages/timetable/requirements.txt
 npm test
 ```
 
@@ -30,6 +32,7 @@ npm test
 인터프리터를 찾는다. 못 찾으면 **Python 몫을 건너뛰고 그 사실을 출력한다**
 (조용히 통과시키지 않는다).
 Python이 선택된 뒤 형식별 파서가 빠져 있으면 관련 시험이 실패한다. 파서 부재를 정상 검사 결과로 계산하지 않는다.
+시간표 시험은 고정 버전 OR-Tools로 실제 계산을 실행하며 의존성이 없으면 실패한다. 설치 명령은 위의 `packages/timetable/requirements.txt`를 사용한다.
 가상환경의 Windows `Scripts/python.exe`와 POSIX `bin/python` 경로를 모두 지원한다.
 `PYTHON`에는 실행 파일 경로 하나만 지정한다(공백·한글 허용). `py -3` 같은 명령문은 넣지 않는다.
 러너는 자식 프로세스의 작업 폴더를 저장소 루트로 고정하고 Python 출력을 UTF-8로 받는다.

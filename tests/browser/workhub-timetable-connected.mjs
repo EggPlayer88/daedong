@@ -68,6 +68,8 @@ try {
     assert.equal(reads[0].args.p_from, date)
     assert.equal(reads.at(-1).args.p_from, monday(date))
     await detail().getByRole('button', { name: '이 수업 변경 요청', exact: true }).click()
+    // 공유표의 클릭은 sourceSelection을 만든다. 자식 effect가 초안에 반영한 뒤 서버 전달을 검사한다.
+    await page.getByText('시간표에서 선택한 수업으로 변경 요청을 시작합니다.', { exact: true }).waitFor()
     assert.equal(await page.getByLabel('변경할 내 수업', { exact: true }).inputValue(), 'gaon-soyeon-' + date)
     await page.getByLabel('변경 요청 사유', { exact: true }).fill('공식 행사에 따른 교환 검토')
     await page.getByRole('button', { name: '가능한 교환안 추천받기', exact: true }).click()

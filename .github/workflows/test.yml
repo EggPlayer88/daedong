@@ -63,6 +63,8 @@ jobs:
       # 기존 생성 시험의 lxml과 독립 파일 검사기의 PDF/OLE 파서를 함께 설치한다.
       # 형식별 시험은 의존성 누락을 실패로 처리하므로 미지원 성공으로 건너뛰지 않는다.
       - run: pip install -r workers/requirements.txt
+      # 시간표 결과는 실제 CP-SAT 엔진과 독립 검증기로 함께 확인한다.
+      - run: pip install -r packages/timetable/requirements.txt
       - run: npm ci
       # 이번 통합 후보의 범위만 고정한다. 향후 승인된 DB/API 변경을 영구 차단하지 않는다.
       - name: 1차 통합 후보의 포함 이력과 보호 경계
@@ -77,6 +79,9 @@ jobs:
       - name: 통합 후보의 앱·SQL 이력과 원문 보존
         if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-release-candidate'
         run: npm run check:workhub:release
+      - name: 시간표 구축의 포함 이력과 SQL·인증·공개 보존
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-timetable-completion'
+        run: npm run check:workhub:timetable
       - run: npm run check:workhub:design
       - run: npm test
         env:

@@ -1,5 +1,7 @@
 # 시간표 구축 — 편성, 교사 조회, 날짜별 변경
 
+> 2026-10-17 후속 통합 후보: [최신 구현 범위](completion.md), [자동 검증](completion-verification.md), [Claude 전달문](completion-review-request.md). 아래는 #54·#56 단계의 설계 이력이다.
+
 기준: 2026-10-16 사용자 요청으로 시간표 보류 해제. 앱 기준 PR #48 `5f3d40f`.
 편성 기반 PR #54 `cb6775c` 위에서 `feat/workhub-timetable-operations`로 운영 화면을 추가한다. #48/#54 및 Claude가 작성 중인 단계 1~7 SQL은 수정하지 않는다. [후속 운영 화면 설명](operations-implementation.md)과 [운영 API](operations-api.md)를 함께 읽는다. [후속 검증 기록](operations-verification.md), [Claude 검토 요청](operations-review-request.md)에서 이번 작업의 결과와 남은 연결을 확인한다.
 

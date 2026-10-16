@@ -1,0 +1,11 @@
+{
+  "baseline": "37a3c21c44b76c15839aad06d78291c5d245a392",
+  "included": [
+    {"number": 64, "sha": "37a3c21c44b76c15839aad06d78291c5d245a392"},
+    {"number": 54, "sha": "cb6775c514d854568af80425f818a66126e2d1cf"},
+    {"number": 56, "sha": "c36106872bef1d34daeb04bb00b224ee6a8041d1"}
+  ],
+  "dbApplied": false,
+  "costChanged": false,
+  "teacherVisibilityExpanded": false
+}
