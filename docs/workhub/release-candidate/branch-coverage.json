@@ -1,0 +1,14 @@
+{
+  "p7": {
+    "withBridge": true,
+    "withoutBridge": true
+  },
+  "p8Integration": {
+    "withBridge": true,
+    "withoutBridge": false
+  },
+  "p8Standalone": {
+    "withBridge": true,
+    "withoutBridge": false
+  }
+}

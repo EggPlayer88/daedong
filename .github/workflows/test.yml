@@ -74,6 +74,9 @@ jobs:
       - name: 전체 시범 구축의 포함 이력·보존·보류 경계
         if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-pilot-completion'
         run: npm run check:workhub:pilot
+      - name: 통합 후보의 앱·SQL 이력과 원문 보존
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-release-candidate'
+        run: npm run check:workhub:release
       - run: npm run check:workhub:design
       - run: npm test
         env:
@@ -103,6 +106,22 @@ jobs:
         with:
           name: workhub-r2-sql-results
           path: ${{ runner.temp }}/workhub-r2-sql-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: 1~8단계 SQL과 현재 앱 통합 검사
+        env:
+          R0_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          R0_WORK: ${{ runner.temp }}/workhub-release-r0-verify
+          R0_PG_PORT: '55463'
+        run: |
+          export R0_PSQL="$(command -v psql)"
+          npm run test:workhub:release-sql
+      - name: 1~8단계 통합 검사 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-release-sql-results
+          path: ${{ runner.temp }}/workhub-release-r0-verify/run-*/reports
           if-no-files-found: ignore
           retention-days: 7
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.

@@ -1,0 +1,131 @@
+{
+  "scope": "isolated_postgresql17_and_captured_app_contracts",
+  "actualSupabase": false,
+  "actualStorage": false,
+  "actualClaude": false,
+  "advisoryLines": 6,
+  "results": {
+    "integration": {
+      "passed": 2309,
+      "failed": 0,
+      "advisories": [
+        {
+          "code": "KNOWN_PRECHECK_CODE_DIFFERENCE",
+          "evidence": "database/workhub/integration/재검토_PR62.md",
+          "originalLine": "WARN 앱이 보내기 전에 막았지만 코드가 다름(앱 쪽 확인): {\"tr_preview: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT\":1,\"tr_preview: 서버 FORBIDDEN · 앱이 먼저 INVALID_INPUT\":1}",
+          "differences": {
+            "tr_preview: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT": 1,
+            "tr_preview: 서버 FORBIDDEN · 앱이 먼저 INVALID_INPUT": 1
+          },
+          "limitations": []
+        },
+        {
+          "code": "KNOWN_PRECHECK_CODE_DIFFERENCE",
+          "evidence": "database/workhub/integration/재검토_PR62.md",
+          "originalLine": "WARN 앱이 보내기 전에 막았지만 코드가 다름(앱 쪽 확인): {\"tr_preview: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT\":1,\"tr_preview: 서버 FORBIDDEN · 앱이 먼저 INVALID_INPUT\":1}",
+          "differences": {
+            "tr_preview: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT": 1,
+            "tr_preview: 서버 FORBIDDEN · 앱이 먼저 INVALID_INPUT": 1
+          },
+          "limitations": []
+        },
+        {
+          "code": "KNOWN_PRECHECK_CODE_DIFFERENCE",
+          "evidence": "database/workhub/integration/재검토_PR62.md",
+          "originalLine": "WARN 앱이 보내기 전에 막았지만 코드가 다름(PR #60 앱 쪽 확인): {\"rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED\":2,\"tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN\":1,\"rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT\":1,\"rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT\":1}",
+          "differences": {
+            "rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED": 2,
+            "tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN": 1,
+            "rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT": 1,
+            "rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT": 1
+          },
+          "limitations": [
+            {
+              "evidence": "database/workhub/p8/test/app_contract_p8.ts:123",
+              "reason": "원본 하네스가 ok:false snapshot을 앱에 주지 않고 preview를 호출한다. 실제 UI의 실패 조회→preview 경로는 이 원본 경고로 검증되지 않는다.",
+              "coveredBy": "relations-path"
+            }
+          ]
+        },
+        {
+          "code": "KNOWN_PRECHECK_CODE_DIFFERENCE",
+          "evidence": "database/workhub/integration/재검토_PR62.md",
+          "originalLine": "WARN 앱이 보내기 전에 막았지만 코드가 다름(PR #60 앱 쪽 확인): {\"rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED\":2,\"tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN\":1,\"rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT\":1,\"rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT\":1}",
+          "differences": {
+            "rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED": 2,
+            "tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN": 1,
+            "rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT": 1,
+            "rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT": 1
+          },
+          "limitations": [
+            {
+              "evidence": "database/workhub/p8/test/app_contract_p8.ts:123",
+              "reason": "원본 하네스가 ok:false snapshot을 앱에 주지 않고 preview를 호출한다. 실제 UI의 실패 조회→preview 경로는 이 원본 경고로 검증되지 않는다.",
+              "coveredBy": "relations-path"
+            }
+          ]
+        }
+      ]
+    },
+    "p8": {
+      "passed": 322,
+      "failed": 0,
+      "advisories": [
+        {
+          "code": "KNOWN_PRECHECK_CODE_DIFFERENCE",
+          "evidence": "database/workhub/integration/재검토_PR62.md",
+          "originalLine": "WARN 앱이 보내기 전에 막았지만 코드가 다름(PR #60 앱 쪽 확인): {\"rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED\":2,\"tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN\":1,\"rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT\":1,\"rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT\":1}",
+          "differences": {
+            "rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED": 2,
+            "tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN": 1,
+            "rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT": 1,
+            "rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT": 1
+          },
+          "limitations": [
+            {
+              "evidence": "database/workhub/p8/test/app_contract_p8.ts:123",
+              "reason": "원본 하네스가 ok:false snapshot을 앱에 주지 않고 preview를 호출한다. 실제 UI의 실패 조회→preview 경로는 이 원본 경고로 검증되지 않는다.",
+              "coveredBy": "relations-path"
+            }
+          ]
+        },
+        {
+          "code": "KNOWN_PRECHECK_CODE_DIFFERENCE",
+          "evidence": "database/workhub/integration/재검토_PR62.md",
+          "originalLine": "WARN 앱이 보내기 전에 막았지만 코드가 다름(PR #60 앱 쪽 확인): {\"rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED\":2,\"tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN\":1,\"rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED\":1,\"rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT\":1,\"rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT\":1}",
+          "differences": {
+            "rel_preview: 서버 UNAVAILABLE · 앱이 먼저 QUERY_FAILED": 2,
+            "tr_mutate: 서버 NOT_FOUND · 앱이 먼저 FORBIDDEN": 1,
+            "rel_snapshot: 서버 NOT_FOUND · 앱이 먼저 INVALID_INPUT": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 QUERY_FAILED": 1,
+            "rel_preview: 서버 NOT_FOUND · 앱이 먼저 CONFLICT": 1,
+            "rel_commit: 서버 CONFLICT · 앱이 먼저 INVALID_INPUT": 1
+          },
+          "limitations": [
+            {
+              "evidence": "database/workhub/p8/test/app_contract_p8.ts:123",
+              "reason": "원본 하네스가 ok:false snapshot을 앱에 주지 않고 preview를 호출한다. 실제 UI의 실패 조회→preview 경로는 이 원본 경고로 검증되지 않는다.",
+              "coveredBy": "relations-path"
+            }
+          ]
+        }
+      ]
+    },
+    "pr62": {
+      "passed": 53,
+      "failed": 0,
+      "advisories": []
+    },
+    "relations-path": {
+      "passed": 21,
+      "failed": 0,
+      "advisories": []
+    }
+  }
+}

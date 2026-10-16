@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "baselineMain": "ebdc06411d4224bf29b28915bd6695b2fbefadee",
+  "app": {
+    "number": 63,
+    "sha": "ed9ea32148b7b6b5dabbc3a53a03c2db06fd913e"
+  },
+  "sql": {
+    "number": 61,
+    "sha": "edd743f978a8cf04f52b71d9892be209a89484ad",
+    "path": "database/workhub"
+  },
+  "excluded": [
+    {
+      "number": 54,
+      "sha": "cb6775c514d854568af80425f818a66126e2d1cf"
+    },
+    {
+      "number": 56,
+      "sha": "c36106872bef1d34daeb04bb00b224ee6a8041d1"
+    }
+  ],
+  "dbAppliedByThisWork": false,
+  "teacherVisibilityExpanded": false,
+  "costConfigurationChanged": false
+}
