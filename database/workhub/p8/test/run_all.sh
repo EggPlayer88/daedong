@@ -29,7 +29,7 @@ p2(){ ap p2/P2-01_일정일괄_협업_모델.sql; ap p2/P2-02_일정일괄_협�
 p3(){ ap p3/P3-01_메시지_알림_모델.sql; ap p3/P3-02_메시지_공개함수_Storage.sql; }
 p5(){ ap p5/P5-01_수업학생_모델.sql; ap p5/P5-02_수업학생_공개함수.sql; }
 p7(){ ap p7/P7-01_운영_전환_모델.sql; ap p7/P7-02_운영_전환_공개함수.sql; }
-FILL='s/"<승인한 관리자[^"]*>"/"00000000-0000-0000-0000-000000000001"/; s/"<승인 근거>"/"시험"/; s/"<PR #60[^"]*>"/"시험"/; s/\["<[^"]*>"\]/["teaching_relations"]/'
+FILL='s/"<승인한 관리자[^"]*>"/"00000000-0000-0000-0000-000000000001"/; s/"<승인 근거>"/"시험"/; s/"app_deploy_ref": "<[^"]*>"/"app_deploy_ref": "시험"/; s/\["<[^"]*>"\]/["teaching_relations"]/'
 n8(){ val "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='workhub_private' and c.relname='p8_installs'"; }
 b8(){ val "select count(*) from workhub_private.p8_installs where batch='$1'"; }
 post(){ local out; out=$(q -At -F'|' -f "$S/P8-05_사후점검.sql" 2>&1)
