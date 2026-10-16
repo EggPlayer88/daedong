@@ -91,6 +91,3 @@ try {
   console.log('문서 계열 스킨 브라우저 '+results.length+'건 통과')
 } catch(error) { await shot('document-skin-failure');if(await page.locator('.main-content').count())console.error(await palette());throw error }
 finally { await browser.close() }
-
-
-
