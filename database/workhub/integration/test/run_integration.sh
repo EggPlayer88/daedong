@@ -3,12 +3,12 @@
 #   단계별 run_all.sh(각자 DB 를 초기화하며 자기 단계만 본다)와 따로 둔다. 시험용 임시 PostgreSQL 만 쓴다(운영 DB 와 무관).
 #   I    INT-03 목록이 지금 SQL 파일과 같은지(gen_manifest check)
 #   II   R0 만 있는 DB 에 초기화 없이 파일 하나씩 적용 · 파일마다 INT-03 · 단계마다 모든 사후 점검 · 기존 자료 보존
-#   III  다 설치된 DB 에서 권한 · search_path 등을 실제로 망가뜨려 INT-03 이 정확한 행으로 FAIL 하는지(13건)
+#   III  다 설치된 DB 에서 권한 · search_path 등을 실제로 망가뜨려 INT-03 이 정확한 행으로 FAIL 하는지(15건 — 상속 실행 권한 · 소유자 전부 변경 포함)
 #   IV   다 설치된 DB(P7-05 전 · 후) 에서 R1 시험 전체(run_r1.py) → 끝나고 INT-03
 #   V    각 단계 시험을 "뒷 단계가 모두 설치된 DB" 에서(stage_hook) — R1S(fresh · legacy) · P1~P6 · P7(P7-05 전 · 후)
-#   VI   V 에서 받은 실제 응답을 앱(PR #48) parser · 서비스에 넣어 대조
+#   VI   V 에서 받은 실제 응답을 앱(INT_APP_SRC, 지금 기준 PR #59) parser · 서비스에 넣어 대조
 # 하나라도 실패하면 종료 코드 1, 준비 단계(서버·빌드)가 실패하면 2.
-# 사용: R0_PG_BIN=<PostgreSQL 17 bin> INT_APP_SRC=<PR #48 checkout> bash run_integration.sh
+# 사용: R0_PG_BIN=<PostgreSQL 17 bin> INT_APP_SRC=<앱 checkout(PR #59)> bash run_integration.sh
 set -uo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 WH=$(cd "$HERE/../.." && pwd)
@@ -94,7 +94,7 @@ need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F 
 P7_BRIDGE=0 P7_CAPTURE=$W/cap_p7_nobridge.json python3 "$WH/p7/test/run_p7.py" > "$W/p7nb.txt" 2>&1; sub "V p7nb (R1S · P1~P6 위, P7-05 없이)" "$W/p7nb.txt" $?
 int03 "V p7nb-9 P7 시험 뒤 INT-03 FAIL 없음(P7-05 전)" "P6 · P7$"
 
-echo "== VI. V 의 실제 응답을 앱(PR #48) parser · 서비스에 넣어 대조"
+echo "== VI. V 의 실제 응답을 앱(INT_APP_SRC, 지금 기준 PR #59) parser · 서비스에 넣어 대조"
 if [ -n "$APP" ] && [ -d "$APP/apps/workhub/src" ]; then
   ESB="${ESBUILD:-$R0_REPO/node_modules/.bin/esbuild}"; [ -x "$ESB" ] || ESB="$(command -v esbuild || true)"
   [ -x "$ESB" ] || { echo "중단: 저장소 루트에서 npm ci 를 먼저 실행하거나 ESBUILD=<esbuild 경로> 를 주세요" >&2; exit 2; }

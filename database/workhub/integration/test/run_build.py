@@ -85,6 +85,12 @@ def build():
           not diff, diff[:5])
 
 
+ALL_OWNER = """DO $$ DECLARE f regprocedure; BEGIN
+  FOR f IN SELECT p.oid::regprocedure FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname IN ('workhub','workhub_private','workhub_storage') OR (n.nspname = 'public' AND p.proname LIKE 'workhub\\_%')
+  LOOP EXECUTE format('ALTER FUNCTION %s OWNER TO {to}', f); END LOOP; END $$"""
+
+
 def breaks():
     print('== III. 다 설치된 DB 에서 실제로 망가뜨리기 → INT-03 이 정확한 행으로 FAIL → 되돌리면 ok')
     fn = "public.workhub_collection_get(p_member_id text, p_request_id text)"
@@ -109,6 +115,14 @@ def breaks():
         # 소유자를 바꾸려면 새 소유자가 그 스키마에 CREATE 권한이 있어야 한다 → 시험용 역할을 잠깐 만들고 되돌릴 때 지운다
         ('함수 소유자를 다른 역할로', f"DROP ROLE IF EXISTS int_test_owner; CREATE ROLE int_test_owner; GRANT int_test_owner TO postgres; GRANT CREATE ON SCHEMA public TO int_test_owner; ALTER FUNCTION {fn} OWNER TO int_test_owner",
          f"ALTER FUNCTION {fn} OWNER TO postgres; REVOKE CREATE ON SCHEMA public FROM int_test_owner; DROP ROLE int_test_owner", 'INT-03-08'),
+        # 직접 부여 없이 상속으로 열린 실행 권한: 그룹 역할에 EXECUTE 를 주고 anon 을 그 그룹의 (상속하는) 구성원으로 → 함수 ACL 에는 anon 이 없다.
+        # Supabase 의 anon 은 NOINHERIT 라 그냥 GRANT 하면 상속되지 않는다 — 상속이 실제로 열리는 PostgreSQL 16+ 구문(WITH INHERIT TRUE)으로 만든다.
+        ('상속으로 anon 실행 권한(그룹 역할에 EXECUTE, anon 이 상속 구성원)', f"DROP ROLE IF EXISTS int_test_group; CREATE ROLE int_test_group NOLOGIN; GRANT EXECUTE ON FUNCTION {fn} TO int_test_group; GRANT int_test_group TO anon WITH INHERIT TRUE",
+         f"REVOKE int_test_group FROM anon; REVOKE EXECUTE ON FUNCTION {fn} FROM int_test_group; DROP ROLE int_test_group", 'INT-03-04'),
+        # 소유자 전부를 한꺼번에 다른 역할로 — "가장 많은 소유자"와 비교하면 그 역할이 기준이 되어 놓친다 → 허용표로 잡는지
+        ('점검 범위 함수의 소유자를 전부 다른 역할로', "DROP ROLE IF EXISTS int_test_owner; CREATE ROLE int_test_owner; GRANT int_test_owner TO postgres;"
+         " GRANT CREATE ON SCHEMA public, workhub, workhub_private, workhub_storage TO int_test_owner;" + ALL_OWNER.format(to='int_test_owner'),
+         ALL_OWNER.format(to='postgres') + "; REVOKE CREATE ON SCHEMA public, workhub, workhub_private, workhub_storage FROM int_test_owner; DROP ROLE int_test_owner", 'INT-03-08', 'R1-04 생략'),
         ('P7 공개 함수를 지움', f"DROP FUNCTION {home}",
          orig_home + f";\nREVOKE ALL ON FUNCTION {home} FROM PUBLIC, anon, authenticated, service_role; GRANT EXECUTE ON FUNCTION {home} TO authenticated", 'INT-03-02'),
         ('R1 표 트리거를 끔', "ALTER TABLE workhub.collections DISABLE TRIGGER collections_identity", "ALTER TABLE workhub.collections ENABLE TRIGGER collections_identity", 'INT-03-09'),
@@ -117,10 +131,11 @@ def breaks():
         ('수합 Storage 읽기 정책을 넓힘', "ALTER POLICY workhub_collection_select ON storage.objects USING (true)",
          f"ALTER POLICY workhub_collection_select ON storage.objects USING ({qual})", 'INT-03-11'),
     ]
-    for name, brk, fix, row in cases:
-        run(brk); r = int03(); f = fails(r); r1 = fails(run_file(POST['R1']))
+    for name, brk, fix, row, *opt in cases:
+        # 소유자 전부를 바꾸면 R1-04 가 부르는 SECURITY DEFINER 함수가 새 소유자 권한(Storage 없음)으로 돌아 R1-04 자체가 멈춘다 → 그 경우만 R1-04 생략
+        run(brk); r = int03(); f = fails(r); r1 = r104 if opt else fails(run_file(POST['R1']))
         run(fix); r2 = fails(int03())
-        check(f'III {name} → {row} FAIL' + (' (R1-04 는 그대로라 못 알아챔)' if r1 == r104 else ' (R1-04 도 바뀜)') + ' → 되돌리면 FAIL 없음',
+        check(f'III {name} → {row} FAIL' + (f' ({opt[0]})' if opt else ' (R1-04 는 그대로라 못 알아챔)' if r1 == r104 else ' (R1-04 도 바뀜)') + ' → 되돌리면 FAIL 없음',
               row in f and f == [row] and r2 == [], (f, [x for x in r if x[2] == 'FAIL'][:2], r2))
 
 

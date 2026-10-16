@@ -29,12 +29,16 @@ STAGES = [
 
 # 점검 범위: workhub · workhub_private · workhub_storage 의 모든 함수와 public.workhub_* 함수, 그 스키마의 표에 걸린(또는 그 함수를 부르는) 트리거,
 # 그 스키마 표의 제약, 이름이 workhub 로 시작하는 정책. 함수의 권한은 API 역할(PUBLIC · anon · authenticated · service_role) 실행 권한만 본다.
+# exec = 함수 ACL 에 직접 적힌 부여, eff = 그 역할이 실제로 실행할 수 있는지(has_function_privilege — 다른 역할을 물려받아 생긴 권한까지).
+# 직접 부여만 보면 "그룹 역할에 EXECUTE → anon 이 그 그룹의 구성원" 처럼 상속으로 열린 길을 놓친다.
 CATALOG_SQL = r"""SELECT 'function' AS kind, n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS key,
          jsonb_build_object('result', pg_get_function_result(p.oid), 'lang', l.lanname, 'secdef', p.prosecdef,
            'config', COALESCE(array_to_string(p.proconfig, ' '), ''),
            'exec', COALESCE((SELECT string_agg(g, ' ' ORDER BY g) FROM (SELECT DISTINCT CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE r.rolname END AS g
                       FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) a LEFT JOIN pg_roles r ON r.oid = a.grantee
                      WHERE a.privilege_type = 'EXECUTE' AND (a.grantee = 0 OR r.rolname IN ('anon','authenticated','service_role'))) x), ''),
+           'eff', COALESCE((SELECT string_agg(r.rolname, ' ' ORDER BY r.rolname) FROM pg_roles r
+                     WHERE r.rolname IN ('anon','authenticated','service_role') AND has_function_privilege(r.oid, p.oid, 'EXECUTE')), ''),
            'body', md5(replace(p.prosrc, chr(13), ''))) AS attrs,
          (SELECT rolname FROM pg_roles WHERE oid = p.proowner)::text AS owner
     FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace JOIN pg_language l ON l.oid = p.prolang

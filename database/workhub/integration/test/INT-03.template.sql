@@ -4,7 +4,7 @@
 -- ▣ 무엇을 보나: 지금 DB 에 적용된 단계 조합(R0 · R1 · R1S · P1~P7 · P7-05)을 적용 기록으로 알아내고,
 --   그 조합이면 있어야 할 함수(workhub · workhub_private · workhub_storage 스키마 전부와 public.workhub_*) · 트리거 · 제약 · Storage 정책을 "정확히" 비교한다.
 --     함수: 이름 · 인자 · 반환형 · 언어 · SECURITY DEFINER · search_path · API 역할 실행 권한(PUBLIC · anon · authenticated · service_role)
---           · 본문 지문 · 소유자, 그리고 목록에 없는 함수 · 같은 이름 다른 인자(오버로드)
+--           (직접 부여와 상속 포함 실효 권한 둘 다) · 본문 지문 · 소유자(허용표 own), 그리고 목록에 없는 함수 · 같은 이름 다른 인자(오버로드)
 --     트리거 · 제약 · 정책: 정의 지문, 빠진 것 · 목록에 없는 것
 --   이름 접두어 개수를 세지 않는다. 각 단계가 만든 · 바꾼 객체를 한 줄씩 목록으로 갖고 있다(아래 m).
 -- ▣ 왜 필요한가: R1-04 의 03 · 04 · 09 행은 R1S · P7 뒤에 FAIL 로 보인다(이름 접두어 개수 · R1S 가 넓힌 작업 목록 CHECK).
@@ -33,6 +33,10 @@ rec(stage, tbl, batches) AS (VALUES
   ('P7', 'workhub_private.p7_installs', ARRAY['P7-01','P7-02']),
   ('P7-05', 'workhub_private.p7_installs', ARRAY['P7-05'])
 ),
+-- 함수 소유자 허용표: 단계 SQL 을 실행한 승인된 설치 역할. Supabase SQL Editor 는 postgres 로 실행한다.
+-- "가장 많은 소유자"와 비교하지 않는다 — 전부가 한꺼번에 다른 역할로 바뀌면 그 역할이 기준이 되어 놓치기 때문.
+-- 운영 기준선(통합_실행안내 0-1)에서 다른 역할이 나오면 여기 값을 고치지 말고 멈춘 뒤 원인부터 확인한다.
+own(role) AS (VALUES ('postgres')),
 st AS (
   SELECT s.stage, s.ord, s.deps,
          CASE WHEN s.stage = 'R0' THEN (to_regclass('workhub.schools') IS NOT NULL)::int + (to_regclass('workhub.tasks') IS NOT NULL)::int
@@ -57,7 +61,7 @@ extra AS (SELECT g.kind, g.key FROM got g WHERE NOT EXISTS (SELECT 1 FROM want w
 diff AS (SELECT w.kind, w.key, w.attrs AS want, g.attrs AS got FROM want w JOIN got g ON g.kind = w.kind AND g.key = w.key WHERE w.attrs <> g.attrs),
 fdiff(item, key, detail) AS (
   SELECT f.item, d.key, (d.want ->> f.field) || ' → ' || (d.got ->> f.field)
-    FROM diff d CROSS JOIN (VALUES ('exec', 'exec'), ('sec', 'secdef'), ('sec', 'config'), ('sig', 'result'), ('sig', 'lang'), ('body', 'body')) f(item, field)
+    FROM diff d CROSS JOIN (VALUES ('exec', 'exec'), ('exec', 'eff'), ('sec', 'secdef'), ('sec', 'config'), ('sig', 'result'), ('sig', 'lang'), ('body', 'body')) f(item, field)
    WHERE d.kind = 'function' AND (d.want -> f.field) IS DISTINCT FROM (d.got -> f.field)
 )
 SELECT 'INT-03-01' AS no, '적용된 단계 조합(부분 적용 · 선행 단계 없이 적용 없음)' AS item,
@@ -79,7 +83,7 @@ SELECT 'INT-03-03', '함수: 목록에 없는 함수 · 같은 이름 다른 인
                                             FROM (SELECT key FROM extra WHERE kind = 'function' ORDER BY key LIMIT 5) x), '')
   FROM extra WHERE kind = 'function'
 UNION ALL
-SELECT 'INT-03-04', '함수: API 역할 실행 권한이 단계 설계와 같음(PUBLIC · anon · authenticated · service_role)',
+SELECT 'INT-03-04', '함수: API 역할 실행 권한이 단계 설계와 같음 — 직접 부여(PUBLIC · anon · authenticated · service_role)와 실효 권한(상속 포함, anon · authenticated · service_role)',
        CASE WHEN count(*) = 0 THEN 'ok' ELSE 'FAIL' END,
        count(*)::text || COALESCE(' — ' || (SELECT string_agg(key || ' [' || detail || ']', ', ') FROM (SELECT * FROM fdiff WHERE item = 'exec' ORDER BY key LIMIT 5) x), '')
   FROM fdiff WHERE item = 'exec'
@@ -99,14 +103,12 @@ SELECT 'INT-03-07', '함수: 본문이 적용한 SQL 파일과 같음(손으로 
        count(*)::text || COALESCE(' — ' || (SELECT string_agg(key, ', ') FROM (SELECT key FROM fdiff WHERE item = 'body' ORDER BY key LIMIT 5) x), '')
   FROM fdiff WHERE item = 'body'
 UNION ALL
-SELECT 'INT-03-08', '함수: 모두 한 역할(설치한 역할)이 소유하고, 그 역할이 API 역할(anon · authenticated · service_role · authenticator)이 아님',
+SELECT 'INT-03-08', '함수: 소유자가 승인된 설치 역할(own 표)임 — API 역할 · 다른 역할 소유 없음',
        CASE WHEN count(*) = 0 THEN 'ok' ELSE 'FAIL' END,
-       count(*)::text || COALESCE(' — ' || (SELECT string_agg(key || '(' || owner || ')', ', ') FROM (SELECT key, owner FROM got g2 WHERE g2.kind = 'function'
-                                         AND (g2.owner IN ('anon','authenticated','service_role','authenticator')
-                                              OR g2.owner <> (SELECT mode() WITHIN GROUP (ORDER BY owner) FROM got WHERE kind = 'function')) ORDER BY key LIMIT 5) x), '')
-  FROM got WHERE kind = 'function'
-   AND (owner IN ('anon','authenticated','service_role','authenticator')
-        OR owner <> (SELECT mode() WITHIN GROUP (ORDER BY owner) FROM got WHERE kind = 'function'))
+       count(*)::text || ' (허용: ' || (SELECT string_agg(role, ' · ' ORDER BY role) FROM own) || ')'
+       || COALESCE(' — ' || (SELECT string_agg(key || '(' || owner || ')', ', ') FROM (SELECT key, owner FROM got g2 WHERE g2.kind = 'function'
+                                         AND g2.owner NOT IN (SELECT role FROM own) ORDER BY key LIMIT 5) x), '')
+  FROM got WHERE kind = 'function' AND owner NOT IN (SELECT role FROM own)
 UNION ALL
 SELECT 'INT-03-' || k.no, k.label || ': 빠짐 · 목록에 없음 · 정의 다름 없음',
        CASE WHEN COALESCE(a.n, 0) + COALESCE(b.n, 0) + COALESCE(c.n, 0) = 0 THEN 'ok' ELSE 'FAIL' END,
