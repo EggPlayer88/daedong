@@ -5,7 +5,7 @@ export type CooperationStatus='requested'|'accepted'|'declined'|'completion_requ
 export type CooperationAction='accept'|'decline'|'request_completion'|'confirm_completion'|'return_completion'|'retract_completion'|'cancel'
 export type CooperationFilter={box:'received'|'sent';status:CooperationStatus|'all';query:string;cursor:string|null}
 export interface CooperationRequest {id:string;schoolId:string;version:number;senderMemberId:string;recipientMemberId:string;senderName:string;recipientName:string;title:string;description:string;dueDate:string;status:CooperationStatus;createdAt:string;updatedAt:string;taskLink:{taskId:string;ownerUserId:string}|null}
-export interface CooperationHistory {id:string;action:'create'|CooperationAction;actorMemberId:string;comment:string;recordedAt:string;version:number}
+export interface CooperationHistory {id:string;action:'create'|'handover'|CooperationAction;actorMemberId:string;comment:string;recordedAt:string;version:number}
 export interface CooperationDetail {request:CooperationRequest;history:CooperationHistory[]}
 export interface CooperationCatalog {recipients:{memberId:string;name:string;description:string}[];sourceTasks:{id:string;title:string;version:number}[];nextTaskCursor:string|null}
 export type CooperationCommand={kind:'create';recipientMemberId:string;title:string;description:string;dueDate:string;sourceTask:{id:string;expectedVersion:number}|null}|{kind:'transition';requestId:string;expectedVersion:number;action:CooperationAction;comment:string}
@@ -16,3 +16,7 @@ export const actionLabels:Record<CooperationAction,string>={accept:'수락',decl
 export function allowedActions(r:CooperationRequest,member:Pick<Membership,'id'|'schoolId'>):CooperationAction[]{if(r.schoolId!==member.schoolId)return [];if(r.recipientMemberId===member.id){if(r.status==='requested')return ['accept','decline'];if(r.status==='accepted')return ['request_completion'];if(r.status==='completion_requested')return ['retract_completion']}if(r.senderMemberId===member.id){if(r.status==='completion_requested')return ['confirm_completion','return_completion','cancel'];if(['requested','accepted'].includes(r.status))return ['cancel']}return []}
 
 export function nextCooperationStatus(action:CooperationAction):CooperationStatus{return {accept:'accepted',decline:'declined',request_completion:'completion_requested',confirm_completion:'completed',return_completion:'accepted',retract_completion:'accepted',cancel:'cancelled'}[action] as CooperationStatus}
+
+// 이력에는 인계를 표시하지만 협업 상태전환 명령에는 인계를 허용하지 않는다.
+export const historyLabels:Record<CooperationHistory['action'],string>={create:'요청 작성',...actionLabels,handover:'담당 인계 수락'}
+export function historyActorName(request:CooperationRequest,history:CooperationHistory):string{if(history.actorMemberId===request.senderMemberId)return request.senderName;if(history.actorMemberId===request.recipientMemberId)return request.recipientName;return '이전 담당자'}
