@@ -7,7 +7,8 @@ import { createCollectionOperations } from 'p7app/collections/operations'
 import { createHomeService } from 'p7app/home/overview'
 import { createTransitionService } from 'p7app/administration/transitions'
 import { contextResponse } from 'p7app/connection/validation'
-import { createCooperationAdapter } from 'p7app/cooperation/adapter'
+import { createCooperationAdapter, detailResponse as appDetailResponse } from 'p7app/cooperation/adapter'
+import { writeFileSync } from 'node:fs'
 import { proposedDetailResponse, historyLine } from './cooperation_history_contract'
 
 type Scope = { schoolId: string; memberId: string; userId: string }
@@ -108,7 +109,7 @@ for (const k of ['ops_get', 'ops_mutate', 'home', 'tr_list', 'tr_preview', 'tr_m
 // ---- 협업 인계 뒤 상세 이력: 지금 앱 parser(PR #48) · 제안 계약 기준 구현(cooperation_history_contract.ts)
 const coop = captures.filter(c => c.kind === 'coop_get' && c.context)
 const known: string[] = []
-let coopOk = 0, coopBad = 0, refOk = 0, refBad = 0, notFound = 0
+let coopOk = 0, coopBad = 0, refOk = 0, refBad = 0, notFound = 0, appHandedOk = 0
 for (const c of coop) {
   const m = c.scope.memberId, scope = { schoolId: c.scope.schoolId, memberId: m, ownerUserId: c.scope.userId }
   const handed = !!c.raw?.history?.some((h: any) => h.action === 'handover')
@@ -117,7 +118,8 @@ for (const c of coop) {
   if (c.raw?.ok === false) { (code(currentErr) === c.raw.code ? notFound++ : coopBad++); continue }
   if (handed) {
     if (currentErr) known.push(`${m}: 인계 이력 ${c.raw.history.length}행 → 지금 앱 ${code(currentErr)}`)
-    else console.log(`  참고 ${m}: 지금 앱이 인계 이력을 이미 받아들임(Codex 수정 반영?)`)
+    else if (canonical(current) !== canonical({ request: c.raw.request, history: c.raw.history })) { coopBad++; console.log('  불일치(인계 있음): 앱이 받았지만 값이 다름', m) }
+    else appHandedOk++
   } else if (currentErr || canonical(current) !== canonical({ request: c.raw.request, history: c.raw.history })) { coopBad++; console.log('  불일치(인계 없음)', code(currentErr)) }
   else coopOk++
   try { const out = proposedDetailResponse(structuredClone(c.raw), scope, c.requestId); canonical(out) === canonical({ request: c.raw.request, history: c.raw.history }) ? refOk++ : refBad++ }
@@ -133,9 +135,20 @@ check(`협업 상세: 제안 계약 기준 구현이 인계 전후 응답 ${refO
 const longest = handedCaps.reduce((a: Capture | undefined, c) => !a || c.raw.history.length > a.raw.history.length ? c : a, undefined)
 if (longest) {
   const scope = { schoolId: longest.scope.schoolId, memberId: longest.scope.memberId, ownerUserId: longest.scope.userId }
+  // 기대 응답 사례(Codex 가 옮겨 쓸 고정 사례): 정상 인계 · 연속 인계 · 위조. 기준 구현의 판정과 지금 앱의 판정을 같이 남긴다.
+  const cases: { name: string; expect: 'accept' | 'reject'; scope: typeof scope; requestId: string; raw: any; app: string }[] = []
+  const appVerdict = (r: any, sc = scope) => { try { appDetailResponse(structuredClone(r), sc, longest.requestId); return 'accept' } catch (e) { return 'reject:' + code(e) } }
+  const appTamperAccepted: string[] = []
   const rejects = (name: string, f: (r: any) => void) => {
     const r = structuredClone(longest.raw); f(r)
+    const app = appVerdict(r); cases.push({ name, expect: 'reject', scope, requestId: longest.requestId, raw: r, app })
+    if (app === 'accept') appTamperAccepted.push(name)
     try { proposedDetailResponse(r, scope, longest.requestId); return name + ' 통과(X)' } catch (e) { return code(e) === 'INVALID_INPUT' ? '' : name + ' ' + code(e) }
+  }
+  for (const c of handedCaps) {
+    const sc = { schoolId: c.scope.schoolId, memberId: c.scope.memberId, ownerUserId: c.scope.userId }
+    cases.push({ name: `정상: ${c.scope.memberId} 조회 · 이력 ${c.raw.history.length}행(인계 ${c.raw.history.filter((h: any) => h.action === 'handover').length}번)`,
+                 expect: 'accept', scope: sc, requestId: c.requestId, raw: c.raw, app: appVerdict(c.raw, sc) })
   }
   const firstHand = longest.raw.history.findIndex((h: any) => h.action === 'handover')
   const errs = [
@@ -147,13 +160,22 @@ if (longest) {
     rejects('보낸 사람에게 인계', r => { r.history[firstHand].actorMemberId = r.history[firstHand].recipientMemberId = r.request.senderMemberId }),
   ].filter(Boolean)
   check('협업 상세: 제안 계약은 이력을 고치거나 지운 응답 6종을 모두 INVALID_INPUT 으로 거부', errs.length === 0, errs)
+  // 연속 인계 뒤 과거 행의 받는 사람 하나만 지금 받는 사람으로 바꿈(행 전체가 아니라 한 행)
+  const lastHand = longest.raw.history.map((h: any) => h.action).lastIndexOf('handover')
+  const one = rejects('인계 전 한 행의 받는 사람만 지금 받는 사람으로 바꿈', r => { r.history[Math.max(1, firstHand - 1)].recipientMemberId = r.request.recipientMemberId })
+  const two = rejects('두 번째 인계의 넘겨준 사람을 첫 받는 사람으로 바꿈', r => { r.history[lastHand].previousRecipientMemberId = r.history[0].recipientMemberId })
+  check('협업 상세: 제안 계약은 연속 인계의 한 행 위조 2종도 거부', !one && !two, [one, two])
+  if (appTamperAccepted.length) console.log(`KNOWN 지금 앱 협업 상세 parser 가 위조 응답 ${appTamperAccepted.length}종을 받아들임 — Codex C1 남은 일: ${appTamperAccepted.join(' | ')}`)
+  if (process.env.P7_COOP_CASES) writeFileSync(process.env.P7_COOP_CASES, JSON.stringify({ requestId: longest.requestId,
+    note: '기대 응답 사례 — expect 는 제안 계약(cooperation_history_contract.ts) 기준, app 은 이 시험을 돌린 앱의 판정', cases }, null, 1))
   const lines = (proposedDetailResponse(structuredClone(longest.raw), scope, longest.requestId).history).map(historyLine)
   const names = longest.raw.history.map((h: any) => h.actorName)
   check(`협업 상세 화면 이력 줄: 처리자 이름이 그때 처리한 사람(${[...new Set(names)].length}명) — ${lines.join(' / ')}`,
         new Set(names).size >= 3 && lines.every((l, i) => l.endsWith(' · ' + names[i])), lines)
 }
 }
-if (known.length) console.log(`KNOWN 지금 앱(PR #48) 협업 상세 parser 가 인계 이력을 거부 ${known.length}건 — Codex 수정 대상(통합 검토 1번): ${known.join(' | ')}`)
+if (known.length) console.log(`KNOWN 지금 앱 협업 상세 parser 가 정상 인계 이력을 거부 ${known.length}건 — Codex 수정 대상(통합 검토 1번): ${known.join(' | ')}`)
+if (handedCaps.length && !known.length) console.log(`  참고: 지금 앱이 정상 인계 이력 ${appHandedOk}건을 값 그대로 받아들임`)
 
 const bridge = process.env.P7_BRIDGE !== '0'
 const wantStates = ['pending', 'accepted', 'rejected', 'cancelled', 'completed', 'phase:open', ...(bridge ? ['phase:closed', 'phase:archived'] : [])]
