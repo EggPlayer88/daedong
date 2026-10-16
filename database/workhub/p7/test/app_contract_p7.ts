@@ -51,7 +51,7 @@ const skipped: Record<string, number> = {}
 const states: Record<string, number> = {}
 // 옛 SQL × 새 앱(PR #60) 호환 경계: 서버(관리자 확인 없는 판)는 받았지만 새 앱이 보내기 전에 NOT_READY 로 막은 요청
 const boundary: Record<string, number> = {}
-const defectD1: string[] = []
+const defectC8: string[] = []
 let forcedBoundary = 0                                  // 중간 강제 실패 시험이 공식 담당 인계라 새 앱이 보내기 전에 막은 수
 const blocked = new Set<string>()                        // 앱이 보내기 전에 막아 앱 parser 까지 가지 못한 서버 상태
 const LIST = 'workhub_school_transition_list'
@@ -113,11 +113,11 @@ for (const c of captures) {
       const st = c.raw?.data?.state
       // 새 앱이 옛 SQL 에서 공식 담당 인계를 막는 것은 의도한 경계(관리자 확인 없는 인계를 만들지 않음 — 안전 쪽)
       if (c.dutyRecord) { if (!c.raw && t === 'tr_mutate') forcedBoundary++; note(t).ok++; bump(note(t).codes, 'NOT_READY(경계)'); bump(boundary, `${t}:${c.command?.kind ?? 'preview'}:공식 담당:${want ?? 'ok'}`); if (st) blocked.add(st); continue }
-      // 공식 담당이 없는 수락 · 반려까지 막는 것은 PR #60 결함 D1(#59 에서는 되던 협업 · 수합 인계 수락이 옛 SQL 에서 막힘)
+      // 공식 담당이 없는 수락 · 반려까지 막는 것은 PR #60 결함 C8(#59 에서는 되던 협업 · 수합 인계 수락이 옛 SQL 에서 막힘)
       if (st) blocked.add(st)
-      if (want) { note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 앱이 먼저 NOT_READY(#60 결함 D1, 공식 담당 없음)`); continue }
-      note(t).bad++; defectD1.push(`${t}(${c.command?.kind}) 공식 담당 없음 · 서버 ok · 앱 NOT_READY`)
-      console.log(`  불일치 [#60 결함 D1] ${t}(${c.command?.kind}) 서버=ok 앱=NOT_READY: ${JSON.stringify(c.raw).slice(0, 300)}`); continue
+      if (want) { note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 앱이 먼저 NOT_READY(#60 결함 C8, 공식 담당 없음)`); continue }
+      note(t).bad++; defectC8.push(`${t}(${c.command?.kind}) 공식 담당 없음 · 서버 ok · 앱 NOT_READY`)
+      console.log(`  불일치 [#60 결함 C8] ${t}(${c.command?.kind}) 서버=ok 앱=NOT_READY: ${JSON.stringify(c.raw).slice(0, 300)}`); continue
     }
     if (want && got === want) {
       note(t).ok++; bump(note(t).codes, want)
@@ -209,7 +209,7 @@ if (handedCaps.length && !known.length) console.log(`  참고: 지금 앱이 정
 
 const bridge = process.env.P7_BRIDGE !== '0'
 const allStates = ['pending', 'accepted', 'rejected', 'cancelled', 'completed', 'phase:open', ...(bridge ? ['phase:closed', 'phase:archived'] : [])]
-// PR #60 은 옛 SQL 에서 공식 담당 인계(경계) · 결함 D1 경로를 보내기 전에 막는다 → 그 경로로만 나오는 상태는 여기서 볼 수 없다(새 SQL 은 P8 앱 대조가 봄)
+// PR #60 은 옛 SQL 에서 공식 담당 인계(경계) · 결함 C8 경로를 보내기 전에 막는다 → 그 경로로만 나오는 상태는 여기서 볼 수 없다(새 SQL 은 P8 앱 대조가 봄)
 const wantStates = allStates.filter(k => (states[k] ?? 0) > 0 || !blocked.has(k))
 const notSeen = allStates.filter(k => !wantStates.includes(k))
 check(`인계 · 학년도 결과 상태와 수합 단계(${wantStates.join(' · ')})를 모두 앱이 받아들임` + (notSeen.length ? ` — 앱이 보내기 전에 막아 볼 수 없는 상태: ${notSeen.join(' · ')}` : ''),
@@ -223,7 +223,7 @@ check(`서버 업무 거절 코드(${BUSINESS.join(' · ')})가 시험에 나오
 if (Object.keys(localDiff).length) console.log('WARN 앱이 보내기 전에 막았지만 코드가 다름(앱 쪽 확인): ' + JSON.stringify(localDiff))
 check('건너뛴 응답 없음 외(workhub_context 없는 계정 · 봉투 없는 예외만)', Object.keys(skipped).every(k => k.includes('workhub_context') || k.includes('봉투 없는 예외')), skipped)
 if (Object.keys(boundary).length) console.log('INFO 옛 SQL × 새 앱 호환 경계(새 앱이 공식 담당 인계를 보내기 전에 NOT_READY 로 막음 — 안전 쪽): ' + JSON.stringify(boundary))
-if (defectD1.length) console.log(`예상하지 못한 불일치 [#60 결함 D1] ${defectD1.length}건: ${defectD1.join(' | ')}`)
+if (defectC8.length) console.log(`예상하지 못한 불일치 [#60 결함 C8] ${defectC8.length}건: ${defectC8.join(' | ')}`)
 console.log(`앱이 보내기 전에 같은 코드로 먼저 막은 요청 ${localFirst}건 · 건너뜀 ${JSON.stringify(skipped)}`)
 console.log(`합계: PASS ${pass} · FAIL ${fail}`)
 process.exit(fail ? 1 : 0)

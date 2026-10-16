@@ -129,9 +129,9 @@ for (const c of captures) {
       note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 앱이 먼저 ${got}`)
     } else {
       note(t).bad++
-      // #60 결함 D1: 공식 담당이 없는 수락 · 반려(또는 완료된 요청의 재조회)도 관리자 확인 모듈이 켜져 있어야만 보낸다
-      const d1 = c.kind === 'tr_mutate' && !want && got === 'NOT_READY' && c.command?.kind !== 'apply' && c.command?.kind !== 'cancel' && c.listRaw?.data?.dutyApproval !== 'admin_review_v1'
-      unexpected.push(`${d1 ? '[#60 결함 D1] ' : ''}${t}(${c.command?.kind ?? ''}) 서버=${want ?? 'ok'} 앱=${got} 보냄=${sent.map(x => x.name).join('+')} 목록 dutyApproval=${JSON.stringify(c.listRaw?.data?.dutyApproval)}`)
+      // #60 결함 C8: 공식 담당이 없는 수락 · 반려(또는 완료된 요청의 재조회)도 관리자 확인 모듈이 켜져 있어야만 보낸다
+      const c8 = c.kind === 'tr_mutate' && !want && got === 'NOT_READY' && c.command?.kind !== 'apply' && c.command?.kind !== 'cancel' && c.listRaw?.data?.dutyApproval !== 'admin_review_v1'
+      unexpected.push(`${c8 ? '[#60 결함 C8] ' : ''}${t}(${c.command?.kind ?? ''}) 서버=${want ?? 'ok'} 앱=${got} 보냄=${sent.map(x => x.name).join('+')} 목록 dutyApproval=${JSON.stringify(c.listRaw?.data?.dutyApproval)}`)
       console.log(`  불일치 ${t} 서버=${want ?? 'ok'} 앱=${got} 보냄=${sent.length} ${(e as Error)?.message ?? ''}: ${JSON.stringify(c.raw).slice(0, 300)} 명령=${JSON.stringify(c.command ?? c.intent ?? c.plan ?? null).slice(0, 300)}`)
     }
   }
