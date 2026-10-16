@@ -13,6 +13,7 @@ from _hwpx_basic import SupabaseClient, CheckError, parse_json, _token
 
 ASSETS = Path(__file__).parent / "_assets"
 LIMITS = json.loads((ASSETS / "assistant-limits.json").read_text(encoding="utf-8"))
+TASK_LIMITS = json.loads((ASSETS / "task-limits.json").read_text(encoding="utf-8"))
 POLICY = (ASSETS / "assistant-policy.txt").read_text(encoding="utf-8")
 CONTRACT = LIMITS["contract"]
 RPCS = frozenset(("workhub_ai_prepare", "workhub_ai_start", "workhub_ai_finish", "workhub_ai_server_readiness"))
@@ -154,9 +155,18 @@ def citation(value):
     exact(value, ("reference", "title", "locator"))
     return {"reference": reference(value["reference"]), "title": text(value["title"], 200), "locator": text(value["locator"], 500)}
 
-def task_input(value):
+def task_input(value, legacy_read=False):
     exact(value, ("title", "notes", "dueDate"))
-    return {"title": text(value["title"], 200), "notes": text(value["notes"], 4000, False), "dueDate": date(value["dueDate"], True)}
+    limits = TASK_LIMITS["legacyAssistantRead"] if legacy_read else TASK_LIMITS
+    title = text(value["title"], limits["titleChars"], required=legacy_read)
+    notes = text(value["notes"], limits["notesChars"], False)
+    # 과거 제안은 원문 보존, 새 제안은 기존 업무의 ECMAScript trim과 동일하게 정규화한다.
+    if not legacy_read:
+        trim_chars = "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff"
+        title, notes = title.strip(trim_chars), notes.strip(trim_chars)
+        if not title:
+            raise CheckError("INVALID_RESPONSE", 502)
+    return {"title": title, "notes": notes, "dueDate": date(value["dueDate"], True)}
 
 def public_thread(value):
     exact(value, ("id", "mode", "version", "title", "exchanges", "nextCursor"))
@@ -182,7 +192,7 @@ def public_thread(value):
         proposal = exchange["proposal"]
         if proposal is not None:
             exact(proposal, ("id", "version", "kind", "input", "status", "resourceId"))
-            identifier(proposal["id"]); integer(proposal["version"], 1); enum(proposal["kind"], ("create_personal_task",)); task_input(proposal["input"]); enum(proposal["status"], ("pending", "applied"))
+            identifier(proposal["id"]); integer(proposal["version"], 1); enum(proposal["kind"], ("create_personal_task",)); task_input(proposal["input"], legacy_read=True); enum(proposal["status"], ("pending", "applied"))
             if proposal["resourceId"] is not None:
                 identifier(proposal["resourceId"])
             if (proposal["status"] == "applied") != (proposal["resourceId"] is not None) or value["mode"] != "personal" or exchange["intent"] != "personal_assistant":
@@ -253,7 +263,7 @@ def claimed(value, original, key):
 TOOL = {"name": "deliver_workhub_answer", "description": "교사가 검토할 답변과 근거, 선택적 개인 할 일 초안을 반환합니다. 작업을 실행하지 않습니다.", "input_schema": {
     "type": "object", "additionalProperties": False, "required": ["segments", "taskDraft"], "properties": {
         "segments": {"type": "array", "minItems": 1, "maxItems": LIMITS["segments"], "items": {"type": "object", "additionalProperties": False, "required": ["text", "sourceKeys"], "properties": {"text": {"type": "string"}, "sourceKeys": {"type": "array", "items": {"type": "string"}}}}},
-        "taskDraft": {"anyOf": [{"type": "null"}, {"type": "object", "additionalProperties": False, "required": ["title", "notes", "dueDate"], "properties": {"title": {"type": "string"}, "notes": {"type": "string"}, "dueDate": {"type": "string"}}}]}
+        "taskDraft": {"anyOf": [{"type": "null"}, {"type": "object", "additionalProperties": False, "required": ["title", "notes", "dueDate"], "properties": {"title": {"type": "string", "minLength": 1, "maxLength": TASK_LIMITS["titleChars"], "description": "교사가 확인할 할 일 제목"}, "notes": {"type": "string", "maxLength": TASK_LIMITS["notesChars"], "description": "교사 개인 할 일의 메모"}, "dueDate": {"type": "string"}}}]}
     }}}
 
 def provider_body(claim):

@@ -153,12 +153,47 @@ def http_handler():
  original=route.execute;calls=[];route.execute=lambda p,token:(calls.append((p,token)),env({'available':True}))[1]
  server=HTTPServer(('127.0.0.1',0),route.handler);worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
  try:
-  def request(body,headers=None,method='POST'):
-   conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=5);conn.request(method,'/api/workhub-ai/chat',body=body,headers=headers or {'Content-Type':'application/json','Authorization':TOKEN});response=conn.getresponse();result=(response.status,response.read(),response.getheader('Cache-Control'));conn.close();return result
+  def request(body,headers=None,method='POST',label='정상 요청'):
+   conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=5);stage='송신'
+   try:
+    conn.request(method,'/api/workhub-ai/chat',body=body,headers=headers or {'Content-Type':'application/json','Authorization':TOKEN})
+    stage='응답 헤더';response=conn.getresponse();stage='응답 본문'
+    return response.status,response.read(),response.getheader('Cache-Control')
+   except Exception as failure:
+    raise AssertionError(f'{label} / {stage}: {failure!r}') from failure
+   finally:conn.close()
   result=request(json.dumps({'action':'readiness','memberId':'member-one'}));eq(result[0],200);eq(result[2],'no-store');eq(len(calls),1)
-  for body,headers in [('{}',{'Content-Type':'text/plain'}),('{"a":1,"a":2}',{'Content-Type':'application/json'}),('[]'*20000,{'Content-Type':'application/json'}),('',{'Content-Type':'application/json'})]:eq(request(body,headers)[0],400)
-  eq(request(None,method='GET')[0],405);eq(len(calls),1)
+  for label,body,headers in [('내용 유형','{}',{'Content-Type':'text/plain'}),('중복 JSON 키','{"a":1,"a":2}',{'Content-Type':'application/json'}),('빈 본문','',{'Content-Type':'application/json'})]:
+   eq(request(body,headers,label=label)[0],400)
+  # 길이 상한은 본문을 읽기 전에 거부해야 한다. 큰 본문을 동시에 송신하면 Windows의 TCP 종료 경합을 시험하게 된다.
+  # 헤더만 보내서 400과 오류 본문을 확인하며, 연결 중단을 성공으로 취급하거나 재시도하지 않는다.
+  result=request(None,{'Content-Type':'application/json','Content-Length':str(a.LIMITS['requestBytes']+1)},label='본문 전 길이 상한')
+  eq(result[0],400);eq(json.loads(result[1]),{'error':{'code':'INVALID_INPUT'}});eq(len(calls),1)
+  eq(request(None,method='GET',label='GET 거절')[0],405);eq(len(calls),1)
  finally:server.shutdown();server.server_close();worker.join();route.execute=original
 check('실제 로컬 HTTP에서 제한된 JSON 읽기·중복 키·내용 유형·GET 거절을 확인한다',http_handler)
+
+def task_limits():
+ value=input('personal','personal_assistant');c=claim(value)
+ for title,notes in [('😀'*120,'메'*2000),('가'*120,'😀'*2000)]:
+  draft={'title':title,'notes':notes,'dueDate':''};result=a.checked_output(provider_output(draft=draft),c);eq(result['state'],'completed');eq(result['taskDraft'],draft)
+ for draft in [{'title':'가'*121,'notes':'','dueDate':''},{'title':'제목','notes':'메'*2001,'dueDate':''},{'title':' '+'가'*120,'notes':'','dueDate':''}]:
+  result=a.checked_output(provider_output(draft=draft),c);eq(result['code'],'OUTPUT_INVALID');eq(result['usage'],{'inputTokens':20,'outputTokens':15})
+ schema=a.TOOL['input_schema']['properties']['taskDraft']['anyOf'][1]['properties'];eq(schema['title']['maxLength'],a.TASK_LIMITS['titleChars']);eq(schema['notes']['maxLength'],a.TASK_LIMITS['notesChars'])
+check('새 AI 할 일은 단일 자산의 120·2000 코드포인트 경계를 넘으면 잘라내지 않고 출력 거부한다',task_limits)
+
+def task_normalization():
+ draft={'title':'\ufeff 제목 \u00a0','notes':' 메모\n','dueDate':''};eq(a.task_input(draft),{'title':'제목','notes':'메모','dueDate':''})
+ eq(a.task_input(dict(draft,title='\u0085'))['title'],'\u0085')
+ error(lambda:a.task_input(dict(draft,title='\u0085'),legacy_read=True),'INVALID_RESPONSE')
+ for title in ['\ufeff','\ud800','\x00']:
+  error(lambda:a.task_input(dict(draft,title=title)),'INVALID_RESPONSE')
+check('새 제안의 앞뒤 공백은 기존 업무의 ECMAScript trim과 일치한다',task_normalization)
+
+def old_task_read():
+ value=input('personal','personal_assistant');draft={'title':'😀'*200,'notes':'메'*4000,'dueDate':''}
+ t=thread(value,{'segments':[{'text':'확인해 주세요.','citations':[]}],'taskDraft':draft});eq(a.public_thread(t),t);error(lambda:a.task_input(draft),'INVALID_RESPONSE')
+ t['exchanges'][0]['proposal']['input']['notes']+='가';error(lambda:a.public_thread(t),'INVALID_RESPONSE')
+check('과거 200·4000자 대화 제안은 서버가 원문 그대로 읽고 새 출력 검증과 구분한다',old_task_read)
 print(f'\nClaude 비서 서버: {PASSED} 통과, {FAILED} 실패')
 sys.exit(1 if FAILED else 0)

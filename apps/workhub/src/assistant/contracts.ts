@@ -1,4 +1,6 @@
 import limits from '../../../main/api/workhub-ai/_assets/assistant-limits.json';
+import { normalizeTaskInput, TASK_INPUT_LIMITS } from '../tasks/validation';
+export { TASK_INPUT_LIMITS };
 import type { EvidenceReference } from '../teaching/evidence';
 import { canonical, exact, identifier, isoDate, object } from '../services/scoped-rpc';
 export const ASSISTANT_LIMITS = limits;
@@ -150,7 +152,12 @@ export function assistantReference(raw: unknown): AssistantReference { if (!obje
     return { kind: raw.kind as ResourceReference['kind'], id: identifier(raw.id), version: int(raw.version, 1) };
 } exact(raw, ['kind', 'id', 'revisionId', 'sourceHash', 'epoch', 'start', 'end']); const ref = { kind: choice(raw.kind, ['observation', 'assessment'] as const), id: identifier(raw.id), revisionId: identifier(raw.revisionId), sourceHash: txt(raw.sourceHash, 64), epoch: int(raw.epoch), start: int(raw.start), end: int(raw.end, 1) }; if (!/^[0-9a-f]{64}$/.test(ref.sourceHash) || ref.start >= ref.end)
     fail(); return ref; }
-export function assistantInput(raw: unknown): AssistantInput { exact(raw, ['mode', 'intent', 'prompt', 'threadId', 'expectedVersion', 'references', 'studentContext']); const result: AssistantInput = { mode: mode(raw.mode), intent: intent(raw.intent), prompt: txt(raw.prompt, limits.promptChars), threadId: raw.threadId === null ? null : identifier(raw.threadId), expectedVersion: int(raw.expectedVersion), references: rows(raw.references, limits.references).map(assistantReference) as ResourceReference[], studentContext: null }; if (result.references.some(ref => !('version' in ref)) || ((result.threadId === null) !== (result.expectedVersion === 0)))
+// 요청 입력에서만 검증 오류를 입력 오류로 바꾼다. 같은 파서를 쓰는 응답 검증은 그대로 둔다.
+export function assistantLocalInput<T>(parse: () => T): T {
+    try { return parse(); } catch { throw new AssistantError('INVALID_INPUT'); }
+}
+export function assistantInput(raw: unknown): AssistantInput { return assistantLocalInput(() => parseAssistantInput(raw)); }
+function parseAssistantInput(raw: unknown): AssistantInput { exact(raw, ['mode', 'intent', 'prompt', 'threadId', 'expectedVersion', 'references', 'studentContext']); const result: AssistantInput = { mode: mode(raw.mode), intent: intent(raw.intent), prompt: txt(raw.prompt, limits.promptChars), threadId: raw.threadId === null ? null : identifier(raw.threadId), expectedVersion: int(raw.expectedVersion), references: rows(raw.references, limits.references).map(assistantReference) as ResourceReference[], studentContext: null }; if (result.references.some(ref => !('version' in ref)) || ((result.threadId === null) !== (result.expectedVersion === 0)))
     fail(); unique(result.references); if (raw.studentContext !== null) {
     const s = raw.studentContext;
     exact(s, ['studentId', 'courseId', 'evidence']);
@@ -163,10 +170,11 @@ export function assistantInput(raw: unknown): AssistantInput { exact(raw, ['mode
 else if (result.intent === 'student_record_draft')
     fail(); if (result.intent === 'personal_assistant' && result.mode !== 'personal')
     fail(); return result; }
-export function taskDraft(raw: unknown): TaskDraft { exact(raw, ['title', 'notes', 'dueDate']); return { title: txt(raw.title, 200), notes: txt(raw.notes, 4000, false), dueDate: raw.dueDate === '' ? '' : isoDate(raw.dueDate) }; }
+// 과거 대화의 긴 제안은 읽기만 허용한다. 새 확정은 기존 업무 규칙으로 다시 검사한다.
+export function taskDraft(raw: unknown): TaskDraft { exact(raw, ['title', 'notes', 'dueDate']); return { title: txt(raw.title, TASK_INPUT_LIMITS.legacyAssistantRead.titleChars), notes: txt(raw.notes, TASK_INPUT_LIMITS.legacyAssistantRead.notesChars, false), dueDate: raw.dueDate === '' ? '' : isoDate(raw.dueDate) }; }
 export function answerSegments(raw: unknown): AnswerSegment[] { const result = rows(raw, limits.segments).map(row => { exact(row, ['text', 'citations']); return { text: txt(row.text, limits.segmentChars), citations: rows(row.citations, limits.sources).map(c => { exact(c, ['reference', 'title', 'locator']); return { reference: assistantReference(c.reference), title: txt(c.title, 200), locator: txt(c.locator, 500) }; }) }; }); if (!result.length || result.reduce((n, row) => n + Array.from(row.text).length, 0) > limits.answerChars)
     fail(); return result; }
-export function assistantThread(raw: unknown): AssistantThread { exact(raw, ['id', 'mode', 'version', 'title', 'exchanges', 'nextCursor']); const m = mode(raw.mode), exchanges = rows(raw.exchanges, 50).map(row => { exact(row, ['id', 'requestKey', 'intent', 'prompt', 'segments', 'proposal', 'createdAt', 'studentContext']); const input = assistantInput({ mode: m, intent: row.intent, prompt: row.prompt, threadId: null, expectedVersion: 0, references: [], studentContext: row.studentContext }); const segments = answerSegments(row.segments); if (segments.some(s => s.citations.some(c => !('version' in c.reference) && (!input.studentContext || !input.studentContext.evidence.some(e => canonical(e) === canonical(c.reference))))))
+export function assistantThread(raw: unknown): AssistantThread { exact(raw, ['id', 'mode', 'version', 'title', 'exchanges', 'nextCursor']); const m = mode(raw.mode), exchanges = rows(raw.exchanges, 50).map(row => { exact(row, ['id', 'requestKey', 'intent', 'prompt', 'segments', 'proposal', 'createdAt', 'studentContext']); const input = parseAssistantInput({ mode: m, intent: row.intent, prompt: row.prompt, threadId: null, expectedVersion: 0, references: [], studentContext: row.studentContext }); const segments = answerSegments(row.segments); if (segments.some(s => s.citations.some(c => !('version' in c.reference) && (!input.studentContext || !input.studentContext.evidence.some(e => canonical(e) === canonical(c.reference))))))
     fail(); if (input.intent === 'student_record_draft' && segments.some(s => !s.citations.some(c => !('version' in c.reference))))
     fail(); let proposal: TaskProposal | null = null; if (row.proposal !== null) {
     const p = row.proposal;
@@ -194,7 +202,15 @@ export function readiness(raw: unknown): Readiness { if (object(raw) && raw.avai
     fail(); return { available: false, reason: choice(raw.reason, ['not_configured', 'not_allowed', 'budget_exhausted']) }; }
 export function threadList(raw: unknown, expected: AssistantMode) { exact(raw, ['items', 'nextCursor']); const items = rows(raw.items, 50).map(row => { exact(row, ['id', 'mode', 'version', 'title', 'updatedAt']); if (row.mode !== expected)
     fail(); return { id: identifier(row.id), mode: mode(row.mode), version: int(row.version, 1), title: txt(row.title, 200), updatedAt: stamp(row.updatedAt) }; }); unique(items.map(row => row.id)); return { items, nextCursor: cursor(raw.nextCursor) }; }
-export function confirmTask(raw: unknown): ConfirmTask { exact(raw, ['threadId', 'proposalId', 'expectedVersion', 'input']); return { threadId: identifier(raw.threadId), proposalId: identifier(raw.proposalId), expectedVersion: int(raw.expectedVersion, 1), input: taskDraft(raw.input) }; }
+export function confirmTask(raw: unknown): ConfirmTask { return assistantLocalInput(() => {
+    exact(raw, ['threadId', 'proposalId', 'expectedVersion', 'input']);
+    const value = raw.input;
+    exact(value, ['title', 'notes', 'dueDate']);
+    // 원문의 코드포인트 수와 저장 가능한 문자를 먼저 검사하고, 기존 업무와 같은 trim을 적용한다.
+    txt(value.title, TASK_INPUT_LIMITS.titleChars);
+    txt(value.notes, TASK_INPUT_LIMITS.notesChars, false);
+    return { threadId: identifier(raw.threadId), proposalId: identifier(raw.proposalId), expectedVersion: int(raw.expectedVersion, 1), input: normalizeTaskInput(value) };
+}); }
 export function taskReceipt(raw: unknown, input: ConfirmTask, key: string): TaskReceipt { exact(raw, ['requestKey', 'proposalId', 'proposalVersion', 'taskId', 'taskVersion', 'threadVersion']); if (raw.requestKey !== key || raw.proposalId !== input.proposalId || int(raw.proposalVersion, 1) !== input.expectedVersion + 1)
     fail(); return { requestKey: key, proposalId: input.proposalId, proposalVersion: raw.proposalVersion as number, taskId: identifier(raw.taskId), taskVersion: int(raw.taskVersion, 1), threadVersion: int(raw.threadVersion, 1) }; }
 export function assistantEnvelope(raw: unknown, scope: {
