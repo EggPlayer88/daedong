@@ -1,19 +1,20 @@
 # Codex 에게 넘기는 앱 수정 목록 (통합 검토 5번 · 1번)
 
-2026-10-16 · Claude Code. **검토 기준 앱: PR #59 `f668b25`**(처음 재검토는 `5799809`)(#48 `5f3d40f` 의 후속, 브랜치 `fix/workhub-pilot-contracts`). SQL 기준: 이 PR(통합 브랜치)의 각 단계 파일.
+2026-10-16 · Claude Code. **검토 기준 앱: PR #60 `eee059f`**(앞 판: #59 `f668b25`, 처음 재검토는 `5799809`)(#48 `5f3d40f` 의 후속, 브랜치 `fix/workhub-pilot-contracts`). SQL 기준: 이 PR(통합 브랜치)의 각 단계 파일.
 처음 판은 #48 기준이었고, #59 에서 C2 · C3 가 해결되어 아래 표의 상태 열을 바꿨습니다(재검토 근거는 `재검토_PR59.md`).
 앱 수정은 Codex 브랜치에서, SQL 수정은 Claude 브랜치에서 합니다. Claude 는 Codex 브랜치를 고치지 않습니다.
 재현은 모두 이 저장소의 시험(`database/workhub/*/test`)에서 실제로 나온 응답 · 입력입니다. 통합 회귀(`integration/test/run_integration.sh`)의 VI 구간이 같은 결과를 냅니다.
 
-| # | 우선 | 항목 | SQL 변경 필요 | #59 상태 |
-|---|---|---|---|---|
-| C1 | **필수(협업 인계를 켜기 전)** | 협업 상세 parser 의 인계 이력 검사 | 없음(이미 반영) | **시험 통과**(`f668b25`: 정상 4 수용 · 위조 8 거부). 배포 확인 남음 |
-| C2 | 필수(비서 활성화 전) | 할 일 초안 한도 200/4000 → 새 입력 · AI 출력 · 편집 120/2000 | 없음 | **해결** |
-| C3 | 권장 | P6 · P7 앱이 보내기 전 막은 입력을 `INVALID_RESPONSE` 로 표시 | 없음 | **해결**(정지 소속 건은 연결 단계 차단 — 비서 직접 경로는 서버와 같은 코드, 둘 다 호출 0) |
-| C4 | 권장 | P2 일정 일괄 `includeMemberIds` 정렬 | 없음 | **시험 통과**(`5e13337`, P2 F01c) |
-| C5 | 권장 | P3 거절된 첨부의 재조회 | 없음 — `prepare` CONFLICT 뜻을 계약 · 시험으로 고정 | **시험 통과**(`bf3f7b4`, P3 O45c 앱 대조 8건 · 경계) |
-| C6 | 결정 뒤 | 협업 알림 출처 | 결정에 따라 | 결정 대기 |
-| C7 | 필수(비서 활성화 전) | 비서 입력 토큰을 보내기 전에 세기 | 있음 — `P6_비용통제_변경안.md` | 명세 · 비용 승인 대기 |
+| # | 우선 | 항목 | SQL 변경 필요 | #59 상태 | #60 상태 |
+|---|---|---|---|---|---|
+| C1 | **필수(협업 인계를 켜기 전)** | 협업 상세 parser 의 인계 이력 검사 | 없음(이미 반영) | **시험 통과**(`f668b25`: 정상 4 수용 · 위조 8 거부). 배포 확인 남음 | #59 시험에서 해결(#60 회귀 유지) |
+| C2 | 필수(비서 활성화 전) | 할 일 초안 한도 200/4000 → 새 입력 · AI 출력 · 편집 120/2000 | 없음 | **해결** | 유지 |
+| C3 | 권장 | P6 · P7 앱이 보내기 전 막은 입력을 `INVALID_RESPONSE` 로 표시 | 없음 | **해결**(정지 소속 건은 연결 단계 차단 — 비서 직접 경로는 서버와 같은 코드, 둘 다 호출 0) | 유지(P6 FORBIDDEN · INACTIVE_MEMBERSHIP 판정 그대로) |
+| C4 | 권장 | P2 일정 일괄 `includeMemberIds` 정렬 | 없음 | **시험 통과**(`5e13337`, P2 F01c) | #59 시험에서 해결 |
+| C5 | 권장 | P3 거절된 첨부의 재조회 | 없음 — `prepare` CONFLICT 뜻을 계약 · 시험으로 고정 | **시험 통과**(`bf3f7b4`, P3 O45c 앱 대조 8건 · 경계) | #59 시험에서 해결 |
+| C6 | 확정(사이트 안 알림만) | 협업 알림 출처 | P8-02 | — | **정책 확정 / #60 앱 구현·회귀 완료 / Claude 검토 및 SQL 연결 대기** → 이번 판: Claude 검토 완료, SQL P8-02(초안 PR, 비활성) |
+| C7 | 필수(비서 활성화 전) | 비서 입력 토큰을 보내기 전에 세기 | 있음 — `P6_비용통제_변경안.md` | 명세 · 비용 승인 대기 | 별도 결정(완료 범위 밖), 비서 켜기 보류 |
+| **C8** | **필수(업무 전환 켜기 전)** | 업무 전환: 공식 담당이 없는 수락 · 반려도 관리자 확인 모듈을 요구 | 없음 | — | **새 결함** — 아래 C8 |
 
 ---
 
@@ -91,12 +92,26 @@
 - **CONFLICT 의 뜻(계약 고정)**: `prepare` 의 `CONFLICT` 는 "같은 번호 · 같은 내용의 예약이 rejected(기본 확인 거절 · 실물 바뀜 · 크기 다름 · 기한 지남)로 끝남" **하나뿐**(`P3_API계약.md` 첨부 절, 시험 O45c~e). 이 뜻을 `mutate` 의 `CONFLICT`(판 · 명단 · 붙인 파일 상태)나 시간 초과(`RESULT_UNKNOWN`)에 쓰지 않음. 같은 번호 · 다른 내용은 `IDEMPOTENCY_CONFLICT`.
 - **대안 B(앱 + SQL)**: intent 에 `rejected` 를 더하고 서버가 재조회에 `{state:'rejected'}` 를 돌려줌 — 이 경우 Claude 가 P3-02 를 고침. 결정표 참고.
 
-## C6. 협업 알림 출처 (P3 · P2)
+## C6. 협업 알림 출처 (P3 · P2) — 정책 확정 · #60 구현 · SQL P8-02
 
-- **파일/함수**: `apps/workhub/src/messaging/contracts.ts` `NotificationSource.module`(협업 없음), SQL `notifications_source_check`(같은 6종)
-- **RPC 호출**: 해당 없음 — 지금은 협업 알림을 **만들지 않음**(서버 · 앱 모두 협업 출처가 없음). 홈 요약의 협업 개수로만 보임.
-- **결정 필요**: 협업 알림을 사이트 알림에도 띄울지. 띄운다면 순서는 **앱 먼저**(`'cooperation'` 을 받아들이게) → 그 뒤 SQL(P3 CHECK 확장 + P2 협업 명령에서 알림 생성, Claude). 반대로 하면 지금 앱이 알림함 전체를 거부함.
+- **상태**: 정책 확정(사이트 안 알림만, 2026-10-16) / #60 앱 구현 · 회귀 완료 / Claude 검토 완료 · SQL 은 `p8/P8-02_협업_알림.sql`(비활성 설치).
+- **대조**: P8 시험의 실제 협업 알림 23건을 #60 `createSupabaseMessagingServer.inbox` 가 모두 `{module:'cooperation', id}` 로 읽음. 행동 × 받는 사람 표는 `../p8/P8_설계_계약.md` 2절.
+- 순서: 앱(#60) 배포 확인 → `P8-06` 으로 `cooperation_notices` 켜기. 켜기 전에는 알림을 만들지 않으므로 옛 앱 알림함이 깨지지 않음.
 
 ## C7. 비서 입력 토큰 사전 셈
 
 `P6_비용통제_변경안.md` 2-1절 A1~A11(`COUNT_FAILED` · `over_reservation` 포함), 시험 5-2절 B1~B9, 배포 순서 4절(앱 먼저). SQL 짝(S1~S6)이 같이 들어가야 해서, 계란님 결정(D1~D10) 뒤 Claude · Codex 가 같은 판으로 맞춥니다.
+
+## C8. 업무 전환 — 공식 담당이 없는 수락 · 반려까지 관리자 확인 모듈을 요구 (#60 새 결함)
+
+- **파일/함수**: `apps/workhub/src/administration/transitions.ts`
+  - `createTransitionService.mutate`(106행): `command.kind==='apply' ? needsAdminReview(plan) : command.kind!=='cancel'` — **취소 말고는 모든 기록 명령**(협업 · 수합만 든 인계의 `accept` · `reject` 포함)이 `requireApprovalContract` 를 거쳐 `dutyApproval!=='admin_review_v1'` 이면 `NOT_READY`.
+  - `transitionActionAllowed`(94행) · `SchoolTransitions.tsx`(39행): 수락 · 반려 버튼도 `dutyApproval==='admin_review_v1' && requiresAdminReview!==null` 일 때만.
+- **재현**(실제 응답, 앱이 서버에 보내기 전에 막음):
+  1. 옛 SQL(#58) 또는 P8 설치만(관리자 확인 모듈 행 없음, 목록 옛 모양): 협업 인계 받는 사람의 `accept` → 서버 `accepted` 2, 앱 `NOT_READY`(통합 VI P7 4건, P8 시험 1건).
+  2. `duty_admin_review` 중지(목록 `dutyApproval:null`): 관리자 확인 뒤 받는 사람의 `reject`(서버는 정리 경로로 허용, P8 F23) → 앱 `NOT_READY`.
+  3. 중지 중 관리자가 같은 요청 번호로 `admin_confirm` 재전송 → 서버는 원래 접수증 재생, 앱 `NOT_READY`.
+- **영향**: #60 을 배포하면 관리자 확인 모듈을 켜기 전까지 **#59 에서 되던 협업 · 수합 인계 수락 · 반려가 앱에서 막힘**(회귀). 중지 중에는 대기 중 공식 담당 인계를 반려로 정리할 수 없음. 안전 쪽 실패(잘못 넘어가는 것은 없음)라 데이터 위험은 없음.
+- **고칠 방향**: 계약 확인은 대상이 공식 담당일 때만 — `apply` 는 지금처럼 `needsAdminReview(plan)`, 기록 명령은 목록에서 대상 기록을 찾아 `requiresAdminReview===true` 일 때만 `admin_review_v1` 요구(옛 모양 · `false` 는 그대로 보냄).
+  `reject` · `cancel` 은 중지(`null`) 중에도 허용, 복구 재전송(같은 요청 번호)은 막지 않음. 버튼 조건도 같은 기준으로.
+- **확인 방법**: `p8/test/run_all.sh`(IV) · `integration/test/run_integration.sh`(VI)의 `[#60 결함 C8]` 불일치가 0 이 되면 됨.
