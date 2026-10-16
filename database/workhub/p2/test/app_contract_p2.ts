@@ -29,6 +29,18 @@ function connection(c: Capture, sent: { name?: string; args?: any }) {
   } as any
 }
 
+// Codex C4: 앱은 보내기 전에 includeMemberIds · excludeMemberIds 를 코드 포인트 순으로 정렬 · 중복 제거한다(서버 COLLATE "C" 와 같은 순서).
+// 그런 앱은 정렬 전 입력(F01b)을 그대로 보내지 않으므로, 그 응답 대신 "정렬한 입력의 실제 응답"(F01c)과 짝지어 본다.
+function sortedIds(v: any): any {
+  if (Array.isArray(v)) return v.map(sortedIds)
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) =>
+    [k, (k === 'includeMemberIds' || k === 'excludeMemberIds') && Array.isArray(x)
+      ? [...new Set(x as string[])].sort((a, b) => { const p = Array.from(a), q = Array.from(b)
+          for (let i = 0; i < Math.min(p.length, q.length); i++) { const d = p[i].codePointAt(0)! - q[i].codePointAt(0)!; if (d) return d } return p.length - q.length })
+      : sortedIds(x)]))
+  return v
+}
+const appSorted: string[] = []
 const tally: Record<string, { ok: number; bad: number; codes: Record<string, number> }> = {}
 const note = (k: string) => (tally[k] ??= { ok: 0, bad: 0, codes: {} })
 let rejectedHash = 0, localFirst = 0
@@ -71,6 +83,17 @@ for (const c of captures) {
     t.ok++; t.codes.ok = (t.codes.ok ?? 0) + 1
   } catch (e) {
     const got = code(e)
+    const reordered = c.kind === 'prepare' && sent.args && canonical(sent.args.p_input) !== canonical(c.input)
+    if (reordered) {
+      // 앱이 정렬해서 보냈다: 보낸 입력 = 정렬본이어야 하고, 그 정렬본의 실제 응답(같은 시험의 다른 기록)은 모든 행 duplicate 여야 한다
+      // 앱은 정렬한 draft 로 sourceHash 를 다시 계산하므로 지문은 빼고 비교하고, 짝 응답은 앱이 보낸 입력과 바이트까지 같은 기록이어야 한다
+      const noHash = (v: any) => ({ ...v, rows: v.rows.map(({ sourceHash, ...r }: any) => r) })
+      const pair = captures.find(x => x.kind === 'prepare' && x.raw?.ok === true && canonical(x.input) === canonical(sent.args.p_input))
+      if (canonical(noHash(sent.args.p_input)) === canonical(noHash(sortedIds(c.input))) && pair && pair.raw.rows.every((r: any) => r.state === 'duplicate')) {
+        t.ok++; t.codes['정렬 뒤 보냄(C4)'] = (t.codes['정렬 뒤 보냄(C4)'] ?? 0) + 1; appSorted.push(c.raw?.rows?.map((r: any) => r.state).join(',') ?? '')
+      } else { t.bad++; console.log(`  불일치 prepare 앱이 입력을 바꿔 보냈지만 정렬본이 아니거나 정렬본 응답이 duplicate 가 아님: ${JSON.stringify(sent.args.p_input).slice(0, 300)}`) }
+      continue
+    }
     if (want && got === want) {
       t.ok++; t.codes[want] = (t.codes[want] ?? 0) + 1
       if (sent.name === undefined) localFirst++                         // 앱이 보내기 전에 같은 이유로 막음
@@ -84,6 +107,7 @@ for (const c of captures) {
 for (const [k, v] of Object.entries(tally))
   check(`${k}: 실제 응답 ${v.ok + v.bad}건을 앱 어댑터가 서버와 같은 결과로 해석 (${Object.entries(v.codes).map(([a, b]) => `${a} ${b}`).join(' · ')})`, v.bad === 0 && v.ok > 0, v)
 const kinds = ['prepare', 'commit', 'catalog', 'list', 'detail', 'mutate']
+if (appSorted.length) console.log(`INFO 앱이 직접 포함 · 제외 교사 순서를 정렬해 보냄(C4) ${appSorted.length}건 — 정렬 전 응답(${appSorted.join(' | ')}) 대신 정렬본 응답(duplicate)과 짝지음`)
 check('6개 함수 모두 실제 응답으로 확인함', kinds.every(k => (tally[k]?.ok ?? 0) > 0), Object.keys(tally))
 check(`쓰기 거절 ${rejectedHash}건: 앱이 commandHash = sha256(canonical(명령)) 를 직접 계산해 서버 값과 같음을 확인`, rejectedHash >= 20, rejectedHash)
 check(`앱이 보내기 전에 같은 코드로 막은 요청 ${localFirst}건(서버도 같은 코드)`, localFirst > 0, localFirst)
