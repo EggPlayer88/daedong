@@ -49,9 +49,16 @@ SourceInput은 `{title:string,kind:'regulation'|'annual_plan'|'school_guide'|'ot
 - kind: collection, supplement, message, student_followup, cooperation. 같은 kind/sourceId 중복 금지.
 - counts는 위 5개 키 전부 포함. 확인한 것은 0 이상 정수. 연동이 준비되지 않았거나 해당 항목을 읽지 못하면 null과 unavailable에 kind를 함께 반환. 오류를 0건으로 변환하지 않음.
 - collection/sourceId와 supplement/sourceId는 수합 requestId. 현재 책임/참여 단위 의무가 남았을 때만 반환. 이미 제출/완료/면제된 것은 상태에 맞게 제외.
-- message는 읽지 않은 수신 대화. student_followup은 본인만 읽을 수 있는 후속 업무. 상담 본문/민감 상세는 홈에 노출하지 않음.
+- message/sourceId는 `message_threads.id`이며 읽지 않은 수신 대화를 가리킨다. student_followup은 본인만 읽을 수 있는 후속 업무. 상담 본문/민감 상세는 홈에 노출하지 않음.
 - cooperation은 사용자에게 온 명시적 업무 요청. 자동 체크가 수락/제출/승인으로 해석되지 않음.
-- 현재 클라이언트는 collection/supplement를 정확한 원본으로 연결하고 나머지는 해당 모듈 목록으로 연결. 향후 정확한 메시지 thread/수업 자원 열기 계약 추가 필요.
+- collection/supplement·cooperation·message는 정확한 원본으로 연결한다. message는 목록/검색/커서에 없어도 기존 `workhub_message_get(p_thread_id)`로 현재 권한과 대화를 조회한다. P7 SQL의 sourceId와 P3 threadId를 그대로 사용하며 새 SQL은 필요하지 않다. student_followup은 학생 모듈 목록으로 연결한다.
+- 메시지 원본 이동은 학교 범위의 현재 탭 메모리에만 보관하는 일회성 요청이다. 제목/오류에 초점을 주고 대화 목록·홈으로 돌아갈 수 있다. 새 요청·다른 대화 선택·학교 변경 뒤의 늦은 응답은 표시하지 않는다. 작성 중인 입력을 덮어쓰지 않으며 미접기 입력은 명시적으로 접은 뒤 연다. 미확정 전송은 원래 key와 명령을 그대로 보존한다.
+- 카드 클릭과 대화 조회는 읽기 전용이다. 대화 읽음은 기존 ‘화면에 연 메시지까지 읽음 표시’, 알림 읽음은 별도의 명시 행동이며 자동 전송·업무 완료를 뜻하지 않는다. 삭제·열람 불가·조회 실패는 해당 원본 안내로 표시하며 목록 첫 대화를 대신 열지 않는다.
 - counts는 전체 권한 범위 기준이며 최대 8개 카드 수와 별개다. 정렬 기준: 긴급/기한/생성순 + id로 안정 정렬. 시간표 조회 의존성 없음.
 
 R0 일정/개인 업무는 기존 어댑터가 계속 읽는다. 이 RPC 실패가 기존 홈 전체/로그인을 막지 않는다.
+
+### 홈 메시지 원본 이동 검증 (2026-10-16)
+
+- `node tests/browser/workhub-home-message.mjs`: 실제 ConnectedWorkspace·홈 패널·메신저와 기존 RPC 어댑터를 합성 응답에 연결한 10개 시나리오 통과. 목록에 없는 대화, 배경 재렌더, 접은 초안, 결과 미상 원 요청 복구, 원본 없음/조회 실패/권한 상실, 늦은 응답, 320px 키보드 동선을 확인했다.
+- 기존 메신저 계약 40건·브라우저 25건과 TypeScript 검사를 통과했다. 현재 P7 SQL의 message.sourceId가 대화 ID인 것을 읽기 전용으로 대조했다. 이번 작업에서 SQL·외부 설정을 바꾸지 않았으며 실제 운영 PostgREST·사용자 대화의 접근 성공을 시험한 결과는 아니다.

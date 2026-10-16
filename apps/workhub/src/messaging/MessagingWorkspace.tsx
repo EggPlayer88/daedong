@@ -16,6 +16,8 @@ import messagingStyles from './messaging.css?inline'
 
 export interface MessageComposeRequest {id:string;schoolId:string;memberId:string;body:string}
 export interface MessagingWorkspaceProps {
+  openRequest?: { key: string; id: string }
+  onReturnToSource?: () => void
   composeRequest?: MessageComposeRequest
   onComposeRequestConsumed?: () => void
   connection: SupabaseConnection; member: Membership; date: string; revision?: number
@@ -26,7 +28,7 @@ export interface MessagingWorkspaceProps {
   server?: MessagingServer
   fileServer?: MessageFileServer
 }
-type DraftMemory = { draft: MessageDraft; composing: boolean; pending: MessageAttempt | null }
+type DraftMemory = { draft: MessageDraft; composing: boolean; pending: MessageAttempt | null; folded?: boolean }
 const errorOf = (error: unknown) => error instanceof MessagingError ? error : new MessagingError('QUERY_FAILED')
 const timeLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
 const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료', cooperation: '협업 요청' }
@@ -38,7 +40,7 @@ function mergePage<T>(before: T[], after: T[], key: (item: T) => string): T[] {
 export function MessagingWorkspace(props: MessagingWorkspaceProps) {
   return <MessagingWorkspaceScope key={recoveryScope(props.member)} {...props} />
 }
-function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNavigationLockChange, onOpenSource, canOpenSource, composeRequest, onComposeRequestConsumed, server: provided, fileServer: providedFiles }: MessagingWorkspaceProps) {
+function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, member, date, revision = 0, onNavigationLockChange, onOpenSource, canOpenSource, composeRequest, onComposeRequestConsumed, server: provided, fileServer: providedFiles }: MessagingWorkspaceProps) {
   const server = useMemo(() => provided ?? createSupabaseMessagingServer(connection), [connection, provided])
   const fileServer = useMemo(() => providedFiles ?? createMessageFileServer(connection), [connection, providedFiles])
   const memory = useEditDraft<DraftMemory>(member, 'messaging-composer')
@@ -53,7 +55,7 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   const [draft, setDraft] = useState<MessageDraft>(restored?.draft ?? blankMessageDraft())
   const [composing, setComposing] = useState(restored?.composing ?? false)
   const [pending, setPending] = useState<MessageAttempt | null>(restoredPending)
-  const [folded, setFolded] = useState(Boolean(restoredPending))
+  const [folded, setFolded] = useState(Boolean(restoredPending) || restored?.folded === true)
   const [preview, setPreview] = useState<MessageAttempt | null>(null)
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const [conflict, setConflict] = useState(false)
@@ -64,6 +66,8 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   const [notice, setNotice] = useState(''), [error, setError] = useState(''), [denied, setDenied] = useState(false)
   const [busy, setBusy] = useState(false), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [unreadOnly, setUnreadOnly] = useState(false)
   const [threads, setThreads] = useState<Page<ThreadSummary>>({ items: [], nextCursor: null }), [loadingThreads, setLoadingThreads] = useState(false), [threadError, setThreadError] = useState('')
+  const [openedId, setOpenedId] = useState<string | null>(null), [handledOpenKey, setHandledOpenKey] = useState('')
+  const focusThread = useRef(false), threadHeading = useRef<HTMLHeadingElement>(null)
   const [selected, setSelected] = useState<ThreadSummary | null>(null), [messages, setMessages] = useState<Message[]>([]), [messageCursor, setMessageCursor] = useState<string | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false), [messageError, setMessageError] = useState('')
   const [inbox, setInbox] = useState<Page<InboxNotice>>({ items: [], nextCursor: null }), [loadingInbox, setLoadingInbox] = useState(false), [inboxError, setInboxError] = useState('')
@@ -77,8 +81,9 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   const dirty = composing && isMessageDraftDirty(draft), locked = busy || fileLocked || Boolean(pending || preview || openingSource)
   const navigationLocked = busy || fileLocked || Boolean(preview) || (!folded && (dirty || Boolean(pending)))
   const hasAnyDraft = dirty || Boolean(pending)
+  const waitingOpen = Boolean(openRequest && openRequest.key !== handledOpenKey)
   useEffect(() => { alive.current = true; return () => { alive.current = false; listGeneration.current++; messageGeneration.current++; recipientGeneration.current++; inboxGeneration.current++ } }, [server])
-  useEffect(() => { memory.save(hasAnyDraft ? { draft, composing, pending } : undefined, hasAnyDraft) }, [memory, draft, composing, pending, hasAnyDraft])
+  useEffect(() => { memory.save(hasAnyDraft ? { draft, composing, pending, folded } : undefined, hasAnyDraft) }, [memory, draft, composing, pending, folded, hasAnyDraft])
   useEffect(() => { onNavigationLockChange?.(navigationLocked); return () => onNavigationLockChange?.(false) }, [navigationLocked, onNavigationLockChange])
   useEffect(() => {
     if (!hasAnyDraft) return
@@ -87,7 +92,7 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   }, [hasAnyDraft])
   function purge() {
     listGeneration.current++; messageGeneration.current++; recipientGeneration.current++; inboxGeneration.current++
-    setThreads({ items: [], nextCursor: null }); setInbox({ items: [], nextCursor: null }); setMessages([]); setSelected(null); setRecipients({ items: [], nextCursor: null })
+    setThreads({ items: [], nextCursor: null }); setInbox({ items: [], nextCursor: null }); setMessages([]); setSelected(null); setOpenedId(null); focusThread.current = false; setRecipients({ items: [], nextCursor: null })
     setPreview(null); setPending(null); recovery.remove(); setDraft(blankMessageDraft()); setComposing(false); memory.remove(); setDenied(true)
   }
   function report(failure: unknown, assign: (value: string) => void) {
@@ -96,7 +101,7 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
     if (['FORBIDDEN', 'INACTIVE_MEMBERSHIP'].includes(problem.code)) purge()
     if (problem.code === 'CANCELLED') {
       // 같은 계정의 토큰 갱신도 요청을 취소할 수 있다. 결과만 숨기고 미확정 입력은 보관한다.
-      setReadiness(null); setThreads({ items: [], nextCursor: null }); setInbox({ items: [], nextCursor: null }); setMessages([]); setRecipients({ items: [], nextCursor: null })
+      setReadiness(null); setThreads({ items: [], nextCursor: null }); setInbox({ items: [], nextCursor: null }); setMessages([]); setSelected(null); setRecipients({ items: [], nextCursor: null })
     }
     assign(problem.message)
   }
@@ -119,10 +124,29 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
     return () => { recipientGeneration.current++ }
   }, [server, usable, composing, draft.thread?.id, recipientSearch, recipientRefresh])
   useEffect(() => {
-    if (!usable || !selected) return
-    void loadMessages(selected.id, false)
+    // 홈의 선택은 한 번만 처리한다. 재렌더·배경 조회가 사용자의 다른 대화 선택을 되돌리지 않는다.
+    if (!usable || !openRequest || openRequest.key === handledOpenKey || navigationLocked) return
+    setHandledOpenKey(openRequest.key); openThread(openRequest.id)
+  }, [usable, openRequest?.key, openRequest?.id, handledOpenKey, navigationLocked])
+  useEffect(() => {
+    if (!usable || !openedId) return
+    void loadMessages(openedId, false)
     return () => { messageGeneration.current++ }
-  }, [server, usable, selected?.id, refresh, revision])
+  }, [server, usable, openedId, refresh, revision])
+  useEffect(() => {
+    if (!usable || loadingMessages || (!selected && !messageError) || !focusThread.current) return
+    threadHeading.current?.focus(); focusThread.current = false
+  }, [usable, loadingMessages, selected, messageError])
+  function openThread(threadId: string) {
+    messageGeneration.current++; setTab('messages'); setOpenedId(threadId)
+    setSelected(null); setMessages([]); setMessageCursor(null); setMessageError(''); focusThread.current = true
+    // 같은 대화를 다시 요청한 경우에도 현재 권한과 내용을 다시 확인한다.
+    if (openedId === threadId) void loadMessages(threadId, false)
+  }
+  function closeThread() {
+    messageGeneration.current++; setOpenedId(null); setSelected(null); setMessages([]); setMessageCursor(null)
+    setMessageError(''); setLoadingMessages(false); focusThread.current = false; heading.current?.focus()
+  }
   async function loadThreads(more: boolean) {
     const generation = ++listGeneration.current, cursor = more ? threads.nextCursor ?? undefined : undefined
     setLoadingThreads(true); setThreadError('')
@@ -146,7 +170,7 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   async function loadMessages(threadId: string, more: boolean) {
     const generation = ++messageGeneration.current
     setLoadingMessages(true); setMessageError('')
-    if (!more) { setMessages([]); setMessageCursor(null) }
+    if (!more) { setMessages([]); setSelected(null); setMessageCursor(null) }
     try {
       const result = await server.messages(member.id, threadId, more ? messageCursor ?? undefined : undefined)
       if (!alive.current || generation !== messageGeneration.current) return
@@ -261,6 +285,8 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
   return <section className="messaging-workspace" aria-labelledby={`${id}-heading`}>
     <style>{messagingStyles}</style>
     <header className="messaging-header"><div><h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>메시지와 알림</h2><p>학교 선생님과 대화하고, 내 업무 알림을 확인합니다.</p></div><button type="button" className="messaging-primary" disabled={!usable || locked || dirty} onClick={() => start()}>새 메시지</button></header>
+    {openRequest && onReturnToSource && <div className="messaging-actions"><button type="button" disabled={navigationLocked} onClick={onReturnToSource}>홈으로 돌아가기</button><p className="messaging-muted">대화를 열어도 자동으로 읽음 처리하지 않습니다.</p></div>}
+    {waitingOpen && usable && navigationLocked && <section className="messaging-status" aria-label="요청한 대화 열기"><p>작성 중인 입력과 이전 요청은 보관합니다. 입력을 접은 뒤 요청한 대화를 열어 주세요.</p><button type="button" disabled={busy || fileLocked || Boolean(preview)} onClick={() => setFolded(true)}>입력 접고 요청한 대화 열기</button></section>}
     {composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && <section className="messaging-status" aria-label="AI 메시지 초안"><p>AI가 작성한 메시지 초안이 있습니다. 받는 사람은 직접 선택하고 보내기 전에 내용을 확인하세요.{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}</p><button type="button" disabled={!usable || locked || dirty} onClick={useAiDraft}>전달받은 메시지 초안 사용</button></section>}
     {checking && <p role="status">메시지 연결을 확인하는 중…</p>}
     {notice && <div className="messaging-status" role="status">{notice}</div>}
@@ -298,18 +324,18 @@ function MessagingWorkspaceScope({ connection, member, date, revision = 0, onNav
       {tab === 'messages' ? <div className="messaging-grid"><section className="messaging-panel" aria-label="대화 목록">
         <form className="messaging-filters" onSubmit={event => { event.preventDefault(); setSearch(query) }}><label htmlFor={`${id}-search`}>대화 검색<input type="search" id={`${id}-search`} placeholder="대화 제목·참여자" value={query} maxLength={200} onChange={event => setQuery(event.target.value)} /></label><button type="submit">검색</button></form>
         {threadError && <p role="alert">{threadError}</p>}{loadingThreads && <p role="status">대화를 불러오는 중…</p>}
-        <ul className="messaging-list">{threads.items.map(thread => <li key={thread.id}><button type="button" aria-current={selected?.id === thread.id} onClick={() => { setSelected(thread); setMessages([]); setMessageCursor(null) }}><strong>{thread.title || thread.participants.filter(item => item.memberId !== member.id).map(item => item.name).join(', ')}</strong><small>{timeLabel(thread.updatedAt)} · {thread.kind === 'group' ? '단체 대화' : '1:1 대화'}</small>{thread.unreadCount > 0 && <span className="messaging-badge">읽지 않은 메시지 {thread.unreadCount}개</span>}</button></li>)}</ul>
+        <ul className="messaging-list">{threads.items.map(thread => <li key={thread.id}><button type="button" aria-current={selected?.id === thread.id} onClick={() => openThread(thread.id)}><strong>{thread.title || thread.participants.filter(item => item.memberId !== member.id).map(item => item.name).join(', ')}</strong><small>{timeLabel(thread.updatedAt)} · {thread.kind === 'group' ? '단체 대화' : '1:1 대화'}</small>{thread.unreadCount > 0 && <span className="messaging-badge">읽지 않은 메시지 {thread.unreadCount}개</span>}</button></li>)}</ul>
         {!loadingThreads && !threadError && !threads.items.length && <p className="messaging-empty">조건에 맞는 대화가 없습니다.</p>}
         {threads.nextCursor && <button type="button" disabled={loadingThreads} onClick={() => void loadThreads(true)}>대화 더 보기</button>}
-      </section><section className="messaging-panel" aria-label="선택한 대화">{selected ? <>
-        <h3>{selected.title || selected.participants.filter(item => item.memberId !== member.id).map(item => item.name).join(', ')}</h3><p className="messaging-muted">참여자: {selected.participants.map(item => item.name).join(', ')}</p>
+      </section><section className="messaging-panel" aria-label="선택한 대화">{openedId && <div className="messaging-actions"><button type="button" onClick={closeThread}>대화 목록으로 돌아가기</button></div>}{selected ? <>
+        <h3 ref={threadHeading} tabIndex={-1}>{selected.title || selected.participants.filter(item => item.memberId !== member.id).map(item => item.name).join(', ')}</h3><p className="messaging-muted">참여자: {selected.participants.map(item => item.name).join(', ')}</p>
         {messageError && <div role="alert">{messageError}<button type="button" onClick={() => void loadMessages(selected.id, false)}>대화 다시 불러오기</button></div>}
         {messageCursor && <button type="button" disabled={loadingMessages} onClick={() => void loadMessages(selected.id, true)}>이전 메시지 보기</button>}
         <ol className="messaging-messages" aria-label="메시지 내용">{messages.map(message => <li key={message.id} data-own={message.senderMemberId === member.id}><div className="messaging-message-meta"><strong>{message.senderName}</strong><time dateTime={message.createdAt}>{timeLabel(message.createdAt)}</time></div><p className="messaging-body">{message.body}</p>{message.attachments.map(file => <button type="button" disabled={busy || readiness?.attachments !== 'hwpx_basic_v1'} key={file.id} onClick={() => void downloadMessageFile(message, file)}>{file.name} 내려받기</button>)}</li>)}</ol>
         {loadingMessages && <p role="status">메시지를 불러오는 중…</p>}
         <div className="messaging-actions"><button type="button" className="messaging-primary" disabled={locked || dirty || !selected.canSend || loadingMessages || Boolean(messageError)} onClick={() => start(selected)}>답장</button><button type="button" disabled={locked || !canRead || loadingMessages || Boolean(messageError)} onClick={() => mark({ kind: 'read_thread', threadId: selected.id, throughSequence: selectedSequence })}>화면에 연 메시지까지 읽음 표시</button></div>
         {!selected.canSend && <p className="messaging-muted">현재 대화에 답장할 수 없습니다.</p>}
-      </> : <p className="messaging-empty">대화를 선택해 주세요.</p>}</section></div> : <section className="messaging-panel messaging-inbox" aria-label="내 업무 알림">
+      </> : openedId ? <><h3 ref={threadHeading} tabIndex={-1}>요청한 대화</h3>{loadingMessages && <p role="status">대화를 확인하는 중…</p>}{messageError && <div role="alert"><p>{messageError}</p><button type="button" disabled={loadingMessages} onClick={() => { focusThread.current = true; void loadMessages(openedId, false) }}>요청한 대화 다시 확인</button></div>}</> : <p className="messaging-empty">대화를 선택해 주세요.</p>}</section></div> : <section className="messaging-panel messaging-inbox" aria-label="내 업무 알림">
         <p className="messaging-muted">알림을 읽거나 원본을 열어도 협업 수락·완료 확인, 업무 완료, 수합 제출, 승인 상태가 바뀌지는 않습니다. 협업의 현재 담당자와 처리 상태는 원본에서 확인해 주세요.</p>
         {inboxError && <p role="alert">{inboxError}</p>}{loadingInbox && <p role="status">알림을 불러오는 중…</p>}
         {inbox.items.map(item => <article key={item.id}><div className="messaging-message-meta"><h3>{item.title}</h3><time dateTime={item.createdAt}>{timeLabel(item.createdAt)}</time></div><p className="messaging-body">{item.body}</p><div className="messaging-actions">{item.readAt ? <span className="messaging-muted">읽음</span> : <button type="button" disabled={locked} onClick={() => mark({ kind: 'read_notice', noticeId: item.id, expectedVersion: item.version })}>읽음으로 표시</button>}{item.source && onOpenSource && canOpenSource?.(item.source) && <button type="button" disabled={navigationLocked || Boolean(openingSource)} onClick={() => void openNoticeSource(item)}>{openingSource === item.id ? `${sourceLabels[item.source.module]} 원본 확인 중…` : `${sourceLabels[item.source.module]} 원본 열기`}</button>}</div>{sourceError?.noticeId === item.id && <p role="alert">{sourceError.message}</p>}</article>)}
