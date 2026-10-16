@@ -56,8 +56,8 @@ export function createSupabaseSchoolAdminServer(connection: SupabaseConnection, 
       const year=schoolAdminInput(()=>schoolYear===undefined?undefined:schoolAdminYear(schoolYear))
       return rpc(scopeFor(memberId),'workhub_school_admin_get',{p_school_year:year??null},raw=>schoolAdminSnapshot(raw,year))
     },
-    mutate(memberId,command,requestKey) {
-      const scope=scopeFor(memberId),checked=schoolAdminInput(()=>schoolAdminCommand(command)),key=schoolAdminInput(()=>schoolAdminId(requestKey))
+    mutate(memberId,command,requestKey,options) {
+      const scope=scopeFor(memberId),checked=schoolAdminInput(()=>schoolAdminCommand(command,options)),key=schoolAdminInput(()=>schoolAdminId(requestKey))
       const id=canonical([scope,key]),payload=canonical(checked),previous=attempts.get(id)
       if(previous!==undefined && previous!==payload) throw new SchoolAdminError('IDEMPOTENCY_CONFLICT')
       attempts.set(id,payload)

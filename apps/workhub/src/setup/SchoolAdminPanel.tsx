@@ -7,6 +7,7 @@ import { useEditDraft } from '../app/edit-drafts'
 import { ListPagination } from '../app/ListPagination'
 import { listWindow } from '../app/list-window'
 import { newSetupRowId, validateSetupDraft } from './contract'
+import { academicYearStartMatches, ACADEMIC_YEAR_START_MESSAGE } from './academic-year'
 import { SCHOOL_ADMIN_LIMITS, SCHOOL_ASSIGNMENT_KINDS, SCHOOL_MEMBER_LABELS, SchoolAdminError, schoolAdminCommand, schoolAdminSubjects, type SchoolAdminCommand, type SchoolAdminServer, type SchoolAdminSnapshot, type SchoolAdminMember, type SchoolAssignment, type SchoolAdminReadiness } from './school-admin-contract'
 import { createSupabaseSchoolAdminServer } from './school-admin-server'
 import { reconcileSchoolConfiguration, schoolConfigurationChanges, schoolConfigurationValue, type SchoolConflictChoices } from './school-admin-edit'
@@ -30,7 +31,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
   const recovery=usePendingRequest(member,'schoolAdmin'),memory=useEditDraft<Session>(member,'school-admin-editor')
   const [session,setSessionState]=useState<Session>(()=>{
     const saved=memory.initial??{}
-    if(recovery.request){try{const command=schoolAdminCommand(recovery.request.command);return {...saved,command,pending:{command,key:recovery.request.key},reviewing:true}}catch{return saved}}
+    if(recovery.request){try{const command=schoolAdminCommand(recovery.request.command,{existingRequest:true});return {...saved,command,pending:{command,key:recovery.request.key},reviewing:true}}catch{return saved}}
     return saved
   })
   const latest=useRef(session),life=useRef(0),operation=useRef(false),panel=useRef<HTMLElement>(null),uid=useId()
@@ -92,6 +93,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     if(command.kind==='save_configuration'){
       problems.push(...validateSetupDraft(command.configuration).map(issue=>issue.message))
       try{schoolAdminSubjects(command.subjects)}catch{problems.push('교과의 이름·식별자가 중복되거나 비어 있는지 확인해 주세요.')}
+      if(command.mode==='create_year'&&!academicYearStartMatches(Number(command.configuration.schoolYear),command.configuration.startsOn))problems.push(ACADEMIC_YEAR_START_MESSAGE)
       if(command.mode==='create_year'&&snapshot.availableYears.includes(Number(command.configuration.schoolYear)))problems.push('이미 있는 학년도입니다. 해당 학년도를 선택해 수정해 주세요.')
     }
     if(!command.reason.trim())problems.push('변경 사유를 입력해 주세요.')
@@ -119,7 +121,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     // 네트워크 요청 전부터 원문과 번호를 함께 보존한다. 재시도 때 새 번호를 만들지 않는다.
     recovery.put(pending);update({...current,pending});operation.current=true;setBusy(true);setError('');const epoch=life.current
     try{
-      const receipt=await server.mutate(member.id,pending.command,pending.key)
+      const receipt=await server.mutate(member.id,pending.command,pending.key,{existingRequest:retry})
       if(epoch!==life.current)return
       recovery.remove(pending.key);update({});setIssues([]);setNotice(`${formatDate(receipt.recordedAt)}에 변경 반영을 확인했습니다. 최신 자료를 다시 확인합니다.`)
       setYear(receipt.schoolYear);setReload(value=>value+1);move('notice')
