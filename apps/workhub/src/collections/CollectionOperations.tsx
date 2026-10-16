@@ -21,7 +21,7 @@ function ScopedCollectionOperations({server,member,requestId,date,disabled,revis
   if(writing.current)return;writing.current=true;setBusy(true);setError('');setNotice('')
   const snapshot={...draft!,pending:{command,key}};setDraft(snapshot);recovery.put({command,key})
   try{await server.mutate(member.id,command,key);if(!alive.current)return;recovery.remove(key);setDraft(undefined);setNotice('확인한 운영 변경을 서버에 저장했습니다.');setReload(x=>x+1);onChanged()}
-  catch(failure){if(!alive.current)return;setError(failure instanceof ServiceError?failure.message:'변경 결과를 확인하지 못했습니다.');if(failure instanceof ServiceError&&['INVALID_INPUT','CONFLICT','FORBIDDEN','NOT_FOUND','INACTIVE_MEMBERSHIP'].includes(failure.code)){recovery.remove(key);setDraft({...snapshot,pending:undefined,confirmed:false});setReload(x=>x+1)}}
+  catch(failure){if(!alive.current)return;setError(failure instanceof ServiceError?failure.message:'변경 결과를 확인하지 못했습니다.');if(failure instanceof ServiceError&&['INVALID_INPUT','CONFLICT','FORBIDDEN','NOT_FOUND','INACTIVE_MEMBERSHIP'].includes(failure.code)){recovery.remove(key);setDraft({...snapshot,pending:undefined,confirmed:false});if(failure.code!=='INVALID_INPUT')setReload(x=>x+1)}}
   finally{writing.current=false;if(alive.current)setBusy(false)}
  }
  const targets=data?.units.filter(unit=>unit.state==='missing'||unit.state==='changes_requested')??[]

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {loadBrowserModule} from './helpers/load-browser-module.mjs'
-const {createScopedRpc}=await loadBrowserModule(`export{createScopedRpc}from'../apps/workhub/src/services/scoped-rpc.ts'`)
+const {createScopedRpc,validateLocalInput,exact,version,ServiceError}=await loadBrowserModule(`export{createScopedRpc,validateLocalInput,exact,version,ServiceError}from'../apps/workhub/src/services/scoped-rpc.ts'`)
 const key='original-request',member={id:'member-one',schoolId:'school-one',userId:'user-one',active:true,role:'teacher',validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}
 const reply=data=>({contract:'test.v1',schoolId:member.schoolId,memberId:member.id,data})
 function fixture(){const calls=[],state={member:structuredClone(member),identity:{userId:member.userId,approved:true,profile:{role:'superadmin',is_active:true,department_id:null,extra_permissions:[]}},identityCalls:0};const connection={info:()=>({schools:[{id:member.schoolId}],memberships:[state.member],basisDate:'2026-10-16'}),getIdentity:async()=>{state.identityCalls++;return structuredClone(state.identity)},rpcVerified:async(name,args)=>{calls.push({name,args:structuredClone(args)});return reply({saved:true})}};return{state,calls,connection,service:()=>createScopedRpc(connection,'test.v1',{timeoutMs:20})}}
@@ -19,4 +19,11 @@ await test('사전 인증 대기 중 제한시간이 지나면 늦은 인증 뒤
 await test('이미 시작한 쓰기의 늦은 응답은 파싱하거나 완료로 되살리지 않는다',async()=>{const f=fixture();let resume,parsed=0;f.connection.rpcVerified=()=>new Promise(resolve=>{resume=resolve});await rejects(()=>f.service().call(member.id,'save',{p_request_key:key},()=>{parsed++;return true},true),'RESULT_UNKNOWN');resume(reply({saved:true}));await tick();assert.equal(parsed,0);assert.equal(f.state.identityCalls,1)})
 await test('읽기 제한시간은 조회 실패이고 결과 미확정 저장으로 오인하지 않는다',async()=>{const f=fixture();f.connection.getIdentity=()=>new Promise(()=>{});await rejects(()=>f.service().call(member.id,'list',{},x=>x),'QUERY_FAILED')})
 await test('같은 범위의 동료 목록·이름 변화는 진행 중 요청을 취소하지 않는다',async()=>{const f=fixture(),original=f.connection.rpcVerified;f.connection.rpcVerified=async(...args)=>{const result=await original(...args);f.state.member.name='변경된 표시 이름';return result};assert.deepEqual(await write(f.service()),{saved:true})})
+await test('로컬 입력 경계 안의 응답 검증 오류만 입력 오류로 바꾼다',()=>{
+ assert.throws(()=>exact({extra:'private'},[]),e=>e.code==='INVALID_RESPONSE')
+ assert.throws(()=>validateLocalInput(()=>exact({extra:'private'},[])),e=>e.code==='INVALID_INPUT'&&!e.message.includes('private'))
+ assert.throws(()=>validateLocalInput(()=>version(0)),e=>e.code==='INVALID_INPUT')
+ assert.equal(validateLocalInput(()=>version(3)),3)
+ for(const error of [new Error('programming failure'),new ServiceError('CONFLICT'),new ServiceError('RESULT_UNKNOWN')])assert.throws(()=>validateLocalInput(()=>{throw error}),received=>received===error)
+})
 console.log(`\n공통 RPC 검증: ${pass} 통과, ${fail} 실패`);if(fail)process.exit(1)

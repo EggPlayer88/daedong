@@ -1,6 +1,6 @@
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { createScopedRpc, exact, identifier, isoDate, text, version, ServiceError } from '../services/scoped-rpc'
+import { createScopedRpc, exact, object, validateLocalInput, identifier, isoDate, text, version, ServiceError } from '../services/scoped-rpc'
 
 export type CollectionPhase = 'open' | 'closed' | 'archived'
 export interface CollectionOperationsState {
@@ -34,6 +34,8 @@ export function operationsState(raw:unknown,requestId:string):CollectionOperatio
  return {requestId,version:version(raw.version),phase:raw.phase as CollectionPhase,dueDate:isoDate(raw.dueDate),canManage:raw.canManage as boolean,totals,units}
 }
 export function operation(raw:CollectionOperation):CollectionOperation {
+ return validateLocalInput(()=>{
+ if(!object(raw))throw new ServiceError('INVALID_INPUT')
  const common=['kind','requestId','expectedVersion','reason'];exact(raw,[...common,...(['reopen','extend'].includes(raw.kind)?['dueDate']:raw.kind==='remind'?['recipients']:[])])
  if(!['close','archive','reopen','extend','remind'].includes(raw.kind))throw new ServiceError('INVALID_INPUT')
  identifier(raw.requestId);version(raw.expectedVersion);text(raw.reason,1000,true)
@@ -43,6 +45,7 @@ export function operation(raw:CollectionOperation):CollectionOperation {
   const ids=new Set<string>();for(const recipient of raw.recipients){exact(recipient,['unitId','memberId','expectedVersion']);identifier(recipient.unitId);identifier(recipient.memberId);version(recipient.expectedVersion);if(ids.has(recipient.unitId))throw new ServiceError('INVALID_INPUT');ids.add(recipient.unitId)}
  }
  return structuredClone(raw)
+ })
 }
 export function createCollectionOperations(connection:SupabaseConnection):CollectionOperationsServer {
  const rpc=createScopedRpc(connection,'collection-operations.v1')

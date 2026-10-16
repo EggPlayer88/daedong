@@ -14,4 +14,31 @@ await test('응답 유실 재시도는 기존 키이고 바뀐 내용은 새 명
 await test('다른 수합의 접수증과 다른 요청 번호를 성공 처리하지 않는다',async()=>{for(const change of [{requestId:'other'},{requestKey:'other'},{version:2}]){const x=setup();x.set(envelope({requestId:'r',requestKey:'request1',version:3,recordedAt:'2026-10-16T01:00:00Z',...change}));await assert.rejects(()=>x.client.mutate('m',{kind:'close',requestId:'r',expectedVersion:2,reason:'마감'},'request1'),e=>e.code==='RESULT_UNKNOWN')}})
 await test('담당 부서가 호출 도중 바뀌면 이전 응답을 폐기한다',async()=>{const x=setup();x.connection.rpcVerified=async()=>{x.change({...member,departmentIds:['different']});return envelope(state)};await assert.rejects(()=>x.client.get('m','r'),e=>e.code==='CANCELLED')})
 await test('서버 미조회 화면은 완료나 임의 집계를 표시하지 않는다',()=>{const x=setup();const html=render({server:x.client,member,requestId:'r',date:'2026-10-16',disabled:false,revision:0,onLock:()=>{},onChanged:()=>{}});assert.match(html,/수합 운영/);assert.doesNotMatch(html,/전체 2|저장했습니다/)})
+await test('전송 전 모양·판·중첩 대상 오류는 입력 오류이며 RPC를 시작하지 않는다',async()=>{
+ const command={kind:'remind',requestId:'r',expectedVersion:2,reason:'제출 확인',recipients:[{unitId:'unit1',memberId:'m1',expectedVersion:2}]}
+ const missingReason={...command};delete missingReason.reason
+ const inputs=[null,[],{},missingReason,{...command,privateContent:'민감 원문'},{...command,expectedVersion:0},{...command,expectedVersion:'2'},{...command,recipients:[null]},{...command,recipients:[{...command.recipients[0],expectedVersion:0}]},{...command,recipients:[{...command.recipients[0],extra:'비공개'}]}]
+ const x=setup()
+ for(const input of inputs){assert.throws(()=>api.operation(input),e=>e.code==='INVALID_INPUT'&&!e.message.includes('민감'));await assert.rejects(async()=>x.client.mutate('m',input,'invalid-key'),e=>e.code==='INVALID_INPUT')}
+ assert.equal(x.calls.length,0)
+})
+await test('잘못된 서버 집계·대상 판은 여전히 서버 응답 오류이다',async()=>{
+ for(const change of [{version:0},{totals:{...state.totals,extra:1}},{units:[{...state.units[0],version:0},state.units[1]]}]){
+  const x=setup();x.set(envelope({...state,...change}));await assert.rejects(()=>x.client.get('m','r'),e=>e.code==='INVALID_RESPONSE')
+ }
+})
+await test('전송 전 입력 거절은 요청 번호를 소비하거나 서버에 원문을 보내지 않는다',async()=>{
+ const x=setup(),command={kind:'close',requestId:'r',expectedVersion:2,reason:'완료'}
+ await assert.rejects(async()=>x.client.mutate('m',{...command,expectedVersion:0},'usable-key'),e=>e.code==='INVALID_INPUT')
+ x.set(envelope({requestKey:'usable-key',requestId:'r',version:3,recordedAt:'2026-10-16T01:00:00Z'}))
+ await x.client.mutate('m',command,'usable-key');assert.equal(x.calls.length,1);assert.deepEqual(x.calls[0].args.p_command,command)
+})
+await test('로컬 검증 실패 뒤에도 기존 미확정 명령과 요청 번호는 그대로 확인할 수 있다',async()=>{
+ const x=setup(),command={kind:'close',requestId:'r',expectedVersion:2,reason:'원래 사유'};x.set(null)
+ await assert.rejects(()=>x.client.mutate('m',command,'pending-key'),e=>e.code==='RESULT_UNKNOWN')
+ await assert.rejects(async()=>x.client.mutate('m',{...command,extra:'잘못된 변경'},'pending-key'),e=>e.code==='INVALID_INPUT')
+ assert.equal(x.calls.length,1)
+ x.set(envelope({requestKey:'pending-key',requestId:'r',version:3,recordedAt:'2026-10-16T01:00:00Z'}));await x.client.mutate('m',command,'pending-key')
+ assert.deepEqual(x.calls[0].args,x.calls[1].args)
+})
 console.log('수합 운영 '+count+'건 통과')

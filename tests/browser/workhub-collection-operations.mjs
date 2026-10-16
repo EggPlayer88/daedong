@@ -29,5 +29,22 @@ await test('알림 책임 교사가 바뀌면 이전 최종 확인으로 전송�
 await test('접수 상태가 바뀌면 같은 판이어도 불가능한 명령을 막는다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('접수 종료');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.evaluate(()=>{window.phase='archived';window.refresh()});await page.getByText('현재 접수 상태에서는 이 변경을 적용할 수 없습니다.',{exact:false}).waitFor();assert.equal(await page.getByRole('button',{name:'확인한 운영 변경 적용'}).isDisabled(),true)})
 await test('편집 기억이 없어도 미확정 운영 명령은 원래 키와 입력으로 복구한다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('원래 사유');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.evaluate(()=>{window.mode='unknown'});await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor();await page.evaluate(()=>{window.root.unmount();window.mount(true)});await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor();assert.equal(await page.getByLabel('변경 사유 또는 알림 내용').inputValue(),'원래 사유');await page.evaluate(()=>{window.mode='ok'});await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();const calls=await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')));assert.deepEqual(calls[0].args,calls[1].args)})
 
+await test('전송 전 입력 오류 안내와 작성 내용을 유지하고 수정 뒤 새 요청을 보낸다',async()=>{
+ await page.getByRole('button',{name:'접수 마감',exact:true}).click()
+ const reason=page.getByLabel('변경 사유 또는 알림 내용')
+ await reason.fill('보존할 사유\u0007');await page.getByLabel('변경 내용과 대상을 확인했습니다').check()
+ await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click()
+ await page.getByRole('alert').filter({hasText:'입력 내용과 형식을 확인해 주세요.'}).waitFor()
+ assert.equal(await reason.inputValue(),'보존할 사유\u0007');assert.equal(await page.getByLabel('변경 내용과 대상을 확인했습니다').isChecked(),false)
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')).length),0)
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_get')).length),1)
+ assert.equal(await page.evaluate(()=>window.pending.count()),0)
+ assert.equal(await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).count(),0)
+ assert.doesNotMatch(await page.locator('body').innerText(),/서버 자료의 형식/)
+ await reason.fill('정정한 사유');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click()
+ await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')).length),1)
+ assert.equal(await page.evaluate(()=>window.calls.find(x=>x.name.endsWith('_mutate')).args.p_command.reason),'정정한 사유')
+})
+
 assert.deepEqual(errors,[]);if(process.env.WORKHUB_QA_OUTPUT)writeFileSync(join(process.env.WORKHUB_QA_OUTPUT,'results.json'),JSON.stringify({passed,errors},null,2))
 }finally{await browser.close()}

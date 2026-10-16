@@ -1,6 +1,6 @@
 import schoolAdminLimits from '../setup/assets/school-admin.json'
 import type {SupabaseConnection} from '../connection/supabase-connection'
-import {createScopedRpc,exact,object,identifier,isoDate,text,version,ServiceError} from '../services/scoped-rpc'
+import {createScopedRpc,exact,object,validateLocalInput,identifier,isoDate,text,version,ServiceError} from '../services/scoped-rpc'
 export type HandoverResource={kind:'duty'|'cooperation'|'collection';id:string;version:number;label:string}
 export type TransitionPlan=
  | {kind:'handover';recipientMemberId:string;recipientVersion:number;resources:HandoverResource[];note:string}
@@ -13,6 +13,8 @@ const fail=():never=>{throw new ServiceError('INVALID_RESPONSE')}
 function lines(v:unknown,max=500):string[]{if(!Array.isArray(v)||v.length>max)fail();return(v as unknown[]).map(x=>text(x,1000,true))}
 function resource(v:unknown):HandoverResource{exact(v,['kind','id','version','label']);if(!['duty','cooperation','collection'].includes(String(v.kind)))fail();return{kind:v.kind as HandoverResource['kind'],id:identifier(v.id),version:version(v.version),label:text(v.label,200,true)}}
 export function transitionPlan(plan:TransitionPlan):TransitionPlan{
+ return validateLocalInput(()=>{
+ if(!object(plan))throw new ServiceError('INVALID_INPUT')
  if(plan.kind==='handover'){
   exact(plan,['kind','recipientMemberId','recipientVersion','resources','note']);identifier(plan.recipientMemberId);version(plan.recipientVersion);text(plan.note,2000,true)
   if(!Array.isArray(plan.resources)||!plan.resources.length||plan.resources.length>200)throw new ServiceError('INVALID_INPUT')
@@ -24,6 +26,7 @@ export function transitionPlan(plan:TransitionPlan):TransitionPlan{
   if(dates.some((d,i)=>i>0&&d<dates[i-1])||plan.term1Last>=plan.term2First||plan.firstDay===plan.lastDay)throw new ServiceError('INVALID_INPUT')
  }else throw new ServiceError('INVALID_INPUT')
  return structuredClone(plan)
+ })
 }
 export function transitionCatalog(raw:unknown):TransitionCatalog{
  exact(raw,['canManageYear','years','recipients','resources','records','nextCursor'])
@@ -36,15 +39,17 @@ export function transitionCatalog(raw:unknown):TransitionCatalog{
  return{canManageYear:raw.canManageYear as boolean,years,recipients,resources,records,nextCursor:raw.nextCursor===null?null:text(raw.nextCursor,1000,true)}
 }
 export function transitionCommand(raw:unknown):TransitionCommand{
+ return validateLocalInput(()=>{
  if(!object(raw))throw new ServiceError('INVALID_INPUT')
  const command=raw as TransitionCommand
  if(command.kind==='apply'){exact(command,['kind','plan','fingerprint']);transitionPlan(command.plan);if(!/^[a-f0-9]{64}$/.test(command.fingerprint))throw new ServiceError('INVALID_INPUT')}else{exact(command,['kind','recordId','expectedVersion','reason']);if(!['accept','reject','cancel'].includes(command.kind))throw new ServiceError('INVALID_INPUT');identifier(command.recordId);version(command.expectedVersion);text(command.reason,1000,true)}
  return structuredClone(command)
+ })
 }
 export function createTransitionService(connection:SupabaseConnection){
  const rpc=createScopedRpc(connection,'school-transitions.v1')
  return{
-  list(memberId:string,cursor:string|null=null){return rpc.call(memberId,'workhub_school_transition_list',{p_cursor:cursor},transitionCatalog)},
+  list(memberId:string,cursor:string|null=null){if(cursor!==null)text(cursor,1000,true);return rpc.call(memberId,'workhub_school_transition_list',{p_cursor:cursor},transitionCatalog)},
   preview(memberId:string,input:TransitionPlan){const plan=transitionPlan(input);return rpc.call(memberId,'workhub_school_transition_preview',{p_plan:plan},raw=>{exact(raw,['fingerprint','expiresAt','summary','excluded','affectedCount']);if(typeof raw.fingerprint!=='string'||!/^[a-f0-9]{64}$/.test(raw.fingerprint)||typeof raw.expiresAt!=='string'||!Number.isFinite(Date.parse(raw.expiresAt))||!Number.isSafeInteger(raw.affectedCount)||(raw.affectedCount as number)<0)fail();return{fingerprint:raw.fingerprint as string,expiresAt:raw.expiresAt as string,summary:lines(raw.summary),excluded:lines(raw.excluded),affectedCount:raw.affectedCount as number}})},
   mutate(memberId:string,input:TransitionCommand,key:string){const command=transitionCommand(input);return rpc.call(memberId,'workhub_school_transition_mutate',{p_command:command,p_request_key:key},raw=>{exact(raw,['requestKey','recordId','version','state','recordedAt']);if(raw.requestKey!==key||!['pending','accepted','rejected','cancelled','completed'].includes(String(raw.state))||typeof raw.recordedAt!=='string'||!Number.isFinite(Date.parse(raw.recordedAt)))fail();identifier(raw.recordId);version(raw.version);if(command.kind!=='apply'&&(raw.recordId!==command.recordId||raw.version!==command.expectedVersion+1))fail();if(command.kind==='apply'&&(raw.version!==1||( command.plan.kind==='handover'&&raw.state!=='pending')||(command.plan.kind==='new_year'&&raw.state!=='completed')))fail();if(command.kind!=='apply'&&raw.state!==({accept:'accepted',reject:'rejected',cancel:'cancelled'} as const)[command.kind])fail();return{requestKey:key,recordId:raw.recordId as string,state:raw.state as string}},true)}
  }
