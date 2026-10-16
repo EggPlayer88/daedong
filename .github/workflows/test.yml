@@ -152,3 +152,8 @@ jobs:
           path: ${{ runner.temp }}/workhub-browser-results
           if-no-files-found: ignore
           retention-days: 7
+      # Vercel은 main 작업공간만 설치한다. 전체 npm ci가 가리는 업무실 의존성 누락도 확인한다.
+      - name: 배포 앱만 새로 설치하고 빌드
+        run: |
+          npm ci --workspace apps/main --ignore-scripts
+          npm run build --workspace apps/main
