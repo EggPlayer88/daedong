@@ -1,7 +1,9 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { subscribeWorkspacePopstate } from './navigation-bridge'
+import { workhubModules } from '../modules'
 
-const knownPages = new Set(['home', 'calendar', 'tasks', 'collections', 'students', 'knowledge', 'messages', 'schoolAdmin', 'documents', 'cooperation', 'assistant'])
+// 메뉴 정의와 URL 인식 목록이 갈라지지 않게 한다. 모드별 허용 범위는 allowedPages로 계속 제한한다.
+const knownPages = new Set<string>(workhubModules.map(module => module.id))
 export const navigationBlockedMessage = '작성 중인 내용을 저장하거나 편집을 취소한 뒤 이동해 주세요. 저장 결과를 확인 중이면 먼저 같은 요청의 결과를 확인해 주세요.'
 export const workspaceExitBlockedMessage = '보관한 입력이나 확인할 저장 요청이 남아 있어 업무실 밖으로 나가거나 학교를 바꿀 수 없습니다. 업무실 메뉴는 계속 이용할 수 있으며, 기존 메뉴는 새 탭에서 열어 주세요.'
 

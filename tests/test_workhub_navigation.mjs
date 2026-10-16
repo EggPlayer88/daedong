@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
-const { readWorkspaceLocation, workspacePageUrl, anchorLeavesWorkspace, createWorkspaceNavigationController, navigationBlockedMessage, workspaceExitBlockedMessage } = await loadBrowserModule(`export * from '../apps/workhub/src/app/navigation.ts'`)
+const { readWorkspaceLocation, workspacePageUrl, anchorLeavesWorkspace, createWorkspaceNavigationController, navigationBlockedMessage, workspaceExitBlockedMessage, enabledModules } = await loadBrowserModule(`export * from '../apps/workhub/src/app/navigation.ts'; export { enabledModules } from '../apps/workhub/src/modules.ts'`)
 const pages = ['home', 'calendar', 'tasks']
 const base = 'https://school.invalid/workhub?filter=%ED%95%99%EA%B5%90&view=tasks#main-content'
 let failed = 0
@@ -22,6 +22,17 @@ await test('미리보기에서만 허용한 화면은 실제 연결 목록으로
   const href = 'https://school.invalid/workhub?view=students'
   assert.equal(readWorkspaceLocation(href, [...pages, 'students']).page, 'students')
   assert.equal(readWorkspaceLocation(href, pages).page, 'home')
+})
+await test('연결 메뉴의 실제 주소 이동과 시간표의 미리보기 차단이 함께 유지된다', () => {
+  const connected = enabledModules('connected').map(module => module.id)
+  for (const page of connected) {
+    const href = workspacePageUrl(base, page, connected)
+    assert.ok(href, page)
+    assert.equal(readWorkspaceLocation(href, connected).page, page)
+  }
+  const preview = enabledModules('preview').map(module => module.id)
+  assert.equal(workspacePageUrl(base, 'timetable', preview), undefined)
+  assert.equal(readWorkspaceLocation('https://school.invalid/workhub?view=timetable', preview).page, 'home')
 })
 await test('현재 탭의 다른 경로·다른 화면 query·외부 문서 이동을 구분한다', () => {
   for (const href of ['/doc-ai', '?view=calendar', 'https://other.invalid', '/workhub']) assert.equal(anchorLeavesWorkspace(base, { href }), true)

@@ -4,6 +4,7 @@ import type { PageId } from '../modules'
 type IconName = PageId | 'assistant' | 'appearance' | 'school' | 'search'
 const paths: Record<IconName, ReactNode> = {
   home: <><path d="m3 10 9-7 9 7v10H3Z" /><path d="M9 20v-7h6v7" /></>,
+  timetable: <><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 3v18M15 9v12M3 15h18" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M7 3v4m10-4v4M3 11h18m-13 4h1m6 0h1m-8 3h1" /></>,
   tasks: <><rect x="4" y="3" width="16" height="18" rx="2" /><path d="m7 9 1.5 1.5L11 8m2 1h4M7 15h10" /></>,
   collections: <><path d="M3 7h7l2 2h9v11H3Z" /><path d="M3 7V4h8l2 3h7v2m-8 3v5m-2-2 2 2 2-2" /></>,

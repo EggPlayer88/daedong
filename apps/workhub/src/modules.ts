@@ -1,4 +1,4 @@
-export type PageId = 'home' | 'calendar' | 'tasks' | 'collections' | 'students' | 'knowledge' | 'messages' | 'schoolAdmin' | 'documents' | 'cooperation' | 'assistant'
+export type PageId = 'home' | 'calendar' | 'tasks' | 'collections' | 'students' | 'knowledge' | 'messages' | 'schoolAdmin' | 'documents' | 'cooperation' | 'assistant' | 'timetable'
 export type WorkspaceMode = 'connected' | 'preview'
 export type ModuleGroup = 'today' | 'school' | 'work' | 'teaching'
 export interface WorkhubModule {
@@ -24,6 +24,7 @@ export const workhubModules: readonly WorkhubModule[] = [
   { id: 'knowledge', title: '학교 자료', group: 'work', icon: '▤', modes: ['connected'], visibility: 'superadmin', productionEnabled: false },
   { id: 'messages', title: '메시지와 알림', group: 'work', icon: '□', modes: ['connected'], visibility: 'superadmin', productionEnabled: false },
   { id: 'schoolAdmin', title: '학교 관리', group: 'work', icon: '◇', modes: ['connected'], visibility: 'superadmin', productionEnabled: false },
+  { id: 'timetable', title: '시간표', group: 'teaching', icon: '▦', modes: ['connected'], visibility: 'superadmin', productionEnabled: false },
   { id: 'students', title: '수업과 학생', group: 'teaching', icon: '◎', modes: ['connected', 'preview'], visibility: 'superadmin', productionEnabled: false },
 ]
 
