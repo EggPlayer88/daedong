@@ -610,6 +610,67 @@ def main():
         p2c = [x for x in sqlfile('P2-03_사후점검.sql', base=P2) if x[2] == 'FAIL']
         check('H22 P2-03 사후 점검 FAIL 없음(이력 수 = 판 유지)', p2c == [], p2c)
         check('H23 협업 받는 사람을 직접 바꾸면 거부(표시 없음)', 'IMMUTABLE_ROW' in sqlerr(f"update workhub.cooperation_requests set recipient_membership_id='m-25', recipient_account_id='acc-25', version=version+1 where id='{COOP}'"))
+
+        # ---- 협업 인계 뒤 상세 이력 계약(2026-10-16 통합 검토 1번): 과거 처리자는 그대로, 행마다 그때의 받는 사람
+        def cg(w, rid): return t[w].keep('coop_get', t[w].go('workhub_cooperation_get', rid), requestId=rid)
+        def cmv(w, rid, ver, action, comment='확인했습니다'):
+            cmd = {'kind': 'transition', 'requestId': rid, 'expectedVersion': ver, 'action': action, 'comment': comment}
+            v = t[w].go('workhub_cooperation_mutate', cmd, key()); return isinstance(v, dict) and v.get('ok') is True and v
+        def cver(rid): return scalar("select version from workhub.cooperation_requests where id=%s", (rid,))
+        def hand(src, dst, rid):
+            p = ho(M[dst], mver(M[dst]), [res('cooperation', rid, cver(rid))])
+            rec = data(t[src].tm(apply(p, data(t[src].tp(p))['fingerprint'])))['recordId']
+            return data(t[dst].tm(act('accept', rec, 1)))
+        def hist(env): return [(h['action'], h['actorMemberId'], h['recipientMemberId'], h['previousRecipientMemberId']) for h in env['history']]
+        def name(m): return scalar('select a.display_name from workhub.memberships x join workhub.accounts a on a.id=x.account_id where x.id=%s', (m,))
+        tk21 = call(api(T[21]), 'select public.workhub_task_mutate(%s, %s::jsonb, %s)',
+                    ('m-21', json.dumps({'kind': 'create', 'input': {'title': '보낸 사람 원본 업무', 'notes': '', 'dueDate': ''}}, ensure_ascii=False), key()))
+        cx = call(api(T[21]), "select public.workhub_cooperation_mutate('m-21', %s::jsonb, %s)",
+                  (json.dumps({'kind': 'create', 'recipientMemberId': M[22], 'title': '인계 이력 확인', 'description': '', 'dueDate': '',
+                               'sourceTask': {'id': tk21['id'], 'expectedVersion': tk21['version']}}, ensure_ascii=False), key()))
+        CX = cx['entityId']
+        ok22 = [cmv(22, CX, 1, 'accept', ''), cmv(22, CX, 2, 'request_completion', '1차 완료')]
+        # 받는 사람(22)의 개인 업무 연결(지금 공개 명령은 없음 — 앞으로 생길 연결을 흉내 낸 자료). 인계 뒤에도 22 의 것으로 남아야 한다.
+        tk22 = call(api(T[22]), 'select public.workhub_task_mutate(%s, %s::jsonb, %s)',
+                    ('m-22', json.dumps({'kind': 'create', 'input': {'title': '받은 협업 내 업무', 'notes': '', 'dueDate': ''}}, ensure_ascii=False), key()))
+        sqlfile(None, text=f"insert into workhub.cooperation_task_links(school_id, request_id, account_id, task_id, linked_at) "
+                           f"select school_id, id, 'acc-22', '{tk22['id']}', now() from workhub.cooperation_requests where id='{CX}'")
+        pre = [cg(21, CX), cg(22, CX)]          # 인계 전 상세(지금 앱과의 호환 확인용)
+        check('H23a 인계 전 상세: 이력 3행, 행마다 받는 사람 22 · 넘겨준 사람 없음', all(x.get('ok') is True and hist(x) ==
+              [('create', M[21], M[22], None), ('accept', M[22], M[22], None), ('request_completion', M[22], M[22], None)] for x in pre), pre)
+        h1 = hand(22, 24, CX)
+        d21, d24, d22 = cg(21, CX), cg(24, CX), cg(22, CX)
+        want1 = [('create', M[21], M[22], None), ('accept', M[22], M[22], None), ('request_completion', M[22], M[22], None), ('handover', M[24], M[24], M[22])]
+        check('H24 완료 확인 대기 중 인계(22→24): 상태 그대로 · 이력 4행 — 과거 처리자 22 그대로, 행마다 그 뒤의 받는 사람, 인계 행만 넘겨준 사람',
+              all(ok22) and h1 and h1['state'] == 'accepted' and d21.get('ok') is True and d21['request']['status'] == 'completion_requested'
+              and d21['request']['recipientMemberId'] == M[24] and hist(d21) == want1, (ok22, h1, d21))
+        check('H25 처리자 이름은 그때 처리한 사람(이전 받는 사람 22 · 새 받는 사람 24) — 요청 본문의 받는 사람 이름과 다름',
+              [h['actorName'] for h in d21['history']] == [name(M[21]), name(M[22]), name(M[22]), name(M[24])], d21['history'])
+        check('H26 새 받는 사람(24)도 같은 이력 · 개인 업무 연결은 자기 것만(22 의 연결 · 21 의 원본 연결 안 보임 → null)',
+              d24.get('ok') is True and hist(d24) == want1 and d24['request']['taskLink'] is None, d24)
+        check('H27 보낸 사람(21)은 자기 원본 업무 연결만 보임', d21['request']['taskLink'] == {'taskId': tk21['id'], 'ownerUserId': T[21]}, d21['request'])
+        check('H28 이전 받는 사람(22): 상세 NOT_FOUND · 받은 함에서 빠짐 · 22 의 개인 업무와 연결 행은 그대로(이관 · 삭제 없음)',
+              d22.get('ok') is False and d22.get('code') == 'NOT_FOUND'
+              and all(x['id'] != CX for x in (t[22].go('workhub_cooperation_list', {'box': 'received', 'status': 'all', 'query': '', 'cursor': None}).get('items') or []))
+              and n('cooperation_task_links', "request_id=%s and account_id='acc-22'", (CX,)) == 1
+              and scalar("select owner_account_id from workhub.tasks where id=%s", (tk22['id'],)) == 'acc-22', d22)
+        # 보낸 사람이 보완 요청 → 24 가 다시 완료 요청 → 24 가 25 에게 재인계(완료 확인 대기) → 보낸 사람 완료 확인
+        r5 = [cmv(21, CX, 4, 'return_completion', '보완 부탁'), cmv(24, CX, 5, 'request_completion', '보완 완료')]
+        h2 = hand(24, 25, CX)
+        r8 = cmv(21, CX, 7, 'confirm_completion', '')
+        d25, d21b, d24b = cg(25, CX), cg(21, CX), cg(24, CX)
+        want2 = [('create', M[21], M[22], None), ('accept', M[22], M[22], None), ('request_completion', M[22], M[22], None),
+                 ('handover', M[24], M[24], M[22]), ('return_completion', M[21], M[24], None), ('request_completion', M[24], M[24], None),
+                 ('handover', M[25], M[25], M[24]), ('confirm_completion', M[21], M[25], None)]
+        check('H29 재인계(24→25) 뒤 완료 확인: 이력 8행 = 판 · 받는 사람 22→24→25 · 각 인계 행의 넘겨준 사람 22 · 24',
+              all(r5) and h2 and r8 and d25.get('ok') is True and d25['request']['status'] == 'completed' and hist(d25) == want2
+              and hist(d21b) == want2 and d25['request']['version'] == 8, (r5, h2, r8, d25))
+        check('H30 재인계 뒤 24 도 NOT_FOUND · 25 의 업무 연결 null', d24b.get('code') == 'NOT_FOUND' and d25['request']['taskLink'] is None, (d24b, d25))
+        bad = sqlerr(f"insert into workhub.cooperation_history(school_id, request_id, version, action, actor_membership_id, actor_account_id) "
+                     f"select school_id, id, 99, 'handover', 'm-25', 'acc-25' from workhub.cooperation_requests where id='{CX}'")
+        check('H31 넘겨준 사람 없는 인계 이력 행은 표 제약이 거부', 'cooperation_history_previous_check' in bad, bad)
+        p2c = [x for x in sqlfile('P2-03_사후점검.sql', base=P2) if x[2] == 'FAIL']
+        check('H32 P2-03-10(행마다 처리자 = 그때의 당사자) FAIL 없음 — 인계 2번 포함', p2c == [], p2c)
     else:
         check('H00 P7_BRIDGE=0 — 보강 없이 운영 순서만 시험', True)
 

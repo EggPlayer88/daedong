@@ -7,6 +7,8 @@ import { createCollectionOperations } from 'p7app/collections/operations'
 import { createHomeService } from 'p7app/home/overview'
 import { createTransitionService } from 'p7app/administration/transitions'
 import { contextResponse } from 'p7app/connection/validation'
+import { createCooperationAdapter } from 'p7app/cooperation/adapter'
+import { proposedDetailResponse, historyLine } from './cooperation_history_contract'
 
 type Scope = { schoolId: string; memberId: string; userId: string }
 type Capture = { kind: string; scope: Scope; context: any; raw: any; error: string | null; [k: string]: any }
@@ -43,6 +45,7 @@ const skipped: Record<string, number> = {}
 const states: Record<string, number> = {}
 
 for (const c of captures) {
+  if (c.kind === 'coop_get') continue                    // 협업 상세는 아래에서 따로(인계 이력 계약)
   if (!c.context) { bump(skipped, `${c.kind}: workhub_context 가 없는 계정(앱이 연결 단계에서 막음)`); continue }
   const writing = c.kind === 'ops_mutate' || c.kind === 'tr_mutate'
   // 봉투 없는 예외 중 업무 코드(권한 · 소속)는 앱 연결 단계 몫이라 건너뛰고, 그 밖(중간 실패)은 앱이 '결과 모름'으로 받는지 본다
@@ -102,6 +105,56 @@ for (const k of ['ops_get', 'ops_mutate', 'home', 'tr_list', 'tr_preview', 'tr_m
   const v = tally[k]
   check(`앱 ${k}: 서버 응답을 앱이 같은 결과로 해석 (${v ? Object.entries(v.codes).map(([a, b]) => a + ' ' + b).join(', ') : '0건'})`, !!v && v.bad === 0 && (v.codes.ok ?? 0) > 0, v)
 }
+// ---- 협업 인계 뒤 상세 이력: 지금 앱 parser(PR #48) · 제안 계약 기준 구현(cooperation_history_contract.ts)
+const coop = captures.filter(c => c.kind === 'coop_get' && c.context)
+const known: string[] = []
+let coopOk = 0, coopBad = 0, refOk = 0, refBad = 0, notFound = 0
+for (const c of coop) {
+  const m = c.scope.memberId, scope = { schoolId: c.scope.schoolId, memberId: m, ownerUserId: c.scope.userId }
+  const handed = !!c.raw?.history?.some((h: any) => h.action === 'handover')
+  let current: any, currentErr: unknown
+  try { current = await createCooperationAdapter(connection(c, [])).detail(m, c.requestId) } catch (e) { currentErr = e }
+  if (c.raw?.ok === false) { (code(currentErr) === c.raw.code ? notFound++ : coopBad++); continue }
+  if (handed) {
+    if (currentErr) known.push(`${m}: 인계 이력 ${c.raw.history.length}행 → 지금 앱 ${code(currentErr)}`)
+    else console.log(`  참고 ${m}: 지금 앱이 인계 이력을 이미 받아들임(Codex 수정 반영?)`)
+  } else if (currentErr || canonical(current) !== canonical({ request: c.raw.request, history: c.raw.history })) { coopBad++; console.log('  불일치(인계 없음)', code(currentErr)) }
+  else coopOk++
+  try { const out = proposedDetailResponse(structuredClone(c.raw), scope, c.requestId); canonical(out) === canonical({ request: c.raw.request, history: c.raw.history }) ? refOk++ : refBad++ }
+  catch (e) { refBad++; console.log('  제안 계약 거부', m, code(e), JSON.stringify(c.raw.history).slice(0, 300)) }
+}
+const handedCaps = coop.filter(c => c.raw?.ok && c.raw.history.some((h: any) => h.action === 'handover'))
+if (process.env.P7_BRIDGE === '0') check('협업 상세: 보강(P7-05) 없이는 인계가 없어 시험 대상 없음', coop.length === 0, coop.length)
+else {
+check(`협업 상세(인계 없는 요청 ${coopOk}건 · 당사자 아님 ${notFound}건): 지금 앱이 서버와 같은 결과로 해석 — 추가된 이력 칸(actorName 등)과 호환`,
+      coop.length > 0 && coopBad === 0 && coopOk > 0 && notFound > 0, { coopOk, coopBad, notFound })
+check(`협업 상세: 제안 계약 기준 구현이 인계 전후 응답 ${refOk}건을 모두 받아들이고 값 그대로(인계 응답 ${handedCaps.length}건)`,
+      refBad === 0 && refOk > 0 && handedCaps.length >= 4, { refOk, refBad })
+const longest = handedCaps.reduce((a: Capture | undefined, c) => !a || c.raw.history.length > a.raw.history.length ? c : a, undefined)
+if (longest) {
+  const scope = { schoolId: longest.scope.schoolId, memberId: longest.scope.memberId, ownerUserId: longest.scope.userId }
+  const rejects = (name: string, f: (r: any) => void) => {
+    const r = structuredClone(longest.raw); f(r)
+    try { proposedDetailResponse(r, scope, longest.requestId); return name + ' 통과(X)' } catch (e) { return code(e) === 'INVALID_INPUT' ? '' : name + ' ' + code(e) }
+  }
+  const firstHand = longest.raw.history.findIndex((h: any) => h.action === 'handover')
+  const errs = [
+    rejects('과거 처리자를 새 받는 사람으로 바꿈', r => { r.history[1].actorMemberId = r.request.recipientMemberId }),
+    rejects('인계 행의 넘겨준 사람 바꿈', r => { r.history[firstHand].previousRecipientMemberId = r.request.senderMemberId }),
+    rejects('행의 받는 사람을 지금 받는 사람으로 덮음', r => { r.history.forEach((h: any) => { h.recipientMemberId = r.request.recipientMemberId }) }),
+    rejects('인계 행을 지움', r => { r.history.splice(firstHand, 1); r.history.forEach((h: any, i: number) => { h.version = i + 1 }); r.request.version-- }),
+    rejects('인계가 아닌 행에 넘겨준 사람', r => { r.history[1].previousRecipientMemberId = r.request.senderMemberId }),
+    rejects('보낸 사람에게 인계', r => { r.history[firstHand].actorMemberId = r.history[firstHand].recipientMemberId = r.request.senderMemberId }),
+  ].filter(Boolean)
+  check('협업 상세: 제안 계약은 이력을 고치거나 지운 응답 6종을 모두 INVALID_INPUT 으로 거부', errs.length === 0, errs)
+  const lines = (proposedDetailResponse(structuredClone(longest.raw), scope, longest.requestId).history).map(historyLine)
+  const names = longest.raw.history.map((h: any) => h.actorName)
+  check(`협업 상세 화면 이력 줄: 처리자 이름이 그때 처리한 사람(${[...new Set(names)].length}명) — ${lines.join(' / ')}`,
+        new Set(names).size >= 3 && lines.every((l, i) => l.endsWith(' · ' + names[i])), lines)
+}
+}
+if (known.length) console.log(`KNOWN 지금 앱(PR #48) 협업 상세 parser 가 인계 이력을 거부 ${known.length}건 — Codex 수정 대상(통합 검토 1번): ${known.join(' | ')}`)
+
 const bridge = process.env.P7_BRIDGE !== '0'
 const wantStates = ['pending', 'accepted', 'rejected', 'cancelled', 'completed', 'phase:open', ...(bridge ? ['phase:closed', 'phase:archived'] : [])]
 check(`인계 · 학년도 결과 상태와 수합 단계(${wantStates.join(' · ')})를 모두 앱이 받아들임`, wantStates.every(k => (states[k] ?? 0) > 0), states)
