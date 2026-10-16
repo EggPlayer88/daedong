@@ -644,12 +644,13 @@ def main():
 
     # prepare 의 CONFLICT = "이 요청 번호로 만든 예약이 끝났다(rejected)" — 앱이 이것만 보고 "새로 첨부해 주세요"로 바꿔도 되는지(Codex C5).
     # 같은 번호 · 같은 내용일 때만 나온다(내용이 다르면 IDEMPOTENCY_CONFLICT 가 먼저). 다른 RPC 의 CONFLICT · 시간 초과에는 이 뜻이 없다.
-    for nm, who_k, f_meta, fid, why in [
-        ('기본 확인 거절', fbad['kp'], meta('깨진 파일.hwpx', raw_bad), fbad['id'], scalar('select reject_code from workhub.message_files where id=%s', (fbad['id'],))),
-        ('실물 바뀜', fd['kp'], meta('바꿔치기 D.hwpx', raw_d), fd['id'], 'object_changed'),
-        ('Storage 크기 다름', ke, meta('크기 다름 E.hwpx', raw_e), ie['fileId'], 'object_size_mismatch'),
-        ('업로드 기한 지남', kf, meta('만료 F.hwpx', raw_f), i_f['fileId'], 'upload_expired')]:
-        r_on, r_off = t[21].prepare(f_meta, who_k, replay=True), t[21].prepare(f_meta, who_k, replay=False)
+    # 실물(raw)을 같이 남겨 앱 대조(V)가 앱의 prepare 로 같은 요청을 다시 보내 보게 한다(C5: 끝난 예약 오류로 바꾸는지)
+    for nm, who_k, f_meta, fid, why, f_raw in [
+        ('기본 확인 거절', fbad['kp'], meta('깨진 파일.hwpx', raw_bad), fbad['id'], scalar('select reject_code from workhub.message_files where id=%s', (fbad['id'],)), raw_bad),
+        ('실물 바뀜', fd['kp'], meta('바꿔치기 D.hwpx', raw_d), fd['id'], 'object_changed', raw_d),
+        ('Storage 크기 다름', ke, meta('크기 다름 E.hwpx', raw_e), ie['fileId'], 'object_size_mismatch', raw_e),
+        ('업로드 기한 지남', kf, meta('만료 F.hwpx', raw_f), i_f['fileId'], 'upload_expired', raw_f)]:
+        r_on, r_off = t[21].prepare(f_meta, who_k, replay=True, raw=f_raw), t[21].prepare(f_meta, who_k, replay=False, raw=f_raw)
         check(f'O45c 끝난 예약({nm} · {why}) 같은 번호 재조회 → replay_only 참 · 거짓 모두 CONFLICT, 상태 조회는 rejected, 새 예약 안 생김',
               ecode(r_on) == 'CONFLICT' and ecode(r_off) == 'CONFLICT' and data(t[21].status(fid))['state'] == 'rejected'
               and scalar("select count(*) from workhub.message_file_requests where action='prepare' and request_key=%s", (who_k,)) == 1, (r_on, r_off))
