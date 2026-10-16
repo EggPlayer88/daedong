@@ -2,9 +2,11 @@
 
 > 2026-10-16 · 실행 SQL이 아닌 계약 인계. 기존 전체 시범 PR #48의 SQL 1~7단계를 변경하지 않는다. 이 문서는 사용자가 재개한 시간표를 **후속 8단계**로 추가한다. SQL 확정본은 Claude, 실행은 계란님이 맡는다. Codex는 SQL·외부 설정·운영 DB를 변경하지 않았다.
 
-## 1. 이번 앱 계약과 후속 운영 계약을 구분한다
+> 후속 갱신: 이 문서는 PR #54의 `timetable.v1` 기초 3개 RPC 계약을 보존한다. 확정·교환 운영 화면에 추가된 `timetable-operations.v1`의 5개 RPC는 [운영 API 인계](operations-api.md)가 현재 기준이다. 기초 편성과 운영을 구분하고, 두 계약을 합쳐 임의 함수로 구현하지 않는다.
 
-이번 앱에 실제 연결된 RPC는 **준비 상태, 읽기, 새 초안 저장의 3개**다. 확정 공개, 날짜별 교환 요청·동의·승인 RPC는 아직 앱 연결이 없다. 아래 후속 명세를 이미 완성된 API로 보고 SQL만 설치하면 전체 기능이 열리는 것으로 해석하지 않는다.
+## 1. PR #54의 기초 앱 계약과 후속 운영 계약을 구분한다
+
+PR #54가 연결한 RPC는 **준비 상태, 읽기, 새 초안 저장의 3개**다. 후속 운영 화면은 별도 계약의 5개 RPC를 사용한다. 이 문서의 기초 RPC만 설치하면 확정·공유·교환까지 열리는 것으로 해석하지 않는다. 운영 범위는 [운영 API 인계](operations-api.md)의 현재 parser·어댑터와 함께 구현한다.
 
 | 구분 | 현재 기준 파일 | 역할 |
 |---|---|---|
@@ -179,7 +181,7 @@ proposal exact 키는 `contract,stage,basisId,basisRevision,sourceFingerprint,co
 
 이 단계에는 확정 후 교환용 AI proposal이 아직 없다. 아래 날짜별 도메인으로 별도 설계한다. 범용 함수명·SQL을 AI 응답에 넣어 실행하는 경로를 추가하지 않는다.
 
-## 5. 후속 날짜별 변경 계약 — 아직 RPC 없음
+## 5. 날짜별 변경의 순수 검증과 현재 운영 API
 
 `operations-domain.ts`는 다음 **사전 검증**을 구현한다.
 
@@ -201,7 +203,7 @@ proposal exact 키는 `contract,stage,basisId,basisRevision,sourceFingerprint,co
 
 ### 후속 SQL 원자성
 
-실제 확정/교환 SQL을 작성할 때는 아래를 구현하고 별도 앱 RPC/parser를 함께 확정한다.
+실제 확정/교환 SQL은 아래 원자성을 보장하고, [운영 API 인계](operations-api.md)의 5개 RPC와 앱 parser에 맞춘다. 순수 도메인의 다자 교환까지 현재 두 수업 교환 API가 제공하는 것으로 확대하지 않는다.
 
 1. 기준자료 확정판, 잠근 조건판, 후보판과 지문을 영구 참조.
 2. 적용 기간 중복 방지와 부분 교체의 앞·대체·뒤 구간 보존.
@@ -224,7 +226,7 @@ proposal exact 키는 `contract,stage,basisId,basisRevision,sourceFingerprint,co
 - schoolAdmin/teaching 기준자료에 빠진 주당시수·일과·공간·참여 관계를 어떻게 승인하고 불변판으로 만들지 제시.
 - fixed/unavailable 공식 필수조건의 서버 보존과 잘못된 배치 직접 RPC 호출 거부.
 - 새 초안 저장의 동일키·다른명령·기준판 경합·응답 유실 재전송 시험. recover-only의 기존 결과 반환, 원장 없음 NOT_FOUND, 기준판 변경 뒤 원래 결과 반환, 새로운 초안 0건을 함께 확인.
-- 날짜별 운영은 후속 exact API 확정 후 구현. 앱 사전 검증 통과를 서버 검증 생략 사유로 쓰지 않음.
+- 날짜별 운영은 별도 `timetable-operations.v1`의 exact API로 구현. 앱 사전 검증 통과를 서버 검증 생략 사유로 쓰지 않음.
 - Claude 초기 세팅·후보 조정·확정 후 교환의 질문/제안 흐름을 위 경계로 설계. 모호한 이름·기간·필수여부를 질문으로 남김.
 - 설치 전후 기존 회원·로그인·제출·파일·R0/R1·전체 시범 모듈 보존 지문.
 - PostgreSQL 17의 두 연결 경합 시험, 실제 PostgREST 출력 대조, 실제 Supabase 검증 여부를 분리한 결과.

@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { useEditDraft } from '../app/edit-drafts'
@@ -15,6 +15,7 @@ import limits from './limits.json'
 import styles from './timetable.css?inline'
 import { TimetableBoard } from './TimetableBoard'
 export { TimetableBoard } from './TimetableBoard'
+const TimetableOperationsWorkspace = lazy(() => import('./TimetableOperationsWorkspace').then(module => ({ default: module.TimetableOperationsWorkspace })))
 
 type Step = 'basis' | 'conditions' | 'compose' | 'publish'
 type ConditionForm = { kind: 'fixed' | 'unavailable' | 'preferences'; targetId: string; slotId: string; weight: string }
@@ -34,8 +35,32 @@ const conditionLabels = { fixed: '반드시 이 시간에', unavailable: '사용
 function safeMessage(error: unknown) { return error instanceof ServiceError || error instanceof TimetableSolverError ? error.message : '처리 결과를 확인하지 못했습니다. 입력은 유지했습니다.' }
 const confirmedRejection = (error: unknown) => error instanceof ServiceError && ['FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'NOT_READY'].includes(error.code)
 export function TimetableWorkspace(props: WorkspaceProps) {
+  return <TimetableWorkspaceEntry key={recoveryScope(props.member)} {...props} />
+}
+function TimetableWorkspaceEntry(props: WorkspaceProps) {
   const server = useMemo(() => createTimetableServer(props.connection), [props.connection])
-  return <TimetableWorkspacePanel key={recoveryScope(props.member)} {...props} server={server} />
+  const route = useEditDraft<'editor' | 'operations'>(props.member, 'timetable-entry')
+  const recovery = usePendingRequest(props.member, 'timetableOperations')
+  const [mode, setMode] = useState<'editor' | 'operations'>(() => recovery.request ? 'operations' : route.initial ?? 'editor')
+  const [locked, setLocked] = useState(false)
+  const notifyLock = useCallback((value: boolean) => {
+    setLocked(value)
+    props.onNavigationLockChange?.(value)
+  }, [props.onNavigationLockChange])
+  function navigate(next: 'editor' | 'operations') {
+    if (locked || next === mode) return
+    route.save(next, false)
+    setMode(next)
+  }
+  return <>
+    <nav aria-label="시간표 작업 구분" className="timetable-entry-navigation" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+      <button type="button" className="secondary" aria-pressed={mode === 'editor'} disabled={locked && mode !== 'editor'} onClick={() => navigate('editor')}>내 수업·편성</button>
+      <button type="button" className="secondary" aria-pressed={mode === 'operations'} disabled={locked && mode !== 'operations'} onClick={() => navigate('operations')}>확정·공유·교환</button>
+    </nav>
+    {mode === 'editor'
+      ? <TimetableWorkspacePanel {...props} server={server} onNavigationLockChange={notifyLock} />
+      : <Suspense fallback={<p role="status">시간표 운영 화면을 준비하는 중…</p>}><TimetableOperationsWorkspace {...props} onNavigationLockChange={notifyLock} /></Suspense>}
+  </>
 }
 export function TimetableWorkspacePanel({ server, member, date, revision = 0, onNavigationLockChange, onOpenSchoolAdmin, runSolver = startTimetableSolve }: PanelProps) {
   const id = useId(), memory = useEditDraft<DraftSession>(member, 'timetable-editor'), aiMemory = useEditDraft<{text:string;sheet:string}>(member, 'timetable-ai'), recovery = usePendingRequest(member, 'timetable')
