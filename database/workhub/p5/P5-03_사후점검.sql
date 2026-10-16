@@ -28,7 +28,11 @@ SELECT 'P5-03-05', '앱 함수 7개: authenticated 만 · SECURITY DEFINER · se
        CASE WHEN count(*) = 7 AND bool_and(p.prosecdef AND p.proconfig @> ARRAY['search_path=""'] AND has_function_privilege('authenticated', p.oid, 'EXECUTE')
                           AND NOT has_function_privilege('anon', p.oid, 'EXECUTE') AND NOT has_function_privilege('service_role', p.oid, 'EXECUTE'))
             THEN 'ok' ELSE 'FAIL' END, count(*)::text
-FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'workhub\_teaching\_%'
+-- 접두어(workhub_teaching_%)로 세지 않고 P5 의 정확한 이름 7개만 본다 — P8-04 가 같은 접두어의 공개 함수 3개(수업 관계)를 더해도
+-- 이 행이 FAIL 로 바뀌지 않게(R1S-03 과 같은 이유). 더한 함수의 권한은 P8-05 · INT-03 이 본다.
+FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+  AND p.proname IN ('workhub_teaching_activity','workhub_teaching_catalog','workhub_teaching_counseling','workhub_teaching_course',
+                    'workhub_teaching_mutate','workhub_teaching_rubric_revision','workhub_teaching_student')
 UNION ALL
 SELECT 'P5-03-06', '관찰·상담: 현재 판 = 판 기록 마지막 · 판 1..최신 빈칸 없음 · 상태 일치', CASE WHEN count(*) = 0 THEN 'ok' ELSE 'FAIL' END, count(*)::text
 FROM workhub.teaching_records r
