@@ -51,7 +51,7 @@ jobs:
           if (/^[0-9a-f]{40}$/i.test(process.env.BASE_SHA || '') && !/^0+$/.test(process.env.BASE_SHA)) {
             try {
               const files = execFileSync('git', ['diff', '--name-only', '-z', process.env.BASE_SHA, process.env.HEAD_SHA], { encoding: 'utf8' }).split('\0')
-              run = files.some(path => /^(apps\/workhub\/|apps\/main\/src\/|packages\/shared\/|tests\/browser\/|tests\/helpers\/|scripts\/export-workhub-preview\.mjs$|package(?:-lock)?\.json$|\.github\/workflows\/)/.test(path))
+              run = files.some(path => /^(apps\/workhub\/|apps\/main\/src\/|packages\/(?:shared|timetable)\/|tests\/browser\/|tests\/helpers\/|scripts\/export-workhub-preview\.mjs$|package(?:-lock)?\.json$|\.github\/workflows\/)/.test(path))
             } catch { console.log('변경 경로를 판정하지 못해 브라우저 검사를 실행합니다.') }
           }
           appendFileSync(process.env.GITHUB_OUTPUT, `run=${run}\n`)
