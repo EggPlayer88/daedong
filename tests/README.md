@@ -253,3 +253,16 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `test_workhub_collection_submission_guidance.mjs`: 필수 파일·글·숫자/0·저장판 비교·공동 작성·재제출/보완·깨진 입력·SSR 17건.
 - `workhub-collection-usability.mjs`: 실제 서버 패널의 일반 DOM/ShadowRoot 초점 이동·복귀, 320px/20단위/긴 파일명, 지연 조회 중 사용자 초점 유지, 메모·선택 범위 보존, 첨부 제한 설명, 초안 저장→최종 제출 명령 구분 11건. 전체 브라우저 러너에 등록했다.
 - `npm run test:workhub:browser -- workhub-collection-usability workhub-collection-server workhub-collection-hwpx workhub-collection-export`로 관련 4개 파일을 실행한다. 실제 운영 DB나 Storage를 사용하지 않는다. [검증·인계](../docs/workhub/44-collection-usability.md).
+
+
+## C1·C4·C5 앱 계약 후속 회귀
+
+- `test_workhub_cooperation.mjs`: 새 인계 이력의 처리자·이전/이후 수신자·상태·버전, 혼합 응답 거부와 구형 무인계 호환 43건.
+- `test_workhub_calendar_batch_audience.mjs`: 대상 집합 정렬, 실제 격리 PostgreSQL C 정렬식 대조, 지문 변조·원본 비변경·기존 미확정 commit 보존 9건.
+- `test_workhub_messaging_files.mjs`: 파일 준비·완료·상태·다운로드와 prepare 전용 종료 판정, 복구 원본 메타데이터 대조 27건.
+- `workhub-cooperation-handover.mjs`: 인계·재인계, 배경 상세 실패 중 입력·요청 보존, 320px 화면 등 15개 브라우저 동선.
+- `workhub-cooperation-batch.mjs`: 협업·일괄 13개 동선. C4 대상 입력은 합성하고 실제 어댑터 결과와 보관 비교 화면을 연결한다. 제품에 CSV 대상 선택칸을 추가한 것은 아니다.
+- `workhub-messaging.mjs`: 기존 전송·복구와 소속 전환 비노출 18개 동선.
+- `workhub-messaging-file-recovery.mjs`: 실제 첨부 컴포넌트·어댑터로 알려진/미상 ID, 거절·만료·응답 유실, 접수 전 실패·읽기 전용 복구·늦은 응답 14개 동선. 전체 브라우저 러너에 포함한다.
+
+`npm run test:workhub:browser -- cooperation messaging`로 관련 파일을 선택할 수 있다. 시험은 운영 DB·Storage를 호출하지 않으며 [수정·검증·인계](../docs/workhub/pilot-completion/app-contract-fixes.md)에 실제 서비스 검증 경계를 적었다.

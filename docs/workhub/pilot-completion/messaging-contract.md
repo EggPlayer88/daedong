@@ -127,9 +127,18 @@ FileStatus = `{fileId,state:'awaiting_upload'|'pending_basic'|'ready'|'rejected'
 
 prepare는 본인 소속+동일 key/payload를 확인하고 같은 예약을 반환한다. 실물 업로드는 upsert:false. complete는 객체가 없으면 awaiting_upload를 반환하고, 실제 Storage 객체가 있으면 ID·메타데이터를 고정해 pending_basic으로 전이한다. **객체가 없던 complete 호출을 영구 성공 캐시해서 나중 업로드를 막지 않는다.** 동일 complete key는 같은 fileId의 확인 작업을 이어가며 ready/rejected 종결 결과는 고정된다. fileId 변경은 IDEMPOTENCY_CONFLICT다.
 
-클라이언트는 재시도 시 같은 prepare key로 예약 복구→complete로 실물 존재 확인→awaiting_upload일 때만 upload→complete 순서다. 응답이 끊겼다고 새 경로를 만들거나 덮어쓰지 않는다. `messagingFile` 슬롯은 원본 File/prepare key/complete key를 현재 탭에 보관하고, 미확정 첨부 중 전송 버튼을 막는다. 원본 file/hash/name/size가 바뀐 재시도는 거절한다.
+### 첨부 종료·결과 미상 복구 (2026-10-16, C5)
 
-첨부 준비 상태가 중단되면 기존 prepare에 `p_replay_only:true`로 같은 예약만 찾고 status를 조회한다. 이때 upload/complete/기본 검사 새 쓰기는 하지 않는다. 원래 policy는 동일 파일 메타데이터 검사용으로만 탭에 보관하며 활성 정책으로 게시하지 않는다. prepare 원장이 없으면 NOT_FOUND, 존재하면 동일 payload 대조 후 원래 예약을 반환한다. replay 플래그 자체는 payload hash에 포함하지 않는다.
+`messagingFile` 슬롯은 원본 File, prepareKey, completeKey, 원래 policy와 확인된 fileId를 현재 탭에 보존한다. 메시지 전송 요청 번호와 첨부 요청 번호는 서로 다르다. 첨부 결과가 미상인 동안 메시지 전송을 막는다.
+
+- fileId가 있으면 먼저 status를 조회한다. ready 응답은 원본의 이름·크기·SHA-256과 대조하며, 조회 실패나 잘못된 메타데이터는 원 파일·번호를 지우는 근거가 아니다.
+- 아직 fileId가 없으면 같은 prepareKey로 원 예약을 복구한다. ready/rejected 결과를 얻으면 종료를 표시하며, 미확정 결과를 새 예약으로 대체하지 않는다.
+- status가 awaiting_upload이고 새 쓰기가 가능한 때만 기존 키의 prepare(replayOnly:true)로 검증된 예약 경로와 동일 fileId를 재확인하고 업로드를 재개한다. 덮어쓰기는 하지 않는다.
+- 준비 상태가 중단되면 기존 예약·상태 조회만 한다. upload/complete/기본 검사 새 쓰기는 하지 않는다. 당시 policy는 원본 메타데이터 대조용이며 새 정책 게시가 아니다.
+
+P3 prepare의 검증된 동일 범위 업무 응답에서 `CONFLICT`는 원 예약의 상태가 rejected(검사 거절 또는 기한 만료)라는 의미다. 이 경우에만 종료 전용 오류로 구분한다. 다른 단계의 CONFLICT, 예외에 든 문자열, timeout, RESULT_UNKNOWN을 종료로 간주하지 않는다. 현재 응답에는 상세 거절 사유가 없으므로 화면은 “확인 거절 또는 업로드 기한 만료”로 안내하고 원인을 단정하지 않는다.
+
+종료가 확정된 뒤 사용자가 새 파일을 선택할 때만 새 prepareKey/completeKey를 발급한다. 본문·수신자·메시지 전송 키는 바꾸지 않는다. 계정/학교 전환이나 화면 종료 뒤 늦은 응답은 이전 첨부를 다시 추가하지 않는다. 원본과 입력 보관은 탭 메모리이며 새로고침 후 영구 복원을 약속하지 않는다.
 
 ### 별도 wrapper 요청
 

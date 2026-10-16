@@ -1,6 +1,6 @@
 # W04 일정 일괄 가져오기: 구현 및 Claude SQL 요청 계약
 
-상태: 기존 `CalendarImport`/`EventEditor`/일정 RPC를 보존하고 별도 batch 기능을 구현했다. 실제 SQL·원본 원장·prepare/commit 함수는 아직 작성·적용하지 않았다. 코드와 합성 전송 시험 통과는 운영 저장 성공을 의미하지 않는다.
+상태: 기존 `CalendarImport`/`EventEditor`/일정 RPC를 보존하고 별도 batch 기능을 구현했다. SQL은 Claude의 P2 별도 PR에서 관리하며, 이 앱 보완에서는 DB에 적용하지 않았다. 코드와 합성 전송 시험 통과는 운영 저장 성공을 의미하지 않는다.
 
 ## 사용 흐름
 
@@ -41,6 +41,14 @@ EventDraft={title,description,location,startDate,endDate,allDay,startTime,endTim
 ```
 
 객체에 정의되지 않은 학교/owner/eventId 등을 끼워 넣으면 거절한다. title/description/location trim, 종일이면 시간 빈 문자열 등 기존 코드 정규화 이후의 draft를 해시한다. `sourceHash=SHA256(canonical(draft))`; `fileHash=SHA256(UTF8(rawCsv))`. UTF-8 BOM이 텍스트에 있으면 해시에 포함한다. 원문 CSV에서 내용이 같은 행의 순서를 바꿔도 sourceId가 같으면 같은 원본이다. fileHash만으로 중복 일정이라고 단정하지 않는다.
+
+### 대상 배열 정규화와 기존 요청 보존 (2026-10-16, C4)
+
+새 비교 요청은 includeMemberIds/excludeMemberIds의 중복을 제거하고 PostgreSQL `COLLATE C`에 맞는 코드포인트 순서로 정렬한다. localeCompare의 사용자 언어별 정렬을 쓰지 않는다. 정렬한 draft로 sourceHash를 계산하며, incoming·baseline·현재 일정도 같은 방식으로 비교한다. 대상 선택 순서만 다른 것은 변경으로 판단하지 않는다.
+
+포함·제외에 같은 교사가 있으면 양쪽 값을 보존하여 제외 우선 의미를 유지한다. all·그룹 조건과 실제 대상 차이를 삭제하거나 임의로 같게 만들지 않는다. 원 객체/원문 CSV는 수정하지 않는다.
+
+기존 앱이 만든 미전송 prepare 입력은 먼저 기존 draft/sourceHash의 일치를 확인한 뒤 복사본을 정렬하고 새 sourceHash를 계산한다. 변조된 원문을 새 해시로 덮어 통과시키지 않는다. 이미 전송한 commit은 이 정규화 경로를 거치지 않으며 prepareId·previewHash·sourceHash·선택 순서·requestKey를 그대로 재확인한다. 결과 미상 요청은 새 요청으로 바꾸지 않는다.
 
 ## workhub_calendar_batch_prepare(p_member_id, p_input jsonb)
 
