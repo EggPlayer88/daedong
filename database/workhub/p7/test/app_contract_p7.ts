@@ -56,7 +56,12 @@ let forcedBoundary = 0                                  // 중간 강제 실패 
 const blocked = new Set<string>()                        // 앱이 보내기 전에 막아 앱 parser 까지 가지 못한 서버 상태
 const LIST = 'workhub_school_transition_list'
 
+// 같은 요청 번호가 앞서 나온 업무 전환 쓰기 = 기존 요청의 복구(앱 service.recover), 처음 보내는 것은 새 명령(service.mutate) — PR #63
+const seenKeys = new Set<string>()
+let recovered = 0
 for (const c of captures) {
+  const isRecovery = c.kind === 'tr_mutate' && seenKeys.has(c.key)
+  if (c.kind === 'tr_mutate') seenKeys.add(c.key)
   if (c.kind === 'coop_get') continue                    // 협업 상세는 아래에서 따로(인계 이력 계약)
   if (!c.context) { bump(skipped, `${c.kind}: workhub_context 가 없는 계정(앱이 연결 단계에서 막음)`); continue }
   const writing = c.kind === 'ops_mutate' || c.kind === 'tr_mutate'
@@ -91,10 +96,12 @@ for (const c of captures) {
         out = await createTransitionService(conn).preview(m, c.plan); same = c.raw.data; break
       case 'tr_mutate':
         expected = { name: 'workhub_school_transition_mutate', args: { p_command: c.command, p_request_key: c.key, p_member_id: m } }
-        out = await createTransitionService(conn).mutate(m, c.command, c.key)
+        if (isRecovery) recovered++
+        out = isRecovery && typeof (createTransitionService(conn) as any).recover === 'function' ? await createTransitionService(conn).recover(m, c.command, c.key) : await createTransitionService(conn).mutate(m, c.command, c.key)
         // 앱은 응답 중 요청 번호 · 기록 ID · 상태만 돌려준다(판 · 시각은 검사만 한다)
         same = c.raw.data && { requestKey: c.raw.data.requestKey, recordId: c.raw.data.recordId, state: c.raw.data.state }
-        if (out && Object.hasOwn(out, 'legacyDutyReceipt')) same = { ...same, legacyDutyReceipt: false }   // PR #60: 복구가 아닌 접수는 false
+        // PR #60: 복구가 아닌 접수는 false. PR #63: 옛 SQL 이 받은 공식 담당 인계(apply · pending)를 같은 번호로 복구하면 true(이전 접수 결과로 표시)
+        if (out && Object.hasOwn(out, 'legacyDutyReceipt')) same = { ...same, legacyDutyReceipt: isRecovery && c.command?.kind === 'apply' && !!c.dutyRecord && c.raw?.data?.state === 'pending' }
         break
       default: bump(skipped, '알 수 없는 종류 ' + t); continue
     }
@@ -115,9 +122,9 @@ for (const c of captures) {
       if (c.dutyRecord) { if (!c.raw && t === 'tr_mutate') forcedBoundary++; note(t).ok++; bump(note(t).codes, 'NOT_READY(경계)'); bump(boundary, `${t}:${c.command?.kind ?? 'preview'}:공식 담당:${want ?? 'ok'}`); if (st) blocked.add(st); continue }
       // 공식 담당이 없는 수락 · 반려까지 막는 것은 PR #60 결함 C8(#59 에서는 되던 협업 · 수합 인계 수락이 옛 SQL 에서 막힘)
       if (st) blocked.add(st)
-      if (want) { note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 앱이 먼저 NOT_READY(#60 결함 C8, 공식 담당 없음)`); continue }
+      if (want) { note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 앱이 먼저 NOT_READY(C8, 공식 담당 없음)`); continue }
       note(t).bad++; defectC8.push(`${t}(${c.command?.kind}) 공식 담당 없음 · 서버 ok · 앱 NOT_READY`)
-      console.log(`  불일치 [#60 결함 C8] ${t}(${c.command?.kind}) 서버=ok 앱=NOT_READY: ${JSON.stringify(c.raw).slice(0, 300)}`); continue
+      console.log(`  불일치 [C8] ${t}(${c.command?.kind}) 서버=ok 앱=NOT_READY: ${JSON.stringify(c.raw).slice(0, 300)}`); continue
     }
     if (want && got === want) {
       note(t).ok++; bump(note(t).codes, want)
@@ -132,6 +139,7 @@ for (const c of captures) {
   }
 }
 
+console.log(`  INFO 업무 전환 같은 번호 재전송 ${recovered}건은 service.recover 로 넣음`)
 for (const k of ['ops_get', 'ops_mutate', 'home', 'tr_list', 'tr_preview', 'tr_mutate']) {
   const v = tally[k]
   check(`앱 ${k}: 서버 응답을 앱이 같은 결과로 해석 (${v ? Object.entries(v.codes).map(([a, b]) => a + ' ' + b).join(', ') : '0건'})`, !!v && v.bad === 0 && (v.codes.ok ?? 0) > 0, v)
@@ -223,7 +231,7 @@ check(`서버 업무 거절 코드(${BUSINESS.join(' · ')})가 시험에 나오
 if (Object.keys(localDiff).length) console.log('WARN 앱이 보내기 전에 막았지만 코드가 다름(앱 쪽 확인): ' + JSON.stringify(localDiff))
 check('건너뛴 응답 없음 외(workhub_context 없는 계정 · 봉투 없는 예외만)', Object.keys(skipped).every(k => k.includes('workhub_context') || k.includes('봉투 없는 예외')), skipped)
 if (Object.keys(boundary).length) console.log('INFO 옛 SQL × 새 앱 호환 경계(새 앱이 공식 담당 인계를 보내기 전에 NOT_READY 로 막음 — 안전 쪽): ' + JSON.stringify(boundary))
-if (defectC8.length) console.log(`예상하지 못한 불일치 [#60 결함 C8] ${defectC8.length}건: ${defectC8.join(' | ')}`)
+if (defectC8.length) console.log(`예상하지 못한 불일치 [C8] ${defectC8.length}건: ${defectC8.join(' | ')}`)
 console.log(`앱이 보내기 전에 같은 코드로 먼저 막은 요청 ${localFirst}건 · 건너뜀 ${JSON.stringify(skipped)}`)
 console.log(`합계: PASS ${pass} · FAIL ${fail}`)
 process.exit(fail ? 1 : 0)

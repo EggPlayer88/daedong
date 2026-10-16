@@ -12,5 +12,6 @@ P8_APP_SRC=<PR #60 checkout> ESBUILD=<esbuild 경로, 없으면 저장소 node_m
 | `app_contract_p8.ts` | IV. 남긴 응답을 PR #60 `createTransitionService` · `createSupabaseSchoolAdminServer` · `createCooperationAdapter` · `createSupabaseMessagingServer` · `createTeachingRelationsAdapter` 와 parser 에 넣어 봄. `commandHash` = 앱 `csvHash(relationCanonical())` 비교 포함 |
 
 - `P8_APP_SRC` 가 없으면 IV 는 FAIL 로 셉니다(통과로 세지 않음).
-- 앱 대조의 `[#60 결함 C8]` 불일치는 앱 쪽 결함 재현입니다(서버 ok, 앱이 보내기 전에 `NOT_READY`). 숨기지 않고 FAIL 로 셉니다 — `../../integration/재검토_PR60.md` 1절.
+- 업무 전환 쓰기 중 같은 요청 번호가 앞서 나온 것은 기존 요청의 복구로 보고 앱 `service.recover` 로, 처음 보내는 것은 `service.mutate` 로 넣습니다(PR #63 계약). 복구 건은 새 명령으로도 한 번 더 넣어 새 명령의 준비 조건 보호를 INFO 로 셉니다.
+- 앱 대조의 `[C8]` 불일치는 앱 쪽 결함 재현입니다(서버 ok, 앱이 보내기 전에 `NOT_READY`). 숨기지 않고 FAIL 로 셉니다. PR #60 · #62 에서 나오고 #63 에서 0 — `../../integration/재검토_PR60.md` 1절.
 - 1~8단계를 한 DB 에서 보는 시험은 `../../integration/test/run_integration.sh` 입니다(이 시험과 따로).

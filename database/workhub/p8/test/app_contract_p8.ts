@@ -54,7 +54,13 @@ const states: Record<string, number> = {}
 let localFirst = 0, hashChecked = 0, cooperationNotices = 0, modernLists = 0, legacyLists = 0
 const unexpected: string[] = []
 
+// 같은 요청 번호가 앞서 나온 업무 전환 쓰기 = 기존 요청의 복구(앱 service.recover). 처음 보내는 것은 새 명령(service.mutate).
+// 복구 건은 새 명령으로도 한 번 더 넣어 보아, 새 명령의 준비 조건(관리자 확인 모듈 등)이 그대로인지 따로 센다(PR #63).
+const seenKeys = new Set<string>(), asNew: Record<string, number> = {}
+let recovered = 0
 for (const c of captures) {
+  const isRecovery = c.kind === 'tr_mutate' && seenKeys.has(c.key)
+  if (c.kind === 'tr_mutate') seenKeys.add(c.key)
   if (!c.context) { bump(skipped, `${c.kind}: workhub_context 가 없는 계정`); continue }
   if (!c.raw && /^[A-Z_]+$/.test(String(c.error)) && !String(c.error).startsWith('P8_TEST')) { bump(skipped, `${c.kind}: 봉투 없는 예외 ${c.error}(앱 연결 단계 · 서버 쪽만 확인)`); continue }
   if (c.kind === 'message_mutate' || c.kind === 'teaching_mutate' || c.kind === 'catalog' || c.kind === 'course' || c.kind === 'coop_get') continue   // 앞 단계 계약 — 각 단계 시험이 본다
@@ -82,9 +88,18 @@ for (const c of captures) {
         out = await createTransitionService(connection(c, sent, { workhub_school_transition_list: c.listRaw })).preview(m, c.plan); same = c.raw.data; break
       case 'tr_mutate':
         expected = { name: 'workhub_school_transition_mutate', args: { p_command: c.command, p_request_key: c.key, p_member_id: m } }
-        out = await createTransitionService(connection(c, sent, { workhub_school_transition_list: c.listRaw })).mutate(m, c.command, c.key)
+        if (isRecovery) {
+          recovered++
+          try { await createTransitionService(connection(c, [], { workhub_school_transition_list: c.listRaw })).mutate(m, c.command, c.key); bump(asNew, `${c.command?.kind}:보냄`) }
+          catch (e) { bump(asNew, `${c.command?.kind}:${code(e)}`) }
+        }
+        { const svc = createTransitionService(connection(c, sent, { workhub_school_transition_list: c.listRaw }))
+          // 거절 · 결과 모름은 종류 없이 'tr_mutate' / 'tr_recover' 로 센다(아래 강제 실패 확인이 이 이름을 본다)
+          if (isRecovery) t = 'tr_recover'
+          out = isRecovery ? await svc.recover(m, c.command, c.key) : await svc.mutate(m, c.command, c.key)
+          t = `${isRecovery ? 'tr_recover' : 'tr_mutate'}:${c.command?.kind}` }
         same = { requestKey: c.raw.data.requestKey, recordId: c.raw.data.recordId, state: c.raw.data.state, legacyDutyReceipt: false }
-        t = `tr_mutate:${c.command?.kind}`; bump(states, 'receipt:' + c.raw.data.state); break
+        bump(states, 'receipt:' + c.raw.data.state); break
       case 'sa_get':
         expected = { name: 'workhub_school_admin_get', args: { p_school_year: c.year ?? null, p_member_id: m } }
         out = await createSupabaseSchoolAdminServer(connection(c, sent)).get(m, c.year ?? undefined); same = c.raw.data; break
@@ -129,9 +144,9 @@ for (const c of captures) {
       note(t).ok++; bump(note(t).codes, want); bump(localDiff, `${t}: 서버 ${want} · 앱이 먼저 ${got}`)
     } else {
       note(t).bad++
-      // #60 결함 C8: 공식 담당이 없는 수락 · 반려(또는 완료된 요청의 재조회)도 관리자 확인 모듈이 켜져 있어야만 보낸다
+      // C8(#60 결함, #63 에서 수정 주장): 공식 담당이 없는 수락 · 반려(또는 같은 번호 복구)도 관리자 확인 모듈이 켜져 있어야만 보낸다
       const c8 = c.kind === 'tr_mutate' && !want && got === 'NOT_READY' && c.command?.kind !== 'apply' && c.command?.kind !== 'cancel' && c.listRaw?.data?.dutyApproval !== 'admin_review_v1'
-      unexpected.push(`${c8 ? '[#60 결함 C8] ' : ''}${t}(${c.command?.kind ?? ''}) 서버=${want ?? 'ok'} 앱=${got} 보냄=${sent.map(x => x.name).join('+')} 목록 dutyApproval=${JSON.stringify(c.listRaw?.data?.dutyApproval)}`)
+      unexpected.push(`${c8 ? '[C8] ' : ''}${t}(${c.command?.kind ?? ''}) 서버=${want ?? 'ok'} 앱=${got} 보냄=${sent.map(x => x.name).join('+')} 목록 dutyApproval=${JSON.stringify(c.listRaw?.data?.dutyApproval)}`)
       console.log(`  불일치 ${t} 서버=${want ?? 'ok'} 앱=${got} 보냄=${sent.length} ${(e as Error)?.message ?? ''}: ${JSON.stringify(c.raw).slice(0, 300)} 명령=${JSON.stringify(c.command ?? c.intent ?? c.plan ?? null).slice(0, 300)}`)
     }
   }
@@ -143,6 +158,8 @@ for (const c of captures.filter(c => c.kind === 'rel_commit' && c.raw?.ok === fa
   if (h !== c.raw.commandHash) { console.log('  지문 다름', c.raw.code, h, c.raw.commandHash); fail++ } else hashChecked++
 }
 for (const [k, v] of Object.entries(tally).sort()) check(`앱 ${k}: 서버 응답을 앱이 같은 결과로 해석 (${Object.entries(v.codes).map(([a, b]) => a + ' ' + b).join(', ')})`, v.bad === 0, v)
+check(`업무 전환 같은 번호 재전송 ${recovered}건은 service.recover 로 넣음(새 명령은 service.mutate)`, recovered > 0, recovered)
+console.log(`  INFO 복구 건을 새 명령(service.mutate)으로 보냈다면: ${JSON.stringify(asNew)} — 새 명령의 준비 조건 보호(복구와 별개)`)
 check(`관계 확정 거절 봉투의 commandHash = 앱 csvHash(relationCanonical(명령)) — ${hashChecked}건(한글 사유 포함)`, hashChecked >= 3, hashChecked)
 check(`업무 전환 목록: 옛 모양 ${legacyLists}건 · 새 모양 ${modernLists}건을 모두 앱이 읽음`, legacyLists > 0 && modernLists > 0)
 const want = ['duty:awaiting_admin:1', 'duty:pending:2', 'duty:accepted:3', 'duty:rejected:2', 'duty:rejected:3', 'duty:cancelled:2', 'receipt:awaiting_admin', 'receipt:pending', 'receipt:accepted', 'receipt:completed']
