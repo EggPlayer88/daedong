@@ -626,12 +626,14 @@ def main():
     check('O42 complete 뒤 실물이 바뀜(object id 다름) → rejected object_changed, 내려받지 않음', isinstance(od, dict) and od['data']['state'] == 'rejected'
           and scalar('select reject_code from workhub.message_files where id=%s', (fd['id'],)) == 'object_changed', od)
     raw_e = hwpx('크기 다름 E')
-    ie = data(t[21].prepare(meta('크기 다름 E.hwpx', raw_e), raw=raw_e))
+    ke = key()
+    ie = data(t[21].prepare(meta('크기 다름 E.hwpx', raw_e), ke, raw=raw_e))
     put_object(T[21], ie['path'], raw_e, size=len(raw_e) + 5)
     check('O43 Storage 가 기록한 크기 ≠ 신고값 → complete 에서 rejected(object_size_mismatch)', data(t[21].complete(ie['fileId'], key()))['state'] == 'rejected'
           and scalar('select reject_code from workhub.message_files where id=%s', (ie['fileId'],)) == 'object_size_mismatch')
     raw_f = hwpx('만료 F')
-    i_f = data(t[21].prepare(meta('만료 F.hwpx', raw_f), raw=raw_f))
+    kf = key()
+    i_f = data(t[21].prepare(meta('만료 F.hwpx', raw_f), kf, raw=raw_f))
     call(run, "alter table workhub.message_files disable trigger message_files_guard")
     call(run, "update workhub.message_files set upload_expires_at = clock_timestamp() - interval '1 second' where id=%s", (i_f['fileId'],))
     call(run, "alter table workhub.message_files enable trigger message_files_guard")
@@ -639,6 +641,23 @@ def main():
     check('O45 기한 지난 예약: 상태 rejected 로 보이고 complete 가 upload_expired 로 고정 · 그 예약 재조회는 CONFLICT',
           data(t[21].status(i_f['fileId']))['state'] == 'rejected' and data(t[21].complete(i_f['fileId'], key()))['state'] == 'rejected'
           and scalar('select reject_code from workhub.message_files where id=%s', (i_f['fileId'],)) == 'upload_expired')
+
+    # prepare 의 CONFLICT = "이 요청 번호로 만든 예약이 끝났다(rejected)" — 앱이 이것만 보고 "새로 첨부해 주세요"로 바꿔도 되는지(Codex C5).
+    # 같은 번호 · 같은 내용일 때만 나온다(내용이 다르면 IDEMPOTENCY_CONFLICT 가 먼저). 다른 RPC 의 CONFLICT · 시간 초과에는 이 뜻이 없다.
+    for nm, who_k, f_meta, fid, why in [
+        ('기본 확인 거절', fbad['kp'], meta('깨진 파일.hwpx', raw_bad), fbad['id'], scalar('select reject_code from workhub.message_files where id=%s', (fbad['id'],))),
+        ('실물 바뀜', fd['kp'], meta('바꿔치기 D.hwpx', raw_d), fd['id'], 'object_changed'),
+        ('Storage 크기 다름', ke, meta('크기 다름 E.hwpx', raw_e), ie['fileId'], 'object_size_mismatch'),
+        ('업로드 기한 지남', kf, meta('만료 F.hwpx', raw_f), i_f['fileId'], 'upload_expired')]:
+        r_on, r_off = t[21].prepare(f_meta, who_k, replay=True), t[21].prepare(f_meta, who_k, replay=False)
+        check(f'O45c 끝난 예약({nm} · {why}) 같은 번호 재조회 → replay_only 참 · 거짓 모두 CONFLICT, 상태 조회는 rejected, 새 예약 안 생김',
+              ecode(r_on) == 'CONFLICT' and ecode(r_off) == 'CONFLICT' and data(t[21].status(fid))['state'] == 'rejected'
+              and scalar("select count(*) from workhub.message_file_requests where action='prepare' and request_key=%s", (who_k,)) == 1, (r_on, r_off))
+    r_idem = t[21].prepare({**meta('만료 F.hwpx', raw_f), 'name': '만료 F2.hwpx'}, kf, replay=True)
+    check('O45d 끝난 예약 번호 + 다른 내용 → IDEMPOTENCY_CONFLICT(CONFLICT 아님 — 끝난 예약 뜻으로 읽으면 안 됨)', ecode(r_idem) == 'IDEMPOTENCY_CONFLICT', r_idem)
+    r_new = t[21].prepare(meta('만료 F.hwpx', raw_f), key(), raw=raw_f)
+    check('O45e 같은 파일을 새 요청 번호로 다시 첨부 → 새 예약(awaiting_upload, 다른 fileId)', ok(r_new) and data(r_new)['state'] == 'awaiting_upload'
+          and data(r_new)['fileId'] != i_f['fileId'], r_new)
 
     # 첨부해서 보내기
     th_a = None

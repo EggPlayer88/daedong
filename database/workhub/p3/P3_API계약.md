@@ -51,6 +51,28 @@ PR #48 앱(`5f3d40f`)의 `apps/workhub/src/messaging/*.ts` 와 `apps/main/api/me
 | `workhub_message_file_access` | `p_member_id, p_thread_id, p_message_id, p_file_id` | `{threadId, messageId, file, bucket, path, ownerMemberId, storageObjectId}` — URL 없음 |
 
 - FileStatus `{fileId, state: awaiting_upload·pending_basic·ready·rejected, storageObjectId, file}`(`file` 은 ready 일 때만)
+
+### `workhub_message_file_prepare` 의 `CONFLICT` = 끝난 첨부 예약 (앱 C5)
+
+`prepare` 가 `CONFLICT` 를 돌려주는 경우는 **하나뿐**입니다: 같은 소속 · 같은 `p_request_key` · **같은 내용**(`name` · `claimedBytes` · `claimedSha256`)으로 이미 만든 예약이 있고,
+그 파일의 지금 상태(`status` 와 같은 계산)가 `rejected` 일 때. `p_replay_only` 가 참이든 거짓이든 같습니다. 새 예약 · 기록은 만들지 않습니다.
+
+| 끝난 이유(`reject_code`, 앱에는 안 보임) | 언제 |
+|---|---|
+| 기본 확인 거절(`FILE_STRUCTURE_INVALID` 등) | 서버 확인이 거절 |
+| `object_changed` · `object_owner_mismatch` · `object_size_mismatch` | 확인 전 · 중에 실물이 바뀜, 주인 · 크기 다름 |
+| `upload_expired` | 30분 안에 올리지 않음(`complete` 전이어도 상태는 `rejected` 로 보임) |
+
+앱이 할 일: 파일 ID 를 알면 `status(fileId)` 로 `rejected` 를 확인해 "이 파일은 확인을 통과하지 못했습니다. 새로 첨부해 주세요", 모르면(응답 유실) 같은 문구.
+다시 첨부는 **새 요청 번호**로(같은 번호는 계속 `CONFLICT`).
+
+**이 뜻을 다른 데 쓰지 않습니다.**
+- 같은 번호 · **다른 내용** → `IDEMPOTENCY_CONFLICT`(먼저 검사). 끝난 예약이라는 뜻이 아님.
+- `complete` · `status` 는 끝난 파일에 `CONFLICT` 가 아니라 FileStatus `rejected` 를 돌려줌.
+- `workhub_message_mutate` 의 `CONFLICT`(판 · 명단 다름, 붙인 파일이 `ready` 아님 · 이미 다른 전송에 붙음)는 다른 뜻 — 첨부를 새로 하라는 신호로 읽지 않음.
+- **시간 초과 · 연결 끊김 · 응답 없음은 `CONFLICT` 가 아님** → 결과를 모름(`RESULT_UNKNOWN`). 같은 번호로 `p_replay_only=true` 재조회해서 판단.
+
+시험: `run_p3.py` O45c(거절 4종 × replay 참 · 거짓) · O45d(다른 내용 → `IDEMPOTENCY_CONFLICT`) · O45e(새 번호 → 새 예약) · O49(전송의 `CONFLICT` 는 별개).
 - 이름 규칙(앱과 같음): `.hwpx`, 앞뒤 공백·제어·방향 제어·`<>:"/\|?*`·예약 이름 없음, 240바이트 이하
 - 업로드는 Storage 로 직접(`upsert:false`). 정책이 예약된 경로 · 본인 · 기한 안 · 아직 없는 객체만 허용합니다
 - 내려받기는 Storage 로 직접. 정책이 대화 참여자 · 지금 자격 · 첨부 모듈 켜짐을 다시 확인합니다
