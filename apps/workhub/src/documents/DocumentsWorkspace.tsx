@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { activeAt } from '../domain'
@@ -49,9 +49,16 @@ function DocumentsWorkspaceScope({ connection, member, date, revision = 0, onNav
   const [items, setItems] = useState<LibraryDocument[]>([]), [cursor, setCursor] = useState<string | null>(null), [canShare, setCanShare] = useState(false), [selected, setSelected] = useState<LibraryDocument | null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<DocumentsService['history']>>>([]), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [archived, setArchived] = useState(false), [refresh, setRefresh] = useState(0)
   const [discard, setDiscard] = useState(false), [conflict, setConflict] = useState<LibraryDocument | null>(null), [proposal, setProposal] = useState<DocumentAiDraft | null>(null), [beforeAi, setBeforeAi] = useState<DocumentInput | null>(null)
-  const alive = useRef(true), writing = useRef(false), generation = useRef(0), bodyInput = useRef<HTMLTextAreaElement>(null), heading = useRef<HTMLHeadingElement>(null), seenAi = useRef<string | null>(null)
+  const alive = useRef(true), writing = useRef(false), generation = useRef(0), bodyInput = useRef<HTMLTextAreaElement>(null), heading = useRef<HTMLHeadingElement>(null), seenAi = useRef<string | null>(null), focusEditor = useRef(false)
   const enabled = activeAt(member, date), dirty = editing && canonical(input) !== canonical(original ? inputOf(original) : blankDocument(date)), locked = busy || Boolean(pending)
   const navigationLocked = busy || Boolean(conflict) || (!folded && (dirty || Boolean(pending)))
+  // 입력을 시작한 뒤 예약된 초점 이동이 제목 입력을 가로채지 않도록 DOM 반영 직후 한 번만 실행한다.
+  useLayoutEffect(() => {
+    if (!focusEditor.current || !editing || folded) return
+    focusEditor.current = false
+    bodyInput.current?.focus()
+    bodyInput.current?.scrollIntoView({ block: 'center' })
+  })
   useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current++ } }, [service])
   useEffect(() => { onNavigationLockChange?.(navigationLocked); return () => onNavigationLockChange?.(false) }, [navigationLocked, onNavigationLockChange])
   useEffect(() => { memory.save(dirty || pending ? { input, original, origin, editing, pending, folded } : undefined, dirty || Boolean(pending)) }, [input, original, origin, editing, pending, folded, dirty, memory])
@@ -87,9 +94,9 @@ function DocumentsWorkspaceScope({ connection, member, date, revision = 0, onNav
   }
   function begin(document: LibraryDocument | null, copy = false) {
     if (locked || dirty) return
+    focusEditor.current = true
     setInput(document ? { ...inputOf(document), title: copy ? `${document.title} (사본)` : document.title, visibility: copy ? 'private' : document.visibility } : blankDocument(date)); setOriginal(copy ? null : document); setOrigin(copy && document ? { documentId: document.id, version: document.version } : document?.origin ?? null)
     setEditing(true); setFolded(false); setDiscard(false); setConflict(null); setError(''); setBeforeAi(null)
-    setTimeout(() => { bodyInput.current?.focus(); bodyInput.current?.scrollIntoView({ block: 'center' }) }, 0)
   }
   function close() {
     if (locked) return

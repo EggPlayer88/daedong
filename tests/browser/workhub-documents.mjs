@@ -22,9 +22,35 @@ const browser=await launchBrowser(),context=await browser.newContext({viewport:{
 page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5179/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div></body></html>'})})
 let count=0
 async function start(scenario=''){await page.goto('http://127.0.0.1:5179/documents');await page.evaluate(value=>window.scenario=value,scenario);await page.addScriptTag({content:bundle.outputFiles[0].text});if(scenario==='missing')await page.getByRole('button',{name:'문서함 다시 연결'}).waitFor();else await page.getByRole('button',{name:scenario.startsWith('guided')?/참가 확인 양식/:/행사 원본/}).waitFor()}
-async function test(name,run,scenario=''){await start(scenario);try{await run()}catch(error){console.error(await page.locator('body').innerText());throw error}count++;console.log('  ✓ '+name)}
+async function test(name,run,scenario=''){await start(scenario);try{await run()}catch(error){console.error(await page.locator('body').innerText());console.error(await page.evaluate(()=>({scenario:window.scenario,calls:window.calls,pending:window.pending.count(),active:window.document.activeElement?.id,fields:[...window.document.querySelectorAll('form[aria-label="문서 초안 작성"] input, form[aria-label="문서 초안 작성"] textarea')].map(field=>({id:field.id,value:field.value,valid:field.validity.valid}))})));throw error}count++;console.log('  ✓ '+name)}
 async function compose(){await page.getByRole('button',{name:'새 문서 작성'}).click();await page.getByLabel('문서 제목',{exact:true}).fill('내 행사 안내');await page.getByLabel('문서 본문',{exact:true}).fill('기록할 본문')}
 try{
+ await test('초기 초점이 늦어져도 제목 입력을 가로채지 않고 원래 문서 요청을 보존한다',async()=>{
+  // 작업 큐가 늦어진 상황을 만들되 저장·입력 이벤트는 실제 브라우저 경로로 보낸다.
+  await page.evaluate(()=>{
+   const nativeTimer=window.setTimeout,queued=[];
+   window.documentFocusTimer=nativeTimer;
+   window.releaseDocumentFocus=()=>{window.setTimeout=nativeTimer;for(const run of queued.splice(0))run()};
+   window.setTimeout=function(run,delay,...args){if(delay===0&&typeof run==='function')return nativeTimer(()=>queued.push(()=>run(...args)),delay);return nativeTimer(run,delay,...args)};
+  });
+  await page.getByRole('button',{name:'새 문서 작성'}).click();
+  await page.getByRole('form',{name:'문서 초안 작성'}).waitFor();
+  await page.evaluate(()=>new Promise(resolve=>window.documentFocusTimer(resolve,0)));
+  await page.getByLabel('문서 제목',{exact:true}).focus();
+  await page.evaluate(()=>window.releaseDocumentFocus());
+  await page.keyboard.insertText('내 행사 안내');
+  await page.getByLabel('문서 본문',{exact:true}).fill('기록할 본문');
+  assert.equal(await page.getByLabel('문서 제목',{exact:true}).inputValue(),'내 행사 안내');
+  await page.getByRole('button',{name:'초안 저장',exact:true}).click();
+  await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).waitFor();
+  const original=await page.evaluate(()=>window.calls[0]);
+  assert.equal(original.command.input.title,'내 행사 안내');
+  assert.equal(original.command.input.body,'기록할 본문');
+  assert.equal(await page.evaluate(()=>window.pending.count()),1);
+  await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).click();
+  await page.getByText(/문서 v1을 저장했습니다/).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.calls[1]),original);
+ },'unknown')
  await test('AI 제안은 비교 후 입력에만 반영하고 저장은 명시적으로 한다',async()=>{await compose();await page.evaluate(()=>window.setAi(false));await page.getByRole('button',{name:'이 초안을 입력에 반영'}).click();assert.equal(await page.getByLabel('문서 본문',{exact:true}).inputValue(),'AI가 작성한 검토용 초안');assert.equal(await page.evaluate(()=>window.calls.length),0);await page.getByRole('button',{name:'AI 반영 전 입력으로 되돌리기'}).click();assert.equal(await page.getByLabel('문서 본문',{exact:true}).inputValue(),'기록할 본문');await page.getByRole('button',{name:'초안 저장',exact:true}).click();await page.getByText(/문서 v1을 저장했습니다/).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),0)})
  await test('저장 결과불명은 원문·원래 키를 접기와 재마운트 후 보존한다',async()=>{await compose();await page.getByRole('button',{name:'초안 저장',exact:true}).click();await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),1);await page.getByRole('button',{name:'입력 접고 문서함 보기',exact:true}).click();await page.evaluate(()=>window.unmount());await page.getByRole('heading',{name:'문서함',exact:true}).waitFor({state:'detached'});await page.evaluate(()=>window.remount());await page.getByRole('button',{name:'보관한 문서 입력 보기'}).click();assert.equal(await page.getByLabel('문서 본문',{exact:true}).inputValue(),'기록할 본문');await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).click();await page.getByText(/문서 v1을 저장했습니다/).waitFor();const calls=await page.evaluate(()=>window.calls);assert.deepEqual(calls[0],calls[1])},'unknown')
  await test('서버 준비 오류 중 미확정 저장은 읽기 전용 접수증으로 복구한다',async()=>{await compose();await page.getByRole('button',{name:'초안 저장',exact:true}).click();await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).waitFor();await page.evaluate(()=>{window.listFailed=true;window.refresh()});await page.getByRole('button',{name:'문서함 다시 연결'}).waitFor();await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).click();await page.getByText(/문서 v1을 저장했습니다/).waitFor();assert.equal(await page.evaluate(()=>window.recovered),true);assert.equal(await page.evaluate(()=>window.calls.length),1)},'unknown')
