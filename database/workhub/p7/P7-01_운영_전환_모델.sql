@@ -26,6 +26,11 @@ BEGIN
   IF to_regclass('workhub_private.p2_installs') IS NULL THEN RAISE EXCEPTION 'P7 중단: P2-01·02(2026-10-16.1, 일정·협업)를 먼저 적용해 주세요.'; END IF;
   EXECUTE $q$SELECT count(*) FROM workhub_private.p2_installs WHERE batch IN ('P2-01','P2-02') AND release = '2026-10-16.1'$q$ INTO v_n;
   IF v_n <> 2 THEN RAISE EXCEPTION 'P7 중단: P2-01·02(2026-10-16.1, 일정·협업)를 먼저 적용해 주세요.'; END IF;
+  -- 협업 인계는 P2 이력의 '넘겨준 사람' 칸에 기록한다(2026-10-16 통합 검토로 P2-01 에 추가된 칸).
+  IF (SELECT count(*) FROM pg_attribute WHERE attrelid = 'workhub.cooperation_history'::regclass AND NOT attisdropped
+        AND attname IN ('previous_recipient_membership_id','previous_recipient_account_id')) <> 2 THEN
+    RAISE EXCEPTION 'P7 중단: 적용된 P2-01 이 협업 이력의 넘겨준 사람 칸(previous_recipient_*)이 없는 옛 판입니다. PR #50 의 최신 P2-01 인지 확인해 주세요.';
+  END IF;
   IF to_regclass('workhub_private.p3_installs') IS NULL THEN RAISE EXCEPTION 'P7 중단: P3-01·02(2026-10-16.1, 메신저·알림)를 먼저 적용해 주세요.'; END IF;
   EXECUTE $q$SELECT count(*) FROM workhub_private.p3_installs WHERE batch IN ('P3-01','P3-02') AND release = '2026-10-16.1'$q$ INTO v_n;
   IF v_n <> 2 THEN RAISE EXCEPTION 'P7 중단: P3-01·02(2026-10-16.1, 메신저·알림)를 먼저 적용해 주세요.'; END IF;

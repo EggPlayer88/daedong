@@ -676,8 +676,11 @@ BEGIN
              version = version + 1, updated_at = clock_timestamp()
        WHERE id = r.id RETURNING * INTO r;
       PERFORM workhub_private.p7_change_off();
-      INSERT INTO workhub.cooperation_history (school_id, request_id, version, action, actor_membership_id, actor_account_id, comment)
-      VALUES (r.school_id, r.id, r.version, 'handover', p_ctx.membership_id, p_ctx.account_id, left('업무 인계 수락(' || t.id || ')', 2000));
+      -- 처리자 = 인계를 수락한 새 받는 사람, 넘겨준 사람 = 이전 받는 사람. 과거 행은 고치지 않는다(P2 이력 계약).
+      INSERT INTO workhub.cooperation_history (school_id, request_id, version, action, actor_membership_id, actor_account_id,
+          previous_recipient_membership_id, previous_recipient_account_id, comment)
+      VALUES (r.school_id, r.id, r.version, 'handover', p_ctx.membership_id, p_ctx.account_id,
+          t.requester_membership_id, t.requester_account_id, left('업무 인계 수락(' || t.id || ')', 2000));
     ELSE
       IF NOT workhub_private.p7_bridge() OR NOT workhub_private.p7_r1_readable() THEN RAISE EXCEPTION 'NOT_READY'; END IF;
       SELECT * INTO c FROM workhub.collections WHERE school_id = p_ctx.school_id AND id = i.resource_id FOR UPDATE;
