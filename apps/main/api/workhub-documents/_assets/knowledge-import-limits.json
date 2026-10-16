@@ -1,0 +1,6 @@
+{
+  "profile": "hwpx_text_v1",
+  "maxCharacters": 100000,
+  "maxBlocks": 1500,
+  "maxResponseBytes": 2097152
+}

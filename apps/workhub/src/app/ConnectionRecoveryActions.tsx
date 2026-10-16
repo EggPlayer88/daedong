@@ -4,11 +4,12 @@ interface Props {
   hasDraft: boolean
   hasPending: boolean
   announcement: string
+  legacyHomeHref: string
   onDiscard: () => boolean
 }
 
 // 연결 화면에서도 이동 보호의 이유와 가능한 다음 행동을 함께 보여 준다.
-export function ConnectionRecoveryActions({ hasDraft, hasPending, announcement, onDiscard }: Props) {
+export function ConnectionRecoveryActions({ hasDraft, hasPending, announcement, onDiscard, legacyHomeHref }: Props) {
   const [confirming, setConfirming] = useState(false)
   const [message, setMessage] = useState('')
   const discardButton = useRef<HTMLButtonElement>(null)
@@ -32,7 +33,7 @@ export function ConnectionRecoveryActions({ hasDraft, hasPending, announcement, 
       return
     }
     setConfirming(false)
-    setMessage('임시 입력을 버렸습니다. 이제 상단의 기존 업무 메뉴로 이동할 수 있습니다.')
+    setMessage('임시 입력을 버렸습니다. 이제 기존 업무 메뉴로 이동할 수 있습니다.')
   }
 
   return <section aria-label="연결 중 입력 보관과 이동" style={{ marginTop: 24 }}>
@@ -54,6 +55,6 @@ export function ConnectionRecoveryActions({ hasDraft, hasPending, announcement, 
         <button type="button" className="primary" onClick={discard}>입력 버리고 메뉴 이용</button>
       </div>
     </section> : <button ref={discardButton} type="button" className="secondary" onClick={() => { setMessage(''); setConfirming(true) }}>임시 입력 버리기</button>)}
-    {(hasDraft || hasPending) && <p style={{ marginTop: 16 }}><a href="/" target="_blank" rel="noopener noreferrer">기존 메뉴를 새 탭에서 이용</a></p>}
+    {(hasDraft || hasPending) && <p style={{ marginTop: 16 }}><a href={legacyHomeHref} target="_blank" rel="noopener noreferrer">기존 메뉴를 새 탭에서 이용</a></p>}
   </section>
 }

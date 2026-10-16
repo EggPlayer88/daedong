@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict'
+import {loadBrowserModule} from './helpers/load-browser-module.mjs'
+const {api,service,render}=await loadBrowserModule(`import * as api from '../apps/workhub/src/knowledge/contracts';import {createKnowledgeService} from '../apps/workhub/src/knowledge/adapter';import {KnowledgeWorkspace} from '../apps/workhub/src/knowledge/KnowledgeWorkspace';import {renderToStaticMarkup} from 'react-dom/server';export{api};export const service=createKnowledgeService;export const render=p=>renderToStaticMarkup(<KnowledgeWorkspace {...p}/>);`)
+const member={id:'m',schoolId:'s',userId:'u',name:'교사',role:'teacher',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}
+const input={title:'학교 규정',kind:'regulation',body:'제3조 원문',locator:'제3조 2항',effectiveFrom:'2026-03-01',effectiveThrough:'2027-02-28'}
+const source={...input,id:'doc',schoolId:'s',authorMemberId:'m',version:1,status:'published',updatedAt:'2026-10-16T00:00:00Z'}
+const envelope=data=>({contract:'knowledge.v1',schoolId:'s',memberId:'m',data})
+const list=()=>({items:[source],nextCursor:null,canManage:false})
+function setup(){let user='u',current=structuredClone(member),raw=envelope(list());const calls=[];const connection={info:()=>({memberships:[current],schools:[{id:'s'}],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:user,approved:true}),rpcVerified:async(name,args)=>{calls.push({name,args:structuredClone(args)});return structuredClone(raw)}};return{connection,calls,client:service(connection),setUser:v=>user=v,setRaw:v=>raw=v,setMember:v=>current=v}}
+const rejects=(run,code)=>assert.rejects(run,error=>error.code===code)
+let count=0
+async function test(name,run){await run();count++;console.log('  ✓ '+name)}
+await test('규정 적용일과 게시 상태를 함께 보고 현재 자료를 고른다',()=>{assert.equal(api.sourceEffective(source,'2026-10-16'),true);assert.equal(api.sourceEffective({...source,status:'draft'},'2026-10-16'),false);assert.equal(api.sourceEffective(source,'2027-03-01'),false)})
+await test('실제 없는 날짜·뒤집힌 기간·근거 없는 원문을 저장하지 않는다',()=>{for(const change of [{effectiveFrom:'2026-02-30'},{effectiveThrough:'2026-01-01'},{locator:''},{body:' '}])assert.throws(()=>api.sourceInput({...input,...change}))})
+await test('다른 학교 자료와 중복 ID 목록은 읽기에 넘기지 않는다',()=>{assert.throws(()=>api.knowledgeSource({...source,schoolId:'other'},member));assert.throws(()=>api.knowledgeList({...list(),items:[source,source]},member))})
+await test('일반 교사에게 다른 사람의 미게시 초안이 섞이면 전체 응답을 거부한다',()=>{assert.throws(()=>api.knowledgeList({...list(),items:[{...source,status:'draft',authorMemberId:'other'}]},member));assert.equal(api.knowledgeList({...list(),canManage:true,items:[{...source,status:'draft',authorMemberId:'other'}]},member).items.length,1)})
+await test('검색과 커서는 RPC로 보내고 미연결을 빈 목록으로 바꾸지 않는다',async()=>{const x=setup();assert.deepEqual(await x.client.list('m','규정'),list());assert.equal(x.calls[0].name,'workhub_knowledge_list');assert.equal(x.calls[0].args.p_query,'규정');x.connection.rpcVerified=async()=>{throw Error('internal secret')};await rejects(()=>x.client.list('m',''),'QUERY_FAILED')})
+await test('응답 대기 동안 다른 계정으로 바뀌면 자료를 폐기한다',async()=>{const x=setup();x.connection.rpcVerified=async()=>{x.setUser('other');return envelope(list())};await rejects(()=>x.client.list('m',''),'CANCELLED')})
+await test('범위 봉투의 학교·회원·계약 및 추가 속성을 검사한다',async()=>{for(const change of [{schoolId:'other'},{memberId:'other'},{contract:'future'},{unexpected:true}]){const x=setup();x.setRaw({...envelope(list()),...change});await rejects(()=>x.client.list('m',''),'INVALID_RESPONSE')}})
+await test('불명 저장 재전송은 같은 키와 명령을 보내며 다른 내용은 로컬에서 막는다',async()=>{const x=setup(),command={kind:'create',input};x.setRaw(null);await rejects(()=>x.client.mutate('m',command,'same-key-1'),'RESULT_UNKNOWN');x.setRaw(envelope({id:'new',version:1,requestKey:'same-key-1',recordedAt:'2026-10-16T00:00:00Z'}));await x.client.mutate('m',command,'same-key-1');assert.deepEqual(x.calls[0].args,x.calls[1].args);await rejects(()=>x.client.mutate('m',{kind:'create',input:{...input,title:'다름'}},'same-key-1'),'IDEMPOTENCY_CONFLICT');assert.equal(x.calls.length,2)})
+await test('다른 요청의 접수증이나 잘못된 버전으로 저장 성공을 알리지 않는다',async()=>{const x=setup();x.setRaw(envelope({id:'doc',version:1,requestKey:'update-key',recordedAt:'2026-10-16T00:00:00Z'}));await rejects(()=>x.client.mutate('m',{kind:'update',id:'doc',expectedVersion:1,input},'update-key'),'RESULT_UNKNOWN')})
+await test('화면은 서버 조회 전 실제 자료나 가짜 저장 성공을 표시하지 않는다',()=>{const x=setup(),html=render({connection:x.connection,member,date:'2026-10-16'});assert.match(html,/학교 자료/);assert.match(html,/불러오는 중/);assert.doesNotMatch(html,/제3조 원문|저장했습니다/)})
+console.log('학교 지식 검증 '+count+'건 통과')

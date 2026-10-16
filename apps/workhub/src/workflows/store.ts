@@ -1,6 +1,8 @@
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
 import { normalizeTaskInput } from '../tasks/validation'
+import type { CollectionFileRepository, FileReference } from '../files/contracts'
+import { normalizeFilePolicy, validateFileReferences } from '../files/validation'
 import { WorkflowError, type AnswerInput, type CollectionDraft, type CollectionInput, type CollectionRequest, type CollectionUnit, type CommandReceipt, type PersonalTask, type Submission, type TaskInput, type TaskStatus, type WorkflowContext, type WorkflowSnapshot } from './types'
 
 const clone = <T,>(value: T): T => structuredClone(value)
@@ -36,7 +38,14 @@ function collectionInput(input: unknown): CollectionInput {
     if (!object(value) || !strings(value.contributorMemberIds)) return fail('INVALID_INPUT', '제출 단위 구성원을 확인해 주세요.')
     return { label: text(value.label, '단위 이름', 100, true), responsibleMemberId: text(value.responsibleMemberId, '책임자', 200, true), contributorMemberIds: [...new Set(value.contributorMemberIds)] }
   }) }
-  if (!result.textLabel && !result.numberLabel) return fail('INVALID_INPUT', '글 또는 숫자 문항을 하나 이상 설정해 주세요.')
+  if (input.fileCollection !== undefined) {
+    if (!object(input.fileCollection) || typeof input.fileCollection.required !== 'boolean') return fail('INVALID_INPUT', '파일 수합 설정을 확인해 주세요.')
+    try {
+      const policy = normalizeFilePolicy(input.fileCollection.policy)
+      result.fileCollection = { policy, required: input.fileCollection.required, templates: validateFileReferences(input.fileCollection.templates, policy) }
+    } catch { return fail('INVALID_INPUT', '파일 수합의 형식·개수·크기와 양식 정보를 확인해 주세요.') }
+  }
+  if (!result.textLabel && !result.numberLabel && !result.fileCollection) return fail('INVALID_INPUT', '글 또는 숫자 문항을 하나 이상 설정해 주세요.')
   if ((result.textRequired && !result.textLabel) || (result.numberRequired && !result.numberLabel)) return fail('INVALID_INPUT', '필수 문항에는 질문을 입력해 주세요.')
   if (result.reviewMode === 'required' && !result.reviewerMemberId) return fail('INVALID_INPUT', '검토자를 지정해 주세요.')
   if (new Set(result.units.map(unit => unit.label)).size !== result.units.length) return fail('INVALID_INPUT', '제출 단위 이름이 중복되었습니다.')
@@ -44,15 +53,35 @@ function collectionInput(input: unknown): CollectionInput {
 }
 function answerInput(input: unknown, request: CollectionRequest, complete: boolean): AnswerInput {
   if (!object(input) || (input.number !== null && (typeof input.number !== 'number' || !Number.isFinite(input.number)))) return fail('INVALID_INPUT', '숫자는 유한한 수로 입력해 주세요. 미입력과 0은 다릅니다.')
-  const result = { text: text(input.text, '글 응답', 5000), number: input.number as number | null }
+  const result: AnswerInput = { text: text(input.text, '글 응답', 5000), number: input.number as number | null }
   if ((!request.textLabel && result.text) || (!request.numberLabel && result.number !== null)) return fail('INVALID_INPUT', '설정되지 않은 문항에는 응답할 수 없습니다.')
   if (complete && ((request.textRequired && !result.text) || (request.numberRequired && result.number === null))) return fail('INVALID_INPUT', '필수 응답을 입력한 뒤 제출해 주세요.')
+  if (request.fileCollection) {
+    try { result.files = validateFileReferences(input.files === undefined ? [] : input.files, request.fileCollection.policy) }
+    catch { return fail('INVALID_INPUT', '첨부 파일의 형식·개수·크기를 확인해 주세요.') }
+    if (complete && request.fileCollection.required && !result.files.length) return fail('INVALID_INPUT', '필수 파일을 첨부한 뒤 제출해 주세요.')
+  } else if (input.files !== undefined && (!Array.isArray(input.files) || input.files.length)) return fail('INVALID_INPUT', '파일 수합으로 설정되지 않은 요청에는 파일을 첨부할 수 없습니다.')
   return result
 }
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
   if (object(value)) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
   return JSON.stringify(value) ?? 'null'
+}
+
+function resultFileReferences(kind: CommandReceipt['kind'], value: unknown): FileReference[] {
+  if (!object(value)) return []
+  let refs: unknown
+  if (kind === 'request') {
+    if (value.fileCollection === undefined) return []
+    if (!object(value.fileCollection)) return fail('INVALID_INPUT', '저장된 양식 파일 참조의 형식이 올바르지 않습니다.')
+    refs = value.fileCollection.templates
+  } else if (kind === 'draft' || kind === 'submission') {
+    if (value.files === undefined) return []
+    refs = value.files
+  } else return []
+  if (!Array.isArray(refs)) return fail('INVALID_INPUT', '저장된 파일 참조의 형식이 올바르지 않습니다.')
+  return refs as FileReference[]
 }
 
 export function validateWorkflowSnapshot(raw: unknown): WorkflowSnapshot {
@@ -106,9 +135,19 @@ export function validateWorkflowSnapshot(raw: unknown): WorkflowSnapshot {
   return result
 }
 
-export function createWorkflowStore({ members, date, snapshot, onChange }: WorkflowContext & { snapshot?: unknown; onChange?: (snapshot: WorkflowSnapshot) => void }) {
+export function createWorkflowStore({ members, date, snapshot, onChange, files }: WorkflowContext & { snapshot?: unknown; onChange?: (snapshot: WorkflowSnapshot) => void; files?: CollectionFileRepository }) {
   let context = contextValue({ members, date })
   let state = snapshot === undefined ? empty() : validateWorkflowSnapshot(snapshot)
+  const repository = () => files ?? fail('INVALID_STATE', '파일 보관소가 연결되지 않았습니다. 현재 창의 파일 수합 환경을 확인해 주세요.')
+  if (state.requests.some(request => request.fileCollection)) repository()
+  // 현재 목록에서 교체된 양식·초안도 과거 멱등 접수 결과가 참조하므로 함께 보호한다.
+  const initialFiles = [
+    ...state.requests.flatMap(value => resultFileReferences('request', value)),
+    ...state.drafts.flatMap(value => resultFileReferences('draft', value)),
+    ...state.submissions.flatMap(value => resultFileReferences('submission', value)),
+    ...state.receipts.flatMap(receipt => resultFileReferences(receipt.kind, receipt.result)),
+  ]
+  if (initialFiles.length) repository().retainSaved?.(initialFiles)
   let revision = 0
   const listeners = new Set<() => void>()
   const signal = () => { revision += 1; listeners.forEach(listener => listener()) }
@@ -162,8 +201,12 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
     const next = clone(state)
     const result = apply(next, member)
     next.receipts.push({ key: requestKey, payload: fingerprint, kind, resourceId: result.id, result: clone(result) })
-    // 외부 영속 저장이 실패하면 이 메모리 원본과 접수 결과도 바뀌지 않는다.
-    try { onChange?.(clone(next)) } catch (error) { return fail('STORAGE_FAILED', error instanceof Error ? error.message : '브라우저 저장에 실패했습니다. 입력은 유지했습니다.') }
+    const savedFiles = resultFileReferences(kind, result)
+    // 저장이 실패한 새 파일은 회수 가능하게 두고, 화면의 정리가 시작되기 전에 성공 원본을 보호한다.
+    try {
+      onChange?.(clone(next))
+      if (savedFiles.length) repository().retainSaved?.(savedFiles)
+    } catch (error) { return fail('STORAGE_FAILED', error instanceof Error ? error.message : '브라우저 저장에 실패했습니다. 입력은 유지했습니다.') }
     state = next; signal()
     return clone(result)
   }
@@ -179,6 +222,22 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
     }
   }
   const now = () => `${context.date}T09:00:00+09:00`
+  function checkTemplates(request: CollectionInput, schoolId: string, managerMemberId: string) {
+    if (request.fileCollection) repository().check(request.fileCollection.templates, request.fileCollection.policy, { schoolId, memberIds: [managerMemberId] })
+  }
+  function checkAnswerFiles(request: CollectionRequest, unit: CollectionUnit, answer: AnswerInput) {
+    if (request.fileCollection) repository().check(answer.files ?? [], request.fileCollection.policy, { schoolId: unit.schoolId, memberIds: unit.members.map(member => member.id) })
+  }
+  // 수합에서 고정한 참조만 읽으며 읽기 도중 소속 회수·초안 변경·초기화가 생기면 결과를 버린다.
+  async function readFile(memberId: string, select: () => { ref: FileReference; schoolId: string; memberIds: string[] }, abort?: AbortSignal): Promise<Blob> {
+    const member = memberFor(memberId), scope = select()
+    const original = canonical(scope.ref)
+    const blob = await repository().read(clone(scope.ref), { schoolId: scope.schoolId, memberIds: [...scope.memberIds] }, abort)
+    const currentMember = memberFor(memberId), current = select()
+    if (abort?.aborted || currentMember.userId !== member.userId || currentMember.schoolId !== member.schoolId || canonical(current.ref) !== original) return fail('FORBIDDEN', '파일을 읽는 동안 소속 또는 원본이 변경되었습니다. 다시 확인해 주세요.')
+    return blob
+  }
+  const selectedFile = (refs: FileReference[] | undefined, fileId: string): FileReference => refs?.find(ref => ref.id === fileId) ?? fail('NOT_FOUND', '해당 원본에서 첨부 파일을 찾을 수 없습니다.')
   function reviewState(data: WorkflowSnapshot, submission: Submission | undefined) {
     if (!submission) return 'not_started' as const
     if (submission.reviewMode === 'none') return 'not_required' as const
@@ -199,13 +258,22 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
     },
     listCollections(memberId: string) { const member = memberFor(memberId); return clone(state.requests.filter(request => { try { requestFor(state, member, request.id); return true } catch { return false } }).sort((a, b) => a.dueDate.localeCompare(b.dueDate))) },
     getCollection(memberId: string, requestId: string) { return clone(requestFor(state, memberFor(memberId), requestId)) },
+    getTemplateFile(memberId: string, requestId: string, fileId: string, abort?: AbortSignal) {
+      return readFile(memberId, () => { const request = requestFor(state, memberFor(memberId), requestId); return { ref: selectedFile(request.fileCollection?.templates, fileId), schoolId: request.schoolId, memberIds: [request.managerMemberId] } }, abort)
+    },
+    getDraftFile(memberId: string, unitId: string, fileId: string, abort?: AbortSignal) {
+      return readFile(memberId, () => { const member = memberFor(memberId), unit = unitFor(state, member, unitId); if (!unit.members.some(value => value.id === member.id)) return fail('FORBIDDEN', '제출 전 초안은 지정된 공동 작성자만 볼 수 있습니다.'); return { ref: selectedFile(state.drafts.find(value => value.unitId === unitId)?.files, fileId), schoolId: unit.schoolId, memberIds: unit.members.map(value => value.id) } }, abort)
+    },
+    getSubmissionFile(memberId: string, unitId: string, submissionId: string, fileId: string, abort?: AbortSignal) {
+      return readFile(memberId, () => { const unit = unitFor(state, memberFor(memberId), unitId); return { ref: selectedFile(state.submissions.find(value => value.unitId === unitId && value.id === submissionId)?.files, fileId), schoolId: unit.schoolId, memberIds: unit.members.map(value => value.id) } }, abort)
+    },
     createCollection(memberId: string, input: CollectionInput, key: string) {
       const value = collectionInput(input)
-      return command(memberId, 'create-collection', key, value, 'request', (data, member) => { validateMembers(value, member.schoolId); const result: CollectionRequest = { ...value, reviewerMemberId: value.reviewMode === 'none' ? '' : value.reviewerMemberId, id: id(), schoolId: member.schoolId, managerMemberId: member.id, status: 'draft', version: 1, publishedAt: null }; data.requests.push(result); return result })
+      return command(memberId, 'create-collection', key, value, 'request', (data, member) => { validateMembers(value, member.schoolId); checkTemplates(value, member.schoolId, member.id); const result: CollectionRequest = { ...value, reviewerMemberId: value.reviewMode === 'none' ? '' : value.reviewerMemberId, id: id(), schoolId: member.schoolId, managerMemberId: member.id, status: 'draft', version: 1, publishedAt: null }; data.requests.push(result); return result })
     },
     updateCollection(memberId: string, requestId: string, input: CollectionInput, expectedVersion: number, key: string) {
       const value = collectionInput(input)
-      return command(memberId, 'update-collection', key, { requestId, value, expectedVersion }, 'request', (data, member) => { const request = requestFor(data, member, requestId); if (request.managerMemberId !== member.id) return fail('FORBIDDEN', '요청 관리자만 수정할 수 있습니다.'); checkVersion(request.version, expectedVersion); if (request.status !== 'draft') return fail('INVALID_STATE', '게시 후 문항과 대상은 고정됩니다.'); validateMembers(value, member.schoolId); Object.assign(request, value, { reviewerMemberId: value.reviewMode === 'none' ? '' : value.reviewerMemberId, version: request.version + 1 }); return request })
+      return command(memberId, 'update-collection', key, { requestId, value, expectedVersion }, 'request', (data, member) => { const request = requestFor(data, member, requestId); if (request.managerMemberId !== member.id) return fail('FORBIDDEN', '요청 관리자만 수정할 수 있습니다.'); checkVersion(request.version, expectedVersion); if (request.status !== 'draft') return fail('INVALID_STATE', '게시 후 문항과 대상은 고정됩니다.'); validateMembers(value, member.schoolId); checkTemplates(value, member.schoolId, member.id); if (!value.fileCollection) delete request.fileCollection; Object.assign(request, value, { reviewerMemberId: value.reviewMode === 'none' ? '' : value.reviewerMemberId, version: request.version + 1 }); return request })
     },
     publishCollection(memberId: string, requestId: string, expectedVersion: number, key: string) {
       return command(memberId, 'publish-collection', key, { requestId, expectedVersion }, 'request', (data, member) => {
@@ -214,6 +282,7 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
         checkVersion(request.version, expectedVersion)
         if (request.status !== 'draft') return fail('INVALID_STATE', '이미 게시한 수합입니다.')
         validateMembers(request, member.schoolId)
+        checkTemplates(request, member.schoolId, request.managerMemberId)
         for (const input of request.units) data.units.push({ id: id(), requestId, schoolId: member.schoolId, label: input.label, responsibleMemberId: input.responsibleMemberId, members: [...new Set([input.responsibleMemberId, ...input.contributorMemberIds])].map(memberId => { const item = memberFor(memberId); return { id: item.id, userId: item.userId, name: item.name } }), version: 1, currentSubmissionId: null, effectiveSubmissionId: null, withdrawnSubmissionIds: [], correctionUntil: '', correctionReason: '' })
         request.status = 'published'; request.publishedAt = now(); request.version += 1
         return request
@@ -222,7 +291,7 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
     listUnits(memberId: string, requestId: string) { const member = memberFor(memberId); requestFor(state, member, requestId); return clone(state.units.filter(unit => unit.requestId === requestId).filter(unit => { try { unitFor(state, member, unit.id); return true } catch { return false } })) },
     getDraft(memberId: string, unitId: string) { const member = memberFor(memberId); const unit = unitFor(state, member, unitId); if (!unit.members.some(value => value.id === member.id)) return fail('FORBIDDEN', '제출 전 초안은 지정된 공동 작성자만 볼 수 있습니다.'); return clone(state.drafts.find(value => value.unitId === unitId) ?? null) },
     saveDraft(memberId: string, unitId: string, input: AnswerInput, expectedVersion: number, key: string) {
-      return command(memberId, 'save-draft', key, { unitId, input, expectedVersion }, 'draft', (data, member) => { const unit = unitFor(data, member, unitId); if (!unit.members.some(value => value.id === member.id)) return fail('FORBIDDEN', '공동 작성자만 초안을 편집할 수 있습니다.'); const request = requestFor(data, member, unit.requestId); const value = answerInput(input, request, false); const existing = data.drafts.find(value => value.unitId === unitId); checkVersion(existing?.version ?? 0, expectedVersion); if (existing) { Object.assign(existing, value, { lastEditorMemberId: member.id, version: existing.version + 1 }); return existing } const result: CollectionDraft = { ...value, id: id(), unitId, lastEditorMemberId: member.id, version: 1 }; data.drafts.push(result); return result })
+      return command(memberId, 'save-draft', key, { unitId, input, expectedVersion }, 'draft', (data, member) => { const unit = unitFor(data, member, unitId); if (!unit.members.some(value => value.id === member.id)) return fail('FORBIDDEN', '공동 작성자만 초안을 편집할 수 있습니다.'); const request = requestFor(data, member, unit.requestId); const value = answerInput(input, request, false); checkAnswerFiles(request, unit, value); const existing = data.drafts.find(value => value.unitId === unitId); checkVersion(existing?.version ?? 0, expectedVersion); if (existing) { Object.assign(existing, value, { lastEditorMemberId: member.id, version: existing.version + 1 }); return existing } const result: CollectionDraft = { ...value, id: id(), unitId, lastEditorMemberId: member.id, version: 1 }; data.drafts.push(result); return result })
     },
     submit(memberId: string, unitId: string, draftVersion: number, expectedVersion: number, key: string, correctionReason = '') {
       return command(memberId, 'submit', key, { unitId, draftVersion, expectedVersion, correctionReason }, 'submission', (data, member) => {
@@ -233,6 +302,7 @@ export function createWorkflowStore({ members, date, snapshot, onChange }: Workf
         if (!draft) return fail('INVALID_STATE', '응답 초안을 먼저 저장해 주세요.')
         checkVersion(draft.version, draftVersion)
         const answers = answerInput(draft, request, true)
+        checkAnswerFiles(request, unit, answers)
         const previous = data.submissions.filter(value => value.unitId === unitId)
         const reason = text(correctionReason, '정정 사유', 1000, previous.length > 0)
         // 보완 기한은 지연 판정 기준이다. 해당 단위의 미완료 보완 응답까지 정정 기간으로 차단하지 않는다.

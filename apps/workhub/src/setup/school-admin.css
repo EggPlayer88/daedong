@@ -1,0 +1,23 @@
+.school-admin { max-width: 1120px; margin-inline: auto; }
+.school-admin-toolbar,.school-admin-actions { display:flex; align-items:center; flex-wrap:wrap; gap:.7rem; }
+.school-admin-toolbar { margin-block:1rem; justify-content:space-between; }
+.school-admin-toolbar select { min-height:42px; padding:.5rem; border:1px solid #cbd5e1; border-radius:.5rem; font:inherit; background:#fff; color:#202936; }
+.school-admin-tabs { display:flex; border-bottom:1px solid #dce3eb; gap:.3rem; margin-block:1rem; }
+.school-admin-tabs button { padding:.8rem 1rem; border:0; border-bottom:3px solid transparent; background:transparent; font:inherit; color:#526274; cursor:pointer; }
+.school-admin-tabs button[aria-current] { border-bottom-color:#315d9a; color:#1f477c; font-weight:700; }
+.school-admin-tabs button:disabled { opacity:.6; cursor:default; }
+.school-admin-list,.school-admin-changes { padding:0; margin:0; list-style:none; }
+.school-admin-list li { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding:1rem 0; border-bottom:1px solid #e2e8f0; }
+.school-admin-list li>div,.school-admin-changes li { display:grid; gap:.4rem; min-width:0; overflow-wrap:anywhere; }
+.school-admin-list span { color:#526274; }
+.school-admin-editor { padding-block:1rem; }
+.school-admin-editor:focus,.school-admin [tabindex="-1"]:focus { outline:2px solid #315d9a; outline-offset:4px; }
+.school-admin-changes li { padding:.8rem; border-bottom:1px solid #dce3eb; }
+.school-admin-changes span,.school-admin-conflict { overflow-wrap:anywhere; }
+.school-admin-conflict { margin:1rem 0; border:1px solid #cbd5e1; border-radius:.6rem; padding:1rem; }
+.school-admin-conflict label { display:block; margin:.7rem 0; }
+.school-admin-conflict input { margin-right:.5rem; }
+.school-admin textarea { resize:vertical; min-height:5rem; font:inherit; padding:.7rem; border:1px solid #cbd5e1; border-radius:.5rem; }
+.school-admin .setup-field input[readonly] { background:#f1f5f9; }
+.school-admin-summary-groups { overflow-wrap:anywhere; }
+@media(max-width:600px) { .school-admin-list li { align-items:flex-start; flex-direction:column; } .school-admin-tabs { flex-wrap:wrap; } .school-admin-tabs button { flex:1; padding:.7rem .4rem; } .school-admin-actions { align-items:stretch; } .school-admin-actions button { flex:1; } }

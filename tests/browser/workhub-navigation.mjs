@@ -6,20 +6,20 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const workspaceSource = `
   import React, {useEffect,useState} from 'react';
-  import {useNavigate} from 'react-router-dom';
+  import {Link,useNavigate} from 'react-router-dom';
   import {useWorkspaceNavigation} from './apps/workhub/src/app/navigation';
   const scenario=window.scenario;
   export default function Workspace(){
-    const [scope,setScope]=useState();const [draft,setDraft]=useState('');const [pending,setPending]=useState(false);
+    const [scope,setScope]=useState();const [draft,setDraft]=useState('');const [pending,setPending]=useState(null);const [parked,setParked]=useState(false);
     const [allowed,setAllowed]=useState(['home','calendar','tasks']); const navigate=useNavigate();
-    const nav=useWorkspaceNavigation({allowedPages:allowed,scopeKey:scope,locked:!!draft||pending});
+    const nav=useWorkspaceNavigation({allowedPages:allowed,scopeKey:scope,locked:!parked&&(!!draft||!!pending),exitLocked:!!draft||!!pending});
     useEffect(()=>{scenario.mounts++;return()=>scenario.unmounts++},[]);
-    scenario.scope=value=>setScope(value);scenario.pending=value=>setPending(value);scenario.allowed=value=>setAllowed(value);
+    scenario.scope=value=>setScope(value);scenario.pending=value=>setPending(value?{key:'original-request-key',command:{kind:'create',input:{title:'보관할 요청 본문'}}}:null);scenario.allowed=value=>setAllowed(value);scenario.parked=value=>setParked(value);scenario.request=pending;
     scenario.forceExit=()=>navigate('/legacy');scenario.current=nav.page;
     return <section aria-label="작업실"><h1>{nav.page}</h1><nav>{allowed.map(page=><button key={page} onClick={()=>nav.requestNavigate(page)}>{page}</button>)}</nav>
       <label>미저장 내용<input aria-label="미저장 내용" value={draft} onChange={event=>setDraft(event.target.value)}/></label>
       <button onClick={()=>nav.requestAction(()=>{scenario.actions++})}>학교 선택 action</button>
-      <p role="status">{nav.announcement}</p><a href="#main-content">본문으로 건너뛰기</a><a href="#fragment-target">다른 본문 위치</a><div id="main-content" tabIndex={-1}>본문</div><div id="fragment-target">두 번째 본문</div>
+      <p role="status">{nav.announcement}</p><Link to="/workhub?view=tasks&keep=school#main-content">업무실 내 업무 링크</Link><a href="/legacy" target="_blank" rel="noopener noreferrer">기존 메뉴 새 탭</a><a href="#main-content">본문으로 건너뛰기</a><a href="#fragment-target">다른 본문 위치</a><div id="main-content" tabIndex={-1}>본문</div><div id="fragment-target">두 번째 본문</div>
     </section>
   }
 `
@@ -177,6 +177,42 @@ try {
   assert.equal(await page.getByLabel('미저장 내용').inputValue(), '여러 항목 뒤로가기도 보존')
   assert.equal(await page.evaluate(() => window.scenario.unmounts), 0)
   await report('여러 history 항목 이동과 연속 뒤로가기에서도 초안·마운트 유지')
+  await page.getByLabel('미저장 내용').fill('')
+  await boot('/legacy')
+  await page.getByRole('link', { name: '신축 업무실', exact: true }).click(); await screen('tasks')
+  await page.getByLabel('미저장 내용').fill('접은 뒤에도 보관할 수합 입력')
+  await page.evaluate(() => { window.scenario.pending(true); window.scenario.parked(true) })
+  await page.waitForFunction(() => window.scenario.request?.key === 'original-request-key')
+  const savedRequest = await page.evaluate(() => window.scenario.request)
+  await click('calendar'); await screen('calendar')
+  await page.getByRole('link', { name: '업무실 내 업무 링크', exact: true }).click(); await screen('tasks')
+  await page.goBack(); await screen('calendar')
+  await page.goBack(); await screen('tasks')
+  const parkedUrl = page.url()
+  await page.getByRole('link', { name: '기존 메뉴', exact: true }).click(); await screen('tasks')
+  assert.equal(page.url(), parkedUrl)
+  assert.match(await page.locator('p[role=status]').textContent(), /보관한 입력이나 확인할 저장 요청/)
+  await page.goBack(); await page.waitForURL(parkedUrl); await screen('tasks')
+  assert.equal(await page.evaluate(() => window.scenario.unmounts), 0)
+  assert.equal(await page.getByLabel('미저장 내용').inputValue(), '접은 뒤에도 보관할 수합 입력')
+  assert.deepEqual(await page.evaluate(() => window.scenario.request), savedRequest)
+  await click('학교 선택 action')
+  assert.equal(await page.evaluate(() => window.scenario.actions), 0)
+  assert.equal(await page.evaluate(() => { const event=new Event('beforeunload',{cancelable:true});dispatchEvent(event);return event.defaultPrevented }), true)
+  // 새 탭 클릭은 이 문서를 떠나지 않는다. 팝업 생성 대신 capture 이후 기본 동작만 막아 허용 여부를 확인한다.
+  assert.equal(await page.getByRole('link', { name: '기존 메뉴 새 탭', exact: true }).evaluate(element => {
+    let blocked
+    element.addEventListener('click', event => { blocked=event.defaultPrevented;event.preventDefault() }, { once:true })
+    element.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,composed:true}))
+    return blocked
+  }), false)
+  await report('보관 중 내부 메뉴·링크·POP 허용, 바깥 SPA·POP·학교 변경 차단, 입력·기존 요청 본문과 키 유지')
+  await page.getByLabel('미저장 내용').fill('')
+  await page.evaluate(() => window.scenario.pending(false))
+  await page.waitForFunction(() => window.scenario.request === null)
+  await page.getByRole('link', { name: '기존 메뉴', exact: true }).click(); await screen('기존 화면')
+  assert.equal(await page.evaluate(() => { const event=new Event('beforeunload',{cancelable:true});dispatchEvent(event);return event.defaultPrevented }), false)
+  await report('보관 작업을 해결하면 기존 메뉴 이동과 새로고침 잠금 해제')
 } catch (error) {
   console.error(error); console.error((await page.locator('body').innerText()).slice(-2500)); process.exitCode=1
 } finally { await context.close(); await browser.close() }

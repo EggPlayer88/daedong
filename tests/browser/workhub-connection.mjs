@@ -14,12 +14,17 @@ const bundle=buildSync({stdin:{contents:`
   const tasks=createWorkflowStore({members:fixtureData.memberships,date:fixtureData.basisDate});
   tasks.createTask('gaon-soyeon',{title:'가온 학교의 내 업무',notes:'합성 개인 자료',dueDate:'2026-10-19'},'seed-gaon');
   tasks.createTask('nuri-soyeon',{title:'누리 학교의 내 업무',notes:'다른 학교 합성 자료',dueDate:''},'seed-nuri');
-  let taskDelay=0;
-  const scenario={contextCalls:0,taskCalls:0,token(){callback({user:{id:uid}})},switchUser(id){uid=id;callback({user:{id:uid}})},deny(){denied=true},profileError(value){profileError=value},delay(value){delay=value},taskDelay(value){taskDelay=value}};
+  let taskDelay=0,collectionReason=null;
+  const scenario={contextCalls:0,taskCalls:0,token(){callback({user:{id:uid}})},switchUser(id){uid=id;callback({user:{id:uid}})},deny(){denied=true},profileError(value){profileError=value},delay(value){delay=value},taskDelay(value){taskDelay=value},collectionReason(value){collectionReason=value}};
   window.scenario=scenario;
   const services={async getSession(){return {user:{id:uid}}},async fetchMyProfile(id){if(delay) await new Promise(r=>setTimeout(r,delay));if(profileError)throw new Error('synthetic query failure');return {id,name:'가상 기존 회원',email:'synthetic@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}},onAuthStateChange(cb){callback=cb;return()=>{callback=()=>{}}},async signInWithGoogle(){},async signOut(){},async rpc(name,args){
     if(name==='workhub_context'){scenario.contextCalls++;return {error:null,data:{...memory.info(),schoolLabels:Object.fromEntries(fixtureData.schools.map(s=>[s.id,relationLabels]))}}}
     if(denied)return {data:null,error:{message:'INACTIVE_MEMBERSHIP'}};
+    if(name==='workhub_collection_basic_readiness'){
+      if(!collectionReason)return {data:null,error:{code:'PGRST202',message:'synthetic missing function'}};
+      const actor=fixtureData.memberships.find(member=>member.id===args.p_member_id);
+      return {error:null,data:{contractVersion:1,schoolId:actor.schoolId,memberId:actor.id,data:{available:false,reason:collectionReason,policy:null}}};
+    }
     if(name.startsWith('workhub_task_')){
       scenario.taskCalls++;
       if(taskDelay)await new Promise(resolve=>setTimeout(resolve,taskDelay));
@@ -34,7 +39,7 @@ const bundle=buildSync({stdin:{contents:`
     return {data:null,error:{message:'UNKNOWN'}};
   }};
   const connection=createSupabaseConnection(services);
-  createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>);
+  createRoot(document.getElementById('root')).render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={connection}/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser()
 const context=await browser.newContext({viewport:{width:1280,height:1000}})
@@ -101,6 +106,18 @@ try{
   await page.getByText('누리 학교의 내 업무',{exact:true}).waitFor()
   assert.equal(await page.getByText('가온 학교의 내 업무',{exact:true}).count(),0)
   console.log('  ✓ 학교 전환 중 이전 학교의 늦은 업무 조회 결과 폐기')
+  await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'자료 수합',exact:true}).click()
+  await page.getByText('현재 연결을 확인하지 못해 원인을 확정할 수 없습니다.',{exact:true}).waitFor()
+  await page.getByText('수합 목록을 확인하지 못했습니다. 빈 목록으로 판단하지 않습니다. 다시 확인해 주세요.',{exact:true}).waitFor()
+  assert.equal(await page.getByText('현재 볼 수 있는 수합이 없습니다.',{exact:true}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'새 수합 만들기',exact:true}).count(),0)
+  console.log('  ✓ 현재 R0에 수합 RPC가 없어도 빈 목록·저장 성공으로 바꾸지 않고 별도 안내한다')
+  await page.evaluate(()=>window.scenario.collectionReason('verification_missing'))
+  await page.getByRole('button',{name:'연결과 원본 다시 확인',exact:true}).click()
+  await page.getByText('HWPX 파일의 기본 확인 기능이 아직 연결되지 않았습니다.',{exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'새 수합 만들기',exact:true}).count(),0)
+  console.log('  ✓ 실제 연결 셸에서도 서버 파일 검사 준비 전 등록·업로드를 열지 않는다')
+  await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'내 업무',exact:true}).click()
   await page.setViewportSize({width:360,height:800})
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true)
   await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'내 업무',exact:true}).click()

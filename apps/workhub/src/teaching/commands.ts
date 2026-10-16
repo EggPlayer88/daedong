@@ -1,0 +1,29 @@
+import { studentGradeLimit } from './school-limits'
+import { TeachingError, type TeachingCommand } from './contracts'
+import { object, identifier, text, integer, date, range, boolean } from './validation'
+import { validateCriteria, validateScores } from './assessment'
+import { parseRosterCsv, safeCsv, validateActivityInput } from './csv'
+import { validateActivityCorrection } from './correction'
+import policy from './policy.json'
+function keysOnly(value:Record<string,unknown>, keys:string[]){if(Object.keys(value).some(k=>!keys.includes(k)))bad()}
+const bad=():never=>{throw new TeachingError('INVALID_INPUT','저장할 자료와 확인한 버전을 다시 확인해 주세요.')}
+export function validateCommand(value: unknown): TeachingCommand {
+  const v=object(value);const kind=v.kind
+  if(kind==='course_create') {const i=object(v.input);keysOnly(i,['label','termId','subjectId','teacherMemberIds','validFrom','validThrough']);text(i.label);identifier(i.termId);identifier(i.subjectId);range(i.validFrom,i.validThrough);if(!Array.isArray(i.teacherMemberIds)||!i.teacherMemberIds.length||i.teacherMemberIds.length>policy.limits.catalogEntries||new Set(i.teacherMemberIds).size!==i.teacherMemberIds.length)return bad();i.teacherMemberIds.forEach(identifier)}
+  else {
+    identifier(v.courseId)
+    if(kind==='roster_import'){integer(v.expectedVersion);range(v.validFrom,v.validThrough);if(!Array.isArray(v.rows)||!v.rows.length||v.rows.length>policy.limits.csvRows)return bad();const raw=safeCsv(policy.rosterHeaders,v.rows.map(raw=>{const r=object(raw);keysOnly(r,['schoolStudentKey','name','grade','classLabel','seatNumber']);text(r.schoolStudentKey);text(r.name);integer(r.grade,1,studentGradeLimit);text(r.classLabel,40);integer(r.seatNumber,1,999);return [r.schoolStudentKey,r.name,r.grade,r.classLabel,r.seatNumber]}));parseRosterCsv(raw)}
+    else if(kind==='observation_save'||kind==='counseling_save'){identifier(v.studentId);identifier(v.courseMembershipId);identifier(v.assignmentId);if(v.recordId!==null)identifier(v.recordId);integer(v.expectedVersion,v.recordId===null?0:1);if(v.recordId===null&&v.expectedVersion!==0)return bad();const i=object(v.input);keysOnly(i,['occurredOn','text','followUpOn','reason']);date(i.occurredOn);text(i.text,policy.limits.recordCharacters);if(i.followUpOn!=='')date(i.followUpOn);if(kind==='observation_save'&&i.followUpOn!=='')return bad();text(i.reason,2000,v.recordId===null);if(v.recordId!==null&&!String(i.reason).trim())return bad();if(v.sourceActivity!==undefined){if(kind!=='observation_save'||v.recordId!==null)return bad();const source=object(v.sourceActivity);keysOnly(source,['itemId','itemVersion']);identifier(source.itemId);integer(source.itemVersion)}}
+    else if(kind==='record_withdraw'){identifier(v.studentId);identifier(v.recordId);integer(v.expectedVersion);text(v.reason,2000);if(!['observation','counseling','assessment'].includes(String(v.recordKind)))return bad()}
+    else if(kind==='rubric_save'){if(v.rubricId!==null)identifier(v.rubricId);integer(v.expectedVersion,v.rubricId===null?0:1);if(v.rubricId===null&&v.expectedVersion!==0)return bad();text(v.label);validateCriteria(v.criteria)}
+    else if(kind==='assessment_save'){identifier(v.studentId);identifier(v.courseMembershipId);identifier(v.assignmentId);if(v.recordId!==null)identifier(v.recordId);integer(v.expectedVersion,v.recordId===null?0:1);if(v.recordId===null&&v.expectedVersion!==0)return bad();identifier(v.rubricId);identifier(v.rubricRevisionId);date(v.occurredOn);text(v.comment,policy.limits.recordCharacters,true);const scores=validateScores(v.scores);boolean(v.confirmed);if(v.confirmed&&scores.some(s=>s.state==='unconfirmed'))return bad();text(v.reason,2000,v.recordId===null);if(v.recordId!==null&&!String(v.reason).trim())return bad()}
+    else if(kind==='activity_review'){identifier(v.importId);identifier(v.itemId);integer(v.expectedVersion);text(v.reason,2000);if(!['hold','adopt','exclude','withdraw'].includes(String(v.disposition)))return bad();if(v.disposition==='adopt'){identifier(v.studentId);identifier(v.courseMembershipId)}else if(v.studentId!==null||v.courseMembershipId!==null)return bad()}
+    else if(kind==='activity_correct'){validateActivityCorrection(v)}
+    else if(kind==='activity_import'){identifier(v.assignmentId);integer(v.expectedVersion);validateActivityInput(v.input as never);const i=object(v.input);keysOnly(i,['label','occurredOn','questionVersion','questionSnapshot','kind','parserVersion','rawCsv','fileHash','headers','rows','supersedesImportId']);if(i.supersedesImportId!==null)return bad()}
+    else return bad()
+  }
+  // 권한·원문 범위에 없는 임의 속성을 보관하지 않도록 명령 전체를 엄격하게 제한한다.
+  const keys:Record<string,string[]>={course_create:['kind','input'],roster_import:['kind','courseId','expectedVersion','rows','validFrom','validThrough'],observation_save:['kind','courseId','studentId','courseMembershipId','assignmentId','recordId','expectedVersion','input','sourceActivity'],counseling_save:['kind','courseId','studentId','courseMembershipId','assignmentId','recordId','expectedVersion','input'],record_withdraw:['kind','recordKind','courseId','studentId','recordId','expectedVersion','reason'],rubric_save:['kind','courseId','rubricId','expectedVersion','label','criteria'],assessment_save:['kind','courseId','studentId','courseMembershipId','assignmentId','recordId','expectedVersion','rubricId','rubricRevisionId','occurredOn','comment','scores','confirmed','reason'],activity_review:['kind','courseId','importId','itemId','expectedVersion','disposition','studentId','courseMembershipId','reason'],activity_import:['kind','courseId','assignmentId','expectedVersion','input'],activity_correct:['kind','courseId','assignmentId','previousImportId','expectedVersion','expectedFileHash','input','correspondence']}
+  if(Object.keys(v).some(k=>!keys[String(kind)].includes(k)))return bad()
+  return structuredClone(v) as unknown as TeachingCommand
+}

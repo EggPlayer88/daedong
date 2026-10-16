@@ -1,0 +1,9 @@
+{
+  "profile": "hwpx_basic_v1",
+  "maxFileBytes": 31457280,
+  "maxEntries": 4096,
+  "maxExpandedBytes": 134217728,
+  "maxEntryBytes": 67108864,
+  "maxMimetypeBytes": 128,
+  "checkTimeoutMs": 55000
+}

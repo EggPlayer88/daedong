@@ -373,11 +373,17 @@
     },
     {
       "table":"workhub.usage_events","action":"alter",
+      "supersedes_constraints":[
+        "usage_events_input_tokens_not_null",
+        "usage_events_output_tokens_not_null",
+        "usage_events_cache_read_tokens_not_null",
+        "usage_events_cache_write_tokens_not_null"
+      ],
       "columns":[
-        {"name":"input_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: NULL미확인,0실제0"},
-        {"name":"output_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: 공급자가 보고한 출력량"},
-        {"name":"cache_read_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: 미확인과0분리"},
-        {"name":"cache_write_tokens","type":"bigint","nullable":true,"description":"DEFAULT 제거: 미확인과0분리"},
+        {"name":"input_tokens","type":"bigint","nullable":true,"default":null,"description":"DEFAULT 제거: NULL미확인,0실제0"},
+        {"name":"output_tokens","type":"bigint","nullable":true,"default":null,"description":"DEFAULT 제거: 공급자가 보고한 출력량"},
+        {"name":"cache_read_tokens","type":"bigint","nullable":true,"default":null,"description":"DEFAULT 제거: 미확인과0분리"},
+        {"name":"cache_write_tokens","type":"bigint","nullable":true,"default":null,"description":"DEFAULT 제거: 미확인과0분리"},
         {"name":"external_call_id","type":"text","nullable":true,"references":"workhub.job_external_calls.id","immutable":true,"description":"비동기 외부 호출과 연결"},
         {"name":"attempt_no","type":"integer","nullable":false,"immutable":true,"description":"공급자 호출 시도번호"},
         {"name":"provider_request_id","type":"text","nullable":true,"description":"실제 공급자 요청번호"},
@@ -397,12 +403,14 @@
     },
     {
       "table":"workhub.idempotency_receipts","action":"alter",
+      "supersedes_constraints":["idempotency_receipts_actor_account_id_not_null","idempotency_receipts_pkey"],
+      "supersedes_indexes":["idempotency_receipts_pkey"],
       "columns":[
         {"name":"actor_account_id","type":"text","nullable":true,"references":"workhub.accounts.id","immutable":true,"description":"사람 actor; 서비스일 때 NULL"},
         {"name":"actor_service_principal_id","type":"text","nullable":true,"references":"workhub.service_principals.id","immutable":true,"description":"서비스 actor; 사람일 때 NULL"},
         {"name":"actor_key","type":"text GENERATED ALWAYS AS (CASE WHEN actor_account_id IS NOT NULL THEN 'a:'||actor_account_id ELSE 's:'||actor_service_principal_id END) STORED","nullable":false,"immutable":true,"description":"사람/서비스 ID 충돌 없는 키"}
       ],
-      "constraints":["기존 actor_account_id 기반 PK를 PRIMARY KEY(actor_key,scope_key,operation,idem_key)로 교체","num_nonnulls(actor_account_id,actor_service_principal_id)=1","request_sha256 불변; 같은키 다른payload conflict"],
+      "constraints":["PRIMARY KEY(actor_key,scope_key,operation,idem_key); 기존 actor_account_id 기반 PK와 인덱스를 대체","num_nonnulls(actor_account_id,actor_service_principal_id)=1","request_sha256 불변; 같은키 다른payload conflict"],
       "indexes":[],
       "rules":["기존 rows의 키 대조·멱등회귀 후 전환; 운영자료 직접변경 지시 아님","재응답 시 현재 actor/scope/original resource 권한 검사","request_sha256은 클라이언트 의도의 결정적 정규화이며 명시 확인판을 포함; 서버가 최초 선택한 정책·근거판은 해당 원본 revision 또는 실행 snapshot에 고정하고 receipt의 resource/판으로 추적. 현재 정책 변경을 과거 동일키 재요청 해시에 끼워 넣지 않는다","result는 ID/판/시각만; 원문/명단/서명URL 저장 금지"],
       "read_policy":"브라우저 직접조회 금지; 명령별 현재권한을 통과한 안전 재응답",

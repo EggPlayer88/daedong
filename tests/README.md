@@ -11,24 +11,25 @@ node tests/test_gate.mjs # 단독 실행
 
 ## Python 테스트 준비 (1회)
 
-`generate.py` / `extract.py` 는 `lxml` 이 필요하다.
+`generate.py` / `extract.py`는 `lxml`이 필요하다. 수합 파일 검사에는 고정 버전의 `pypdf`·`olefile`·`Pillow`도 사용한다. 전체 시험은 다음 의존성을 함께 설치한다. 웹 API의 배포 의존성은 변경하지 않는다.
 
 ```bash
 python3 -m venv tests/.venv
-tests/.venv/bin/pip install lxml
+tests/.venv/bin/pip install -r workers/requirements.txt
 ```
 
 Windows PowerShell에서는 다음과 같이 준비한다.
 
 ```powershell
 python -m venv tests/.venv
-tests/.venv/Scripts/python.exe -m pip install lxml
+tests/.venv/Scripts/python.exe -m pip install -r workers/requirements.txt
 npm test
 ```
 
 러너는 `$PYTHON` → `tests/.venv` → `.venv` → `python3` → `python` 순으로 lxml 이 있는
 인터프리터를 찾는다. 못 찾으면 **Python 몫을 건너뛰고 그 사실을 출력한다**
 (조용히 통과시키지 않는다).
+Python이 선택된 뒤 형식별 파서가 빠져 있으면 관련 시험이 실패한다. 파서 부재를 정상 검사 결과로 계산하지 않는다.
 가상환경의 Windows `Scripts/python.exe`와 POSIX `bin/python` 경로를 모두 지원한다.
 `PYTHON`에는 실행 파일 경로 하나만 지정한다(공백·한글 허용). `py -3` 같은 명령문은 넣지 않는다.
 러너는 자식 프로세스의 작업 폴더를 저장소 루트로 고정하고 Python 출력을 UTF-8로 받는다.
@@ -83,7 +84,7 @@ npm test
 |---|---|
 | `test_workhub_browser_launcher.mjs` | 로컬 Chrome·CI 고정 Chromium·명시한 Edge 선택과 잘못된 채널 거부 |
 | `test_workhub_shell.mjs` | 연결 모드별 메뉴, 모바일 더보기, 현재 위치·본문 접근, 오류 안내의 SSR 구조 |
-| `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단 |
+| `test_workhub_navigation.mjs` | 허용 화면·주소 정규화, 학교 맥락, 클릭 분류, 이력·이동 차단, 보관 중 내부 이동과 외부 이탈 구분 |
 | `test_workhub_calendar_views.mjs` | 다일 겹침·월/주 범위·검색·추천·건수와 홈 7일 요약 |
 | `test_workhub_calendar_import.mjs` | CSV/TSV 인용·행 번호·한도·열 매핑·날짜/시간·중복·개인 공개 초안·깨진 입력 |
 | `test_workhub_calendar_import_ui.mjs` | 실제 가져오기/편집기의 SSR·고유 ID·초안 이관·문자열 이스케이프·저장 호출 없음 |
@@ -120,7 +121,7 @@ $env:PLAYWRIGHT_CHANNEL = 'chromium'
 npm run test:workhub:browser
 ```
 
-러너는 목록에 명시한 29개 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
+러너는 목록에 명시한 브라우저 파일을 순서대로 실행하고 실패한 파일도 결과에 남긴다. 실제 앱 스킨 검사용 Vite는 별도 `127.0.0.1:5187` 포트에서 직접 시작·종료하며, 이미 점유된 서버를 임의로 재사용하지 않는다. 오프라인 HTML도 전용 임시 폴더에 새로 생성한다. 과거 커밋을 전제로 하는 `workhub-scale-baseline.mjs`는 수동 성능 비교용이라 자동 회귀에서 제외한다.
 
 CI에서는 기존 필수 `test` job 안에 **실제 브라우저 회귀 검사** 단계가 있다. 화면·공통 앱·브라우저 시험·공통 시험 도우미·의존성·워크플로가 바뀌면 고정 Chromium과 한글 글꼴을 설치하고 같은 러너를 실행한다. 문서만 바뀐 경우에는 이 단계만 생략하며 `npm test`는 그대로 실행한다. 변경 경로 판정에 실패하면 브라우저 검사를 실행하는 쪽으로 처리한다. 브라우저 실패도 전체 `test` 실패이며, 화면·JSON·콘솔 결과를 `workhub-browser-results` 아티팩트에 7일간 보관한다.
 
@@ -181,5 +182,105 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 ## 연결 오류 화면의 이동·폐기 회귀
 
 - `test_workhub_connection_exit_ui.mjs`: 입력/미확정 요청별 안내와 접근성·새 탭 링크의 SSR 4건.
-- `tests/browser/workhub-connection-exit.mjs`: 바깥 BrowserRouter 링크·뒤로가기, 오류/로딩, 폐기 취소·확정, 미확정 요청·혼합 상태, 새 탭, 권한 회수, 모바일 키보드 9건. 전체 러너에 포함한다.
+- `tests/browser/workhub-connection-exit.mjs`: 바깥 BrowserRouter 링크·뒤로가기, 오류/로딩, 폐기 취소·확정, 미확정 요청·혼합 상태, 새 탭, 권한 회수, 모바일 키보드와 실제 WorkhubPage의 메뉴 주소·라우터 기준 경로 전달까지 12건. 전체 러너에 포함한다. 경로 보완은 [후속 검토 기록](../docs/workhub/25-task-view-refactor.md)에 있다.
 - 재현 절차와 Linux/PowerShell 명령은 [검토 기록](../docs/workhub/24-connection-exit.md)에 있다. 합성 RPC를 사용하며 실제 운영 서버에는 접속하지 않는다.
+
+## 기본 파일형 문서 수합
+
+- `test_workhub_file_pdf.py`: 실제 일반/압축 xref·객체 스트림·PNG predictor·페이지·JPEG·본문·원본 길이·확장량·내부 시작 보기·스크립트/첨부/외부 실행 차단 **197건**. `helpers/pdf_fixture.py`로 독립 PDF 원문을 만든다.
+- `test_workhub_file_hwp.py`: 실제 합성 CFB/HWP의 FAT/MiniFAT·레코드·압축·스크립트·이미지·빈 연결 옵션·평문 헤더·명시된 5.1 세 버전·ID/부모/번호 구조·미지원/예외 처리 **148건**. `helpers/hwp_fixture.py`는 시험용이며 실제 파일 변환기가 아니다.
+- `test_workhub_file_inspection.py`: 실제 ZIP/XML 파싱·압축 확장량/CRC·경로/관계·DTD/암호화·PDF/HWP 연결·제한된 HWPX 기본 스크립트·보호 HWPX 6종 읽기 전용 검사 **118건**.
+- `test_workhub_file_verification.py`: 실물 크기/SHA-256·정책·임대·스캐너 상태/결과 결합·응답 유실·위조 접수 차단, PDF 압축/시작 보기·HWP 5.0/5.1·HWPX의 파서→접수 연결 **76건**.
+- `test_workhub_document_corpus.py`: 공개 원본 재현 도구의 누락·크기·해시·명세/경로 오류·종료 코드·미지원 집계 구분 **8건**. 실제 공개 파일은 [별도 재현 안내](fixtures/README.md)에 따라 검사하며 CI에서 다운로드하지 않는다.
+- `test_workhub_file_cleanup.py`: 기본 후보 조회·typed 참조/hold/진행 작업/보존기간·영구 차단 티켓·실물 변경/부재·응답 유실/재확인·임대/취소 **48건**.
+- 위 Python 시험은 `npm test`에 자동 포함된다. `npm test -- workhub_file_pdf` / `workhub_file_hwp` / `workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로 각각 실행할 수 있다. `workers/requirements.txt` 의존성이 필요하다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [실행 안내](../workers/collection_files/README.md), [처리 코어 인계](../docs/workhub/36-collection-file-workers.md), [최신 형식 지원과 실제 파일 실측](../docs/workhub/37-document-format-support.md)을 참고한다. 공개 HWP 원본 7개는 아직 미지원이며 합성 HWP 통과를 일반 문서 호환 완료로 계산하지 않는다.
+
+- `test_workhub_collection_export.mjs`: 실제 연결용 ZIP 계획·전체 단위 대조·완료/현재판 선택·원문/CSV·511개 경계·권한/판 변경·실패 재시도·취소 36건.
+- `test_workhub_collection_export_ui.mjs`: 접힌 화면·정확한 선택기 라벨·준비 전 다운로드 차단·범위/한도 안내 SSR 4건.
+- `workhub-collection-export.mjs`: 실제 연결 화면의 ZIP 다운로드·파일 내용 대조·누락 응답·오류/재시도·직전 권한 확인·계정 전환·관리 입력·320px/키보드 13개. 전체 브라우저 러너에 포함하며 [ZIP 인계](../docs/workhub/35-collection-server-export.md)에 보장 범위를 기록한다.
+- `test_workhub_collection_server.mjs`: 실제 연결 어댑터의 봉투/학교/판 검증, 미확정 접수, 파일 예약·원문·다운로드 권한 재확인.
+- `test_workhub_collection_recovery.mjs`: 수합 명령의 동일 키·본문 보존, 다른 기능과의 복구 분리, 동일 소속 입력 복원.
+- `test_workhub_collection_conflict.mjs`: 수합 설정 11항목·답변 3항목의 세 버전 비교, 최신 변경 보존·명시 선택·파일/교사 교체 감지, 손상 입력·SSR 접근성 26건.
+- `test_workhub_collection_server_ui.mjs`: 서버 확인 전 정적 렌더링이 조회·빈 목록·작성 성공을 만들지 않는지, 상위 화면과 제목·본문 영역이 겹치지 않는지 확인한다.
+- `test_workhub_collection_units_editor.mjs`: 개인/공동 단위 입력 보존·중복 이름·현재 명부·역할 선택과 깨진 입력·SSR를 확인한다.
+- `test_workhub_collection_submission_summary.mjs`: 현재판/완료본·보완·철회·정확한 과거 파일 부모와 검토자 이름·이력 지연 렌더링을 확인한다.
+- `test_workhub_collection_storage.mjs`: 기존 실제 인증 연결·SDK 래퍼에 합성 전송을 주입하여 권한 회수·계정 변경·업로드 응답 유실·다운로드 원문 검사를 확인한다.
+- `workhub-collection-server.mjs`: 비동기 수합 작성·파일 대기·제출·오류 복구, 공동 단위 설정·철회/정정·대상판 고정·과거 이력·상세 실패 이탈·전체 항목 충돌 병합·미확정 요청 보관/재개를 합성 서버로 브라우저 검증한다. 전체 브라우저 러너에 포함된다.
+- `workhub-connection.mjs`는 실제 연결 셸에서 R1 함수 부재와 파일 검사 미준비를 빈 목록/성공으로 표시하지 않는지도 확인한다.
+- [서버 연결 인계](../docs/workhub/33-collection-server-connection.md), [Claude R1 SQL 요청서](../docs/workhub/32-collection-server-sql-request.md). 이 시험이 실제 Supabase/Storage 구축과 서버 파일 검사를 대신하지 않는다.
+
+- test_workhub_file_lifecycle.mjs: 미저장 파일 회수·용량 재사용·저장 실패·양식/공동 초안/과거 접수 결과 보호·초기화와 늦은 검사 응답 9개 시나리오.
+- workhub-file-controls 브라우저 검사는 개발 StrictMode에서도 선택·제거·교체·화면 종료의 수명을 확인한다.
+
+- test_workhub_collection_files.mjs: 실물·정책·취소/시간초과·메모리 회수·ZIP 원본/CRC 19건.
+- test_workhub_file_workflow.mjs: 기존 응답 호환·파일 초안/제출·읽기 경계·영구 저장 제외 20건.
+- test_workhub_file_controls.mjs: 깨진 입력·안내·접근성·파일 교체 SSR 12건.
+- test_workhub_file_export.mjs: 완료본/최신본·판 변경·CSV·권한·SSR 13건.
+- 고정 브라우저 러너에 workhub-file-controls, workhub-file-collections, workhub-file-persistence를 포함한다. 실제 파일 선택/다운로드·공동 작성·ZIP·PreviewApp 저장/새로고침을 합성 자료로 검사한다.
+- [파일 수합 인계](../docs/workhub/29-file-collections.md)에 한계와 재현 순서를 기록한다.
+
+## 수합 대상 일괄 추가·검토 이력·파일 교체
+
+- test_workhub_collection_recipients.mjs: 유효 소속·중복·기존 단위 보존·한도·이름·SSR 17건.
+- test_workhub_collection_review_history.mjs: 현재판 의견·남은 보완·철회 이력·판/학교 분리·SSR 14건.
+- workhub-collection-followup.mjs: 실제 수합 작성→게시→보완→재제출→완료, 키보드·390px·학교 전환 9시나리오.
+- workhub-file-controls.mjs: 기존 11개에 최대 개수에서 교체·오류/중복·취소·외부 목록 변경 4시나리오 추가.
+- [수합 사용성 보완 인계](../docs/workhub/30-collection-followup.md)에 재검토 순서와 서버 연결 전 한계를 기록한다.
+
+## 학교 초기 설정 준비
+
+- `test_workhub_school_setup.mjs`: 초안 파일·기간·학기·조직·학급 계약 25개.
+- `test_workhub_school_setup_ui.mjs`: 실제 폼 SSR의 고유 ID/설명 연결과 운영 미반영 안내.
+- `workhub-school-setup.mjs`: 실제 브라우저의 입력→검사→파일 왕복, 실패 시 보존, 이동 보호, 모바일/키보드. 전체 러너에 포함한다.
+- 모듈 공개와 하위 경로 현재 메뉴 표시는 `test_visibility.mjs`에서 실제 Layout으로 확인한다.
+- [사용·검토 절차](../docs/workhub/26-school-setup-preparation.md). 실제 회원이나 운영 DB를 쓰지 않는다.
+
+## 공개 배포 연결 조사 도구
+
+`test_workhub_deployment_audit.mjs`는 외부 네트워크를 차단한 mock HTTP 시험이다. 배포 자산 출처·GET 범위·익명 키의 대상 일치·리디렉션 차단·크기/시간 제한·키/본문 비출력과 익명 결과의 해석을 검증하며 `npm test`에 자동 포함된다.
+
+실제 공개 배포를 조사할 때만 `node scripts/check-workhub-deployment.mjs --site https://daedong-school.vercel.app/`를 별도로 실행한다. 이 명령은 DB 전체 준비·로그인 계정·SQL 적용 여부를 검증하지 않는다. 대상 비교·파일 출력·종료 코드·Claude Web 조사 인계는 [운영 연결 조사](../docs/workhub/28-connection-audit-handoff.md)를 따른다. 일반 회귀/CI에는 실제 배포 조회를 넣지 않는다.
+
+## 2차 통합 회귀와 원본 SQL 검증
+
+`npm run check:workhub:integration:r2`는 #26~#42의 고정 SHA, 1차 이력, 보류 #3/#5, R0/R1 원문과 기존 인증/자산/메뉴 공개 범위를 검사한다. 전체 Git 이력이 필요하며, 1차 가드는 당시 통합 후보 재현용으로 유지한다. `test_workhub_integration_r2.mjs`는 임시 Git 저장소를 변조해 누락·SQL 변경·공개 확대·보류 기능·예약 실행·미해결 충돌을 실제로 거부하는지 22건을 확인한다.
+
+`npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
+
+
+## 서버 문서 수합 사용성 후속
+
+- `test_workhub_collection_submission_guidance.mjs`: 필수 파일·글·숫자/0·저장판 비교·공동 작성·재제출/보완·깨진 입력·SSR 17건.
+- `workhub-collection-usability.mjs`: 실제 서버 패널의 일반 DOM/ShadowRoot 초점 이동·복귀, 320px/20단위/긴 파일명, 지연 조회 중 사용자 초점 유지, 메모·선택 범위 보존, 첨부 제한 설명, 초안 저장→최종 제출 명령 구분 11건. 전체 브라우저 러너에 등록했다.
+- `npm run test:workhub:browser -- workhub-collection-usability workhub-collection-server workhub-collection-hwpx workhub-collection-export`로 관련 4개 파일을 실행한다. 실제 운영 DB나 Storage를 사용하지 않는다. [검증·인계](../docs/workhub/44-collection-usability.md).
+
+
+## C1·C4·C5 앱 계약 후속 회귀
+
+- `test_workhub_cooperation.mjs`: 새 인계 이력의 처리자·이전/이후 수신자·상태·버전, 혼합 응답 거부와 구형 무인계 호환 43건.
+- `test_workhub_calendar_batch_audience.mjs`: 대상 집합 정렬, 실제 격리 PostgreSQL C 정렬식 대조, 지문 변조·원본 비변경·기존 미확정 commit 보존 9건.
+- `test_workhub_messaging_files.mjs`: 파일 준비·완료·상태·다운로드와 prepare 전용 종료 판정, 복구 원본 메타데이터 대조 27건.
+- `workhub-cooperation-handover.mjs`: 인계·재인계, 배경 상세 실패 중 입력·요청 보존, 320px 화면 등 15개 브라우저 동선.
+- `workhub-cooperation-batch.mjs`: 협업·일괄 13개 동선. C4 대상 입력은 합성하고 실제 어댑터 결과와 보관 비교 화면을 연결한다. 제품에 CSV 대상 선택칸을 추가한 것은 아니다.
+- `workhub-messaging.mjs`: 기존 전송·복구와 소속 전환 비노출 18개 동선.
+- `workhub-messaging-file-recovery.mjs`: 실제 첨부 컴포넌트·어댑터로 알려진/미상 ID, 거절·만료·응답 유실, 접수 전 실패·읽기 전용 복구·늦은 응답 14개 동선. 전체 브라우저 러너에 포함한다.
+
+`npm run test:workhub:browser -- cooperation messaging`로 관련 파일을 선택할 수 있다. 시험은 운영 DB·Storage를 호출하지 않으며 [수정·검증·인계](../docs/workhub/pilot-completion/app-contract-fixes.md)에 실제 서비스 검증 경계를 적었다.
+
+## 학생 출력·스킨·관계 목록·홈 메시지
+
+- `test_workhub_record_export.mjs`: 기존 읽기 어댑터의 학생/작성자 범위, 전체 페이지·중복·기술 한도, 과거 평가 기준과 점수, 재조회, CSV 수식 보호를 검증한다.
+- `workhub-record-export.mjs`: 실제 수업 화면과 출력 패널에서 미리보기→범위 확인→CSV/인쇄, 출력 전 자료/명부/학교/권한 변경, 늦은 응답과 인쇄 창 정리, 세 스킨·키보드·320px를 확인한다.
+- `test_workhub_relations_list.mjs`: 유효기간 경계, 검색 정규화, 수강/학적 상태 구분, 전체 1,000명 검색과 20개 표시, SSR/권한을 확인한다.
+- `workhub-relations-list.mjs`: 독립 검색·필터·페이지 보정·선택/사유 유지·원래 요청 복구·세 스킨·모바일 동선을 확인한다.
+- `workhub-home-message.mjs`: 실제 연결 셸과 메시지 어댑터로 목록 밖 대화 열기, 권한/없는 대화/조회 실패, 입력·전송 번호 보존, 자동 읽음/쓰기 없음과 모바일을 확인한다.
+- `workhub-document-appearance.mjs`: 문서함·질문형 양식의 세 스킨, 활성 텍스트 대비, 긴 내용, 200% 문자 확대 모사와 320px에서 입력/선택 보존·키보드를 확인한다.
+
+네 브라우저 파일은 전체 러너에 등록했다. `npm run test:workhub:browser -- workhub-record-export workhub-relations-list workhub-home-message workhub-document-appearance`로 이 묶음만 실행할 수 있다. React/어댑터/브라우저는 실제 코드이며 서버 응답은 합성이다. 운영 DB에 접속하지 않는다. [구현·검증·실서비스 경계](../docs/workhub/pilot-completion/usability-completion.md).
+
+## C8 기존 인계와 원요청 복구
+
+- `test_workhub_school_transitions.mjs`: 총 34건. 구/신 목록의 협업·수합 인수·반려, 공식 담당 보호, 다음 페이지 기록, 반복 커서·기술 한도, 모듈 중지·목록 실패·목록 밖 기록에서 원키·원문 복구, 다른 내용/위조 접수증 거부를 확인한다.
+- `workhub-school-transitions.mjs`: 총 42개 브라우저 시나리오. 실제 React·어댑터에서 C8 수정 전 사라진 인수 버튼을 재현하고, 입력·기존 요청 번호 보존, 응답 유실 뒤 한 번 접수된 결과의 재조회, 공식 담당 보호와 학교·권한·판 변경을 확인한다.
+- `npm test -- workhub_school_transitions`, `npm run test:workhub:browser -- workhub-school-transitions`로 개별 실행한다. 브라우저의 요청 원장은 합성 서버이며 실제 DB 원자성·PostgREST 연결을 증명하지 않는다.
+- SQL 대조 도구에서도 새 명령(`mutate`)과 원요청 복구(`recover`)를 분리한다. [수정·검증·Claude 재검토](../docs/workhub/pilot-completion/transition-c8-fix.md).

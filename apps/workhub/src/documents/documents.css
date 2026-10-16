@@ -1,0 +1,103 @@
+/* 문서함·질문형 양식·학교자료 가져오기가 같은 업무실 스킨을 따른다. */
+.documents-workspace {
+  display: grid;
+  gap: 1em;
+  min-width: 0;
+  color: var(--ui-text, #242a33);
+  font-size: var(--ui-body-size, 14px);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.documents-workspace * { box-sizing: border-box; }
+.documents-workspace :is(h2,h3,p) { margin: 0; }
+.documents-workspace :is(button,input,select,textarea) { font: inherit; max-width: 100%; }
+.documents-workspace button {
+  border: 1px solid var(--ui-line, #e2e6ed);
+  border-radius: var(--ui-radius, 9px);
+  background: var(--ui-surface, #fff);
+  color: inherit;
+  padding: .6em .8em;
+  min-height: 44px;
+  cursor: pointer;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.documents-workspace button:disabled { opacity: .5; cursor: not-allowed; }
+.documents-workspace :is(button,input,textarea,select,summary):focus-visible {
+  outline: 3px solid var(--ui-focus, #426cd6);
+  outline-offset: 3px;
+}
+.documents-workspace .documents-primary {
+  background: var(--ui-accent, #315ed3);
+  border-color: var(--ui-accent, #315ed3);
+  color: var(--ui-on-accent, #fff);
+}
+.documents-header,.documents-actions,.documents-tabs,.documents-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65em;
+  align-items: center;
+  min-width: 0;
+}
+.documents-header { justify-content: space-between; }
+.documents-header>div { display: grid; gap: .4em; min-width: 0; }
+.documents-filters>label { min-width: 0; }
+.documents-muted { color: var(--ui-muted, #626e7e); font-size: var(--ui-small-size, 12px); line-height: 1.6; }
+.documents-tabs button[aria-pressed=true] {
+  background: var(--ui-accent-soft, #edf2ff);
+  border-color: var(--ui-accent, #315ed3);
+}
+.documents-panel,.documents-status,.documents-editor {
+  padding: var(--ui-row-padding, 16px);
+  border: 1px solid var(--ui-line, #e2e6ed);
+  border-radius: var(--ui-radius, 9px);
+  background: var(--ui-surface, #fff);
+  display: grid;
+  gap: 1em;
+  min-width: 0;
+}
+.documents-status[role=alert] {
+  border-color: var(--ui-warning, #89601a);
+  background: var(--ui-warning-soft, #fff6e5);
+  color: var(--ui-warning, #89601a);
+}
+.documents-grid { display: grid; grid-template-columns: minmax(14em,.8fr) minmax(0,1.8fr); gap: 1em; align-items: start; }
+.documents-editor :is(input,select,textarea),.documents-filters input,.documents-panel select {
+  display: block;
+  max-width: 100%;
+  width: 100%;
+  min-width: 0;
+  margin-top: .3em;
+  padding: .65em;
+  border: 1px solid var(--ui-line, #e2e6ed);
+  border-radius: var(--ui-radius, 9px);
+  background: var(--ui-surface, #fff);
+  color: inherit;
+  min-height: 44px;
+}
+.documents-editor textarea { min-height: 12em; resize: vertical; line-height: 1.6; }
+.documents-editor fieldset { display: grid; gap: .8em; padding: 0; border: 0; min-width: 0; }
+.documents-editor :is(label,legend) { min-width: 0; max-width: 100%; }
+.documents-fields { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: .8em; }
+.documents-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .5em; min-width: 0; }
+.documents-list :is(li,button) { min-width: 0; }
+.documents-list button { width: 100%; text-align: left; display: grid; gap: .35em; }
+.documents-list button[aria-current=true] { border-color: var(--ui-accent, #315ed3); background: var(--ui-accent-soft, #edf2ff); }
+.documents-body { white-space: pre-wrap; line-height: 1.75; overflow-wrap: anywhere; }
+.documents-comparison { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: .8em; }
+.documents-comparison>div { padding: .8em; border: 1px solid var(--ui-line, #e2e6ed); border-radius: var(--ui-radius, 9px); min-width: 0; }
+.documents-source-list { padding-left: 1.25em; display: grid; gap: .6em; overflow-wrap: anywhere; min-width: 0; }
+.documents-check { display: flex; align-items: center; gap: .5em; }
+.documents-check input { width: auto; min-height: auto; margin: 0; flex-shrink: 0; accent-color: var(--ui-accent, #315ed3); }
+.documents-editor[hidden] { display: none; }
+.documents-workspace .guided-question { display: grid; gap: .65em; border: 1px solid var(--ui-line, #e2e6ed); border-radius: var(--ui-radius, 9px); padding: .8em; }
+.guided-question textarea { min-height: 5em; }
+.guided-anchor-list { max-height: 24em; overflow: auto; min-width: 0; }
+.guided-anchor { padding: .6em; border-bottom: 1px solid var(--ui-line, #e2e6ed); display: grid; gap: .35em; min-width: 0; overflow-wrap: anywhere; }
+/* 큰 글자와 좁은 화면에서도 목록·본문을 순서대로 읽고 입력할 수 있다. */
+@media(max-width:700px) {
+  .documents-grid,.documents-comparison,.documents-fields { grid-template-columns: minmax(0,1fr); }
+  .documents-header { align-items: start; }
+  .documents-actions button { flex: 1 1 auto; }
+  .documents-filters>label:not(.documents-check) { width: 100%; }
+}
