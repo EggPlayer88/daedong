@@ -1,7 +1,7 @@
 -- ============================================================================
 -- INT-03  통합 사후 점검 (읽기 전용 — 아무것도 바꾸지 않는다. 언제 실행해도 된다)
 --
--- ▣ 무엇을 보나: 지금 DB 에 적용된 단계 조합(R0 · R1 · R1S · P1~P7 · P7-05)을 적용 기록으로 알아내고,
+-- ▣ 무엇을 보나: 지금 DB 에 적용된 단계 조합(R0 · R1 · R1S · P1~P7 · P7-05 · P8-01~04)을 적용 기록으로 알아내고,
 --   그 조합이면 있어야 할 함수(workhub · workhub_private · workhub_storage 스키마 전부와 public.workhub_*) · 트리거 · 제약 · Storage 정책을 "정확히" 비교한다.
 --     함수: 이름 · 인자 · 반환형 · 언어 · SECURITY DEFINER · search_path · API 역할 실행 권한(PUBLIC · anon · authenticated · service_role)
 --           (직접 부여와 상속 포함 실효 권한 둘 다) · 본문 지문 · 소유자(허용표 own), 그리고 목록에 없는 함수 · 같은 이름 다른 인자(오버로드)
@@ -12,7 +12,7 @@
 --   R1-04 의 그 세 행이 FAIL 이어도 이 점검의 FAIL 이 0 이면 정상이다(INT-03-13 이 그 세 행이 FAIL 인 까닭을 보여 준다).
 -- ▣ 읽는 법: status 가 FAIL 인 행이 없어야 한다. value 에 다른 것이 최대 5개까지 나온다.
 --   FAIL 이면 그 단계의 다음 파일을 적용하지 말고 결과를 그대로 알려 주세요(되돌리기 전에 상의).
--- ▣ 목록 판: 항목 1993개 — 단계별 R0 302 · R1 459 · R1S 83 · P1 98 · P2 115 · P3 168 · P4 287 · P5 236 · P6 117 · P7 112 · P7-05 16
+-- ▣ 목록 판: 항목 2081개 — 단계별 R0 302 · R1 459 · R1S 83 · P1 98 · P2 115 · P3 168 · P4 287 · P5 236 · P6 117 · P7 112 · P7-05 16 · P8-01 8 · P8-02 3 · P8-03 15 · P8-04 62
 --   목록은 integration/test/gen_manifest.py 가 시험 DB 에 SQL 파일을 차례로 적용하며 기계로 만든다(손으로 고치지 않는다).
 -- ============================================================================
 WITH m(stage, kind, key, attrs) AS (VALUES
@@ -2008,7 +2008,95 @@ WITH m(stage, kind, key, attrs) AS (VALUES
   ('P7-05', 'trigger', 'workhub.submission_versions.p7_phase_gate', '{"def": "d30cb354167b12ad55846c61e798fd2d", "enabled": "O"}'),
   ('P7-05', 'trigger', 'workhub.submission_withdrawals.p7_phase_gate', '{"def": "d2a48c3bc0847511f709a7a68924adba", "enabled": "O"}'),
   ('P7-05', 'trigger', 'workhub.unit_draft_files.p7_phase_gate', '{"def": "3b79082b00085eeb41f88cbfb0f152b3", "enabled": "O"}'),
-  ('P7-05', 'trigger', 'workhub.unit_drafts.p7_phase_gate', '{"def": "e299ced4fcf326b406a408f969244108", "enabled": "O"}')
+  ('P7-05', 'trigger', 'workhub.unit_drafts.p7_phase_gate', '{"def": "e299ced4fcf326b406a408f969244108", "enabled": "O"}'),
+  ('P8-01', 'constraint', 'workhub_private.p8_installs.p8_installs_batch_check', '{"def": "090a849d3416ea8c836e1467ca5cab85"}'),
+  ('P8-01', 'constraint', 'workhub_private.p8_installs.p8_installs_pkey', '{"def": "5eb69cfd4e109f955660d3e01ab61c1a"}'),
+  ('P8-01', 'constraint', 'workhub_private.p8_installs.p8_installs_release_check', '{"def": "7e4cfffbc966c7121d36e3cead553627"}'),
+  ('P8-01', 'function', 'workhub_private.p1_save_configuration(p_ctx workhub_private.actor_context, c jsonb)', '{"body": "1b2f1f39607ae43c2838c17e31cc015c", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-01', 'function', 'workhub_private.p7_plan_eval(p_ctx workhub_private.actor_context, p jsonb)', '{"body": "9b597412e72806f8ae1085c856d6e510", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-01', 'function', 'workhub_private.p8_installed(p_batch text)', '{"body": "c5197c8b26ec56a1e1daa5e539396cb0", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": false}'),
+  ('P8-01', 'function', 'workhub_private.p8_label(p text, p_max integer, p_fallback text)', '{"body": "bfb004d0c2ffa68ebb98cb749a149fb6", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "text", "secdef": false}'),
+  ('P8-01', 'trigger', 'workhub_private.p8_installs.p8_installs_immutable', '{"def": "e8d723ab990fe32346061de16015a046", "enabled": "O"}'),
+  ('P8-02', 'constraint', 'workhub.notifications.notifications_source_check', '{"def": "56853e4c9ba2827e924cdc95fc55c48d"}'),
+  ('P8-02', 'function', 'workhub_private.p8_coop_notice()', '{"body": "757b46c8e1ab8723ca3251745fb316b1", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": true}'),
+  ('P8-02', 'trigger', 'workhub.cooperation_history.p8_coop_notice', '{"def": "530b09e9ad4563d6c221b95630eccb06", "enabled": "O"}'),
+  ('P8-03', 'constraint', 'workhub.transition_history.transition_history_action_check', '{"def": "90c2010e42139d38b465d83dd8913491"}'),
+  ('P8-03', 'constraint', 'workhub.transition_records.transition_records_shape_check', '{"def": "d97bc25672a0268f6903487738759df5"}'),
+  ('P8-03', 'constraint', 'workhub.transition_records.transition_records_version_check', '{"def": "6289e8e623f7b000a7ecaf4fbc4b39d0"}'),
+  ('P8-03', 'function', 'workhub_private.p7_record_guard()', '{"body": "9870f66287b8c8817c8dd07eccfcef0d", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": false}'),
+  ('P8-03', 'function', 'workhub_private.p7_resources(p_school text, p_membership text, p_account text, p_today date, p_except_record text)', '{"body": "98247cc4ca5aed9c989d4cf79c5ca7c4", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "TABLE(kind text, id text, version integer, label text)", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p7_tr_list(p_ctx workhub_private.actor_context, p_cursor text)', '{"body": "3ecbc1e20fb2fe401fdcb8a91e9d830d", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p7_tr_mutate(p_ctx workhub_private.actor_context, p_cmd jsonb, p_key text)', '{"body": "7920e6628ffce39ceefab33e01d84898", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p7_tr_preview(p_ctx workhub_private.actor_context, p jsonb)', '{"body": "79e6b847fd2287b704bb1b8ac3644a81", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p8_admin_review(p_record text)', '{"body": "50256a3f82b5ed524a8ca1923dc6f262", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p8_duty_review_active(p_school text)', '{"body": "1df890c9787b581216e296b9c37bfc06", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p8_duty_review_known(p_school text)', '{"body": "5f829fa6483287d25b51490d48e14f17", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p8_handover_recheck(p_ctx workhub_private.actor_context, t workhub.transition_records)', '{"body": "89ddee2ec0d9a2dec14c5f50f82ccb55", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "void", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p8_plan_has_duty(p jsonb)', '{"body": "d01b51ccf1e2acf35112e6d25cc9479b", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": false}'),
+  ('P8-03', 'function', 'workhub_private.p8_record_dto(t workhub.transition_records, p_ctx workhub_private.actor_context, p_manage boolean)', '{"body": "4e243cbff2cd48807c3056a77323e81f", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-03', 'function', 'workhub_private.p8_tr_state(p_state jsonb, p jsonb, p_school text)', '{"body": "9cdaf65bf7b6925b9cc1eadc8827af71", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_account_fkey', '{"def": "6dd87a4f6cb0c1496afff5f5707d7974"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_changes_check', '{"def": "bb797d9cfd71d1af4db760ab3bb7be23"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_hash_check', '{"def": "e838eb48c4479979ae830d8279b12b08"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_key_check', '{"def": "375db5be3f80aa381bf2f66576172c88"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_kind_check', '{"def": "ab72b954348f3183fddad6de851d833a"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_member_fkey', '{"def": "5ecc686c401cd1fa9882643789a10c87"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_pkey', '{"def": "c3215c80efd5560062e482d886823f76"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_preview_fkey', '{"def": "d481ffcba7984f3659a3204b405fb86d"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_preview_key', '{"def": "cd98771d3daaf8b9687432e45efc3633"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_commits.teaching_relation_commits_replacement_fkey', '{"def": "a4e8d827e82e4dfab5d824f042412ce8"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_key_check', '{"def": "375db5be3f80aa381bf2f66576172c88"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_kind_check', '{"def": "08970c65105b4fb5c757cca6a85d156a"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_member_fkey', '{"def": "e9db65da5d50c6b8cba8c5b0b73cfc99"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_pkey', '{"def": "4c6419b3704337bbfe50f018842a9ad3"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_reason_check', '{"def": "671e36a5da0683e0218ecb0f43155755"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_version_check', '{"def": "cdbbefc110d54b8d090175930e28cd5e"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_ends.teaching_relation_ends_version_key', '{"def": "41ebdfbd5c3859d6f6fe79c62e3b63b8"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_account_fkey', '{"def": "6dd87a4f6cb0c1496afff5f5707d7974"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_consumed_check', '{"def": "1f820e8b22369b3f50ab286f506ea30b"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_course_fkey', '{"def": "9396cf6ac00a3f95d24948f95b93a647"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_expiry_check', '{"def": "b713891cef505250d77874321da5c4c6"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_fp_check', '{"def": "044a4e5f3c115d64ea7beb50cc02ad37"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_member_fkey', '{"def": "5ecc686c401cd1fa9882643789a10c87"}'),
+  ('P8-04', 'constraint', 'workhub.teaching_relation_previews.teaching_relation_previews_pkey', '{"def": "4c6419b3704337bbfe50f018842a9ad3"}'),
+  ('P8-04', 'function', 'public.workhub_teaching_relation_commit(p_member_id text, p_command jsonb, p_request_key text)', '{"body": "d8cc80365d8f0f1c57401edcb135dcae", "config": "search_path=\"\"", "eff": "authenticated", "exec": "authenticated", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'public.workhub_teaching_relation_preview(p_member_id text, p_intent jsonb)', '{"body": "b58e8f0849db994320dcd36181e82b27", "config": "search_path=\"\"", "eff": "authenticated", "exec": "authenticated", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'public.workhub_teaching_relations(p_member_id text, p_course_id text)', '{"body": "8c2766de4aefaf21dc492b00f5d05f8d", "config": "search_path=\"\"", "eff": "authenticated", "exec": "authenticated", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p5_catalog(p_ctx workhub_private.actor_context)', '{"body": "9010f3163e43d1a124d7929be715f082", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p5_course_visible(p_ctx workhub_private.actor_context, p_course text)', '{"body": "63822473c4c2fa71e2219f23d2c959ca", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p5_current_assignment(p_ctx workhub_private.actor_context, p_course text)', '{"body": "a3ad6ed5b0e43429c972c3d0687bf417", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "text", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p5_roster_import(p_ctx workhub_private.actor_context, c jsonb, p_key text)', '{"body": "f667838187f9911314ca2541f2ef7230", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_eff_to(p_kind text, p_id text, p_from date, p_to date)', '{"body": "85674e399c71d60910b01bc13dfa3e6e", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "date", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_adopt_guard()', '{"body": "9a58c18f2a8c7059f4b2c874d2b7c827", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_assignment(a workhub.course_assignments, co workhub.courses)', '{"body": "66f4f475d676c91cf9a6b16c90a5a5c7", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_commit(p_ctx workhub_private.actor_context, c jsonb, p_key text, p_hash text)', '{"body": "1cdf3ed699764bd7452eb962486132f0", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_dto(p_kind text, p_id text, p_school text, p_course text, p_course_label text, p_member text, p_student text, p_enrollment text, p_label text, p_from date, p_to date)', '{"body": "d253fb78dae41a4305e5f925afce2625", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_end_guard()', '{"body": "7d1abd3ba51bcdaf681ea736165cc40c", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_enrollment(e workhub.student_enrollments)', '{"body": "1503a8b6c42a7b1d5d8adb5c3b7e6419", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_env(p_ctx workhub_private.actor_context)', '{"body": "a2747052c919382d3797a9b4e8a152a2", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": false}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_eval(p_ctx workhub_private.actor_context, i jsonb)', '{"body": "e1029c6b2df473b269eb833236fa4f0b", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_fail(p_ctx workhub_private.actor_context, p_code text, p_key text, p_hash text)', '{"body": "69fe5ada4ce635fbff361a57b2bf1504", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": false}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_import_guard()', '{"body": "dfe6c9ad07a1ed44cb0efd993dd15abf", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_intent_ok(p jsonb)', '{"body": "c9e3a6092a59ead4fc3bdf26eec572ab", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": false}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_membership(m workhub.course_memberships, co workhub.courses)', '{"body": "75c2b732a826af224f14d2baafdd29cd", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_membership_guard()', '{"body": "a828573d0db548d4326d1e2455b508ec", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_preview(p_ctx workhub_private.actor_context, i jsonb)', '{"body": "3a0e2e64912b85eb42636e48619e1679", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_preview_guard()', '{"body": "3a44f40709e53a1e8a664f4f80a65ccc", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": false}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_ready(p_school text)', '{"body": "eb26c4b2755ac7eee9e3494c2ec0774b", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "boolean", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_receipt(q workhub.teaching_relation_commits, p_outcome text)', '{"body": "2b56c759be840bffd0ff63eb1865a3e0", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "jsonb", "secdef": false}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_record_guard()', '{"body": "a4f6bf50d937183272758ebb3be20710", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "trigger", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_run(p_ctx workhub_private.actor_context, p_op text, a jsonb)', '{"body": "64afa5091bac969290eda2b24bdbbcf1", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_snapshot(p_ctx workhub_private.actor_context, p_course text)', '{"body": "da2099510340fa43c0a3eb9c2a9eda4a", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "plpgsql", "result": "jsonb", "secdef": true}'),
+  ('P8-04', 'function', 'workhub_private.p8_rel_version(p_kind text, p_id text)', '{"body": "9fc1b4984bd5d2f38b73114c916ddb0a", "config": "search_path=\"\"", "eff": "", "exec": "", "lang": "sql", "result": "integer", "secdef": true}'),
+  ('P8-04', 'trigger', 'workhub.activity_imports.p8_rel_import_guard', '{"def": "8932593095adca4b5cfa33c2a4651225", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.activity_item_revisions.p8_rel_adopt_guard', '{"def": "b7e04c3ddd9f1b7f77efd251e0a9d79e", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.assessment_revisions.p8_rel_record_guard', '{"def": "652a4675a8091e44ea0bbc8d1298b062", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.course_memberships.p8_rel_membership_guard', '{"def": "7cd988729e70a01f2146caf0de698544", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.teaching_record_revisions.p8_rel_record_guard', '{"def": "e7f6ae569b0de4964476dd6c7ddcf6e7", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.teaching_relation_commits.teaching_relation_commits_immutable', '{"def": "9868c2417cfa05cb348fc6612dfdc73c", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.teaching_relation_ends.teaching_relation_ends_guard', '{"def": "cf514694196319e4ed7ab1e199cdfc3c", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.teaching_relation_ends.teaching_relation_ends_immutable', '{"def": "1e596ba7299d09ccb916faba51f4107d", "enabled": "O"}'),
+  ('P8-04', 'trigger', 'workhub.teaching_relation_previews.teaching_relation_previews_guard', '{"def": "227834c96be23649c60b4090525a2eea", "enabled": "O"}')
 ),
 s(stage, ord, deps) AS (VALUES
   ('R0', 0, ''),
@@ -2021,7 +2109,11 @@ s(stage, ord, deps) AS (VALUES
   ('P5', 7, 'P1 P2'),
   ('P6', 8, 'P2 P4 P5'),
   ('P7', 9, 'R1 P1 P2 P3'),
-  ('P7-05', 10, 'P7')
+  ('P7-05', 10, 'P7'),
+  ('P8-01', 11, 'P1 P7'),
+  ('P8-02', 12, 'P8-01 P2 P3'),
+  ('P8-03', 13, 'P8-01'),
+  ('P8-04', 14, 'P8-01 P5')
 ),
 rec(stage, tbl, batches) AS (VALUES
   ('R1', 'workhub_private.batch_installs', ARRAY['R1-01','R1-02','R1-03']),
@@ -2033,7 +2125,11 @@ rec(stage, tbl, batches) AS (VALUES
   ('P5', 'workhub_private.p5_installs', ARRAY['P5-01','P5-02']),
   ('P6', 'workhub_private.p6_installs', ARRAY['P6-01','P6-02']),
   ('P7', 'workhub_private.p7_installs', ARRAY['P7-01','P7-02']),
-  ('P7-05', 'workhub_private.p7_installs', ARRAY['P7-05'])
+  ('P7-05', 'workhub_private.p7_installs', ARRAY['P7-05']),
+  ('P8-01', 'workhub_private.p8_installs', ARRAY['P8-01']),
+  ('P8-02', 'workhub_private.p8_installs', ARRAY['P8-02']),
+  ('P8-03', 'workhub_private.p8_installs', ARRAY['P8-03']),
+  ('P8-04', 'workhub_private.p8_installs', ARRAY['P8-04'])
 ),
 -- 함수 소유자 허용표: 단계 SQL 을 실행한 승인된 설치 역할. Supabase SQL Editor 는 postgres 로 실행한다.
 -- "가장 많은 소유자"와 비교하지 않는다 — 전부가 한꺼번에 다른 역할로 바뀌면 그 역할이 기준이 되어 놓치기 때문.

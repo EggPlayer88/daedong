@@ -1,7 +1,7 @@
 -- ============================================================================
 -- INT-03  통합 사후 점검 (읽기 전용 — 아무것도 바꾸지 않는다. 언제 실행해도 된다)
 --
--- ▣ 무엇을 보나: 지금 DB 에 적용된 단계 조합(R0 · R1 · R1S · P1~P7 · P7-05)을 적용 기록으로 알아내고,
+-- ▣ 무엇을 보나: 지금 DB 에 적용된 단계 조합(R0 · R1 · R1S · P1~P7 · P7-05 · P8-01~04)을 적용 기록으로 알아내고,
 --   그 조합이면 있어야 할 함수(workhub · workhub_private · workhub_storage 스키마 전부와 public.workhub_*) · 트리거 · 제약 · Storage 정책을 "정확히" 비교한다.
 --     함수: 이름 · 인자 · 반환형 · 언어 · SECURITY DEFINER · search_path · API 역할 실행 권한(PUBLIC · anon · authenticated · service_role)
 --           (직접 부여와 상속 포함 실효 권한 둘 다) · 본문 지문 · 소유자(허용표 own), 그리고 목록에 없는 함수 · 같은 이름 다른 인자(오버로드)
@@ -31,7 +31,11 @@ rec(stage, tbl, batches) AS (VALUES
   ('P5', 'workhub_private.p5_installs', ARRAY['P5-01','P5-02']),
   ('P6', 'workhub_private.p6_installs', ARRAY['P6-01','P6-02']),
   ('P7', 'workhub_private.p7_installs', ARRAY['P7-01','P7-02']),
-  ('P7-05', 'workhub_private.p7_installs', ARRAY['P7-05'])
+  ('P7-05', 'workhub_private.p7_installs', ARRAY['P7-05']),
+  ('P8-01', 'workhub_private.p8_installs', ARRAY['P8-01']),
+  ('P8-02', 'workhub_private.p8_installs', ARRAY['P8-02']),
+  ('P8-03', 'workhub_private.p8_installs', ARRAY['P8-03']),
+  ('P8-04', 'workhub_private.p8_installs', ARRAY['P8-04'])
 ),
 -- 함수 소유자 허용표: 단계 SQL 을 실행한 승인된 설치 역할. Supabase SQL Editor 는 postgres 로 실행한다.
 -- "가장 많은 소유자"와 비교하지 않는다 — 전부가 한꺼번에 다른 역할로 바뀌면 그 역할이 기준이 되어 놓치기 때문.

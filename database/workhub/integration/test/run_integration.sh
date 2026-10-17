@@ -1,14 +1,17 @@
 #!/bin/bash
-# 1~7단계 통합 회귀 — R0 + R1 + R1S + P1~P7(+ P7-05) 를 한 DB 에 운영 순서대로 설치한 상태에서 확인한다.
+# 1~8단계 통합 회귀 — R0 + R1 + R1S + P1~P7(+ P7-05) + P8-01~04(정책 보강) 를 한 DB 에 운영 순서대로 설치한 상태에서 확인한다.
 #   단계별 run_all.sh(각자 DB 를 초기화하며 자기 단계만 본다)와 따로 둔다. 시험용 임시 PostgreSQL 만 쓴다(운영 DB 와 무관).
 #   I    INT-03 목록이 지금 SQL 파일과 같은지(gen_manifest check)
 #   II   R0 만 있는 DB 에 초기화 없이 파일 하나씩 적용 · 파일마다 INT-03 · 단계마다 모든 사후 점검 · 기존 자료 보존
 #   III  다 설치된 DB 에서 권한 · search_path 등을 실제로 망가뜨려 INT-03 이 정확한 행으로 FAIL 하는지(15건 — 상속 실행 권한 · 소유자 전부 변경 포함)
-#   IV   다 설치된 DB(P7-05 전 · 후) 에서 R1 시험 전체(run_r1.py) → 끝나고 INT-03
-#   V    각 단계 시험을 "뒷 단계가 모두 설치된 DB" 에서(stage_hook) — R1S(fresh · legacy) · P1~P6 · P7(P7-05 전 · 후)
-#   VI   V 에서 받은 실제 응답을 앱(INT_APP_SRC, 지금 기준 PR #59) parser · 서비스에 넣어 대조
+#   IV   다 설치된 DB(P7-05 전 · 후, P8 비활성 설치 포함) 에서 R1 시험 전체(run_r1.py) → 끝나고 INT-03
+#   IV-c P8 을 P7-05 보다 먼저 설치해도(운영에서 P7-05 를 늦게 승인하는 경우) INT-03 FAIL 없음 · P8 일부만(P8-01 · P8-04) 설치해도 FAIL 없음
+#   V    각 단계 시험을 "뒷 단계가 모두 설치된 DB" 에서(stage_hook) — R1S(fresh · legacy) · P1~P6 · P7(P7-05 전 · 후) · P8(보강 전 · 후)
+#        P7 시험 뒤에는 P8-01 · 02 · 04 만 깐다 — P8-03 은 켜기 전 공식 담당 인계를 NOT_READY 로 막는 것이 설계라(옛 앱 · 옛 흐름 차단)
+#        P7 의 공식 담당 인계 시험과 함께 둘 수 없다. 그 차단은 P8 시험(B · F)이 따로 본다.
+#   VI   V 에서 받은 실제 응답을 앱(INT_APP_SRC, 지금 기준 PR #60) parser · 서비스에 넣어 대조 — P1~P7 응답은 옛 SQL(P8 전) 판 · P8 응답은 새 SQL 판
 # 하나라도 실패하면 종료 코드 1, 준비 단계(서버·빌드)가 실패하면 2.
-# 사용: R0_PG_BIN=<PostgreSQL 17 bin> INT_APP_SRC=<앱 checkout(PR #59)> bash run_integration.sh
+# 사용: R0_PG_BIN=<PostgreSQL 17 bin> INT_APP_SRC=<앱 checkout(PR #60)> bash run_integration.sh
 set -uo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 WH=$(cd "$HERE/../.." && pwd)
@@ -37,6 +40,8 @@ P5_F="p5/P5-01_수업학생_모델.sql p5/P5-02_수업학생_공개함수.sql"
 P6_F="p6/P6-01_비서_모델.sql p6/P6-02_비서_공개함수.sql"
 P7_F="p7/P7-01_운영_전환_모델.sql p7/P7-02_운영_전환_공개함수.sql"
 P705_F="p7/P7-05_R1_P2_보강_별도승인.sql"
+P8_F="p8/P8-01_학년도_시작연도.sql p8/P8-02_협업_알림.sql p8/P8-03_업무인계_관리자확인.sql p8/P8-04_수업_담당수강_변경.sql"
+P8_NO03="p8/P8-01_학년도_시작연도.sql p8/P8-02_협업_알림.sql p8/P8-04_수업_담당수강_변경.sql"
 apply(){ local f; for f in "$@"; do
   if [ "${f##*/}" = "P7-05_R1_P2_보강_별도승인.sql" ]; then
     need q -qc "$(sed 's/"<승인한 사람[^"]*>"/"통합 시험"/; s/"<승인 근거[^"]*>"/"통합 회귀(시험 DB)"/' "$WH/$f")" >/dev/null
@@ -57,14 +62,18 @@ need bash "$R1_TEST_DIR/setup.sh" >/dev/null
 python3 "$HERE/run_build.py" > "$W/build.txt" 2>&1; sub "II·III run_build.py" "$W/build.txt" $?
 
 echo "== IV. 다 설치된 DB 에서 R1 시험 전체 — P7-05 전 · 후"
-need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F
-int03 "IV-a0 설치 직후(P7-05 전) INT-03 FAIL 없음" "R1S · P1 · P2 · P3 · P4 · P5 · P6 · P7$"
+need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P8_F
+int03 "IV-a0 설치 직후(P7-05 전, P8 비활성) INT-03 FAIL 없음" "P6 · P7 · P8-01 · P8-02 · P8-03 · P8-04$"
 python3 "$R1_TEST_DIR/run_r1.py" > "$W/r1a.txt" 2>&1; sub "IV-a run_r1.py (전 단계 비활성 설치, P7-05 전)" "$W/r1a.txt" $?
-int03 "IV-a9 R1 시험 뒤에도 INT-03 FAIL 없음" "R1S · P1 · P2 · P3 · P4 · P5 · P6 · P7$"
-need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F
-int03 "IV-b0 설치 직후(P7-05 후) INT-03 FAIL 없음" "· P7 · P7-05$"
+int03 "IV-a9 R1 시험 뒤에도 INT-03 FAIL 없음" "P6 · P7 · P8-01 · P8-02 · P8-03 · P8-04$"
+apply $P705_F
+int03 "IV-c1 P8 뒤에 P7-05 를 적용해도 INT-03 FAIL 없음(승인 순서가 바뀌어도 같음)" "P7 · P7-05 · P8-01 · P8-02 · P8-03 · P8-04$"
+need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F p8/P8-01_학년도_시작연도.sql p8/P8-04_수업_담당수강_변경.sql
+int03 "IV-c2 P8 일부만(P8-01 · P8-04) 설치해도 INT-03 FAIL 없음" "P7 · P8-01 · P8-04$"
+need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F $P8_F
+int03 "IV-b0 설치 직후(P7-05 후, P8 비활성) INT-03 FAIL 없음" "· P7 · P7-05 · P8-01 · P8-02 · P8-03 · P8-04$"
 python3 "$R1_TEST_DIR/run_r1.py" > "$W/r1b.txt" 2>&1; sub "IV-b run_r1.py (전 단계 비활성 설치 + P7-05)" "$W/r1b.txt" $?
-int03 "IV-b9 R1 시험 뒤에도 INT-03 FAIL 없음" "· P7 · P7-05$"
+int03 "IV-b9 R1 시험 뒤에도 INT-03 FAIL 없음" "· P7 · P7-05 · P8-01 · P8-02 · P8-03 · P8-04$"
 
 echo "== V. 각 단계 시험을 뒷 단계가 모두 설치된 DB 에서"
 hook(){ local name=$1 suite=$2 trig=$3; shift 3
@@ -72,29 +81,36 @@ hook(){ local name=$1 suite=$2 trig=$3; shift 3
 export R1S_API_DIR=${APP:+$APP/apps/main/api/collections}
 for m in fresh legacy; do
   need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null
-  INT_R1S_MODE=$m R1S_CAPTURE=$W/cap_r1s_$m.json hook r1s_$m r1s/test/run_r1s.py r1s/R1S-02_공개함수_권한.sql $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F
+  INT_R1S_MODE=$m R1S_CAPTURE=$W/cap_r1s_$m.json hook r1s_$m r1s/test/run_r1s.py r1s/R1S-02_공개함수_권한.sql $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F $P8_F
 done
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F
-P1_CAPTURE=$W/cap_p1.json hook p1 p1/test/run_p1.py p1/P1-02_학교관리_공개함수.sql $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F
+P1_CAPTURE=$W/cap_p1.json hook p1 p1/test/run_p1.py p1/P1-02_학교관리_공개함수.sql $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F $P8_F
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F
-P2_CAPTURE=$W/cap_p2.json hook p2 p2/test/run_p2.py p2/P2-02_일정일괄_협업_공개함수.sql $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F
+P2_CAPTURE=$W/cap_p2.json hook p2 p2/test/run_p2.py p2/P2-02_일정일괄_협업_공개함수.sql $P3_F $P4_F $P5_F $P6_F $P7_F $P705_F $P8_F
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F
-P3_CAPTURE=$W/cap_p3.json P3_APP_SRC="$APP" hook p3 p3/test/run_p3.py p3/P3-02_메시지_공개함수_Storage.sql $P4_F $P5_F $P6_F $P7_F $P705_F
+P3_CAPTURE=$W/cap_p3.json P3_APP_SRC="$APP" hook p3 p3/test/run_p3.py p3/P3-02_메시지_공개함수_Storage.sql $P4_F $P5_F $P6_F $P7_F $P705_F $P8_F
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F
-P4_CAPTURE=$W/cap_p4.json P4_APP_SRC="$APP" hook p4 p4/test/run_p4.py p4/P4-02_자료_문서_공개함수_Storage.sql $P5_F $P6_F $P7_F $P705_F
+P4_CAPTURE=$W/cap_p4.json P4_APP_SRC="$APP" hook p4 p4/test/run_p4.py p4/P4-02_자료_문서_공개함수_Storage.sql $P5_F $P6_F $P7_F $P705_F $P8_F
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F
-P5_CAPTURE=$W/cap_p5.json hook p5 p5/test/run_p5.py p5/P5-02_수업학생_공개함수.sql $P6_F $P7_F $P705_F
+P5_CAPTURE=$W/cap_p5.json hook p5 p5/test/run_p5.py p5/P5-02_수업학생_공개함수.sql $P6_F $P7_F $P705_F $P8_F
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F
-P6_CAPTURE=$W/cap_p6.json P6_APP_SRC="$APP" hook p6 p6/test/run_p6.py p6/P6-02_비서_공개함수.sql $P7_F $P705_F
-# P7 은 마지막 단계라 뒷 단계가 없다 — 앞 단계를 모두 깐 DB 에서 그대로 돌리고(P7-05 는 시험이 직접 적용), 끝나고 INT-03.
+P6_CAPTURE=$W/cap_p6.json P6_APP_SRC="$APP" hook p6 p6/test/run_p6.py p6/P6-02_비서_공개함수.sql $P7_F $P705_F $P8_F
+# P7 은 P7-02 재실행 시험 직후 P8-01 · 02 · 04 를 깐다(P7-05 는 시험이 직접 적용). 끝나고 INT-03.
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F
-P7_CAPTURE=$W/cap_p7.json python3 "$WH/p7/test/run_p7.py" > "$W/p7.txt" 2>&1; sub "V p7 (R1S · P1~P6 위, P7-05 포함)" "$W/p7.txt" $?
-int03 "V p7-9 P7 시험 뒤 INT-03 FAIL 없음(P7-05 후)" "· P7 · P7-05$"
+P7_CAPTURE=$W/cap_p7.json hook p7 p7/test/run_p7.py p7/P7-02_운영_전환_공개함수.sql $P8_NO03
+int03 "V p7-9 P7 시험 뒤 INT-03 FAIL 없음(P7-05 후, P8-03 없이)" "· P7 · P7-05 · P8-01 · P8-02 · P8-04$"
 need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F
-P7_BRIDGE=0 P7_CAPTURE=$W/cap_p7_nobridge.json python3 "$WH/p7/test/run_p7.py" > "$W/p7nb.txt" 2>&1; sub "V p7nb (R1S · P1~P6 위, P7-05 없이)" "$W/p7nb.txt" $?
-int03 "V p7nb-9 P7 시험 뒤 INT-03 FAIL 없음(P7-05 전)" "P6 · P7$"
+P7_BRIDGE=0 P7_CAPTURE=$W/cap_p7_nobridge.json hook p7nb p7/test/run_p7.py p7/P7-02_운영_전환_공개함수.sql $P8_NO03
+int03 "V p7nb-9 P7 시험 뒤 INT-03 FAIL 없음(P7-05 전, P8-03 없이)" "P6 · P7 · P8-01 · P8-02 · P8-04$"
+# P8 은 마지막 단계 — 앞 단계를 모두 깐 DB(R1S · P1~P7, P6 포함)에서 그대로(P8 · P7-05 는 시험이 직접 적용)
+need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F
+(cd "$WH/p8/test" && P8_CAPTURE=$W/cap_p8.json python3 run_p8.py) > "$W/p8.txt" 2>&1; sub "V p8 (R1S · P1~P7 위, P7-05 포함)" "$W/p8.txt" $?
+int03 "V p8-9 P8 시험 뒤 INT-03 FAIL 없음" "· P7 · P7-05 · P8-01 · P8-02 · P8-03 · P8-04$"
+need bash "$R1_TEST_DIR/setup.sh" r1 >/dev/null; apply $R1S_F $P1_F $P2_F $P3_F $P4_F $P5_F $P6_F $P7_F
+(cd "$WH/p8/test" && P8_BRIDGE=0 P8_CAPTURE=$W/cap_p8_nobridge.json python3 run_p8.py) > "$W/p8nb.txt" 2>&1; sub "V p8nb (R1S · P1~P7 위, P7-05 없이)" "$W/p8nb.txt" $?
+int03 "V p8nb-9 P8 시험 뒤 INT-03 FAIL 없음(P7-05 없이)" "P6 · P7 · P8-01 · P8-02 · P8-03 · P8-04$"
 
-echo "== VI. V 의 실제 응답을 앱(INT_APP_SRC, 지금 기준 PR #59) parser · 서비스에 넣어 대조"
+echo "== VI. V 의 실제 응답을 앱(INT_APP_SRC, 지금 기준 PR #60) parser · 서비스에 넣어 대조"
 if [ -n "$APP" ] && [ -d "$APP/apps/workhub/src" ]; then
   ESB="${ESBUILD:-$R0_REPO/node_modules/.bin/esbuild}"; [ -x "$ESB" ] || ESB="$(command -v esbuild || true)"
   [ -x "$ESB" ] || { echo "중단: 저장소 루트에서 npm ci 를 먼저 실행하거나 ESBUILD=<esbuild 경로> 를 주세요" >&2; exit 2; }
@@ -107,8 +123,13 @@ if [ -n "$APP" ] && [ -d "$APP/apps/workhub/src" ]; then
   app p1 P1_CAPTURE "$W/cap_p1.json"; app p2 P2_CAPTURE "$W/cap_p2.json"; app p3 P3_CAPTURE "$W/cap_p3.json"
   app p4 P4_CAPTURE "$W/cap_p4.json"; app p5 P5_CAPTURE "$W/cap_p5.json"; app p6 P6_CAPTURE "$W/cap_p6.json"
   app p7 P7_CAPTURE "$W/cap_p7.json"; app p7 P7_CAPTURE "$W/cap_p7_nobridge.json" P7_BRIDGE=0
+  if [ -f "$APP/apps/workhub/src/teaching/relations-adapter.ts" ]; then
+    need "$ESB" "$WH/p8/test/app_contract_p8.ts" --bundle --platform=node --format=esm --log-level=warning \
+         --alias:@daedong/shared="$WH/r1s/test/shared_stub.ts" --alias:p8app="$APP/apps/workhub/src" --outfile="$W/app_p8.mjs"
+    for c in cap_p8 cap_p8_nobridge; do P8_CAPTURE=$W/$c.json node "$W/app_p8.mjs" > "$W/app_$c.txt" 2>&1; sub "VI app_contract_p8 ($c)" "$W/app_$c.txt" $?; done
+  else ng "VI app_contract_p8 — INT_APP_SRC 가 PR #60 이전 앱(수업 관계 화면 없음)"; fi
 else
-  ng "VI 앱 대조 — INT_APP_SRC 에 PR #48 checkout 을 지정하지 않음"
+  ng "VI 앱 대조 — INT_APP_SRC 에 앱 checkout(PR #60)을 지정하지 않음"
 fi
 
 echo "== 합계: PASS $PASS · FAIL $FAIL"

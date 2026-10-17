@@ -90,9 +90,21 @@ class O(Who):
         k = k or key(); return self.keep('ops_mutate', self.go('workhub_collection_operations_mutate', cmd, k), command=cmd, key=k)
     def home(self): return self.keep('home', self.go('workhub_home_overview'))
     def tl(self, cursor=None): return self.keep('tr_list', self.go('workhub_school_transition_list', cursor), cursor=cursor)
-    def tp(self, plan): return self.keep('tr_preview', self.go('workhub_school_transition_preview', plan), plan=plan)
+    # 미리보기 · 명령 직전의 목록도 남긴다 — PR #60 앱은 보내기 전에 목록으로 서버 판(관리자 확인 계약)을 확인한다(읽기 전용)
+    def listed(self):
+        if not OUT: return {}
+        raw = self.go('workhub_school_transition_list', None)
+        return {'listRaw': raw if isinstance(raw, dict) else None}
+    def duty(self, cmd):
+        if not OUT or not isinstance(cmd, dict): return {}
+        if cmd.get('kind') == 'apply':
+            return {'dutyRecord': any(r.get('kind') == 'duty' for r in (cmd.get('plan') or {}).get('resources') or [])}
+        return {'dutyRecord': bool(scalar("select count(*) from workhub.transition_items where record_id = %s and kind = 'duty'", (str(cmd.get('recordId')),)))}
+    def tp(self, plan):
+        extra = self.listed(); return self.keep('tr_preview', self.go('workhub_school_transition_preview', plan), plan=plan, **extra, **self.duty({'kind': 'apply', 'plan': plan}))
     def tm(self, cmd, k=None):
-        k = k or key(); return self.keep('tr_mutate', self.go('workhub_school_transition_mutate', cmd, k), command=cmd, key=k)
+        k = k or key(); extra = {**self.listed(), **self.duty(cmd)}
+        return self.keep('tr_mutate', self.go('workhub_school_transition_mutate', cmd, k), command=cmd, key=k, **extra)
     def r1(self, cmd): return self.mutate(cmd)
 
 

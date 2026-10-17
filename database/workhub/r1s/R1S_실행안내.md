@@ -79,8 +79,9 @@ R1S-04 의 `deployment_ref` 칸은 이 확인을 한 배포를 가리킵니다.
 
 1. 운영 주소의 배포 커밋(7자리)을 Vercel 에서 확인 → `deployment_ref` 에 적습니다.
 2. Production 환경 변수에 `SUPABASE_SERVICE_ROLE_KEY` 가 있고, Preview·Development 에는 없음을 확인합니다.
-3. R1S-04 전에는 확인 API 가 `NOT_READY` 로 응답하는 것이 정상입니다(활성화 행이 없음). 이 응답이 오면 API 가
-   배포되어 DB 와 연결된 것입니다. 이 날짜를 `deployment_checked_on` 에 적습니다.
+3. R1S-04 전에는 확인 API 가 `NOT_READY` 로 응답하는 것이 정상입니다(활성화 행이 없음). 이 응답으로 API 가 배포된 것은 알 수 있지만,
+   **서비스 키가 없을 때도 같은 `NOT_READY` 라 DB 연결의 증거는 아닙니다**(키는 2 에서 대시보드로 확인). 로그인 없이 보내면 `401` 이어야 합니다.
+   이 날짜를 `deployment_checked_on` 에 적습니다. 실제 연결은 4 의 왕복으로 처음 확인됩니다.
 4. R1S-04 직후 실제 HWPX 파일 1개를 올려 `ready` 가 되고, `.pdf` 등 다른 파일은 고르는 단계에서 막히는지 봅니다.
    이상하면 바로 `R1S-80`.
 
