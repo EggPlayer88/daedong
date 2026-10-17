@@ -236,4 +236,10 @@ proposal exact 키는 `contract,stage,basisId,basisRevision,sourceFingerprint,co
 
 ## 식별자와 표시 이름의 공통 계약
 
+### PR #65 운영 실행 확장
+
+전체 학기 확정은 [publication-execution-api.md](publication-execution-api.md), 행사·휴업·특별일과는 [school-day-execution-api.md](school-day-execution-api.md)의 별도 exact 계약을 따른다. 두 흐름의 앱·전송·복구 구현은 완료했으며 SQL은 아직 없다. 기존 `timetable-operations.v1`/`next.v1` 응답 모양을 변경하지 않는다. 모든 확정/교환/학사 변경은 같은 자원 잠금 규약을 사용하고, 만료·기준 변경 검사는 새 명령에 적용하되 권한 있는 원래 접수증 조회는 유지한다. 화면만 검사했다는 이유로 서버의 자원 용량·전체 영향·동의·권한 재검사를 생략하지 않는다.
+
+### 공통 식별자
+
 기초판·학교·학기·자원·시간대·활동·수업(`courseId`) 식별자 및 모든 참조는 앱 공통 RPC와 동일하게 `^[A-Za-z0-9_-]{1,100}$`를 만족해야 한다. 기존 DB의 UUID를 사용할 수 있으며, 합성 키는 영문·숫자·밑줄·하이픈으로만 구성한다. 한글·콜론·공백이 든 문자열은 ID로 반환하지 않는다. 표시 이름(`label`)과 미지원 기능 설명(`unsupportedFeatures`)은 별도의 한국어 문자열이며 ID 제한을 적용하지 않는다. 서버 기초 자료 생성·저장·복구·AI 제안 경로가 모두 같은 ID 규칙을 사용해야 한다.

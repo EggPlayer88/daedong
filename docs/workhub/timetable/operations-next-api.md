@@ -87,7 +87,7 @@ manifest는 미리보기 ID·해시, 기준자료 fingerprint, 원래 입력, �
 - 상세는 기존 수업 판 증가·상태 검사를 재사용하고, manifest의 시간대/적용 기간 밖 또는 이미 시작한 수업 변경을 거부한다.
 - 서버는 조회 도중 원본이 바뀌어도 일부 페이지만 새 내용으로 교체하지 않는다. 같은 manifest의 고정 자료를 읽거나 `CONFLICT`로 중단한다.
 
-현재 화면은 검사된 manifest 요약과 페이지를 읽는다. **새로운 확정 명령은 아직 없다.** 다음 계약에서는 명령에 전체 manifestHash·basisFingerprint를 고정하고 잠금 안에서 최신 자료 재검사, 단일 접수증, 원키 복구, 전체 결과 요약을 구현해야 한다. 부분 상세를 v1 `complete:true`로 포장해서 실행하면 안 된다.
+현재 화면은 검사된 manifest 요약과 페이지를 읽고 모든 쪽의 자동 검증·명시 확인을 거쳐 별도 [학기 확정 실행 계약](publication-execution-api.md)으로 연결한다. 이 next.v1 조회 계약은 바꾸지 않는다. 새 실행 계약은 전체 manifestHash·basisFingerprint를 고정하며 SQL이 잠금 안의 최신 자료 재검사, 단일 접수증, 원키 조회 전용 복구를 보장해야 한다. 부분 상세를 v1 `complete:true`로 포장해서 실행하면 안 된다.
 
 ## 4. 행사·휴업·특별일과 영향 초안
 
@@ -101,7 +101,7 @@ RPC: `workhub_timetable_operations_school_day_preview(p_member_id,p_source_as_of
 
 응답 `SchoolDayChangePreview`는 입력·조회 세대·previewID/hash/만료시각, `complete:true`, 영향 회차 ID/판, blockers, 처리 중 요청 수, **`changesActualSchedule:false`**를 반환한다. 앱은 참조에서 선택 학급에 속한 당일 scheduled 회차 전체와 응답을 대조해 누락·추가를 거부한다.
 
-이 RPC로 교환·동의·시간표를 변경하지 않는다. 승인·반영은 향후 원자적 계약을 별도로 작성한다. 과거 실시 기록, 기존 승인된 교환, pending 동의, 대강에 따른 학생권한은 따로 검토해야 한다.
+이 RPC로 교환·동의·시간표를 변경하지 않는다. 실제 반영 UI는 별도 [학사 변경 실행 계약](school-day-execution-api.md)에 연결한다. 새 계약은 참조에 없는 교시 ID를 추정하지 않고 현재 수업의 실제 시각으로 특별일과를 지정한다. 과거 실시 기록과 공동 수업을 보호하고 기존 교환과 충돌하면 중단하며, 대강·보강과 학생권한 변경은 자동으로 실행하지 않는다. 기존 조회 RPC의 입력 모양은 그대로 유지한다.
 
 ## 5. 일정 연결
 
