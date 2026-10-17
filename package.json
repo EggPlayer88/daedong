@@ -24,7 +24,8 @@
     "test:workhub:r2-sql": "bash scripts/verify-workhub-r2-sql.sh",
     "check:workhub:pilot": "node scripts/check-workhub-pilot.mjs",
     "check:workhub:release": "node scripts/check-workhub-release.mjs",
-    "test:workhub:release-sql": "bash scripts/verify-workhub-release-sql.sh"
+    "test:workhub:release-sql": "bash scripts/verify-workhub-release-sql.sh",
+    "check:workhub:timetable": "node scripts/check-workhub-timetable.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

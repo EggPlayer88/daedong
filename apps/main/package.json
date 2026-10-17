@@ -12,6 +12,7 @@
   "dependencies": {
     "@daedong/shared": "*",
     "@daedong/timetable": "*",
+    "@daedong/workhub": "*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^7.18.2"

@@ -1,0 +1,113 @@
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
+import { resolve, join } from 'node:path'
+import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
+import { loadBrowserModule } from './helpers/load-browser-module.mjs'
+const m = await loadBrowserModule(`export * from '../packages/timetable/src/validate';export * from '../packages/timetable/src/quality';export * from '../packages/timetable/src/cpSat';export * from '../packages/timetable/src/conditions';`)
+const candidates = [process.env.TIMETABLE_PYTHON, process.env.PYTHON, resolve('tests/.venv/Scripts/python.exe'), resolve('tests/.venv/bin/python'), 'python3', 'python'].filter(Boolean)
+const python = candidates.find(p => (!/[\\/]/.test(p) || existsSync(p)) && spawnSync(p, ['-c', 'import ortools; assert ortools.__version__ == "9.15.6755"'], { stdio: 'ignore' }).status === 0)
+assert.ok(python, '고정 버전 OR-Tools가 필요합니다: pip install -r packages/timetable/requirements.txt')
+let count = 0
+async function check(name, fn) { await fn(); count++; console.log('  ✓ ' + name) }
+const clone = structuredClone
+function basis() {
+  return { schemaVersion: 1, id: 'basis-1', revision: 1, schoolId: 'school-1', termId: 'term-1', sourceFingerprint: 'a'.repeat(64), schoolLevel: 'middle', unsupportedFeatures: [], resources: [{ id: 't1', kind: 'teacher', label: '교사1', capacity: 1 }, { id: 'c1', kind: 'class', label: '학급1', capacity: 1 }], slots: [{ id: 's1', day: 1, label: '월1', startMinute: 540, endMinute: 585, periods: 1 }, { id: 's2', day: 1, label: '월2', startMinute: 595, endMinute: 640, periods: 1 }, { id: 's3', day: 2, label: '화1', startMinute: 540, endMinute: 585, periods: 1 }], lessons: [{ id: 'l1', courseId: 'q1', label: '국어', periods: 1, resourceIds: ['t1', 'c1'], allowedSlotIds: ['s1', 's2', 's3'] }, { id: 'l2', courseId: 'q2', label: '수학', periods: 1, resourceIds: ['t1', 'c1'], allowedSlotIds: ['s1', 's2', 's3'] }], courseLoads: [{ courseId: 'q1', periods: 1 }, { courseId: 'q2', periods: 1 }], fixed: [], unavailable: [], preferences: [] }
+}
+function raw(request) {
+  const r = spawnSync(python, ['packages/timetable/engine/runner.py'], { input: JSON.stringify(request), encoding: 'utf8', maxBuffer: 16000000, timeout: 150000, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }, windowsHide: true })
+  assert.equal(r.status, 0, r.stderr || String(r.error)); return JSON.parse(r.stdout)
+}
+async function run(b, previous = null, options = {}) {
+  const request = await m.buildCpSatRequest(b, 'request-1', previous, { maxSeconds: 5, ...options })
+  const result = await m.parseCpSatResponse(request, raw(request)); return { request, result }
+}
+const places = [{ lessonId: 'l1', slotId: 's1' }, { lessonId: 'l2', slotId: 's2' }]
+
+await check('앱 요청→Python CP-SAT→앱 독립검증 실제 왕복', async () => { const b = basis(), original = clone(b), { result } = await run(b); assert.equal(result.status, 'feasible'); assert.equal(result.candidates[0].optimal, true); assert.equal(result.candidates[0].objective.teacherPeakPeriods, 1); assert.deepEqual(b, original) })
+await check('최대 세 개의 서로 다른 후보만 반환한다', async () => { const { result } = await run(basis(), null, { maxCandidates: 3 }); assert.equal(result.candidates.length, 3); assert.equal(new Set(result.candidates.map(c => JSON.stringify(c.placements))).size, 3) })
+await check('학급마다 다른 하루 수업 수를 강제로 채우지 않는다', async () => { const b = basis(); b.schoolLevel = 'primary'; b.resources.push({ id: 't2', kind: 'teacher', label: '담임2', capacity: 1 }, { id: 'c2', kind: 'class', label: '저학년', capacity: 1 }); b.lessons.push({ id: 'l3', courseId: 'q3', label: '저학년', periods: 1, resourceIds: ['t2', 'c2'], allowedSlotIds: ['s1'] }); b.courseLoads.push({ courseId: 'q3', periods: 1 }); const { result } = await run(b); assert.equal(result.status, 'feasible'); assert.equal(result.candidates[0].placements.length, 3); assert.equal(result.candidates[0].placements.find(p => p.lessonId === 'l3').slotId, 's1') })
+await check('다른 이름의 실제 구간이 겹치면 불가능', async () => { const b = basis(); b.slots[1].startMinute = 560; b.lessons.forEach((l, i) => l.allowedSlotIds = [b.slots[i].id]); const { result } = await run(b); assert.equal(result.status, 'infeasible'); assert.equal(result.stats.stoppedByLimit, false) })
+await check('끝 시각과 다음 시작 시각이 같은 경계는 충돌하지 않는다', async () => { const b = basis(); b.slots[1].startMinute = 585; b.fixed = places; assert.equal((await run(b)).result.status, 'feasible') })
+await check('교사 변경을 변경 0으로 계산하지 않는다', async () => { const old = basis(); old.resources.push({ id: 't2', kind: 'teacher', label: '새교사', capacity: 1 }); const current = clone(old); current.revision++; current.lessons[0].resourceIds = ['t2', 'c1']; const { result } = await run(current, { basis: old, placements: places }); assert.equal(result.status, 'feasible'); assert.equal(result.candidates[0].objective.changedLessons, 1); assert.deepEqual(result.candidates[0].placements, places); const change = m.compareTimetables(current, places, { basis: old, placements: places }); assert.equal(change.reassigned, 1); assert.equal(change.moved, 0) })
+await check('현재 교사로 과거 시간표를 재해석하여 복구를 막지 않는다', async () => { const old = basis(); old.resources.push({ id: 't2', kind: 'teacher', label: '교사2', capacity: 1 }, { id: 'c2', kind: 'class', label: '학급2', capacity: 1 }); old.lessons[1].resourceIds = ['t2', 'c2']; const previous = [{ lessonId: 'l1', slotId: 's1' }, { lessonId: 'l2', slotId: 's1' }]; const current = clone(old); current.lessons[1].resourceIds = ['t1', 'c2']; const { result } = await run(current, { basis: old, placements: previous }); assert.equal(result.status, 'feasible'); assert.equal(result.candidates[0].objective.changedLessons, 1); assert.notEqual(result.candidates[0].placements[0].slotId, result.candidates[0].placements[1].slotId) })
+await check('슬롯 ID는 같아도 실제 시각이 바뀌면 변경으로 집계한다', async () => { const old = basis(), current = clone(old); current.slots[0].startMinute = 530; current.fixed = places; const { result } = await run(current, { basis: old, placements: places }); assert.equal(result.candidates[0].objective.changedLessons, 1) })
+await check('최소 변경 우선은 선호 개선을 위해 기존 유효안을 불필요하게 옮기지 않는다', async () => { const old = basis(), current = clone(old); current.preferences = [{ lessonId: 'l1', slotId: 's1', weight: 100 }]; const { result } = await run(current, { basis: old, placements: places }); assert.equal(result.candidates[0].objective.changedLessons, 0); assert.equal(result.candidates[0].objective.preferencePenalty, 100); const improve = await run(current, { basis: old, placements: places }, { minimizeChanges: false }); assert.equal(improve.result.candidates[0].objective.preferencePenalty, 0) })
+await check('고정은 선호 벌점이 높아도 지킨다', async () => { const b = basis(); b.fixed = places; b.preferences = [{ lessonId: 'l1', slotId: 's1', weight: 1000000 }]; const { result } = await run(b); assert.deepEqual(result.candidates[0].placements, places); assert.equal(result.candidates[0].objective.preferencePenalty, 1000000) })
+await check('교과별 요일 분산과 일별 최대 시수를 평가한다', async () => { const b = basis(); b.lessons[1].courseId = 'q1'; b.courseLoads = [{ courseId: 'q1', periods: 2 }]; const { result } = await run(b); assert.equal(result.candidates[0].objective.courseRepeats, 0); assert.equal(result.candidates[0].objective.teacherPeakPeriods, 1) })
+await check('미지원 조건은 실행하지 않고 명시한다', async () => { const b = basis(); b.unsupportedFeatures = ['격주 순환']; const { result } = await run(b); assert.equal(result.status, 'unsupported'); assert.equal(result.candidates.length, 0) })
+await check('요청·원본·이전판 변조와 다른 학교 이전판을 거부한다', async () => { const b = basis(), request = await m.buildCpSatRequest(b, 'req'); const changed = clone(request); changed.basis.lessons[0].label = '변조'; assert.equal(raw(changed).issues[0].code, 'INPUT_HASH_MISMATCH'); const old = clone(b); old.schoolId = 'other'; await assert.rejects(() => m.buildCpSatRequest(b, 'req', { basis: old, placements: places })); await assert.rejects(() => m.buildCpSatRequest(b, 'req', null, { relaxHard: true })); await assert.rejects(() => m.buildCpSatRequest(b, 'req', null, { maxCandidates: 4 })) })
+await check('같은 기준판 번호라도 변경된 조건은 지문이 달라진다', async () => { const b = basis(), a = await m.buildCpSatRequest(b, 'req'); b.unavailable = [{ resourceId: 't1', day: 1, startMinute: 540, endMinute: 585 }]; const c = await m.buildCpSatRequest(b, 'req'); assert.notEqual(a.inputHash, c.inputHash) })
+await check('응답 후보·점수·지문·중복을 재검증한다', async () => { const { request, result } = await run(basis()); for (const edit of [r => r.inputHash = '0'.repeat(64), r => r.candidates[0].objective.changedLessons++, r => r.candidates[0].placements.pop(), r => r.candidates.push(clone(r.candidates[0])), r => r.hidden = true, r => r.stats.branches = -1]) { const bad = clone(result); edit(bad); await assert.rejects(() => m.parseCpSatResponse(request, bad)) } })
+await check('품질표는 누락 배치에 정상 점수를 붙이지 않는다', () => { const b = basis(); const bad = m.evaluateTimetableQuality(b, places.slice(0, 1)); assert.equal(bad.valid, false); assert.equal(bad.preferencePenalty, null); const good = m.evaluateTimetableQuality(b, places); assert.equal(good.teacherLoads[0].days[0].idleMinutes, 10); assert.equal(good.scheduledPeriods, good.requiredPeriods) })
+await check('조건 적용은 원본을 바꾸지 않고 기존 고정을 보호한다', () => { const b = basis(), original = clone(b); const r = m.compileTimetableConditions(b, [{ id: 'f1', kind: 'fixed', lessonId: 'l1', slotId: 's1' }, { id: 'u1', kind: 'unavailable', resourceId: 't1', day: 2, startMinute: 540, endMinute: 585 }, { id: 'p1', kind: 'slot_penalty', lessonId: 'l2', slotId: 's2', weight: 2 }]); assert.equal(r.valid, true); assert.deepEqual(b, original); const conflict = m.compileTimetableConditions(r.basis, [{ id: 'f2', kind: 'fixed', lessonId: 'l1', slotId: 's2' }]); assert.equal(conflict.valid, false); assert.equal(conflict.basis, null) })
+await check('미지원·중복·숨은 필드 조건을 조용히 누락하지 않는다', () => { for (const condition of [{ id: 'x', kind: 'max_daily', resourceId: 't1', periods: 3 }, { id: 'x', kind: 'fixed', lessonId: 'l1', slotId: 's1', unknown: true }, { id: 'x', kind: 'allowed_slots', lessonId: 'l1', slotIds: [] }]) assert.equal(m.compileTimetableConditions(basis(), [condition]).valid, false); const c = { id: 'x', kind: 'fixed', lessonId: 'l1', slotId: 's1' }; assert.equal(m.compileTimetableConditions(basis(), [c, c]).valid, false) })
+await check('허용 시간 제한은 원래 허용 범위를 넓히지 않는다', () => { const b = basis(); b.lessons[0].allowedSlotIds = ['s1', 's2']; assert.equal(m.compileTimetableConditions(b, [{ id: 'x', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s3'] }]).valid, false); const narrowed = m.compileTimetableConditions(b, [{ id: 'x', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2'] }]); assert.equal(narrowed.valid, true); assert.deepEqual(narrowed.basis.lessons[0].allowedSlotIds, ['s2']) })
+await check('여러 허용 시간 조건은 포함 관계·부분 중첩 모두 입력 순서와 무관하게 교집합을 적용한다', () => {
+  const b = basis(), original = clone(b)
+  for (const second of [['s2'], ['s2', 's3']]) {
+    const a = { id: 'a', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s1', 's2'] }, c = { id: 'c', kind: 'allowed_slots', lessonId: 'l1', slotIds: second }
+    const forward = m.compileTimetableConditions(b, [a, c]), reverse = m.compileTimetableConditions(b, [c, a])
+    assert.equal(forward.valid, true); assert.equal(reverse.valid, true)
+    assert.deepEqual(forward.basis, reverse.basis); assert.deepEqual(forward.basis.lessons[0].allowedSlotIds, ['s2'])
+    assert.deepEqual(forward.basis.lessons[1].allowedSlotIds, original.lessons[1].allowedSlotIds)
+    assert.equal(m.validatePlacements(forward.basis, [{ lessonId: 'l1', slotId: 's2' }, { lessonId: 'l2', slotId: 's1' }]).valid, true)
+  }
+  assert.deepEqual(b, original)
+})
+await check('교집합에서 사라질 잘못된 슬롯도 원본에 없는 참조이면 어떤 순서에서든 거부한다', () => {
+  const b = basis(); b.lessons[0].allowedSlotIds = ['s1', 's2']; const original = clone(b)
+  for (const excluded of ['s3', 'unknown']) {
+    const a = { id: 'a', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2'] }, c = { id: 'c', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2', excluded] }
+    for (const order of [[a, c], [c, a]]) {
+      const result = m.compileTimetableConditions(b, order)
+      assert.equal(result.valid, false); assert.equal(result.basis, null); assert.deepEqual(result.appliedIds, [])
+      assert.ok(result.issues.some(issue => issue.code === 'INVALID_ALLOWED_SLOTS'))
+    }
+  }
+  assert.deepEqual(b, original)
+})
+await check('허용 시간 교집합이 비면 전체 조건 적용을 중단하고 원본과 다른 수업을 보존한다', () => {
+  const b = basis(), original = clone(b), a = { id: 'a', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s1'] }, c = { id: 'c', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2'] }
+  for (const order of [[a, c], [c, a]]) {
+    const result = m.compileTimetableConditions(b, [{ id: 'other', kind: 'fixed', lessonId: 'l2', slotId: 's3' }, ...order])
+    assert.equal(result.valid, false); assert.equal(result.basis, null); assert.deepEqual(result.appliedIds, [])
+    assert.ok(result.issues.some(issue => issue.code === 'EMPTY_ALLOWED_SLOTS'))
+    assert.deepEqual(b, original)
+  }
+})
+await check('학생 교집합과 공동교사의 실제 충돌을 검사한다', async () => { for (const kind of ['teacher', 'student_group']) { const b = basis(); b.resources.push({ id: 't2', kind: 'teacher', label: '교사2', capacity: 1 }, { id: 'c2', kind: 'class', label: '학급2', capacity: 1 }, { id: 'shared', kind, label: '공통참여', capacity: 1 }); b.lessons[1].resourceIds = ['t2', 'c2']; b.lessons.forEach(l => { l.resourceIds.push('shared'); l.allowedSlotIds = ['s1'] }); assert.equal((await run(b)).result.status, 'infeasible') } })
+await check('합성 예약의 수용량2는 두 수업을 허용하되 세 수업을 거부한다', async () => { const b = basis(); b.resources.push({ id: 'r', kind: 'room', label: '실습실', capacity: 2 }, { id: 't2', kind: 'teacher', label: '교사2', capacity: 1 }, { id: 'c2', kind: 'class', label: '학급2', capacity: 1 }); b.lessons[1].resourceIds = ['t2', 'c2']; b.lessons.forEach(l => { l.resourceIds.push('r'); l.allowedSlotIds = ['s1'] }); assert.equal((await run(b)).result.status, 'feasible'); b.resources.push({ id: 't3', kind: 'teacher', label: '교사3', capacity: 1 }, { id: 'c3', kind: 'class', label: '학급3', capacity: 1 }); b.lessons.push({ id: 'l3', courseId: 'q3', label: '셋째수업', periods: 1, resourceIds: ['t3', 'c3', 'r'], allowedSlotIds: ['s1'] }); b.courseLoads.push({ courseId: 'q3', periods: 1 }); assert.equal((await run(b)).result.status, 'infeasible') })
+await check('블록 수업은 전체 실제 구간을 점유한다', async () => { const b = basis(); b.slots.push({ id: 'block', day: 1, label: '연속2시수', startMinute: 540, endMinute: 640, periods: 2 }); b.lessons[0].periods = 2; b.lessons[0].allowedSlotIds = ['block']; b.courseLoads[0].periods = 2; b.lessons[1].allowedSlotIds = ['s2']; assert.equal((await run(b)).result.status, 'infeasible') })
+await check('올바른 해시로 위조한 입력도 Python이 별도로 검증한다', async () => { const request = await m.buildCpSatRequest(basis(), 'req'); for (const edit of [r => r.basis.resources[0].capacity = 2, r => r.basis.courseLoads[0].periods = 2, r => r.basis.hiddenCondition = 'ignore', r => r.options.seed = true, r => r.basis.fixed = [{ lessonId: 'l1', slotId: 'unknown' }]]) { const bad = clone(request); edit(bad); const { inputHash, ...payload } = bad; bad.inputHash = createHash('sha256').update(m.canonicalTimetableJson(payload)).digest('hex'); assert.equal(raw(bad).status, 'invalid') } })
+await check('한글·공백 파일 경로로 CLI 왕복하고 기존 결과를 덮어쓰지 않는다', async () => { const folder = mkdtempSync(join(tmpdir(), '시간표 계산 ')); try { const request = await m.buildCpSatRequest(basis(), 'file-request'); const input = join(folder, '편성 요청.json'), output = join(folder, '계산 결과.json'); writeFileSync(input, '\ufeff' + JSON.stringify(request)); const args = ['packages/timetable/engine/runner.py', '--input', input, '--output', output]; const first = spawnSync(python, args, { encoding: 'utf8', timeout: 150000, windowsHide: true }); assert.equal(first.status, 0, first.stderr); const saved = readFileSync(output, 'utf8'); assert.equal((await m.parseCpSatResponse(request, JSON.parse(saved))).status, 'feasible'); const second = spawnSync(python, args, { encoding: 'utf8', timeout: 150000, windowsHide: true }); assert.notEqual(second.status, 0); assert.equal(readFileSync(output, 'utf8'), saved) } finally { rmSync(folder, { recursive: true, force: true }) } })
+await check('모델 준비 시간 초과는 불가능 대신 unknown으로 보고한다', async () => { const request = await m.buildCpSatRequest(basis(), 'timeout', null, { maxSeconds: 1 }); const code = `import importlib.util,json,sys\ns=importlib.util.spec_from_file_location('runner','packages/timetable/engine/runner.py');m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\nit=iter(range(0,1000,2));m.time.monotonic=lambda:next(it)\nprint(json.dumps(m.solve(json.loads(sys.stdin.read()))))`; const r = spawnSync(python, ['-c', code], { input: JSON.stringify(request), encoding: 'utf8', timeout: 150000, env: { ...process.env, PYTHONUTF8: '1' }, windowsHide: true }); assert.equal(r.status, 0, r.stderr); const response = await m.parseCpSatResponse(request, JSON.parse(r.stdout)); assert.equal(response.status, 'unknown'); assert.equal(response.stats.stoppedByLimit, true) })
+
+// 엔진 코드와 별개로 분 단위 점유를 직접 세어 작은 문제의 해·최선 선호를 완전열거한다.
+function oracle(b) {
+  let best = Infinity
+  const visit = (index, placed) => {
+    if (index < b.lessons.length) { for (const id of b.lessons[index].allowedSlotIds) visit(index + 1, [...placed, id]); return }
+    for (let i = 0; i < placed.length; i++) {
+      const l = b.lessons[i], s = b.slots.find(s => s.id === placed[i])
+      if (b.fixed.some(f => f.lessonId === l.id && f.slotId !== s.id) || b.unavailable.some(u => l.resourceIds.includes(u.resourceId) && u.day === s.day && u.startMinute < s.endMinute && s.startMinute < u.endMinute)) return
+    }
+    for (const r of b.resources) for (let d = 1; d <= 2; d++) for (let t = 0; t < 20; t++) {
+      const n = b.lessons.reduce((n, l, i) => { const s = b.slots.find(s => s.id === placed[i]); return n + Number(l.resourceIds.includes(r.id) && s.day === d && s.startMinute <= t && t < s.endMinute) }, 0)
+      if (n > r.capacity) return
+    }
+    best = Math.min(best, b.lessons.reduce((sum, l, i) => sum + (b.preferences.find(p => p.lessonId === l.id && p.slotId === placed[i])?.weight ?? 0), 0))
+  }
+  visit(0, []); return best
+}
+await check('독립 완전열거 24개 문제와 CP-SAT 해·최적 선호벌점을 대조한다', async () => {
+  let seed = 62459; const random = n => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return (seed >>> 12) % n }
+  for (let n = 0; n < 24; n++) {
+    const b = basis(); b.slots = Array.from({ length: 3 }, (_, i) => ({ id: 's' + i, day: 1 + random(2), label: '시간' + i, startMinute: i * 3, endMinute: i * 3 + 4, periods: 1 })); b.resources.push({ id: 't2', kind: 'teacher', label: '교사2', capacity: 1 }, { id: 'c2', kind: 'class', label: '학급2', capacity: 1 }, { id: 'room', kind: 'room', label: '공간', capacity: 1 + random(2) });
+    b.lessons = Array.from({ length: 3 }, (_, i) => ({ id: 'l' + i, courseId: 'q' + i, label: '수업' + i, periods: 1, resourceIds: [random(2) ? 't1' : 't2', random(2) ? 'c1' : 'c2', 'room'], allowedSlotIds: b.slots.filter((_, i) => i === 0 || random(2)).map(s => s.id) })); b.courseLoads = b.lessons.map(l => ({ courseId: l.courseId, periods: 1 })); b.preferences = b.lessons.flatMap(l => l.allowedSlotIds.map(slotId => ({ lessonId: l.id, slotId, weight: random(5) })));
+    if (n % 3 === 0) b.fixed = [{ lessonId: 'l0', slotId: b.lessons[0].allowedSlotIds[0] }]; if (n % 4 === 0) b.unavailable = [{ resourceId: 't1', day: 1, startMinute: 3, endMinute: 6 }];
+    const expected = oracle(b), { result } = await run(b); assert.equal(result.status, expected === Infinity ? 'infeasible' : 'feasible', 'case ' + n); if (expected !== Infinity) { assert.equal(result.candidates[0].objective.preferencePenalty, expected); assert.equal(result.candidates[0].optimal, true) }
+  }
+})
+console.log(`시간표 CP-SAT·원본판·품질·조건 ${count}건 통과`)

@@ -1,0 +1,7 @@
+{
+  "searchLength": 100,
+  "candidateChecks": 100,
+  "candidateBudgetMs": 200,
+  "candidateResults": 10,
+  "unassignedPage": 20
+}

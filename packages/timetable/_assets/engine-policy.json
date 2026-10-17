@@ -1,0 +1,12 @@
+{
+  "contract": "timetable.solve.v1",
+  "engineVersion": "canonical-cpsat-1",
+  "ortoolsVersion": "9.15.6755",
+  "defaultMaxSeconds": 15,
+  "maximumMaxSeconds": 120,
+  "maximumCandidates": 3,
+  "maximumRequestBytes": 16000000,
+  "maximumModelChoices": 100000,
+  "maximumResourceChoices": 500000,
+  "defaultSeed": 71283
+}

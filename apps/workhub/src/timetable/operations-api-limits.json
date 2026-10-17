@@ -1,0 +1,19 @@
+{
+  "listDays": 31,
+  "publishDays": 366,
+  "lessons": 3000,
+  "changes": 12000,
+  "requests": 300,
+  "drafts": 100,
+  "publications": 100,
+  "teachers": 1000,
+  "namesPerLesson": 100,
+  "targets": 400,
+  "blockers": 100,
+  "title": 200,
+  "reason": 500,
+  "message": 1000,
+  "previewLifetimeMs": 900000,
+  "clockSkewMs": 30000,
+  "lessonMinutes": 1440
+}
