@@ -1,6 +1,6 @@
 {
   "format": "workhub-sql-package.v1",
-  "sourceCommit": "edd743f978a8cf04f52b71d9892be209a89484ad",
+  "sourceCommit": "5c05c2d78af44e4b10455ba06291d93971f7628e",
   "encoding": "Git 원문 바이트(LF), 로컬 줄바꿈 변환 전",
   "files": [
     {
@@ -221,7 +221,7 @@
     },
     {
       "path": "database/workhub/p8/P8-06_정책모듈활성화_양식.sql",
-      "sha256": "f7cb64e28e15b742e9d2bc1e39370690915a62d563c27731343eaafb77f4e301"
+      "sha256": "165c71438c91cca3333d67d4bc657f6a95819113f156f3e095379fdc21318244"
     },
     {
       "path": "database/workhub/r0/R0-00_전후지문.sql",

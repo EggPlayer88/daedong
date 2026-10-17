@@ -1,4 +1,7 @@
 {
+  "verifiedAt": "2026-10-17",
+  "appCommit": "13f6d0caf2e7077062dd8f2251faafe2e1e89a92",
+  "sqlCommit": "5c05c2d78af44e4b10455ba06291d93971f7628e",
   "scope": "isolated_postgresql17_and_captured_app_contracts",
   "actualSupabase": false,
   "actualStorage": false,

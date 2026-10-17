@@ -1,13 +1,15 @@
 -- ============================================================================
 -- P8-06  정책 보강 모듈 켜기 — 학교 1곳의 협업 알림 · 업무 인계 관리자 확인 · 수업 담당/수강 변경을 켠다. 별도 승인 뒤에만.
 --
--- ▣ 언제: PR #60(앱) 이 병합 · 배포된 "뒤", 학교가 승인했을 때. P8-01~04 적용과 같은 날 실행하지 않는다.
+-- ▣ 언제: 앱 #63(ed9ea32, C8 수정)을 포함한 판(통합 후보 #64 이후)이 운영에 배포된 "뒤", 학교가 승인했을 때. P8-01~04 적용과 같은 날 실행하지 않는다.
+--   #60 · #62 만 든 판은 기준이 아니다(C8 회귀).
 --   옛 앱(PR #48 · #59)은 이 세 기능의 새 응답(cooperation 출처 알림 · 업무 인계 새 목록 모양 · 관계 변경)을 읽지 못한다 →
 --   옛 앱이 운영 중이면 켜지 않는다. 그래서 배포 확인 칸(app_deploy_ref)을 비워 둘 수 없게 했다.
 -- ▣ 아래 $json$ 의 <...> 칸을 모두 채워야 실행된다. 칸이 남아 있으면 아무것도 쓰지 않고 멈춘다. 기본값은 없다.
 --   approver_user_id : 승인한 학교 관리자(school_admin)의 회원 id(Auth UID). 대상 학교 = 그 사람이 지금 관리자인 학교 1곳.
 --   approval_ref     : 승인 근거 1~200자
---   app_deploy_ref   : PR #60 이상이 운영에 배포되었음을 확인한 근거 1~200자(배포 주소 · 커밋 · 확인한 날). 확인하지 않았으면 실행하지 않는다.
+--   app_deploy_ref   : #63(ed9ea32)을 포함한 앱이 운영에 배포되었음을 확인한 근거 1~200자(배포 주소 · 커밋 · 확인한 날). 확인하지 않았으면 실행하지 않는다.
+--                      실행하는 사람이 적는 확인 기록이다. 서버는 길이만 검사하고 실제 배포 내용을 증명하지 않는다.
 --   modules          : 켤 모듈(1~3개, 중복 없이)
 --                      "cooperation_notices" 협업 요청 상태가 바뀔 때 상대 교사에게 사이트 안 알림(P8-02 필요, 메신저 P3 준비 상태에서만 동작)
 --                      "duty_admin_review"   공식 담당이 든 업무 인계를 학교 관리자 확인 → 받는 사람 수락 순서로(P8-03 필요).
@@ -24,7 +26,7 @@ DECLARE
 {
   "approver_user_id": "<승인한 관리자 회원 id>",
   "approval_ref": "<승인 근거>",
-  "app_deploy_ref": "<PR #60 이상 운영 배포 확인 근거>",
+  "app_deploy_ref": "<#63 ed9ea32 포함 앱 운영 배포 확인 근거>",
   "modules": ["<cooperation_notices · duty_admin_review · teaching_relations 중 켤 것>"]
 }
 $json$::jsonb;
@@ -36,7 +38,7 @@ BEGIN
   END IF;
   IF length(btrim(COALESCE(p ->> 'approval_ref', ''))) NOT BETWEEN 1 AND 200 THEN RAISE EXCEPTION 'P8-06 중단: 승인 근거는 1~200자입니다.'; END IF;
   IF length(btrim(COALESCE(p ->> 'app_deploy_ref', ''))) NOT BETWEEN 1 AND 200 THEN
-    RAISE EXCEPTION 'P8-06 중단: 앱 배포 확인 근거(app_deploy_ref)는 1~200자입니다. PR #60 배포를 확인하지 않았으면 켜지 않습니다.';
+    RAISE EXCEPTION 'P8-06 중단: 앱 배포 확인 근거(app_deploy_ref)는 1~200자입니다. #63(ed9ea32) 포함 앱의 배포를 확인하지 않았으면 켜지 않습니다.';
   END IF;
   IF jsonb_typeof(p -> 'modules') IS DISTINCT FROM 'array' OR jsonb_array_length(p -> 'modules') NOT BETWEEN 1 AND 3
      OR EXISTS (SELECT 1 FROM jsonb_array_elements(p -> 'modules') x WHERE jsonb_typeof(x) <> 'string'

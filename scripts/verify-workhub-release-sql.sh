@@ -3,7 +3,7 @@
 # 운영 DSN/키를 받지 않는다. 원본 SQL은 복사만 하고, 원본 시험의 reset은 전용 임시 DB만 초기화한다.
 set -euo pipefail
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-SQL_REF=edd743f978a8cf04f52b71d9892be209a89484ad
+SQL_REF=5c05c2d78af44e4b10455ba06291d93971f7628e
 fail(){ echo "중단: $*" >&2; exit 2; }
 MODE=${1:-run}
 [[ "$#" -le 1 && ( "$MODE" = run || "$MODE" = --check-safety ) ]] || fail "사용법: bash scripts/verify-workhub-release-sql.sh [--check-safety]"

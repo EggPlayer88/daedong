@@ -25,7 +25,7 @@ npm run build:workhub
 npm run test:workhub:browser
 ```
 
-SQL 전체 검사는 Linux 또는 WSL Linux에서 실행한다. Node 22, Linux용 `npm ci`, Python 3의 `psycopg2-binary`와 `lxml`, PostgreSQL 17의 `initdb`·`pg_ctl`·`postgres`, `psql`이 필요하다. Git 이력에는 SQL 기준 `edd743f978a8cf04f52b71d9892be209a89484ad`가 있어야 한다. CI는 `fetch-depth: 0`을 사용한다.
+SQL 전체 검사는 Linux 또는 WSL Linux에서 실행한다. Node 22, Linux용 `npm ci`, Python 3의 `psycopg2-binary`와 `lxml`, PostgreSQL 17의 `initdb`·`pg_ctl`·`postgres`, `psql`이 필요하다. Git 이력에는 SQL 기준 `5c05c2d78af44e4b10455ba06291d93971f7628e`가 있어야 한다. CI는 `fetch-depth: 0`을 사용한다.
 
 ```bash
 # 외부 DB 접속값이나 API 키가 없는 전용 셸에서 실행한다.
@@ -62,6 +62,8 @@ node tests/test_workhub_release_verification.mjs
 
 코드 검토·SQL 설치·기능 활성화를 구분한다.
 
+현재 SQL 기준은 #61 `5c05c2d78af44e4b10455ba06291d93971f7628e`다. SQL PR의 기준이 바뀌면 `scripts/verify-workhub-release-sql.sh`의 `SQL_REF`, `inventory.json`의 `sql.sha`, `sql-package.json`의 `sourceCommit`·변경 파일 해시를 **같이 갱신**하고 해당 커밋을 merge commit으로 포함해야 CI가 통과한다.
+
 1. 현재 후보의 앱·SQL commit과 자동 검사 결과를 Claude에게 전달한다. C8은 새 명령을 `mutate`, 같은 요청 번호의 복구를 `recover`로 시험한다.
 2. Claude와 사용자가 현재 운영 DB에서 `INT-03`과 `R1-04`의 읽기 전용 기준선을 확인한다. 기존 R0/R1 적용 결과와 같다는 추측으로 넘어가지 않는다.
 3. 승인된 실행 안내대로 남은 1~7단계와 8단계를 비활성 설치한다. R0/R1을 재실행하거나 R0-90을 실행하지 않는다.
@@ -69,6 +71,8 @@ node tests/test_workhub_release_verification.mjs
 5. 앱 배포를 확인한 뒤 사용자가 관리자 제한 범위에서 모듈별 시험용 활성화를 승인하고, Claude의 안내에 따라 SQL을 적용한다. 그 범위에서 아래의 실제 읽기·쓰기·파일 왕복을 확인한다. 확인된 모듈의 활성화 유지와 일반 교사 공개는 별도로 판단한다. 비서의 C7·D1~D10과 외부 비용 설정은 별도 결정 전까지 보류한다.
 
 위 순서는 운영 SQL의 상세 명령을 대체하지 않는다. 실제 SQL 파일과 빈칸·승인 근거는 `database/workhub/integration` 및 단계별 실행 안내를 사용한다.
+
+`R1S-04`·`P3-05` 보류 사유는 검사 API 미구현이 아니다. `apps/main/api/collections/check-hwpx.py`와 `apps/main/api/messages/check-hwpx.py`의 운영 Vercel 배포, `SUPABASE_SERVICE_ROLE_KEY`를 Production 서버 변수에만 설정하는 작업, 실제 Supabase/Storage 왕복 확인이 남았다. API 키를 클라이언트 변수·소스·검토 자료에 넣지 않는다. 사용자 승인 후 관리자 범위에서 업로드→최소 검사→제출/전송→권한 있는 내려받기를 확인하며, 별도 검사기 서버 `R1-05`는 계속 보류한다. 최신 단계별 조건은 [운영 마무리 안내](../../../database/workhub/integration/운영_마무리_안내.md)를 따른다.
 
 ## 3. 배포 후 한 번 실행할 읽기 전용 점검
 
@@ -103,6 +107,6 @@ node scripts/check-workhub-deployment.mjs \
 
 ## 판단해서 정한 것
 
-- 원본 SQL을 바꾸지 않는 실행기를 추가했다. Claude 검토본과 같은 SQL을 현재 앱에 반복 대조하기 위해서다. SQL 기준을 바꾸려면 실행기의 `SQL_REF`와 검토 근거를 함께 갱신한다.
+- 원본 SQL을 바꾸지 않는 실행기를 추가했다. Claude 검토본과 같은 SQL을 현재 앱에 반복 대조하기 위해서다. SQL 기준을 바꾸려면 위 세 기준값·원문 해시와 검토 근거를 함께 갱신한다.
 - 전용 셸에서 외부 접속 환경이 발견되면 지우고 진행하지 않고 중단한다. 실수로 운영 접속값을 섞은 실행임을 사용자가 알 수 있게 했다.
 - 실제 서비스 점검은 기존 읽기 전용 도구를 재사용하고, 쓰기·파일·교사 PC 확인은 별도 표로 남겼다. 자동 시험과 실사용 성공을 혼동하지 않기 위해서다.
