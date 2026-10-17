@@ -4,6 +4,8 @@
 
 먼저 `docs/workhub/timetable/completion.md`, `completion-verification.md`를 읽어 주세요. 미완성·운영 미검증 범위를 별도로 적었습니다.
 
+이번 편성 사용성 추가분은 `editor-usability.md`에 정리했습니다. 같은 PR #65에 포함했으며 추가 SQL 계약은 없습니다. 특히 `preparation-editing`의 명시 대체·기존 ID/허용 목록 보존, `preflight`의 확정 충돌과 미판정 구분, `adjustments`의 미배정/전체검증 분리·고정 보호·두 수업 원자 반영, `candidate-review`의 이전 판·실제 시각 비교를 검토해 주세요.
+
 ## 우선 검토
 
 1. `preparation*`: 공식 교사/수강집단/시수와 시간표 준비 초안 구분, 미완성 저장과 기준판 확정 구분, 오래된 원본·권한 회수, 같은 번호 복구의 원본 비교.
