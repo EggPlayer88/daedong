@@ -44,6 +44,39 @@ await check('품질표는 누락 배치에 정상 점수를 붙이지 않는다'
 await check('조건 적용은 원본을 바꾸지 않고 기존 고정을 보호한다', () => { const b = basis(), original = clone(b); const r = m.compileTimetableConditions(b, [{ id: 'f1', kind: 'fixed', lessonId: 'l1', slotId: 's1' }, { id: 'u1', kind: 'unavailable', resourceId: 't1', day: 2, startMinute: 540, endMinute: 585 }, { id: 'p1', kind: 'slot_penalty', lessonId: 'l2', slotId: 's2', weight: 2 }]); assert.equal(r.valid, true); assert.deepEqual(b, original); const conflict = m.compileTimetableConditions(r.basis, [{ id: 'f2', kind: 'fixed', lessonId: 'l1', slotId: 's2' }]); assert.equal(conflict.valid, false); assert.equal(conflict.basis, null) })
 await check('미지원·중복·숨은 필드 조건을 조용히 누락하지 않는다', () => { for (const condition of [{ id: 'x', kind: 'max_daily', resourceId: 't1', periods: 3 }, { id: 'x', kind: 'fixed', lessonId: 'l1', slotId: 's1', unknown: true }, { id: 'x', kind: 'allowed_slots', lessonId: 'l1', slotIds: [] }]) assert.equal(m.compileTimetableConditions(basis(), [condition]).valid, false); const c = { id: 'x', kind: 'fixed', lessonId: 'l1', slotId: 's1' }; assert.equal(m.compileTimetableConditions(basis(), [c, c]).valid, false) })
 await check('허용 시간 제한은 원래 허용 범위를 넓히지 않는다', () => { const b = basis(); b.lessons[0].allowedSlotIds = ['s1', 's2']; assert.equal(m.compileTimetableConditions(b, [{ id: 'x', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s3'] }]).valid, false); const narrowed = m.compileTimetableConditions(b, [{ id: 'x', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2'] }]); assert.equal(narrowed.valid, true); assert.deepEqual(narrowed.basis.lessons[0].allowedSlotIds, ['s2']) })
+await check('여러 허용 시간 조건은 포함 관계·부분 중첩 모두 입력 순서와 무관하게 교집합을 적용한다', () => {
+  const b = basis(), original = clone(b)
+  for (const second of [['s2'], ['s2', 's3']]) {
+    const a = { id: 'a', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s1', 's2'] }, c = { id: 'c', kind: 'allowed_slots', lessonId: 'l1', slotIds: second }
+    const forward = m.compileTimetableConditions(b, [a, c]), reverse = m.compileTimetableConditions(b, [c, a])
+    assert.equal(forward.valid, true); assert.equal(reverse.valid, true)
+    assert.deepEqual(forward.basis, reverse.basis); assert.deepEqual(forward.basis.lessons[0].allowedSlotIds, ['s2'])
+    assert.deepEqual(forward.basis.lessons[1].allowedSlotIds, original.lessons[1].allowedSlotIds)
+    assert.equal(m.validatePlacements(forward.basis, [{ lessonId: 'l1', slotId: 's2' }, { lessonId: 'l2', slotId: 's1' }]).valid, true)
+  }
+  assert.deepEqual(b, original)
+})
+await check('교집합에서 사라질 잘못된 슬롯도 원본에 없는 참조이면 어떤 순서에서든 거부한다', () => {
+  const b = basis(); b.lessons[0].allowedSlotIds = ['s1', 's2']; const original = clone(b)
+  for (const excluded of ['s3', 'unknown']) {
+    const a = { id: 'a', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2'] }, c = { id: 'c', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2', excluded] }
+    for (const order of [[a, c], [c, a]]) {
+      const result = m.compileTimetableConditions(b, order)
+      assert.equal(result.valid, false); assert.equal(result.basis, null); assert.deepEqual(result.appliedIds, [])
+      assert.ok(result.issues.some(issue => issue.code === 'INVALID_ALLOWED_SLOTS'))
+    }
+  }
+  assert.deepEqual(b, original)
+})
+await check('허용 시간 교집합이 비면 전체 조건 적용을 중단하고 원본과 다른 수업을 보존한다', () => {
+  const b = basis(), original = clone(b), a = { id: 'a', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s1'] }, c = { id: 'c', kind: 'allowed_slots', lessonId: 'l1', slotIds: ['s2'] }
+  for (const order of [[a, c], [c, a]]) {
+    const result = m.compileTimetableConditions(b, [{ id: 'other', kind: 'fixed', lessonId: 'l2', slotId: 's3' }, ...order])
+    assert.equal(result.valid, false); assert.equal(result.basis, null); assert.deepEqual(result.appliedIds, [])
+    assert.ok(result.issues.some(issue => issue.code === 'EMPTY_ALLOWED_SLOTS'))
+    assert.deepEqual(b, original)
+  }
+})
 await check('학생 교집합과 공동교사의 실제 충돌을 검사한다', async () => { for (const kind of ['teacher', 'student_group']) { const b = basis(); b.resources.push({ id: 't2', kind: 'teacher', label: '교사2', capacity: 1 }, { id: 'c2', kind: 'class', label: '학급2', capacity: 1 }, { id: 'shared', kind, label: '공통참여', capacity: 1 }); b.lessons[1].resourceIds = ['t2', 'c2']; b.lessons.forEach(l => { l.resourceIds.push('shared'); l.allowedSlotIds = ['s1'] }); assert.equal((await run(b)).result.status, 'infeasible') } })
 await check('합성 예약의 수용량2는 두 수업을 허용하되 세 수업을 거부한다', async () => { const b = basis(); b.resources.push({ id: 'r', kind: 'room', label: '실습실', capacity: 2 }, { id: 't2', kind: 'teacher', label: '교사2', capacity: 1 }, { id: 'c2', kind: 'class', label: '학급2', capacity: 1 }); b.lessons[1].resourceIds = ['t2', 'c2']; b.lessons.forEach(l => { l.resourceIds.push('r'); l.allowedSlotIds = ['s1'] }); assert.equal((await run(b)).result.status, 'feasible'); b.resources.push({ id: 't3', kind: 'teacher', label: '교사3', capacity: 1 }, { id: 'c3', kind: 'class', label: '학급3', capacity: 1 }); b.lessons.push({ id: 'l3', courseId: 'q3', label: '셋째수업', periods: 1, resourceIds: ['t3', 'c3', 'r'], allowedSlotIds: ['s1'] }); b.courseLoads.push({ courseId: 'q3', periods: 1 }); assert.equal((await run(b)).result.status, 'infeasible') })
 await check('블록 수업은 전체 실제 구간을 점유한다', async () => { const b = basis(); b.slots.push({ id: 'block', day: 1, label: '연속2시수', startMinute: 540, endMinute: 640, periods: 2 }); b.lessons[0].periods = 2; b.lessons[0].allowedSlotIds = ['block']; b.courseLoads[0].periods = 2; b.lessons[1].allowedSlotIds = ['s2']; assert.equal((await run(b)).result.status, 'infeasible') })

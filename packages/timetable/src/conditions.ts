@@ -22,6 +22,7 @@ export function compileTimetableConditions(basis: TimetableBasis, value: unknown
   if (!checked.valid) return invalid(checked.issues)
   if (!Array.isArray(value) || value.length > timetablePolicy.maxConditions) return invalid([{ code: 'INVALID_CONDITIONS', message: '조건 배열과 입력 한도를 확인해 주세요.', path: 'conditions' }])
   const result = structuredClone(basis), seen = new Set<string>(), issues: TimetableIssue[] = []
+  const originalLessons = new Map(basis.lessons.map(lesson => [lesson.id, lesson]))
   const keys = { fixed: ['id', 'kind', 'lessonId', 'slotId'], unavailable: ['id', 'kind', 'resourceId', 'day', 'startMinute', 'endMinute'], allowed_slots: ['id', 'kind', 'lessonId', 'slotIds'], slot_penalty: ['id', 'kind', 'lessonId', 'slotId', 'weight'] }
   for (let i = 0; i < value.length; i++) {
     const r = value[i], path = `conditions[${i}]`
@@ -36,9 +37,13 @@ export function compileTimetableConditions(basis: TimetableBasis, value: unknown
       else if (!existing) result.fixed.push({ lessonId: r.lessonId, slotId: r.slotId })
     } else if (r.kind === 'unavailable') result.unavailable.push({ resourceId: r.resourceId, day: r.day, startMinute: r.startMinute, endMinute: r.endMinute })
     else if (r.kind === 'allowed_slots') {
-      const lesson = result.lessons.find(l => l.id === r.lessonId)
-      if (!lesson || !Array.isArray(r.slotIds) || !r.slotIds.length || r.slotIds.some((s: unknown) => typeof s !== 'string' || !lesson.allowedSlotIds.includes(s)) || new Set(r.slotIds).size !== r.slotIds.length) add('INVALID_ALLOWED_SLOTS', '기존 허용 시간 안에서 중복 없이 제한해 주세요.')
-      else lesson.allowedSlotIds = lesson.allowedSlotIds.filter(s => r.slotIds.includes(s))
+      const lesson = result.lessons.find(l => l.id === r.lessonId), original = originalLessons.get(r.lessonId)
+      // 각 제한은 원본에서 검증하고 교집합으로 합친다. 먼저 적은 제한이 뒤 조건의 참조 검사를 바꾸지 않는다.
+      if (!lesson || !original || !Array.isArray(r.slotIds) || !r.slotIds.length || r.slotIds.some((s: unknown) => typeof s !== 'string' || !original.allowedSlotIds.includes(s)) || new Set(r.slotIds).size !== r.slotIds.length) add('INVALID_ALLOWED_SLOTS', '기존 허용 시간 안에서 중복 없이 제한해 주세요.')
+      else {
+        lesson.allowedSlotIds = lesson.allowedSlotIds.filter(s => r.slotIds.includes(s))
+        if (!lesson.allowedSlotIds.length) add('EMPTY_ALLOWED_SLOTS', '여러 허용 시간 조건을 함께 만족하는 시간대가 없습니다. 해당 수업의 조건을 확인해 주세요.')
+      }
     } else {
       if (!Number.isSafeInteger(r.weight) || r.weight < 0 || r.weight > timetablePolicy.maxWeight) { add('INVALID_WEIGHT', '선호 벌점 범위를 확인해 주세요.'); continue }
       const old = result.preferences.find(p => p.lessonId === r.lessonId && p.slotId === r.slotId)
