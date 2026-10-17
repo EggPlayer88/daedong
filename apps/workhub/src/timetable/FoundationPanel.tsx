@@ -1,12 +1,17 @@
 import { useMemo, useState } from 'react'
 import type { TimetableBasis } from './contracts'
 import { reviewTimetableFoundation } from './foundation'
+import { TimetablePreflightPanel } from './TimetablePreflightPanel'
+import { reviewTimetablePreflight } from './preflight'
 
 const days = ['월', '화', '수', '목', '금', '토', '일']
 const clock = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
 const pageSize = 25
 export function FoundationPanel({ basis }: { basis: TimetableBasis | unknown }) {
   const review = useMemo(() => reviewTimetableFoundation(basis), [basis])
+  const preflight = useMemo(() => reviewTimetablePreflight(basis), [basis])
+  const ready = review.ready && preflight.canCalculate
+  const issueCount = new Set([...review.issues, ...preflight.issues].map(issue => `${issue.code}:${issue.path}:${issue.code === 'UNSUPPORTED_FEATURE' ? issue.message : ''}`)).size
   const [query, setQuery] = useState(''), [mode, setMode] = useState<'courses' | 'resources'>('courses'), [page, setPage] = useState(0)
   const needle = query.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '')
   const includes = (text: string) => text.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '').includes(needle)
@@ -14,11 +19,12 @@ export function FoundationPanel({ basis }: { basis: TimetableBasis | unknown }) 
   const resourceRows = review.resources.filter(row => includes(row.label))
   const count = mode === 'courses' ? courseRows.length : resourceRows.length, pages = Math.max(1, Math.ceil(count / pageSize)), current = Math.min(page, pages - 1)
   return <div className="timetable-foundation">
-    <div className={review.ready ? 'timetable-notice' : 'timetable-error'} role="status">
-      <strong>{review.ready ? '기초 자료의 시수·배정·시간대 검사 통과' : `편성 전에 확인할 항목 ${review.issues.length}건`}</strong>
-      <p>{review.ready ? '필요한 시수와 배정 시수가 일치합니다. 전체 조건을 만족하는 시간표가 존재하는지는 생성 단계에서 확인합니다.' : '원래 학교 자료를 임의로 고치지 않습니다. 표시된 항목을 수정한 새 기준판을 받아 주세요.'}</p>
+    <div className={ready ? 'timetable-notice' : 'timetable-error'} role="status">
+      <strong>{ready ? '기초 자료의 시수·배정·시간대 검사 통과' : `편성 전에 확인할 항목 ${issueCount}건`}</strong>
+      <p>{ready ? '필요한 시수와 배정 시수가 일치합니다. 전체 조건을 만족하는 시간표가 존재하는지는 생성 단계에서 확인합니다.' : '원래 학교 자료를 임의로 고치지 않습니다. 학교 확정 자료는 기초 자료에서, 초안에 추가한 조건은 조건 정리에서 확인해 주세요.'}</p>
       {review.issues.length > 0 && <ul className="timetable-issues">{review.issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.message} <small>({issue.code})</small></li>)}</ul>}
     </div>
+    <TimetablePreflightPanel basis={basis} report={preflight} />
     <details>
       <summary>수업 배정과 시수 살펴보기</summary>
       <div className="timetable-toolbar">
