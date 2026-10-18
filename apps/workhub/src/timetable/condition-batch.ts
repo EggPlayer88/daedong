@@ -3,6 +3,7 @@ import type { TimetableBasis, TimetableConditions } from './contracts'
 import { canonical } from '../services/scoped-rpc'
 import { timetableConditions } from './server'
 import { reviewTimetablePreflight } from './preflight'
+import { conditionTargetLabels, strongerPreferenceWeight } from './condition-policy'
 
 export interface ConditionBatchAction { kind: 'unavailable' | 'preferences'; resourceIds: string[]; days: number[]; startMinute: number; endMinute: number; weight: number }
 export interface ConditionBatchPreview { sourceKey: string; action: ConditionBatchAction; conditions: TimetableConditions; rows: string[]; skipped: number; affectedLessons: number; warnings: string[] }
@@ -33,6 +34,7 @@ export function previewConditionBatch(basis: TimetableBasis, current: TimetableC
   if (!Number.isSafeInteger(action.weight) || action.weight < 1 || action.weight > timetablePolicy.maxWeight) fail(`피하고 싶은 정도는 1~${timetablePolicy.maxWeight}의 정수로 입력해 주세요.`)
   const selected = new Set(ids), daySet = new Set(days), rows: string[] = [], lessons = basis.lessons.filter(lesson => lesson.resourceIds.some(id => selected.has(id))).sort((a, b) => compare(a.id, b.id))
   const sortedDays = [...days].sort((a, b) => a - b), resources = ids.map(id => resourceMap.get(id)!).sort((a, b) => a.label.localeCompare(b.label, 'ko') || compare(a.id, b.id)), slots = new Map(basis.slots.map(slot => [slot.id, slot]))
+  const targetLabels = conditionTargetLabels(basis.resources)
   let skipped = 0
   if (action.kind === 'unavailable') {
     const indexed = new Map<string, TimetableConditions['unavailable']>()
@@ -40,7 +42,7 @@ export function previewConditionBatch(basis: TimetableBasis, current: TimetableC
     for (const resource of resources) for (const day of sortedDays) {
       if (covered(indexed.get(canonical([resource.id, day])) ?? [], action.startMinute, action.endMinute)) { skipped++; continue }
       conditions.unavailable.push({ resourceId: resource.id, day, startMinute: action.startMinute, endMinute: action.endMinute })
-      rows.push(`${resource.label} · ${weekdays[day - 1]} ${conditionBatchClock(action.startMinute)}–${conditionBatchClock(action.endMinute)} · 필수 불가 추가`)
+      rows.push(`${targetLabels.get(resource.id)} · ${weekdays[day - 1]} ${conditionBatchClock(action.startMinute)}–${conditionBatchClock(action.endMinute)} · 필수 불가 추가`)
     }
   } else {
     const pairs = new Map(conditions.preferences.map((row, index) => [canonical([row.lessonId, row.slotId]), index]))
@@ -48,10 +50,11 @@ export function previewConditionBatch(basis: TimetableBasis, current: TimetableC
       const slot = slots.get(slotId)!
       if (!daySet.has(slot.day) || !overlaps(slot, { day: slot.day, startMinute: action.startMinute, endMinute: action.endMinute })) continue
       const key = canonical([lesson.id, slotId]), index = pairs.get(key), old = index === undefined ? undefined : conditions.preferences[index]
-      if (old && old.weight >= action.weight) { skipped++; continue }
-      if (index === undefined) { pairs.set(key, conditions.preferences.length); conditions.preferences.push({ lessonId: lesson.id, slotId, weight: action.weight }) }
-      else conditions.preferences[index] = { lessonId: lesson.id, slotId, weight: action.weight }
-      rows.push(`${lesson.label} · ${weekdays[slot.day - 1]} ${slot.label} ${conditionBatchClock(slot.startMinute)}–${conditionBatchClock(slot.endMinute)} · 피하기 ${old ? `${old.weight} → ` : ''}${action.weight}`)
+      const weight = strongerPreferenceWeight(old?.weight, action.weight)
+      if (old && old.weight === weight) { skipped++; continue }
+      if (index === undefined) { pairs.set(key, conditions.preferences.length); conditions.preferences.push({ lessonId: lesson.id, slotId, weight }) }
+      else conditions.preferences[index] = { lessonId: lesson.id, slotId, weight }
+      rows.push(`${lesson.label} · ${weekdays[slot.day - 1]} ${slot.label} ${conditionBatchClock(slot.startMinute)}–${conditionBatchClock(slot.endMinute)} · 피하기 ${old ? `${old.weight} → ` : ''}${weight}`)
       if (conditions.preferences.length > timetablePolicy.maxConditions) fail('일괄 조건이 편성 한도를 넘습니다. 대상이나 요일·시간을 좁혀 주세요. 일부만 반영하지 않았습니다.')
     }
   }
