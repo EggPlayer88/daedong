@@ -28,19 +28,21 @@ export function TimetableEnginePanel(props: Props) {
   const [seconds, setSeconds] = useState(String(memory.initial?.request.options.maxSeconds ?? enginePolicy.defaultMaxSeconds)), [candidates, setCandidates] = useState(String(memory.initial?.request.options.maxCandidates ?? 1))
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [selected, setSelected] = useState(0), [confirmed, setConfirmed] = useState(false)
-  const [comparisonConfirmed, setComparisonConfirmed] = useState(false)
+  const [comparisonConsent, setComparisonConsent] = useState<string | null>(null)
   const [localLocked, setLocalLocked] = useState(false), localLock = useRef(false)
   const changeLocalLock = useCallback((locked: boolean) => { localLock.current = locked; setLocalLocked(locked) }, [])
   const life = useRef(0), operation = useRef(false), latest = useRef(props), input = useRef<HTMLInputElement>(null)
   latest.current = props
   const fingerprint = canonical([props.basis, props.placements, props.previous ?? null, props.lockedLessonIds, scope, scope === 'selected' ? props.scopeResourceId : '', seconds, candidates])
+  // 확인은 현재 입력에만 유효하다. effect가 실행되기 전에도 바뀐 입력으로 요청하지 않는다.
+  const comparisonConfirmed = comparisonConsent === fingerprint && !props.disabled
   const latestFingerprint = useRef(fingerprint); latestFingerprint.current = fingerprint
   const latestSession = useRef(session); latestSession.current = session
   const current = Boolean(session && session.fingerprint === fingerprint), candidate = current ? session?.response?.candidates[selected] : undefined
   const previous = props.previous && validatePlacements(props.previous.basis, props.previous.placements).valid ? props.previous : props.placements && validatePlacements(props.basis, props.placements).valid ? { basis: props.basis, placements: props.placements } : null
   const missingComparison = Boolean(props.placements?.length) && !previous
   useEffect(() => () => { life.current++ }, [])
-  useEffect(() => { setConfirmed(false); setComparisonConfirmed(false) }, [fingerprint, props.disabled])
+  useEffect(() => { setConfirmed(false); setComparisonConsent(null) }, [fingerprint, props.disabled])
   function keep(value: EngineSession | undefined) { latestSession.current = value; setSession(value); memory.save(value, false) }
   function downloadRequest(request: CpSatRequest) {
     requestBlobDownload(new Blob([JSON.stringify(request, null, 2)], { type: 'application/json' }), `timetable-request-${request.requestId}.json`)
@@ -88,7 +90,7 @@ export function TimetableEnginePanel(props: Props) {
   }
   return <details className="timetable-card"><summary>최적화 엔진으로 계산·후보 비교</summary>
     <p>브라우저 계산과 같은 공식 자료·필수조건으로 최적화 후보를 비교합니다. 담당자 PC의 계산기를 연결하거나 계산 파일을 직접 주고받을 수 있습니다.</p>
-    {missingComparison && <div className="timetable-notice" role="status"><p>현재 배치가 일부이거나 필수조건 검사를 통과하지 못해 변경 최소화의 비교 기준으로 쓸 수 없습니다. 비교할 이전 완성판도 없어 이미 배치한 수업이 옮겨질 수 있습니다. 작업 고정은 유지합니다.</p><label className="timetable-check"><input type="checkbox" checked={comparisonConfirmed} disabled={props.disabled || busy || localLocked} onChange={event => setComparisonConfirmed(event.target.checked)} />기존 배치와 변경 비교 없이 계산하는 것을 확인했습니다</label></div>}
+    {missingComparison && <div className="timetable-notice" role="status"><p>현재 배치가 일부이거나 필수조건 검사를 통과하지 못해 변경 최소화의 비교 기준으로 쓸 수 없습니다. 비교할 이전 완성판도 없어 이미 배치한 수업이 옮겨질 수 있습니다. 작업 고정은 유지합니다.</p><label className="timetable-check"><input type="checkbox" checked={comparisonConfirmed} disabled={props.disabled || busy || localLocked} onChange={event => setComparisonConsent(event.target.checked ? fingerprint : null)} />기존 배치와 변경 비교 없이 계산하는 것을 확인했습니다</label></div>}
     <fieldset disabled={props.disabled || busy || localLocked}><div className="timetable-grid"><label>최적화 범위<select aria-label="최적화 범위" value={scope} onChange={event => setScope(event.target.value as typeof scope)}><option value="all">전체 · 작업 고정 유지</option><option value="selected" disabled={!props.scopeResourceId}>현재 선택 대상만</option></select></label><label>계산 시간 한도(초)<input type="number" min="1" max={enginePolicy.maximumMaxSeconds} value={seconds} onChange={event => setSeconds(event.target.value)} /></label><label>비교할 후보 수<select value={candidates} onChange={event => setCandidates(event.target.value)}>{Array.from({ length: enginePolicy.maximumCandidates }, (_, index) => <option key={index} value={index + 1}>{index + 1}개 이내</option>)}</select></label></div><button type="button" onClick={() => void prepare()}>최적화 요청 파일 만들기</button></fieldset>
     <LocalTimetableEngine member={props.member} disabled={props.disabled} requestId={session?.request.requestId} current={current} onCreate={() => prepare(false)} onResult={receiveLocalResult} onRequestLockChange={changeLocalLock} />
     {localLocked && <p className="timetable-notice">원래 PC 계산의 결과를 확인하거나 작업 연결을 정리한 뒤 새 계산 요청을 만들 수 있습니다.</p>}
