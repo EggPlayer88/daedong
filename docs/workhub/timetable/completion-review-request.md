@@ -2,7 +2,9 @@
 
 기존 #64 통합 작업과 구분하여 시간표 PR #65를 검토해 주세요. 브랜치는 `feat/workhub-timetable-completion`이며 #64 최종 `a7a6c86`을 merge commit `18247a1`로 가져왔고 #54·#56 이력과 후속 구현을 포함합니다. #3·#5·#44는 포함하지 않았습니다. 상속한 SQL 기준은 `5c05c2d`이며 SQL 원본이나 Claude SQL 브랜치를 별도로 수정하지 않았습니다.
 
-먼저 `docs/workhub/timetable/completion.md`, `completion-verification.md`를 읽어 주세요. 미완성·운영 미검증 범위를 별도로 적었습니다.
+먼저 `docs/workhub/timetable/completion.md`, `completion-finalization.md`, `completion-verification.md`를 읽어 주세요. 미완성·운영 미검증 범위를 별도로 적었습니다. 사용자는 2026-10-18에 Claude 검토를 기다리지 않고 구축을 진행하도록 요청했습니다. 이 문서는 후속 검토/SQL 작성 시의 인계 자료이며 이번 앱 구축을 멈추는 승인 요청이 아닙니다.
+
+최신 추가분은 일괄 조건 입력, AI에 현조건·개별 허용 시간대 전달, 실제 로컬 계산기의 폴더 왕복, 공유 시간표 인쇄/PDF·XLSX입니다. 추가 SQL 필드는 요구하지 않습니다. `engine-jobs.ts`/`engine/jobs*`의 동일 요청 보존·상태 회귀 거절·실제 종료 확인, 입력 기준 변경 후 결과 차단, `published-export.ts`의 현재 조회 범위·안정 ID·판 보존을 함께 확인해 주세요.
 
 이번 편성 사용성 추가분은 `editor-usability.md`에 정리했습니다. 같은 PR #65에 포함했으며 추가 SQL 계약은 없습니다. 특히 `preparation-editing`의 명시 대체·기존 ID/허용 목록 보존, `preflight`의 확정 충돌과 미판정 구분, `adjustments`의 미배정/전체검증 분리·고정 보호·두 수업 원자 반영, `candidate-review`의 이전 판·실제 시각 비교를 검토해 주세요.
 
@@ -10,7 +12,7 @@
 
 1. `preparation*`: 공식 교사/수강집단/시수와 시간표 준비 초안 구분, 미완성 저장과 기준판 확정 구분, 오래된 원본·권한 회수, 같은 번호 복구의 원본 비교.
 2. `packages/timetable`: 실제 시각/연속 블록/공동교사/학생 중첩/자원 수용, 지원하지 않는 조건, 독립 검증, 이전 기준판 유지, 부분 고정, 최소 변경/최적성 설명의 정확한 범위.
-3. `TimetableEnginePanel`: requestId/hash/기준판이 다른 결과 거절, 변경 후 늦은 결과, 후보 비교·명시 채택. 현재 CP-SAT는 로컬 CLI 파일 왕복입니다.
+3. `TimetableEnginePanel`/`LocalTimetableEngine`: requestId/hash/기준판이 다른 결과 거절, 변경 후 늦은 결과, 후보 비교·명시 채택. CP-SAT는 수동 CLI 파일 왕복과 담당자 PC의 작업 폴더 자동 왕복을 지원합니다. 공용 계산 서버를 배포한 것은 아닙니다.
 4. `assistant-bridge`/패널: 기존 P6 계약·비용을 유지하는지, 별칭이 범위 밖 ID로 바뀌지 않는지, 기준 변경/결과 미상/원키 복구, 확인 전 자동 조건 변경이나 전송이 없는지.
 5. XLSX: 미완성 배치 보존, 공식 자료 변경 거절, 조건 삭제 비교, 긴 원본/이모지/공유 문자열, 파일 손상·과도한 압축·수식·외부 연결.
 6. 공유/교환: 안정된 학급 ID, 원본 회차 선택, 입력 중 다른 수업 선택, 추천 선택만으로 전송하지 않음, 전체 당사자 동의·담당자 승인·원키 복구.
