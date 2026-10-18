@@ -129,7 +129,7 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
     } catch (failure) {
       if (generation === life.current && rejected(failure)) {
         pendingStore.remove(request.key)
-        if (failure instanceof ServiceError && failure.code !== 'INVALID_INPUT') refresh()
+        if (failure instanceof ServiceError && failure.code !== 'INVALID_INPUT') { if (command.kind === 'school_day') setError(message(failure)); refresh() }
       }
       throw failure
     } finally { if (generation === life.current) { running.current = false; setBusy(false) } }
