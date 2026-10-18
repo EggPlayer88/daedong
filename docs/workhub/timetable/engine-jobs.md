@@ -45,6 +45,8 @@ python packages/timetable/engine/jobs.py recover --store "C:\시간표 작업"
 
 `status.sequence`는 양의 정수이고 상태 변경마다 증가한다. 시작·종료 시각과 `code`의 초기값은 null이다. `state`는 `queued`, `running`, `cancel_requested`, `succeeded`, `failed`, `cancelled`, `timed_out`, `interrupted` 중 하나다. 완료 상태에서는 종료 시각을 반드시 기록한다. 접수 표식만 있고 상태가 없으면 아직 **대기**이며, 작업자가 실제 계산을 시작했다는 뜻이 아니다. 작업자 heartbeat가 없거나 오래되었으면 실행 여부를 확정하지 않는다. 계산 백분율은 제공하지 않는다.
 
+아직 실행하지 않은 요청은 접수 시각 `queuedAt`, 동률이면 요청 UUID 순으로 하나씩 처리한다. 같은 밀리초에 만들어진 파일의 생성 순서를 별도 접수 순서로 약속하지 않는다. 이미 계산 중인 요청을 나중 접수 때문에 선점하거나 두 요청을 동시에 실행하지 않는다.
+
 `succeeded`는 **검증된 계산 응답을 전달했다**는 뜻이다. 그 안의 `response.status`는 `feasible`뿐 아니라 `infeasible`, `unknown`, `unsupported`, `invalid`, `error`일 수도 있다. 유효한 후보가 없는 결과를 시간표 생성 성공으로 표시하지 않는다. `failed`는 프로세스 실행·파일·결과 검증 등의 실행 기반 실패다. 엔진의 정상 시간 제한(`unknown` 또는 `feasible + stoppedByLimit`)과 감독기의 강제 종료(`timed_out`)를 구분한다.
 
 작업자는 `request.snapshot.json`·`manifest.json`을 내부용으로 고정한다. 브라우저는 이를 수정하지 않는다. manifest는 원래 ready, 원본 전체 해시, 접수 시각, 실행 종료 한도, 실행 PID를 담는다. 동일 요청 번호·동일 원본은 중복 실행하지 않으며, 같은 번호에 다른 원본은 `REQUEST_CONFLICT`다. 완료된 요청은 읽기·취소·재접수로 상태를 바꾸지 않는다.

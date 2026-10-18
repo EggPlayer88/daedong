@@ -13,10 +13,10 @@ assert.ok(python, '고정 OR-Tools가 필요합니다: pip install -r packages/t
 const engine = resolve('packages/timetable/engine'), cliPath = join(engine, 'jobs.py')
 const temporary = mkdtempSync(join(tmpdir(), '학교 시간표 작업 ')), children = new Set()
 const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
-let count = 0
+let count = 0, activeCheck = ''
 const json = p => JSON.parse(readFileSync(p, 'utf8'))
 const save = (p, value) => writeFileSync(p, JSON.stringify(value))
-async function check(name, fn) { await fn(); count++; console.log('  ✓ ' + name) }
+async function check(name, fn) { activeCheck = name; await fn(); count++; console.log('  ✓ ' + name) }
 function call(args, expected = 0) {
   const result = spawnSync(python, [cliPath, ...args], { encoding: 'utf8', env, timeout: 30000, windowsHide: true })
   assert.equal(result.status, expected, result.stderr || result.stdout || String(result.error))
@@ -44,12 +44,12 @@ async function waitFor(fn, description = '상태 변경', milliseconds = 15000) 
 }
 function newStore() { const path = join(temporary, randomUUID()); call(['init', '--store', path]); return path }
 const basis = () => ({ schemaVersion: 1, id: 'basis', revision: 1, schoolId: 'school', termId: 'term', sourceFingerprint: 'a'.repeat(64), schoolLevel: 'middle', unsupportedFeatures: [], resources: [{ id: 'teacher', kind: 'teacher', label: '교사', capacity: 1 }, { id: 'class', kind: 'class', label: '학급', capacity: 1 }], slots: [{ id: 'm1', day: 1, label: '월1', startMinute: 540, endMinute: 585, periods: 1 }, { id: 'm2', day: 1, label: '월2', startMinute: 595, endMinute: 640, periods: 1 }], lessons: [{ id: 'l1', courseId: 'course', label: '국어', periods: 1, resourceIds: ['teacher', 'class'], allowedSlotIds: ['m1', 'm2'] }], courseLoads: [{ courseId: 'course', periods: 1 }], fixed: [], unavailable: [], preferences: [] })
-const request = async (id = randomUUID(), b = basis(), options = {}) => m.buildCpSatRequest(b, id, null, { maxSeconds: 1, ...options })
+const request = async (id = randomUUID(), b = basis(), options = {}) => m.buildCpSatRequest(b, id, null, { maxSeconds: 5, ...options })
 function submit(store, req) { const input = join(temporary, `${randomUUID()}.json`); save(input, req); return call(['submit', '--store', store, '--input', input]) }
-function browserSubmit(store, req, ready = true) {
+function browserSubmit(store, req, ready = true, queuedAt = new Date().toISOString()) {
   const path = join(store, 'jobs', req.requestId); mkdirSync(path)
   save(join(path, 'request.json'), req)
-  if (ready) save(join(path, 'ready.json'), { contract: 'timetable.jobs.v1', queueId: json(join(store, 'queue.json')).queueId, requestId: req.requestId, inputHash: req.inputHash, queuedAt: new Date().toISOString() })
+  if (ready) save(join(path, 'ready.json'), { contract: 'timetable.jobs.v1', queueId: json(join(store, 'queue.json')).queueId, requestId: req.requestId, inputHash: req.inputHash, queuedAt })
   return path
 }
 function status(store, id) { return call(['status', '--store', store, '--request-id', id]) }
@@ -110,7 +110,7 @@ try {
     assert.equal(runtime('import jobs_worker,json; print(json.dumps(jobs_worker.process_alive(int(sys.argv[2]))))', [String(pid)]), false)
   })
   await check('시간 한도를 넘긴 실제 자식 프로세스를 강제 종료한다', async () => {
-    const store = newStore(), req = await request(); submit(store, req); const child = worker(store, sleepFixture), before = Date.now()
+    const store = newStore(), req = await request(randomUUID(), basis(), { maxSeconds: 1 }); submit(store, req); const child = worker(store, sleepFixture), before = Date.now()
     assert.equal((await child.finished).code, 0); assert.ok(Date.now() - before >= 5000)
     const done = status(store, req.requestId); assert.equal(done.state, 'timed_out'); assert.equal(done.code, 'HARD_TIMEOUT')
   })
@@ -149,9 +149,19 @@ try {
   })
   await check('지속 작업자는 먼저 실행해 두고 이후 들어온 두 요청을 순서대로 처리한다', async () => {
     const store = newStore(), first = worker(store); await waitFor(() => existsSync(join(store, 'worker.json')))
-    const a = await request(), b = await request(); browserSubmit(store, a); browserSubmit(store, b)
+    const a = await request(), b = await request(), queuedAt = Date.now()
+    // 빠른 Linux 파일 쓰기는 같은 밀리초가 될 수 있으므로 접수 순서의 근거를 명시한다.
+    browserSubmit(store, a, true, new Date(queuedAt - 1000).toISOString()); browserSubmit(store, b, true, new Date(queuedAt).toISOString())
     await waitFor(() => status(store, a.requestId)?.state === 'succeeded' && status(store, b.requestId)?.state === 'succeeded')
     assert.ok(status(store, a.requestId).finishedAt <= status(store, b.requestId).startedAt)
+    first.kill(); await first.finished
+  })
+  await check('같은 접수 시각은 파일 생성 순서와 무관하게 UUID 순서로 하나씩 처리한다', async () => {
+    const store = newStore(), a = await request('ffffffff-ffff-ffff-ffff-ffffffffffff'), b = await request('00000000-0000-0000-0000-000000000000'), queuedAt = new Date().toISOString()
+    browserSubmit(store, a, true, queuedAt); browserSubmit(store, b, true, queuedAt)
+    const first = worker(store)
+    await waitFor(() => status(store, a.requestId)?.state === 'succeeded' && status(store, b.requestId)?.state === 'succeeded')
+    assert.ok(status(store, b.requestId).finishedAt <= status(store, a.requestId).startedAt)
     first.kill(); await first.finished
   })
   await check('중단 실행은 같은 번호로 재시작하지 않고 접수증 복구만 수행한다', async () => {
@@ -167,7 +177,7 @@ try {
     save(file, { ...done, state: 'running', finishedAt: null }); call(['recover', '--store', store]); assert.equal(status(store, req.requestId).state, 'succeeded')
   })
   await check('작업자를 실제로 중단해도 살아 있는 계산을 중복 실행하지 않고 종료 뒤 복구한다', async () => {
-    const store = newStore(), req = await request(), fixture = join(temporary, '자연 종료.py'); writeFileSync(fixture, 'import time\ntime.sleep(2)\n'); submit(store, req)
+    const store = newStore(), req = await request(randomUUID(), basis(), { maxSeconds: 1 }), fixture = join(temporary, '자연 종료.py'); writeFileSync(fixture, 'import time\ntime.sleep(2)\n'); submit(store, req)
     const child = worker(store, fixture), manifest = join(store, 'jobs', req.requestId, 'manifest.json')
     await waitFor(() => json(manifest).processId)
     child.kill(); await child.finished
@@ -223,6 +233,10 @@ try {
     for (const raw of ['{"requestId":1,"requestId":2}', '{"value":NaN}', '{']) { writeFileSync(input, raw); assert.equal(call(['submit', '--store', store, '--input', input], 1).error.code, 'FILE_UNREADABLE') }
   })
   console.log(`전부 통과 (${count}건)`)
+} catch (error) {
+  // 전체 실행기가 stderr 끝부분만 보여 주어도 실패한 시험과 위치가 함께 남는다.
+  console.error(`  ✗ ${activeCheck}: ${String(error?.stack ?? error).replace(/\s+/g, ' ')}`)
+  process.exitCode = 1
 } finally {
   for (const child of children) child.kill()
   await Promise.all([...children].map(child => child.finished))
