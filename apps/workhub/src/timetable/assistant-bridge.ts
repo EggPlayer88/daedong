@@ -29,10 +29,22 @@ export function timetableAssistantRequest(context: TimetableAiContext, resourceI
     if (!slotAlias) throw new TimetableAssistantInputError('현재 배치를 먼저 검산한 뒤 생성 후 피드백을 요청해 주세요.')
     return [lessonAliases.get(lesson.id), slotAlias]
   }) : undefined
+  // 같은 허용 목록은 별칭으로 묶어 기존 입력 한도 안에서 수업별 차이를 보존한다.
+  const domainIds = new Map<string, string>(), domains: [string, string[]][] = []
+  const scopedLessons = lessons.map(lesson => {
+    const allowedIds = new Set(lesson.allowedSlotIds), allowed = slots.filter(slot => allowedIds.has(slot.id)).map(slot => slotAliases.get(slot.id)!)
+    const key = JSON.stringify(allowed)
+    if (!domainIds.has(key)) { const id = `d${domains.length}`; domainIds.set(key, id); domains.push([id, allowed]) }
+    return [lessonAliases.get(lesson.id), lesson.label, lesson.periods, domainIds.get(key)]
+  })
+  const byAlias = (a: (string | number)[], b: (string | number)[]) => JSON.stringify(a).localeCompare(JSON.stringify(b), 'en')
   const scope = {
     target: { id: [...teacherMap.keys()][0], label: resource.label, kind: resource.kind },
-    lessons: lessons.map(l => [lessonAliases.get(l.id), l.label]),
-    slots: slots.map(s => [slotAliases.get(s.id), s.day, s.label, s.startMinute, s.endMinute]),
+    lessons: scopedLessons, allowedSlots: domains,
+    slots: slots.map(s => [slotAliases.get(s.id), s.day, s.label, s.startMinute, s.endMinute, s.periods]),
+    fixed: context.basis.fixed.filter(row => lessonAliases.has(row.lessonId)).map(row => [lessonAliases.get(row.lessonId)!, slotAliases.get(row.slotId)!]).sort(byAlias),
+    unavailable: context.basis.unavailable.filter(row => row.resourceId === resourceId).map(row => [[...teacherMap.keys()][0], row.day, row.startMinute, row.endMinute]).sort(byAlias),
+    preferences: context.basis.preferences.filter(row => lessonAliases.has(row.lessonId)).map(row => [lessonAliases.get(row.lessonId)!, slotAliases.get(row.slotId)!, row.weight]).sort(byAlias),
     ...(placements ? { placements } : {}),
   }
   const template = { contract: context.contract, stage: context.stage, basisId: context.basisId, basisRevision: context.basisRevision, sourceFingerprint: context.sourceFingerprint, contextFingerprint: context.contextFingerprint, summary: '이유와 제안 요약', questions: [] as string[], changes: [] as unknown[] }
@@ -43,7 +55,7 @@ export function timetableAssistantRequest(context: TimetableAiContext, resourceI
     '조건이 매주인지 이번 날짜만인지, 필수인지 선호인지 불명확하면 questions에 확인 질문을 넣고 changes는 빈 배열로 두세요. 날짜 한정 요청은 주간 조건으로 변환하지 말고 수업 변경 화면을 안내하세요.',
     '실제 저장·전송·수업 변경은 하지 마세요. 필수조건 충돌 여부와 가능한 배치 판정은 별도 프로그램이 검사합니다.',
     '답변의 text에는 설명을 섞지 말고 아래 JSON 객체 하나를 넣어 주세요. 식별자와 지문은 그대로 사용합니다. citations는 비워 둡니다.',
-    (context.stage === 'adjust' ? 'changes는 {kind:"prefer",lessonId,slotId,weight:1|3|5}만 허용합니다. 필수조건 추가·배치 이동은 제안하지 마세요. 설명만 있으면 changes는 비웁니다.' : 'changes 지원형식: {kind:"block",resourceId,slotId}, {kind:"fix",lessonId,slotId}, {kind:"prefer",lessonId,slotId,weight:1|3|5}.') + ' ID는 아래 target·lessons·slots의 짧은 별칭만 그대로 사용하세요. 원래 ID는 프로그램이 복원합니다. slot 배열은 [id,월요일부터1~7,교시명,시작분,종료분]입니다.',
+    (context.stage === 'adjust' ? 'changes는 {kind:"prefer",lessonId,slotId,weight:1|3|5}만 허용합니다. 필수조건 추가·배치 이동은 제안하지 마세요. 설명만 있으면 changes는 비웁니다.' : 'changes 지원형식: {kind:"block",resourceId,slotId}, {kind:"fix",lessonId,slotId}, {kind:"prefer",lessonId,slotId,weight:1|3|5}.') + ' ID는 target·lessons·slots의 별칭만 씁니다. lessons=[id,명칭,차시,허용목록ID], allowedSlots=[목록ID,시간대ID목록], slots=[id,월1~일7,교시명,시작분,종료분,차시]. fixed=[수업,시간대], unavailable=[대상,요일,시작분,종료분], preferences=[수업,시간대,벌점]은 현재 조건입니다. 고정·불가·개별 허용 목록을 무시하지 마세요. 범위 밖 참여자의 조건은 제공되지 않습니다.',
     JSON.stringify(template), JSON.stringify(scope), `담당자 요청: ${context.prompt}`,
   ].join('\n')
   try { return { input: assistantInput({ mode: 'school', intent: 'school_advice', prompt, threadId: null, expectedVersion: 0, references: [], studentContext: null }), context: structuredClone(context), resourceId } }
