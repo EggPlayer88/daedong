@@ -1,5 +1,7 @@
 # Claude 전달문 — 시간표 통합 구축 후보
 
+> 이번 재검토와 T1·T2 SQL 작성에서는 [review-fixes.md](review-fixes.md)의 승인된 다섯 정책·K-1~5를 우선한다. 아래 전달문은 최초 구축 당시의 기록이다.
+
 기존 #64 통합 작업과 구분하여 시간표 PR #65를 검토해 주세요. 브랜치는 `feat/workhub-timetable-completion`이며 #64 최종 `a7a6c86`을 merge commit `18247a1`로 가져왔고 #54·#56 이력과 후속 구현을 포함합니다. #3·#5·#44는 포함하지 않았습니다. 상속한 SQL 기준은 `5c05c2d`이며 SQL 원본이나 Claude SQL 브랜치를 별도로 수정하지 않았습니다.
 
 먼저 `docs/workhub/timetable/completion.md`, `completion-finalization.md`, `completion-verification.md`를 읽어 주세요. 미완성·운영 미검증 범위를 별도로 적었습니다. 사용자는 2026-10-18에 Claude 검토를 기다리지 않고 구축을 진행하도록 요청했습니다. 이 문서는 후속 검토/SQL 작성 시의 인계 자료이며 이번 앱 구축을 멈추는 승인 요청이 아닙니다.

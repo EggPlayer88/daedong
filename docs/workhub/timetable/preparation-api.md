@@ -65,7 +65,7 @@
 ```
 
 - `canConfirm: true`이면 `canEdit: true`여야 한다. 두 값은 서버가 현재 권한으로 계산한다.
-- 교사·학급·수강집단 capacity는 1이다. 교실·장비는 실제 동시 수용량을 사용한다.
+- 교사·학급·수강집단 capacity는 1이다. 교실·장비의 `capacity`는 **동시에 배정할 수 있는 수업 수**이며 학생 좌석 수가 아니다. 담당자가 확인한 값을 사용하고, 미입력 값을 1로 추정하지 않는다. 학생 정원 검사는 별도 필드·계약이 생기기 전에는 지원한다고 표시하지 않는다.
 - `course`는 같은 교과 전체가 아니라 같은 공식 담당과 수강집단이 수업하는 배정 단위다. 다른 학급의 시수를 한 개 과목 ID에 합치지 않는다.
 - `resourceIds`는 현재 학기·날짜 범위에 유효한 공식 배정을 반영한다. 없는 ID를 참조하면 응답이 거부된다.
 - `sourceRevision/sourceFingerprint`는 학기·학교 단계·자원·수업 배정·공식 시수·지원 불가 조건의 의미 있는 변경을 포함해야 한다. 동일 순서의 배열을 안정적으로 반환한다.
@@ -150,6 +150,24 @@ workhub_timetable_preparation_execute({
 
 초안 판은 `expectedDraftRevision + 1`(신규 1)이어야 하며 기존 draft ID는 바뀌지 않는다. `save`의 basis는 null이다. `confirm`의 basis는 `compilePreparation(source, draft, serverBasisId, serverBasisRevision)`와 전체 내용이 같아야 한다. 서버가 발급하는 기준판 ID/판을 제외하고 교시·교사·수업명·시수·허용 시간대·자원 정보 등을 임의로 바꾸지 않는다. 초안 저장, 기준판 생성, 요청 접수증은 함께 커밋한다.
 
+### 기준판 배열 순서와 이름 (K-3)
+
+확정 응답은 다음 순서를 그대로 유지한다. 객체 키 순서는 canonical 비교에서 정규화하지만 **배열 순서는 정렬하지 않는다**.
+
+| 필드 | 확정 응답의 순서·값 |
+|---|---|
+| `resources`, `unsupportedFeatures` | 확정에 사용한 원본 `source` 배열 순서와 값 그대로 |
+| `slots` | 요청 `draft.slots` 순서와 값 그대로 |
+| `courseLoads` | `draft.plans` 순서로 `{courseId, periods: weeklyPeriods}` 생성 |
+| `lessons` | `draft.plans` 순서, 각 plan 내부 `blocks` 순서로 펼침 |
+| `lessons[].resourceIds` | 해당 원본 course의 `resourceIds` 순서 그대로 |
+| `lessons[].allowedSlotIds` | 해당 block의 `allowedSlotIds` 순서 그대로 |
+| `fixed`, `unavailable`, `preferences` | 이번 준비 확정에서는 각각 빈 배열 |
+
+각 활동 ID는 해당 block ID다. 이름은 **원본 수업명 + 공백 하나 + plan 안의 block 순번(1부터) + `회`**로 만든다. 예: `국어 1회`, `국어 2회`. 괄호를 붙인 `국어 (1회)`는 다른 값이다. 순번은 새 plan마다 1부터 다시 시작하며, 연속 2차시 block도 하나의 활동이므로 순번은 1 증가한다. `courseId`, `periods`는 해당 plan과 block의 값을 사용한다.
+
+SQL은 ID나 이름으로 배열을 다시 정렬하지 않는다. 서버가 반환한 기준판의 배열 순서 또는 수업 이름이 다르면 앱은 확정 결과를 채택하지 않고 원래 요청 번호를 보존한다. 원본 조회 자체도 같은 판에서는 안정적인 배열 순서를 반환해야 한다.
+
 ## 응답 유실·재전송
 
 - 요청 키를 학교/소속/명령 내용에 묶는다. 같은 키+같은 내용은 같은 접수증을 돌려주고, 다른 내용은 `IDEMPOTENCY_CONFLICT`다.
@@ -163,4 +181,4 @@ workhub_timetable_preparation_execute({
 
 학교 연결에서 준비 패널을 연 때만 조회한다. RPC 미설치는 준비 중으로 표시하고 연습 자료를 공식 자료로 저장하지 않는다. 원래 결과 미상 요청은 패널 상태와 별개로 복구 경로를 유지한다. 화면에서 아직 추가하지 않은 교시 이름·시각도 탭 재연결에 보존한다.
 
-자동 검증: `tests/test_workhub_timetable_preparation.mjs` 18건, `tests/browser/workhub-timetable-preparation.mjs` 8건. 브라우저는 실제 React·전송 어댑터를 사용하며 RPC 응답은 합성이다. 실제 PostgREST/RLS/동시 트랜잭션은 아직 검증하지 않았다. SQL 작성 후 실제 SQL 출력 대조와 동일 키·판 충돌·다른 학교·교사 변경·응답 유실 회귀가 필요하다. SQL 적용·일반 교사 공개·비용 설정은 이 앱 구축에 포함하지 않는다.
+자동 검증: `tests/test_workhub_timetable_preparation.mjs` 19건, `tests/browser/workhub-timetable-preparation.mjs` 8건. 배열 순서와 수업명 형식의 정상·변조 대조를 포함한다. 브라우저는 실제 React·전송 어댑터를 사용하며 RPC 응답은 합성이다. 실제 PostgREST/RLS/동시 트랜잭션은 아직 검증하지 않았다. SQL 작성 후 실제 SQL 출력 대조와 동일 키·판 충돌·다른 학교·교사 변경·응답 유실 회귀가 필요하다. SQL 적용·일반 교사 공개·비용 설정은 이 앱 구축에 포함하지 않는다.

@@ -26,4 +26,19 @@ await check('응답 유실 뒤 새 서버 인스턴스에서도 원키·원명�
 await check('복구 응답도 원래 교사 배정·시간대 전체가 다르면 채택하지 않는다',async()=>{for(const mutate of [r=>r.basis.lessons[0].resourceIds=[...source.courses[1].resourceIds],r=>{r.basis.slots[0].startMinute+=1},r=>r.basis.resources[0].label='바뀐 교사']){const c=connection(),server=m.createPreparationServer(c.value);await server.get('m');await server.execute('m',input,'request-1');const originalRpc=c.value.rpcVerified;c.value.rpcVerified=async(name,args)=>{const result=await originalRpc(name,args);if(args.p_recover_only){result.data=structuredClone(result.data);mutate(result.data)}return result};const restored=m.createPreparationServer(c.value);await assert.rejects(()=>restored.recover('m',input,'request-1',source),e=>e.code==='INVALID_RESPONSE')}})
 await check('최초 공식 원본이 사라지면 불완전한 기준판 검증으로 복구를 완료하지 않는다',()=>{const c=connection(),server=m.createPreparationServer(c.value);assert.throws(()=>server.recover('m',input,'request-1'),e=>e.code==='INVALID_INPUT');assert.equal(c.calls.length,0)})
 await check('같은 요청번호에 다른 준비 내용을 섞지 않는다',async()=>{const c=connection(),server=m.createPreparationServer(c.value);await server.get('m');await server.execute('m',input,'request-1');const other=structuredClone(input);other.draft.title='다른 제목';assert.throws(()=>server.recover('m',other,'request-1'),e=>e.code==='IDEMPOTENCY_CONFLICT')})
+await check('기준판은 원본·초안의 배열 순서를 보존하고 수업마다 공백과 회차 이름을 만든다',()=>{
+  const orderedSource=structuredClone(source),orderedDraft=structuredClone(draft)
+  orderedSource.resources.reverse();orderedDraft.slots.reverse();orderedDraft.plans.reverse()
+  orderedSource.courses.forEach(course=>{course.label='수업 '+course.id;course.resourceIds.reverse()})
+  orderedDraft.plans.forEach(plan=>{plan.blocks.reverse();plan.blocks.forEach(block=>block.allowedSlotIds.reverse())})
+  const {basis}=m.compilePreparation(orderedSource,orderedDraft,'ordered-basis',1)
+  assert.ok(basis);assert.deepEqual(basis.resources,orderedSource.resources);assert.deepEqual(basis.slots,orderedDraft.slots)
+  assert.deepEqual(basis.courseLoads,orderedDraft.plans.map(plan=>({courseId:plan.courseId,periods:plan.weeklyPeriods})))
+  assert.deepEqual(basis.lessons,orderedDraft.plans.flatMap(plan=>plan.blocks.map((block,index)=>({id:block.id,courseId:plan.courseId,label:orderedSource.courses.find(course=>course.id===plan.courseId).label+' '+(index+1)+'회',periods:block.periods,resourceIds:orderedSource.courses.find(course=>course.id===plan.courseId).resourceIds,allowedSlotIds:block.allowedSlotIds}))))
+  const orderedInput={...input,draft:orderedDraft},receipt={requestKey:'order-request',kind:'confirm',draftId:'d',draftRevision:1,sourceFingerprint:source.sourceFingerprint,basis}
+  assert.deepEqual(m.preparationReceipt(receipt,orderedInput,'order-request',orderedSource).basis,basis)
+  for(const mutate of [r=>r.basis.resources.reverse(),r=>r.basis.slots.reverse(),r=>r.basis.courseLoads.reverse(),r=>r.basis.lessons.reverse(),r=>r.basis.lessons[0].resourceIds.reverse(),r=>r.basis.lessons[0].allowedSlotIds.reverse(),r=>r.basis.lessons[0].label=r.basis.lessons[0].label.replace('1회','(1회)')]){
+    const changed=structuredClone(receipt);mutate(changed);assert.notDeepEqual(changed,receipt);assert.throws(()=>m.preparationReceipt(changed,orderedInput,'order-request',orderedSource))
+  }
+})
 console.log(`시간표 공식자료·준비 계약 검사: ${count}개 통과`)
