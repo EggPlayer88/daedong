@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { setTimeout as delay } from 'node:timers/promises'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
-const m = await loadBrowserModule(`export * from '../packages/timetable/src/cpSat';`)
+const m = await loadBrowserModule(`export * from '../packages/timetable/src/cpSat'; export {validateBasis} from '../packages/timetable/src/validate';`)
 const python = [process.env.TIMETABLE_PYTHON, process.env.PYTHON, resolve('tests/.venv/Scripts/python.exe'), resolve('tests/.venv/bin/python'), 'python3', 'python'].filter(Boolean).find(p => (!/[\\/]/.test(p) || existsSync(p)) && spawnSync(p, ['-c', 'import ortools; assert ortools.__version__ == "9.15.6755"'], { stdio: 'ignore', windowsHide: true }).status === 0)
 assert.ok(python, '고정 OR-Tools가 필요합니다: pip install -r packages/timetable/requirements.txt')
 const engine = resolve('packages/timetable/engine'), cliPath = join(engine, 'jobs.py')
@@ -68,6 +68,8 @@ try {
     const store = newStore(), queue = json(join(store, 'queue.json')); assert.deepEqual(call(['init', '--store', store]), queue)
     const occupied = join(temporary, randomUUID()); mkdirSync(occupied); writeFileSync(join(occupied, '교사 자료.txt'), '보존')
     assert.equal(call(['init', '--store', occupied], 1).error.code, 'STORE_NOT_EMPTY'); assert.equal(readFileSync(join(occupied, '교사 자료.txt'), 'utf8'), '보존')
+    const finder = join(temporary, randomUUID()); mkdirSync(finder); writeFileSync(join(finder, '.DS_Store'), 'finder')
+    assert.equal(call(['init', '--store', finder]).contract, 'timetable.jobs.v1'); assert.equal(readFileSync(join(finder, '.DS_Store'), 'utf8'), 'finder')
   })
   await check('실제 비동기 작업자가 브라우저 폴더 요청을 계산하고 앱이 결과를 독립 재검증한다', async () => {
     const store = newStore(), req = await request(), path = browserSubmit(store, req), child = worker(store, null, true)
@@ -94,9 +96,9 @@ try {
   })
   await check('다른 작업 폴더의 마커와 위조 요청 지문을 실행하지 않는다', async () => {
     const store = newStore(), req = await request(), path = browserSubmit(store, req), marker = json(join(path, 'ready.json')); marker.queueId = randomUUID(); save(join(path, 'ready.json'), marker)
-    assert.equal(call(['work', '--store', store, '--once'], 1).error.code, 'INVALID_JOB'); assert.equal(existsSync(join(path, 'result.json')), false)
+    call(['work', '--store', store, '--once']); assert.equal(existsSync(join(path, 'status.json')), false); assert.equal(existsSync(join(path, 'result.json')), false)
     marker.queueId = json(join(store, 'queue.json')).queueId; save(join(path, 'ready.json'), marker); req.basis.lessons[0].label = '위조'; save(join(path, 'request.json'), req)
-    assert.equal(call(['work', '--store', store, '--once'], 1).error.code, 'INVALID_REQUEST')
+    call(['work', '--store', store, '--once']); assert.equal(status(store, req.requestId).code, 'INVALID_REQUEST')
   })
   await check('계산 전 취소는 자식 프로세스 실행 없이 완료한다', async () => {
     const store = newStore(), req = await request(); submit(store, req); call(['cancel', '--store', store, '--request-id', req.requestId]); call(['work', '--store', store, '--once'])
@@ -195,7 +197,7 @@ try {
   })
   await check('접수 뒤 원본 스냅샷 변경을 중복 실행으로 덮지 않는다', async () => {
     const store = newStore(), req = await request(); submit(store, req); runtime('from jobs_runtime import JobStore; JobStore(sys.argv[2]).admit(sys.argv[3])', [store, req.requestId]); const path = join(store, 'jobs', req.requestId, 'request.snapshot.json'); save(path, { ...req, inputHash: '0'.repeat(64) })
-    assert.equal(call(['work', '--store', store, '--once'], 1).error.code, 'INVALID_REQUEST')
+    call(['work', '--store', store, '--once']); assert.equal(status(store, req.requestId).code, 'INVALID_REQUEST')
   })
   await check('보관 기간 지난 완료 작업만 미리보기 후 명시적으로 정리한다', async () => {
     const store = newStore(), old = await request(), waiting = await request(); submit(store, old); call(['work', '--store', store, '--once']); submit(store, waiting)
@@ -232,6 +234,120 @@ try {
     const store = newStore(), input = join(temporary, 'invalid.json')
     for (const raw of ['{"requestId":1,"requestId":2}', '{"value":NaN}', '{']) { writeFileSync(input, raw); assert.equal(call(['submit', '--store', store, '--input', input], 1).error.code, 'FILE_UNREADABLE') }
   })
+
+  await check('거부한 원본 하나를 failed로 남기고 지속 작업자는 다음 정상 요청을 실행한다', async () => {
+    const store = newStore(), bad = await request(), good = await request(); const path = browserSubmit(store, bad, true, new Date(Date.now() - 1000).toISOString())
+    bad.basis.resources[0].label = '\u0085'; save(join(path, 'request.json'), bad); browserSubmit(store, good)
+    const child = worker(store)
+    await waitFor(() => status(store, bad.requestId)?.state === 'failed' && status(store, good.requestId)?.state === 'succeeded')
+    assert.equal(status(store, bad.requestId).code, 'INVALID_REQUEST'); assert.equal(existsSync(join(path, 'result.json')), false)
+    child.kill(); await child.finished
+    assert.deepEqual(call(['cleanup', '--store', store, '--request-id', bad.requestId]).requestIds, [bad.requestId])
+  })
+  await check('원본 내용이 깨져도 정확한 요청 표식의 취소는 원본 검증 전에 끝낸다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req); writeFileSync(join(path, 'request.json'), '{')
+    call(['cancel', '--store', store, '--request-id', req.requestId]); call(['work', '--store', store, '--once'])
+    assert.equal(status(store, req.requestId).state, 'cancelled'); assert.equal(status(store, req.requestId).startedAt, null)
+    assert.equal(existsSync(join(path, 'manifest.json')), false)
+  })
+  await check('취소 표식의 queueId·요청 번호·해시는 원본 검증을 생략해도 대조한다', async () => {
+    for (const key of ['queueId', 'requestId', 'inputHash']) {
+      const store = newStore(), req = await request(), path = browserSubmit(store, req)
+      call(['cancel', '--store', store, '--request-id', req.requestId]); const cancel = json(join(path, 'cancel.json'))
+      cancel[key] = key === 'inputHash' ? '0'.repeat(64) : randomUUID(); save(join(path, 'cancel.json'), cancel)
+      call(['work', '--store', store, '--once']); assert.equal(status(store, req.requestId), null); assert.equal(existsSync(join(path, 'result.json')), false)
+      assert.equal(call(['cancel', '--store', store, '--request-id', req.requestId], 1).error.code, key === 'inputHash' ? 'REQUEST_CONFLICT' : 'INVALID_JOB')
+    }
+  })
+  await check('TS와 Python 기초판은 NEL·BOM·짝 없는 서로게이트와 UTF-16 길이를 같은 결과로 판정한다', async () => {
+    const labels = ['\u0085', '\ufeff', ' \u0085\ufeff ', '\ud800', '\udc00', '교사\ud800', '😀'.repeat(101), '😀'.repeat(100), '\u0085교사\ufeff', '교사']
+    const values = labels.map(label => { const b = basis(); b.resources[0].label = label; return b })
+    const input = join(temporary, '문자 대조.json'); save(input, values)
+    const accepted = runtime(`import json; import runner\nvalues=json.load(open(sys.argv[2],encoding='utf-8')); result=[]\nfor value in values:\n try:\n  runner.validate_basis(value); result.append(True)\n except runner.InputError:\n  result.append(False)\nprint(json.dumps(result))`, [input])
+    assert.deepEqual(accepted, [false, false, false, false, false, false, false, true, true, true])
+    assert.deepEqual(values.map(value => m.validateBasis(value).valid), accepted)
+  })
+  await check('외부 접수로 대기 한도를 넘겨도 해당 작업 실패 뒤 취소·다음 정상 계산이 진행된다', async () => {
+    const store = newStore(), reqs = []
+    for (let i = 0; i < 17; i++) { const req = await request(); reqs.push(req); browserSubmit(store, req, true, new Date(Date.now() - 10000 + i).toISOString()) }
+    call(['work', '--store', store, '--once']); assert.equal(status(store, reqs[0].requestId).code, 'QUEUE_FULL')
+    call(['cancel', '--store', store, '--request-id', reqs[1].requestId]); call(['work', '--store', store, '--once'])
+    assert.equal(status(store, reqs[1].requestId).state, 'cancelled'); assert.equal(status(store, reqs[2].requestId).state, 'succeeded')
+  })
+  await check('101개 보관 폴더에서도 조회·취소·전체 정리가 가능하고 신규 실행만 거절한다', async () => {
+    const store = newStore(), first = await request(); browserSubmit(store, first); call(['cancel', '--store', store, '--request-id', first.requestId]); call(['work', '--store', store, '--once']); ageJob(store, first.requestId)
+    const source = join(store, 'jobs', first.requestId), template = json(join(source, 'status.json'))
+    for (let i = 0; i < 100; i++) { const req = await request(), path = browserSubmit(store, req, true, template.queuedAt); save(join(path, 'status.json'), {...template, requestId:req.requestId, inputHash:req.inputHash}) }
+    assert.equal(status(store, first.requestId).state, 'cancelled'); call(['cancel', '--store', store, '--request-id', first.requestId])
+    const input = join(temporary, '보관초과.json'); save(input, await request()); assert.equal(call(['submit', '--store', store, '--input', input], 1).error.code, 'STORE_FULL')
+    assert.equal(call(['cleanup', '--store', store]).requestIds.length, 101); assert.equal(call(['cleanup', '--store', store, '--apply']).requestIds.length, 101)
+    assert.deepEqual(readdirSync(join(store, 'jobs')), [])
+  })
+  await check('실행 여유 용량 부족도 failed 접수증으로 격리하고 후속 취소는 유지한다', async () => {
+    const store = newStore(), req = await request(); browserSubmit(store, req)
+    runtime("from jobs_runtime import JobStore; from jobs_worker import LocalWorker; from jobs_contract import POLICY; POLICY['maximumStoreBytes']=1000; LocalWorker(JobStore(sys.argv[2])).run(once=True)", [store])
+    assert.equal(status(store, req.requestId).code, 'STORE_FULL')
+    call(['cancel', '--store', store, '--request-id', req.requestId]); assert.equal(status(store, req.requestId).state, 'failed')
+    assert.deepEqual(call(['cleanup', '--store', store, '--request-id', req.requestId]).requestIds, [req.requestId])
+  })
+  await check('Finder 표식과 원자 기록 임시 파일은 정상 실행을 막지 않고 완료 정리에서만 지운다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    writeFileSync(join(store, 'jobs', '.DS_Store'), 'finder'); writeFileSync(join(path, '.DS_Store'), 'finder')
+    const tmp = join(path, `.status.json.${randomUUID()}.tmp`); writeFileSync(tmp, '부분 기록')
+    call(['work', '--store', store, '--once']); assert.equal(status(store, req.requestId).state, 'succeeded'); assert.ok(existsSync(tmp))
+    call(['cleanup', '--store', store, '--request-id', req.requestId, '--apply']); assert.equal(existsSync(path), false); assert.ok(existsSync(join(store, 'jobs', '.DS_Store')))
+  })
+  await check('PID 재사용은 생성 토큰 불일치와 명시 확인이 모두 있어야 중단 복구한다', async () => {
+    const store = newStore(), req = await request(); submit(store, req)
+    const identity = runtime('import json; from jobs_worker import process_identity; print(json.dumps(process_identity(int(sys.argv[2]))))', [String(process.pid)])
+    assert.ok(identity)
+    runtime("from jobs_runtime import JobStore,atomic_json; s=JobStore(sys.argv[2]); s.admit(sys.argv[3]); m=s.manifest(sys.argv[3]); m.update(deadlineAt='2000-01-01T00:00:00.000Z', processId=int(sys.argv[4]), processIdentity=sys.argv[5]); atomic_json(s.path(sys.argv[3])/'manifest.json',m); s.transition(sys.argv[3],'running')", [store, req.requestId, String(process.pid), identity])
+    assert.deepEqual(call(['recover', '--store', store, '--confirm-stopped', req.requestId]).blockedRequestIds, [req.requestId])
+    const file = join(store, 'jobs', req.requestId, 'manifest.json'), manifest = json(file); save(file, {...manifest, processIdentity: identity + '0'})
+    assert.deepEqual(call(['recover', '--store', store]).blockedRequestIds, [req.requestId])
+    assert.deepEqual(call(['recover', '--store', store, '--confirm-stopped', req.requestId]).blockedRequestIds, [])
+    assert.equal(status(store, req.requestId).state, 'interrupted'); process.kill(process.pid, 0)
+  })
+
+
+  await check('빈 ready는 해당 요청만 보류하고 닫힌 뒤 같은 번호를 실행하며 정상 다음 요청은 진행한다', async () => {
+    const store = newStore(), waiting = await request(), good = await request(), path = browserSubmit(store, waiting), ready = json(join(path, 'ready.json'))
+    writeFileSync(join(path, 'ready.json'), ''); browserSubmit(store, good)
+    const child = worker(store)
+    await waitFor(() => status(store, good.requestId)?.state === 'succeeded'); assert.equal(existsSync(join(path, 'status.json')), false)
+    save(join(path, 'ready.json'), ready); await waitFor(() => status(store, waiting.requestId)?.state === 'succeeded')
+    child.kill(); await child.finished
+  })
+  await check('빈 cancel은 가짜 취소·실패를 만들지 않고 닫힌 뒤 실제 취소를 확인한다', async () => {
+    const store = newStore(), waiting = await request(), good = await request(), path = browserSubmit(store, waiting), ready = json(join(path, 'ready.json'))
+    writeFileSync(join(path, 'cancel.json'), ''); browserSubmit(store, good); const child = worker(store)
+    await waitFor(() => status(store, good.requestId)?.state === 'succeeded'); assert.equal(status(store, waiting.requestId), null)
+    const {queuedAt,...identity}=ready; save(join(path, 'cancel.json'), {...identity,requestedAt:new Date().toISOString()})
+    await waitFor(() => status(store, waiting.requestId)?.state === 'cancelled'); assert.equal(status(store, waiting.requestId).startedAt, null)
+    child.kill(); await child.finished
+  })
+  await check('실행 중 빈 cancel을 읽어도 계산을 실패시키지 않고 완성된 취소 표식만 적용한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req), child = worker(store, sleepFixture)
+    await waitFor(() => status(store, req.requestId)?.state === 'running'); writeFileSync(join(path, 'cancel.json'), '')
+    await delay(400); assert.equal(status(store, req.requestId).state, 'running')
+    const {queuedAt,...identity}=json(join(path, 'ready.json')); save(join(path, 'cancel.json'), {...identity,requestedAt:new Date().toISOString()})
+    assert.equal((await child.finished).code, 0); assert.equal(status(store, req.requestId).state, 'cancelled')
+  })
+  await check('실행 전 깨진 status는 다른 요청을 막지 않고 원래 상태 복원 뒤 같은 번호로 이어간다', async () => {
+    const store = newStore(), waiting = await request(), good = await request(); submit(store, waiting)
+    runtime('from jobs_runtime import JobStore; JobStore(sys.argv[2]).admit(sys.argv[3])', [store, waiting.requestId])
+    const file = join(store, 'jobs', waiting.requestId, 'status.json'), original = json(file); writeFileSync(file, '')
+    browserSubmit(store, good); const child = worker(store); await waitFor(() => status(store, good.requestId)?.state === 'succeeded')
+    assert.equal(readFileSync(file,'utf8'),''); save(file,original); await waitFor(() => status(store, waiting.requestId)?.state === 'succeeded')
+    child.kill(); await child.finished
+  })
+  await check('이미 실행했을 수 있는 manifest·상태 오류는 새 계산을 추측 실행하지 않는다', async () => {
+    const store = newStore(), running = await request(), next = await request(); submit(store, running)
+    runtime("from jobs_runtime import JobStore,atomic_json; s=JobStore(sys.argv[2]); s.admit(sys.argv[3]); m=s.manifest(sys.argv[3]); m['deadlineAt']='2000-01-01T00:00:00.000Z'; atomic_json(s.path(sys.argv[3])/'manifest.json',m); s.transition(sys.argv[3],'running')", [store,running.requestId])
+    writeFileSync(join(store,'jobs',running.requestId,'status.json'),''); browserSubmit(store,next)
+    assert.equal(call(['work','--store',store,'--once'],1).error.code,'RECOVERY_REQUIRED'); assert.equal(status(store,next.requestId),null)
+  })
+
   console.log(`전부 통과 (${count}건)`)
 } catch (error) {
   // 전체 실행기가 stderr 끝부분만 보여 주어도 실패한 시험과 위치가 함께 남는다.

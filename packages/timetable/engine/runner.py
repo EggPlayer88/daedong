@@ -10,6 +10,7 @@ import time
 ASSETS = Path(__file__).resolve().parents[1] / '_assets'
 POLICY = json.loads((ASSETS / 'engine-policy.json').read_text(encoding='utf-8'))
 LIMIT = json.loads((ASSETS / 'browser-policy.json').read_text(encoding='utf-8'))
+TEXT_WHITESPACE = ' \t\n\r\v\f\u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff'
 
 
 class InputError(Exception):
@@ -37,7 +38,11 @@ def ident(value, path):
 
 
 def text(value, path):
-    if not isinstance(value, str) or not value.strip() or len(value.encode('utf-16-le')) // 2 > 200 or any(ord(c) < 32 for c in value):
+    # Python strip의 NEL과 JavaScript trim의 BOM을 함께 공백으로 취급한다.
+    # 짝 없는 서로게이트는 인코딩 중 예외를 내기 전에 입력 오류로 거절한다.
+    if (not isinstance(value, str) or not value.strip(TEXT_WHITESPACE)
+            or any(ord(c) < 32 or 0xd800 <= ord(c) <= 0xdfff for c in value)
+            or len(value.encode('utf-16-le')) // 2 > 200):
         fail('INVALID_TEXT', '표시 이름을 확인해 주세요.', path)
 
 

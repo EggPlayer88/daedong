@@ -15,7 +15,12 @@ JOB_FILES = frozenset(('request.json', 'ready.json', 'cancel.json', 'manifest.js
 
 
 def owned_job_file(name):
-    return name in JOB_FILES or bool(re.fullmatch(r'\.engine\.[0-9a-f-]{36}\.json', name))
+    return name in JOB_FILES or incidental_file(name) or bool(re.fullmatch(r'\.engine\.[0-9a-f-]{36}\.json', name))
+
+
+def incidental_file(name):
+    # Finder 표식과 이 모듈이 원자 기록 중 남긴 임시 파일만 허용한다.
+    return name == '.DS_Store' or any(re.fullmatch(r'\.' + re.escape(base) + r'\.[0-9a-f-]{36}\.tmp', name) for base in JOB_FILES)
 
 
 def no_link(path):
@@ -117,13 +122,19 @@ class JobStore:
         target.mkdir(parents=True, exist_ok=True)
         if (target / 'queue.json').exists():
             return cls(target)
-        require(not any(target.iterdir()), 'STORE_NOT_EMPTY', '비어 있는 전용 폴더를 선택해 주세요. 기존 파일은 바꾸지 않습니다.')
+        entries = list(target.iterdir())
+        for entry in entries:
+            no_link(entry)
+        require(all(entry.name == '.DS_Store' and entry.is_file() for entry in entries), 'STORE_NOT_EMPTY', '비어 있는 전용 폴더를 선택해 주세요. 기존 파일은 바꾸지 않습니다.')
         (target / 'jobs').mkdir()
         atomic_json(target / 'queue.json', dict(contract=CONTRACT, queueId=str(uuid.uuid4()), createdAt=now(), policyVersion=POLICY['version']), exclusive=True)
         return cls(target)
 
     def lock(self):
         return FileLock(self.root / '.worker.lock')
+
+    def submission_lock(self):
+        return FileLock(self.root / '.submission.lock')
 
     def path(self, request_id):
         require(type(request_id) is str and bool(UUID.fullmatch(request_id)), 'INVALID_REQUEST_ID', '작업 번호는 소문자 UUID여야 합니다.')
@@ -140,22 +151,28 @@ class JobStore:
         result = []
         for entry in (self.root / 'jobs').iterdir():
             no_link(entry)
+            if entry.name == '.DS_Store' and entry.is_file():
+                continue
             require(bool(UUID.fullmatch(entry.name)) and entry.is_dir(), 'INVALID_LAYOUT', '작업 폴더에는 UUID 이름의 작업 디렉터리만 둘 수 있습니다.')
             result.append(entry)
-            require(len(result) <= POLICY['maximumRetainedJobs'], 'STORE_FULL', '완료 작업을 검토하고 cleanup으로 정리해 주세요.')
         return sorted(result, key=lambda p: p.name)
 
     def check_capacity(self):
         size = 0
         pending = 0
-        for directory in self.directories():
+        directories = self.directories()
+        require(len(directories) <= POLICY['maximumRetainedJobs'], 'STORE_FULL', '완료 작업을 검토하고 cleanup으로 정리해 주세요.')
+        for directory in directories:
             for entry in directory.iterdir():
                 no_link(entry)
                 require(entry.is_file(), 'INVALID_LAYOUT', '작업 디렉터리 안의 하위 디렉터리는 지원하지 않습니다.')
                 size += entry.stat().st_size
                 require(size <= POLICY['maximumStoreBytes'], 'STORE_FULL', '작업 보관 용량이 가득 찼습니다.')
             if (directory / 'ready.json').exists():
-                status = self.status(directory.name)
+                try:
+                    status = self.status(directory.name)
+                except JobError:
+                    status = None  # 읽는 중이거나 깨진 표식은 완료로 빼지 않고 대기 수에 보수적으로 포함한다.
                 pending += status is None or status['state'] not in TERMINAL
                 require(pending <= POLICY['maximumPendingJobs'], 'QUEUE_FULL', '대기 중인 계산이 너무 많습니다.')
         return size, pending
@@ -170,13 +187,14 @@ class JobStore:
 
     def manifest(self, request_id):
         result = read_json(self.path(request_id) / 'manifest.json', POLICY['maximumMetadataBytes'])
-        exact(result, 'ready requestDigest acceptedAt deadlineAt processId')
+        exact(result, 'ready requestDigest acceptedAt deadlineAt processId' + (' processIdentity' if type(result) is dict and 'processIdentity' in result else ''))
         validate_marker(result['ready'], self.queue, request_id)
         require(type(result['requestDigest']) is str and len(result['requestDigest']) == 64)
         timestamp(result['acceptedAt'])
         if result['deadlineAt'] is not None:
             timestamp(result['deadlineAt'])
         require(result['processId'] is None or (type(result['processId']) is int and result['processId'] > 0))
+        require(result.get('processIdentity') is None or (type(result['processIdentity']) is str and bool(re.fullmatch(r'(linux|windows):[A-Za-z0-9:-]{1,150}', result['processIdentity']))))
         return result
 
     def request(self, request_id, snapshot=False):
@@ -221,12 +239,16 @@ class JobStore:
                 require(read_json(snapshot, runner.POLICY['maximumRequestBytes']) == request, 'REQUEST_CONFLICT')
             else:
                 atomic_json(snapshot, request, exclusive=True)
-            atomic_json(directory / 'manifest.json', dict(ready=marker, requestDigest=digest(request), acceptedAt=now(), deadlineAt=None, processId=None), exclusive=True)
+            atomic_json(directory / 'manifest.json', dict(ready=marker, requestDigest=digest(request), acceptedAt=now(), deadlineAt=None, processId=None, processIdentity=None), exclusive=True)
         if self.status(request_id) is None:
             self.transition(request_id, 'queued')
         return request
 
     def submit(self, request):
+        with self.submission_lock():
+            return self._submit(request)
+
+    def _submit(self, request):
         request_id = request.get('requestId') if type(request) is dict else None
         directory = self.path(request_id)
         marker = dict(contract=CONTRACT, queueId=self.queue['queueId'], requestId=request_id, inputHash=request.get('inputHash'), queuedAt=now())
@@ -237,9 +259,9 @@ class JobStore:
             return self.status(request_id)
         size, pending = self.check_capacity()
         require(pending < POLICY['maximumPendingJobs'], 'QUEUE_FULL', '대기 중인 계산이 너무 많습니다.')
-        require(size + len(runner.canonical(request).encode('utf-8')) <= POLICY['maximumStoreBytes'], 'STORE_FULL')
+        require(size + (0 if directory.exists() else len(runner.canonical(request).encode('utf-8'))) + POLICY['maximumMetadataBytes'] <= POLICY['maximumStoreBytes'], 'STORE_FULL')
         if directory.exists():
-            require({entry.name for entry in directory.iterdir()} == {'request.json'}, 'REQUEST_CONFLICT', '미확인 파일이 있는 작업 번호를 재사용할 수 없습니다.')
+            require({entry.name for entry in directory.iterdir() if not incidental_file(entry.name)} == {'request.json'}, 'REQUEST_CONFLICT', '미확인 파일이 있는 작업 번호를 재사용할 수 없습니다.')
             require(read_json(directory / 'request.json', runner.POLICY['maximumRequestBytes']) == request, 'REQUEST_CONFLICT')
             atomic_json(directory / 'ready.json', marker, exclusive=True)
             return None

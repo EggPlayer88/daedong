@@ -1,5 +1,6 @@
 import { buildCpSatRequest, canonicalTimetableJson, parseCpSatResponse, type CpSatRequest, type CpSatResponse } from '../../../../packages/timetable/src/cpSat'
 import policy from '../../../../packages/timetable/_assets/engine-policy.json'
+import jobPolicy from '../../../../packages/timetable/_assets/job-policy.json'
 
 export const JOB_CONTRACT = 'timetable.jobs.v1' as const
 export interface JobQueue { contract: typeof JOB_CONTRACT; queueId: string; createdAt: string; policyVersion: 1 }
@@ -10,6 +11,7 @@ export interface JobFiles {
   read(path: string, maximumBytes: number): Promise<string | null>
   write(path: string, text: string): Promise<void>
   exclusive<T>(key: string, run: () => Promise<T>): Promise<T>
+  list(path: string): Promise<{ name: string; kind: 'file' | 'directory'; size: number }[]>
 }
 export interface LocalEngineJobs {
   queue: JobQueue
@@ -30,7 +32,7 @@ export function parseJobQueue(raw: unknown): JobQueue {
   if (!exact(raw, ['contract', 'queueId', 'createdAt', 'policyVersion']) || raw.contract !== JOB_CONTRACT || !uuid(raw.queueId) || !stamp(raw.createdAt) || raw.policyVersion !== 1) return fail('시간표 계산기가 초기화한 전용 작업 폴더를 선택해 주세요.')
   return raw as unknown as JobQueue
 }
-export function parseJobStatus(raw: unknown, queue: JobQueue, request: CpSatRequest, previous?: JobStatus): JobStatus {
+export function parseJobStatus(raw: unknown, queue: JobQueue, request: Pick<CpSatRequest, 'requestId' | 'inputHash'>, previous?: JobStatus): JobStatus {
   if (!exact(raw, ['contract', 'queueId', 'requestId', 'inputHash', 'sequence', 'state', 'queuedAt', 'updatedAt', 'startedAt', 'finishedAt', 'code']) || raw.contract !== JOB_CONTRACT || raw.queueId !== queue.queueId || raw.requestId !== request.requestId || raw.inputHash !== request.inputHash || !Number.isSafeInteger(raw.sequence) || Number(raw.sequence) < 1 || !['queued', 'running', 'cancel_requested', 'succeeded', 'failed', 'cancelled', 'timed_out', 'interrupted'].includes(String(raw.state)) || !stamp(raw.queuedAt) || !stamp(raw.updatedAt) || raw.startedAt !== null && !stamp(raw.startedAt) || raw.finishedAt !== null && !stamp(raw.finishedAt) || raw.code !== null && (typeof raw.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,99}$/.test(raw.code))) return fail()
   const value = raw as unknown as JobStatus
   if (value.updatedAt < value.queuedAt || value.startedAt !== null && (value.startedAt < value.queuedAt || value.startedAt > value.updatedAt) || value.finishedAt !== null && (value.finishedAt < (value.startedAt ?? value.queuedAt) || value.finishedAt > value.updatedAt) || terminalJob(value.state) !== (value.finishedAt !== null) || ['running', 'cancel_requested', 'timed_out'].includes(value.state) && value.startedAt === null || value.state === 'succeeded' && (value.startedAt === null || value.code !== null)) return fail()
@@ -54,18 +56,48 @@ export async function connectLocalEngineJobs(files: JobFiles): Promise<LocalEngi
     if (!exact(value, ['contract', 'queueId', 'requestId', 'inputHash', 'queuedAt']) || value.contract !== JOB_CONTRACT || value.queueId !== queue.queueId || value.requestId !== request.requestId || value.inputHash !== request.inputHash || !stamp(value.queuedAt)) return fail()
     return value
   }
+  async function capacity(request: CpSatRequest, hasRequest: boolean) {
+    const entries = await files.list('jobs')
+    const directories = entries.filter(entry => entry.name !== '.DS_Store' || entry.kind !== 'file')
+    if (directories.some(entry => entry.kind !== 'directory' || !uuid(entry.name))) fail('작업 폴더 구성이 올바르지 않습니다. 전용 폴더를 확인해 주세요.')
+    const present = directories.some(entry => entry.name === request.requestId)
+    if (directories.length + (present ? 0 : 1) > jobPolicy.maximumRetainedJobs) fail(`보관 작업 ${jobPolicy.maximumRetainedJobs}개 한도입니다. 완료 작업을 먼저 정리해 주세요.`)
+    let size = entries.reduce((sum, entry) => sum + entry.size, 0), pending = 0
+    for (const directory of directories) {
+      const path = `jobs/${directory.name}`
+      const items = await files.list(path)
+      if (items.some(item => item.kind !== 'file' || !Number.isSafeInteger(item.size) || item.size < 0)) fail('작업 폴더 안의 파일 구성을 확인해 주세요.')
+      size += items.reduce((sum, item) => sum + item.size, 0)
+      const raw = await files.read(`${path}/ready.json`, jobPolicy.maximumMetadataBytes)
+      if (raw === null) continue
+      const ready = parse(raw)
+      if (!exact(ready, ['contract', 'queueId', 'requestId', 'inputHash', 'queuedAt']) || ready.contract !== JOB_CONTRACT || ready.queueId !== queue.queueId || ready.requestId !== directory.name || typeof ready.inputHash !== 'string' || !/^[a-f0-9]{64}$/.test(ready.inputHash) || !stamp(ready.queuedAt)) return fail()
+      const statusText = await files.read(`${path}/status.json`, jobPolicy.maximumMetadataBytes)
+      if (statusText === null) pending++
+      else {
+        const value = parseJobStatus(parse(statusText), queue, { requestId: directory.name, inputHash: ready.inputHash })
+        if (value.queuedAt !== ready.queuedAt) fail()
+        if (!terminalJob(value.state)) pending++
+      }
+    }
+    if (pending >= jobPolicy.maximumPendingJobs) fail(`대기·실행 작업 ${jobPolicy.maximumPendingJobs}개 한도입니다. 기존 계산을 완료하거나 취소한 뒤 접수해 주세요.`)
+    const added = (hasRequest ? 0 : new TextEncoder().encode(JSON.stringify(request)).byteLength) + jobPolicy.maximumMetadataBytes
+    if (size + added > jobPolicy.maximumStoreBytes) fail('작업 보관 용량이 가득 찼습니다. 완료 작업을 먼저 정리해 주세요.')
+  }
   const api: LocalEngineJobs = {
     queue,
     async submit(request) {
       request = structuredClone(request)
       const rebuilt = await buildCpSatRequest(request.basis, request.requestId, request.previous, request.options)
       if (canonicalTimetableJson(request) !== canonicalTimetableJson(rebuilt)) fail()
-      await files.exclusive(`${queue.queueId}:${request.requestId}`, async () => {
+      // 요청 번호가 다른 두 탭도 같은 한도를 보고 접수하지 않도록 폴더 단위로 직렬화한다.
+      await files.exclusive(`${queue.queueId}:submit`, async () => {
         await sameQueue(); const path = jobPath(request), ready = await marker(request)
         const existing = await files.read(`${path}/request.json`, policy.maximumRequestBytes)
         if (existing !== null && canonicalTimetableJson(parse(existing)) !== canonicalTimetableJson(request)) fail()
         if (ready) { if (existing === null) fail(); return }
         if (await files.read(`${path}/status.json`, 16384) !== null) fail()
+        await capacity(request, existing !== null)
         if (existing === null) await files.write(`${path}/request.json`, JSON.stringify(request))
         // 마지막 표식을 닫기 전까지 작업자는 이 요청을 실행하지 않는다.
         await files.write(`${path}/ready.json`, JSON.stringify({ contract: JOB_CONTRACT, queueId: queue.queueId, requestId: request.requestId, inputHash: request.inputHash, queuedAt: new Date().toISOString() }))
@@ -107,8 +139,14 @@ export async function connectLocalEngineJobs(files: JobFiles): Promise<LocalEngi
 // 폴더 선택은 사용자의 클릭에서만 호출한다. 경로·키를 서버로 보내지 않는다.
 interface WritableFile { write(text: string): Promise<void>; close(): Promise<void>; abort(): Promise<void> }
 interface LocalFile { getFile(): Promise<{ size: number; text(): Promise<string> }>; createWritable(): Promise<WritableFile> }
-export interface LocalDirectory { name: string; getDirectoryHandle(name: string, options?: { create: boolean }): Promise<LocalDirectory>; getFileHandle(name: string, options?: { create: boolean }): Promise<LocalFile> }
+export interface LocalDirectory { name: string; getDirectoryHandle(name: string, options?: { create: boolean }): Promise<LocalDirectory>; getFileHandle(name: string, options?: { create: boolean }): Promise<LocalFile>; entries(): AsyncIterable<[string, { kind: 'file' | 'directory' }]> }
 export function browserJobFiles(directory: LocalDirectory): JobFiles {
+  async function folder(path: string, create = false) {
+    const parts = path.split('/'); if (parts.some(p => !/^[A-Za-z0-9_.-]+$/.test(p) || p === '..' || p === '.')) return fail()
+    let parent = directory
+    for (const part of parts) parent = await parent.getDirectoryHandle(part, { create })
+    return parent
+  }
   async function file(path: string, create: boolean) {
     const parts = path.split('/'); if (parts.some(p => !/^[A-Za-z0-9_.-]+$/.test(p) || p === '..' || p === '.')) return fail()
     let parent = directory
@@ -116,6 +154,13 @@ export function browserJobFiles(directory: LocalDirectory): JobFiles {
     return parent.getFileHandle(parts.at(-1)!, { create })
   }
   return {
+    async list(path) {
+      const parent = await folder(path), result: { name: string; kind: 'file' | 'directory'; size: number }[] = []
+      for await (const [name, entry] of parent.entries()) {
+        result.push({ name, kind: entry.kind, size: entry.kind === 'file' ? (await (await parent.getFileHandle(name)).getFile()).size : 0 })
+      }
+      return result
+    },
     async read(path, maximumBytes) {
       try { const value = await (await file(path, false)).getFile(); if (value.size > maximumBytes) return fail('계산 파일 크기 한도를 넘었습니다. 작업 폴더를 확인해 주세요.'); return await value.text() }
       catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') return null; throw error }
