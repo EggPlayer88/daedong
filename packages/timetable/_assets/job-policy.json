@@ -1,0 +1,13 @@
+{
+  "contract": "timetable.jobs.v1",
+  "version": 1,
+  "maximumPendingJobs": 16,
+  "maximumRetainedJobs": 100,
+  "maximumStoreBytes": 128000000,
+  "maximumResultBytes": 16000000,
+  "maximumMetadataBytes": 8192,
+  "hardTimeoutGraceSeconds": 5,
+  "pollIntervalMilliseconds": 100,
+  "heartbeatIntervalMilliseconds": 1000,
+  "retentionDays": 7
+}
