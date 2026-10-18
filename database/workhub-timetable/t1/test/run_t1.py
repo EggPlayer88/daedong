@@ -154,12 +154,12 @@ def body():
     check('A02 설치 전 T1-04: 10행 모두 info(미적용) · FAIL 없음', len(post0) == 10 and all(r[2] == 'info' for r in post0), post0)
     part = []
     for i, f in enumerate(FILES):
-        sqlfile(p(f)); rows = postcheck()
+        sqlfile(p(f)); rows = postcheck() + sqlfile(p('T1-06_통합사후점검.sql'))
         part.append(all(r[2] in ('ok', 'info') for r in rows))
-    check('A03 T1-01 → 02 → 03 하나씩: 단계마다 T1-04 FAIL 없음(부분 설치 상태)', all(part), part)
+    check('A03 T1-01 → 02 → 03 하나씩: 단계마다 T1-04 · T1-06(통합 점검) FAIL 없음(부분 설치 상태)', all(part), part)
     post = postcheck()
-    check('A04 전부 설치 뒤 T1-04: 01~08 ok · 09 활성화 없음 · 10 INT-03 대조 수', [r[2] for r in post] == ['ok'] * 8 + ['info', 'info'] and post[-2][3] == '(활성화 없음)'
-          and post[-1][3] == '함수 38 · 트리거 7 · 빠진 제약 1 · 목록에 없는 제약 68', post)
+    check('A04 전부 설치 뒤 T1-04: 01~08 ok · 09 활성화 없음 · 10 보호 트리거 7개 켜짐', [r[2] for r in post] == ['ok'] * 8 + ['info', 'ok'] and post[-2][3] == '(활성화 없음)'
+          and post[-1][3] == '7개 켜짐', post)
     after = fingerprint()
     check('A05 T1-00 지문(S1~S6 구조 · D1 기존 표 전부의 행) 설치 전후 같음 — 기존 함수 · 표 · 행을 바꾸지 않음', before == after,
           [(b, a) for b, a in zip(before, after) if b != a])
@@ -447,6 +447,64 @@ def body():
           and adm.save(inp, ks, recover=True) == rs)
     sqlfile(text=module_sql('P2-81_모듈재개.sql', 'timetable', '시험 재개'))
     check('H08 재개(P2-81) → available', d(adm.ready()) == {'available': True})
+
+    # ======================================================================= J. 재검토 F1 · F2 — 공개 RPC 로만 만든 남은 학기의 변화
+    def confirm_now(title):
+        ps_ = d(adm.prep()); sd = ps_['savedDraft']
+        dr = {'title': title, 'slots': slots, 'plans': plans(ps_, {CA: 2, CB: 2})}
+        return ps_, sd, dr
+    nb = lambda: n('timetable_basis_revisions')
+    done = lambda r: isinstance(r, dict) and (r.get('ok') is True or isinstance(r.get('data'), dict))   # P1 · P5 봉투는 시간표 봉투와 모양이 다르다
+    # F2: 담당 교사(m-23, 과학 실험)의 마지막 재직일을 오늘로 줄인다(P1 공개 명령). 담당 기간은 학기 끝까지 그대로.
+    ps0, sd0, dr0 = confirm_now('F2 확인')
+    rev_p1 = lambda: scalar("select revision from workhub.school_admin_activations where school_id=%s", (s1,))
+    syear = scalar("select school_year from workhub.academic_years where id=%s", (year,))
+    m23_from = scalar("select valid_from::text from workhub.memberships where id='m-23'")
+    review = lambda last: {'kind': 'review_membership', 'expectedVersion': rev_p1(), 'schoolYear': syear, 'targetMemberId': M[23], 'decision': 'active',
+                           'startsOn': m23_from, 'lastDay': last, 'reason': '재직 기간 정리'}
+    r_ = adm.go('workhub_school_admin_mutate', review(DAY()), key())
+    check('J01 [F2 준비] P1 소속 검토로 m-23 의 마지막 재직일 = 오늘(공개 명령 성공 · 담당은 학기 끝까지 그대로)', done(r_)
+          and scalar("select valid_to::text from workhub.memberships where id='m-23'") == DAY(1), r_)
+    sg = d(adm.setup()); ps1 = d(adm.prep())
+    check('J02 [F2] 교사 재직이 학기 중 끝남 → TEACHER_LEAVES_IN_TERM(확정 차단) · 원본 판 +1 · 지문 바뀜 · 표현 불가 1건',
+          finds(sg) == [('TEACHER_LEAVES_IN_TERM', CD)] and sg['findings'][0]['blocksConfirm'] is True
+          and ps1['sourceRevision'] == ps0['sourceRevision'] + 1 and ps1['sourceFingerprint'] != ps0['sourceFingerprint'] and len(ps1['unsupportedFeatures']) == 1, (sg, ps1))
+    b0 = nb()
+    r_old = adm.pex(pin('confirm', ps0, dr0, sd0['id'], sd0['revision']))
+    r_new = adm.pex(pin('confirm', ps1, dr0, sd0['id'], sd0['revision']))
+    check('J03 [F2] 바뀌기 전 원본 판 · 지문으로 확정 → CONFLICT · 새 원본으로 확정 → INVALID_INPUT · 기준판 그대로', ecode(r_old) == 'CONFLICT'
+          and ecode(r_new) == 'INVALID_INPUT' and nb() == b0, (r_old, r_new))
+    r_ = adm.go('workhub_school_admin_mutate', review('9999-12-31'), key())
+    check('J04 [F2] 재직 기간을 되돌리면(무기한) 차단 사라짐', done(r_) and d(adm.setup())['findings'] == [], r_)
+    # F1: 기간이 이어지는 이동(겹침 아님)은 막지 않는다 — S-8 은 X2 를 DAY(6)까지, Y2 를 DAY(7)부터
+    X2 = mk('정보 이동 전', 'subj-info', [M[22]]); Y2 = mk('국어 이동 후', 'subj-kor', [M[21]])
+    rs8a = t[22].tmut(roster(X2, 1, [srow('S-8', '정이동', 2, '1', 8)], t2s, DAY(6)))
+    rs8b = t[21].tmut(roster(Y2, 1, [srow('S-8', '정이동', 2, '1', 8)], DAY(7), t2last))
+    for cid in (X2, Y2): adm.sx(link(cid, None, [], True))
+    sg = d(adm.setup())
+    check('J05 [F1] 공개 RPC: S-8 수강 X2(오늘~DAY+6) → Y2(DAY+7~) 이동 = 겹침 아님 → 미완성 0', done(rs8a) and done(rs8b) and sg['findings'] == [], (rs8a, rs8b, sg))
+    ps2, sd2, dr2 = confirm_now('기간 이동 확정')
+    r_ = adm.pex(pin('confirm', ps2, dr2, sd2['id'], sd2['revision']))
+    check('J06 [F1] 기간이 이어지는 이동은 확정됨(정상 이동을 막지 않음)', ok(r_) and nb() == b0 + 1, r_)
+    # F1: 같은 학생이 X1 은 학기 내내, Y1 은 다음 주부터 — 기준일에는 겹치지 않지만 남은 학기에 겹친다
+    X1 = mk('정보 심화', 'subj-info', [M[22]]); Y1 = mk('국어 심화', 'subj-kor', [M[21]])
+    for cid in (X1, Y1): adm.sx(link(cid, None, [], True))
+    t[22].tmut(roster(X1, 1, [srow('S-9', '한겹침', 2, '1', 9)], t2s, t2last))
+    ps3, sd3, dr3 = confirm_now('겹침 전')
+    rs9 = t[21].tmut(roster(Y1, 1, [srow('S-9', '한겹침', 2, '1', 9)], DAY(7), t2last))
+    sg = d(adm.setup()); ps4 = d(adm.prep())
+    check('J07 [F1] 공개 RPC: S-9 를 Y1 에 다음 주부터 등록 → STUDENT_OVERLAP(X1/Y1, 확정 차단) · X2/Y2 는 겹침 아님 · 원본 판 +1 · 지문 바뀜',
+          done(rs9) and finds(sg) == [('STUDENT_OVERLAP', '/'.join(sorted([X1, Y1])))] and ps4['sourceRevision'] == ps3['sourceRevision'] + 1
+          and ps4['sourceFingerprint'] != ps3['sourceFingerprint'] and len(ps4['unsupportedFeatures']) == 1, (rs9, sg))
+    b1 = nb()
+    r_old = adm.pex(pin('confirm', ps3, dr3, sd3['id'], sd3['revision']))
+    dr4 = {'title': '겹침 뒤', 'slots': slots, 'plans': plans(ps4, {CA: 2, CB: 2})}
+    r_new = adm.pex(pin('confirm', ps4, dr4, sd3['id'], sd3['revision']))
+    check('J08 [F1] 겹침 전 원본 판으로 확정 → CONFLICT · 새 원본으로 확정 → INVALID_INPUT · 기준판 그대로(두 수업을 같은 시간에 넣는 기준판이 생기지 않음)',
+          ecode(r_old) == 'CONFLICT' and ecode(r_new) == 'INVALID_INPUT' and nb() == b1, (r_old, r_new))
+    lv = {x['id']: (x['link'] or {}).get('version') for x in sg['courses']}
+    adm.sx(link(Y1, lv[Y1], ['cls-2-1'])); adm.sx(link(X1, lv[X1], ['cls-2-1']))
+    check('J09 [F1] 두 수업을 같은 학급 자원으로 묶으면(담당자가 ID 로 고름) 겹침 해소', d(adm.setup())['findings'] == [])
 
     # ======================================================================= I. 마무리
     post = postcheck()

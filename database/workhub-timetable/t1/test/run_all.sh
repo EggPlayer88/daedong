@@ -1,5 +1,6 @@
 #!/bin/bash
-# T1 전체 검증: I 선행 조건 · 순서 · 원본 제약 확인(멈추면 아무것도 남기지 않음) · II T1 시험 · III 앱 대조 · IV 앱 검사 함수 무작위 대조.
+# T1 전체 검증: I 선행 조건 · 순서 · 원본 제약 확인(멈추면 아무것도 남기지 않음) · II T1 시험 + 통합 점검(T1-06 · INT-03) · 보호 트리거 훼손 회귀
+#   · III 앱 대조 · IV 앱 검사 함수 무작위 대조 · V T1-06 목록 재생성 대조.
 # 하나라도 실패하면 종료 코드 1, 준비 단계(서버·빌드)가 실패하면 2.
 # 사용: R0_PG_BIN=<PostgreSQL 17 bin> T1_APP_SRC=<PR #65·#66 checkout(node_modules 포함)> bash run_all.sh      (README 참고)
 set -uo pipefail
@@ -57,13 +58,34 @@ post=$(q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1)
 echo "== II. T1 시험(R1 + P1~P5 + P7 + P8 위에서 T1 을 직접 설치)"
 base; p1; p2; p3; p4; p5; p7; p8
 (cd "$T" && T1_CAPTURE="$W/cap.json" python3 run_t1.py) >"$W/t1.log" 2>&1; sub "II T1 시험" "$W/t1.log" $?
-# INT-03(1~8단계 통합 사후 점검)은 T1 을 모른다 → 03 · 09 · 10 행만 FAIL 이고, 그 수가 T1-04-10 과 같아야 한다(T1 밖 차이 없음)
-int=$(q -At -F'|' -f "$WH/integration/INT-03_통합사후점검.sql" 2>&1); t104=$(q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1 | grep '^T1-04-10|' | cut -d'|' -f4)
-nf=$(grep -o '^INT-03-03|[^|]*|FAIL|[0-9]*' <<<"$int" | awk -F'|' '{print $4}'); ntg=$(grep '^INT-03-09|' <<<"$int" | grep -o '목록에 없음 [0-9][0-9]*' | awk '{print $3}')
-ncm=$(grep '^INT-03-10|' <<<"$int" | grep -o '빠짐 [0-9][0-9]*' | awk '{print $2}'); nce=$(grep '^INT-03-10|' <<<"$int" | grep -o '목록에 없음 [0-9][0-9]*' | awk '{print $3}')
+# T1-06(1~8단계 + T1 통합 사후 점검)은 FAIL 0 이어야 한다. INT-03(1~8단계)은 T1 을 몰라 03 · 09 · 10 행만 FAIL 이고,
+# 그 안에서도 "다름"은 0, 트리거 "빠짐" 0, 제약 "빠짐"은 T1-02 가 없앤 R0 학기 제약 1개뿐이어야 한다(기존 객체 차이 = 승인된 교체 하나).
+t106(){ q -At -F'|' -f "$S/T1-06_통합사후점검.sql" 2>&1; }
+r106=$(t106)
+[ "$(grep -c '^T1-06-' <<<"$r106")" = 13 ] && ! grep -q '|FAIL|' <<<"$r106" && grep -q '^T1-06-01|.*· T1-01 · T1-02 · T1-03$' <<<"$r106" \
+  && ok "II-b T1-06 통합 사후 점검 13행 FAIL 0(조합 끝 = T1-01 · T1-02 · T1-03)" || ng "II-b T1-06 -- $(grep '|FAIL|' <<<"$r106" | head -3 | tr '\n' ' ')"
+int=$(q -At -F'|' -f "$WH/integration/INT-03_통합사후점검.sql" 2>&1)
 other=$(grep '|FAIL|' <<<"$int" | grep -v '^INT-03-0[39]|\|^INT-03-10|' | head -3)
-if [ -z "$other" ] && [ "$t104" = "함수 $nf · 트리거 $ntg · 빠진 제약 $ncm · 목록에 없는 제약 $nce" ]; then ok "II-b INT-03 의 FAIL 은 03 · 09 · 10 뿐이고 수가 T1-04-10 과 같음($t104)"
-else ng "II-b INT-03 차이 -- T1-04-10=$t104 / INT-03 함수 $nf 트리거 $ntg 빠짐 $ncm 추가 $nce / 그 밖 FAIL: $other"; fi
+i09=$(grep '^INT-03-09|' <<<"$int" | cut -d'|' -f4); i10=$(grep '^INT-03-10|' <<<"$int" | cut -d'|' -f4)
+if [ -z "$other" ] && [[ "$i09" == "빠짐 0 · 목록에 없음 7 · 다름 0"* ]] && [[ "$i10" == "빠짐 1 · 목록에 없음 68 · 다름 0 — 빠짐 workhub.terms.terms_timetable_basis_pending"* ]]; then
+  ok "II-c INT-03 의 차이 = T1 객체(트리거 7 · 제약 68)와 T1-02 의 학기 제약 교체뿐, '다름' 0"
+else ng "II-c INT-03 차이 -- 09: $i09 / 10: $i10 / 그 밖 FAIL: $other"; fi
+# 훼손 회귀: 보호 트리거를 끄면 점검이 잡아야 한다(기존 audit_events_immutable · T1 의 timetable_basis_revisions_immutable)
+s3(){ q -At -F'|' -f "$S/T1-00_사전점검_지문.sql" 2>&1 | grep '^지문|S3 ' | cut -d'|' -f4; }
+su(){ need r0_psql -U supabase_admin -d r0 -v ON_ERROR_STOP=1 -qc "$1" >/dev/null; }
+s3a=$(s3)
+su "alter table workhub.audit_events disable trigger audit_events_immutable"
+r106=$(t106); s3b=$(s3); post=$(q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1)
+[ "$s3a" != "$s3b" ] && grep -q '^T1-06-09|[^|]*|FAIL|.*다름 1.*audit_events_immutable' <<<"$r106" \
+  && ok "II-d 기존 보호 트리거(audit_events_immutable)를 끄면 T1-00 지문 S3 가 달라지고 T1-06-09 가 FAIL(다름 1)" || ng "II-d -- S3 같음=$([ "$s3a" = "$s3b" ] && echo 예) / $(grep '^T1-06-09|' <<<"$r106")"
+su "alter table workhub.audit_events enable trigger audit_events_immutable"
+su "alter table workhub.timetable_basis_revisions disable trigger timetable_basis_revisions_immutable"
+r106=$(t106); post=$(q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1)
+grep -q '^T1-06-09|[^|]*|FAIL|.*timetable_basis_revisions_immutable' <<<"$r106" && grep -q '^T1-04-10|[^|]*|FAIL|.*timetable_basis_revisions_immutable(꺼짐 D)' <<<"$post" \
+  && ok "II-e T1 보호 트리거(timetable_basis_revisions_immutable)를 끄면 T1-04-10 · T1-06-09 가 FAIL" || ng "II-e -- $(grep '^T1-04-10|' <<<"$post") / $(grep '^T1-06-09|' <<<"$r106")"
+su "alter table workhub.timetable_basis_revisions enable trigger timetable_basis_revisions_immutable"
+r106=$(t106); post=$(q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1)
+! grep -q '|FAIL|' <<<"$r106" && ! grep -q '|FAIL|' <<<"$post" && [ "$(s3)" = "$s3a" ] && ok "II-f 다시 켜면 T1-04 · T1-06 FAIL 0 · 지문 S3 원래대로" || ng "II-f 복구 뒤 -- $(grep '|FAIL|' <<<"$r106$post" | head -2 | tr '\n' ' ')"
 
 APP=${T1_APP_SRC:-}
 ESB=${ESBUILD:-$APP/node_modules/.bin/esbuild}
@@ -82,6 +104,10 @@ else
     sub "IV 무작위 대조(씨앗 $seed)" "$W/fuzz_$seed.log" $?
   done
 fi
+
+echo "== V. T1-06 목록 = 지금 SQL 파일로 다시 만든 목록(R0 만 있는 시험 DB 에서 1~8단계 · T1 을 차례로 적용)"
+need bash "$R1_TEST_DIR/setup.sh" >/dev/null
+python3 "$T/gen_t1_int.py" check >"$W/gen.log" 2>&1; sub "V gen_t1_int check" "$W/gen.log" $?
 
 echo "합계: PASS $PASS · FAIL $FAIL"
 [ "$FAIL" = 0 ]
