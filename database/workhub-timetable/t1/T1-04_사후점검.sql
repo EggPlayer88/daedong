@@ -3,11 +3,10 @@
 --
 -- ▣ 무엇을 보나: 적용한 T1 파일(T1-01~03)마다 만든 · 바꾼 것이 제자리에 있는지, 권한이 닫혀 있는지, 쌓인 기준판이 앱 검사를 통과하는지,
 --   켜기 상태가 어떤지. 적용하지 않은 파일의 행은 info("미적용")로 나온다(T1-01 → 02 → 03 순서로 하나씩 적용해도 된다).
--- ▣ INT-03(1~8단계 통합 사후 점검)과의 관계: INT-03 은 R0 의 terms_timetable_basis_pending 정의를 원본 해시로 고정해 두었다.
---   T1-02 뒤에는 INT-03 의 그 한 행이 FAIL(없음)로 나온다 — T1-02 가 의도한 교체다. 이 파일의 T1-04-04 가 그 자리의 새 정의를 확인한다.
---   그 밖의 INT-03 행이 달라지면 T1 탓이 아니다(T1 은 기존 함수 · 표 · 다른 제약을 바꾸지 않는다 — T1-00 지문으로 확인).
+-- ▣ 정확한 대조는 T1-06(1~8단계 + T1 통합 사후 점검)이 한다: T1 객체의 이름 · 정의 · 권한 · 트리거 켜짐 상태와,
+--   기존 객체가 "T1-02 의 학기 제약 교체" 외에는 1~8단계 목록과 같은지. 이 파일은 T1 이 제자리에 있고 쓸 만한지를 빠르게 본다.
+--   INT-03(1~8단계)은 T1 을 몰라 03 · 09 · 10 행이 FAIL 로 나온다 — T1 뒤에는 INT-03 대신 T1-06 을 본다.
 -- ▣ 읽는 법: status 에 FAIL 이 없어야 한다. T1-04-09 는 켜기 상태(info) — 켜기는 입력 화면 배포 뒤 T1-05 로만.
---   T1-04-10 은 INT-03 의 03 · 09 · 10 행 FAIL 수와 맞춰 보는 수(info) — 같으면 INT-03 의 차이는 모두 T1 이 만든 것이다.
 -- ============================================================================
 WITH done AS (SELECT CASE WHEN to_regclass('workhub_private.t1_installs') IS NULL THEN ''
                           ELSE COALESCE((xpath('/row/v/text()', query_to_xml('SELECT string_agg(batch || ''@'' || release, '','' ORDER BY batch) AS v FROM workhub_private.t1_installs',
@@ -16,6 +15,10 @@ has AS (SELECT b, (',' || (SELECT v FROM done) || ',') LIKE ('%,' || b || '@2026
 tt AS (SELECT c.oid, c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'workhub' AND c.relname LIKE 'timetable\_%' AND c.relkind = 'r'),
 tc AS (SELECT conname, pg_get_constraintdef(oid) AS def FROM pg_constraint WHERE conrelid = 'workhub.terms'::regclass
         AND conname IN ('terms_timetable_basis_pending','terms_timetable_basis_fkey')),
+want_tg(nsp, rel, tg) AS (VALUES ('workhub_private', 't1_installs', 't1_installs_immutable'),
+  ('workhub', 'timetable_setup_history', 'timetable_setup_history_immutable'), ('workhub', 'timetable_source_marks', 'timetable_source_marks_immutable'),
+  ('workhub', 'timetable_prep_draft_revisions', 'timetable_prep_draft_revisions_immutable'), ('workhub', 'timetable_basis_revisions', 'timetable_basis_revisions_immutable'),
+  ('workhub', 'timetable_drafts', 'timetable_drafts_immutable'), ('workhub', 'timetable_requests', 'timetable_requests_immutable')),
 api_exec AS (SELECT p.proname FROM pg_proc p WHERE p.pronamespace = 'workhub_private'::regnamespace AND p.proname LIKE 't1\_%'
                AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
                     OR has_function_privilege('service_role', p.oid, 'EXECUTE')))
@@ -98,16 +101,17 @@ SELECT 'T1-04-09', '켜기 상태(info) — 켜기는 입력 화면 배포 뒤 T
        COALESCE((SELECT string_agg(s.code || ':' || a.state, ', ' ORDER BY s.code)
                    FROM workhub.module_activations a JOIN workhub.schools s ON s.id = a.school_id WHERE a.module = 'timetable'), '(활성화 없음)')
 UNION ALL
--- INT-03(통합 사후 점검)은 1~8단계 목록만 안다. T1 뒤 INT-03 의 03 · 09 · 10 행은 FAIL 로 나오고, 그 수가 아래 수와 같아야 한다(T1 밖 차이 없음).
-SELECT 'T1-04-10', 'INT-03 과 맞춰 볼 수(info): INT-03-03 목록에 없는 함수 · 09 목록에 없는 트리거 · 10 빠진 제약 · 목록에 없는 제약', 'info',
+-- 보호 트리거는 이름으로 하나씩 본다(접두어 · 개수가 아니라). 꺼 둔(tgenabled <> 'O') 트리거는 고칠 수 없다는 보장을 잃으므로 FAIL.
+SELECT 'T1-04-10', 'T1 보호 트리거 7개: 승인된 이름 그대로 있고 켜져 있음(그 밖의 트리거 없음) — 정의 대조는 T1-06',
+       CASE WHEN NOT (SELECT ok FROM has WHERE b = 'T1-01') THEN 'info'
+            WHEN (SELECT count(*) FROM want_tg w JOIN pg_trigger g ON g.tgname = w.tg AND NOT g.tgisinternal AND g.tgenabled = 'O'
+                    JOIN pg_class c ON c.oid = g.tgrelid AND c.relname = w.rel JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = w.nsp) = 7
+             AND (SELECT count(*) FROM pg_trigger g JOIN pg_class c ON c.oid = g.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+                   WHERE NOT g.tgisinternal AND ((n.nspname = 'workhub' AND c.relname IN (SELECT relname FROM tt)) OR (n.nspname = 'workhub_private' AND c.relname = 't1_installs'))) = 7
+            THEN 'ok' ELSE 'FAIL' END,
        CASE WHEN NOT (SELECT ok FROM has WHERE b = 'T1-01') THEN '미적용'
-            ELSE '함수 ' || (SELECT count(*) FROM pg_proc p WHERE (p.pronamespace = 'workhub_private'::regnamespace AND p.proname LIKE 't1\_%')
-                                                          OR (p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'workhub\_timetable\_%'))
-              || ' · 트리거 ' || (SELECT count(*) FROM pg_trigger g JOIN pg_class c ON c.oid = g.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-                                  WHERE NOT g.tgisinternal AND ((n.nspname = 'workhub' AND c.relname LIKE 'timetable\_%') OR (n.nspname = 'workhub_private' AND c.relname = 't1_installs')))
-              || ' · 빠진 제약 ' || (CASE WHEN EXISTS (SELECT 1 FROM tc WHERE conname = 'terms_timetable_basis_pending') THEN 0 ELSE 1 END)
-              || ' · 목록에 없는 제약 ' || ((SELECT count(*) FROM pg_constraint k JOIN pg_class c ON c.oid = k.conrelid JOIN pg_namespace n ON n.oid = c.relnamespace
-                                          WHERE (n.nspname = 'workhub' AND c.relname LIKE 'timetable\_%') OR (n.nspname = 'workhub_private' AND c.relname = 't1_installs'))
-                                       + (SELECT count(*) FROM tc WHERE conname = 'terms_timetable_basis_fkey'))
-       END
+            ELSE COALESCE((SELECT string_agg(w.rel || '.' || w.tg || CASE WHEN g.oid IS NULL THEN '(없음)' ELSE '(꺼짐 ' || g.tgenabled::text || ')' END, ', ' ORDER BY w.rel)
+                             FROM want_tg w LEFT JOIN (pg_trigger g JOIN pg_class c ON c.oid = g.tgrelid JOIN pg_namespace n ON n.oid = c.relnamespace)
+                               ON g.tgname = w.tg AND c.relname = w.rel AND n.nspname = w.nsp AND NOT g.tgisinternal
+                            WHERE g.oid IS NULL OR g.tgenabled <> 'O'), '7개 켜짐') END
 ORDER BY 1;

@@ -85,8 +85,8 @@ SELECT '지문', 'S2 제약(T1-02 가 바꾸는 학기 제약 자리 제외)', '
                      FROM rels r JOIN pg_constraint k ON k.conrelid = r.oid WHERE k.conname NOT IN (SELECT n FROM t1_con)), '')),
        NULL, '실행 전 · 후 같아야 한다'
 UNION ALL
-SELECT '지문', 'S3 트리거', 'ok',
-       md5(COALESCE((SELECT string_agg(r.nspname || '.' || r.relname || '.' || g.tgname || ':' || pg_get_triggerdef(g.oid), chr(10) ORDER BY r.nspname, r.relname, g.tgname)
+SELECT '지문', 'S3 트리거(정의 · 켜짐 상태 — 꺼 둔 보호 트리거도 다르게 나온다)', 'ok',
+       md5(COALESCE((SELECT string_agg(r.nspname || '.' || r.relname || '.' || g.tgname || ':' || pg_get_triggerdef(g.oid) || ':' || g.tgenabled::text, chr(10) ORDER BY r.nspname, r.relname, g.tgname)
                      FROM rels r JOIN pg_trigger g ON g.tgrelid = r.oid AND NOT g.tgisinternal), '')),
        NULL, '실행 전 · 후 같아야 한다'
 UNION ALL
