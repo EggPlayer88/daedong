@@ -35,5 +35,11 @@ await check('AI 고정·불가 충돌은 적용 전 표시하고 확인 후에�
   await page.getByText(/반영 후 확정 충돌 .*건이 남아 계산이 막힙니다/).waitFor();await page.getByText(/배치할 시간 없음/).first().waitFor();assert.equal(await page.getByRole('button',{name:'확인한 조건 제안 반영',exact:true}).isDisabled(),true);assert.equal(await page.evaluate(()=>window.applied.length),0)
   await page.getByLabel('필수·선호와 적용 대상 및 충돌 안내를 확인했습니다',{exact:true}).check();await page.getByRole('button',{name:'확인한 조건 제안 반영',exact:true}).click();assert.deepEqual(await page.evaluate(()=>window.applied[0].fixed),[{lessonId:'practice-lesson-c1',slotId:'practice-1-1'}]);assert.equal(await page.evaluate(()=>window.applied[0].unavailable.length),1)
 })
+await check('동명 수업의 AI 선호·고정 카드에 각 수업 ID를 표시하며 실제 대상은 섞지 않는다',async()=>{
+  await page.evaluate(()=>{window.basis={...window.basis,lessons:window.basis.lessons.map(l=>['practice-lesson-c1','practice-lesson-d1'].includes(l.id)?{...l,label:'국어 1회'}:l)};window.changes=[{kind:'prefer',lessonId:'practice-lesson-c1',slotId:'practice-1-1',weight:3},{kind:'fix',lessonId:'practice-lesson-d1',slotId:'practice-1-2'}];window.render()});await ask()
+  const cards=page.getByRole('region',{name:'AI 조건 제안'});await cards.getByText(/국어 1회 \[practice-lesson-c1\]/).waitFor();await cards.getByText(/국어 1회 \[practice-lesson-d1\]/).waitFor()
+  assert.equal(await page.evaluate(()=>window.applied.length),0);await page.getByLabel('필수·선호와 적용 대상 및 충돌 안내를 확인했습니다',{exact:true}).check();await page.getByRole('button',{name:'확인한 조건 제안 반영',exact:true}).click()
+  assert.equal(await page.evaluate(()=>window.applied[0].preferences[0].lessonId),'practice-lesson-c1');assert.equal(await page.evaluate(()=>window.applied[0].fixed[0].lessonId),'practice-lesson-d1')
+})
 assert.deepEqual(errors,[]);console.log('시간표 Claude 브라우저 검사: '+n+'개 통과')
 }catch(error){console.log(await page.locator('body').innerText());console.log(await page.evaluate(()=>({sent:window.sent.length,pending:window.pending.count(),applied:window.applied.length,basis:window.basis.revision})));throw error}finally{await browser.close()}

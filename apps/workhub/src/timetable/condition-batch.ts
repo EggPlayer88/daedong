@@ -34,7 +34,7 @@ export function previewConditionBatch(basis: TimetableBasis, current: TimetableC
   if (!Number.isSafeInteger(action.weight) || action.weight < 1 || action.weight > timetablePolicy.maxWeight) fail(`피하고 싶은 정도는 1~${timetablePolicy.maxWeight}의 정수로 입력해 주세요.`)
   const selected = new Set(ids), daySet = new Set(days), rows: string[] = [], lessons = basis.lessons.filter(lesson => lesson.resourceIds.some(id => selected.has(id))).sort((a, b) => compare(a.id, b.id))
   const sortedDays = [...days].sort((a, b) => a - b), resources = ids.map(id => resourceMap.get(id)!).sort((a, b) => a.label.localeCompare(b.label, 'ko') || compare(a.id, b.id)), slots = new Map(basis.slots.map(slot => [slot.id, slot]))
-  const targetLabels = conditionTargetLabels(basis.resources)
+  const targetLabels = conditionTargetLabels(basis.resources), lessonLabels = conditionTargetLabels(basis.lessons)
   let skipped = 0
   if (action.kind === 'unavailable') {
     const indexed = new Map<string, TimetableConditions['unavailable']>()
@@ -54,7 +54,7 @@ export function previewConditionBatch(basis: TimetableBasis, current: TimetableC
       if (old && old.weight === weight) { skipped++; continue }
       if (index === undefined) { pairs.set(key, conditions.preferences.length); conditions.preferences.push({ lessonId: lesson.id, slotId, weight }) }
       else conditions.preferences[index] = { lessonId: lesson.id, slotId, weight }
-      rows.push(`${lesson.label} · ${weekdays[slot.day - 1]} ${slot.label} ${conditionBatchClock(slot.startMinute)}–${conditionBatchClock(slot.endMinute)} · 피하기 ${old ? `${old.weight} → ` : ''}${weight}`)
+      rows.push(`${lessonLabels.get(lesson.id)} · ${weekdays[slot.day - 1]} ${slot.label} ${conditionBatchClock(slot.startMinute)}–${conditionBatchClock(slot.endMinute)} · 피하기 ${old ? `${old.weight} → ` : ''}${weight}`)
       if (conditions.preferences.length > timetablePolicy.maxConditions) fail('일괄 조건이 편성 한도를 넘습니다. 대상이나 요일·시간을 좁혀 주세요. 일부만 반영하지 않았습니다.')
     }
   }

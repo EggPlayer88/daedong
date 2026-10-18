@@ -22,7 +22,8 @@ function timestamp(v: unknown): string {
 function time(v: unknown): OperationTime {
   exact(v, ['startsAt', 'endsAt'])
   const startsAt = timestamp(v.startsAt), endsAt = timestamp(v.endsAt)
-  if (startsAt >= endsAt || Date.parse(endsAt) - Date.parse(startsAt) > limits.lessonMinutes * 60000) fail()
+  // 수업 시각만 정수 초로 고정한다. 조회·접수·응답 시각의 밀리초는 보존한다.
+  if (!startsAt.endsWith('.000Z') || !endsAt.endsWith('.000Z') || startsAt >= endsAt || Date.parse(endsAt) - Date.parse(startsAt) > limits.lessonMinutes * 60000) fail()
   return { startsAt, endsAt }
 }
 function range(from: unknown, until: unknown, max: number) {

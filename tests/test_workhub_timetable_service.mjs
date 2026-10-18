@@ -57,4 +57,19 @@ await check('미리보기 만료 전이라도 공개할 원래 수업이 시작�
 await check('승인 전에 원래 수업이 시작되면 만료일과 무관하게 전송을 멈춘다',async()=>{const r=request({state:'awaiting_approval',requester:'m2',pending:false,actions:['approve']}),c=normal({...view(),requests:[r]}),s=m.createTimetableOperationsServer(c,{now:()=>Date.parse('2026-10-19T00:01:00.000Z')});const v=await s.get('m1',FROM,UNTIL);await assert.rejects(()=>s.execute('m1',m.actionCommand(v.requests[0],'approve'),'past-approve-key'),e=>e.code==='CONFLICT');assert.equal(c.calls.length,1)})
 await check('늦게 돌아온 오래된 조회가 최신 권한 캐시를 덮어쓰지 않는다',async()=>{let release,reads=0;const c=connection(async()=>{if(reads++===0)return new Promise(resolve=>{release=()=>resolve(envelope(view()))});return envelope({...view(),canPublish:false,drafts:[]})}),s=service(c),old=s.get('m1',FROM,UNTIL);while(!release)await new Promise(r=>setTimeout(r,1));await s.get('m1',FROM,UNTIL);release();await assert.rejects(()=>old,e=>e.code==='CANCELLED');await assert.rejects(()=>s.previewPublish('m1',publishInput()),e=>e.code==='FORBIDDEN');assert.equal(c.calls.length,2)})
 await check('전송 대기 중 호출자가 명령을 바꿔도 원래 지문과 본문을 유지한다',async()=>{const c=normal(),s=service(c);await s.get('m1',FROM,UNTIL);const p=await s.previewPublish('m1',publishInput()),command=m.publishCommand(p),pending=s.execute('m1',command,'immutable-key');command.preview.input.until='2027-01-01';await pending;assert.equal(c.calls[2].args.p_command.preview.input.until,UNTIL)})
+await check('수업 시각과 허용 이동 시각의 초 미만 값은 반올림하지 않고 거부한다', () => {
+  for (const change of [v => v.lessons[0].time.startsAt = '2026-10-19T00:00:00.001Z', v => v.lessons[0].time.endsAt = '2026-10-19T00:45:00.999Z', v => v.lessons[0].allowedTargets[0].startsAt = '2026-10-19T00:00:00.001Z']) {
+    const v = view(); change(v); assert.throws(() => m.parseOperationsView(v, 'm1', FROM, UNTIL, now()), e => e.code === 'INVALID_RESPONSE')
+  }
+  const command = moveInput(); command.target.endsAt = '2026-10-19T02:45:00.001Z'
+  assert.throws(() => m.parseExchangeInput(command), e => e.code === 'INVALID_INPUT')
+})
+await check('조회·미리보기·동의·접수 메타 시각의 밀리초는 정수 초로 바꾸지 않는다', async () => {
+  const v = view(); v.asOf = '2026-10-16T00:00:00.123Z'; const r = request(); r.participants[1].respondedAt = '2026-10-15T23:02:00.456Z'; v.requests = [r]
+  const parsed = m.parseOperationsView(v, 'm1', FROM, UNTIL, now()); assert.equal(parsed.asOf, v.asOf); assert.equal(parsed.requests[0].participants[1].respondedAt, r.participants[1].respondedAt)
+  const p = publishPreview(); p.createdAt = '2026-10-16T00:00:00.123Z'; p.expiresAt = '2026-10-16T00:05:00.456Z'
+  assert.equal(m.parsePublishPreview(p, publishInput(), 'Asia/Seoul', now()).expiresAt, p.expiresAt)
+  const c = connection(async (name, args) => envelope(name.endsWith('_get') ? view() : name.endsWith('_publish_preview') ? p : await receipt(args.p_command, args.p_request_key, { recordedAt: '2026-10-16T00:00:00.789Z' }))), s = service(c)
+  await s.get('m1', FROM, UNTIL); const preview = await s.previewPublish('m1', publishInput()); assert.equal((await s.execute('m1', m.publishCommand(preview), 'metadata-ms-key')).recordedAt, '2026-10-16T00:00:00.789Z')
+})
 console.log(`시간표 확정·교환 서비스 ${count}건 통과`)
