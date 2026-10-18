@@ -58,31 +58,64 @@ export async function connectLocalEngineJobs(files: JobFiles): Promise<LocalEngi
   }
   async function capacity(request: CpSatRequest, hasRequest: boolean) {
     const entries = await files.list('jobs')
-    const directories = entries.filter(entry => entry.name !== '.DS_Store' || entry.kind !== 'file')
+    const ignored = (entry: { name: string; kind: string }) => entry.kind === 'file' && ['.DS_Store', 'desktop.ini', 'Thumbs.db'].includes(entry.name)
+    const directories = entries.filter(entry => !ignored(entry))
     if (directories.some(entry => entry.kind !== 'directory' || !uuid(entry.name))) fail('작업 폴더 구성이 올바르지 않습니다. 전용 폴더를 확인해 주세요.')
     const present = directories.some(entry => entry.name === request.requestId)
     if (directories.length + (present ? 0 : 1) > jobPolicy.maximumRetainedJobs) fail(`보관 작업 ${jobPolicy.maximumRetainedJobs}개 한도입니다. 완료 작업을 먼저 정리해 주세요.`)
     let size = entries.reduce((sum, entry) => sum + entry.size, 0), pending = 0
-    for (const directory of directories) {
-      const path = `jobs/${directory.name}`
+    function metadata(raw: string | null): unknown {
+      if (raw === null) return null
+      try { return JSON.parse(raw) } catch { return null }
+    }
+    function identity(value: unknown, id: string, hash?: string) {
+      if (!object(value)) return
+      // 쓰는 중인 JSON은 대기 한 자리로 남기지만, 읽힌 식별자의 불일치는 숨기지 않는다.
+      for (const [key, expected] of [['contract', JOB_CONTRACT], ['queueId', queue.queueId], ['requestId', id]]) {
+        if (Object.hasOwn(value, key) && value[key] !== expected) fail()
+      }
+      if (Object.hasOwn(value, 'inputHash') && (typeof value.inputHash !== 'string' || !/^[a-f0-9]{64}$/.test(value.inputHash) || hash !== undefined && value.inputHash !== hash)) fail()
+    }
+    async function directoryBytes(path: string) {
       const items = await files.list(path)
       if (items.some(item => item.kind !== 'file' || !Number.isSafeInteger(item.size) || item.size < 0)) fail('작업 폴더 안의 파일 구성을 확인해 주세요.')
-      size += items.reduce((sum, item) => sum + item.size, 0)
+      return items.reduce((sum, item) => sum + item.size, 0)
+    }
+    // 미접수 원본의 보존 격리는 접수 건수에서 빼되 디스크 용량에서는 빼지 않는다.
+    let quarantined: Awaited<ReturnType<JobFiles['list']>> = []
+    try { quarantined = await files.list('.cleanup-orphans') }
+    catch (error) { if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error }
+    for (const entry of quarantined) {
+      if (ignored(entry)) { size += entry.size; continue }
+      if (entry.kind !== 'directory' || !uuid(entry.name)) fail('보존 격리 폴더 구성이 올바르지 않습니다. 전용 폴더를 확인해 주세요.')
+      if (entry.name === request.requestId) fail('보존 격리된 요청 번호는 다시 접수하지 않습니다. 원본을 확인한 뒤 화면 연결만 정리하고 새 계산 요청을 만들어 주세요.')
+      size += await directoryBytes(`.cleanup-orphans/${entry.name}`)
+    }
+    for (const directory of directories) {
+      const path = `jobs/${directory.name}`
+      size += await directoryBytes(path)
       const raw = await files.read(`${path}/ready.json`, jobPolicy.maximumMetadataBytes)
       if (raw === null) continue
-      const ready = parse(raw)
-      if (!exact(ready, ['contract', 'queueId', 'requestId', 'inputHash', 'queuedAt']) || ready.contract !== JOB_CONTRACT || ready.queueId !== queue.queueId || ready.requestId !== directory.name || typeof ready.inputHash !== 'string' || !/^[a-f0-9]{64}$/.test(ready.inputHash) || !stamp(ready.queuedAt)) return fail()
+      const ready = metadata(raw)
+      identity(ready, directory.name)
       const statusText = await files.read(`${path}/status.json`, jobPolicy.maximumMetadataBytes)
-      if (statusText === null) pending++
-      else {
-        const value = parseJobStatus(parse(statusText), queue, { requestId: directory.name, inputHash: ready.inputHash })
-        if (value.queuedAt !== ready.queuedAt) fail()
-        if (!terminalJob(value.state)) pending++
+      const status = metadata(statusText)
+      identity(status, directory.name, object(ready) && typeof ready.inputHash === 'string' ? ready.inputHash : undefined)
+      let finished = false
+      if (exact(ready, ['contract', 'queueId', 'requestId', 'inputHash', 'queuedAt']) && typeof ready.inputHash === 'string' && stamp(ready.queuedAt)) {
+        // 기존 작업을 실행하거나 복구하는 검증은 완화하지 않는다. 이곳은 새 접수의 개수 계산뿐이다.
+        try {
+          const value = parseJobStatus(status, queue, { requestId: directory.name, inputHash: ready.inputHash })
+          finished = value.queuedAt === ready.queuedAt && terminalJob(value.state)
+        } catch { /* 미완성 상태는 완료로 간주하지 않고 대기 한 건으로 센다. */ }
       }
+      if (!finished) pending++
     }
     if (pending >= jobPolicy.maximumPendingJobs) fail(`대기·실행 작업 ${jobPolicy.maximumPendingJobs}개 한도입니다. 기존 계산을 완료하거나 취소한 뒤 접수해 주세요.`)
-    const added = (hasRequest ? 0 : new TextEncoder().encode(JSON.stringify(request)).byteLength) + jobPolicy.maximumMetadataBytes
-    if (size + added > jobPolicy.maximumStoreBytes) fail('작업 보관 용량이 가득 찼습니다. 완료 작업을 먼저 정리해 주세요.')
+    const requestBytes = new TextEncoder().encode(canonicalTimetableJson(request)).byteLength
+    const added = (hasRequest ? 0 : requestBytes) + jobPolicy.maximumMetadataBytes
+    const reserve = requestBytes + 2 * jobPolicy.maximumResultBytes + 4 * jobPolicy.maximumMetadataBytes
+    if (size + added + reserve > jobPolicy.maximumStoreBytes) fail('계산 결과를 안전하게 보관할 용량이 부족합니다. 완료 작업을 먼저 정리해 주세요.')
   }
   const api: LocalEngineJobs = {
     queue,
@@ -138,8 +171,8 @@ export async function connectLocalEngineJobs(files: JobFiles): Promise<LocalEngi
 
 // 폴더 선택은 사용자의 클릭에서만 호출한다. 경로·키를 서버로 보내지 않는다.
 interface WritableFile { write(text: string): Promise<void>; close(): Promise<void>; abort(): Promise<void> }
-interface LocalFile { getFile(): Promise<{ size: number; text(): Promise<string> }>; createWritable(): Promise<WritableFile> }
-export interface LocalDirectory { name: string; getDirectoryHandle(name: string, options?: { create: boolean }): Promise<LocalDirectory>; getFileHandle(name: string, options?: { create: boolean }): Promise<LocalFile>; entries(): AsyncIterable<[string, { kind: 'file' | 'directory' }]> }
+interface LocalFile { getFile(): Promise<{ size: number; lastModified: number; text(): Promise<string> }>; createWritable(): Promise<WritableFile>; isSameEntry(other: LocalFile): Promise<boolean> }
+export interface LocalDirectory { name: string; getDirectoryHandle(name: string, options?: { create: boolean }): Promise<LocalDirectory>; getFileHandle(name: string, options?: { create: boolean }): Promise<LocalFile>; removeEntry(name: string): Promise<void>; entries(): AsyncIterable<[string, { kind: 'file' | 'directory' }]> }
 export function browserJobFiles(directory: LocalDirectory): JobFiles {
   async function folder(path: string, create = false) {
     const parts = path.split('/'); if (parts.some(p => !/^[A-Za-z0-9_.-]+$/.test(p) || p === '..' || p === '.')) return fail()
@@ -166,8 +199,30 @@ export function browserJobFiles(directory: LocalDirectory): JobFiles {
       catch (error) { if (error instanceof DOMException && error.name === 'NotFoundError') return null; throw error }
     },
     async write(path, text) {
-      const writer = await (await file(path, true)).createWritable()
-      try { await writer.write(text); await writer.close() } catch (error) { try { await writer.abort() } catch { /* 원래 실패를 유지한다. */ } throw error }
+      const parts = path.split('/'), name = parts.pop()!
+      if (!/^[A-Za-z0-9_.-]+$/.test(name) || name === '..' || name === '.') return fail()
+      const parent = parts.length ? await folder(parts.join('/'), true) : directory
+      let target: LocalFile, created = false, writer: WritableFile | undefined, emptyVersion: number | undefined
+      try { target = await parent.getFileHandle(name) }
+      catch (error) {
+        if (!(error instanceof DOMException && error.name === 'NotFoundError')) throw error
+        target = await parent.getFileHandle(name, { create: true }); created = true
+      }
+      try {
+        if (created) { const initial = await target.getFile(); if (initial.size === 0) emptyVersion = initial.lastModified }
+        writer = await target.createWritable()
+        await writer.write(text); await writer.close()
+      } catch (error) {
+        try { await writer?.abort() } catch { /* 원래 실패를 유지한다. */ }
+        if (created && emptyVersion !== undefined) {
+          try {
+            const current = await parent.getFileHandle(name), value = await current.getFile()
+            // 원래 있던 빈 파일이나 다른 작업자가 완성·교체한 파일은 삭제하지 않는다.
+            if (value.size === 0 && value.lastModified === emptyVersion && await target.isSameEntry(current)) await parent.removeEntry(name)
+          } catch { /* 정리 실패도 원래 요청의 쓰기 실패로 남긴다. */ }
+        }
+        throw error
+      }
     },
     async exclusive(key, run) {
       if (!navigator.locks) return fail('이 브라우저에서는 로컬 계산 연결을 지원하지 않습니다. 기존 계산 파일 방식을 이용해 주세요.')
