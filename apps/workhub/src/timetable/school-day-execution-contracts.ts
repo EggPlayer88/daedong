@@ -15,7 +15,7 @@ export interface SchoolDayExecutionPreview {
   requestEffects: { requestId: string; version: number; state: 'awaiting_consent' | 'awaiting_approval' | 'applied'; handling: 'blocked' }[]
   blockers: { code: string; message: string }[]
   preserved: { pastRecords: true; outsideTarget: true; existingChanges: 'retained' | 'blocked' }
-  lostLessonCount: number; lostMinutes: number; changesActualSchedule: false
+  lostLessonCount: number; lostSeconds: number; changesActualSchedule: false
 }
 export interface SchoolDayCommitCommand {
   kind: 'school_day'

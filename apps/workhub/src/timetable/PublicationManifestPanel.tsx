@@ -18,22 +18,22 @@ export function PublicationManifestPanel({ extensions, memberId, input, sourceKe
   const [progress, setProgress] = useState<{ pages: number; totalPages: number; changes: number; totalChanges: number }>(), [now, setNow] = useState(Date.now)
   const sequence = useRef(0), seen = useRef(new Map<string, number>()), abort = useRef<AbortController>(), reading = useRef(false), writing = useRef(false)
   const manifestSource = useRef('')
-  const inputKey = canonical(input), current = useRef({ inputKey, sourceKey, memberId, disabled }), busyCallback = useRef(onBusyChange)
-  current.current = { inputKey, sourceKey, memberId, disabled }; busyCallback.current = onBusyChange
+  const inputKey = canonical(input), current = useRef({ inputKey, sourceKey, memberId, timeZone, disabled }), busyCallback = useRef(onBusyChange)
+  current.current = { inputKey, sourceKey, memberId, timeZone, disabled }; busyCallback.current = onBusyChange
   const running = busy || submitting, expired = Boolean(manifest && Date.parse(manifest.expiresAt) <= now)
-  const fresh = Boolean(manifest && canonical(manifest.input) === inputKey && manifestSource.current === canonical([sourceKey, memberId]))
+  const fresh = Boolean(manifest && manifest.timeZone === timeZone && canonical(manifest.input) === inputKey && manifestSource.current === canonical([sourceKey, memberId, timeZone]))
   function markBusy(value: boolean) { reading.current = value; setBusy(value); busyCallback.current?.(value) }
   useEffect(() => {
     sequence.current++; abort.current?.abort(); markBusy(false); setManifest(undefined); setPage(undefined); setError(''); setVerified(undefined); setConfirmed(false); setProgress(undefined); seen.current.clear()
     return () => { sequence.current++; abort.current?.abort(); reading.current = false; busyCallback.current?.(false) }
-  }, [sourceKey, inputKey, memberId])
+  }, [sourceKey, inputKey, memberId, timeZone])
   useEffect(() => { if (disabled && reading.current) { sequence.current++; abort.current?.abort(); abort.current = undefined; markBusy(false); setVerified(undefined); setConfirmed(false) } }, [disabled])
   useEffect(() => { if (!manifest) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [manifest])
-  const valid = (token: number, captured: typeof current.current) => token === sequence.current && !current.current.disabled && captured.inputKey === current.current.inputKey && captured.sourceKey === current.current.sourceKey && captured.memberId === current.current.memberId
+  const valid = (token: number, captured: typeof current.current) => token === sequence.current && !current.current.disabled && captured.inputKey === current.current.inputKey && captured.sourceKey === current.current.sourceKey && captured.memberId === current.current.memberId && captured.timeZone === current.current.timeZone
   async function inspect() {
     if (!extensions || disabled || reading.current || writing.current) return
     const token = ++sequence.current, captured = { ...current.current }; markBusy(true); setError(''); setManifest(undefined); setPage(undefined); setVerified(undefined); setConfirmed(false); setProgress(undefined); seen.current.clear()
-    try { const result = await parsePublicationManifest(await extensions.publicationManifest(memberId, input), input); if (valid(token, captured)) { manifestSource.current = canonical([captured.sourceKey, captured.memberId]); setManifest(result); setNow(Date.now()) } }
+    try { const result = await parsePublicationManifest(await extensions.publicationManifest(memberId, input), input); if (result.timeZone !== captured.timeZone) throw new ServiceError('INVALID_RESPONSE'); if (valid(token, captured)) { manifestSource.current = canonical([captured.sourceKey, captured.memberId, captured.timeZone]); setManifest(result); setNow(Date.now()) } }
     catch (failure) { if (valid(token, captured)) setError(failure instanceof ServiceError ? failure.message : '전체 변경 목록을 확인하지 못했습니다.') }
     finally { if (token === sequence.current) markBusy(false) }
   }

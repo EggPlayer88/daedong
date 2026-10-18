@@ -52,8 +52,10 @@ export async function verifyPublicationChanges(extensions: Pick<OperationsExtens
     if (Date.parse(manifest.expiresAt) <= now()) throw new ServiceError('CONFLICT')
     const rawPage = await extensions.publicationPage(memberId, manifest, index)
     cancelled(options.signal)
+    if (Date.parse(manifest.expiresAt) <= now()) throw new ServiceError('CONFLICT')
     const page = await parsePublicationPage(rawPage, manifest, index)
     cancelled(options.signal)
+    if (Date.parse(manifest.expiresAt) <= now()) throw new ServiceError('CONFLICT')
     for (const change of page.changes) { if (ids.has(change.after.id)) fail(); ids.add(change.after.id) }
     progress(index + 1)
   }

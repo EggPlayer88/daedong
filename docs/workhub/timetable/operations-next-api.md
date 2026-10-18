@@ -76,7 +76,9 @@ RPC:
 
 `p_input`은 기존 `PublishInput`. 응답 exact 타입은 `PublicationManifest` / `PublicationChangePage`.
 
-manifest는 미리보기 ID·해시, 기준자료 fingerprint, 원래 입력, 학교 timeZone, 생성·만료 시각, 전체 변경 건수, 페이지 크기, 순서대로 고정된 페이지 해시, 전체 blockers 건수, 보존 약속을 포함한다. 전체 변경 최대 250,000건, 페이지 최대 200건, 페이지 수 최대 1,250개는 앱 보호 한도이며 계산 완료의 보장이 아니다.
+manifest는 미리보기 ID·해시, 기준자료 fingerprint, 원래 입력, 학교 timeZone, 생성·만료 시각, 전체 변경 건수, 페이지 크기, 순서대로 고정된 페이지 해시, 전체 blockers 건수, 보존 약속을 포함한다. 전체 변경 최대 **100,000건**, 페이지 최대 **200건**, 페이지 수 최대 **500개**다. K-5 지연 측정에 따라 기존 250,000건·1,250쪽 한도를 낮췄다. 조회마다 기존 신원 재확인을 유지하고 미리보기 수명은 최대 15분이다. 이 한도도 모든 회선에서 완료 시간을 보장하지 않는다.
+
+한도를 넘으면 SQL은 일부 목록을 `complete:true`로 반환하지 않는다. 더 짧은 공개 날짜 구간으로 다시 미리보기를 만들도록 안내한다. 각 구간의 실제 변화·과거 자료·기존 교환 보존을 각각 검사하며, 날짜별 구간 분할이 기존 변경을 덮어쓰는 근거가 되지 않는다. 지연 재현 도구는 `scripts/benchmark-workhub-timetable-publication.mjs`, 측정 조건과 결과는 `review-fixes.md`의 K-5 절에 기록한다.
 
 해시 규칙:
 
@@ -89,9 +91,11 @@ manifest는 미리보기 ID·해시, 기준자료 fingerprint, 원래 입력, �
 
 현재 화면은 검사된 manifest 요약과 페이지를 읽고 모든 쪽의 자동 검증·명시 확인을 거쳐 별도 [학기 확정 실행 계약](publication-execution-api.md)으로 연결한다. 이 next.v1 조회 계약은 바꾸지 않는다. 새 실행 계약은 전체 manifestHash·basisFingerprint를 고정하며 SQL이 잠금 안의 최신 자료 재검사, 단일 접수증, 원키 조회 전용 복구를 보장해야 한다. 부분 상세를 v1 `complete:true`로 포장해서 실행하면 안 된다.
 
-## 4. 행사·휴업·특별일과 영향 초안
+## 4. 행사·휴업·특별일과 영향 초안 — 대체됨
 
 RPC: `workhub_timetable_operations_school_day_preview(p_member_id,p_source_as_of,p_input)`
+
+**대체된 구 초안이다. T2 SQL은 이 함수를 만들지 않는다.** 실제 사이트는 [학사 변경 실행 계약](school-day-execution-api.md)의 `workhub_timetable_school_day_preview(p_member_id,p_input,p_source_as_of,p_from,p_until)`를 사용한다. 아래 내용은 기존 읽기 전용 연습·회귀의 이력이며 활성화 전제나 신규 SQL 요청이 아니다. 두 함수의 입력·응답이 다르므로 alias로 연결하지 않는다.
 
 `SchoolDayChangeInput`:
 
@@ -101,7 +105,7 @@ RPC: `workhub_timetable_operations_school_day_preview(p_member_id,p_source_as_of
 
 응답 `SchoolDayChangePreview`는 입력·조회 세대·previewID/hash/만료시각, `complete:true`, 영향 회차 ID/판, blockers, 처리 중 요청 수, **`changesActualSchedule:false`**를 반환한다. 앱은 참조에서 선택 학급에 속한 당일 scheduled 회차 전체와 응답을 대조해 누락·추가를 거부한다.
 
-이 RPC로 교환·동의·시간표를 변경하지 않는다. 실제 반영 UI는 별도 [학사 변경 실행 계약](school-day-execution-api.md)에 연결한다. 새 계약은 참조에 없는 교시 ID를 추정하지 않고 현재 수업의 실제 시각으로 특별일과를 지정한다. 과거 실시 기록과 공동 수업을 보호하고 기존 교환과 충돌하면 중단하며, 대강·보강과 학생권한 변경은 자동으로 실행하지 않는다. 기존 조회 RPC의 입력 모양은 그대로 유지한다.
+이 구 초안은 교환·동의·시간표를 변경하지 않는다. 실제 반영 UI는 [학사 변경 실행 계약](school-day-execution-api.md)에 연결한다. 새 계약은 참조에 없는 교시 ID를 추정하지 않고 현재 수업의 실제 시각으로 특별일과를 지정한다. 과거 실시 기록과 공동 수업을 보호하고 기존 교환과 충돌하면 중단하며, 대강·보강과 학생권한 변경은 자동으로 실행하지 않는다. 구 연습용 타입과 회귀는 이력으로 유지하며 신규 SQL 설치 목록에는 포함하지 않는다.
 
 ## 5. 일정 연결
 

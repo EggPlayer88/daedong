@@ -5,6 +5,8 @@ import { timetableConditions } from './server'
 import type { TimetableConditions } from './contracts'
 import limits from './limits.json'
 import enginePolicy from '../../../../packages/timetable/_assets/browser-policy.json'
+import { strongerPreferenceWeight } from './condition-policy'
+import { reviewTimetablePreflight } from './preflight'
 export type TimetableAiStage = 'setup' | 'adjust'
 export interface TimetableAiContext {
   contract: 'timetable-assistant.v1'; stage: TimetableAiStage; basisId: string; basisRevision: number
@@ -54,16 +56,18 @@ export function parseTimetableAiProposal(raw:unknown,context:TimetableAiContext)
   if(new Set(changes.map(canonical)).size!==changes.length)fail()
   return {...raw,changes} as unknown as TimetableAiProposal
 }
-// AI는 조건 제안만 한다. 사람 확인 후에도 엔진 검증을 통과해야 초안을 저장할 수 있다.
-export async function applyTimetableAiProposal(raw:unknown,context:TimetableAiContext,currentBasis:TimetableBasis,currentConditions:TimetableConditions,currentPlacements:Placement[],confirmed:boolean):Promise<TimetableConditions> {
-  if(confirmed!==true)fail()
-  raw=structuredClone(raw);context=structuredClone(context);currentBasis=structuredClone(currentBasis);currentConditions=structuredClone(currentConditions);currentPlacements=structuredClone(currentPlacements)
-  const fresh=await buildTimetableAiContext(currentBasis,currentConditions,context.stage,context.prompt,currentPlacements)
-  if(fresh.contextFingerprint!==context.contextFingerprint)throw new ServiceError('CONFLICT')
-  const proposal=parseTimetableAiProposal(raw,fresh)
+export interface TimetableAiPreview {
+  conditions: TimetableConditions
+  preferences: { index: number; before: number | null; proposed: number; after: number }[]
+  warnings: string[]
+}
+/** 제안 전체를 미리 검사한다. 표시와 반영은 같은 규칙을 쓰며 원래 조건은 변경하지 않는다. */
+export function previewTimetableAiProposal(raw: unknown, context: TimetableAiContext): TimetableAiPreview {
+  const proposal=parseTimetableAiProposal(raw,context), currentBasis=context.basis
   if(proposal.questions.length)fail()
-  const next=structuredClone(currentConditions)
-  for(const change of proposal.changes){
+  const next=timetableConditions({fixed:currentBasis.fixed,unavailable:currentBasis.unavailable,preferences:currentBasis.preferences},currentBasis)
+  const preferences: TimetableAiPreview['preferences']=[]
+  for(const [index,change] of proposal.changes.entries()){
     if(change.kind==='fix'){
       const old=next.fixed.find(p=>p.lessonId===change.lessonId)
       if(old&&old.slotId!==change.slotId)fail()
@@ -73,11 +77,23 @@ export async function applyTimetableAiProposal(raw:unknown,context:TimetableAiCo
       const blocked={resourceId:change.resourceId,day:slot.day,startMinute:slot.startMinute,endMinute:slot.endMinute}
       if(!next.unavailable.some(row=>canonical(row)===canonical(blocked)))next.unavailable.push(blocked)
     }else{
+      const old=next.preferences.find(p=>p.lessonId===change.lessonId&&p.slotId===change.slotId)
+      const weight=strongerPreferenceWeight(old?.weight,change.weight)
+      preferences.push({index,before:old?.weight??null,proposed:change.weight,after:weight})
       next.preferences=next.preferences.filter(p=>p.lessonId!==change.lessonId||p.slotId!==change.slotId)
-      next.preferences.push({lessonId:change.lessonId,slotId:change.slotId,weight:change.weight})
+      next.preferences.push({lessonId:change.lessonId,slotId:change.slotId,weight})
     }
   }
-  return timetableConditions(next,currentBasis)
+  const conditions=timetableConditions(next,currentBasis),proof=reviewTimetablePreflight({...currentBasis,...conditions})
+  return {conditions,preferences,warnings:proof.issues.map(issue=>issue.message)}
+}
+// AI는 조건 제안만 한다. 사람 확인 후에도 엔진 검증을 통과해야 초안을 저장할 수 있다.
+export async function applyTimetableAiProposal(raw:unknown,context:TimetableAiContext,currentBasis:TimetableBasis,currentConditions:TimetableConditions,currentPlacements:Placement[],confirmed:boolean):Promise<TimetableConditions> {
+  if(confirmed!==true)fail()
+  raw=structuredClone(raw);context=structuredClone(context);currentBasis=structuredClone(currentBasis);currentConditions=structuredClone(currentConditions);currentPlacements=structuredClone(currentPlacements)
+  const fresh=await buildTimetableAiContext(currentBasis,currentConditions,context.stage,context.prompt,currentPlacements)
+  if(fresh.contextFingerprint!==context.contextFingerprint)throw new ServiceError('CONFLICT')
+  return previewTimetableAiProposal(raw,fresh).conditions
 }
 // 실제 Claude 연결은 기존 비용 승인·단일 실행권을 확장한 별도 서버 계약으로 붙인다.
 // 이 인터페이스에는 저장·공개·메시지 전송 도구를 주지 않는다.

@@ -65,5 +65,13 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true); await page.getByLabel('매주 적용할 대상·시간·조건과 충돌 안내를 확인했습니다', { exact: true }).focus(); await page.keyboard.press('Space'); await page.getByRole('button', { name: '확인한 일괄 조건 반영', exact: true }).focus(); await page.keyboard.press('Enter'); assert.equal(await page.evaluate(() => window.applied.length), 1)
     assert.deepEqual(await page.evaluate(() => [localStorage.length, sessionStorage.length]), [0, 0])
   })
+  await check('동명 대상은 ID로 선택·검색하고 미리보기에서도 같은 대상으로 구분한다', async () => {
+    await page.evaluate(() => { window.basis = { ...window.basis, resources: window.basis.resources.map(r => r.kind === 'teacher' ? { ...r, label: '동명 교사' } : r.kind === 'class' ? { ...r, label: '동명 학급' } : r) }; window.refresh() })
+    await page.getByLabel('일괄 대상 동명 교사 [practice-teacher-b]', { exact: true }).check()
+    await page.getByLabel('일괄 조건 대상 검색', { exact: true }).fill('practice-teacher-b'); assert.equal(await page.getByLabel('일괄 대상 동명 교사 [practice-teacher-a]', { exact: true }).count(), 0)
+    await page.getByLabel('일괄 월요일', { exact: true }).check(); await page.getByLabel('일괄 시작 시각', { exact: true }).fill('07:00'); await page.getByLabel('일괄 종료 시각', { exact: true }).fill('08:00'); await preview()
+    await page.getByText('동명 교사 [practice-teacher-b] · 월 07:00–08:00 · 필수 불가 추가', { exact: true }).waitFor(); await apply(); assert.equal(await page.evaluate(() => window.applied[0].unavailable[0].resourceId), 'practice-teacher-b')
+    await page.getByText('여러 대상·요일에 조건 한 번에 추가', { exact: true }).click(); await page.getByLabel('일괄 조건 대상 검색', { exact: true }).fill(''); await page.getByLabel('일괄 조건 대상 종류', { exact: true }).selectOption('class'); await page.getByLabel('일괄 대상 동명 학급 [practice-class-a]', { exact: true }).waitFor(); await page.getByLabel('일괄 대상 동명 학급 [practice-class-b]', { exact: true }).waitFor()
+  })
   assert.deepEqual(errors, []); console.log(`시간표 조건 일괄 입력 브라우저 검사: ${n}개 통과`)
 } catch (error) { console.log(await page.locator('body').innerText()); throw error } finally { await browser.close() }

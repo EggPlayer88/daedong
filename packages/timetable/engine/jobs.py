@@ -23,7 +23,7 @@ def main():
         elif name in ('status', 'cancel', 'result'):
             command.add_argument('--request-id', required=True)
         elif name == 'recover':
-            command.add_argument('--confirm-stopped', help='PID 기록 전 중단된 작업의 실제 종료를 사용자가 확인한 UUID')
+            command.add_argument('--confirm-stopped', help='PID 미기록 또는 생성 토큰으로 PID 재사용을 확인한 작업의 실제 종료를 사용자가 확인한 UUID')
         elif name == 'cleanup':
             command.add_argument('--apply', action='store_true', help='기본은 대상 미리보기; 보관기간 지난 완료 작업만 삭제')
             command.add_argument('--request-id', help='직접 선택한 완료 작업 한 개는 보관기간 전에도 미리보기/정리')

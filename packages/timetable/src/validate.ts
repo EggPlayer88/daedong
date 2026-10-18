@@ -18,7 +18,7 @@ export function validateBasis(value: unknown): ValidationResult {
     return v
   }
   const text = (v: unknown, path: string, max = 200): v is string => {
-    if (typeof v !== 'string' || !v.trim() || v.length > max || /[\u0000-\u001f]/.test(v)) { issue('INVALID_TEXT', '비어 있지 않은 올바른 문자열이 필요합니다.', path); return false }; return true
+    if (typeof v !== 'string' || !v.replace(/[\s\u0085]/gu, '') || v.length > max || /[\u0000-\u001f\uD800-\uDFFF]/u.test(v)) { issue('INVALID_TEXT', '비어 있지 않은 올바른 문자열이 필요합니다.', path); return false }; return true
   }
   const identifier = (v: unknown, path: string): v is string => {
     if (typeof v !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(v)) { issue('INVALID_ID', '식별자는 영문·숫자·밑줄·하이픈 1~100자여야 합니다.', path); return false }; return true

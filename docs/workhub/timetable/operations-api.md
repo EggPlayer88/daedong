@@ -21,6 +21,12 @@
 
 모든 ID와 참조는 `^[A-Za-z0-9_-]{1,100}$`; 표시는 별도 한국어 `name`/`label`/`reason`이다. 지문은 소문자 SHA-256 64자리. 날짜는 `YYYY-MM-DD`, 시각은 `YYYY-MM-DDTHH:mm:ss.sssZ`의 정확한 UTC 형식이다. 날짜 구간과 시각 구간은 모두 `[from, until)` / `[startsAt, endsAt)`이다. 학교의 실제 날짜는 `timeZone`으로 계산한다.
 
+### 교사 ID의 기준 (K-4)
+
+운영 계약의 `OperationLesson.teachers[].id`, 참여자 `participants[].id`, 요청자·동의자 교사 ID는 모두 **현재 학교의 소속(member) ID**다. 인증 계정 ID(`auth.users.id`), 인사 정보 ID, 교사 이름으로 대신하지 않는다. 동일 계정이 여러 학교에 소속되어 있다면 각 학교의 소속 ID를 사용한다. 편성 자원에서 별도 교사 자원 ID를 사용하는 경우 서버가 공식 관계로 해당 학교 소속에 연결하며, 이름으로 추정하지 않는다. 학급·공간 자원 ID까지 소속 ID라는 뜻은 아니다.
+
+자기 승인 차단은 이 ID 약속만으로 대체하지 않는다. 아래의 `requesterIsViewer`는 기존과 같이 실제 계정의 동일성까지 서버가 확인한다.
+
 ## 2. RPC 이름·인자·응답
 
 | RPC | 정확한 인자 | data |

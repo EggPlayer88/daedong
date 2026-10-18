@@ -37,4 +37,26 @@ await check('AI 연결은 한 번 제안만 요청하며 변경·재시도는 �
 await check('조정 AI에는 독립 검증을 통과한 현재 배치만 전달한다',async()=>{await assert.rejects(()=>m.buildTimetableAiContext(basis(),conditions(),'adjust','조정',[]));const c=await m.buildTimetableAiContext(basis(),conditions(),'adjust','조정',placements());assert.equal(c.placements.length,2);await assert.rejects(()=>m.buildTimetableAiContext(basis(),conditions(),'setup','조건',placements()))})
 await check('AI 지문을 기다리는 동안 호출자가 입력을 바꿔도 전송 문맥은 고정된다',async()=>{const ctx=structuredClone(context);let seen;const pending=m.requestTimetableAiProposal({propose:async received=>{seen=received;return proposal()}},ctx,'key-1234');ctx.basis.schoolId='other-school';await pending;assert.equal(seen.basis.schoolId,'s1')})
 await check('숫자 슬롯 ID를 문자열로 강제 변환하여 AI 제안을 통과시키지 않는다',()=>{const c=structuredClone(context);c.basis.lessons[0].allowedSlotIds.push('1');assert.throws(()=>m.parseTimetableAiProposal({...proposal(),changes:[{kind:'fix',lessonId:'l1',slotId:1}]},c))})
+await check('AI 선호는 일괄 조건과 같이 기존의 강한 값을 유지하고 실제 전후값을 제시한다', async () => {
+  for (const [before, proposed, after] of [[8, 3, 8], [2, 5, 5], [0, 0, 0]]) {
+    const c = { ...conditions(), preferences: [{ lessonId: 'l1', slotId: 's11', weight: before }] }, ctx = await m.buildTimetableAiContext(basis(), c, 'setup', '선호 검토')
+    const p = { ...proposal(), contextFingerprint: ctx.contextFingerprint, changes: [{ kind: 'prefer', lessonId: 'l1', slotId: 's11', weight: proposed }] }, preview = m.previewTimetableAiProposal(p, ctx)
+    assert.deepEqual(preview.preferences, [{ index: 0, before, proposed, after }]); assert.equal(preview.conditions.preferences[0].weight, after)
+    assert.deepEqual(await m.applyTimetableAiProposal(p, ctx, basis(), c, [], true), preview.conditions); assert.equal(c.preferences[0].weight, before)
+  }
+})
+await check('같은 AI 응답의 두 선호도 뒤의 약한 제안으로 앞의 강한 조건을 낮추지 않는다', () => {
+  const p = { ...proposal(), changes: [{ kind: 'prefer', lessonId: 'l1', slotId: 's11', weight: 7 }, { kind: 'prefer', lessonId: 'l1', slotId: 's11', weight: 2 }] }
+  const preview = m.previewTimetableAiProposal(p, context)
+  assert.equal(preview.conditions.preferences[0].weight, 7); assert.deepEqual(preview.preferences[1], { index: 1, before: 7, proposed: 2, after: 7 }); assert.deepEqual(context.basis.preferences, [])
+})
+await check('AI 고정·불가의 확정 충돌은 반영 전 설명하며 사람 확인과 기존 필수조건을 유지한다', async () => {
+  const c = { ...conditions(), fixed: [{ lessonId: 'l1', slotId: 's11' }] }, ctx = await m.buildTimetableAiContext(basis(), c, 'setup', '조건 검토')
+  for (const change of [{ kind: 'fix', lessonId: 'l2', slotId: 's11' }, { kind: 'block', resourceId: 't1', slotId: 's11' }]) {
+    const p = { ...proposal(), contextFingerprint: ctx.contextFingerprint, changes: [change] }, preview = m.previewTimetableAiProposal(p, ctx)
+    assert.ok(preview.warnings.length); assert.ok(preview.warnings.some(row => /고정 수업|배치할 시간 없음/.test(row)))
+    await assert.rejects(() => m.applyTimetableAiProposal(p, ctx, basis(), c, [], false))
+    const next = await m.applyTimetableAiProposal(p, ctx, basis(), c, [], true); assert.deepEqual(next.fixed[0], c.fixed[0]); assert.deepEqual(c.unavailable, [])
+  }
+})
 console.log(`시간표 연결·AI 계약 ${count}건 통과`)

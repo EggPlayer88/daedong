@@ -19,7 +19,7 @@ const hash = (value: unknown): string => typeof value === 'string' && /^[a-f0-9]
 const count = (value: unknown, max: number): number => Number.isSafeInteger(value) && (value as number) >= 0 && (value as number) <= max ? value as number : fail()
 const ordered = <T>(values: T[], key: (value: T) => string) => [...values].sort((a, b) => key(a).localeCompare(key(b)))
 function stamp(value: unknown): string { if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) fail(); return value as string }
-function time(value: unknown): OperationTime { exact(value, ['startsAt', 'endsAt']); const startsAt = stamp(value.startsAt), endsAt = stamp(value.endsAt); if (startsAt >= endsAt || Date.parse(endsAt) - Date.parse(startsAt) > limits.lessonMinutes * 60000) fail(); return { startsAt, endsAt } }
+function time(value: unknown): OperationTime { exact(value, ['startsAt', 'endsAt']); const startsAt = stamp(value.startsAt), endsAt = stamp(value.endsAt); if (!startsAt.endsWith('.000Z') || !endsAt.endsWith('.000Z') || startsAt >= endsAt || Date.parse(endsAt) - Date.parse(startsAt) > limits.lessonMinutes * 60000) fail(); return { startsAt, endsAt } }
 async function digest(value: unknown): Promise<string> { return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical(value)))), byte => byte.toString(16).padStart(2, '0')).join('') }
 function parsed<T>(read: () => T): T { try { return read() } catch { return fail() } }
 function sameDay(value: OperationTime, date: string, zone: string) { return timetableLocalDate(value.startsAt, zone) === date && timetableLocalDate(new Date(Date.parse(value.endsAt) - 1).toISOString(), zone) === date }
@@ -42,8 +42,10 @@ export function schoolDaySourceLessons(input: SchoolDayExecutionInput, view: Ope
 function validateContext(input: SchoolDayExecutionInput, view: OperationsView, references: OperationReferenceView) {
   parseOperationReferences(references, view)
   if (!view.canPublish || input.date < view.from || input.date >= view.until || input.groupIds.some(group => !references.lessons.some(ref => ref.groups.some(row => row.id === group)))) fail()
-  if (input.bells.some(bell => !sameDay(bell.before, input.date, view.timeZone) || !sameDay(bell.after, input.date, view.timeZone))) fail()
   const source = schoolDaySourceLessons(input, view, references)
+  source.forEach(lesson => time(lesson.time))
+  // 기존 자정 경계 수업은 차단 사유를 읽을 수 있게 보존한다. 새로 날짜를 넘기는 시각은 허용하지 않는다.
+  if (input.bells.some(bell => !sameDay(bell.after, input.date, view.timeZone) && !(equal(bell.before, bell.after) && source.some(lesson => equal(lesson.time, bell.before))))) fail()
   if (input.kind === 'special_bells' && !equal([...new Set(source.map(lesson => canonical(lesson.time)))].sort(), input.bells.map(bell => canonical(bell.before)).sort())) fail()
   return source
 }
@@ -62,7 +64,7 @@ export function schoolDayLocalTime(date: string, clock: string, zone: string): s
 }
 export async function parseSchoolDayExecutionPreview(value: unknown, input: SchoolDayExecutionInput, view: OperationsView, references: OperationReferenceView, now = Date.now(), expiredAllowed = false): Promise<SchoolDayExecutionPreview> {
   const result = parsed(() => {
-    exact(value, ['input', 'sourceAsOf', 'previewId', 'previewHash', 'createdAt', 'expiresAt', 'complete', 'coverage', 'affectedLessons', 'changes', 'requestEffects', 'blockers', 'preserved', 'lostLessonCount', 'lostMinutes', 'changesActualSchedule'])
+    exact(value, ['input', 'sourceAsOf', 'previewId', 'previewHash', 'createdAt', 'expiresAt', 'complete', 'coverage', 'affectedLessons', 'changes', 'requestEffects', 'blockers', 'preserved', 'lostLessonCount', 'lostSeconds', 'changesActualSchedule'])
     exact(value.coverage, ['date', 'groupIds', 'complete', 'existingRequests']); exact(value.preserved, ['pastRecords', 'outsideTarget', 'existingChanges'])
     if (!equal(value.input, input) || value.sourceAsOf !== view.asOf || value.complete !== true || value.changesActualSchedule !== false || !equal(value.coverage, { date: input.date, groupIds: input.groupIds, complete: true, existingRequests: 'complete' })) fail()
     if (value.preserved.pastRecords !== true || value.preserved.outsideTarget !== true || !['retained', 'blocked'].includes(value.preserved.existingChanges as string)) fail()
@@ -110,9 +112,10 @@ export async function parseSchoolDayExecutionPreview(value: unknown, input: Scho
       if (a.teachers.some(teacher => b.teachers.some(row => row.id === teacher.id)) || aRef.groups.some(group => bRef.groups.some(row => row.id === group.id))) blocked('RESOURCE_CONFLICT')
     }
     const lostLessonCount = changes.filter(change => change.after.state === 'cancelled').length
-    const lostMinutes = changes.reduce((sum, change) => sum + Math.max(0, (Date.parse(change.before!.time.endsAt) - Date.parse(change.before!.time.startsAt) - (change.after.state === 'cancelled' ? 0 : Date.parse(change.after.time.endsAt) - Date.parse(change.after.time.startsAt))) / 60000), 0)
-    if (value.lostLessonCount !== lostLessonCount || value.lostMinutes !== lostMinutes) fail()
-    return { input, sourceAsOf: view.asOf, previewId: identifier(value.previewId), previewHash: hash(value.previewHash), createdAt, expiresAt, complete: true as const, coverage: { date: input.date, groupIds: input.groupIds, complete: true as const, existingRequests: 'complete' as const }, affectedLessons, changes, requestEffects, blockers, preserved: { pastRecords: true as const, outsideTarget: true as const, existingChanges: value.preserved.existingChanges as 'retained' | 'blocked' }, lostLessonCount, lostMinutes, changesActualSchedule: false as const }
+    changes.forEach(change => { time(change.before!.time); time(change.after.time) })
+    const lostSeconds = changes.reduce((sum, change) => sum + Math.max(0, (Date.parse(change.before!.time.endsAt) - Date.parse(change.before!.time.startsAt) - (change.after.state === 'cancelled' ? 0 : Date.parse(change.after.time.endsAt) - Date.parse(change.after.time.startsAt))) / 1000), 0)
+    if (!Number.isSafeInteger(value.lostSeconds) || value.lostLessonCount !== lostLessonCount || value.lostSeconds !== lostSeconds) fail()
+    return { input, sourceAsOf: view.asOf, previewId: identifier(value.previewId), previewHash: hash(value.previewHash), createdAt, expiresAt, complete: true as const, coverage: { date: input.date, groupIds: input.groupIds, complete: true as const, existingRequests: 'complete' as const }, affectedLessons, changes, requestEffects, blockers, preserved: { pastRecords: true as const, outsideTarget: true as const, existingChanges: value.preserved.existingChanges as 'retained' | 'blocked' }, lostLessonCount, lostSeconds, changesActualSchedule: false as const }
   })
   const { previewHash, ...content } = result
   if (previewHash !== await digest(content)) fail()
@@ -147,7 +150,11 @@ export function createSchoolDayExecutionServer(connection: SupabaseConnection, o
   const scope = (memberId: string) => { const member = connection.info().memberships.find(row => row.id === identifier(memberId)); if (!member) throw new ServiceError('CANCELLED'); return recoveryScope(member) }
   async function send(memberId: string, value: SchoolDayCommitCommand, requestedKey: string, recover: boolean) {
     const key = validateLocalInput(() => { const key = text(requestedKey, 200, true); if (key.length < 8) fail(); return key }), originalScope = scope(memberId)
-    const command = await validateCommand(value, memberId, now(), recover), identity = originalScope + ':' + key, compact = schoolDayCompactCommand(command)
+    let command: SchoolDayCommitCommand
+    // 전송 전 검증 실패는 결과 미상이 아니다. 원격 응답 검증의 INVALID_RESPONSE와 구분한다.
+    try { command = await validateCommand(value, memberId, now(), true) } catch { throw new ServiceError('INVALID_INPUT') }
+    if (!recover && Date.parse(command.preview.expiresAt) <= now()) throw new ServiceError('CONFLICT')
+    const identity = originalScope + ':' + key, compact = schoolDayCompactCommand(command)
     if (originals.has(identity) && originals.get(identity) !== canonical(command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
     if (!recover && previews.get(originalScope + ':' + command.preview.previewId) !== canonical(command)) throw new ServiceError('NOT_READY')
     if (scope(memberId) !== originalScope) throw new ServiceError('CANCELLED')
