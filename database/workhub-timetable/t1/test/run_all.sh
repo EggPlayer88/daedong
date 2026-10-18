@@ -86,6 +86,19 @@ grep -q '^T1-06-09|[^|]*|FAIL|.*timetable_basis_revisions_immutable' <<<"$r106" 
 su "alter table workhub.timetable_basis_revisions enable trigger timetable_basis_revisions_immutable"
 r106=$(t106); post=$(q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1)
 ! grep -q '|FAIL|' <<<"$r106" && ! grep -q '|FAIL|' <<<"$post" && [ "$(s3)" = "$s3a" ] && ok "II-f 다시 켜면 T1-04 · T1-06 FAIL 0 · 지문 S3 원래대로" || ng "II-f 복구 뒤 -- $(grep '|FAIL|' <<<"$r106$post" | head -2 | tr '\n' ' ')"
+# 훼손 회귀: DML 이 아닌 권한(TRUNCATE · MAINTAIN · 열 단위)만 API 역할에 줘도 T1-04-02 가 잡아야 한다(Codex 재검토 권고 1)
+p402(){ q -At -F'|' -f "$S/T1-04_사후점검.sql" 2>&1 | grep '^T1-04-02|'; }
+g_ok=1; g_log=""
+for g in "TRUNCATE ON workhub.timetable_drafts TO authenticated|timetable_drafts:authenticated TRUNCATE" \
+         "MAINTAIN ON workhub.timetable_requests TO service_role|timetable_requests:service_role MAINTAIN" \
+         "SELECT (id) ON workhub.timetable_basis_revisions TO anon|timetable_basis_revisions:anon SELECT" \
+         "REFERENCES ON workhub_private.t1_installs TO PUBLIC|t1_installs:PUBLIC REFERENCES"; do
+  sql=${g%%|*}; want=${g#*|}
+  su "grant $sql"; r=$(p402); su "revoke ${sql/ TO / FROM }"
+  if [[ "$r" == *"|FAIL|"*"$want"* ]]; then :; else g_ok=0; g_log="$g_log [$sql → $r]"; fi
+done
+[ $g_ok = 1 ] && [[ "$(p402)" == *"|ok|"* ]] \
+  && ok "II-g TRUNCATE · MAINTAIN · 열 단위 SELECT · PUBLIC REFERENCES 를 하나씩 주면 T1-04-02 가 FAIL(권한 이름까지), 거두면 ok" || ng "II-g --$g_log / 복구 뒤 $(p402)"
 
 APP=${T1_APP_SRC:-}
 ESB=${ESBUILD:-$APP/node_modules/.bin/esbuild}

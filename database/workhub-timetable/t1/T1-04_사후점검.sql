@@ -19,6 +19,24 @@ want_tg(nsp, rel, tg) AS (VALUES ('workhub_private', 't1_installs', 't1_installs
   ('workhub', 'timetable_setup_history', 'timetable_setup_history_immutable'), ('workhub', 'timetable_source_marks', 'timetable_source_marks_immutable'),
   ('workhub', 'timetable_prep_draft_revisions', 'timetable_prep_draft_revisions_immutable'), ('workhub', 'timetable_basis_revisions', 'timetable_basis_revisions_immutable'),
   ('workhub', 'timetable_drafts', 'timetable_drafts_immutable'), ('workhub', 'timetable_requests', 'timetable_requests_immutable')),
+api_roles AS (SELECT r.rolname, r.oid FROM pg_roles r WHERE r.rolname IN ('anon','authenticated','service_role')),
+api_priv AS (   -- T1 표(새 표 11개 + 적용 기록 표)에 API 역할 · PUBLIC 이 가진 권한: 표 단위 모든 종류 · 열 단위 · 직접 부여(ACL, MAINTAIN 포함)
+  SELECT DISTINCT x.relname || ':' || x.who || ' ' || x.priv AS v FROM (
+    SELECT t.relname, r.rolname AS who, k.priv FROM (SELECT oid, relname FROM tt UNION ALL SELECT to_regclass('workhub_private.t1_installs'), 't1_installs'
+                                                      WHERE to_regclass('workhub_private.t1_installs') IS NOT NULL) t
+      CROSS JOIN api_roles r CROSS JOIN unnest(ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) k(priv)
+     WHERE has_table_privilege(r.oid, t.oid, k.priv)
+        OR (k.priv IN ('SELECT','INSERT','UPDATE','REFERENCES') AND has_any_column_privilege(r.oid, t.oid, k.priv))
+    UNION ALL
+    SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE (SELECT rolname FROM api_roles WHERE oid = a.grantee) END, a.privilege_type
+      FROM pg_class c CROSS JOIN LATERAL aclexplode(c.relacl) a
+     WHERE c.oid IN (SELECT oid FROM tt UNION ALL SELECT to_regclass('workhub_private.t1_installs'))
+       AND (a.grantee = 0 OR a.grantee IN (SELECT oid FROM api_roles))
+    UNION ALL
+    SELECT c.relname, CASE WHEN a.grantee = 0 THEN 'PUBLIC' ELSE (SELECT rolname FROM api_roles WHERE oid = a.grantee) END, a.privilege_type || '(열 ' || att.attname || ')'
+      FROM pg_attribute att JOIN pg_class c ON c.oid = att.attrelid CROSS JOIN LATERAL aclexplode(att.attacl) a
+     WHERE c.oid IN (SELECT oid FROM tt UNION ALL SELECT to_regclass('workhub_private.t1_installs')) AND att.attacl IS NOT NULL
+       AND (a.grantee = 0 OR a.grantee IN (SELECT oid FROM api_roles))) x),
 api_exec AS (SELECT p.proname FROM pg_proc p WHERE p.pronamespace = 'workhub_private'::regnamespace AND p.proname LIKE 't1\_%'
                AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE')
                     OR has_function_privilege('service_role', p.oid, 'EXECUTE')))
@@ -28,13 +46,12 @@ SELECT 'T1-04-01' AS no, '적용 기록(판 2026-10-18.1, 순서대로)' AS item
             WHEN (SELECT ok FROM has WHERE b = 'T1-02') AND NOT (SELECT ok FROM has WHERE b = 'T1-01') THEN 'FAIL' ELSE 'ok' END AS status,
        COALESCE(NULLIF(replace((SELECT v FROM done), ',', ' · '), ''), '미적용') AS value
 UNION ALL
-SELECT 'T1-04-02', 'T1-01 새 표 11개: RLS 켜짐 · API 역할 직접 접근 0',
+SELECT 'T1-04-02', 'T1 표(새 표 11개 · 적용 기록 표): RLS 켜짐 · API 역할 · PUBLIC 권한 0(표 · 열 단위 모든 종류 — SELECT~TRIGGER · TRUNCATE · MAINTAIN 포함)',
        CASE WHEN NOT (SELECT ok FROM has WHERE b = 'T1-01') THEN 'info'
             WHEN (SELECT count(*) FROM tt JOIN pg_class c ON c.oid = tt.oid WHERE c.relrowsecurity) = 11 AND (SELECT count(*) FROM tt) = 11
-             AND NOT EXISTS (SELECT 1 FROM tt, unnest(ARRAY['anon','authenticated','service_role']) r
-                              WHERE has_table_privilege(r, tt.oid, 'SELECT') OR has_table_privilege(r, tt.oid, 'INSERT')
-                                 OR has_table_privilege(r, tt.oid, 'UPDATE') OR has_table_privilege(r, tt.oid, 'DELETE')) THEN 'ok' ELSE 'FAIL' END,
-       CASE WHEN (SELECT ok FROM has WHERE b = 'T1-01') THEN (SELECT count(*) FROM tt)::text || '개' ELSE '미적용' END
+             AND NOT EXISTS (SELECT 1 FROM api_priv) THEN 'ok' ELSE 'FAIL' END,
+       CASE WHEN NOT (SELECT ok FROM has WHERE b = 'T1-01') THEN '미적용'
+            ELSE (SELECT count(*) FROM tt)::text || '개' || COALESCE(' — 권한 있음: ' || (SELECT string_agg(v, ', ' ORDER BY v) FROM (SELECT v FROM api_priv ORDER BY v LIMIT 5) z), '') END
 UNION ALL
 SELECT 'T1-04-03', 'T1 내부 함수 t1_* 는 API 역할이 실행할 수 없음',
        CASE WHEN NOT (SELECT ok FROM has WHERE b = 'T1-01') THEN 'info' WHEN NOT EXISTS (SELECT 1 FROM api_exec) THEN 'ok' ELSE 'FAIL' END,

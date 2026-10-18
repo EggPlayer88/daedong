@@ -882,13 +882,18 @@ COMMIT;
 -- ----------------------------------------------------------------------------
 -- 7. 검증 — 모든 행의 status 가 ok 여야 한다
 -- ----------------------------------------------------------------------------
-SELECT 'T1-01-1' AS no, '새 표 11개 RLS 켜짐 · API 역할 직접 접근 0' AS item,
+SELECT 'T1-01-1' AS no, '새 표 11개 RLS 켜짐 · API 역할 · PUBLIC 권한 0(모든 종류 — 자세한 대조는 T1-04-02)' AS item,
        CASE WHEN (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
                    WHERE n.nspname = 'workhub' AND c.relname LIKE 'timetable\_%' AND c.relkind = 'r' AND c.relrowsecurity) = 11
              AND NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace, unnest(ARRAY['anon','authenticated','service_role']) r
                               WHERE n.nspname = 'workhub' AND c.relname LIKE 'timetable\_%' AND c.relkind = 'r'
                                 AND (has_table_privilege(r, c.oid, 'SELECT') OR has_table_privilege(r, c.oid, 'INSERT')
-                                     OR has_table_privilege(r, c.oid, 'UPDATE') OR has_table_privilege(r, c.oid, 'DELETE'))) THEN 'ok' ELSE 'FAIL' END AS status, '' AS value
+                                     OR has_table_privilege(r, c.oid, 'UPDATE') OR has_table_privilege(r, c.oid, 'DELETE')
+                                     OR has_table_privilege(r, c.oid, 'TRUNCATE') OR has_table_privilege(r, c.oid, 'REFERENCES')
+                                     OR has_table_privilege(r, c.oid, 'TRIGGER')))
+             AND NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace CROSS JOIN LATERAL aclexplode(c.relacl) a
+                              WHERE n.nspname = 'workhub' AND c.relname LIKE 'timetable\_%' AND c.relkind = 'r'
+                                AND (a.grantee = 0 OR a.grantee IN (SELECT oid FROM pg_roles WHERE rolname IN ('anon','authenticated','service_role')))) THEN 'ok' ELSE 'FAIL' END AS status, '' AS value
 UNION ALL
 SELECT 'T1-01-2', '내부 함수 t1_* API 역할 실행 불가',
        CASE WHEN NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'workhub_private'::regnamespace AND p.proname LIKE 't1\_%'
