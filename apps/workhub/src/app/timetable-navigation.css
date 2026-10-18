@@ -1,0 +1,4 @@
+.ws-shell .timetable-source-navigation{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:16px 32px 0;padding:12px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface);color:var(--muted);font-size:.875rem}
+.ws-shell .timetable-source-navigation .text-button{min-height:44px;text-align:left}
+.ws-shell .timetable-source-navigation [role=status]{flex-basis:100%;line-height:1.6}
+@media(max-width:650px){.ws-shell .timetable-source-navigation{margin:12px 16px 0;align-items:flex-start;flex-direction:column;gap:4px;padding:8px 12px;overflow-wrap:anywhere}}

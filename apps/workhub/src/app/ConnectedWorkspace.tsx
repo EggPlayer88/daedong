@@ -14,6 +14,7 @@ import { createSupabaseConnection, type SupabaseConnection } from '../connection
 import { createSupabaseCalendarAdapter } from '../connection/supabase-calendar'
 import type { ConnectionContext } from '../connection/contracts'
 import theme from '../style.css?inline'
+import timetableNavigationStyles from './timetable-navigation.css?inline'
 import { ConnectionReadinessPanel } from './ConnectionReadinessPanel'
 import { createSupabaseTaskAdapter } from '../tasks/supabase-task-adapter'
 import { TaskPanel } from '../tasks/TaskPanel'
@@ -90,7 +91,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [messageDraft, setMessageDraft] = useState<{scope:string;draft:MessageComposeRequest}>()
   const [generatedFile, setGeneratedFile] = useState<{scope:string; value:GeneratedDocument}>()
   const [handoffError, setHandoffError] = useState('')
-  const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId:string;date:string;key:string}>()
+  const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId:string;date:string;key:string;fromPage:'home'|'calendar'}>()
   const clearHandoffs = useCallback(() => {setHandoff(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
 
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
@@ -178,6 +179,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
   const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; setHandoff(undefined); return true }
+  // 수업 선택은 한 번의 이동에만 속한다. 다른 메뉴에서 시간표를 다시 열 때 과거 수업을 강제로 열지 않는다.
+  useEffect(() => { if (page !== 'timetable') setTimetableOpen(undefined) }, [page])
   const searchSources = useMemo(() => member && context ? [calendarSearchSource(adapter, member, context.basisDate), taskSearchSource(taskAdapter, member, context.basisDate)] : [], [adapter, taskAdapter, member, context])
   const requested = resource.current
   useEffect(() => {
@@ -199,6 +202,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     return true
   }
   return <EditDraftsProvider store={editDrafts}><PendingRequestsProvider store={pendingRequests}><StyleBoundary>
+    <style>{timetableNavigationStyles}</style>
     <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
     {connectionUnavailable ? <main id="main-content" className="connected-empty">
       {loading ? <>
@@ -222,6 +226,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
         <ModuleBoundary moduleName={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
           {handoffError && <p role="alert">{handoffError}</p>}
+          {page === 'timetable' && timetableOpen?.scope === currentScope && <nav aria-label="시간표 연결 동선" className="timetable-source-navigation">
+            <button type="button" className="text-button" disabled={navigationLocked} onClick={() => navigate(timetableOpen.fromPage)}>{timetableOpen.fromPage === 'calendar' ? '학교 일정으로 돌아가기' : '홈으로 돌아가기'}</button>
+            <span>{timetableOpen.fromPage === 'calendar' ? '학교 일정' : '홈'}에서 연 {timetableOpen.date} 수업</span>
+            {navigationLocked && <span role="status">작성 중인 내용을 마치거나 같은 요청의 결과를 확인한 뒤 돌아갈 수 있습니다.</span>}
+          </nav>}
           {['schoolAdmin', 'students', 'messages', 'knowledge', 'documents', 'assistant', 'cooperation', 'timetable'].includes(page) ? <main id="main-content" className="main-content">{page !== 'timetable' && <header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>{enabledModules('connected').find(item => item.id === page)?.title}</h1></div></header>}<Suspense fallback={<p role="status">업무 화면을 준비하는 중…</p>}>
             {page === 'schoolAdmin' ? <SchoolAdminPanel onUpdated={() => setAttempt(value => value + 1)} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
              page === 'timetable' ? <TimetableWorkspace initialLessonId={timetableOpen?.scope === currentScope ? timetableOpen.lessonId : undefined} initialDate={timetableOpen?.scope === currentScope ? timetableOpen.date : undefined} key={`${resetKey}:${timetableOpen?.key ?? ''}`} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} onOpenSchoolAdmin={() => navigate('schoolAdmin')} /> :
@@ -237,7 +246,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
               page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked} onOpenBatchImport={() => setBatchOpen(true)}
               relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장"
               openRequest={requested?.kind === 'calendar' && requested.id ? { key: requested.key, id: requested.id } : undefined}
-              renderLessonAgenda={lessonDate => <ModuleBoundary moduleName="내 수업" resetKey={`${resetKey}:${lessonDate}`}><Suspense fallback={<p role="status">내 수업을 확인하는 중…</p>}><TimetableAgendaWorkspace connection={connection} member={member} date={lessonDate} revision={refreshEpoch} onOpen={(lessonId, date) => {if(resource.navigate('timetable'))setTimetableOpen({scope:currentScope,lessonId,date,key:crypto.randomUUID()})}} /></Suspense></ModuleBoundary>}
+              renderLessonAgenda={lessonDate => <ModuleBoundary moduleName="내 수업" resetKey={`${resetKey}:${lessonDate}`}><Suspense fallback={<p role="status">내 수업을 확인하는 중…</p>}><TimetableAgendaWorkspace connection={connection} member={member} date={lessonDate} revision={refreshEpoch} onOpen={(lessonId, date) => {if(resource.navigate('timetable'))setTimetableOpen({scope:currentScope,lessonId,date,key:crypto.randomUUID(),fromPage:page === 'calendar' ? 'calendar' : 'home'})}} /></Suspense></ModuleBoundary>}
               homeExtras={<><ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary><ModuleBoundary moduleName="확인할 일" resetKey={resetKey}><HomeOverviewPanel connection={connection} member={member} revision={refreshEpoch} onOpen={item => { if (item.kind === 'collection' || item.kind === 'supplement') resource.openCollection(item.sourceId); else if (item.kind === 'cooperation') resource.openCooperation(item.sourceId); else if (item.kind === 'message') resource.openMessage(item.sourceId); else navigate('students') }} /></ModuleBoundary></>} />}
         </ModuleBoundary>
       </WorkspaceShell>}
