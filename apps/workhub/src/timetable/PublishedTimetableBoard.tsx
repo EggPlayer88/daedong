@@ -24,7 +24,7 @@ export function PublishedTimetableBoard({ view, memberId, date, initialDate, loc
   const id = useId(), [teacher, setTeacher] = useState(initialFilter?.teacher ?? memberId), [group, setGroup] = useState(initialFilter?.group ?? ''), [selectedDate, setSelectedDate] = useState(initialDate ?? date)
   const [mode, setMode] = useState<'week' | 'day'>(() => initialMode ?? (typeof window !== 'undefined' && window.matchMedia('(max-width: 650px)').matches ? 'day' : 'week')), [selectedId, setSelectedId] = useState(initialLessonId ?? ''), [limit, setLimit] = useState(30)
   const [teacherQuery, setTeacherQuery] = useState(''), [groupQuery, setGroupQuery] = useState('')
-  const detailRef = useRef<HTMLElement>(null), selectionButton = useRef<HTMLButtonElement | null>(null), focusSelection = useRef(false)
+  const headingRef = useRef<HTMLHeadingElement>(null), detailRef = useRef<HTMLElement>(null), selectionButton = useRef<HTMLButtonElement | null>(null), focusSelection = useRef(false)
   const weekStart = timetableWeekStart(selectedDate), weekDays = Array.from({ length: 7 }, (_, index) => timetableDateOffset(weekStart, index))
   const teachers = useMemo(() => [...new Map(view.lessons.flatMap(lesson => lesson.teachers.map(teacher => [teacher.id, teacher.name] as const)))].sort((a, b) => a[1].localeCompare(b[1], 'ko', { numeric: true }) || a[0].localeCompare(b[0])), [view])
   const validReferences = references?.asOf === view.asOf && references.from === view.from && references.until === view.until ? references : undefined
@@ -67,7 +67,7 @@ export function PublishedTimetableBoard({ view, memberId, date, initialDate, loc
   function chooseMode(next: 'week' | 'day') { setMode(next); onModeChange?.(next) }
   function chooseTarget(nextTeacher: string, nextGroup: string) { setTeacher(nextTeacher); setGroup(nextGroup); setSelectedId(''); onFilterChange?.({ teacher: nextTeacher, group: nextGroup }) }
   function returnToMine() { setTeacherQuery(''); setGroupQuery(''); chooseTarget(memberId, '') }
-  function closeSelection() { setSelectedId(''); focusSelection.current = false; if (selectionButton.current?.isConnected) selectionButton.current.focus() }
+  function closeSelection() { setSelectedId(''); focusSelection.current = false; if (selectionButton.current?.isConnected) selectionButton.current.focus(); else headingRef.current?.focus() }
   function changeDate(next: string) {
     try { timetableDateOffset(next, 0) } catch { return }
     setSelectedDate(next); setSelectedId('')
@@ -81,7 +81,7 @@ export function PublishedTimetableBoard({ view, memberId, date, initialDate, loc
     </button>
   }
   return <section className="ttboard" aria-labelledby={id + '-title'}><style>{styles}{usabilityStyles}</style>
-    <div className="ttboard-heading"><div><h3 id={id + '-title'}>학교가 확정한 수업</h3><p className="ttops-muted">{group ? groupLabels.get(group) ?? '선택한 학급' : teacher === memberId ? '내 시간표' : teacher ? teacherLabels.get(teacher) ?? '선택한 교사' : '허용된 전체 수업'}</p></div><div className="ttboard-mode" aria-label="시간표 보기 방식"><button type="button" className="secondary" aria-pressed={mode === 'week'} onClick={() => chooseMode('week')}>주간표</button><button type="button" className="secondary" aria-pressed={mode === 'day'} onClick={() => chooseMode('day')}>하루 목록</button></div></div>
+    <div className="ttboard-heading"><div><h3 ref={headingRef} tabIndex={-1} id={id + '-title'}>학교가 확정한 수업</h3><p className="ttops-muted">{group ? groupLabels.get(group) ?? '선택한 학급' : teacher === memberId ? '내 시간표' : teacher ? teacherLabels.get(teacher) ?? '선택한 교사' : '허용된 전체 수업'}</p></div><div className="ttboard-mode" aria-label="시간표 보기 방식"><button type="button" className="secondary" aria-pressed={mode === 'week'} onClick={() => chooseMode('week')}>주간표</button><button type="button" className="secondary" aria-pressed={mode === 'day'} onClick={() => chooseMode('day')}>하루 목록</button></div></div>
     <div className="ttboard-shortcuts">{(teacher !== memberId || group || teacherQuery || groupQuery) && <button type="button" className="secondary" onClick={returnToMine}>내 시간표로 돌아가기</button>}</div>
     <details className="ttboard-filters"><summary>교사·학급·날짜 선택</summary><div className="ttboard-targets">
       <div className="ttboard-target-search"><label>교사 찾기<input type="search" aria-label="교사 찾기" value={teacherQuery} placeholder="이름으로 찾기" onChange={event => setTeacherQuery(event.target.value)} aria-describedby={id + '-teacher-search'} /></label>

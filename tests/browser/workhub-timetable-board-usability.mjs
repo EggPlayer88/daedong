@@ -14,8 +14,8 @@ const browser = await launchBrowser(), context = await browser.newContext({ view
 page.on('pageerror', error => errors.push(error.message)); page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:5210/')) external.push(request.url()) }); page.setDefaultTimeout(10000)
 await context.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:Arial,sans-serif;margin:0;padding:16px}*{box-sizing:border-box}</style><div id="root"></div></html>' }))
 let count = 0
-async function start() { await page.setViewportSize({ width: 1280, height: 900 }); await page.goto('http://127.0.0.1:5210/board'); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor(); await page.getByText('교사·학급·날짜 선택', { exact: true }).click() }
-async function check(name, run) { await start(); await run(); assert.equal(await page.evaluate(() => window.actions), 0); count++; console.log('  ✓ ' + name) }
+async function start(initialLessonId) { await page.setViewportSize({ width: 1280, height: 900 }); await page.goto('http://127.0.0.1:5210/board'); if (initialLessonId) await page.evaluate(id => window.initialLessonId = id, initialLessonId); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor(); await page.getByText('교사·학급·날짜 선택', { exact: true }).click() }
+async function check(name, run, initialLessonId) { await start(initialLessonId); await run(); assert.equal(await page.evaluate(() => window.actions), 0); count++; console.log('  ✓ ' + name) }
 const weekly = () => page.getByRole('region', { name: '주간 시간표', exact: true })
 const detail = () => page.getByRole('region', { name: '선택한 수업', exact: true })
 try {
@@ -30,6 +30,15 @@ await check('학년·반 검색과 동명 학급을 안정 ID로 구분하고 �
 })
 await check('키보드 선택 후 상세로 초점을 옮기고 Esc로 원래 수업 버튼에 돌아온다', async () => {
   const lesson = weekly().getByRole('button', { name: /내 국어 수업/ }); await lesson.focus(); await page.keyboard.press('Enter'); await detail().waitFor(); await page.waitForFunction(() => document.activeElement?.classList.contains('ttboard-detail')); assert.equal(await lesson.getAttribute('aria-controls'), await detail().getAttribute('id')); assert.match(await detail().innerText(), /09:00:30–09:45:30/); await page.keyboard.press('Escape'); assert.equal(await detail().count(), 0); assert.equal(await lesson.evaluate(element => document.activeElement === element), true); await page.keyboard.press('Enter'); await page.getByRole('button', { name: '수업 상세 닫기', exact: true }).click(); assert.equal(await lesson.evaluate(element => document.activeElement === element), true)
+})
+await check('처음 연결해 연 수업을 버튼으로 닫으면 시간표 제목으로 초점이 돌아온다', async () => {
+  await detail().waitFor(); await page.getByRole('button', { name: '수업 상세 닫기', exact: true }).click(); await detail().waitFor({ state: 'detached' }); assert.equal(await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).evaluate(element => document.activeElement === element), true)
+}, 'first')
+await check('처음 연결해 연 수업에서 Esc를 눌러도 시간표 제목으로 초점이 돌아온다', async () => {
+  await detail().waitFor(); await detail().focus(); await page.keyboard.press('Escape'); await detail().waitFor({ state: 'detached' }); assert.equal(await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).evaluate(element => document.activeElement === element), true)
+}, 'first')
+await check('재조회로 원래 수업 버튼이 사라졌으면 상세를 닫을 때 시간표 제목으로 돌아온다', async () => {
+  const lesson = weekly().getByRole('button', { name: /내 국어 수업/ }); await lesson.click(); await detail().waitFor(); const originalButton = await lesson.elementHandle(); await page.evaluate(() => { window.fixture.view.lessons[0].time = { startsAt: '2026-10-26T00:00:30.000Z', endsAt: '2026-10-26T00:45:30.000Z' }; window.refresh() }); await lesson.waitFor({ state: 'detached' }); assert.equal(await originalButton.evaluate(element => element.isConnected), false); await detail().getByText(/2026-10-26 09:00:30/).waitFor(); await page.getByRole('button', { name: '수업 상세 닫기', exact: true }).click(); await detail().waitFor({ state: 'detached' }); assert.equal(await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).evaluate(element => document.activeElement === element), true)
 })
 await check('같은 수업을 다시 연 뒤 배경 재조회가 와도 검색 중인 초점을 빼앗지 않는다', async () => {
   const lesson = weekly().getByRole('button', { name: /내 국어 수업/ }); await lesson.click(); await detail().waitFor(); await lesson.click(); const search = page.getByLabel('교사 찾기', { exact: true }); await search.fill('선생님'); await page.evaluate(() => { window.fixture.view.lessons[0].label = '재조회한 국어 수업'; window.refresh() }); await detail().getByText('재조회한 국어 수업', { exact: true }).waitFor(); assert.equal(await search.evaluate(element => document.activeElement === element), true); assert.equal(await search.inputValue(), '선생님')
