@@ -340,7 +340,8 @@ $$;
 -- ----------------------------------------------------------------------------
 -- 5. 원본 자료 만들기 — 공식 자료(P1 · P5 · P8) + 담당자 입력(공간 · 연결)
 --    결과: core(지문 대상 = 앱 PreparationSource 의 원본 부분) · findings(입력 화면용 미완성 목록) · setup(수업별 입력 상태)
---    기준일 ref = max(학기 시작일, 오늘). 담당 · 수강은 그날 유효한 것(P8 종료 사건 반영)만 쓴다.
+--    기준일 ref = max(학기 시작일, 오늘). 원본에 넣는 담당 · 수강은 그날 유효한 것(P8 종료 사건 반영)이고,
+--    남은 학기([ref, 학기 끝)) 안의 변화(담당 교체 · 교사 재직 종료 · 수강 겹침)는 기간 교집합으로 찾아 표현 불가로 알린다.
 --    표현할 수 없는 것은 빼고 지나가지 않고 unsupportedFeatures 로 알린다(앱이 확정을 막는다).
 -- ----------------------------------------------------------------------------
 CREATE FUNCTION workhub_private.t1_build(p_school text, p_term_id text, p_today date) RETURNS jsonb
@@ -377,6 +378,19 @@ BEGIN
              AND a.valid_from < workhub_private.p8_eff_to('assignment', a.id, a.valid_from, a.valid_to))
          OR (a.valid_from <= v_ref AND v_ref < workhub_private.p8_eff_to('assignment', a.id, a.valid_from, a.valid_to)
              AND workhub_private.p8_eff_to('assignment', a.id, a.valid_from, a.valid_to) < t.ends_on))
+  ), ta AS (       -- 담당마다 남은 학기 구간 A = 담당 실효 기간 ∩ [기준일, 학기 끝), 그중 교사가 재직(소속 active · 소속 기간 안)인 구간 U
+    SELECT a.course_id, x.a_from, x.a_to,
+           CASE WHEN m.status = 'active' AND m.valid_from IS NOT NULL THEN greatest(x.a_from, m.valid_from) END AS u_from,
+           CASE WHEN m.status = 'active' AND m.valid_from IS NOT NULL THEN least(x.a_to, COALESCE(m.valid_to, 'infinity'::date)) END AS u_to
+      FROM workhub.course_assignments a JOIN co ON co.id = a.course_id
+      JOIN workhub.memberships m ON m.school_id = a.school_id AND m.id = a.membership_id
+     CROSS JOIN LATERAL (SELECT greatest(a.valid_from, v_ref) AS a_from,
+                                least(workhub_private.p8_eff_to('assignment', a.id, a.valid_from, a.valid_to), t.ends_on) AS a_to) x
+     WHERE a.school_id = p_school
+  ), mchange AS (   -- [F2] 남은 학기에 담당이 있는데 교사의 재직 기간이 그 구간을 다 덮지 못함(중도 종료 · 늦은 시작 · 재직 중 아님)
+    SELECT DISTINCT ta.course_id FROM ta
+     WHERE ta.a_from < ta.a_to
+       AND (ta.u_from IS NULL OR ta.u_from >= ta.u_to OR ta.u_from <> ta.a_from OR ta.u_to <> ta.a_to)
   ), cl AS (
     SELECT lc.course_id, yc.id, yc.name, yc.sort_order, yc.removed_at IS NOT NULL AS removed
       FROM workhub.timetable_course_link_classes lc JOIN co ON co.id = lc.course_id
@@ -398,6 +412,7 @@ BEGIN
            'short', workhub_private.t1_label(co.label, 40, '수업'),
            'active', co.active, 'startsLate', co.starts_late, 'endsEarly', co.ends_early, 'idOk', co.id_ok,
            'teacherChange', EXISTS (SELECT 1 FROM tchange WHERE tchange.course_id = co.id),
+           'teacherLeaves', EXISTS (SELECT 1 FROM mchange WHERE mchange.course_id = co.id),
            'teachers', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', te.id, 'label', te.label) ORDER BY te.label COLLATE "C", te.id)
                                    FROM (SELECT DISTINCT ON (id) id, label FROM te WHERE te.course_id = co.id ORDER BY id) te), '[]'),
            'link', (SELECT jsonb_build_object('version', l.version, 'studentGroup', l.student_group) FROM workhub.timetable_course_links l
@@ -418,12 +433,14 @@ BEGIN
            ARRAY(SELECT k ->> 'id' FROM jsonb_array_elements(c -> 'classes') k WHERE NOT (k ->> 'removed')::boolean AND (k ->> 'idOk')::boolean)
            || CASE WHEN (c #>> '{link,studentGroup}')::boolean THEN ARRAY['sg_' || (c ->> 'id')] ELSE ARRAY[]::text[] END AS rids
       FROM jsonb_array_elements(v_cs) c WHERE (c ->> 'active')::boolean AND (c ->> 'idOk')::boolean
-  ), mem AS (
-    SELECT cm.course_id, cm.student_id FROM workhub.course_memberships cm JOIN sr ON sr.course_id = cm.course_id
-     WHERE cm.school_id = p_school AND cm.valid_from <= v_ref
-       AND v_ref < workhub_private.p8_eff_to('course_membership', cm.id, cm.valid_from, cm.valid_to)
-  ), pairs AS (
-    SELECT DISTINCT a.course_id AS a_id, b.course_id AS b_id FROM mem a JOIN mem b ON a.student_id = b.student_id AND a.course_id < b.course_id
+  ), mem AS (   -- [F1] 수강마다 남은 학기 구간(수강 실효 기간 ∩ [기준일, 학기 끝), P8 종료 반영). 기준일 하루만 보지 않는다.
+    SELECT cm.course_id, cm.student_id, daterange(x.f, x.t, '[)') AS r
+      FROM workhub.course_memberships cm JOIN sr ON sr.course_id = cm.course_id
+     CROSS JOIN LATERAL (SELECT greatest(cm.valid_from, v_ref) AS f,
+                                least(workhub_private.p8_eff_to('course_membership', cm.id, cm.valid_from, cm.valid_to), t.ends_on) AS t) x
+     WHERE cm.school_id = p_school AND x.f < x.t
+  ), pairs AS (  -- 같은 학생의 두 수강 구간이 실제로 겹치는 수업 쌍만(앞 수업이 끝난 날 다음 수업이 시작하는 이동은 겹치지 않음)
+    SELECT DISTINCT a.course_id AS a_id, b.course_id AS b_id FROM mem a JOIN mem b ON a.student_id = b.student_id AND a.course_id < b.course_id AND a.r && b.r
   )
   SELECT COALESCE(jsonb_agg(jsonb_build_object('a', sa.course_id, 'b', sb.course_id, 'aLabel', sa.short, 'bLabel', sb.short)
                             ORDER BY sa.short COLLATE "C", sb.short COLLATE "C", sa.course_id, sb.course_id), '[]')
@@ -446,6 +463,9 @@ BEGIN
     UNION ALL
     SELECT 4, 'TEACHER_CHANGES_IN_TERM', c ->> 'id', true, format('학기 중 담당 교사가 바뀌는 수업: %s', c ->> 'short')
       FROM jsonb_array_elements(v_cs) c WHERE (c ->> 'active')::boolean AND (c ->> 'teacherChange')::boolean
+    UNION ALL
+    SELECT 4, 'TEACHER_LEAVES_IN_TERM', c ->> 'id', true, format('담당 교사의 재직 기간이 학기 중에 끝나거나 재직 중이 아닌 수업: %s', c ->> 'short')
+      FROM jsonb_array_elements(v_cs) c WHERE (c ->> 'active')::boolean AND (c ->> 'teacherLeaves')::boolean
     UNION ALL
     SELECT 5, 'LINK_CLASS_REMOVED', c ->> 'id', true, format('연결한 학급이 학교 구성에서 빠짐: %s', c ->> 'short')
       FROM jsonb_array_elements(v_cs) c WHERE (c ->> 'active')::boolean

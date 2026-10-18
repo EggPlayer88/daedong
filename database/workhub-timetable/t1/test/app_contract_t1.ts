@@ -43,7 +43,7 @@ const int = (v: any, min: number, max: number, why: string) => Number.isSafeInte
 const str = (v: any, max: number, why: string) => typeof v === 'string' && v.trim() && Array.from(v).length <= max ? v : fail_(why)
 const day = (v: any, why: string) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : fail_(why)
 const hash = (v: any, why: string) => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v) ? v : fail_(why)
-const FINDINGS: Record<string, boolean> = { COURSE_ID_UNSUPPORTED: true, COURSE_STARTS_LATER: true, COURSE_ENDS_EARLY: true, TEACHER_CHANGES_IN_TERM: true,
+const FINDINGS: Record<string, boolean> = { COURSE_ID_UNSUPPORTED: true, COURSE_STARTS_LATER: true, COURSE_ENDS_EARLY: true, TEACHER_CHANGES_IN_TERM: true, TEACHER_LEAVES_IN_TERM: true,
   LINK_CLASS_REMOVED: true, LINK_SPACE_REMOVED: true, SPACE_CAPACITY_MISSING: true, STUDENT_OVERLAP: true, COURSE_TEACHER_MISSING: false, COURSE_LINK_MISSING: false }
 function setupSnapshot(v: any) {
   exact(v, ['termId', 'termLabel', 'firstDay', 'lastDay', 'referenceDay', 'sourceRevision', 'sourceFingerprint', 'canEdit', 'spaces', 'classes', 'courses', 'findings'], 'top')
