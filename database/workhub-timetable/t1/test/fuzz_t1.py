@@ -5,7 +5,7 @@
 #   draft      → t1_draft_ok(d, src)                             vs 앱 preparationDraft(d, source) 성공
 #   compile    → t1_compile(src, d, id, rev)                     vs 앱 compilePreparation(...).basis (정준형까지 같아야 함)
 import json, os, sys
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'r1', 'test'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'workhub', 'r1', 'test'))
 from run_r1 import admin
 
 cases = json.load(open(os.environ['T1_FUZZ'], encoding='utf-8'))

@@ -1,7 +1,7 @@
 # T1 시험
 
 ```bash
-# R1 시험과 같은 준비(../../r1/test/README.md): R0_PG_BIN 등. python3 + psycopg2, node + esbuild
+# R1 시험과 같은 준비(../../../workhub/r1/test/README.md): R0_PG_BIN 등. python3 + psycopg2, node + esbuild
 R0_PG_BIN=<PostgreSQL 17 bin> T1_APP_SRC=<PR #65·#66 checkout(node_modules 포함)> [ESBUILD=<esbuild 경로>] bash run_all.sh
 ```
 
@@ -13,4 +13,4 @@ R0_PG_BIN=<PostgreSQL 17 bin> T1_APP_SRC=<PR #65·#66 checkout(node_modules 포�
 | `fuzz_t1.ts` · `fuzz_t1.py` | IV. 확정 성공 응답을 씨앗으로 무작위 변형을 만들어 앱 판정을 붙이고(ts), 같은 변형을 SQL 이식 함수에 넣어 비교(py). `T1_FUZZ_SEED` · `T1_FUZZ_N` |
 
 - `T1_APP_SRC` 가 없으면 III · IV 는 FAIL 로 셉니다(통과로 세지 않음).
-- 앱 코드는 가져다 쓰기만 하고 고치지 않습니다. 번들 별칭: `t1app=<checkout>/apps/workhub/src`, `t1pkg=<checkout>/packages/timetable/src`, `@daedong/shared=../../r1s/test/shared_stub.ts`.
+- 앱 코드는 가져다 쓰기만 하고 고치지 않습니다. 번들 별칭: `t1app=<checkout>/apps/workhub/src`, `t1pkg=<checkout>/packages/timetable/src`, `@daedong/shared=../../../workhub/r1s/test/shared_stub.ts`.

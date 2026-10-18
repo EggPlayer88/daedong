@@ -7,11 +7,11 @@ import datetime, json, os, sys, threading
 import psycopg2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(HERE, '..', '..', 'r1', 'test'))
+sys.path.insert(0, os.path.join(HERE, '..', '..', '..', 'workhub', 'r1', 'test'))
 from run_r1 import (admin, api, call, err, check, scalar, key, Who, data, fixtures, fill_json, U1, T, M, TODAY, results)
 
 S = os.path.join(HERE, '..')
-W = os.path.join(HERE, '..', '..')
+W = os.path.join(HERE, '..', '..', '..', 'workhub')  # 1~8단계 SQL 폴더(T1 은 별도 폴더 database/workhub-timetable)
 OUT = os.environ.get('T1_CAPTURE', '')
 captures = []
 DAY = lambda n=0: (TODAY + datetime.timedelta(days=n)).isoformat()

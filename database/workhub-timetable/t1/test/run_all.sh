@@ -4,8 +4,8 @@
 # 사용: R0_PG_BIN=<PostgreSQL 17 bin> T1_APP_SRC=<PR #65·#66 checkout(node_modules 포함)> bash run_all.sh      (README 참고)
 set -uo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-. "$HERE/../../r1/test/env.sh"
-T=$HERE; S=$(cd "$HERE/.." && pwd); WH=$(cd "$HERE/../.." && pwd); W=$R0_WORK/t1; mkdir -p "$W"
+. "$HERE/../../../workhub/r1/test/env.sh"
+T=$HERE; S=$(cd "$HERE/.." && pwd); WH=$(cd "$HERE/../../../workhub" && pwd); W=$R0_WORK/t1; mkdir -p "$W"
 PASS=0; FAIL=0
 ok(){ PASS=$((PASS+1)); echo "PASS $1"; }
 ng(){ FAIL=$((FAIL+1)); echo "FAIL $1"; }
@@ -45,7 +45,7 @@ refuse "I3 T1-01 전에 T1-02 → 멈춤" "T1-01(2026-10-18.1)을 먼저 적용�
 refuse "I4 T1-01 전에 T1-03 → 멈춤" "T1-01 · T1-02(2026-10-18.1)를 먼저 적용해 주세요" q -f "$S/T1-03_편성기반_공개함수.sql"
 refuse "I5 T1-03 전에 T1-05 → 멈춤" "T1-01 · T1-02 · T1-03(2026-10-18.1)이 모두 적용되어 있지 않습니다" q -c "$(sed "$FILL" "$S/T1-05_시간표활성화_양식.sql")"
 p8
-ap t1/T1-01_편성기반_모델.sql
+need q -qf "$S/T1-01_편성기반_모델.sql" >/dev/null
 refuse "I6 T1-02 전에 T1-03 → 멈춤" "T1-01 · T1-02(2026-10-18.1)를 먼저 적용해 주세요" q -f "$S/T1-03_편성기반_공개함수.sql"
 # R0 원본 제약이 바뀌어 있으면 T1-02 는 덮어쓰지 않는다(시험 서버의 superuser 가 제약을 바꿔 둔다)
 need r0_psql -U supabase_admin -d r0 -v ON_ERROR_STOP=1 -qc "alter table workhub.terms drop constraint terms_timetable_basis_pending; alter table workhub.terms add constraint terms_timetable_basis_pending check (current_timetable_basis_id is null or true)" >/dev/null
