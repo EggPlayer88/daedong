@@ -282,7 +282,9 @@ CREATE TRIGGER timetable_school_day_changes_immutable BEFORE UPDATE OR DELETE ON
   FOR EACH ROW EXECUTE FUNCTION workhub_private.forbid_change();
 
 -- ----------------------------------------------------------------------------
--- 6. 요청 원장(T2 쓰기 4종) — 반영된 쓰기만. 접수증 그대로(복구 · 재전송이 같은 값을 받는다)
+-- 6. 요청 원장(T2 쓰기 4종) — 반영된 쓰기(applied, 접수증 그대로: 복구 · 재전송이 같은 값을 받는다)와
+--    사용자가 포기한 번호(abandoned, 취소 기록). 취소 기록이 있는 번호는 늦게 도착한 최초 요청도 반영하지 않는다(t2_claim).
+--    거절된 명령은 남기지 않는다. 행은 고칠 수도 지울 수도 없다.
 -- ----------------------------------------------------------------------------
 CREATE TABLE workhub.timetable_operation_requests (
   school_id     text NOT NULL,
@@ -291,6 +293,7 @@ CREATE TABLE workhub.timetable_operation_requests (
   op            text NOT NULL,
   request_key   text NOT NULL,
   command_hash  text NOT NULL,
+  outcome       text NOT NULL DEFAULT 'applied',
   response      jsonb NOT NULL,
   recorded_at   timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT timetable_operation_requests_pkey PRIMARY KEY (school_id, membership_id, op, request_key),
@@ -298,7 +301,8 @@ CREATE TABLE workhub.timetable_operation_requests (
   CONSTRAINT timetable_operation_requests_op_check CHECK (op IN ('operations','publication','school_day','execution')),
   CONSTRAINT timetable_operation_requests_key_check CHECK (request_key ~ '^[A-Za-z0-9_-]{8,200}$'),
   CONSTRAINT timetable_operation_requests_hash_check CHECK (command_hash ~ '^[0-9a-f]{64}$'),
-  CONSTRAINT timetable_operation_requests_response_check CHECK (jsonb_typeof(response) = 'object')
+  CONSTRAINT timetable_operation_requests_response_check CHECK (jsonb_typeof(response) = 'object'),
+  CONSTRAINT timetable_operation_requests_outcome_check CHECK (outcome IN ('applied','abandoned') AND (outcome = 'applied' OR response = '{}'::jsonb))
 );
 CREATE TRIGGER timetable_operation_requests_immutable BEFORE UPDATE OR DELETE ON workhub.timetable_operation_requests
   FOR EACH ROW EXECUTE FUNCTION workhub_private.forbid_change();

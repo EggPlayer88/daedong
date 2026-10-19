@@ -44,9 +44,8 @@ LANGUAGE sql VOLATILE SET search_path = '' AS $$
   SELECT date_trunc('milliseconds', clock_timestamp())
 $$;
 
--- 같은 (학교, 소속, 종류, 요청 번호)를 한 줄로 세우고, 이미 반영된 요청이면 그 접수증을 그대로 돌려준다(내용이 다르면 IDEMPOTENCY_CONFLICT).
---   준비 상태 · 권한 · 미리보기 만료보다 먼저 본다(handoff 조건 1 · 2).
-CREATE FUNCTION workhub_private.t2_claim(p_ctx workhub_private.actor_context, p_op text, p_key text, p_hash text) RETURNS jsonb
+-- 요청 번호 하나의 원장 행을 잠그고 읽는다. 같은 (학교, 소속, 종류, 요청 번호)는 트랜잭션 끝까지 한 줄로 선다.
+CREATE FUNCTION workhub_private.t2_req_row(p_ctx workhub_private.actor_context, p_op text, p_key text, p_hash text) RETURNS workhub.timetable_operation_requests
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE r workhub.timetable_operation_requests;
 BEGIN
@@ -55,9 +54,39 @@ BEGIN
                                                  || chr(31) || p_key, 0));
   SELECT * INTO r FROM workhub.timetable_operation_requests
    WHERE school_id = p_ctx.school_id AND membership_id = p_ctx.membership_id AND op = p_op AND request_key = p_key;
+  IF r.request_key IS NOT NULL AND (r.command_hash <> p_hash OR r.account_id <> p_ctx.account_id) THEN RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT'; END IF;
+  RETURN r;
+END $$;
+-- 이미 반영된 요청이면 그 접수증을 그대로 돌려준다(내용이 다르면 IDEMPOTENCY_CONFLICT). 사용자가 포기한 번호면 CONFLICT —
+--   늦게 도착한 최초 요청 · 재전송 · 복구 조회 모두 반영하지 않는다. 준비 상태 · 권한 · 미리보기 만료보다 먼저 본다(handoff 조건 1 · 2 · 6).
+CREATE FUNCTION workhub_private.t2_claim(p_ctx workhub_private.actor_context, p_op text, p_key text, p_hash text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE r workhub.timetable_operation_requests := workhub_private.t2_req_row(p_ctx, p_op, p_key, p_hash);
+BEGIN
   IF r.request_key IS NULL THEN RETURN NULL; END IF;
-  IF r.command_hash <> p_hash OR r.account_id <> p_ctx.account_id THEN RAISE EXCEPTION 'IDEMPOTENCY_CONFLICT'; END IF;
+  IF r.outcome = 'abandoned' THEN RAISE EXCEPTION 'CONFLICT'; END IF;
   RETURN r.response;
+END $$;
+-- 요청 번호 포기(취소 기록). 결과를 모르는 요청(응답 유실 → 복구 NOT_FOUND → 재전송도 거절)에서 화면이 안전하게 빠져나오는 길.
+--   같은 번호 잠금 안에서: 이미 반영됐으면 그 접수증(outcome applied — 포기하지 않음), 아니면 취소 기록을 남긴다(outcome abandoned).
+--   취소 기록 뒤에는 그 번호로 무엇이 와도 반영하지 않으므로, 앱은 새 번호로 새 명령을 만들어도 두 번 반영되지 않는다.
+--   준비 상태 · 권한을 보지 않는다(복구 조회와 같다 — 모듈을 꺼도 빠져나올 수 있어야 함). 명령은 원래 보낸 그대로(지문 대조).
+CREATE FUNCTION workhub_private.t2_abandon(p_ctx workhub_private.actor_context, p_kind text, c jsonb, p_key text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE r workhub.timetable_operation_requests; v_hash text;
+BEGIN
+  IF p_kind IS NULL OR p_kind NOT IN ('operations','publication','school_day','execution') OR c IS NULL OR jsonb_typeof(c) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_INPUT';
+  END IF;
+  v_hash := workhub_private.p2_sha(c);
+  r := workhub_private.t2_req_row(p_ctx, p_kind, p_key, v_hash);
+  IF r.request_key IS NULL THEN
+    INSERT INTO workhub.timetable_operation_requests (school_id, membership_id, account_id, op, request_key, command_hash, outcome, response, recorded_at)
+    VALUES (p_ctx.school_id, p_ctx.membership_id, p_ctx.account_id, p_kind, p_key, v_hash, 'abandoned', '{}'::jsonb, workhub_private.t2_now())
+    RETURNING * INTO r;
+  END IF;
+  RETURN jsonb_build_object('kind', p_kind, 'requestKey', p_key, 'commandHash', v_hash, 'outcome', r.outcome,
+                            'receipt', CASE WHEN r.outcome = 'applied' THEN r.response END, 'decidedAt', workhub_private.t2_ts(r.recorded_at));
 END $$;
 CREATE FUNCTION workhub_private.t2_record(p_ctx workhub_private.actor_context, p_op text, p_key text, p_hash text, p_response jsonb) RETURNS void
 LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
@@ -608,6 +637,7 @@ BEGIN
       WHEN 'execution_get' THEN workhub_private.t2_exec_get(p_ctx, a ->> 'lessonId')
       WHEN 'execution_history' THEN workhub_private.t2_exec_history(p_ctx, a ->> 'lessonId', (a ->> 'anchor')::integer, a ->> 'cursor', (a ->> 'size')::integer)
       WHEN 'execution_record' THEN workhub_private.t2_exec_record(p_ctx, a -> 'command', a ->> 'key', (a ->> 'recover')::boolean)
+      WHEN 'abandon' THEN workhub_private.t2_abandon(p_ctx, a ->> 'kind', a -> 'command', a ->> 'key')
     END;
     IF v IS NULL THEN RAISE EXCEPTION 'T2_UNKNOWN_OPERATION'; END IF;
     RETURN workhub_private.p7_ok(p_ctx, p_contract, v);
@@ -621,7 +651,7 @@ BEGIN
 END $$;
 
 -- ----------------------------------------------------------------------------
--- 7. 공개 함수(이 파일 8개)
+-- 7. 공개 함수(이 파일 9개)
 -- ----------------------------------------------------------------------------
 CREATE FUNCTION public.workhub_timetable_operations_readiness(p_member_id text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -681,6 +711,14 @@ BEGIN
   PERFORM workhub_private.lock_member_roles(ctx);
   RETURN workhub_private.t2_run(ctx, 'timetable-publication.v1', 'publication_execute', jsonb_build_object('command', p_command, 'key', p_request_key, 'recover', p_recover_only));
 END $$;
+CREATE FUNCTION public.workhub_timetable_operations_abandon(p_member_id text, p_kind text, p_command jsonb, p_request_key text) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE ctx workhub_private.actor_context;
+BEGIN
+  ctx := workhub_private.member_actor(p_member_id, true);
+  PERFORM workhub_private.lock_member_roles(ctx);
+  RETURN workhub_private.t2_run(ctx, 'timetable-operations.abandon.v1', 'abandon', jsonb_build_object('kind', p_kind, 'command', p_command, 'key', p_request_key));
+END $$;
 
 COMMENT ON FUNCTION public.workhub_timetable_operations_readiness(text) IS '업무실 T2 시간표 운영: 공개 시간표를 볼 수 있는가(not_installed · basis_missing).';
 COMMENT ON FUNCTION public.workhub_timetable_operations_get(text, text, text) IS '업무실 T2 시간표 운영: 기간(31일까지)의 날짜별 수업 · 교환 요청 · 공개 이력 · 공개할 편성 초안.';
@@ -690,9 +728,10 @@ COMMENT ON FUNCTION public.workhub_timetable_operations_references(text, text, t
 COMMENT ON FUNCTION public.workhub_timetable_operations_publish_manifest(text, jsonb) IS '업무실 T2 시간표 운영: 큰 공개의 확정 명세(200건씩 쪽 지문).';
 COMMENT ON FUNCTION public.workhub_timetable_operations_publish_page(text, text, text, integer) IS '업무실 T2 시간표 운영: 확정 명세의 쪽 하나.';
 COMMENT ON FUNCTION public.workhub_timetable_publication_execute(text, jsonb, text, boolean) IS '업무실 T2 시간표 운영: 확정 명세 참조로 공개 확정(요청 번호 · 복구 조회).';
+COMMENT ON FUNCTION public.workhub_timetable_operations_abandon(text, text, jsonb, text) IS '업무실 T2 시간표 운영: 결과를 모르는 요청 번호 포기(이미 반영됐으면 접수증, 아니면 취소 기록 — 그 번호는 다시 반영되지 않음).';
 
 -- ----------------------------------------------------------------------------
--- 8. 권한 — 이 파일의 공개 함수 8개만 authenticated 에. 새 내부 함수는 API 역할 실행 불가.
+-- 8. 권한 — 이 파일의 공개 함수 9개만 authenticated 에. 새 내부 함수는 API 역할 실행 불가.
 -- ----------------------------------------------------------------------------
 DO $$
 DECLARE f regprocedure;
@@ -705,7 +744,8 @@ BEGIN
   GRANT EXECUTE ON FUNCTION public.workhub_timetable_operations_readiness(text), public.workhub_timetable_operations_get(text, text, text),
     public.workhub_timetable_operations_publish_preview(text, jsonb), public.workhub_timetable_operations_execute(text, jsonb, text, boolean),
     public.workhub_timetable_operations_references(text, text, text, text), public.workhub_timetable_operations_publish_manifest(text, jsonb),
-    public.workhub_timetable_operations_publish_page(text, text, text, integer), public.workhub_timetable_publication_execute(text, jsonb, text, boolean)
+    public.workhub_timetable_operations_publish_page(text, text, text, integer), public.workhub_timetable_publication_execute(text, jsonb, text, boolean),
+    public.workhub_timetable_operations_abandon(text, text, jsonb, text)
     TO authenticated;
 END $$;
 
@@ -715,9 +755,9 @@ COMMIT;
 -- ----------------------------------------------------------------------------
 -- 9. 검증 — 모든 행의 status 가 ok 여야 한다. T2-03-3 은 "아직 켜지 않음"이 정상이다(T2-08 전).
 -- ----------------------------------------------------------------------------
-SELECT 'T2-03-1' AS no, '공개 함수 8개 authenticated 만(anon · service_role 불가)' AS item,
+SELECT 'T2-03-1' AS no, '공개 함수 9개 authenticated 만(anon · service_role 불가)' AS item,
        CASE WHEN (SELECT count(*) FROM pg_proc WHERE pronamespace = 'public'::regnamespace
-                   AND (proname LIKE 'workhub\_timetable\_operations\_%' OR proname LIKE 'workhub\_timetable\_publication\_%')) = 8
+                   AND (proname LIKE 'workhub\_timetable\_operations\_%' OR proname LIKE 'workhub\_timetable\_publication\_%')) = 9
              AND NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
                                AND (p.proname LIKE 'workhub\_timetable\_operations\_%' OR p.proname LIKE 'workhub\_timetable\_publication\_%')
                                AND (NOT has_function_privilege('authenticated', p.oid, 'EXECUTE') OR has_function_privilege('anon', p.oid, 'EXECUTE')
