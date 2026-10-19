@@ -80,7 +80,7 @@ jobs:
         if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-release-candidate'
         run: npm run check:workhub:release
       - name: 시간표 구축의 포함 이력과 SQL·인증·공개 보존
-        if: github.event_name == 'pull_request' && (github.head_ref == 'feat/workhub-timetable-completion' || github.head_ref == 'feat/workhub-timetable-usability' || github.head_ref == 'feat/workhub-timetable-setup')
+        if: github.event_name == 'pull_request' && (github.head_ref == 'feat/workhub-timetable-completion' || github.head_ref == 'feat/workhub-timetable-usability' || github.head_ref == 'feat/workhub-timetable-setup' || github.head_ref == 'feat/workhub-timetable-setup-batch')
         run: npm run check:workhub:timetable
       - run: npm run check:workhub:design
       - run: npm test

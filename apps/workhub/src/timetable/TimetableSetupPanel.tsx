@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { canonical, ServiceError } from '../services/scoped-rpc'
-import { setupCommand, type SetupCommand, type SetupReceipt, type SetupServer, type SetupSnapshot } from './setup'
+import { setupCommand, type SetupCommand, type SetupServer, type SetupSnapshot } from './setup'
 import policy from './setup-policy.json'
+import { TimetableSetupBatchPanel } from './TimetableSetupBatchPanel'
+import { TimetableSetupChecklist } from './TimetableSetupChecklist'
 import './timetable-setup.css'
 
 type Space = SetupSnapshot['spaces'][number]
@@ -13,7 +15,7 @@ type CourseInput = { classIds: string[]; studentGroup: boolean; spaceIds: string
 type Edit = { termId: string; referenceDay: string } & (
   { kind: 'space'; original: Space | null; input: { kind: Space['kind']; label: string; capacity: string }; removing: boolean }
   | { kind: 'course'; original: Course; input: CourseInput })
-interface Props { server?: SetupServer; member: Membership; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: (receipt: SetupReceipt) => void; onOpenSchoolAdmin?: () => void }
+interface Props { server?: SetupServer; member: Membership; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: () => void; onOpenSchoolAdmin?: () => void }
 const PAGE_SIZE = 20
 const display = (row: { label: string; id: string }) => `${row.label} [${row.id}]`
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '')
@@ -52,7 +54,10 @@ function fields(edit: Edit, snapshot: SetupSnapshot, kind: 'original' | 'mine' |
 
 export function TimetableSetupPanel(props: Props) {
   const scope = recoveryScope(props.member), memory = useEditDraft<Edit>(props.member, 'timetable-setup'), recovery = usePendingRequest(props.member, 'timetableSetup')
-  const [edit, setEdit] = useState<Edit | undefined>(memory.initial), [opened, setOpened] = useState(Boolean(memory.initial || recovery.request))
+  const batchMemory = useEditDraft<unknown>(props.member, 'timetable-setup-batch'), batchRecovery = usePendingRequest(props.member, 'timetableSetupBatch')
+  const [batchLocked, setBatchLocked] = useState(Boolean(batchMemory.initial || batchRecovery.request)), [batchBusy, setBatchBusy] = useState(false)
+  const batchChanged = useCallback(() => { setReload(value => value + 1); props.onSaved?.() }, [props.onSaved])
+  const [edit, setEdit] = useState<Edit | undefined>(memory.initial), [opened, setOpened] = useState(Boolean(memory.initial || recovery.request || batchMemory.initial || batchRecovery.request))
   const [snapshot, setSnapshot] = useState<SetupSnapshot>(), [loadedScope, setLoadedScope] = useState(''), [loading, setLoading] = useState(false), [loadError, setLoadError] = useState(''), [reload, setReload] = useState(0)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [preview, setPreview] = useState(false), [confirmed, setConfirmed] = useState(false), [discarding, setDiscarding] = useState(false)
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [page, setPage] = useState(0), [spacePage, setSpacePage] = useState(0)
@@ -63,12 +68,12 @@ export function TimetableSetupPanel(props: Props) {
   const source = loadedScope === scope ? snapshot : undefined
   const visible = Boolean(source && !loading && !loadError && !props.disabled)
   const stale = Boolean(edit && source && isStale(edit, source))
-  const canEdit = visible && !locked && Boolean(source?.canEdit)
+  const canEdit = visible && !locked && !batchLocked && Boolean(source?.canEdit)
   const patch = (next: Edit | undefined) => { setEdit(next); memory.save(next, Boolean(next)); setPreview(false); setConfirmed(false); setDiscarding(false); setError(''); setNotice('') }
   const editKey = edit ? edit.kind + ':' + (edit.original?.id ?? 'new') : ''
   useEffect(() => { if (editKey) editorNode.current?.focus() }, [editKey])
   useEffect(() => () => { life.current++ }, [])
-  useEffect(() => { props.onLockChange?.(locked || Boolean(edit)); return () => props.onLockChange?.(false) }, [locked, edit, props.onLockChange])
+  useEffect(() => { props.onLockChange?.(locked || Boolean(edit) || batchLocked || Boolean(batchRecovery.request)); return () => props.onLockChange?.(false) }, [locked, edit, batchLocked, batchRecovery.request, props.onLockChange])
   useEffect(() => {
     life.current++; operation.current = false; setBusy(false); setSnapshot(undefined); setLoadedScope(''); setEdit(memory.initial); setPreview(false); setConfirmed(false); setError(''); setNotice('')
   }, [scope, memory])
@@ -142,7 +147,7 @@ export function TimetableSetupPanel(props: Props) {
       if (life.current !== epoch || current.current.scope !== token) return
       recovery.remove(request.key); patch(undefined)
       setNotice(receipt.kind === 'space_remove' ? '공간을 삭제했습니다. 기존 확정 시간표의 기록은 유지됩니다.' : '준비 입력을 저장했습니다. 시수·일과 준비에서 바뀐 학교 자료를 확인해 주세요.')
-      setReload(value => value + 1); current.current.props.onSaved?.(receipt)
+      setReload(value => value + 1); current.current.props.onSaved?.()
     } catch (failure) {
       if (life.current !== epoch || current.current.scope !== token) return
       setError(message(failure)); setConfirmed(false)
@@ -156,20 +161,21 @@ export function TimetableSetupPanel(props: Props) {
   const showComparison = Boolean(edit && source && visible && (preview || stale))
   const labels = edit?.kind === 'space' ? ['종류', '이름', '동시 수업 수'] : ['편성 여부', '담당 교사', '수강 인원', '학생 집단', '사용 공간']
 
-  return <details className="timetable-setup" open={opened} onToggle={event => { if (!locked && !edit) setOpened(event.currentTarget.open); else if (!event.currentTarget.open) event.currentTarget.open = true }}>
-    <summary onClick={event => { if (locked || edit) event.preventDefault() }}>공간·수업 연결 관리</summary>
+  return <details className="timetable-setup" open={opened} onToggle={event => { if (!locked && !edit && !batchLocked) setOpened(event.currentTarget.open); else if (!event.currentTarget.open) event.currentTarget.open = true }}>
+    <summary onClick={event => { if (locked || edit || batchLocked) event.preventDefault() }}>공간·수업 연결 관리</summary>
     <p>교실·특별실·장비와 수업의 학급을 연결합니다. 먼저 이 입력을 저장한 뒤, 주당 시수와 일과를 준비해 주세요.</p>
     {!props.server && <p className="timetable-notice">준비 입력 기능을 연결 중입니다. 학교 관리의 공식 교사·학급·수업 배정은 먼저 확인할 수 있습니다.</p>}
     {props.disabled && <p className="timetable-muted">다른 준비 입력을 저장하거나 정리한 뒤 공간·수업 연결을 편집할 수 있습니다.</p>}
-    <div className="timetable-actions"><button type="button" className="secondary" disabled={!props.server || busy || props.disabled} onClick={() => { setOpened(true); setReload(value => value + 1) }}>준비 입력 자료 다시 확인</button>{props.onOpenSchoolAdmin && <button type="button" className="secondary" disabled={locked || Boolean(edit) || props.disabled} onClick={props.onOpenSchoolAdmin}>학교 관리 열기</button>}</div>
+    <div className="timetable-actions"><button type="button" className="secondary" disabled={!props.server || busy || props.disabled || batchBusy || loading} onClick={() => { setOpened(true); setReload(value => value + 1) }}>준비 입력 자료 다시 확인</button>{props.onOpenSchoolAdmin && <button type="button" className="secondary" disabled={locked || Boolean(edit) || props.disabled || batchLocked} onClick={props.onOpenSchoolAdmin}>학교 관리 열기</button>}</div>
     {loading && <p role="status">학기와 공간·수업 연결을 확인하고 있습니다…</p>}
     {loadError && <p role="alert" className="timetable-error">{loadError} 이전 자료는 표시하지 않습니다. 작성 중인 입력은 현재 탭에 보관했습니다.</p>}
     {pending && <div className="timetable-notice"><p>저장 결과를 아직 확인하지 못했습니다. 입력과 원래 요청 번호를 보관하고 있으며, 새 저장이나 입력 폐기는 잠시 막습니다.</p><button type="button" disabled={busy || !props.server} onClick={() => void send(true)}>원래 저장 요청 결과 확인</button></div>}
     {error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status">{notice}</p>}
+    {(opened || batchLocked || batchRecovery.request) && <TimetableSetupBatchPanel server={props.server} snapshot={visible ? source : undefined} member={props.member} disabled={props.disabled || locked || Boolean(edit)} onLockChange={setBatchLocked} onActivityChange={setBatchBusy} onChanged={batchChanged} />}
     {visible && source && <>
       <p className="timetable-setup-term"><strong>{source.termLabel}</strong> · {source.firstDay} ~ {source.lastDay}<small>담당·수강 인원 확인 기준일 {source.referenceDay}</small></p>
       <div className="timetable-setup-overview"><span>공간 {source.spaces.length}개</span><span>수업 {source.courses.length}개</span><span>학생 집단 연결 필요 {source.courses.filter(row => row.inTimetable && !row.link?.studentGroup && !row.link?.classIds.length).length}개</span></div>
-      {source.findings.length > 0 && <details className="timetable-setup-findings"><summary>편성 전 확인할 항목 {source.findings.length}건</summary><ul className="timetable-issues">{source.findings.map((finding, index) => <li key={`${finding.code}:${finding.targetId}:${index}`}><strong>{finding.blocksConfirm ? '확정 전 해결' : '입력 확인'}</strong> · {finding.message}<small>대상 [{finding.targetId}]</small></li>)}</ul></details>}
+      <TimetableSetupChecklist source={source} disabled={!canEdit || Boolean(edit)} onOpen={action => { if (action.kind === 'space') { const row = source.spaces.find(value => value.id === action.id); if (row) startSpace(row) } else { const row = source.courses.find(value => value.id === action.id); if (row) startCourse(row) } }} onOpenSchoolAdmin={props.onOpenSchoolAdmin} />
       <section aria-label="공간 목록"><div className="timetable-heading"><h3>공간·공유 장비</h3><button type="button" disabled={!canEdit || Boolean(edit)} onClick={() => startSpace(null)}>공간 추가</button></div><p className="timetable-muted">동시 수업 수는 학생 좌석 수가 아닙니다. 한 공간에서 동시에 열 수 있는 수업 수를 직접 입력합니다. 모르면 비워 두세요.</p>
         {!source.spaces.length && <p>등록한 공간이 없습니다. 특별실이나 공유 장비부터 추가할 수 있습니다.</p>}
         <ul className="timetable-list">{source.spaces.slice(currentSpacePage * PAGE_SIZE, (currentSpacePage + 1) * PAGE_SIZE).map(space => <li className="timetable-list-row" key={space.id} aria-label={display(space)}><div><strong>{display(space)}</strong><small>{space.kind === 'room' ? '교실·특별실' : '공유 장비'} · {capacityText(space.capacity)}</small></div><button type="button" className="secondary" disabled={!canEdit || Boolean(edit)} onClick={() => startSpace(space)}>공간 수정</button></li>)}</ul>

@@ -1,5 +1,10 @@
 import React from 'react'
 import {createRoot} from 'react-dom/client'
+import {setupWorkbookSheets} from '../../apps/workhub/src/timetable/setup-workbook'
+import {readTimetableXlsx,writeTimetableXlsx} from '../../apps/workhub/src/timetable/xlsx'
+import hoursStyles from '../../apps/workhub/src/timetable/timetable-preparation-hours.css?inline'
+import progressStyles from '../../apps/workhub/src/timetable/preparation-progress.css?inline'
+import batchStyles from '../../apps/workhub/src/timetable/timetable-setup-batch.css?inline'
 import {TimetableSetupPanel} from '../../apps/workhub/src/timetable/TimetableSetupPanel'
 import {createTimetableSetupServer} from '../../apps/workhub/src/timetable/setup-server'
 import {TimetablePreparationPanel} from '../../apps/workhub/src/timetable/TimetablePreparationPanel'
@@ -16,7 +21,7 @@ import themeStyles from '../../apps/workhub/src/appearance/theme.css?inline'
 // React·전송 어댑터는 제품 코드이며 RPC 응답과 저장 원장만 이 합성 시험이 소유한다.
 const w:any=window,copy=(value:any)=>structuredClone(value)
 const member={id:'m',schoolId:'s',userId:'u',name:'합성 담당 교사',role:'teacher',active:true,validFrom:'2026-01-01',validThrough:'2099-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}
-w.member=member;w.calls=[];w.receipts={};w.actualWrites=0;w.drafts=createEditDrafts();w.pending=createPendingRequests();w.locked=false;w.saved=0;w.openedAdmin=0
+w.readTimetableXlsx=readTimetableXlsx;w.writeTimetableXlsx=writeTimetableXlsx;w.member=member;w.calls=[];w.receipts={};w.actualWrites=0;w.drafts=createEditDrafts();w.pending=createPendingRequests();w.locked=false;w.saved=0;w.openedAdmin=0
 w.prepWrites=0;w.confirmed=0
 w.savedPreparation={id:'prep-saved',revision:1,sourceFingerprint:'a'.repeat(64),draft:{title:'보존할 시수와 일과',slots:[{id:'slot-mon',day:1,label:'월요일 1교시',startMinute:540,endMinute:585,periods:1},{id:'slot-tue',day:2,label:'화요일 1교시',startMinute:540,endMinute:585,periods:1}],plans:[{courseId:'course-a',weeklyPeriods:2,blocks:[{id:'block-a1',periods:1,allowedSlotIds:['slot-mon','slot-tue']},{id:'block-a2',periods:1,allowedSlotIds:['slot-mon','slot-tue']}]},{courseId:'course-b',weeklyPeriods:1,blocks:[{id:'block-b1',periods:1,allowedSlotIds:['slot-mon','slot-tue']}]}]}}
 w.initialPreparation=copy(w.savedPreparation)
@@ -79,5 +84,13 @@ const connection:any={info:()=>({memberships:[member],schools:[{id:'s'}],basisDa
   return envelope(copy(w.receipts[key]))
 }}
 const server=createTimetableSetupServer(connection),preparationServer=createPreparationServer(connection)
-w.mount=()=>{w.root=createRoot(document.getElementById('root'));w.root.render(<EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{appStyles+themeStyles+baseStyles+setupStyles}</style><main className="timetable-workspace">{w.mode==='workspace'?<TimetableWorkspace connection={connection} member={member} date="2026-10-19" onNavigationLockChange={value=>w.locked=value} onOpenSchoolAdmin={()=>w.openedAdmin++}/>:w.mode==='preparation'?<TimetablePreparationPanel server={preparationServer} setupServer={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onBasisConfirmed={()=>w.confirmed++}/>:<TimetableSetupPanel server={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onSaved={()=>w.saved++} onOpenSchoolAdmin={()=>w.openedAdmin++}/>}</main></PendingRequestsProvider></EditDraftsProvider>)}
+w.mount=()=>{w.root=createRoot(document.getElementById('root'));w.root.render(<EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{appStyles+themeStyles+baseStyles+setupStyles+batchStyles+hoursStyles+progressStyles}</style><main className="timetable-workspace">{w.mode==='workspace'?<TimetableWorkspace connection={connection} member={member} date="2026-10-19" onNavigationLockChange={value=>w.locked=value} onOpenSchoolAdmin={()=>w.openedAdmin++}/>:w.mode==='preparation'?<TimetablePreparationPanel server={preparationServer} setupServer={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onBasisConfirmed={()=>w.confirmed++}/>:<TimetableSetupPanel server={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onSaved={()=>w.saved++} onOpenSchoolAdmin={()=>w.openedAdmin++}/>}</main></PendingRequestsProvider></EditDraftsProvider>)}
+w.makeBatchFile=()=>{
+  const sheets=setupWorkbookSheets(w.view,'s')
+  sheets.find(row=>row.name==='공간')!.rows.find(row=>row[0]==='room-free')![3]='2'
+  const course=sheets.find(row=>row.name==='수업연결')!.rows.find(row=>row[0]==='course-a')!
+  course[3]='class-a';course[5]='room-free'
+  return Array.from(writeTimetableXlsx(sheets))
+}
+const originalUrl=URL.createObjectURL.bind(URL);URL.createObjectURL=blob=>{w.lastBlob=blob;return originalUrl(blob)}
 w.mount()
