@@ -26,8 +26,8 @@ async function start() { await page.goto('http://127.0.0.1:5181/help'); await pa
 async function checks() { await dialog().getByRole('tab', { name: '기능 연결 점검', exact: true }).click() }
 async function test(name, run) { await start(); await run(); passed.push(name); console.log('  ✓ ' + name) }
 try {
-  await test('열람만으로 조회·저장·AI를 호출하지 않고 12개 안내와 세 단계를 보인다', async () => {
-    assert.equal(await dialog().getByRole('navigation', { name: '업무별 사용 방법' }).getByRole('button').count(), 12)
+  await test('열람만으로 조회·저장·AI를 호출하지 않고 14개 안내와 세 단계를 보인다', async () => {
+    assert.equal(await dialog().getByRole('navigation', { name: '업무별 사용 방법' }).getByRole('button').count(), 14)
     assert.equal(await dialog().locator('article ol li').count(), 3)
     assert.deepEqual(await page.evaluate(() => [window.calls, window.rpcCalls]), [[], []])
     assert.equal(await dialog().getByRole('searchbox').evaluate(element => element.getRootNode().activeElement === element), true)
@@ -45,6 +45,18 @@ try {
     await dialog().getByRole('searchbox').fill('인쇄')
     await dialog().getByRole('button', { name: '수업과 학생 열기', exact: true }).click()
     await dialog().waitFor({ state: 'hidden' }); assert.deepEqual(await page.evaluate(() => window.navigations), ['students'])
+  })
+  await test('시간표 안내는 교사와 담당자 경로를 구분하고 서버 호출 없이 기존 시간표 메뉴를 연다', async () => {
+    await dialog().getByRole('searchbox').fill('시간표')
+    const guides = dialog().getByRole('navigation', { name: '업무별 사용 방법' })
+    assert.equal(await guides.getByRole('button').count(), 2)
+    await guides.getByRole('button', { name: '시간표 확인하고 수업 교환 요청하기', exact: true }).click()
+    await dialog().getByText(/추천·동의만으로 시간표가 바뀌지 않습니다/).waitFor()
+    await guides.getByRole('button', { name: '담당자의 시간표 편성 시작하기', exact: true }).click()
+    await dialog().getByText(/연습용 예시는 학교에 저장하거나 공개하지 않습니다/).waitFor()
+    await dialog().getByRole('button', { name: '시간표 열기', exact: true }).click()
+    await dialog().waitFor({ state: 'hidden' })
+    assert.deepEqual(await page.evaluate(() => [window.navigations, window.calls, window.rpcCalls]), [['timetable'], [], []])
   })
   await test('메뉴 이동이 거절되면 도움말과 안내를 유지한다', async () => {
     await page.evaluate(() => { window.allowNavigate = false })

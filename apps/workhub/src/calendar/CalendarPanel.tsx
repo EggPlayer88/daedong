@@ -11,6 +11,7 @@ import { CalendarImport } from './CalendarImport'
 import { PendingRequestsProvider, useRecoveryStore, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 interface CalendarSession { editor?: { original?: CalendarEvent }; importing: boolean; importedCount: number }
+interface CalendarBrowseState { search: string; view: CalendarView; anchor: string; relation: CalendarRelation; allDates: boolean }
 const Icon = ({ name }: { name: 'arrow' | 'plus' }) => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d={name === 'plus' ? 'M12 5v14M5 12h14' : 'M5 12h14m-5-5 5 5-5 5'} /></svg>
 
 export function CalendarPanel(props: Parameters<typeof CalendarPanelScope>[0]) {
@@ -21,6 +22,7 @@ export function CalendarPanel(props: Parameters<typeof CalendarPanelScope>[0]) {
 function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, homeFollowUp, storageLabel, onNavigationLockChange, openRequest, onOpenBatchImport, renderLessonAgenda }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; homeFollowUp?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest; onOpenBatchImport?: () => void; renderLessonAgenda?: (date: string) => ReactNode }) {
   const recovery = usePendingRequest(member, 'calendar')
   const draft = useEditDraft<CalendarSession>(member, 'calendar-panel')
+  const browse = useEditDraft<CalendarBrowseState>(member, 'calendar-browse')
   const [session, setSession] = useState<CalendarSession>(() => draft.initial ?? { importing: false, importedCount: 0 })
   const sessionRef = useRef(session)
   const { editor, importing, importedCount } = session
@@ -46,12 +48,12 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(browse.initial?.search ?? '')
   const [todayExpanded, setTodayExpanded] = useState(false)
-  const [view, setView] = useState<CalendarView>('list')
-  const [anchor, setAnchor] = useState(date)
-  const [relation, setRelation] = useState<CalendarRelation>('all')
-  const [allDates, setAllDates] = useState(false)
+  const [view, setView] = useState<CalendarView>(browse.initial?.view ?? 'list')
+  const [anchor, setAnchor] = useState(browse.initial?.anchor ?? date)
+  const [relation, setRelation] = useState<CalendarRelation>(browse.initial?.relation ?? 'all')
+  const [allDates, setAllDates] = useState(browse.initial?.allDates ?? false)
   const [detail, setDetail] = useState<string>()
   const [message, setMessage] = useState('')
   const listGeneration = useRef(0)
@@ -62,6 +64,8 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   const id = useId()
   const recoveryMessage = useRef<HTMLElement>(null)
   const focusRecovery = useRef(false)
+  // 시간표 등 다른 메뉴에 다녀와도 보던 날짜·필터로 돌아온다. 현재 탭·소속 안에서만 기억하며 미저장 입력으로 세지 않는다.
+  useLayoutEffect(() => { browse.save({ search, view, anchor, relation, allDates }, false) }, [browse, search, view, anchor, relation, allDates])
   useLayoutEffect(() => {
     if (focusRecovery.current && !editor && recovery.request && recoveryMessage.current) {
       recoveryMessage.current.focus(); focusRecovery.current = false

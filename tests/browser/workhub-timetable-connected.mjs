@@ -2,6 +2,8 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 
 const bundle = buildSync({ stdin: { contents: `
@@ -17,7 +19,7 @@ const calendar=createMemoryAdapter(data,0),tasks=createWorkflowStore({members:da
 const ctx={...calendar.info(),schoolLabels:Object.fromEntries(data.schools.map(s=>[s.id,relationLabels])),relationLabels};
 const identity={userId:'fixture-soyeon',approved:true,profile:{id:'fixture-soyeon',name:'합성 교사',email:'test@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}};
 let identityChanged=()=>{};
-window.state={calls:[],writes:[],basisDate:data.basisDate,selectedDate:offset(data.basisDate,2),holdOperations:false,release:null,revoke:()=>{identity.userId='different-account';identity.profile.id='different-account';identityChanged()}};
+window.state={calls:[],writes:[],basisDate:data.basisDate,selectedDate:offset(data.basisDate,2),holdOperations:false,failOperations:false,release:null,revoke:()=>{identity.userId='different-account';identity.profile.id='different-account';identityChanged()}};
 const span=(day,hour)=>({startsAt:day+'T'+String(hour).padStart(2,'0')+':00:00.000Z',endsAt:day+'T'+String(hour).padStart(2,'0')+':45:00.000Z'});
 const lesson=(member,day)=>({id:member.id+'-'+day,version:1,label:day+' '+(member.id==='gaon-soyeon'?'가온':'누리')+' 원본 수업',time:span(day,0),teachers:[{id:member.id,name:member.name}],groupNames:['1학년 1반'],roomNames:['1반 교실'],state:'scheduled',canRequest:true,allowedTargets:[span(day,0),span(day,1)]});
 const connection={getIdentity:async()=>copy(identity),loadContext:async()=>copy(ctx),info:()=>copy(ctx),subscribeIdentity:f=>{identityChanged=f;return()=>{}},subscribeInvalidation:()=>()=>{},checkReadiness:async()=>({stage:'ready',code:'READY',checkedAt:now(),readySchoolCount:2}),rpcVerified:async(name,args)=>{
@@ -27,6 +29,7 @@ const connection={getIdentity:async()=>copy(identity),loadContext:async()=>copy(
  if(name==='workhub_home_overview')return env({asOf:now(),items:[],counts:{collection:0,supplement:0,message:0,student_followup:0,cooperation:0},unavailable:[]},'home.v1');
  if(name==='workhub_timetable_operations_readiness')return env({available:true});
  if(name==='workhub_timetable_operations_get'){
+  if(window.state.failOperations)throw new ContractError('QUERY_FAILED');
   const lessons=[];for(let date=args.p_from;date<args.p_until;date=offset(date,1))lessons.push(lesson(member,date));
   const response=env({asOf:now(),timeZone:'Asia/Seoul',from:args.p_from,until:args.p_until,canPublish:false,canRequest:true,drafts:[],lessons,requests:[],publications:[]});
   if(window.state.holdOperations&&args.p_until!==offset(args.p_from,1)&&member.id==='gaon-soyeon')await new Promise(resolve=>window.state.release=resolve);
@@ -113,6 +116,85 @@ try {
     const reads = await page.evaluate(() => window.state.calls.filter(row => row.name === 'workhub_timetable_operations_get'))
     assert.equal(reads.at(-1).args.p_member_id, 'nuri-soyeon')
     assert.equal(await page.evaluate(() => window.state.writes.length), 0)
+  })
+  await check('학교 일정에서 시간표를 보고 돌아오면 월 보기·날짜·검색·관련 필터를 유지한다', async () => {
+    const date = await page.evaluate(() => window.state.selectedDate)
+    await go('학교 일정')
+    await page.getByRole('group', { name: '일정 보기 방식', exact: true }).getByRole('button', { name: '월', exact: true }).click()
+    await page.locator('[data-calendar-day="' + date + '"]').click()
+    await page.getByLabel('일정 검색', { exact: true }).fill('돌아올 때 유지할 검색어')
+    await page.getByLabel('표시할 일정', { exact: true }).selectOption('related')
+    await agenda().getByRole('button', { name: new RegExp(date + ' 가온 원본 수업') }).waitFor()
+    await openLesson()
+    const back = page.getByRole('button', { name: '학교 일정으로 돌아가기', exact: true })
+    assert.equal(await back.isEnabled(), true)
+    await back.click()
+    await agenda().getByRole('button', { name: new RegExp(date + ' 가온 원본 수업') }).waitFor()
+    assert.equal(await page.locator('[data-calendar-day="' + date + '"]').getAttribute('aria-pressed'), 'true')
+    assert.equal(await page.getByLabel('일정 검색', { exact: true }).inputValue(), '돌아올 때 유지할 검색어')
+    assert.equal(await page.getByLabel('표시할 일정', { exact: true }).inputValue(), 'related')
+    assert.equal(await page.locator('.cv-month').count(), 1)
+    assert.equal(await page.getByRole('navigation', { name: '시간표 연결 동선' }).count(), 0)
+    assert.equal(await page.getByLabel('사용할 학교').isEnabled(), true, '보기 상태는 미저장 입력으로 세지 않는다')
+    assert.equal(await page.evaluate(() => window.state.writes.length), 0)
+  })
+  await check('교환 요청 작성 중에는 원래 화면으로 돌아가기도 잠기고 입력을 그대로 유지한다', async () => {
+    await openLesson()
+    await detail().getByRole('button', { name: '이 수업 변경 요청', exact: true }).click()
+    await page.getByText('시간표에서 선택한 수업으로 변경 요청을 시작합니다.', { exact: true }).waitFor()
+    await page.getByLabel('변경 요청 사유', { exact: true }).fill('돌아가기 때문에 사라지면 안 되는 사유')
+    assert.equal(await page.getByRole('button', { name: '홈으로 돌아가기', exact: true }).isDisabled(), true)
+    await page.getByText('작성 중인 내용을 마치거나 같은 요청의 결과를 확인한 뒤 돌아갈 수 있습니다.', { exact: true }).waitFor()
+    assert.equal(await page.getByLabel('변경 요청 사유', { exact: true }).inputValue(), '돌아가기 때문에 사라지면 안 되는 사유')
+    assert.equal(await page.evaluate(() => window.state.writes.length), 0)
+  })
+  await check('다른 메뉴를 거쳐 시간표를 열면 오래된 수업 연결과 돌아가기 버튼을 재사용하지 않는다', async () => {
+    await openLesson()
+    await page.getByRole('button', { name: '홈으로 돌아가기', exact: true }).click()
+    await agenda().getByRole('button', { name: /가온 원본 수업/ }).waitFor()
+    await go('시간표')
+    await page.getByRole('navigation', { name: '시간표 작업 구분', exact: true }).waitFor()
+    assert.equal(await page.getByRole('navigation', { name: '시간표 연결 동선' }).count(), 0)
+    assert.equal(await detail().count(), 0)
+  })
+  await check('시간표 조회가 실패해도 홈으로 돌아가기가 가능하고 일정은 정상적으로 다시 열린다', async () => {
+    await page.evaluate(() => window.state.failOperations = true)
+    await agenda().getByRole('button', { name: /가온 원본 수업/ }).click()
+    const back = page.getByRole('button', { name: '홈으로 돌아가기', exact: true })
+    await back.waitFor()
+    await page.waitForFunction(() => window.state.calls.filter(row => row.name === 'workhub_timetable_operations_get').length > 1)
+    assert.equal(await back.isEnabled(), true)
+    await page.evaluate(() => window.state.failOperations = false)
+    await back.click()
+    await agenda().getByRole('button', { name: /가온 원본 수업/ }).waitFor()
+    assert.equal(await page.evaluate(() => window.state.writes.length), 0)
+  })
+  await check('학교를 바꾸면 이전 학교 일정의 검색·보기와 시간표 연결을 가져오지 않는다', async () => {
+    await go('학교 일정')
+    await page.getByRole('group', { name: '일정 보기 방식', exact: true }).getByRole('button', { name: '월', exact: true }).click()
+    await page.getByLabel('일정 검색', { exact: true }).fill('이전 학교 검색어')
+    await page.getByLabel('표시할 일정', { exact: true }).selectOption('related')
+    await openLesson()
+    await page.getByLabel('사용할 학교').selectOption('nuri-soyeon')
+    await agenda().getByRole('button', { name: /누리 원본 수업/ }).waitFor()
+    await go('학교 일정')
+    assert.equal(await page.getByLabel('일정 검색', { exact: true }).inputValue(), '')
+    assert.equal(await page.getByLabel('표시할 일정', { exact: true }).inputValue(), 'all')
+    assert.equal(await page.locator('.cv-month').count(), 0)
+    assert.equal(await page.getByRole('navigation', { name: '시간표 연결 동선' }).count(), 0)
+  })
+  await check('휴대폰에서도 홈과 시간표를 왕복하고 연결 안내가 화면 밖으로 넘치지 않는다', async () => {
+    await page.setViewportSize({ width: 360, height: 800 })
+    try {
+      await openLesson()
+      const path = page.getByRole('navigation', { name: '시간표 연결 동선' })
+      await path.scrollIntoViewIfNeeded()
+      const box = await path.boundingBox()
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 360)
+      if (process.env.WORKHUB_QA_OUTPUT) { mkdirSync(process.env.WORKHUB_QA_OUTPUT, { recursive: true }); await page.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, 'mobile-return.png') }) }
+      await page.getByRole('button', { name: '홈으로 돌아가기', exact: true }).click()
+      await agenda().getByRole('button', { name: /가온 원본 수업/ }).waitFor()
+    } finally { await page.setViewportSize({ width: 1280, height: 1000 }) }
   })
   await check('계정 변경 중 도착한 시간표 응답은 이전 수업 상세를 다시 열지 않는다', async () => {
     await page.evaluate(() => window.state.holdOperations = true)

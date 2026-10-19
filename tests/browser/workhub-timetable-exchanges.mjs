@@ -18,7 +18,31 @@ async function submit(){await page.getByLabel('변경되는 수업·시간·관�
 async function request(kind){await page.evaluate(kind=>window.addRequest(kind),kind);await page.getByRole('heading',{name:kind==='own'?'내 교사 · 수업 교환':'상대 교사 · 수업 교환',exact:true}).waitFor()}
 async function action(label){await page.getByRole('button',{name:label,exact:true}).click();const panel=page.getByRole('region',{name:'변경 요청 응답 확인',exact:true});await panel.getByLabel('현재 수업과 변경 내용을 확인했습니다',{exact:true}).check();await panel.getByRole('button',{name:'확인한 응답 보내기',exact:true}).click();await page.waitForFunction(()=>window.pending.count()===0&&window.actualWrites>0)}
 try{
-await check('요청 가능한 내 수업과 상호 허용되는 미래 교환 후보만 선택한다',async()=>{await page.evaluate(()=>{const copy=structuredClone(window.view.lessons[1]);copy.id='wrong';copy.label='시간이 맞지 않는 수업';copy.allowedTargets=[];window.view.lessons.push(copy);const short=structuredClone(window.view.lessons[1]);short.id='short';short.label='교시 길이가 다른 수업';short.time.endsAt=short.time.endsAt.replace(':45:00.',':30:00.');window.view.lessons[0].allowedTargets.push(structuredClone(short.time));window.view.lessons.push(short);const past=structuredClone(window.view.lessons[0]);past.id='past';past.label='지난 수업';const today=new Date().toISOString().slice(0,10);past.time={startsAt:today+'T00:00:00.000Z',endsAt:today+'T00:45:00.000Z'};if(Date.parse(past.time.startsAt)<Date.now())window.view.lessons.push(past);window.refresh()});await page.getByLabel('변경할 내 수업',{exact:true}).waitFor();assert.equal(await page.getByLabel('변경할 내 수업',{exact:true}).locator('option').count(),2);await page.getByLabel('변경할 내 수업',{exact:true}).selectOption('one');assert.deepEqual(await page.getByLabel('교환할 상대 수업',{exact:true}).locator('option').evaluateAll(options=>options.map(o=>o.value)),['','two']);await page.getByLabel('요청할 변경 종류',{exact:true}).selectOption('move');assert.equal(await page.getByLabel('이동할 공식 시간',{exact:true}).locator('option').count(),3)})
+await check('재조회가 늦어져도 최신 내 수업과 상호 허용되는 미래 교환 후보만 선택한다',async()=>{
+  await page.evaluate(()=>{
+    const copy=structuredClone(window.view.lessons[1]);copy.id='wrong';copy.label='시간이 맞지 않는 수업';copy.allowedTargets=[];window.view.lessons.push(copy)
+    const short=structuredClone(window.view.lessons[1]);short.id='short';short.label='교시 길이가 다른 수업';short.time.endsAt=short.time.endsAt.replace(':45:00.',':30:00.');window.view.lessons[0].allowedTargets.push(structuredClone(short.time));window.view.lessons.push(short)
+    const past=structuredClone(window.view.lessons[0]);past.id='past';past.label='지난 수업';const today=new Date().toISOString().slice(0,10);past.time={startsAt:today+'T00:00:00.000Z',endsAt:today+'T00:45:00.000Z'};if(Date.parse(past.time.startsAt)<Date.now())window.view.lessons.push(past)
+    window.holdNextRead=true;window.refresh()
+  })
+  // 응답을 잡아 두어 재조회 중 선택지가 없는 순간을 매번 재현한다. 고정 시간이나 시험 재시도에 기대지 않는다.
+  await page.waitForFunction(()=>typeof window.releaseRead==='function')
+  await page.getByRole('status').filter({hasText:'시간표 운영 연결을 확인하고 있습니다…'}).waitFor()
+  const own=page.getByLabel('변경할 내 수업',{exact:true})
+  assert.equal(await own.locator('option').count(),0)
+  await page.evaluate(()=>window.releaseRead())
+  // 필드의 이전 DOM이 잠깐 보일 수 있으므로 최신 응답의 실제 선택지가 생길 때까지 기다린다.
+  await own.locator('option[value="one"]').waitFor({state:'attached'})
+  assert.deepEqual(await own.locator('option').evaluateAll(options=>options.map(o=>o.value)),['','one'])
+  await own.selectOption('one')
+  const other=page.getByLabel('교환할 상대 수업',{exact:true})
+  await other.locator('option[value="two"]').waitFor({state:'attached'})
+  assert.deepEqual(await other.locator('option').evaluateAll(options=>options.map(o=>o.value)),['','two'])
+  await page.getByLabel('요청할 변경 종류',{exact:true}).selectOption('move')
+  const targets=page.getByLabel('이동할 공식 시간',{exact:true}).locator('option')
+  await targets.nth(2).waitFor({state:'attached'})
+  assert.equal(await targets.count(),3)
+})
 await check('교환 미리보기 뒤 명시 확인을 거쳐 본인 동의와 상대 동의 대기를 기록한다',async()=>{await compose();await preview();const region=page.getByRole('region',{name:'수업 변경 미리보기'});assert.match(await region.innerText(),/국어 수업/);assert.match(await region.innerText(),/과학 수업/);assert.equal(await page.getByRole('button',{name:'내 동의와 변경 요청 보내기',exact:true}).isDisabled(),true);await submit();await page.getByText('관련 교사 동의 대기',{exact:true}).waitFor();const state=await page.evaluate(()=>({request:window.view.requests[0],lessons:window.view.lessons,original:window.originalLessons}));assert.equal(state.request.participants.find(p=>p.id==='m').response,'accepted');assert.equal(state.request.participants.find(p=>p.id==='other').response,'pending');assert.deepEqual(state.lessons,state.original)})
 await check('한 교사 수업 이동은 본인 동의 후 담당자 승인 대기이며 실제 수업은 그대로다',async()=>{await compose('move');await preview();await submit();await page.getByText('담당자 승인 대기',{exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'승인하고 시간표에 반영',exact:true}).count(),0);assert.equal(await page.evaluate(()=>JSON.stringify(window.view.lessons)===JSON.stringify(window.originalLessons)),true)})
 await check('사유가 달라지면 이전 미리보기와 확인 동의를 폐기한다',async()=>{await compose();await preview();await page.getByLabel('변경되는 수업·시간·관련 교사를 확인했으며 나는 이 변경안에 동의합니다',{exact:true}).check();await page.getByLabel('변경 요청 사유',{exact:true}).fill('수정한 업무상 사유');assert.equal(await page.getByRole('region',{name:'수업 변경 미리보기'}).count(),0);assert.equal(await page.evaluate(()=>window.actualWrites),0)})

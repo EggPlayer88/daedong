@@ -73,5 +73,11 @@ try {
     await page.getByText('동명 교사 [practice-teacher-b] · 월 07:00–08:00 · 필수 불가 추가', { exact: true }).waitFor(); await apply(); assert.equal(await page.evaluate(() => window.applied[0].unavailable[0].resourceId), 'practice-teacher-b')
     await page.getByText('여러 대상·요일에 조건 한 번에 추가', { exact: true }).click(); await page.getByLabel('일괄 조건 대상 검색', { exact: true }).fill(''); await page.getByLabel('일괄 조건 대상 종류', { exact: true }).selectOption('class'); await page.getByLabel('일괄 대상 동명 학급 [practice-class-a]', { exact: true }).waitFor(); await page.getByLabel('일괄 대상 동명 학급 [practice-class-b]', { exact: true }).waitFor()
   })
+  await check('동명 수업을 일괄 선호 미리보기에서 ID별로 구분하고 확인한 각 수업에 적용한다', async () => {
+    await page.evaluate(() => { window.basis = { ...window.basis, lessons: window.basis.lessons.map(l => ['practice-lesson-a1', 'practice-lesson-a2'].includes(l.id) ? { ...l, label: '국어 1회' } : l) }; window.refresh() })
+    await select(); await page.getByLabel('일괄 조건 종류', { exact: true }).selectOption('preferences'); await preview()
+    await page.getByText(/국어 1회 \[practice-lesson-a1\]/).waitFor(); await page.getByText(/국어 1회 \[practice-lesson-a2\]/).waitFor(); assert.equal(await page.evaluate(() => window.applied.length), 0)
+    await apply(); for (const id of ['practice-lesson-a1', 'practice-lesson-a2']) assert.equal(await page.evaluate(id => window.applied[0].preferences.some(row => row.lessonId === id), id), true)
+  })
   assert.deepEqual(errors, []); console.log(`시간표 조건 일괄 입력 브라우저 검사: ${n}개 통과`)
 } catch (error) { console.log(await page.locator('body').innerText()); throw error } finally { await browser.close() }

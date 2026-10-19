@@ -6,8 +6,11 @@ import { canonical, ServiceError } from '../services/scoped-rpc'
 import type { ExchangeInput, ExchangePreview, ExchangeRequestView, OperationCommand, OperationReceipt, OperationTime, OperationsView, RequestAction, RequestState, TimetableOperationsServer } from './operations-contracts'
 import { OperationChangeList, OperationLessonLabel } from './OperationChangeList'
 import styles from './timetable-exchanges.css?inline'
+import inboxStyles from './timetable-exchange-inbox.css?inline'
 import apiLimits from './operations-api-limits.json'
 import type { ExchangeRecommendations, OperationsExtensions } from './operations-next-contracts'
+import { exchangeAttention, exchangeFilters, exchangeNextStep, selectExchangeRequests, visibleExchangeActions, type ExchangeFilter } from './exchange-inbox'
+import { timetableDateOffset } from './operations-calendar'
 
 export interface TimetableExchangePanelProps {
   server: TimetableOperationsServer; member: Membership; view: OperationsView | null; loading: boolean; locked: boolean
@@ -40,6 +43,14 @@ function inputFor(draft: ExchangeDraft, view: OperationsView): ExchangeInput | n
   const other = swapCandidates(lesson, view).find(item => item.id === draft.otherLessonId)
   return other ? { kind: 'swap', lessonId: lesson.id, expectedVersion: lesson.version, otherLessonId: other.id, otherExpectedVersion: other.version, reason: draft.reason.trim() } : null
 }
+function ExchangeRequestDetails({ request, timeZone, selected }: { request: ExchangeRequestView; timeZone: string; selected: boolean }) {
+  const [expanded, setExpanded] = useState(() => visibleExchangeActions(request).length > 0 && Date.parse(request.expiresAt) > Date.now())
+  useEffect(() => { if (selected) setExpanded(true) }, [selected])
+  return <details className="timetable-exchange-details" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}><summary>변경 전후와 교사별 응답 보기</summary>
+    <OperationChangeList changes={request.changes} timeZone={timeZone} />
+    <ul className="timetable-exchange-consents" aria-label="교사별 동의 상태">{request.participants.map(participant => <li key={participant.id}><span>{participant.name}</span><strong>{participant.response === 'accepted' ? '동의함' : participant.response === 'rejected' ? '동의하지 않음' : '응답 대기'}</strong></li>)}</ul>
+  </details>
+}
 // 같은 학교의 권한 범위가 바뀌어도 이전 입력을 새 소속 화면에 표시하지 않는다.
 export function TimetableExchangePanel(props: TimetableExchangePanelProps) {
   return <ExchangePanelSession key={recoveryScope(props.member)} {...props} />
@@ -51,7 +62,7 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
   const [selected, setSelected] = useState<SelectedAction>(), [actionConfirmed, setActionConfirmed] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [clock, setClock] = useState(Date.now)
   const [suggestions, setSuggestions] = useState<ExchangeRecommendations>(), [replaceSource, setReplaceSource] = useState<string>()
-  const [requestFilter, setRequestFilter] = useState<'all' | 'mine' | 'active' | 'finished'>('all'), [requestLimit, setRequestLimit] = useState(20)
+  const [requestFilter, setRequestFilter] = useState<ExchangeFilter>('all'), [requestQuery, setRequestQuery] = useState(''), [requestLimit, setRequestLimit] = useState(20)
   const appliedSelection = useRef<number>()
   const life = useRef(0), operation = useRef(false), sequence = useRef(0), feedback = useRef<HTMLDivElement>(null), previewSource = useRef('')
   const sourceKey = view && !loading ? canonical([view.from, view.until, view.canRequest, view.lessons, view.requests]) : ''
@@ -161,9 +172,16 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
   }
   const source = view?.lessons.find(lesson => lesson.id === draft.lessonId)
   const myLessons = view?.lessons.filter(lesson => lesson.canRequest && futureLesson(lesson)) ?? []
-  const shownRequests = (view?.requests ?? []).filter(request => requestFilter === 'all' || requestFilter === 'mine' && request.actions.some(action => action !== 'withdraw') || requestFilter === 'active' && ['awaiting_consent', 'awaiting_approval'].includes(request.state) || requestFilter === 'finished' && !['awaiting_consent', 'awaiting_approval'].includes(request.state)).sort((a, b) => Number(b.actions.some(action => action !== 'withdraw')) - Number(a.actions.some(action => action !== 'withdraw')) || b.createdAt.localeCompare(a.createdAt))
-  return <section className="timetable-exchanges" aria-labelledby={id + '-title'}><style>{styles}</style>
-    <header><h2 id={id + '-title'}>수업 변경 요청</h2><p className="timetable-muted">변경안을 먼저 확인하고, 관련 교사의 동의와 담당자 승인 후 시간표에 반영합니다.</p></header>
+  const requests = view?.requests ?? [], shownRequests = selectExchangeRequests(requests, requestFilter, requestQuery, clock)
+  const attentionCounts = requests.reduce((counts, request) => { const attention = exchangeAttention(request, clock); return { consent: counts.consent + Number(attention.consent), approval: counts.approval + Number(attention.approval), requested: counts.requested + Number(request.requesterIsViewer) } }, { consent: 0, approval: 0, requested: 0 })
+  const requestPage = shownRequests.slice(0, requestLimit)
+  const pinnedRequest = selectedRequest && !requestPage.some(request => request.id === selectedRequest.id) ? selectedRequest : undefined
+  const displayedRequests = pinnedRequest ? [pinnedRequest, ...requestPage] : requestPage
+  function changeRequestFilter(filter: ExchangeFilter) { setRequestFilter(filter); setRequestLimit(20) }
+  function resetRequestFilters() { setRequestFilter('all'); setRequestQuery(''); setRequestLimit(20) }
+  const requestDate = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: view?.timeZone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
+  return <section className="timetable-exchanges" aria-labelledby={id + '-title'}><style>{styles}{inboxStyles}</style>
+    <header><h2 id={id + '-title'}>수업 변경 요청</h2><p className="timetable-muted">변경안을 먼저 확인하고, 관련 교사의 동의와 담당자 승인 후 시간표에 반영합니다.</p><ol className="timetable-exchange-flow" aria-label="수업 변경 진행 순서"><li>요청 보내기</li><li>관련 교사 동의</li><li>담당자 승인</li><li>시간표 반영</li></ol></header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status" className="timetable-notice">{notice}</p>}</div>
     {replaceSource && visible && <section className="ttops-pending" aria-label="기존 변경 요청 입력 보존"><p>작성 중인 요청이 있습니다. 시간표에서 선택한 수업으로 바꾸면 보내지 않은 입력을 비웁니다.</p><button type="button" disabled={unavailable} onClick={replaceSelectedSource}>기존 입력을 비우고 선택한 수업으로 시작</button><button type="button" className="secondary" disabled={unavailable} onClick={() => setReplaceSource(undefined)}>기존 입력 계속 작성</button></section>}
     {!visible ? <p role="status">{loading ? '현재 수업과 요청 권한을 확인하고 있습니다.' : '현재 권한과 수업을 확인할 때까지 보관한 변경 요청 입력을 숨깁니다.'}</p> : view && <>
@@ -197,14 +215,22 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
           <p className="timetable-muted">제출하면 내 동의도 같은 변경안에 기록됩니다. 다른 교사의 동의를 대신하지 않으며 실제 시간표는 담당자가 최종 승인할 때 바뀝니다.</p>
         </section>}
       </section>
-      <section className="timetable-card" aria-labelledby={id + '-requests'}><div className="timetable-toolbar"><h3 id={id + '-requests'}>관련 변경 요청</h3><button type="button" className="secondary" disabled={locked || busy} onClick={onReload}>요청 상태 새로 확인</button></div><p className="timetable-muted">읽음 여부를 동의로 처리하지 않습니다. 동의 완료와 시간표 반영 완료도 구분합니다.</p>
-        <label>요청 상태로 보기<select aria-label="요청 상태로 보기" value={requestFilter} onChange={event => { setRequestFilter(event.target.value as typeof requestFilter); setRequestLimit(20) }}><option value="all">전체 요청</option><option value="mine">내 응답이 필요한 요청</option><option value="active">진행 중인 요청</option><option value="finished">끝난 요청</option></select></label>
-        {!shownRequests.length ? <p>현재 조회할 수 있는 변경 요청이 없습니다.</p> : <div className="timetable-exchange-requests">{shownRequests.slice(0, requestLimit).map(request => <article key={request.id} className="timetable-exchange-request" aria-labelledby={id + '-request-' + request.id}>
-          <div className="timetable-toolbar"><h4 id={id + '-request-' + request.id}>{request.requester.name} · {request.kind === 'swap' ? '수업 교환' : '수업 이동'}</h4><strong className="timetable-badge">{statusText[request.state]}</strong></div><p className="timetable-exchange-reason">{request.reason}</p><OperationChangeList changes={request.changes} timeZone={view.timeZone} />
-          <ul className="timetable-exchange-consents" aria-label="교사별 동의 상태">{request.participants.map(participant => <li key={participant.id}><span>{participant.name}</span><strong>{participant.response === 'accepted' ? '동의함' : participant.response === 'rejected' ? '동의하지 않음' : '응답 대기'}</strong></li>)}</ul>
-          {request.state === 'awaiting_approval' && <p className="timetable-muted">관련 교사의 동의를 모았습니다. 담당자가 승인하기 전까지 실제 시간표는 그대로입니다.</p>}
+      <section className="timetable-card" aria-labelledby={id + '-requests'}><div className="timetable-toolbar"><h3 id={id + '-requests'}>관련 변경 요청</h3><button type="button" className="secondary" disabled={locked || busy} onClick={onReload}>요청 상태 새로 확인</button></div><p className="timetable-muted">현재 조회 기간 {view.from} ~ {timetableDateOffset(view.until, -1)}에 받은 요청입니다. 읽음 여부와 동의, 최종 반영은 각각 구분합니다.</p>
+        <div className="timetable-exchange-inbox-summary" role="group" aria-label="내가 확인할 변경 요청">
+          {([{ filter: 'consent', title: '내 동의', count: attentionCounts.consent }, { filter: 'approval', title: '내 승인', count: attentionCounts.approval }, { filter: 'requested', title: '내 요청', count: attentionCounts.requested }] as const).map(item => <button key={item.filter} type="button" className="secondary" aria-pressed={requestFilter === item.filter} aria-label={`${item.title} ${item.count}건 보기`} onClick={() => changeRequestFilter(item.filter)}><span>{item.title}</span><strong>{item.count}</strong></button>)}
+        </div>
+        <div className="timetable-exchange-inbox-controls"><label>요청 상태로 보기<select aria-label="요청 상태로 보기" value={requestFilter} onChange={event => changeRequestFilter(event.target.value as ExchangeFilter)}>{Object.entries(exchangeFilters).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>변경 요청 검색<input type="search" value={requestQuery} onChange={event => { setRequestQuery(event.target.value); setRequestLimit(20) }} placeholder="교사, 수업, 학급, 요청 사유" aria-label="변경 요청 검색" /></label></div>
+        <div className="timetable-exchange-inbox-results"><p role="status">{exchangeFilters[requestFilter]} {shownRequests.length}건 · 전체 {requests.length}건{pinnedRequest ? ' · 확인 중인 요청 1건 별도 표시' : ''}</p>{(requestFilter !== 'all' || requestQuery) && <button type="button" className="secondary" onClick={resetRequestFilters}>검색·필터 초기화</button>}</div>
+        {pinnedRequest && <p className="timetable-notice">확인 중인 요청은 검색·필터와 관계없이 함께 표시합니다. 응답 확인을 닫으면 원래 목록으로 돌아갑니다.</p>}
+        {!shownRequests.length && <p className="timetable-exchange-empty">{!requests.length ? '현재 조회 기간에 확인할 변경 요청이 없습니다. 다른 기간의 요청은 조회 기간을 바꿔 확인해 주세요.' : requestQuery.trim() ? '검색 조건에 맞는 요청이 없습니다. 검색어를 줄이거나 검색·필터를 초기화해 주세요.' : requestFilter === 'consent' || requestFilter === 'approval' || requestFilter === 'mine' ? '지금 내가 응답할 요청이 없습니다. 이미 응답한 요청은 진행 중인 요청이나 전체 요청에서 확인할 수 있습니다.' : '선택한 상태의 요청이 없습니다. 전체 요청에서 다른 상태를 확인해 주세요.'}</p>}
+        {displayedRequests.length > 0 && <div className="timetable-exchange-requests">{displayedRequests.map(request => <article key={request.id} className={'timetable-exchange-request' + (pinnedRequest?.id === request.id ? ' timetable-exchange-pinned' : '')} aria-labelledby={id + '-request-' + request.id}>
+          <div className="timetable-toolbar"><h4 id={id + '-request-' + request.id}>{request.requester.name} · {request.kind === 'swap' ? '수업 교환' : '수업 이동'}</h4><strong className="timetable-badge">{statusText[request.state]}</strong></div><p className="timetable-exchange-reason">{request.reason}</p>
+          <p className="timetable-muted">{request.changes.map(change => { const lesson = change.before ?? change.after; return `${lesson.label} · ${lesson.groupNames.join('·')}` }).join(' / ')}</p>
+          <p className="timetable-exchange-request-meta"><span>요청 {requestDate(request.createdAt)}</span><span>응답 기한 {requestDate(request.expiresAt)}</span></p><p className="timetable-exchange-next">{exchangeNextStep(request, clock)}</p>
+          <ExchangeRequestDetails request={request} timeZone={view.timeZone} selected={selected?.requestId === request.id} />
           {request.requesterIsViewer && request.state === 'awaiting_approval' && <p className="timetable-muted">본인이 요청한 변경은 다른 승인 담당자가 확인해야 합니다.</p>}
-          <div className="timetable-actions">{request.actions.filter(action => !(action === 'approve' && request.requesterIsViewer)).map(action => <button type="button" key={action} className={action === 'approve' || action === 'accept' ? undefined : 'secondary'} disabled={unavailable || Date.parse(request.expiresAt) <= clock} onClick={() => chooseAction(request, action)}>{actionText[action]}</button>)}</div>
+          <div className="timetable-actions">{visibleExchangeActions(request).map(action => <button type="button" key={action} className={action === 'approve' || action === 'accept' ? undefined : 'secondary'} disabled={unavailable || Date.parse(request.expiresAt) <= clock} onClick={() => chooseAction(request, action)}>{actionText[action]}</button>)}</div>
           {selected?.requestId === request.id && <section className="timetable-exchange-confirm" aria-label="변경 요청 응답 확인"><h5>{actionText[selected.action]}</h5><p>{selected.action === 'approve' ? '현재 수업판·모든 교사의 동의·자원 충돌을 서버가 다시 검사한 뒤 수업 전체를 함께 반영합니다.' : selected.action === 'accept' ? '지금 표시된 변경안에 동의합니다. 이 동의만으로 실제 시간표를 바꾸지 않습니다.' : selected.action === 'withdraw' ? '아직 반영되지 않은 요청을 철회합니다.' : '이 요청을 거절하며 실제 시간표는 바꾸지 않습니다.'}</p>
             {(!selectedCurrent || !responseBeforeExpiry) && <p role="status">요청의 판 또는 기한이 바뀌었습니다. 최신 요청을 다시 확인해 주세요.</p>}
             <label className="timetable-exchange-check"><input type="checkbox" checked={actionConfirmed} disabled={unavailable || !selectedCurrent || !responseBeforeExpiry} onChange={event => setActionConfirmed(event.target.checked)} />현재 수업과 변경 내용을 확인했습니다</label>

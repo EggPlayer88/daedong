@@ -9,5 +9,6 @@
   "hardTimeoutGraceSeconds": 5,
   "pollIntervalMilliseconds": 100,
   "heartbeatIntervalMilliseconds": 1000,
-  "retentionDays": 7
+  "retentionDays": 7,
+  "orphanCleanupAfterSeconds": 3600
 }

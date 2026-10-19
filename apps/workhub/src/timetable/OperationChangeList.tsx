@@ -6,7 +6,8 @@ export function operationDate(instant: string, timeZone: string): string {
   return ['year', 'month', 'day'].map(kind => parts.find(part => part.type === kind)?.value).join('-')
 }
 export function operationClock(instant: string, timeZone: string): string {
-  return new Intl.DateTimeFormat('ko-KR', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(instant))
+  // 분 단위 수업은 간결하게, 실제 초가 있는 수업은 상세·변경 비교에서도 그대로 보여 준다.
+  return new Intl.DateTimeFormat('ko-KR', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(new Date(instant)).replace(/:00$/, '')
 }
 export function dateOffset(date: string, days: number): string {
   const value = new Date(`${date}T00:00:00.000Z`)

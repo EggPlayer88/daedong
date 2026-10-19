@@ -83,16 +83,22 @@ class LocalWorker:
         self.store = store
         self.worker_id = str(uuid.uuid4())
         self.last_heartbeat = 0
+        self.recovery_required = set()
 
     def heartbeat(self, state='ready', request_id=None, force=False):
         if force or time.monotonic() - self.last_heartbeat >= POLICY['heartbeatIntervalMilliseconds'] / 1000:
-            atomic_json(self.store.root / 'worker.json', dict(contract=CONTRACT, queueId=self.store.queue['queueId'], workerId=self.worker_id,
-                        state=state, updatedAt=now(), activeRequestId=request_id))
-            self.last_heartbeat = time.monotonic()
+            try:
+                atomic_json(self.store.root / 'worker.json', dict(contract=CONTRACT, queueId=self.store.queue['queueId'], workerId=self.worker_id,
+                            state=state, updatedAt=now(), activeRequestId=request_id))
+                self.last_heartbeat = time.monotonic()
+            except (JobError, OSError):
+                # 알림 파일 하나의 기록 실패로 계산·복구 감독까지 종료하지 않는다.
+                return False
+        return True
 
     def reconcile(self, confirm_stopped=None):
         """접수증을 복원하되 실행을 추측해서 다시 시작하지 않는다. 호출자는 작업자 잠금을 보유한다."""
-        blocked = []
+        blocked = list(self.recovery_required)
         for directory in self.store.directories():
             manifest = None
             try:
@@ -119,27 +125,51 @@ class LocalWorker:
                     blocked.append(directory.name)
                     continue
                 self.store.transition(directory.name, 'interrupted', 'WORKER_INTERRUPTED')
-            except JobError:
+            except (JobError, OSError):
                 if manifest is None or manifest['deadlineAt'] is not None:
                     blocked.append(directory.name)
-        return blocked
+        return sorted(set(blocked))
 
     def cancellation(self, request_id):
         """파일 존재만으로 취소하지 않는다. 브라우저가 닫기 전/깨진 표식은 미확인이다."""
         try:
             return self.store.cancelled(request_id)
-        except JobError:
+        except (JobError, OSError):
             return None
 
     @staticmethod
     def stop_child(child):
-        if child.poll() is None:
-            child.terminate()
-            try:
-                child.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                child.kill()
-                child.wait(timeout=5)
+        try:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=5)
+            return child.poll() is not None
+        except (OSError, subprocess.TimeoutExpired):
+            # kill 이후에도 종료 확인이 안 되면 완료 접수증과 다음 계산을 허용하지 않는다.
+            return False
+
+    def safe_status(self, request_id):
+        try:
+            return self.store.status(request_id)
+        except (JobError, OSError):
+            return None
+
+    def finish(self, request_id, state, code=None):
+        try:
+            return self.store.transition(request_id, state, code)
+        except (JobError, OSError):
+            self.recovery_required.add(request_id)
+            return self.safe_status(request_id)
+
+    def stop_or_block(self, request_id, child):
+        if child is None or self.stop_child(child):
+            return True
+        self.recovery_required.add(request_id)
+        return False
 
     def execute(self, request_id):
         child = None
@@ -155,8 +185,8 @@ class LocalWorker:
             if cancellation is None:
                 return status
             if cancellation:
-                return self.store.transition(request_id, 'cancelled', 'CANCELLED')
-            size, _ = self.store.check_capacity()
+                return self.finish(request_id, 'cancelled', 'CANCELLED')
+            size, _ = self.store.check_capacity(enforce_pending=False)
             original = self.store.request(request_id)
             from runner import canonical
             reserve = len(canonical(original).encode('utf-8')) + 2 * POLICY['maximumResultBytes'] + POLICY['maximumMetadataBytes'] * 4
@@ -184,42 +214,47 @@ class LocalWorker:
                 self.heartbeat('busy', request_id)
                 if self.cancellation(request_id) is True:
                     self.store.transition(request_id, 'cancel_requested', 'CANCEL_REQUESTED')
-                    self.stop_child(child)
-                    return self.store.transition(request_id, 'cancelled', 'CANCELLED')
+                    if not self.stop_or_block(request_id, child):
+                        return self.safe_status(request_id)
+                    return self.finish(request_id, 'cancelled', 'CANCELLED')
                 if time.monotonic() - started >= duration:
-                    self.stop_child(child)
-                    return self.store.transition(request_id, 'timed_out', 'HARD_TIMEOUT')
+                    if not self.stop_or_block(request_id, child):
+                        return self.safe_status(request_id)
+                    return self.finish(request_id, 'timed_out', 'HARD_TIMEOUT')
                 if temporary.exists():
                     no_link(temporary)
                     if temporary.stat().st_size > POLICY['maximumResultBytes']:
-                        self.stop_child(child)
-                        return self.store.transition(request_id, 'failed', 'RESULT_TOO_LARGE')
+                        if not self.stop_or_block(request_id, child):
+                            return self.safe_status(request_id)
+                        return self.finish(request_id, 'failed', 'RESULT_TOO_LARGE')
                 time.sleep(POLICY['pollIntervalMilliseconds'] / 1000)
             if self.cancellation(request_id) is True:
-                return self.store.transition(request_id, 'cancelled', 'CANCELLED')
+                return self.finish(request_id, 'cancelled', 'CANCELLED')
             require(child.returncode == 0, 'ENGINE_EXITED', '계산 프로세스가 정상적으로 끝나지 않았습니다.')
             result = validate_result(request, read_json(temporary, POLICY['maximumResultBytes']))
             # 마지막까지 원본/요청 번호를 재대조한다. 결과 파일을 닫고 난 뒤 완료 상태를 공개한다.
             require(self.store.request(request_id) == request and self.store.request(request_id, snapshot=True) == request, 'REQUEST_CONFLICT')
             atomic_json(directory / 'result.json', result, exclusive=True)
-            return self.store.transition(request_id, 'succeeded')
+            return self.finish(request_id, 'succeeded')
         except JobError as error:
-            if child is not None:
-                self.stop_child(child)
-            return self.store.transition(request_id, 'failed', error.code)
+            if not self.stop_or_block(request_id, child):
+                return self.safe_status(request_id)
+            return self.finish(request_id, 'failed', error.code)
         except (KeyboardInterrupt, SystemExit):
-            if child is not None:
-                self.stop_child(child)
-            self.store.transition(request_id, 'interrupted', 'WORKER_INTERRUPTED')
+            if self.stop_or_block(request_id, child):
+                self.finish(request_id, 'interrupted', 'WORKER_INTERRUPTED')
             raise
         except OSError:
-            if child is not None:
-                self.stop_child(child)
-            return self.store.transition(request_id, 'failed', 'ENGINE_START_FAILED')
+            if not self.stop_or_block(request_id, child):
+                return self.safe_status(request_id)
+            return self.finish(request_id, 'failed', 'ENGINE_START_FAILED')
         finally:
-            if temporary is not None:
-                temporary.unlink(missing_ok=True)
-            self.heartbeat('ready', force=True)
+            if temporary is not None and request_id not in self.recovery_required:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass  # 알려진 임시 결과는 명시 cleanup까지 보존해도 된다.
+            self.heartbeat('busy' if request_id in self.recovery_required else 'ready', request_id if request_id in self.recovery_required else None, force=True)
 
     def run(self, once=False):
         with self.store.lock():
@@ -233,7 +268,7 @@ class LocalWorker:
                                 status = self.store.status(directory.name)
                                 if (status is None or status['state'] == 'queued') and self.cancellation(directory.name) is True:
                                     self.store.transition(directory.name, 'cancelled', 'CANCELLED')
-                            except JobError:
+                            except (JobError, OSError):
                                 continue  # 닫히지 않았거나 깨진 표식으로 접수증을 만들어내지 않는다.
                     blocked = self.reconcile()
                     if blocked:
@@ -253,17 +288,23 @@ class LocalWorker:
                                 continue
                             if status is None or status['state'] == 'queued':
                                 jobs.append((marker['queuedAt'], directory.name))
-                        except JobError:
+                        except (JobError, OSError):
                             continue  # 다른 정상 요청은 계속 처리하고 다음 감시에서 다시 읽는다.
                     if jobs:
+                        jobs.sort()
+                        # 외부 도구가 한도를 넘겨 썼어도 먼저 접수한 정상 작업을 희생하지 않는다.
+                        for _, excess_id in jobs[POLICY['maximumPendingJobs']:]:
+                            self.finish(excess_id, 'failed', 'QUEUE_FULL')
                         try:
-                            self.execute(min(jobs)[1])
-                        except JobError:
+                            if not self.recovery_required:
+                                self.execute(jobs[0][1])
+                        except (JobError, OSError):
                             # 검사 뒤 표식이 바뀌었으면 오류 접수증도 꾸미지 않고 다시 조회한다.
                             pass
                     else:
                         self.heartbeat()
                     if once:
+                        require(not self.recovery_required, 'RECOVERY_REQUIRED', '종료 또는 상태 기록을 확인하지 못했습니다. 다음 계산 전에 복구해 주세요.')
                         break
                     time.sleep(POLICY['pollIntervalMilliseconds'] / 1000)
             finally:

@@ -30,9 +30,9 @@
 - 편성 기본: `sql-handoff.md`와 현재 `server.ts`의 exact `timetable.v1` 계약.
 - 학교 초기 편성: `preparation-api.md`, `preparation.ts`, `preparation-server.ts`의 `timetable.preparation.v1` 계약. 공식 원본은 승인된 P1/P5/P8 자료를 참조하고 기존 배정 행을 시간표 저장으로 수정하지 않습니다.
 - 확정·교환: `operations-api.md`의 기존 `timetable-operations.v1` 계약.
-- 참조·추천·학기 전체 목록·학사 영향: `operations-next-api.md`의 `timetable-operations.next.v1` 계약.
+- 참조·추천·학기 전체 목록: `operations-next-api.md`의 `timetable-operations.next.v1` 계약. 그 문서 4절의 구 `workhub_timetable_operations_school_day_preview`는 대체됐으며 T2 SQL 설치 대상이 아닙니다.
 - 모든 신규 쓰기는 현재 학교/소속/담당 권한·판·기간·원본 지문을 서버에서 다시 검사하고 단일 트랜잭션/요청 원장/권한 있는 복구 경로를 구현해 주세요. 앱이 검사했으니 안전하다고 가정하지 않습니다.
-- 전체 학기 실행은 `publication-execution-api.md`의 `timetable-publication.v1`, 학사 변경 실행은 `school-day-execution-api.md`의 `timetable-school-day.v1`을 사용합니다. 기존 next.v1 조회와 v1 소규모 확정 계약은 유지합니다. 새 계약의 command/receipt/원키 복구 응답을 먼저 앱 parser에 대조해 주세요.
+- 전체 학기 실행은 `publication-execution-api.md`의 `timetable-publication.v1`, 학사 변경 미리보기·실행은 `school-day-execution-api.md`의 `timetable-school-day.v1`을 사용합니다. T2는 `workhub_timetable_school_day_preview`만 만들며 구 초안과 alias로 연결하지 않습니다. next.v1의 참조·추천·전체 목록 조회와 v1 소규모 확정 계약은 유지합니다. 새 계약의 command/receipt/원키 복구 응답을 먼저 앱 parser에 대조해 주세요.
 - 추천은 후보 생성·검증과 설명을 구분합니다. Claude 설명을 충돌 검증 근거로 쓰지 않습니다. 실수업 변경과 승인·알림은 명시 승인 경로만 사용합니다.
 
 먼저 실제 응답 JSON을 현재 앱 parser와 대조해 주세요. 코드 병합 가능, 비활성 SQL 설치 가능, 관리자 활성화 가능, 일반 교사 공개 가능을 각각 판정해 주세요. 운영 적용/자동 병합/일반 교사 공개를 이번 검토의 완료 처리로 실행하지 않습니다.

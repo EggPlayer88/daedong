@@ -2,6 +2,7 @@
 from contextlib import AbstractContextManager
 from datetime import datetime, timedelta, timezone
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -12,6 +13,7 @@ from jobs_contract import CONTRACT, POLICY, TERMINAL, UUID, JobError, digest, ex
 import runner
 
 JOB_FILES = frozenset(('request.json', 'ready.json', 'cancel.json', 'manifest.json', 'request.snapshot.json', 'status.json', 'result.json'))
+OS_METADATA = frozenset(('.DS_Store', 'desktop.ini', 'Thumbs.db'))
 
 
 def owned_job_file(name):
@@ -19,8 +21,8 @@ def owned_job_file(name):
 
 
 def incidental_file(name):
-    # Finder 표식과 이 모듈이 원자 기록 중 남긴 임시 파일만 허용한다.
-    return name == '.DS_Store' or any(re.fullmatch(r'\.' + re.escape(base) + r'\.[0-9a-f-]{36}\.tmp', name) for base in JOB_FILES)
+    # OS 표식·이 모듈의 원자 기록·Chrome이 알려진 파일에 남긴 교환 파일만 허용한다.
+    return name in OS_METADATA or any(re.fullmatch(r'\.' + re.escape(base) + r'\.[0-9a-f-]{36}\.tmp', name) or re.fullmatch(re.escape(base) + r'(?:\.[0-9]+)?\.crswap', name) for base in JOB_FILES)
 
 
 def no_link(path):
@@ -125,7 +127,7 @@ class JobStore:
         entries = list(target.iterdir())
         for entry in entries:
             no_link(entry)
-        require(all(entry.name == '.DS_Store' and entry.is_file() for entry in entries), 'STORE_NOT_EMPTY', '비어 있는 전용 폴더를 선택해 주세요. 기존 파일은 바꾸지 않습니다.')
+        require(all(entry.name in OS_METADATA and entry.is_file() for entry in entries), 'STORE_NOT_EMPTY', '비어 있는 전용 폴더를 선택해 주세요. 기존 파일은 바꾸지 않습니다.')
         (target / 'jobs').mkdir()
         atomic_json(target / 'queue.json', dict(contract=CONTRACT, queueId=str(uuid.uuid4()), createdAt=now(), policyVersion=POLICY['version']), exclusive=True)
         return cls(target)
@@ -151,13 +153,13 @@ class JobStore:
         result = []
         for entry in (self.root / 'jobs').iterdir():
             no_link(entry)
-            if entry.name == '.DS_Store' and entry.is_file():
+            if entry.name in OS_METADATA and entry.is_file():
                 continue
             require(bool(UUID.fullmatch(entry.name)) and entry.is_dir(), 'INVALID_LAYOUT', '작업 폴더에는 UUID 이름의 작업 디렉터리만 둘 수 있습니다.')
             result.append(entry)
         return sorted(result, key=lambda p: p.name)
 
-    def check_capacity(self):
+    def check_capacity(self, enforce_pending=True):
         size = 0
         pending = 0
         directories = self.directories()
@@ -174,7 +176,25 @@ class JobStore:
                 except JobError:
                     status = None  # 읽는 중이거나 깨진 표식은 완료로 빼지 않고 대기 수에 보수적으로 포함한다.
                 pending += status is None or status['state'] not in TERMINAL
-                require(pending <= POLICY['maximumPendingJobs'], 'QUEUE_FULL', '대기 중인 계산이 너무 많습니다.')
+                if enforce_pending:
+                    require(pending <= POLICY['maximumPendingJobs'], 'QUEUE_FULL', '대기 중인 계산이 너무 많습니다.')
+        # 격리는 접수 수만 비운다. 보존한 원본이 차지한 공간을 숨기지 않는다.
+        quarantined = self.root / '.cleanup-orphans'
+        no_link(quarantined)
+        if quarantined.exists():
+            require(quarantined.is_dir(), 'INVALID_LAYOUT')
+            for directory in quarantined.iterdir():
+                no_link(directory)
+                if directory.name in OS_METADATA and directory.is_file():
+                    size += directory.stat().st_size
+                    require(size <= POLICY['maximumStoreBytes'], 'STORE_FULL')
+                    continue
+                require(bool(UUID.fullmatch(directory.name)) and directory.is_dir(), 'INVALID_LAYOUT')
+                for entry in directory.iterdir():
+                    no_link(entry)
+                    require(entry.is_file(), 'INVALID_LAYOUT')
+                    size += entry.stat().st_size
+                    require(size <= POLICY['maximumStoreBytes'], 'STORE_FULL', '격리해 보존한 원본도 보관 용량에 포함됩니다.')
         return size, pending
 
     def marker(self, request_id):
@@ -251,6 +271,10 @@ class JobStore:
     def _submit(self, request):
         request_id = request.get('requestId') if type(request) is dict else None
         directory = self.path(request_id)
+        quarantine = self.root / '.cleanup-orphans'
+        no_link(quarantine)
+        no_link(quarantine / request_id)
+        require(not (quarantine / request_id).exists(), 'REQUEST_CONFLICT', '격리해 보존한 작업 번호는 재사용할 수 없습니다. 원본을 확인하고 새 번호로 요청해 주세요.')
         marker = dict(contract=CONTRACT, queueId=self.queue['queueId'], requestId=request_id, inputHash=request.get('inputHash'), queuedAt=now())
         validate_marker(marker, self.queue, request_id)
         validate_request(request, marker)
@@ -259,7 +283,9 @@ class JobStore:
             return self.status(request_id)
         size, pending = self.check_capacity()
         require(pending < POLICY['maximumPendingJobs'], 'QUEUE_FULL', '대기 중인 계산이 너무 많습니다.')
-        require(size + (0 if directory.exists() else len(runner.canonical(request).encode('utf-8'))) + POLICY['maximumMetadataBytes'] <= POLICY['maximumStoreBytes'], 'STORE_FULL')
+        request_bytes = len(runner.canonical(request).encode('utf-8'))
+        reserve = request_bytes + 2 * POLICY['maximumResultBytes'] + 4 * POLICY['maximumMetadataBytes']
+        require(size + (0 if directory.exists() else request_bytes) + POLICY['maximumMetadataBytes'] + reserve <= POLICY['maximumStoreBytes'], 'STORE_FULL')
         if directory.exists():
             require({entry.name for entry in directory.iterdir() if not incidental_file(entry.name)} == {'request.json'}, 'REQUEST_CONFLICT', '미확인 파일이 있는 작업 번호를 재사용할 수 없습니다.')
             require(read_json(directory / 'request.json', runner.POLICY['maximumRequestBytes']) == request, 'REQUEST_CONFLICT')
@@ -296,12 +322,80 @@ class JobStore:
         require(status is not None and status['state'] == 'succeeded', 'RESULT_NOT_READY', '완료된 계산 결과가 아직 없습니다.')
         return validate_result(self.request(request_id, snapshot=True), read_json(self.path(request_id) / 'result.json', POLICY['maximumResultBytes']))
 
+    def orphan_snapshot(self, directory):
+        """미접수 흔적만 격리한다. 빈 manifest/status도 실행 가능성의 증거로 보존한다."""
+        no_link(directory)
+        if not directory.is_dir():
+            return None
+        entries = sorted(directory.iterdir(), key=lambda item: item.name)
+        permitted = frozenset(('request.json', 'ready.json'))
+        records = []
+        directory_info = directory.stat()
+        latest = directory_info.st_mtime_ns
+        for entry in entries:
+            no_link(entry)
+            if not entry.is_file():
+                return None
+            known_temporary = any(re.fullmatch(r'\.' + re.escape(base) + r'\.[0-9a-f-]{36}\.tmp', entry.name) or re.fullmatch(re.escape(base) + r'(?:\.[0-9]+)?\.crswap', entry.name) for base in permitted)
+            if entry.name not in permitted and entry.name not in OS_METADATA and not known_temporary:
+                return None
+            before = entry.stat()
+            latest = max(latest, before.st_mtime_ns)
+            # 예상하지 않은 큰 파일까지 읽거나 지우지 않는다.
+            if before.st_size > runner.POLICY['maximumRequestBytes']:
+                return None
+            with open(entry, 'rb') as source:
+                content = source.read(runner.POLICY['maximumRequestBytes'] + 1)
+            after = entry.stat()
+            if (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns) != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns) or len(content) != before.st_size:
+                return None
+            records.append((entry.name, before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns, hashlib.sha256(content).hexdigest()))
+        if latest > int((datetime.now(timezone.utc).timestamp() - POLICY['orphanCleanupAfterSeconds']) * 1_000_000_000):
+            return None
+        ready_path = directory / 'ready.json'
+        if ready_path.exists():
+            try:
+                ready = read_json(ready_path, POLICY['maximumMetadataBytes'])
+            except JobError as error:
+                if error.code != 'FILE_UNREADABLE':
+                    return None
+                ready = None
+            if ready is not None:
+                # 식별자가 다른 완성/부분 마커는 오래된 빈 쓰기로 간주하지 않는다.
+                if type(ready) is not dict or any(key in ready and ready[key] != expected for key, expected in (('contract', CONTRACT), ('queueId', self.queue['queueId']), ('requestId', directory.name))):
+                    return None
+                try:
+                    validate_marker(ready, self.queue, directory.name)
+                    return None  # 완성된 ready는 오래된 정상 대기 작업이다.
+                except JobError:
+                    pass
+        after_directory = directory.stat()
+        if (directory_info.st_dev, directory_info.st_ino, directory_info.st_mtime_ns) != (after_directory.st_dev, after_directory.st_ino, after_directory.st_mtime_ns):
+            return None
+        return digest({'directory': [directory_info.st_dev, directory_info.st_ino, directory_info.st_mtime_ns], 'files': records})
+
     def cleanup(self, apply=False, request_id=None):
+        # CLI 접수와 정리는 공유 잠금으로 배제한다. 브라우저는 연결 해제 후 명시 실행한다.
+        with self.submission_lock():
+            return self._cleanup(apply, request_id)
+
+    def _cleanup(self, apply=False, request_id=None):
         cutoff = datetime.now(timezone.utc) - timedelta(days=POLICY['retentionDays'])
         candidates = []
+        terminal_states = {}
+        orphans = {}
         directories = [self.path(request_id)] if request_id is not None else self.directories()
         for directory in directories:
-            status = self.status(directory.name)
+            orphan = self.orphan_snapshot(directory)
+            if orphan is not None:
+                orphans[directory.name] = orphan
+                continue
+            try:
+                status = self.status(directory.name)
+            except JobError:
+                if request_id is not None:
+                    raise
+                continue  # 손상된 실행 기록은 정리 대상이 아니다. 다른 완료 작업만 검사한다.
             if request_id is not None:
                 require(status is not None and status['state'] in TERMINAL, 'JOB_NOT_FINISHED', '완료된 작업만 정리할 수 있습니다.')
             if status is None or status['state'] not in TERMINAL or (request_id is None and timestamp(status['finishedAt']) > cutoff):
@@ -311,13 +405,53 @@ class JobStore:
             for entry in entries:
                 no_link(entry)
             candidates.append(directory.name)
+            terminal_states[directory.name] = status
+        plan_path = self.root / '.orphan-cleanup-preview.json'
+        plan = {'queueId': self.queue['queueId'], 'selectedRequestId': request_id, 'fingerprints': orphans}
+        quarantined = []
         if apply:
-            for request_id in candidates:
-                directory = self.path(request_id)
+            if orphans:
+                require(plan_path.exists(), 'CLEANUP_PREVIEW_REQUIRED', '미접수 파일은 cleanup 미리보기를 먼저 실행해 주세요.')
+            if plan_path.exists():
+                previous = read_json(plan_path, POLICY['maximumStoreBytes'])
+                exact(previous, 'queueId selectedRequestId fingerprints')
+                require(previous['queueId'] == self.queue['queueId'] and type(previous['fingerprints']) is dict, 'CLEANUP_PREVIEW_REQUIRED', '같은 범위의 cleanup 미리보기를 다시 실행해 주세요.')
+                if orphans or (previous['selectedRequestId'] == request_id and previous['fingerprints']):
+                    require(previous['selectedRequestId'] == request_id, 'CLEANUP_PREVIEW_REQUIRED', '같은 범위의 cleanup 미리보기를 다시 실행해 주세요.')
+                    for orphan_id, fingerprint in previous['fingerprints'].items():
+                        require(orphans.get(orphan_id) == fingerprint, 'CLEANUP_CHANGED', '미리보기 뒤 파일이 바뀌었습니다. 연결을 해제하고 다시 확인해 주세요.')
+                    # 미리보기에 없던 파일은 나중에 오래되었어도 이번 실행에서 격리하지 않는다.
+                    orphans = previous['fingerprints']
+            if orphans:
+                target = self.root / '.cleanup-orphans'
+                no_link(target)
+                target.mkdir(exist_ok=True)
+                require(target.is_dir(), 'INVALID_LAYOUT')
+                for orphan_id, fingerprint in orphans.items():
+                    directory = self.path(orphan_id)
+                    require(self.orphan_snapshot(directory) == fingerprint, 'CLEANUP_CHANGED')
+                    destination = target / orphan_id
+                    no_link(destination)
+                    require(not destination.exists(), 'CLEANUP_CHANGED', '이미 격리된 같은 번호가 있습니다. 파일을 덮어쓰지 않습니다.')
+                    directory.rename(destination)
+                    if self.orphan_snapshot(destination) != fingerprint:
+                        # 열린 브라우저 핸들이 뒤늦게 쓰더라도 원본은 삭제하지 않는다.
+                        if not directory.exists():
+                            destination.rename(directory)
+                        raise JobError('CLEANUP_CHANGED', '이동 중 파일이 바뀌어 보존했습니다. 모든 접수를 중단하고 다시 확인해 주세요.')
+                    quarantined.append(orphan_id)
+            for candidate_id in candidates:
+                directory = self.path(candidate_id)
+                status = self.status(candidate_id)
+                require(status == terminal_states[candidate_id], 'CLEANUP_CHANGED')
                 # 확인한 전용 파일만 지운다. 재귀 삭제/연결 추적은 하지 않는다.
                 for entry in directory.iterdir():
                     no_link(entry)
                     require(owned_job_file(entry.name) and entry.is_file(), 'UNKNOWN_FILES')
                     entry.unlink()
                 directory.rmdir()
-        return dict(applied=apply, retentionDays=POLICY['retentionDays'], requestIds=candidates)
+        else:
+            atomic_json(plan_path, plan)
+        return dict(applied=apply, retentionDays=POLICY['retentionDays'], requestIds=candidates,
+                    deletedRequestIds=candidates if apply else [], orphanRequestIds=list(orphans), quarantinedRequestIds=quarantined,
+                    orphanCleanupAfterSeconds=POLICY['orphanCleanupAfterSeconds'])

@@ -76,9 +76,9 @@ RPC:
 
 `p_input`은 기존 `PublishInput`. 응답 exact 타입은 `PublicationManifest` / `PublicationChangePage`.
 
-manifest는 미리보기 ID·해시, 기준자료 fingerprint, 원래 입력, 학교 timeZone, 생성·만료 시각, 전체 변경 건수, 페이지 크기, 순서대로 고정된 페이지 해시, 전체 blockers 건수, 보존 약속을 포함한다. 전체 변경 최대 **100,000건**, 페이지 최대 **200건**, 페이지 수 최대 **500개**다. K-5 지연 측정에 따라 기존 250,000건·1,250쪽 한도를 낮췄다. 조회마다 기존 신원 재확인을 유지하고 미리보기 수명은 최대 15분이다. 이 한도도 모든 회선에서 완료 시간을 보장하지 않는다.
+manifest는 미리보기 ID·해시, 기준자료 fingerprint, 원래 입력, 학교 timeZone, 생성·만료 시각, 전체 변경 건수, 페이지 크기, 순서대로 고정된 페이지 해시, 전체 blockers 건수, 보존 약속을 포함한다. 전체 변경 최대 **100,000건**, **`pageSize: 200` 고정**, 페이지 수 최대 **500개**다. 마지막 페이지에만 나머지 1~200건을 담는다. 전체가 200건보다 적어도 pageSize는 200이다. K-5 지연 측정에 따라 기존 250,000건·1,250쪽 한도를 낮췄다. 조회마다 기존 신원 재확인을 유지하고 미리보기 수명은 최대 15분이다. 이 한도도 모든 회선에서 완료 시간을 보장하지 않는다.
 
-한도를 넘으면 SQL은 일부 목록을 `complete:true`로 반환하지 않는다. 더 짧은 공개 날짜 구간으로 다시 미리보기를 만들도록 안내한다. 각 구간의 실제 변화·과거 자료·기존 교환 보존을 각각 검사하며, 날짜별 구간 분할이 기존 변경을 덮어쓰는 근거가 되지 않는다. 지연 재현 도구는 `scripts/benchmark-workhub-timetable-publication.mjs`, 측정 조건과 결과는 `review-fixes.md`의 K-5 절에 기록한다.
+요청한 적용 범위가 한도를 넘으면 SQL은 정상 오류 envelope의 `error:{code:'INVALID_INPUT'}`을 반환한다. 초과 manifest나 일부 목록을 `data` / `complete:true`로 반환하지 않는다. 앱은 입력을 유지하고 "적용 기간을 나누어 다시 확인"하도록 안내한다. 반면 성공 응답으로 온 초과 totalChanges, 200이 아닌 pageSize, 잘못된 해시·학교·구조는 `INVALID_RESPONSE`다. 정상적인 범위 거절과 손상·위조 응답을 같은 입력 오류로 바꾸지 않는다. 각 구간의 실제 변화·과거 자료·기존 교환 보존을 각각 검사하며, 날짜별 구간 분할이 기존 변경을 덮어쓰는 근거가 되지 않는다. 지연 재현 도구는 `scripts/benchmark-workhub-timetable-publication.mjs`, 측정 조건과 결과는 `review-fixes.md`의 K-5 절에 기록한다.
 
 해시 규칙:
 

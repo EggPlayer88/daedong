@@ -15,6 +15,7 @@ const scripts = [
   'workhub-timetable-publication-commit', 'workhub-timetable-school-day-commit', 'workhub-timetable-operation-recovery',
   'workhub-timetable-preparation-editing', 'workhub-timetable-adjustments', 'workhub-timetable-preflight',
   'workhub-timetable-local-engine', 'workhub-timetable-published-export', 'workhub-timetable-condition-batch',
+  'workhub-timetable-board-usability', 'workhub-timetable-editor-usability', 'workhub-timetable-exchange-inbox',
   'workhub-school-setup', 'workhub-tasks', 'workhub-connection', 'workhub-connection-exit', 'workhub-draft-recovery', 'workhub-day-refresh', 'workhub-readiness',
   'workhub-navigation', 'workhub-help', 'workhub-foundation', 'workhub-calendar-views',
   'workhub-calendar-recovery', 'workhub-calendar-import', 'workhub-cooperation-batch', 'workhub-cooperation-handover', 'workhub-request-recovery',

@@ -96,6 +96,7 @@ export function TimetableAssistantPanel(props: Props) {
     finally { if (epoch === life.current) { operation.current = false; setBusy(false) } }
   }
   const targetLabels = useMemo(() => conditionTargetLabels(props.basis?.resources ?? []), [props.basis?.resources])
+  const lessonLabels = useMemo(() => conditionTargetLabels(props.basis?.lessons ?? []), [props.basis?.lessons])
   const selected = props.basis?.resources.find(r => r.id === resourceId)
   return <details className="timetable-card" style={{ overflowWrap: 'anywhere' }} open={expanded || !!pending} onToggle={event => setExpanded(event.currentTarget.open)}><summary>Claude와 조건 정리하기</summary>
     <p>교사·학급·공간을 고르고 필요한 조건을 말로 설명해 주세요. 답변은 확인 후 반영하며 수업을 자동으로 옮기거나 요청을 보내지 않습니다.</p>
@@ -109,7 +110,7 @@ export function TimetableAssistantPanel(props: Props) {
     {busy && <p role="status">원래 요청과 기준자료를 확인하고 있습니다…</p>}{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {proposal && <section aria-label="AI 조건 제안"><h3>제안 검토</h3><p>{proposal.value.summary}</p>{proposal.value.questions.length ? <><ul>{proposal.value.questions.map((q, i) => <li key={i}>{q}</li>)}</ul><p>질문의 답을 요청에 보완한 뒤 다시 확인해 주세요. 아직 반영할 조건은 없습니다.</p></> : <><ul>{proposal.value.changes.map((c, i) => {
       const slot = props.basis?.slots.find(s => s.id === c.slotId), resource = 'resourceId' in c ? props.basis?.resources.find(r => r.id === c.resourceId) : undefined
-      const target = resource && props.basis ? targetLabels.get(resource.id) : 'lessonId' in c ? props.basis?.lessons.find(l => l.id === c.lessonId)?.label : ''
+      const target = resource && props.basis ? targetLabels.get(resource.id) : 'lessonId' in c ? lessonLabels.get(c.lessonId) : ''
       const preference = review?.value?.preferences.find(row => row.index === i)
       return <li key={i}>{target} · {slot ? `${['', '월', '화', '수', '목', '금', '토', '일'][slot.day]} ${slot.label}` : '시간대 확인 필요'} · {c.kind === 'fix' ? '반드시 배치' : c.kind === 'block' ? '배치 불가' : `가능하면 피하기 ${c.weight}`}{preference && <p>기존 {preference.before ?? '없음'} → 반영 {preference.after}{preference.after > preference.proposed ? ' · AI 제안보다 강한 기존 선호를 유지합니다.' : ''}</p>}</li>
     })}</ul>

@@ -25,8 +25,8 @@ def main():
         elif name == 'recover':
             command.add_argument('--confirm-stopped', help='PID 미기록 또는 생성 토큰으로 PID 재사용을 확인한 작업의 실제 종료를 사용자가 확인한 UUID')
         elif name == 'cleanup':
-            command.add_argument('--apply', action='store_true', help='기본은 대상 미리보기; 보관기간 지난 완료 작업만 삭제')
-            command.add_argument('--request-id', help='직접 선택한 완료 작업 한 개는 보관기간 전에도 미리보기/정리')
+            command.add_argument('--apply', action='store_true', help='미리보기 뒤 적용: 완료 작업 삭제, 1시간 지난 미접수 파일은 원본 보존 격리')
+            command.add_argument('--request-id', help='직접 선택한 완료 작업은 보관기간 전 정리; 미접수 파일은 최소 1시간 경과 필수')
     args = parser.parse_args()
     try:
         store = JobStore.initialize(args.store) if args.command == 'init' else JobStore(args.store)
