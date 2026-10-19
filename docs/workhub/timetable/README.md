@@ -1,5 +1,7 @@
 # 시간표 구축 — 편성, 교사 조회, 날짜별 변경
 
+> 2026-10-19 운영 마무리 묶음: [이번 구현·남은 구축·진척도](operations-completion.md), [자동 검증](operations-completion-verification.md), [실시 기록 계약](execution-records-api.md), [Claude SQL 인계](operations-completion-sql-handoff.md), [사용자 결정 목록](operations-decisions-pending.md). 검토된 #70 위에 후속 PR 하나로 통합하며 실제 SQL/배포/활성화는 포함하지 않는다.
+
 > 2026-10-19 PR #70 추가 통합: [대상 학기 선택](target-selection.md), [U-1 날짜가 지난 준비 엑셀](setup-workbook-day.md), [U-2 일괄 저장 충돌 복구](setup-conflict-recovery.md). #71 계약에 맞춘 앱 작업이며 DB 적용은 포함하지 않는다. [최신 검증](flow-verification.md), [Claude 전달문](flow-review-request.md).
 
 > 2026-10-19 일괄 준비 후속: [공간·연결·시수 엑셀·순차 저장·입력 점검](setup-batch-implementation.md), [Claude 검토 요청](setup-batch-review-request.md). #68 준비 화면 위에 묶었으며 추가 SQL은 없다.
