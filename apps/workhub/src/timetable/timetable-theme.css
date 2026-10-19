@@ -1,0 +1,13 @@
+/* 시간표가 단독으로 열려도 기본색을 제공하고, 업무실에서는 사용자가 고른 공통 스킨을 따른다. */
+:is(.timetable-workspace,.timetable-operations,.ttagenda,.timetable-entry-navigation){
+  --text:var(--ui-text,#242a33);--text-muted:var(--ui-muted,#626e7e);--muted:var(--ui-muted,#626e7e);
+  --surface:var(--ui-surface,#fff);--surface-soft:var(--ui-surface-muted,#f6f7f9);--surface-subtle:var(--ui-surface-muted,#f6f7f9);
+  --border:var(--ui-line,#e2e6ed);--accent:var(--ui-accent,#315ed3);--accent-soft:var(--ui-accent-soft,#edf2ff);--on-accent:var(--ui-on-accent,#fff);
+  --tt-danger:var(--ui-danger,#a33e36);--tt-danger-soft:var(--ui-danger-soft,#fff0ed);
+  --tt-warning:var(--ui-warning,#89601a);--tt-warning-soft:var(--ui-warning-soft,#fff6e5);
+  min-width:0;overflow-wrap:anywhere;
+}
+.timetable-entry-navigation button{font:inherit;min-height:44px;max-width:100%;padding:9px 14px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);cursor:pointer;overflow-wrap:anywhere}
+.timetable-entry-navigation button[aria-pressed=true]{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:650}
+.timetable-entry-navigation button:focus-visible{outline:3px solid var(--ui-focus,var(--accent));outline-offset:3px}
+.timetable-entry-navigation button:disabled{opacity:.55;cursor:not-allowed}
