@@ -30,7 +30,7 @@ def iso(dt): return dt.astimezone(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%
 
 
 class O(A):
-    """T1 공개 함수(A) + T2 공개 함수 15개. 응답을 앱 대조용으로 남긴다."""
+    """T1 공개 함수(A) + T2 공개 함수 16개. 응답을 앱 대조용으로 남긴다."""
     def keep2(self, kind, raw, **extra):
         if OUT: captures.append({'kind': kind, 'at': int(time.time() * 1000), 'scope': {'schoolId': self.school, 'memberId': self.member, 'userId': self.uid}, 'raw': raw if isinstance(raw, dict) else None,
                                  'error': None if isinstance(raw, dict) else raw, **extra})
@@ -54,6 +54,8 @@ class O(A):
     def ehist(self, lid, anchor, cur, size=20): return self.keep2('execution_history', self.go('workhub_timetable_execution_history', lid, anchor, cur, size), lessonId=lid, anchor=anchor, cursor=cur)
     def erec(self, cmd, k=None, recover=False):
         k = k or key(); return self.keep2('execution_record', self.go('workhub_timetable_execution_record', cmd, k, recover), command=cmd, key=k, recover=recover)
+    # 요청 번호 포기 — 앱 parser 가 아직 없어(Codex 와 계약 맞추는 중) 앱 대조용으로 남기지 않는다
+    def abandon(self, kind, cmd, k): return self.go('workhub_timetable_operations_abandon', kind, cmd, k)
 
 
 def main():
@@ -119,7 +121,7 @@ def body():
     # ======================================================================= B. 접근 경계 · 켜기 전
     c = api(None, 'anon')
     pubs = [r[0] for r in sqlfile(text="select p.oid::regprocedure::text from pg_proc p where p.pronamespace='public'::regnamespace and p.proname ~ '^workhub_timetable_(operations|publication|exchange|school_day|execution)_' order by 1")]
-    check('B01 T2 공개 함수 15개 · anon · service_role 실행 불가 · authenticated 만', len(pubs) == 15 and scalar(
+    check('B01 T2 공개 함수 16개 · anon · service_role 실행 불가 · authenticated 만', len(pubs) == 16 and scalar(
         "select bool_and(has_function_privilege('authenticated', p.oid, 'EXECUTE') and not has_function_privilege('anon', p.oid, 'EXECUTE') and not has_function_privilege('service_role', p.oid, 'EXECUTE')) from pg_proc p where p.pronamespace='public'::regnamespace and p.proname ~ '^workhub_timetable_(operations|publication|exchange|school_day|execution)_'"),
           pubs)
     c = api(T[21])
@@ -394,6 +396,46 @@ def body():
     sqlfile(text=module_sql('P2-81_모듈재개.sql', 'timetable', '시험 재개'))
     check('H04 사용 뒤 T2-07 FAIL 없음', not fails(t207()), fails(t207()))
     check('H05 원장(요청 번호) 행은 고칠 수 없음', sqlerr("update workhub.timetable_operation_requests set response='{}'") != 'OK')
+    # ======================================================================= I. 요청 번호 포기(취소 기록)
+    def eligible(exclude):
+        G_ = d(t[21].oget(F, DAY(29)))
+        return [l_ for l_ in G_['lessons'] if any(x['id'] == M[21] for x in l_['teachers']) and l_['state'] == 'scheduled' and l_['id'] not in exclude]
+    ab = adm.abandon('operations', cmd_pub, k_pub); AB = d(ab) or {}
+    check('I01 이미 반영된 번호 포기 → outcome applied · 원래 접수증 그대로 · 원장 행 그대로', ok(ab) and AB.get('outcome') == 'applied'
+          and AB['receipt'] == d(rp) and set(AB) == {'kind', 'requestKey', 'commandHash', 'outcome', 'receipt', 'decidedAt'}
+          and n('timetable_operation_requests', "outcome='abandoned'") == 0, ab)
+    check('I02 반영된 번호를 다른 명령으로 포기 → IDEMPOTENCY_CONFLICT', ecode(adm.abandon('operations', dict(cmd_pub, kind='submit'), k_pub)) == 'IDEMPOTENCY_CONFLICT')
+    lg, lh, li = eligible({le['id'], lf['id']})[:3]
+    for l_ in (lg, lh, li):
+        call(run, "update workhub.timetable_lessons set starts_at = starts_at - interval '14 days', ends_at = ends_at - interval '14 days' where id=%s", (l_['id'],))
+    kg = key(); cmd_g = ecmd(lg['id'], lg['version'], 0, None, 'completed', '늦은 원요청')
+    a1 = t[21].abandon('execution', cmd_g, kg); a2 = t[21].abandon('execution', cmd_g, kg); A1 = d(a1) or {}
+    check('I03 모르는 번호 포기 → outcome abandoned · receipt null · 다시 포기해도 같은 응답(같은 decidedAt)', ok(a1) and A1['outcome'] == 'abandoned'
+          and A1['receipt'] is None and A1['commandHash'] == scalar("select workhub_private.p2_sha(%s::jsonb)", (json.dumps(cmd_g),)) and a1 == a2
+          and n('timetable_operation_requests', "outcome='abandoned'") == 1, [a1, a2])
+    check('I04 포기한 번호로 늦게 온 최초 요청 · 복구 조회 → CONFLICT · 다른 명령 → IDEMPOTENCY_CONFLICT · 기록 0 · 새 번호로는 기록됨',
+          [ecode(t[21].erec(cmd_g, kg)), ecode(t[21].erec(cmd_g, kg, recover=True)), ecode(t[21].erec(dict(cmd_g, note='x'), kg))] == ['CONFLICT', 'CONFLICT', 'IDEMPOTENCY_CONFLICT']
+          and n('timetable_execution_records', 'lesson_id=%s', (lg['id'],)) == 0 and ok(t[21].erec(cmd_g))
+          and n('timetable_execution_records', 'lesson_id=%s', (lg['id'],)) == 1)
+    got = [ecode(t[21].abandon('lessons', cmd_g, key())), ecode(t[21].abandon('execution', [1], key())), ecode(t[21].abandon('execution', cmd_g, 'bad key'))]
+    check('I05 모르는 종류 · 객체 아닌 명령 · 잘못된 번호 → INVALID_INPUT', got == ['INVALID_INPUT'] * 3, got)
+    check('I06 같은 번호도 다른 교사의 포기는 내 번호에 영향 없음(소속마다 원장)', d(t[22].abandon('execution', cmd_g, kg))['outcome'] == 'abandoned'
+          and d(t[21].abandon('execution', cmd_g, kg)) == A1)
+    for _ in range(3):
+        kh = key(); cmd_h = ecmd(lh['id'], lh['version'], 0, None, 'needs_review', '경합')
+        o = concurrently([lambda: t[21].erec(cmd_h, kh), lambda: t[21].abandon('execution', cmd_h, kh)])
+        recs = n('timetable_execution_records', 'lesson_id=%s', (lh['id'],))
+        good = (ok(o[0]) and d(o[1])['outcome'] == 'applied' and d(o[1])['receipt'] == d(o[0]) and recs == 1) or \
+               (ecode(o[0]) == 'CONFLICT' and d(o[1])['outcome'] == 'abandoned' and recs == 0)
+        if not good or recs == 1: break
+    check('I07 최초 요청과 포기가 동시에 → (반영 + 포기 응답이 그 접수증) 또는 (포기 + 요청 CONFLICT · 기록 0) 둘 중 하나', good, o)
+    sqlfile(text=module_sql('P2-80_모듈중지.sql', 'timetable_operations', '시험 중지'))
+    ki = key(); cmd_i = ecmd(li['id'], li['version'], 0, None, 'completed', '')
+    a3 = t[21].abandon('execution', cmd_i, ki)
+    check('I08 모듈을 꺼도 포기는 됨(NOT_READY 아님) · 켠 뒤에도 그 번호는 CONFLICT', ok(a3) and d(a3)['outcome'] == 'abandoned', a3)
+    sqlfile(text=module_sql('P2-81_모듈재개.sql', 'timetable_operations', '시험 재개'))
+    check('I09 재개 뒤 포기한 번호 CONFLICT · 원장 행은 고칠 수 없음 · T2-07 FAIL 없음', ecode(t[21].erec(cmd_i, ki)) == 'CONFLICT'
+          and sqlerr("update workhub.timetable_operation_requests set outcome='applied' where outcome='abandoned'") != 'OK' and not fails(t207()), fails(t207()))
     if POLICY:
         check('H06 한도 = 앱 execution-records-policy.json(메모 1000 · 사유 500 · 쪽 20 · 수업 14400초)', POLICY['note'] == 1000 and POLICY['correctionReason'] == 500
               and POLICY['pageSize'] == 20 and POLICY['maxLessonSeconds'] == 14400)
