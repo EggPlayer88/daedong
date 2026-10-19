@@ -37,6 +37,10 @@ import { createPreparationServer } from './preparation-server'
 import type { PreparationServer } from './preparation'
 import { createTimetableSetupServer } from './setup-server'
 import type { SetupServer } from './setup'
+import { createTimetableTargetServer } from './target-server'
+import type { TargetServer, TargetSnapshot } from './target'
+import { TimetableTargetPanel, type TargetPanelState } from './TimetableTargetPanel'
+import { scopeTimetableServers, targetScopeKey } from './target-scope'
 export { TimetableBoard } from './TimetableBoard'
 const TimetableOperationsWorkspace = lazy(() => import('./TimetableOperationsWorkspace').then(module => ({ default: module.TimetableOperationsWorkspace })))
 const TimetableWorkbookPanel = lazy(() => import('./TimetableWorkbookPanel').then(module => ({ default: module.TimetableWorkbookPanel })))
@@ -49,7 +53,7 @@ const timetableAssistantHttp: AssistantHttpPort = { async send(payload, expected
 type Step = 'basis' | 'conditions' | 'compose' | 'publish'
 type ConditionForm = { kind: 'fixed' | 'unavailable' | 'preferences'; targetId: string; slotId: string; weight: string }
 interface DraftSession {
-  practice: boolean; basisIdentity: string; title: string; conditions: TimetableConditions
+  practice: boolean; termId?: string; basisIdentity: string; title: string; conditions: TimetableConditions
   placements: Placement[] | null; previous: Placement[] | null; dirty: boolean; form: ConditionForm
   conditionsChanged?: boolean; lockedLessonIds?: string[]
   placementBasis?: TimetableBasis; previousBasis?: TimetableBasis
@@ -57,11 +61,11 @@ interface DraftSession {
   savedDraft?: SavedTimetableDraft
 }
 interface WorkspaceProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onOpenSchoolAdmin?: () => void; initialLessonId?: string; initialDate?: string }
-interface PanelProps extends Omit<WorkspaceProps, 'connection'> { server: TimetableServer; assistantServer?: AssistantServer; preparationServer?: PreparationServer; setupServer?: SetupServer; runSolver?: TimetableSolver; onOpenOperations?: (draft: { id: string; version: number }) => void }
+interface PanelProps extends Omit<WorkspaceProps, 'connection'> { server: TimetableServer; assistantServer?: AssistantServer; preparationServer?: PreparationServer; setupServer?: SetupServer; targetServer?: TargetServer; runSolver?: TimetableSolver; onOpenOperations?: (draft: { id: string; version: number }) => void }
 const days = ['월', '화', '수', '목', '금', '토', '일']
 const steps: { id: Step; label: string }[] = [{ id: 'basis', label: '기초 자료' }, { id: 'conditions', label: '조건 정리' }, { id: 'compose', label: '배치·비교' }, { id: 'publish', label: '공개 검토' }]
 const basisIdentity = (basis: TimetableBasis) => canonical([basis.schoolId, basis.termId, basis.id, basis.revision, basis.sourceFingerprint])
-const initialSession = (basis: TimetableBasis, practice: boolean): DraftSession => ({ practice, basisIdentity: basisIdentity(basis), title: '시간표 초안', conditions: { fixed: structuredClone(basis.fixed), unavailable: structuredClone(basis.unavailable), preferences: structuredClone(basis.preferences) }, placements: null, previous: null, dirty: false, form: { kind: 'fixed', targetId: '', slotId: '', weight: '1' } })
+const initialSession = (basis: TimetableBasis, practice: boolean): DraftSession => ({ practice, termId: basis.termId, basisIdentity: basisIdentity(basis), title: '시간표 초안', conditions: { fixed: structuredClone(basis.fixed), unavailable: structuredClone(basis.unavailable), preferences: structuredClone(basis.preferences) }, placements: null, previous: null, dirty: false, form: { kind: 'fixed', targetId: '', slotId: '', weight: '1' } })
 export const timetableClock = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
 const slotLabel = (basis: TimetableBasis, id: string) => { const slot = basis.slots.find(item => item.id === id); return slot ? `${days[slot.day - 1]} ${slot.label} · ${timetableClock(slot.startMinute)}–${timetableClock(slot.endMinute)}` : '확인되지 않은 시간대' }
 const conditionLabels = { fixed: '반드시 이 시간에', unavailable: '사용할 수 없는 시간', preferences: '가능하면 피할 시간' }
@@ -75,6 +79,7 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   const assistantServer = useMemo(() => createAssistantServer(props.connection, timetableAssistantHttp), [props.connection])
   const preparationServer = useMemo(() => createPreparationServer(props.connection), [props.connection])
   const setupServer = useMemo(() => createTimetableSetupServer(props.connection), [props.connection])
+  const targetServer = useMemo(() => createTimetableTargetServer(props.connection), [props.connection])
   const route = useEditDraft<'editor' | 'operations'>(props.member, 'timetable-entry')
   const recovery = usePendingRequest(props.member, 'timetableOperations')
   const [mode, setMode] = useState<'editor' | 'operations'>(() => recovery.request || props.initialLessonId !== undefined ? 'operations' : route.initial ?? 'editor')
@@ -100,20 +105,25 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
       <button type="button" className="secondary" aria-pressed={mode === 'operations'} disabled={locked && mode !== 'operations'} onClick={() => navigate('operations')}>확정·공유·교환</button>
     </nav>
     {mode === 'editor'
-      ? <TimetableWorkspacePanel {...props} server={server} assistantServer={assistantServer} preparationServer={preparationServer} setupServer={setupServer} onOpenOperations={openPublication} onNavigationLockChange={notifyLock} />
+      ? <TimetableWorkspacePanel {...props} server={server} assistantServer={assistantServer} preparationServer={preparationServer} setupServer={setupServer} targetServer={targetServer} onOpenOperations={openPublication} onNavigationLockChange={notifyLock} />
       : <Suspense fallback={<p role="status">시간표 운영 화면을 준비하는 중…</p>}><TimetableOperationsWorkspace {...props} initialDraftId={publicationDraft?.id} initialDraftVersion={publicationDraft?.version} onInitialDraftConsumed={consumePublicationDraft} onNavigationLockChange={notifyLock} /></Suspense>}
   </>
 }
-export function TimetableWorkspacePanel({ server, assistantServer, preparationServer, setupServer, member, date, revision = 0, onNavigationLockChange, onOpenSchoolAdmin, onOpenOperations, runSolver = startTimetableSolve }: PanelProps) {
+export function TimetableWorkspacePanel({ server: baseServer, assistantServer, preparationServer: basePreparationServer, setupServer: baseSetupServer, targetServer, member, date, revision = 0, onNavigationLockChange, onOpenSchoolAdmin, onOpenOperations, runSolver = startTimetableSolve }: PanelProps) {
   const id = useId(), memory = useEditDraft<DraftSession>(member, 'timetable-editor'), aiMemory = useEditDraft<{text:string;sheet:string}>(member, 'timetable-ai'), recovery = usePendingRequest(member, 'timetable')
   const aiRecovery = usePendingRequest(member, 'timetableAssistant'), preparationRecovery = usePendingRequest(member, 'timetablePreparation'), setupRecovery = usePendingRequest(member, 'timetableSetup'), setupBatchRecovery = usePendingRequest(member, 'timetableSetupBatch')
   const stepMemory = useEditDraft<Step>(member, 'timetable-editor-step')
+  const targetRecovery = usePendingRequest(member, 'timetableTarget')
+  const [targetState, setTargetState] = useState<TargetPanelState>({ status: targetServer ? 'loading' : 'unavailable' })
+  const [targetLocked, setTargetLocked] = useState(Boolean(targetRecovery.request)), [targetRefresh, setTargetRefresh] = useState(0), [targetEpoch, setTargetEpoch] = useState(0)
+  const targetScope = useRef<{ checking: boolean; snapshot?: TargetSnapshot }>({ checking: Boolean(targetServer) })
+  const otherTargetLocks = useRef(false)
   const practiceSnapshot = useMemo(() => timetablePracticeSnapshot(date), [date])
   const [session, setSession] = useState<DraftSession | undefined>(() => memory.initial), [practice, setPractice] = useState(Boolean(memory.initial?.practice))
   const [tab, setTab] = useState<'mine' | 'design'>(() => memory.initial ? 'design' : 'mine'), [step, setStep] = useState<Step>(stepMemory.initial ?? 'basis'), [discardConfirm, setDiscardConfirm] = useState(false)
   const [week, setWeek] = useState(() => timetableWeekStart(date)), [snapshot, setSnapshot] = useState<TimetableSnapshot>(), [ready, setReady] = useState<TimetableReadiness>()
   const [loading, setLoading] = useState(true), [loadError, setLoadError] = useState(''), [reload, setReload] = useState(0), [busy, setBusy] = useState(false), [solving, setSolving] = useState(false)
-  const [aiLocked, setAiLocked] = useState(false)
+  const [aiLocked, setAiLocked] = useState(false), [aiInputLocked, setAiInputLocked] = useState(false)
   const [aiOpenRequest, setAiOpenRequest] = useState<{ stage: 'setup' | 'adjust'; token: number }>()
   const [preparationLocked, setPreparationLocked] = useState(false)
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [issues, setIssues] = useState<TimetableIssue[]>([]), [result, setResult] = useState<SolveResult>()
@@ -122,10 +132,43 @@ export function TimetableWorkspacePanel({ server, assistantServer, preparationSe
   const stepHeading = useRef<HTMLHeadingElement>(null), focusStep = useRef(false)
   const life = useRef(0), operation = useRef(false), solver = useRef<SolverTask>(), currentSession = useRef(session), feedback = useRef<HTMLDivElement>(null)
   currentSession.current = session
+  const observeTarget = useCallback((next: TargetPanelState) => {
+    const previous = targetScope.current.snapshot
+    // 연결이 끊겼다고 이미 확인한 대상 학기를 잊지 않는다. 기존 T1의 미지원은 첫 조회에서만 독립 처리한다.
+    targetScope.current = { checking: next.status !== 'ready', snapshot: next.status === 'ready' ? next.snapshot : previous }
+    setTargetState(next)
+    if (next.status !== 'ready' || !next.snapshot) return
+    const latest = currentSession.current
+    let storedTerm = latest?.termId ?? latest?.placementBasis?.termId
+    if (!storedTerm && latest) { try { storedTerm = JSON.parse(latest.basisIdentity)[1] } catch { /* 이전 메모리는 안전하게 그대로 보존한다. */ } }
+    const changed = previous ? targetScopeKey(previous) !== targetScopeKey(next.snapshot) : Boolean(latest && !latest.practice && storedTerm && storedTerm !== next.snapshot.termId)
+    if (!changed) return
+    // 성공한 저장 자료는 서버에 남아 있다. 미저장/결과 미상은 자동으로 버리지 않는다.
+    if (!otherTargetLocks.current && !latest?.dirty) { currentSession.current = undefined; setSession(undefined); memory.save(undefined, false); setResult(undefined); setIssues([]) }
+    setSnapshot(undefined); setLoading(true); setSelectedLesson(''); setDiscardConfirm(false)
+    setNotice('학교의 준비 대상 학기가 바뀌어 자료를 다시 확인합니다. 작성 중인 입력과 원래 요청은 보관했습니다.')
+    setReload(value => value + 1); setTargetEpoch(value => value + 1)
+  }, [memory])
+  const targetMismatch = useCallback(() => { setNotice('준비 대상 학기가 변경되었습니다. 서로 다른 학기의 자료를 섞지 않고 다시 확인합니다.'); setTargetRefresh(value => value + 1) }, [])
+  const scoped = useMemo(() => scopeTimetableServers({ target: targetServer, state: () => targetScope.current,
+    observe: value => observeTarget({ status: 'ready', snapshot: value }), mismatch: targetMismatch,
+    timetable: baseServer, preparation: basePreparationServer, setup: baseSetupServer,
+  }), [baseServer, basePreparationServer, baseSetupServer, targetServer, observeTarget, targetMismatch])
+  const server = scoped.timetable, preparationServer = scoped.preparation, setupServer = scoped.setup
+  const knownTarget = targetState.status === 'ready' ? targetState.snapshot : targetScope.current.snapshot
+  const targetChecking = Boolean(targetServer && (targetState.status === 'loading' || (knownTarget && targetState.status !== 'ready')))
+  const targetViewMismatch = Boolean(!practice && knownTarget && snapshot?.basis && snapshot.basis.termId !== knownTarget.termId)
+  const targetBlocked = !practice && (targetChecking || targetLocked || Boolean(targetRecovery.request) || targetViewMismatch)
+  useEffect(() => {
+    if (!targetServer) return
+    const refresh = () => { if (document.visibilityState !== 'hidden') setTargetRefresh(value => value + 1) }
+    window.addEventListener('focus', refresh); document.addEventListener('visibilitychange', refresh)
+    return () => { window.removeEventListener('focus', refresh); document.removeEventListener('visibilitychange', refresh) }
+  }, [targetServer])
   const enabled = activeAt(member, date), pending = recovery.request
   const current = practice ? practiceSnapshot : !loadError && !loading && ready?.available ? snapshot : undefined
   const basis = current?.canDesign ? current.basis : null
-  const stale = Boolean(basis && session && session.basisIdentity !== basisIdentity(basis))
+  const stale = targetViewMismatch || Boolean(basis && session && session.basisIdentity !== basisIdentity(basis))
   const effective = useMemo(() => basis && session && !stale ? { ...basis, ...session.conditions } : basis, [basis, session?.conditions, stale])
   const candidateCheck = useMemo(() => effective && session?.placements && !stale ? validatePlacements(effective, session.placements) : undefined, [effective, session?.placements, stale])
   const partialCheck = useMemo(() => effective && session?.placements && !stale ? reviewPartialPlacements(effective, session.placements) : undefined, [effective, session?.placements, stale])
@@ -145,7 +188,8 @@ export function TimetableWorkspacePanel({ server, assistantServer, preparationSe
   const targetLabel = (row: { id: string; label: string }) => (targetLabelCounts.get(row.label) ?? 0) > 1 ? `${row.label} [${row.id}]` : row.label
   const selectedConditionTime = basis && session?.form.slotId ? slotLabel(basis, session.form.slotId) : ''
   const liveBasis = useRef<{basis:TimetableBasis|null|undefined; allowed:boolean}>({basis:effective,allowed:false})
-  const commandLocked = busy || solving || Boolean(pending), locked = commandLocked || aiLocked || preparationLocked, navLocked = locked || Boolean(session?.dirty) || Boolean(aiText.trim())
+  const commandLocked = busy || solving || Boolean(pending), locked = commandLocked || aiLocked || preparationLocked || targetBlocked, navLocked = locked || Boolean(session?.dirty) || Boolean(aiText.trim())
+  otherTargetLocks.current = commandLocked || aiLocked || aiInputLocked || preparationLocked || Boolean(session?.dirty) || Boolean(aiText.trim()) || conditionPending || Boolean(aiRecovery.request || preparationRecovery.request || setupRecovery.request || setupBatchRecovery.request)
   const canEdit = Boolean(basis && session && !stale && !locked && (practice || current?.canDesign)), viewable = Boolean(practice || (!loadError && !loading && ready?.available && snapshot))
   liveBasis.current = {basis:effective,allowed:viewable && !!current?.canDesign && !stale}
   const savedForCurrent = Boolean(basis && session && !stale && !session.dirty && matchesSavedTimetableDraft(session.savedDraft, timetableDraftCommand(basis, session)))
@@ -172,8 +216,8 @@ export function TimetableWorkspacePanel({ server, assistantServer, preparationSe
     if (!enabled) { setReady(undefined); setSnapshot(undefined); setLoadError('현재 학교 소속을 다시 확인해 주세요.'); setLoading(false); return }
     void server.readiness(member.id).then(async value => { if (cancelled) return; setReady(value); if (!value.available) { setSnapshot(undefined); return }; const next = await server.get(member.id, week); if (!cancelled) setSnapshot(next) }).catch(failure => { if (!cancelled) { setSnapshot(undefined); setLoadError(safeMessage(failure)) } }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [server, member.id, week, enabled, revision, reload])
-  useEffect(() => { if (basis && !session) update(initialSession(basis, practice)) }, [basis, session, practice])
+  }, [server, member.id, week, enabled, revision, reload, targetEpoch])
+  useEffect(() => { if (basis && !session && !targetViewMismatch) update(initialSession(basis, practice)) }, [basis, session, practice, targetViewMismatch])
   useEffect(() => { aiMemory.save(aiText || aiSheet ? {text:aiText,sheet:aiSheet} : undefined, Boolean(aiText.trim())) }, [aiText,aiSheet,aiMemory])
   useEffect(() => { if (current && !current.canDesign && !practice && session) { setTab('mine');setResult(undefined);setIssues([]) } }, [current,practice,session])
   useEffect(() => { if (!viewable || stale) { solver.current?.cancel(); setSelectedLesson('') } }, [viewable, stale])
@@ -185,7 +229,7 @@ export function TimetableWorkspacePanel({ server, assistantServer, preparationSe
   function resetDraft() { if (!basis || locked) return; update(initialSession(basis, practice)); setIssues([]); setResult(undefined); setSelectedLesson(''); setError(''); setNotice('현재 기초 자료로 새 편성을 준비했습니다.'); setAiText(''); setAiSheet('') }
   function changeConditions(conditions: TimetableConditions, fromAssistant = false, sourceKey?: string): boolean {
     const latest = currentSession.current
-    if (!latest || !basis || !(fromAssistant ? !stale && !commandLocked && viewable && current?.canDesign && !conditionPending : canEdit) || batchPending && !sourceKey || sourceKey && (singleConditionPending || sourceKey !== conditionBatchSourceKey(basis, latest.conditions))) return false
+    if (!latest || !basis || !(fromAssistant ? !targetBlocked && !stale && !commandLocked && viewable && current?.canDesign && !conditionPending : canEdit) || batchPending && !sourceKey || sourceKey && (singleConditionPending || sourceKey !== conditionBatchSourceKey(basis, latest.conditions))) return false
     try { conditions = timetableConditions(conditions, basis) } catch { setError('기초 자료와 적용할 조건을 다시 확인해 주세요. 입력은 보관했습니다.'); return false }
     update({ ...latest, conditions, conditionBatch: initialConditionBatch(), conditionsChanged: Boolean(latest.placements), dirty: true, form: { ...latest.form, targetId: '', slotId: '' } }); setResult(undefined); setIssues([]); setSelectedLesson(''); setAiSheet(''); setError(''); setNotice('조건을 바꿨습니다. 기존 배치는 보관했습니다. 새 조건으로 다시 검사하거나 재계산해 주세요.'); return true
   }
@@ -293,6 +337,8 @@ export function TimetableWorkspacePanel({ server, assistantServer, preparationSe
   return <section className="timetable-workspace" aria-labelledby={`${id}-heading`}><style>{themeStyles + styles + editorStyles}</style>
     <header className="timetable-heading"><div><p className="timetable-eyebrow">나의 수업</p><h1 id={`${id}-heading`}>시간표</h1><p className="timetable-muted">확정된 수업을 확인하고, 담당자는 다음 시간표를 준비합니다.</p></div><span className="timetable-badge">{practice ? '예시로 편성 연습' : '연결 시험 · 관리자 공개'}</span></header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status" className="timetable-notice">{notice}</p>}</div>
+    {targetServer && !practice && <TimetableTargetPanel server={targetServer} member={member} disabled={!enabled || otherTargetLocks.current} refreshKey={revision + targetRefresh} onLockChange={setTargetLocked} onStateChange={observeTarget} />}
+    {targetChecking && !practice && knownTarget && <p role="status" className="timetable-notice">준비 학기를 다시 확인하는 동안 새 변경을 잠시 멈춥니다. 원래 요청의 결과 확인은 계속할 수 있습니다.</p>}
     {pending && <div className="timetable-notice"><strong>저장 결과를 확인하고 있습니다</strong><p>원래 입력과 요청 번호를 보관했습니다. 새 저장 요청을 만들지 않습니다.</p><p className="timetable-muted">요청 번호: {pending.key}</p><button type="button" disabled={busy || solving || !enabled} onClick={() => void save(true)}>{busy ? '확인 중…' : '같은 요청으로 저장 결과 확인'}</button></div>}
     {(!viewable || current?.canDesign === false) && !pending && !busy && !solving && (session?.dirty || aiText.trim()) && <div className="timetable-notice"><p>이 화면에서 입력한 내용이 현재 탭에 보관되어 메뉴 이동을 잠시 막고 있습니다.</p>{!discardConfirm ? <button type="button" className="secondary" onClick={() => setDiscardConfirm(true)}>보관한 입력 정리</button> : <><p>버리면 작성한 조건·배치·AI 요청 입력을 복구할 수 없습니다. 서버에 저장된 초안은 유지됩니다.</p><div className="timetable-actions"><button type="button" onClick={discardUnavailable}>입력 버리고 메뉴 잠금 해제</button><button type="button" className="secondary" onClick={() => setDiscardConfirm(false)}>입력 계속 보관</button></div></>}</div>}
     {!practice && loading && <p role="status">현재 학교의 시간표 연결을 확인하고 있습니다. 작성 중인 입력은 유지합니다.</p>}
@@ -320,8 +366,8 @@ export function TimetableWorkspacePanel({ server, assistantServer, preparationSe
         <details><summary>편성을 처음부터 다시 준비</summary><p>지금 작성 중인 조건과 배치를 버리고 현재 기초 자료에서 다시 시작합니다. 서버에 저장한 초안은 지우지 않습니다.</p><button type="button" className="secondary" disabled={locked} onClick={resetDraft}>현재 편성 입력 버리고 새로 시작</button></details>
       </>}
     </>}
-    {(((preparationServer || setupServer) && !practice) || preparationRecovery.request || setupRecovery.request || setupBatchRecovery.request) && <Suspense fallback={<p role="status">학교 편성 준비 화면을 준비하는 중…</p>}><TimetablePreparationPanel server={practice ? undefined : preparationServer} setupServer={practice ? undefined : setupServer} onOpenSchoolAdmin={onOpenSchoolAdmin} member={member} disabled={commandLocked || aiLocked || !enabled || practice || Boolean(session?.dirty) || conditionPending} onLockChange={setPreparationLocked} onBasisConfirmed={() => setReload(value => value + 1)} /></Suspense>}
-    {((assistantServer && !practice) || aiRecovery.request) && <Suspense fallback={<p role="status">시간표 AI 도움을 준비하는 중…</p>}><TimetableAssistantPanel openRequest={aiOpenRequest} server={practice ? undefined : assistantServer} member={member} basis={viewable && !stale && current?.canDesign ? basis : null} conditions={viewable && !stale && current?.canDesign ? session?.conditions ?? null : null} placements={viewable && !stale && current?.canDesign ? session?.placements ?? [] : []} disabled={commandLocked || preparationLocked || !viewable || stale || !basis || !session || practice || !current?.canDesign || conditionPending} onApply={conditions => changeConditions(conditions, true)} onLockChange={setAiLocked} /></Suspense>}
+    {(((preparationServer || setupServer) && !practice) || preparationRecovery.request || setupRecovery.request || setupBatchRecovery.request) && <Suspense fallback={<p role="status">학교 편성 준비 화면을 준비하는 중…</p>}><TimetablePreparationPanel server={practice ? undefined : preparationServer} setupServer={practice ? undefined : setupServer} onOpenSchoolAdmin={onOpenSchoolAdmin} member={member} expectedTermId={knownTarget?.termId} refreshRevision={targetEpoch} disabled={targetBlocked || commandLocked || aiLocked || !enabled || practice || Boolean(session?.dirty) || conditionPending} onLockChange={setPreparationLocked} onBasisConfirmed={() => setReload(value => value + 1)} /></Suspense>}
+    {((assistantServer && !practice) || aiRecovery.request) && <Suspense fallback={<p role="status">시간표 AI 도움을 준비하는 중…</p>}><TimetableAssistantPanel openRequest={aiOpenRequest} server={practice ? undefined : assistantServer} member={member} basis={viewable && !stale && current?.canDesign ? basis : null} conditions={viewable && !stale && current?.canDesign ? session?.conditions ?? null : null} placements={viewable && !stale && current?.canDesign ? session?.placements ?? [] : []} disabled={targetBlocked || commandLocked || preparationLocked || !viewable || stale || !basis || !session || practice || !current?.canDesign || conditionPending} onApply={conditions => changeConditions(conditions, true)} onLockChange={setAiLocked} onInputLockChange={setAiInputLocked} /></Suspense>}
   </section>
 }
 export function IssueList({ issues }: { issues: TimetableIssue[] }) { return <ul className="timetable-issues">{issues.map((issue, index) => <li key={`${issue.code}-${index}`}>{issue.message} <small className="timetable-muted">({issue.code})</small></li>)}</ul> }

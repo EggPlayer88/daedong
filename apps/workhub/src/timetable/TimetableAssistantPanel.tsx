@@ -14,7 +14,7 @@ import { conditionTargetLabels } from './condition-policy'
 interface Props {
   server?: AssistantServer; member: Membership; basis: TimetableBasis | null; conditions: TimetableConditions | null; placements: Placement[]
   openRequest?: { stage: 'setup' | 'adjust'; token: number }
-  disabled: boolean; onApply: (conditions: TimetableConditions) => void; onLockChange?: (locked: boolean) => void
+  disabled: boolean; onApply: (conditions: TimetableConditions) => void; onLockChange?: (locked: boolean) => void; onInputLockChange?: (locked: boolean) => void
 }
 const message = (error: unknown) => error instanceof AssistantError || error instanceof ServiceError || error instanceof TimetableAssistantInputError ? error.message : 'AI 답변을 확인하지 못했습니다. 원래 요청과 입력은 유지됩니다.'
 export function TimetableAssistantPanel(props: Props) {
@@ -35,6 +35,7 @@ export function TimetableAssistantPanel(props: Props) {
   const canReview = !!props.basis && !!props.conditions && validatePlacements({ ...props.basis, ...props.conditions }, props.placements).valid
   useEffect(() => () => { life.current++ }, [])
   useEffect(() => { props.onLockChange?.(locked); return () => props.onLockChange?.(false) }, [locked, props.onLockChange])
+  useEffect(() => { props.onInputLockChange?.(Boolean(prompt.trim() || resourceId || proposal || rawAnswer)); return () => props.onInputLockChange?.(false) }, [prompt, resourceId, proposal, rawAnswer, props.onInputLockChange])
   useEffect(() => { memory.save(prompt || resourceId ? { prompt, resourceId, stage } : undefined, !!prompt.trim()) }, [prompt, resourceId, stage, memory])
   useEffect(() => { setProposal(undefined); setConfirmed(false); setRawAnswer('') }, [props.disabled, canonical([props.basis, props.conditions, props.placements])])
   // 바로가기는 패널과 질문 입력만 연다. 남은 질문·답변·원키 복구를 다른 단계로 바꾸거나 유료 호출하지 않는다.
