@@ -19,7 +19,7 @@
 
 실패는 `data` 대신 `error:{"code":"CONFLICT"}`를 넣는다. 허용 코드는 공통 `scoped-rpc.ts`의 `ServiceCode` 목록을 따른다. 서버 응답 형식 문제는 `INVALID_RESPONSE`, 로컬 명령 형식 오류는 `INVALID_INPUT`, 기준판 변경은 `CONFLICT`, 같은 요청 번호의 본문 변경은 `IDEMPOTENCY_CONFLICT`로 구분한다. 응답이 끊긴 쓰기는 실패가 증명된 것이 아니므로 앱에서 `RESULT_UNKNOWN`으로 보관한다.
 
-모든 ID와 참조는 `^[A-Za-z0-9_-]{1,100}$`; 표시는 별도 한국어 `name`/`label`/`reason`이다. 지문은 소문자 SHA-256 64자리. 날짜는 `YYYY-MM-DD`, 시각은 `YYYY-MM-DDTHH:mm:ss.sssZ`의 정확한 UTC 형식이다. 날짜 구간과 시각 구간은 모두 `[from, until)` / `[startsAt, endsAt)`이다. 학교의 실제 날짜는 `timeZone`으로 계산한다.
+모든 ID와 참조는 `^[A-Za-z0-9_-]{1,100}$`; 표시는 별도 한국어 `name`/`label`/`reason`이다. 지문은 소문자 SHA-256 64자리. 날짜는 `YYYY-MM-DD`다. 수업 `time`·`allowedTargets`·이동 `target`의 startsAt/endsAt은 정수 초인 `YYYY-MM-DDTHH:mm:ss.000Z`로 고정한다. 밀리초를 반올림하거나 버려 받지 않는다. 조회·접수·생성·만료·동의 등 메타 시각은 `YYYY-MM-DDTHH:mm:ss.sssZ`의 정확한 UTC 형식을 유지한다. 날짜 구간과 시각 구간은 모두 `[from, until)` / `[startsAt, endsAt)`이다. 학교의 실제 날짜는 `timeZone`으로 계산한다.
 
 ### 교사 ID의 기준 (K-4)
 

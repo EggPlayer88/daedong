@@ -11,6 +11,7 @@ interface Props {
   extensions?: OperationsExtensions; memberId: string; input: PublishInput; sourceKey: string; timeZone: string; disabled: boolean
   onCommand?: (command: PublicationCommitCommand) => Promise<PublicationCommitReceipt>; onBusyChange?: (busy: boolean) => void
 }
+const manifestInputMessage = '입력 내용과 형식을 확인해 주세요. 전체 변경 한도를 넘은 경우 적용 기간을 나누어 다시 확인해 주세요. 입력은 유지됩니다.'
 /** 모든 페이지의 지문·수업 ID를 검증한 명세만 확인 버튼에 연결한다. 전체 수업은 쌓지 않는다. */
 export function PublicationManifestPanel({ extensions, memberId, input, sourceKey, timeZone, disabled, onCommand, onBusyChange }: Props) {
   const [manifest, setManifest] = useState<PublicationManifest>(), [page, setPage] = useState<PublicationChangePage>(), [busy, setBusy] = useState(false), [error, setError] = useState('')
@@ -34,7 +35,7 @@ export function PublicationManifestPanel({ extensions, memberId, input, sourceKe
     if (!extensions || disabled || reading.current || writing.current) return
     const token = ++sequence.current, captured = { ...current.current }; markBusy(true); setError(''); setManifest(undefined); setPage(undefined); setVerified(undefined); setConfirmed(false); setProgress(undefined); seen.current.clear()
     try { const result = await parsePublicationManifest(await extensions.publicationManifest(memberId, input), input); if (result.timeZone !== captured.timeZone) throw new ServiceError('INVALID_RESPONSE'); if (valid(token, captured)) { manifestSource.current = canonical([captured.sourceKey, captured.memberId, captured.timeZone]); setManifest(result); setNow(Date.now()) } }
-    catch (failure) { if (valid(token, captured)) setError(failure instanceof ServiceError ? failure.message : '전체 변경 목록을 확인하지 못했습니다.') }
+    catch (failure) { if (valid(token, captured)) setError(failure instanceof ServiceError ? failure.code === 'INVALID_INPUT' ? manifestInputMessage : failure.message : '전체 변경 목록을 확인하지 못했습니다.') }
     finally { if (token === sequence.current) markBusy(false) }
   }
   async function load(index: number) {

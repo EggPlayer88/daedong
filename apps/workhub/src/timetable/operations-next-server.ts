@@ -65,7 +65,7 @@ export async function parsePublicationManifest(v: unknown, input: PublishInput, 
     if (!equal(parsePublishInput(v.input), input) || v.complete !== true || v.preserved.pastRecords !== true || v.preserved.outsideRange !== true || !['retained', 'blocked'].includes(v.preserved.existingChanges as string)) fail()
     const timeZone = text(v.timeZone, 100, true); new Intl.DateTimeFormat('en', { timeZone })
     const totalChanges = count(v.totalChanges, limits.manifestChanges), pageSize = count(v.pageSize, limits.pageSize), pageHashes = unique(rows(v.pageHashes, limits.pages).map(hash)), blockerCount = count(v.blockerCount, limits.manifestChanges)
-    if (!pageSize || pageHashes.length !== Math.ceil(totalChanges / pageSize) || !totalChanges && !blockerCount || v.preserved.existingChanges === 'blocked' && !blockerCount) fail()
+    if (pageSize !== limits.pageSize || pageHashes.length !== Math.ceil(totalChanges / pageSize) || !totalChanges && !blockerCount || v.preserved.existingChanges === 'blocked' && !blockerCount) fail()
     return { previewId: identifier(v.previewId), previewHash: hash(v.previewHash), input, timeZone, ...lifetime(v.createdAt, v.expiresAt, now), basisFingerprint: hash(v.basisFingerprint), manifestHash: hash(v.manifestHash), totalChanges, pageSize, pageHashes, blockerCount, complete: true as const, preserved: { pastRecords: true as const, outsideRange: true as const, existingChanges: v.preserved.existingChanges as 'retained' | 'blocked' } }
   })
   const { manifestHash, ...content } = parsed

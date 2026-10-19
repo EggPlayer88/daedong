@@ -68,10 +68,10 @@ export function buildPublishedExport(view: OperationsView, references: Operation
       return { id: lesson.id, version: lesson.version, date: timetableLocalDate(lesson.time.startsAt, source.timeZone), endDate: timetableLocalDate(lesson.time.endsAt, source.timeZone), start: clock.format(new Date(lesson.time.startsAt)), end: clock.format(new Date(lesson.time.endsAt)), label: lesson.label,
         teachers: structuredClone(lesson.teachers), groups: ref ? structuredClone(ref.groups) : null, rooms: ref ? structuredClone(ref.rooms) : null,
         teacherLabels: displayNames(lesson.teachers, teachers), groupLabels: ref ? displayNames(ref.groups, groups) : [...lesson.groupNames], roomLabels: ref ? displayNames(ref.rooms, rooms) : [...lesson.roomNames],
-        state: stateLabels[lesson.state], change: related.length ? kinds.size === 1 ? kinds.has('swap') ? '임시 교환 반영' : '임시 이동 반영' : '임시 변경 반영' : lesson.version > 1 ? '변경 반영 · 상세 이력 미확인' : '현재 반영본', originalTime: previous.length === 1 ? previous[0] : previous.length > 1 ? '이전 시각은 변경 이력에서 확인' : '' }
+        state: stateLabels[lesson.state], change: related.length ? kinds.size === 1 ? kinds.has('swap') ? '임시 교환 반영' : '임시 이동 반영' : '임시 변경 반영' : lesson.version > 1 ? '판 갱신 · 재확정·변경 여부 미확인' : '현재 반영본', originalTime: previous.length === 1 ? previous[0] : previous.length > 1 ? '이전 시각은 변경 이력에서 확인' : '' }
     })
     const dates = Array.from({ length: (Date.parse(until) - Date.parse(from)) / 86400000 }, (_, i) => timetableDateOffset(from, i))
-    const notices = [PUBLISHED_EXPORT_NOTICE, '취소 수업도 포함합니다. 수업이 없는 날짜를 휴업 또는 공강으로 확정하지 않습니다.', '임시 교환·이동과 변경 전 시각은 현재 수업 판과 일치하는 적용 완료 요청만 표시합니다. 2판 이상인데 일치하는 요청이 없으면 변경만 표시하고 학사 변경 등 원인은 추정하지 않습니다. 전체 변경 이력이나 개인 사유는 포함하지 않습니다.']
+    const notices = [PUBLISHED_EXPORT_NOTICE, '취소 수업도 포함합니다. 수업이 없는 날짜를 휴업 또는 공강으로 확정하지 않습니다.', '임시 교환·이동과 변경 전 시각은 현재 수업 판과 일치하는 적용 완료 요청만 표시합니다. 2판 이상인데 일치하는 요청이 없으면 판 갱신만 표시합니다. 정식 재확정일 수도 있으며 실제 수업 시각 변경 여부와 원인은 추정하지 않습니다. 전체 변경 이력이나 개인 사유는 포함하지 않습니다.']
     if (!refs) notices.push('학급·공간 식별 정보는 확인되지 않았습니다. 표시 이름은 참고용이며 같은 이름의 학급을 합치지 않습니다.')
     if (from !== requestedFrom || until !== requestedUntil) notices.push('선택한 주·날짜 중 실제 조회된 부분만 포함했습니다. 조회 범위 밖 날짜는 누락된 수업으로 판단하지 않습니다.')
     return { sourceKey: publishedExportSourceKey(view, references, selection, memberId), from, until, requestedFrom, requestedUntil, timeZone: source.timeZone, asOf: source.asOf, target, teacherId: selection.teacherId, groupId: selection.groupId, rows, dates, notices, referencesAvailable: Boolean(refs) }

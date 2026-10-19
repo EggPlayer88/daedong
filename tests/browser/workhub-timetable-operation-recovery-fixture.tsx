@@ -36,7 +36,7 @@ const extensions: any = {
   publicationManifest: async (_: string, input: any) => {
     const after = { id: 'lesson', version: 1, label: '국어', time: { startsAt: future + 'T00:00:00.000Z', endsAt: future + 'T00:45:00.000Z' }, teachers: [{ id: 'm', name: '합성 교사' }], groupNames: ['1반'], roomNames: [], state: 'scheduled', canRequest: false, allowedTargets: [] }
     w.changes = [{ before: null, after }]
-    const unsigned = { previewId: 'preview', previewHash: 'a'.repeat(64), input: copy(input), timeZone: 'Asia/Seoul', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString(), basisFingerprint: 'b'.repeat(64), totalChanges: 1, pageSize: 1, pageHashes: [await hash(w.changes)], blockerCount: 0, complete: true, preserved: { pastRecords: true, outsideRange: true, existingChanges: 'retained' } }
+    const unsigned = { previewId: 'preview', previewHash: 'a'.repeat(64), input: copy(input), timeZone: 'Asia/Seoul', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString(), basisFingerprint: 'b'.repeat(64), totalChanges: 1, pageSize: 200, pageHashes: [await hash(w.changes)], blockerCount: 0, complete: true, preserved: { pastRecords: true, outsideRange: true, existingChanges: 'retained' } }
     return { ...unsigned, manifestHash: await hash(unsigned) }
   },
   publicationPage: async (_: string, manifest: any, index: number) => { if (w.delayPage) await new Promise(resolve => w.releasePage = resolve); return { previewId: manifest.previewId, manifestHash: manifest.manifestHash, index, pageHash: manifest.pageHashes[index], changes: copy(w.changes) } },

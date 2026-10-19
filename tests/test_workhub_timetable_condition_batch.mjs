@@ -69,4 +69,10 @@ check('입력 중 판정은 검색을 제외하고 대상·요일·시각·선�
   for (const patch of [{ resourceIds: ['t'] }, { days: [1] }, { start: '09:00' }, { end: '10:00' }, { kind: 'preferences' }, { weight: '5' }]) assert.equal(m.hasConditionBatchInput({ ...state, ...patch }), true)
   assert.equal(m.conditionBatchMinute('09:05'), 545); assert.equal(m.conditionBatchMinute('24:00'), 1440); assert.ok(Number.isNaN(m.conditionBatchMinute('9:05')))
 })
+check('같은 이름 수업의 선호 미리보기는 각 수업 ID를 표시한다', () => {
+  const b = basis(); b.lessons[0].label = b.lessons[2].label = '국어 1회'
+  const p = m.previewConditionBatch(b, conditions(b), action({ kind: 'preferences', days: [1] }))
+  for (const lesson of [b.lessons[0], b.lessons[2]]) assert.ok(p.rows.some(row => row.startsWith(`국어 1회 [${lesson.id}] · `)))
+  assert.equal(p.conditions.preferences.filter(row => [b.lessons[0].id, b.lessons[2].id].includes(row.lessonId)).length, 2)
+})
 console.log(`시간표 조건 일괄 입력 검사: ${count}개 통과`)

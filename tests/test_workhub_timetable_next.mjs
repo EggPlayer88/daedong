@@ -36,13 +36,13 @@ for(const [name,modify] of [
 ]) await check('추천 거부: '+name,()=>{const raw=copy(recommendation);modify(raw);invalid(()=>m.parseExchangeRecommendations(raw,input,view,now))})
 await check('시간 제한과 후보 없음은 불가능 판정으로 바꾸지 않는다',()=>{for(const status of ['none_found','search_limited']){const result=m.parseExchangeRecommendations({...copy(recommendation),status,candidates:[],explanations:['이 범위에서 찾지 못했습니다.']},input,view,now);assert.equal(result.status,status)}})
 const pubInput={draftId:'draft',draftVersion:1,from:'2026-10-19',until:'2026-10-25'}, changes=copy(preview.changes)
-const unsigned={previewId:'pub',previewHash:'b'.repeat(64),input:pubInput,timeZone:'Asia/Seoul',createdAt:view.asOf,expiresAt:new Date(now+600000).toISOString(),basisFingerprint:'c'.repeat(64),totalChanges:2,pageSize:1,pageHashes:changes.map(c=>hash([c])),blockerCount:0,complete:true,preserved:{pastRecords:true,outsideRange:true,existingChanges:'retained'}}
+const unsigned={previewId:'pub',previewHash:'b'.repeat(64),input:pubInput,timeZone:'Asia/Seoul',createdAt:view.asOf,expiresAt:new Date(now+600000).toISOString(),basisFingerprint:'c'.repeat(64),totalChanges:2,pageSize:200,pageHashes:[hash(changes)],blockerCount:0,complete:true,preserved:{pastRecords:true,outsideRange:true,existingChanges:'retained'}}
 const manifest={...unsigned,manifestHash:hash(unsigned)}
-await check('전체 목록 지문과 페이지 지문을 각각 검증한다',async()=>{const parsed=await m.parsePublicationManifest(manifest,pubInput,now);for(let index=0;index<2;index++){const page={previewId:'pub',manifestHash:manifest.manifestHash,index,pageHash:manifest.pageHashes[index],changes:[changes[index]]};assert.deepEqual(await m.parsePublicationPage(page,parsed,index),page)}})
+await check('전체 목록 지문과 페이지 지문을 각각 검증한다',async()=>{const parsed=await m.parsePublicationManifest(manifest,pubInput,now);const page={previewId:'pub',manifestHash:manifest.manifestHash,index:0,pageHash:manifest.pageHashes[0],changes};assert.deepEqual(await m.parsePublicationPage(page,parsed,0),page)})
 for(const [name,modify] of [
  ['전체 건수 변조',v=>v.totalChanges=1],['페이지 누락',v=>v.pageHashes.pop()],['중복 페이지',v=>v.pageHashes[1]=v.pageHashes[0]],['전체가 아닌 목록',v=>v.complete=false],['과거기록 보존 누락',v=>v.preserved.pastRecords=false],['기준지문 변경',v=>v.basisFingerprint='d'.repeat(64)],['기한 만료',v=>v.expiresAt=view.asOf],
 ]) await check('manifest 거부: '+name,async()=>{const raw=copy(manifest);modify(raw);await assert.rejects(()=>m.parsePublicationManifest(raw,pubInput,now),e=>e.code==='INVALID_RESPONSE')})
-for(const [name,modify] of [['다른 목록',v=>v.manifestHash='e'.repeat(64)],['다른 페이지',v=>v.index=1],['페이지 내용 변조',v=>v.changes[0].after.label='변조'],['빈 상세',v=>v.changes=[]]]) await check('상세 거부: '+name,async()=>{const page={previewId:'pub',manifestHash:manifest.manifestHash,index:0,pageHash:manifest.pageHashes[0],changes:[copy(changes[0])]};modify(page);await assert.rejects(()=>m.parsePublicationPage(page,manifest,0),e=>e.code==='INVALID_RESPONSE')})
+for(const [name,modify] of [['다른 목록',v=>v.manifestHash='e'.repeat(64)],['다른 페이지',v=>v.index=1],['페이지 내용 변조',v=>v.changes[0].after.label='변조'],['빈 상세',v=>v.changes=[]]]) await check('상세 거부: '+name,async()=>{const page={previewId:'pub',manifestHash:manifest.manifestHash,index:0,pageHash:manifest.pageHashes[0],changes:copy(changes)};modify(page);await assert.rejects(()=>m.parsePublicationPage(page,manifest,0),e=>e.code==='INVALID_RESPONSE')})
 await check('해시를 다시 만든 잘못된 적용 범위도 거부한다',async()=>{const changed=copy(changes[0]);changed.after.time=time(26);const page={previewId:'pub',manifestHash:manifest.manifestHash,index:0,pageHash:hash([changed]),changes:[changed]};await assert.rejects(()=>m.parsePublicationPage(page,{...manifest,pageHashes:[page.pageHash,...manifest.pageHashes.slice(1)]},0),e=>e.code==='INVALID_RESPONSE')})
 await check('13,001회차는 전체 행을 응답에 싣지 않고 200행 페이지와 마지막 1행을 검증한다',async()=>{const pages=Array.from({length:66},(_,page)=>Array.from({length:Math.min(200,13001-page*200)},(_,index)=>({before:null,after:{...copy(view.lessons[0]),id:'bulk-'+(page*200+index),version:1}})));const raw={...unsigned,totalChanges:13001,pageSize:200,pageHashes:pages.map(hash)};const total=await m.parsePublicationManifest({...raw,manifestHash:hash(raw)},pubInput,now);assert.equal(total.pageHashes.length,66);for(const index of [0,65]){const received=await m.parsePublicationPage({previewId:total.previewId,manifestHash:total.manifestHash,index,pageHash:total.pageHashes[index],changes:pages[index]},total,index);assert.equal(received.changes.length,index===0?200:1)}assert.ok(JSON.stringify(total).length<6000)})
 const dayInput={kind:'closure',date:'2026-10-19',groupIds:['g'],reason:'학사 행사',bells:[]}
@@ -57,4 +57,27 @@ await check('보존된 학급 필터를 확인할 수 없으면 빈 시간표로
 await check('학교 전체 1,000수업은 조용히 자르거나 천 개 버튼으로 펼치지 않는다',()=>{const large={...view,lessons:Array.from({length:1000},(_,index)=>({...copy(view.lessons[0]),id:'large-'+index}))};const html=m.renderBoard({view:large,memberId:'m',date:'2026-10-19',locked:false,onRequest:()=>{},onRangeChange:()=>{}});assert.match(html,/수업 1,000건/);assert.match(html,/일부 수업만 표시하지 않습니다/);assert.doesNotMatch(html,/<table>|class="ttboard-lesson /)})
 await check('학사 변경 서버가 없으면 준비 상태만 보이고 반영 버튼은 없다',()=>{const html=m.renderSchoolDay({member,view,locked:false,onDirtyChange:()=>{}});assert.match(html,/학사 변경 서버 연결을 준비 중/);assert.doesNotMatch(html,/승인하고 반영|변경 완료/)})
 await check('추천 어댑터는 직접 전송 없이 읽기 전용 RPC만 보낸다',async()=>{const calls=[];const live=copy(view);live.asOf=new Date().toISOString();live.lessons=live.lessons.map((l,i)=>({...l,time:{startsAt:new Date(Date.now()+86400000*(i+1)).toISOString(),endsAt:new Date(Date.now()+86400000*(i+1)+2700000).toISOString()}}));const conn={info:()=>({memberships:[member],schools:[{id:'s'}],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:'u',approved:true}),rpcVerified:async(name,args)=>{calls.push({name,args});return{contract:'timetable-operations.next.v1',schoolId:'s',memberId:'m',data:{input:args.p_input,sourceAsOf:live.asOf,coverage:{from:input.from,until:input.until,complete:true},status:'search_limited',explanations:['확인 범위에서 찾지 못했습니다.'],candidates:[]}}}};const service=m.createTimetableOperationsExtensions(conn);await service.recommendations('m',input,live);assert.equal(calls.length,1);assert.equal(calls[0].name,'workhub_timetable_operations_recommend');assert.ok(!Object.hasOwn(calls[0].args,'p_request_key'));await assert.rejects(async()=>service.recommendations('m',input,{...live,canRequest:false}),e=>e.code==='FORBIDDEN');assert.equal(calls.length,1)})
+await check('명세 pageSize는 200 고정이며 해시를 다시 만든 1·199·201도 거부한다', async () => {
+  for (const pageSize of [1, 199, 201]) {
+    const content = { ...unsigned, pageSize, pageHashes: pageSize === 1 ? changes.map(change => hash([change])) : [hash(changes)] }
+    await assert.rejects(() => m.parsePublicationManifest({ ...content, manifestHash: hash(content) }, pubInput, now), e => e.code === 'INVALID_RESPONSE')
+  }
+})
+await check('실제 어댑터는 범위 거절과 손상·위조된 명세 응답을 구분하고 쓰기를 보내지 않는다', async () => {
+  const calls = [], live = { ...unsigned, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 600000).toISOString() }
+  let raw = { contract: 'timetable-operations.next.v1', schoolId: 's', memberId: 'm', error: { code: 'INVALID_INPUT' } }
+  const connection = { info: () => ({ memberships: [member], schools: [{ id: 's' }], basisDate: '2026-10-16' }), getIdentity: async () => ({ userId: 'u', approved: true }), rpcVerified: async (name, args) => { calls.push({ name, args }); return raw } }
+  const service = m.createTimetableOperationsExtensions(connection)
+  await assert.rejects(() => service.publicationManifest('m', pubInput), e => e.code === 'INVALID_INPUT')
+  for (const patch of [{ totalChanges: 100001 }, { pageSize: 1 }, { manifestHash: 'f'.repeat(64) }, { complete: false }]) {
+    const content = { ...live, ...patch }, data = { ...content, manifestHash: hash(content), ...('manifestHash' in patch ? { manifestHash: patch.manifestHash } : {}) }
+    raw = { contract: 'timetable-operations.next.v1', schoolId: 's', memberId: 'm', data }
+    await assert.rejects(() => service.publicationManifest('m', pubInput), e => e.code === 'INVALID_RESPONSE')
+  }
+  raw = { contract: 'timetable-operations.next.v1', schoolId: 'other', memberId: 'm', error: { code: 'INVALID_INPUT' } }
+  await assert.rejects(() => service.publicationManifest('m', pubInput), e => e.code === 'INVALID_RESPONSE')
+  raw = { contract: 'timetable-operations.next.v1', schoolId: 's', memberId: 'm', error: { code: 'INVALID_INPUT', admin: true } }
+  await assert.rejects(() => service.publicationManifest('m', pubInput), e => e.code === 'INVALID_RESPONSE')
+  assert.equal(calls.length, 7); assert.ok(calls.every(call => call.name === 'workhub_timetable_operations_publish_manifest' && !Object.hasOwn(call.args, 'p_request_key')))
+})
 console.log(`시간표 운영 확장·주간표 검사: ${n}개 통과`)

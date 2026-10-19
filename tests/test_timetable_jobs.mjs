@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, symlinkSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, readdirSync, symlinkSync, utimesSync } from 'node:fs'
 import { resolve, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { randomUUID } from 'node:crypto'
@@ -59,6 +59,11 @@ function ageJob(store, id) {
   if (existsSync(join(path, 'manifest.json'))) save(join(path, 'manifest.json'), { ...json(join(path, 'manifest.json')), ready: marker })
   const state = json(join(path, 'status.json'))
   save(join(path, 'status.json'), { ...state, queuedAt: old, updatedAt: old, startedAt: state.startedAt ? old : null, finishedAt: old })
+}
+function ageFolder(path) {
+  const old = new Date(Date.now() - 2 * 60 * 60 * 1000)
+  for (const name of readdirSync(path)) utimesSync(join(path, name), old, old)
+  utimesSync(path, old, old)
 }
 const sleepFixture = join(temporary, '느린 계산.py'); writeFileSync(sleepFixture, 'import time\ntime.sleep(30)\n')
 const invalidFixture = join(temporary, '잘못된 계산.py'); writeFileSync(invalidFixture, "import argparse,json\np=argparse.ArgumentParser();p.add_argument('--input');p.add_argument('--output');a=p.parse_args();open(a.output,'w').write('{}')\n")
@@ -267,10 +272,11 @@ try {
     assert.deepEqual(accepted, [false, false, false, false, false, false, false, true, true, true])
     assert.deepEqual(values.map(value => m.validateBasis(value).valid), accepted)
   })
-  await check('외부 접수로 대기 한도를 넘겨도 해당 작업 실패 뒤 취소·다음 정상 계산이 진행된다', async () => {
+  await check('외부 접수로 대기 한도를 넘겨도 먼저 접수한 정상 작업을 보존하고 초과분만 거절한다', async () => {
     const store = newStore(), reqs = []
     for (let i = 0; i < 17; i++) { const req = await request(); reqs.push(req); browserSubmit(store, req, true, new Date(Date.now() - 10000 + i).toISOString()) }
-    call(['work', '--store', store, '--once']); assert.equal(status(store, reqs[0].requestId).code, 'QUEUE_FULL')
+    call(['work', '--store', store, '--once']); assert.equal(status(store, reqs[0].requestId).state, 'succeeded'); assert.equal(status(store, reqs[16].requestId).code, 'QUEUE_FULL')
+    assert.equal(status(store, reqs[16].requestId).startedAt, null); assert.equal(status(store, reqs[15].requestId), null)
     call(['cancel', '--store', store, '--request-id', reqs[1].requestId]); call(['work', '--store', store, '--once'])
     assert.equal(status(store, reqs[1].requestId).state, 'cancelled'); assert.equal(status(store, reqs[2].requestId).state, 'succeeded')
   })
@@ -346,6 +352,156 @@ try {
     runtime("from jobs_runtime import JobStore,atomic_json; s=JobStore(sys.argv[2]); s.admit(sys.argv[3]); m=s.manifest(sys.argv[3]); m['deadlineAt']='2000-01-01T00:00:00.000Z'; atomic_json(s.path(sys.argv[3])/'manifest.json',m); s.transition(sys.argv[3],'running')", [store,running.requestId])
     writeFileSync(join(store,'jobs',running.requestId,'status.json'),''); browserSubmit(store,next)
     assert.equal(call(['work','--store',store,'--once'],1).error.code,'RECOVERY_REQUIRED'); assert.equal(status(store,next.requestId),null)
+  })
+
+  await check('빈 ready·status는 보수적으로 대기 수에 포함하되 정상 CLI 접수를 가로막지 않는다', async () => {
+    const store = newStore(), incomplete = await request(), path = browserSubmit(store, incomplete)
+    writeFileSync(join(path, 'ready.json'), ''); writeFileSync(join(path, 'status.json'), '')
+    const good = await request(); submit(store, good)
+    assert.deepEqual(runtime('import json; from jobs_runtime import JobStore; print(json.dumps(JobStore(sys.argv[2]).check_capacity()))', [store]).slice(1), [2])
+    call(['work', '--store', store, '--once']); assert.equal(status(store, good.requestId).state, 'succeeded')
+    assert.equal(readFileSync(join(path, 'status.json'), 'utf8'), '')
+  })
+  await check('한 시간 지난 미접수 파일은 미리보기 뒤 원본을 보존 격리하고 보관 바이트에 계속 포함한다', async () => {
+    const store = newStore(), a = await request(), b = await request(), paths = [browserSubmit(store, a, false), browserSubmit(store, b)]
+    writeFileSync(join(paths[1], 'ready.json'), ''); paths.forEach(ageFolder)
+    assert.equal(call(['cleanup', '--store', store, '--apply'], 1).error.code, 'CLEANUP_PREVIEW_REQUIRED')
+    const preview = call(['cleanup', '--store', store]); assert.deepEqual([...preview.orphanRequestIds].sort(), [a.requestId, b.requestId].sort()); assert.deepEqual(preview.requestIds, [])
+    const before = runtime('import json; from jobs_runtime import JobStore; print(json.dumps(JobStore(sys.argv[2]).check_capacity()))', [store])[0]
+    const done = call(['cleanup', '--store', store, '--apply']); assert.deepEqual(done.deletedRequestIds, []); assert.deepEqual([...done.quarantinedRequestIds].sort(), [a.requestId, b.requestId].sort())
+    for (const req of [a, b]) { assert.equal(existsSync(join(store, 'jobs', req.requestId)), false); assert.deepEqual(json(join(store, '.cleanup-orphans', req.requestId, 'request.json')), req) }
+    const capacity = runtime('import json; from jobs_runtime import JobStore; print(json.dumps(JobStore(sys.argv[2]).check_capacity()))', [store]); assert.deepEqual(capacity, [before, 0])
+    const duplicate = join(temporary, '격리 번호 재사용.json'); save(duplicate, a); assert.equal(call(['submit', '--store', store, '--input', duplicate], 1).error.code, 'REQUEST_CONFLICT')
+    submit(store, await request())
+  })
+  await check('미접수 정리는 최근 파일·디렉터리 변경과 실행·결과 흔적을 제외한다', async () => {
+    const store = newStore()
+    for (const name of ['manifest.json', 'status.json', 'request.snapshot.json', 'result.json', 'cancel.json', '.engine.00000000-0000-0000-0000-000000000000.json']) {
+      const req = await request(), path = browserSubmit(store, req, false); writeFileSync(join(path, name), ''); ageFolder(path)
+    }
+    const recent = browserSubmit(store, await request(), false); ageFolder(recent); writeFileSync(join(recent, 'request.json'), '{}')
+    const recentDirectory = browserSubmit(store, await request(), false); ageFolder(recentDirectory); utimesSync(recentDirectory, new Date(), new Date())
+    const ready = browserSubmit(store, await request()); ageFolder(ready)
+    const unknown = browserSubmit(store, await request(), false); writeFileSync(join(unknown, '교사자료.txt'), '보존'); ageFolder(unknown)
+    assert.deepEqual(call(['cleanup', '--store', store]).orphanRequestIds, [])
+    assert.equal(readdirSync(join(store, 'jobs')).length, 10)
+  })
+  await check('미리보기 뒤 원본 변경·ready 완성은 격리하지 않고 다시 확인하게 한다', async () => {
+    for (const field of ['request', 'ready']) {
+      const store = newStore(), req = await request(), path = browserSubmit(store, req), marker = json(join(path, 'ready.json'))
+      writeFileSync(join(path, 'ready.json'), ''); ageFolder(path); call(['cleanup', '--store', store])
+      if (field === 'request') save(join(path, 'request.json'), { ...req, changed: true }); else save(join(path, 'ready.json'), marker)
+      assert.equal(call(['cleanup', '--store', store, '--apply'], 1).error.code, 'CLEANUP_CHANGED'); assert.ok(existsSync(path))
+    }
+  })
+  await check('오래된 미완성 마커라도 다른 폴더·요청 식별자는 자동 격리하지 않는다', async () => {
+    const store = newStore()
+    for (const key of ['queueId', 'requestId', 'contract']) {
+      const req = await request(), path = browserSubmit(store, req, false); save(join(path, 'ready.json'), { [key]: '다른 값' }); ageFolder(path)
+    }
+    assert.deepEqual(call(['cleanup', '--store', store]).orphanRequestIds, [])
+  })
+  await check('격리 중 뒤늦은 쓰기가 생겨도 원본을 삭제하지 않고 원위치에 보존한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req, false); ageFolder(path); call(['cleanup', '--store', store])
+    const result = runtime(`import json; from pathlib import Path; from jobs_runtime import JobStore; from jobs_contract import JobError
+original=Path.rename
+def racing(source,target):
+ result=original(source,target)
+ if source.parent.name=='jobs': (Path(target)/'ready.json').write_text('late writer',encoding='utf-8')
+ return result
+Path.rename=racing
+try:
+ JobStore(sys.argv[2]).cleanup(True); print(json.dumps('unexpected'))
+except JobError as error:
+ print(json.dumps(error.code))`, [store])
+    assert.equal(result, 'CLEANUP_CHANGED'); assert.deepEqual(json(join(path, 'request.json')), req); assert.equal(readFileSync(join(path, 'ready.json'), 'utf8'), 'late writer')
+  })
+  await check('orphan 안의 연결 디렉터리와 격리 보관소의 링크를 따라가지 않는다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req, false), outside = join(temporary, randomUUID()); mkdirSync(outside)
+    symlinkSync(outside, join(path, 'linked'), process.platform === 'win32' ? 'junction' : 'dir')
+    assert.equal(call(['cleanup', '--store', store], 1).error.code, 'UNSAFE_PATH'); assert.ok(existsSync(outside))
+    const other = newStore(); symlinkSync(outside, join(other, '.cleanup-orphans'), process.platform === 'win32' ? 'junction' : 'dir')
+    const input = join(temporary, '격리 링크.json'); save(input, await request()); assert.equal(call(['submit', '--store', other, '--input', input], 1).error.code, 'UNSAFE_PATH')
+  })
+  await check('Windows 메타 파일과 알려진 crswap만 완료 정리하며 임의 crswap은 보존한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    for (const name of ['desktop.ini', 'Thumbs.db']) { writeFileSync(join(store, 'jobs', name), 'OS'); writeFileSync(join(path, name), 'OS') }
+    writeFileSync(join(path, 'status.json.1.crswap'), '잔여'); call(['work', '--store', store, '--once']); assert.equal(status(store, req.requestId).state, 'succeeded')
+    writeFileSync(join(path, '교사자료.crswap'), '보존'); assert.equal(call(['cleanup', '--store', store, '--request-id', req.requestId, '--apply'], 1).error.code, 'UNKNOWN_FILES')
+    rmSync(join(path, '교사자료.crswap')); call(['cleanup', '--store', store, '--request-id', req.requestId, '--apply']); assert.equal(existsSync(path), false)
+    assert.ok(existsSync(join(store, 'jobs', 'desktop.ini')))
+  })
+  await check('자식 두 번째 종료 시간초과와 종료 권한 오류를 미확인 상태로 반환한다', () => {
+    const result = runtime(`import json,subprocess; from jobs_worker import LocalWorker
+class Child:
+ def poll(self): return None
+ def terminate(self): pass
+ def kill(self): pass
+ def wait(self,timeout): raise subprocess.TimeoutExpired('fixture',timeout)
+class Denied(Child):
+ def terminate(self): raise OSError('fixture')
+print(json.dumps([LocalWorker.stop_child(Child()),LocalWorker.stop_child(Denied())]))`)
+    assert.deepEqual(result, [false, false])
+  })
+  await check('자식 종료가 미확인이면 취소 완료를 기록하거나 다음 정상 계산을 시작하지 않는다', async () => {
+    const store = newStore(), first = await request(), next = await request(); browserSubmit(store, first, true, new Date(Date.now() - 1000).toISOString()); browserSubmit(store, next)
+    const result = runtime(`import json,os,subprocess; import jobs_worker; from jobs_runtime import JobStore; from jobs_contract import JobError
+s=JobStore(sys.argv[2]); w=jobs_worker.LocalWorker(s)
+class Child:
+ pid=os.getpid()
+ def __init__(self,*args,**kwargs): s.cancel(sys.argv[3])
+ def poll(self): return None
+ def terminate(self): pass
+ def kill(self): pass
+ def wait(self,timeout): raise subprocess.TimeoutExpired('fixture',timeout)
+jobs_worker.subprocess.Popen=Child
+try:
+ w.run(once=True); print(json.dumps('unexpected'))
+except JobError as error:
+ print(json.dumps(error.code))`, [store, first.requestId])
+    assert.equal(result, 'RECOVERY_REQUIRED'); assert.equal(status(store, first.requestId).state, 'cancel_requested'); assert.equal(status(store, next.requestId), null)
+    assert.equal(json(join(store, 'worker.json')).state, 'stopped')
+  })
+  await check('실패 상태 기록 자체의 OSError를 복구 대기로 보존하며 작업자 예외로 탈출하지 않는다', async () => {
+    const store = newStore(), req = await request(); browserSubmit(store, req)
+    const result = runtime(`import json; from jobs_worker import LocalWorker; from jobs_runtime import JobStore; from jobs_contract import JobError
+s=JobStore(sys.argv[2]); w=LocalWorker(s)
+def denied(*args,**kwargs): raise OSError('fixture')
+s.request=denied; s.transition=denied
+try:
+ w.run(once=True); print(json.dumps('unexpected'))
+except JobError as error:
+ print(json.dumps(error.code))`, [store])
+    assert.equal(result, 'RECOVERY_REQUIRED'); assert.equal(status(store, req.requestId), null)
+  })
+  await check('heartbeat와 완료 뒤 임시 파일 정리 오류가 성공한 계산을 뒤집지 않는다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    runtime(`from pathlib import Path; import jobs_worker; from jobs_runtime import JobStore
+original_write=jobs_worker.atomic_json; original_unlink=Path.unlink
+def denied_heartbeat(path,*args,**kwargs):
+ if path.name=='worker.json': raise OSError('fixture')
+ return original_write(path,*args,**kwargs)
+def denied_temporary(path,*args,**kwargs):
+ if path.name.startswith('.engine.'): raise OSError('fixture')
+ return original_unlink(path,*args,**kwargs)
+jobs_worker.atomic_json=denied_heartbeat; Path.unlink=denied_temporary
+jobs_worker.LocalWorker(JobStore(sys.argv[2])).run(once=True)`, [store])
+    assert.equal(status(store, req.requestId).state, 'succeeded'); assert.ok(readdirSync(path).some(name => name.startsWith('.engine.')))
+  })
+  await check('결과 파일 기록 뒤 성공 상태 쓰기 실패는 거짓 실패로 바꾸지 않고 recover로 완료한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    const result = runtime(`import json; from jobs_worker import LocalWorker; from jobs_runtime import JobStore; from jobs_contract import JobError
+s=JobStore(sys.argv[2]); original=s.transition
+def fail_success(request_id,state,code=None):
+ if state=='succeeded': raise OSError('fixture')
+ return original(request_id,state,code)
+s.transition=fail_success
+try:
+ LocalWorker(s).run(once=True); print(json.dumps('unexpected'))
+except JobError as error:
+ print(json.dumps(error.code))`, [store])
+    assert.equal(result, 'RECOVERY_REQUIRED'); assert.equal(status(store, req.requestId).state, 'running'); assert.ok(existsSync(join(path, 'result.json')))
+    call(['recover', '--store', store]); assert.equal(status(store, req.requestId).state, 'succeeded')
   })
 
   console.log(`전부 통과 (${count}건)`)
