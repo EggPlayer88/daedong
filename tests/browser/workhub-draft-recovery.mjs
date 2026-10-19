@@ -51,6 +51,7 @@ const bundle = buildSync({
           if(name==='workhub_calendar_get')return {data:await calendar.get(args.p_member_id,args.p_event_id),error:null};
           if(name==='workhub_task_list')return {data:tasks.listTasks(args.p_member_id),error:null};
           if(name==='workhub_task_get')return {data:tasks.listTasks(args.p_member_id).find(row=>row.id===args.p_task_id),error:null};
+          if(!['workhub_calendar_save','workhub_task_mutate'].includes(name))return {data:null,error:{code:'PGRST202',message:'합성 서버에 없는 선택 기능'}};
           qa.writes.push({name,args:clone(args)});
           const kind=name==='workhub_calendar_save'?'calendar':'task';
           let saved;
@@ -70,7 +71,7 @@ const bundle = buildSync({
     };
     const connection=createSupabaseConnection(services);
     qa.info=()=>connection.info();
-    createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" connection={connection}/>);
+    createRoot(document.getElementById('root')).render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={connection}/>);
   ` },
   bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' },
   define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent',

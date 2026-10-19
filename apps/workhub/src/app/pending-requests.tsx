@@ -1,15 +1,18 @@
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { CalendarEvent, Membership, SaveCommand } from '../contracts'
 import type { PersonalTask, TaskCommand } from '../tasks/contracts'
+import type { CollectionCommand } from '../collections/contracts'
 
 export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask }
 export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
-type Requests = { task: TaskRecovery; calendar: CalendarRecovery }
+export type CollectionRecovery = { command: CollectionCommand; key: string }
+export type ModuleRecovery = { command: unknown; key: string }
+type Requests = { task: TaskRecovery; calendar: CalendarRecovery; collection: CollectionRecovery; schoolAdmin: ModuleRecovery; teaching: ModuleRecovery; teachingRelations: ModuleRecovery; messaging: ModuleRecovery; messagingFile: ModuleRecovery; knowledge: ModuleRecovery; assistant: ModuleRecovery; collectionOps: ModuleRecovery; documents: ModuleRecovery; cooperation: ModuleRecovery; calendarBatch: ModuleRecovery; handover: ModuleRecovery; guidedDocuments: ModuleRecovery; knowledgeImport: ModuleRecovery }
 type Listener = () => void
 
 // 결과 미확정 명령만 현재 탭 메모리에 둔다. 새로고침·로그아웃 후 복구 저장소로 쓰지 않는다.
 export function createPendingRequests() {
-  const entries = new Map<string, TaskRecovery | CalendarRecovery>()
+  const entries = new Map<string, TaskRecovery | CalendarRecovery | CollectionRecovery | ModuleRecovery>()
   const listeners = new Set<Listener>()
   const notify = () => { for (const listener of listeners) listener() }
   return {

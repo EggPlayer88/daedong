@@ -43,7 +43,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
   const appearance = useAppearancePreferences()
   const modules = enabledModules(mode)
   const current = modules.find(module => module.id === page)
-  const additional = modules.filter(module => module.group === 'work' || module.group === 'teaching')
+  const additional = modules.filter(module => module.id !== 'assistant' && (module.group === 'work' || module.group === 'teaching'))
   const secondaryPage = additional.some(module => module.id === page)
   const name = typeof memberName === 'string' && memberName.trim() ? memberName : '선생님'
   const school = typeof schoolName === 'string' && schoolName.trim() ? schoolName : '학교 업무실'
@@ -92,6 +92,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
   }
   function openUtility(panel: 'appearance' | 'assistant') {
     // 먼저 현재 top-layer를 닫아 설정·비서와 포커스 함정이 겹치지 않게 한다.
+    if (panel === 'assistant' && mode === 'connected') { navigate('assistant'); return }
     mobileSheet.current?.close()
     setMobilePanel(panel)
   }
@@ -107,7 +108,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
     </button>
   }
   function group(groupId: ModuleGroup) {
-    const items = modules.filter(module => module.group === groupId)
+    const items = modules.filter(module => module.group === groupId && module.id !== 'assistant')
     return items.length ? <div className={`ws-menu-group ws-group-${groupId}`} key={groupId}><p className="ws-group-label">{moduleGroupLabels[groupId]}</p>{items.map(menuButton)}</div> : null
   }
 
@@ -135,12 +136,12 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
               <div className="ws-sheet-body">
                 {additional.length > 0 && <div className="ws-sheet-menus">{group('work')}{group('teaching')}</div>}
                 {locked && <p className="ws-sheet-lock">작성 중인 내용을 저장하거나 편집을 마친 뒤 이동할 수 있습니다.</p>}
-                <div className="ws-sheet-utilities"><button type="button" className="ws-utility-button" aria-haspopup="dialog" disabled={locked} onClick={() => openUtility('assistant')}><WorkspaceIcon name="assistant" /><span>AI 비서</span><small>준비 중</small></button><button type="button" className="ws-utility-button" aria-haspopup="dialog" onClick={() => openUtility('appearance')}><WorkspaceIcon name="appearance" /><span>화면 설정</span></button></div>
+                <div className="ws-sheet-utilities"><button type="button" className="ws-utility-button" aria-haspopup={mode === 'preview' ? 'dialog' : undefined} disabled={locked} onClick={() => openUtility('assistant')}><WorkspaceIcon name="assistant" /><span>AI 비서</span>{mode === 'preview' && <small>준비 중</small>}</button><button type="button" className="ws-utility-button" aria-haspopup="dialog" onClick={() => openUtility('appearance')}><WorkspaceIcon name="appearance" /><span>화면 설정</span></button></div>
                 {mobile && contextControls && <div className="ws-sheet-context">{contextControls}</div>}
               </div></>}
           </dialog>
         </nav>
-        <div ref={desktopUtilities} className="ws-utilities">{!mobile && <><WorkspaceAssistant modules={modules} onNavigate={navigate} locked={locked} /><AppearancePanel preferences={appearance.preferences} onChange={appearance.update} onReset={appearance.reset} persistenceError={appearance.persistenceError} /></>}</div>
+        <div ref={desktopUtilities} className="ws-utilities">{!mobile && <>{mode === 'connected' ? <button type="button" className="ws-assistant-trigger ws-utility-button" disabled={locked} aria-current={page === 'assistant' ? 'page' : undefined} onClick={() => navigate('assistant')}><WorkspaceIcon name="assistant" /><span>AI 비서</span></button> : <WorkspaceAssistant modules={modules} onNavigate={navigate} locked={locked} />}<AppearancePanel preferences={appearance.preferences} onChange={appearance.update} onReset={appearance.reset} persistenceError={appearance.persistenceError} /></>}</div>
         <div className="ws-member"><span className="ws-avatar" aria-hidden="true">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{mode === 'preview' ? '합성 자료로 흐름 확인' : '현재 학교의 업무 공간'}</span></div></div>
       </aside>
       <div className="ws-workspace">

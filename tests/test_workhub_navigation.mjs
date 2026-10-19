@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
-const { readWorkspaceLocation, workspacePageUrl, anchorLeavesWorkspace, createWorkspaceNavigationController, navigationBlockedMessage } = await loadBrowserModule(`export * from '../apps/workhub/src/app/navigation.ts'`)
+const { readWorkspaceLocation, workspacePageUrl, anchorLeavesWorkspace, createWorkspaceNavigationController, navigationBlockedMessage, workspaceExitBlockedMessage } = await loadBrowserModule(`export * from '../apps/workhub/src/app/navigation.ts'`)
 const pages = ['home', 'calendar', 'tasks']
 const base = 'https://school.invalid/workhub?filter=%ED%95%99%EA%B5%90&view=tasks#main-content'
 let failed = 0
@@ -100,6 +100,45 @@ try {
     assert.equal(f.host.history.length, 1)
     assert.equal(f.host.location.searchParams.get('filter'), '학교')
     assert.equal(f.host.location.hash, '#main-content')
+    f.controller.stop()
+  })
+  await test('보관 잠금은 내부 메뉴를 허용하고 학교 변경 action은 차단한다', () => {
+    const f = fixture(); f.options.exitLocked = true
+    let actions = 0
+    assert.equal(f.controller.requestNavigate('calendar'), true)
+    assert.equal(f.page, 'calendar')
+    assert.equal(f.controller.requestAction(() => actions++), false)
+    assert.equal(actions, 0)
+    assert.equal(f.announcement, workspaceExitBlockedMessage)
+    f.options.exitLocked = false
+    assert.equal(f.controller.requestAction(() => actions++), true)
+    assert.equal(actions, 1)
+    f.controller.stop()
+  })
+  await test('보관 잠금은 같은 업무실의 POP은 허용하고 바깥 경로로 가는 POP은 되돌린다', () => {
+    const f = fixture('https://school.invalid/legacy')
+    f.host.history.pushState({ idx: 8 }, '', base); f.controller.sync()
+    f.options.exitLocked = true
+    f.controller.requestNavigate('calendar')
+    f.host.history.go(-1)
+    assert.equal(f.page, 'tasks')
+    assert.equal(f.host.location.href, base)
+    f.host.history.go(-1)
+    assert.equal(f.page, 'tasks')
+    assert.equal(f.host.location.href, base)
+    assert.equal(f.announcement, workspaceExitBlockedMessage)
+    f.options.exitLocked = false
+    f.host.history.go(-1)
+    assert.equal(f.host.location.pathname, '/legacy')
+    f.controller.stop()
+  })
+  await test('입력창을 접어도 보관 자료의 새로고침 경고는 유지하고 완료 뒤 해제한다', () => {
+    const f = fixture(); f.options.exitLocked = true
+    const first = new Event('beforeunload', { cancelable: true }); f.host.dispatchEvent(first)
+    assert.equal(first.defaultPrevented, true)
+    f.options.exitLocked = false
+    const second = new Event('beforeunload', { cancelable: true }); f.host.dispatchEvent(second)
+    assert.equal(second.defaultPrevented, false)
     f.controller.stop()
   })
   await test('설정에서 메뉴를 제외하면 현재 URL도 교정하고 기존 항목을 덧붙이지 않는다', () => {

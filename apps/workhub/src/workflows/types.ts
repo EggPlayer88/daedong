@@ -1,4 +1,5 @@
 import type { Membership } from '../contracts'
+import type { FilePolicy, FileReference } from '../files/contracts'
 
 export type TaskStatus = 'todo' | 'doing' | 'waiting' | 'done' | 'cancelled'
 export interface TaskInput { title: string; notes: string; dueDate: string }
@@ -7,6 +8,7 @@ export interface UnitInput { label: string; responsibleMemberId: string; contrib
 export interface CollectionInput {
   title: string; instructions: string; dueDate: string; reviewMode: 'none' | 'required'; reviewerMemberId: string
   textLabel: string; textRequired: boolean; numberLabel: string; numberRequired: boolean; units: UnitInput[]
+  fileCollection?: { policy: FilePolicy; required: boolean; templates: FileReference[] }
 }
 export interface CollectionRequest extends CollectionInput { id: string; schoolId: string; managerMemberId: string; status: 'draft' | 'published'; version: number; publishedAt: string | null }
 export interface UnitMember { id: string; userId: string; name: string }
@@ -15,7 +17,7 @@ export interface CollectionUnit {
   version: number; currentSubmissionId: string | null; effectiveSubmissionId: string | null
   withdrawnSubmissionIds: string[]; correctionUntil: string; correctionReason: string
 }
-export interface AnswerInput { text: string; number: number | null }
+export interface AnswerInput { text: string; number: number | null; files?: FileReference[] }
 export interface CollectionDraft extends AnswerInput { id: string; unitId: string; lastEditorMemberId: string; version: number }
 export interface Submission extends AnswerInput {
   id: string; unitId: string; revision: number; submittedBy: string; receiptAt: string; receiptDate: string

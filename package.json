@@ -19,7 +19,12 @@
     "test:workhub:postgres": "node tests/integration/workhub-postgres.mjs",
     "test:workhub:browser": "node tests/browser/run.mjs",
     "check:workhub:integration": "node scripts/check-workhub-integration.mjs",
-    "check:workhub:design": "node docs/workhub/database-integrated/validate-design.cjs && node docs/workhub/database-integrated/check-delivery.cjs"
+    "check:workhub:design": "node docs/workhub/database-integrated/validate-design.cjs && node docs/workhub/database-integrated/check-delivery.cjs",
+    "check:workhub:integration:r2": "node scripts/check-workhub-integration-r2.mjs",
+    "test:workhub:r2-sql": "bash scripts/verify-workhub-r2-sql.sh",
+    "check:workhub:pilot": "node scripts/check-workhub-pilot.mjs",
+    "check:workhub:release": "node scripts/check-workhub-release.mjs",
+    "test:workhub:release-sql": "bash scripts/verify-workhub-release-sql.sh"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

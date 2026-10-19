@@ -1,14 +1,16 @@
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { subscribeWorkspacePopstate } from './navigation-bridge'
 
-const knownPages = new Set(['home', 'calendar', 'tasks', 'collections', 'students'])
+const knownPages = new Set(['home', 'calendar', 'tasks', 'collections', 'students', 'knowledge', 'messages', 'schoolAdmin', 'documents', 'cooperation', 'assistant'])
 export const navigationBlockedMessage = '작성 중인 내용을 저장하거나 편집을 취소한 뒤 이동해 주세요. 저장 결과를 확인 중이면 먼저 같은 요청의 결과를 확인해 주세요.'
+export const workspaceExitBlockedMessage = '보관한 입력이나 확인할 저장 요청이 남아 있어 업무실 밖으로 나가거나 학교를 바꿀 수 없습니다. 업무실 메뉴는 계속 이용할 수 있으며, 기존 메뉴는 새 탭에서 열어 주세요.'
 
 export interface NavigationOptions {
   allowedPages: readonly string[]
   defaultPage?: string
   scopeKey?: string
   locked: boolean
+  exitLocked?: boolean
 }
 export interface WorkspaceLocation { page: string; href: string; corrected: boolean }
 
@@ -62,6 +64,10 @@ function fragmentOnly(first: string, second: string): boolean {
   const a = new URL(first), b = new URL(second)
   return a.origin === b.origin && a.pathname === b.pathname && a.search === b.search
 }
+function sameWorkspace(first: string, second: string): boolean {
+  const a = new URL(first), b = new URL(second)
+  return a.origin === b.origin && a.pathname === b.pathname
+}
 
 export interface NavigationControllerOptions {
   window: Window
@@ -81,7 +87,7 @@ export function createWorkspaceNavigationController({ window: host, getOptions, 
   let lastScope: string | undefined
   let entrySequence = 0
 
-  function announce() { onAnnouncement(navigationBlockedMessage) }
+  function announce(exit = false) { onAnnouncement(exit ? workspaceExitBlockedMessage : navigationBlockedMessage) }
   function notifyRouter() {
     localNotification = true
     try { host.dispatchEvent(new PopStateEvent('popstate', { state: host.history.state })) }
@@ -104,9 +110,10 @@ export function createWorkspaceNavigationController({ window: host, getOptions, 
     if (restoring && target.href === current.href && historyIndex(target.state) === historyIndex(current.state)) {
       event.stopImmediatePropagation(); restoring = false; return
     }
-    if ((getOptions().locked || restoring) && !fragmentOnly(current.href, target.href)) {
+    const options = getOptions(), exiting = Boolean(options.exitLocked && !sameWorkspace(current.href, target.href))
+    if ((options.locked || exiting || restoring) && !fragmentOnly(current.href, target.href)) {
       event.stopImmediatePropagation()
-      announce()
+      announce(exiting && !options.locked)
       const from = historyIndex(current.state), to = historyIndex(target.state)
       if (from !== undefined && to !== undefined && from !== to) {
         restoring = true
@@ -123,14 +130,22 @@ export function createWorkspaceNavigationController({ window: host, getOptions, 
     acceptCurrent()
   }
   function onClick(event: MouseEvent) {
-    if (!getOptions().locked || event.defaultPrevented) return
+    const options = getOptions()
+    if ((!options.locked && !options.exitLocked) || event.defaultPrevented) return
     const anchor = event.composedPath().find(node => node instanceof Element && node.tagName.toLowerCase() === 'a') as HTMLAnchorElement | undefined
     if (!anchor || !anchor.hasAttribute('href')) return
     if (!anchorLeavesWorkspace(host.location.href, { href: anchor.href, target: anchor.target && anchor.target === host.name ? '_self' : anchor.target, download: anchor.hasAttribute('download'), button: event.button, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, altKey: event.altKey })) return
-    event.preventDefault(); event.stopImmediatePropagation(); announce()
+    const exiting = Boolean(options.exitLocked && !sameWorkspace(host.location.href, anchor.href))
+    if (!options.locked && !exiting) {
+      // 허용한 같은 업무실의 Router 링크는 자체 POP을 발생시키지 않는다.
+      // 링크의 기본 처리 후 URL을 읽어 보관 중 내부 메뉴와 화면을 맞춘다.
+      setTimeout(() => { if (active && sameWorkspace(current.href, host.location.href)) acceptCurrent() }, 0)
+      return
+    }
+    event.preventDefault(); event.stopImmediatePropagation(); announce(exiting && !options.locked)
   }
   function onBeforeUnload(event: BeforeUnloadEvent) {
-    if (!getOptions().locked) return
+    if (!getOptions().locked && !getOptions().exitLocked) return
     event.preventDefault(); event.returnValue = ''
   }
   function sync() {
@@ -178,6 +193,7 @@ export function createWorkspaceNavigationController({ window: host, getOptions, 
     },
     requestAction(action: () => void) {
       if (getOptions().locked || restoring) { announce(); return false }
+      if (getOptions().exitLocked) { announce(true); return false }
       onAnnouncement(''); action(); return true
     },
   }

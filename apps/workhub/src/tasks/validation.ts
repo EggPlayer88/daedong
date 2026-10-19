@@ -1,5 +1,7 @@
+import limits from '../../../main/api/workhub-ai/_assets/task-limits.json'
 import { TaskError, type PersonalTask, type TaskInput, type TaskStatus } from './contracts'
 
+export const TASK_INPUT_LIMITS = limits
 export const TASK_STATUSES: readonly TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled']
 export interface TaskScope { memberId: string; schoolId: string }
 const record = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -19,7 +21,7 @@ function text(value: unknown, label: string, max: number, required = false): str
 export function normalizeTaskInput(value: unknown): TaskInput {
   if (!record(value) || Object.keys(value).some(key => !['title', 'notes', 'dueDate'].includes(key))) return invalid('업무 입력 형식을 확인해 주세요.')
   if (typeof value.dueDate !== 'string' || (value.dueDate !== '' && (!/^\d{4}-\d{2}-\d{2}$/.test(value.dueDate) || value.dueDate.startsWith('0000-') || Number.isNaN(Date.parse(`${value.dueDate}T00:00:00Z`)) || new Date(`${value.dueDate}T00:00:00Z`).toISOString().slice(0, 10) !== value.dueDate))) return invalid('기한은 올바른 날짜로 입력하거나 비워 두세요.')
-  return { title: text(value.title, '제목', 120, true), notes: text(value.notes, '메모', 2000), dueDate: value.dueDate }
+  return { title: text(value.title, '제목', limits.titleChars, true), notes: text(value.notes, '메모', limits.notesChars), dueDate: value.dueDate }
 }
 
 export function taskIdentifier(value: unknown, label = '업무 식별자'): string {

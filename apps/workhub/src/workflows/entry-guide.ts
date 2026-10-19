@@ -1,5 +1,6 @@
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
+import { normalizeFilePolicy, validateFileReferences } from '../files/validation'
 import type { AnswerInput, CollectionInput, CollectionRequest } from './types'
 
 export interface EntryCheck { label: string; ready: boolean; detail: string }
@@ -19,12 +20,18 @@ export function collectionEntryGuide(input: CollectionInput, members: Membership
   const find = (id: string) => options.find(member => member.id === id)
   const rawUnits = Array.isArray(input?.units) ? input.units : []
   const issues: string[] = [], warnings: string[] = []
-  const requiredQuestionCount = Number(Boolean(clean(input?.textLabel) && input?.textRequired)) + Number(Boolean(clean(input?.numberLabel) && input?.numberRequired))
+  const hasFiles = input?.fileCollection !== undefined
+  let fileReady = !hasFiles
+  if (hasFiles) {
+    try { const value = input.fileCollection!; if (!value || typeof value.required !== 'boolean') throw new Error(); validateFileReferences(value.templates, normalizeFilePolicy(value.policy)); fileReady = true }
+    catch { issues.push('파일 수합의 허용 형식·크기·개수와 양식 파일을 확인해 주세요.') }
+  }
+  const requiredQuestionCount = Number(Boolean(clean(input?.textLabel) && input?.textRequired)) + Number(Boolean(clean(input?.numberLabel) && input?.numberRequired)) + Number(Boolean(hasFiles && fileReady && input.fileCollection?.required))
   const hasTitle = Boolean(clean(input?.title)), hasDate = realDate(input?.dueDate)
   if (!hasTitle) issues.push('수합 제목을 입력해 주세요.')
   if (!hasDate) issues.push('올바른 마감일을 입력해 주세요.')
   else if (input.dueDate < date) warnings.push('마감일이 이미 지났습니다. 게시 후 첫 제출은 지연 제출로 표시됩니다.')
-  const hasQuestion = Boolean(clean(input?.textLabel) || clean(input?.numberLabel))
+  const hasQuestion = Boolean(clean(input?.textLabel) || clean(input?.numberLabel) || (hasFiles && fileReady))
   if (!hasQuestion) issues.push('글 또는 숫자 문항을 하나 이상 입력해 주세요.')
   if ((input?.textRequired && !clean(input?.textLabel)) || (input?.numberRequired && !clean(input?.numberLabel))) issues.push('필수 응답을 받을 문항의 이름을 입력해 주세요.')
   if (!rawUnits.length) issues.push('제출 단위를 하나 이상 정해 주세요.')
@@ -51,17 +58,22 @@ export function collectionEntryGuide(input: CollectionInput, members: Membership
   return { issues, warnings, unitCount: rawUnits.length, memberCount: participantIds.size, requiredQuestionCount, reviewerName: reviewer?.name ?? '', units,
     checks: [
       { label: '안내와 마감', ready: hasTitle && hasDate, detail: hasDate ? `${input.dueDate}까지` : '제목과 마감일을 확인해 주세요' },
-      { label: '응답 문항', ready: hasQuestion && !((input?.textRequired && !clean(input?.textLabel)) || (input?.numberRequired && !clean(input?.numberLabel))), detail: `필수 ${requiredQuestionCount}개 · ${requiredQuestionCount ? '필수 문항을 채워야 최종 제출할 수 있습니다' : '설정된 문항을 모두 선택 응답으로 받습니다'}` },
+      { label: '응답 문항', ready: hasQuestion && fileReady && !((input?.textRequired && !clean(input?.textLabel)) || (input?.numberRequired && !clean(input?.numberLabel))), detail: `필수 ${requiredQuestionCount}개 · ${requiredQuestionCount ? '필수 문항을 채워야 최종 제출할 수 있습니다' : '설정된 문항을 모두 선택 응답으로 받습니다'}` },
       { label: '제출 대상', ready: rawUnits.length > 0 && rawUnits.length <= collectionUnitLimit && unitIssues.length === 0, detail: `${rawUnits.length}부 · 작성 교사 ${participantIds.size}명` },
       { label: '완료 방식', ready: reviewReady, detail: input?.reviewMode === 'required' ? reviewer ? `${reviewer.name} 검토 후 완료` : '검토자 지정 필요' : '제출 즉시 완료 · 사람 검토 없음' },
     ],
   }
 }
 
-export function responseEntryGuide(request: Pick<CollectionRequest, 'textLabel' | 'textRequired' | 'numberLabel' | 'numberRequired'>, input: AnswerInput, resubmission: boolean, reason: string): EntryCheck[] {
+export function responseEntryGuide(request: Pick<CollectionRequest, 'textLabel' | 'textRequired' | 'numberLabel' | 'numberRequired' | 'fileCollection'>, input: AnswerInput, resubmission: boolean, reason: string): EntryCheck[] {
   const checks: EntryCheck[] = []
   if (request.textLabel) checks.push({ label: request.textLabel, ready: !request.textRequired || Boolean(clean(input?.text)), detail: request.textRequired ? '필수 글 응답' : '선택 글 응답' })
   if (request.numberLabel) checks.push({ label: request.numberLabel, ready: input?.number === null ? !request.numberRequired : typeof input?.number === 'number' && Number.isFinite(input.number), detail: request.numberRequired ? '필수 숫자 응답 · 0도 입력값입니다' : '선택 숫자 응답' })
+  if (request.fileCollection) {
+    let ready = false
+    try { const files = validateFileReferences(input?.files === undefined ? [] : input.files, normalizeFilePolicy(request.fileCollection.policy)); ready = !request.fileCollection.required || files.length > 0 } catch { /* 손상된 파일 목록은 확인이 필요하다. */ }
+    checks.push({ label: '제출 파일', ready, detail: request.fileCollection.required ? '필수 파일 첨부' : '선택 파일 첨부' })
+  }
   if (resubmission) checks.push({ label: '정정·보완 사유', ready: Boolean(clean(reason)), detail: '새 버전을 제출할 때 필요합니다' })
   return checks
 }

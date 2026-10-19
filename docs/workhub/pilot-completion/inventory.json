@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "base": "fca179edb94b70fe4b0a26f95990a5e1aefd6b1a",
+  "app_ancestors": [
+    {
+      "number": 43,
+      "sha": "66be765ff089eec551188edfbf943defcdd3bae5"
+    },
+    {
+      "number": 45,
+      "sha": "2f8d9a32bc266ac08e6094a4005bd33c4df652a8"
+    },
+    {
+      "number": 46,
+      "sha": "fca179edb94b70fe4b0a26f95990a5e1aefd6b1a"
+    }
+  ],
+  "excluded": [
+    {
+      "number": 44,
+      "sha": "059aa7825cda455c6faefb6e3c1a7ef08d058e30"
+    }
+  ],
+  "separate_sql_review": {
+    "number": 47,
+    "sha": "884056f3f8e8668252d2df13c1827f1780dda958",
+    "applied_by_this_work": false
+  }
+}

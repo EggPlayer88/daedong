@@ -1490,6 +1490,8 @@ Claude·기억 · 기존 보강
 | first_submission_id | text | 허용 | — | workhub.submission_versions.id · 최초 접수의 불변 근거 | 통합 추가 |
 | needs_owner | boolean | 불가 | false | 책임 공백 projection | 통합 추가 |
 
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): collection_units_responsible_membership_id_not_null
+
 통합 필수 제약:
 
 - active_schema는 same collection 복합 FK
@@ -1556,11 +1558,17 @@ Claude·기억 · 기존 보강
 
 제거/대체 대상: visibility, view_audience_set_id
 
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): collections_check, collections_visibility_check, collections_visibility_not_null, collections_school_id_view_audience_set_id_fkey
+
 통합 필수 제약:
 
 - (school_id,id,current_schema_id) FK collection_schemas(school_id,collection_id,id) DEFERRABLE
 - published 이후 current_schema_id NN, same collection의 published 판
-- 각 visibility=audience iff 해당 audience FK NN
+- request_visibility/result_visibility 각각 school/audience/participants 중 하나
+- request_visibility=audience iff request_audience_set_id IS NOT NULL
+- result_visibility=audience iff result_audience_set_id IS NOT NULL
+- FOREIGN KEY(school_id,request_audience_set_id) REFERENCES workhub.audience_sets(school_id,id); 선택 대상은 MATCH SIMPLE
+- FOREIGN KEY(school_id,result_audience_set_id) REFERENCES workhub.audience_sets(school_id,id); 선택 대상은 MATCH SIMPLE
 - result_visibility<>participants이면 results_published_by/at NN 및 명시 receipt
 
 통합 동작 규칙:
@@ -1579,7 +1587,6 @@ Claude·기억 · 기존 보강
 - (school_id) → workhub.schools(id)
 - (school_id,obligation_audience_set_id) → workhub.audience_sets(school_id,id)
 - (school_id,owner_membership_id) → workhub.memberships(school_id,id)
-- (school_id,view_audience_set_id) → workhub.audience_sets(school_id,id)
 
 필수 시험: WF03; WF06; WF18
 
@@ -3160,9 +3167,13 @@ Claude·기억 · 기존 보강
 | actor_service_principal_id | text | 허용 | — | workhub.service_principals.id · 서비스 actor; 사람일 때 NULL · 생성 후 불변 | 통합 추가 |
 | actor_key | text GENERATED ALWAYS AS (CASE WHEN actor_account_id IS NOT NULL THEN 'a:'\|\|actor_account_id ELSE 's:'\|\|actor_service_principal_id END) STORED | 불가 | — | 사람/서비스 ID 충돌 없는 키 · 생성 후 불변 | 통합 추가 |
 
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): idempotency_receipts_actor_account_id_not_null, idempotency_receipts_pkey
+
+이번 판에서 대체하는 인덱스(그대로 생성 금지): idempotency_receipts_pkey
+
 통합 필수 제약:
 
-- 기존 actor_account_id 기반 PK를 PRIMARY KEY(actor_key,scope_key,operation,idem_key)로 교체
+- PRIMARY KEY(actor_key,scope_key,operation,idem_key); 기존 actor_account_id 기반 PK와 인덱스를 대체
 - num_nonnulls(actor_account_id,actor_service_principal_id)=1
 - request_sha256 불변; 같은키 다른payload conflict
 
@@ -7477,10 +7488,10 @@ Claude·기억 · 기존 보강
 | charge_school_id | text | 허용 | — |  | 원본 |
 | provider | text | 불가 | — |  | 원본 |
 | model | text | 불가 | — |  | 원본 |
-| input_tokens | bigint | 허용 | 0 | DEFAULT 제거: NULL미확인,0실제0 | 통합 변경 |
-| output_tokens | bigint | 허용 | 0 | DEFAULT 제거: 공급자가 보고한 출력량 | 통합 변경 |
-| cache_read_tokens | bigint | 허용 | 0 | DEFAULT 제거: 미확인과0분리 | 통합 변경 |
-| cache_write_tokens | bigint | 허용 | 0 | DEFAULT 제거: 미확인과0분리 | 통합 변경 |
+| input_tokens | bigint | 허용 | — | DEFAULT 제거: NULL미확인,0실제0 | 통합 변경 |
+| output_tokens | bigint | 허용 | — | DEFAULT 제거: 공급자가 보고한 출력량 | 통합 변경 |
+| cache_read_tokens | bigint | 허용 | — | DEFAULT 제거: 미확인과0분리 | 통합 변경 |
+| cache_write_tokens | bigint | 허용 | — | DEFAULT 제거: 미확인과0분리 | 통합 변경 |
 | status | text | 불가 | — |  | 원본 |
 | retry_of_id | bigint | 허용 | — |  | 원본 |
 | occurred_at | timestamp with time zone | 불가 | now() |  | 원본 |
@@ -7494,6 +7505,8 @@ Claude·기억 · 기존 보강
 | event_kind | text | 불가 | 'measurement' | measurement/adjustment · 생성 후 불변 | 통합 추가 |
 | adjusts_usage_event_id | bigint | 허용 | — | workhub.usage_events.id · 명시적 비용정정 원측정 · 생성 후 불변 | 통합 추가 |
 | measurement_key | text | 불가 | — | 공급자 보고/조정의 멱등키 · 생성 후 불변 | 통합 추가 |
+
+이번 판에서 대체하는 원본 제약(그대로 적용 금지): usage_events_input_tokens_not_null, usage_events_output_tokens_not_null, usage_events_cache_read_tokens_not_null, usage_events_cache_write_tokens_not_null
 
 통합 필수 제약:
 
