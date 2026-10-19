@@ -126,3 +126,9 @@ AI는 수업의 가능 여부를 보증하는 주체가 아니다. 조건과 배
 - [확정·공유·교환 화면 구축](operations-implementation.md)
 - [확정·교환 API 인계](operations-api.md)
 - [운영 화면 검증 기록](operations-verification.md)
+
+## 편성 흐름 통합 후속 작업
+
+- [조건→생성→후보 비교→저장→확정·운영 통합](flow-completion.md)
+- [자동 검증 기록](flow-verification.md)
+- [Claude 통합 검토 요청](flow-review-request.md)
