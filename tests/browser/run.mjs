@@ -17,7 +17,7 @@ const scripts = [
   'workhub-timetable-local-engine', 'workhub-timetable-published-export', 'workhub-timetable-condition-batch',
   'workhub-timetable-target', 'workhub-timetable-target-connected', 'workhub-timetable-setup-workbook-day',
   'workhub-timetable-flow', 'workhub-timetable-candidate-library', 'workhub-timetable-condition-review', 'workhub-timetable-operation-review',
-  'workhub-timetable-board-usability', 'workhub-timetable-editor-usability', 'workhub-timetable-exchange-inbox',
+  'workhub-timetable-board-usability', 'workhub-timetable-editor-usability', 'workhub-timetable-exchange-inbox', 'workhub-timetable-exchange-navigation', 'workhub-timetable-execution-records', 'workhub-timetable-notification', 'workhub-timetable-execution-connected',
   'workhub-school-setup', 'workhub-tasks', 'workhub-connection', 'workhub-connection-exit', 'workhub-draft-recovery', 'workhub-day-refresh', 'workhub-readiness',
   'workhub-navigation', 'workhub-help', 'workhub-foundation', 'workhub-calendar-views',
   'workhub-calendar-recovery', 'workhub-calendar-import', 'workhub-cooperation-batch', 'workhub-cooperation-handover', 'workhub-request-recovery',

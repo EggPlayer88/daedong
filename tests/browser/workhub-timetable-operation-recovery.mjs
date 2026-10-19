@@ -22,10 +22,12 @@ try {
     assert.equal(state.saved[kind === 'publish_manifest' ? 'timetable-publish' : 'timetable-school-day'], undefined)
     assert.ok(state.saved[kind === 'publish_manifest' ? 'timetable-school-day' : 'timetable-publish'])
   })
-  for (const kind of ['publish_manifest', 'school_day']) await check(kind + ': 미실행 확인 뒤 입력을 보존하고 자동 새 요청을 만들지 않는다', async () => {
-    await start(kind, { recoveryError: 'NOT_FOUND', failRead: true }); const before = await page.evaluate(() => window.saved()); await recovery().click(); await page.waitForFunction(() => window.pending.count() === 0)
+  for (const kind of ['publish_manifest', 'school_day']) await check(kind + ': 미접수 조회 뒤 입력과 원키를 보존하고 같은 번호로만 다시 보낸다', async () => {
+    await start(kind, { recoveryError: 'NOT_FOUND', failRead: true }); const before = await page.evaluate(() => window.saved()); await recovery().click(); await page.getByText('아직 접수증을 찾지 못했습니다. 최초 요청이 늦게 처리될 수 있어 입력과 원래 요청 번호를 유지합니다.', {exact:true}).waitFor(); assert.equal(await page.evaluate(() => window.pending.count()), 1)
     assert.deepEqual(await page.evaluate(() => window.saved()), before); assert.equal(await page.evaluate(() => window.calls.length), 1)
-    await page.getByText('원래 요청이 실행되지 않았음을 확인했습니다. 입력은 유지했습니다. 최신 내용을 다시 검토해 주세요.', { exact: true }).waitFor()
+    const resend=page.getByRole('button',{name:'같은 번호·같은 내용으로 다시 보내기',exact:true});assert.equal(await resend.isDisabled(),true)
+    await page.getByLabel('늦은 처리 가능성을 확인했고 같은 번호·같은 내용으로 다시 보냅니다').check();await resend.click();await page.waitForFunction(()=>window.pending.count()===0)
+    const calls=await page.evaluate(()=>window.calls);assert.equal(calls.length,2);assert.equal(calls[1].key,calls[0].key);assert.deepEqual(calls[1].command,calls[0].command)
   })
   await check('복구 권한 오류는 원래 요청과 입력을 지우지 않는다', async () => {
     await start('school_day', { recoveryError: 'FORBIDDEN' }); const before = await page.evaluate(() => window.saved()); await recovery().click(); await page.getByRole('alert').waitFor()

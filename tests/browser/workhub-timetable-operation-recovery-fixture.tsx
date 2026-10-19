@@ -23,6 +23,7 @@ w.seed = (kind: string) => {
 function receipt(command: any, key: string) { return command.kind === 'publish_manifest' ? { kind: command.kind, requestKey: key, entityId: 'publication', commandHash: 'a'.repeat(64), version: 4, status: 'published', recordedAt: new Date().toISOString(), manifestHash: 'a'.repeat(64), basisFingerprint: 'b'.repeat(64), changedCount: 1 } : { kind: command.kind, requestKey: key, entityId: 'school-day', commandHash: 'a'.repeat(64), version: 1, status: 'applied', recordedAt: new Date().toISOString(), changedLessonCount: 1, lostLessonCount: 1, changesHash: 'b'.repeat(64) } }
 const execution = (kind: string) => ({
   async execute(_: string, command: any, key: string) { w.calls.push({ method: kind + '.execute', command: copy(command), key }); if (w.failWrite) throw new ServiceError('RESULT_UNKNOWN'); return receipt(command, key) },
+  async resend(_: string, command: any, key: string) { w.calls.push({ method: kind + '.resend', command: copy(command), key }); if(w.resendError) throw new ServiceError(w.resendError); return receipt(command,key) },
   async recover(_: string, command: any, key: string) { w.calls.push({ method: kind + '.recover', command: copy(command), key }); if (w.delayRecovery) await new Promise(resolve => w.releaseRecovery = resolve); if (w.recoveryError) throw new ServiceError(w.recoveryError); return receipt(command, key) },
 })
 const publicationExecution = execution('publication'), schoolDayExecution = { ...execution('schoolDay'), preview: async () => { throw Error('미사용') } }
