@@ -94,7 +94,7 @@ export function TimetableTargetPanel(props: Props) {
       }
       if (failure instanceof ServiceError && !restoring && ['INVALID_INPUT', 'NOT_READY', 'NOT_FOUND', 'CONFLICT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP'].includes(failure.code)) {
         recovery.remove(request.key)
-        if (failure.code === 'CONFLICT') { setNotice('다른 담당자가 선택을 바꿨습니다. 내 선택을 보관했으니 최신 학기와 다시 비교해 주세요.'); setReload(value => value + 1) }
+        if (failure.code === 'CONFLICT' || failure.code === 'NOT_FOUND') { setNotice('학기 선택이나 대상 자료가 달라졌습니다. 내 선택을 보관했으니 최신 학기와 다시 비교해 주세요.'); setReload(value => value + 1) }
       }
     } finally { if (life.current === epoch && current.current.scope === token) { operation.current = false; setBusy(false) } }
   }
@@ -105,7 +105,7 @@ export function TimetableTargetPanel(props: Props) {
     {props.disabled && <p role="status">작성 중인 입력·엑셀 선택·계산 또는 결과를 모르는 요청을 먼저 저장하거나 정리해 주세요. 다른 작업이 끝나기 전에는 준비 학기를 바꾸지 않습니다.</p>}
     {loading && <p role="status">학교의 준비 대상 학기를 확인하고 있습니다…</p>}
     {unavailable && <p className="timetable-notice">준비 학기 선택 기능을 연결 중입니다. 기존 시간표 준비 기능은 현재 연결 상태에 따라 계속 사용할 수 있습니다.</p>}
-    {error && <p role="alert" className="timetable-error">{error} 현재 학기를 확인하기 전에는 이전 목록을 표시하지 않습니다.</p>}
+    {error && <p role="alert" className="timetable-error">{error} 선택 기능이 아직 설치되지 않았거나 연결이 불안정할 수 있습니다. 현재 학기를 확인하기 전에는 이전 목록을 표시하지 않습니다.</p>}
     {notice && <p role="status">{notice}</p>}
     {pending && <div className="timetable-notice"><p>학기 변경 결과를 아직 모릅니다. 원래 학기 선택과 요청 번호를 보관했습니다. 새 변경은 잠시 막고 접수 결과만 확인합니다.</p><button type="button" disabled={busy || !props.server} onClick={() => void send('recover')}>원래 학기 변경 결과 확인</button></div>}
     {pending && missingKey === pending.key && <div className="timetable-target-retry">

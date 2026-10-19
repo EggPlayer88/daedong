@@ -25,7 +25,7 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
   const [form, setForm] = useState(() => memory.initial ?? blank(view)), [preview, setPreview] = useState<PublishPreview>()
   const [confirmed, setConfirmed] = useState(false), [previewing, setPreviewing] = useState(false), [error, setError] = useState('')
   const [now, setNow] = useState(Date.now), [discard, setDiscard] = useState(false)
-  const [publicationBusy, setPublicationBusy] = useState(false), [linkNotice, setLinkNotice] = useState('')
+  const [publicationBusy, setPublicationBusy] = useState(false), [linkNotice, setLinkNotice] = useState(''), [sourceNotice, setSourceNotice] = useState('')
   const linkedDraft = useRef('')
   const epoch = useRef(0), requestRunning = useRef(false), current = useRef({ view, form, locked }), feedback = useRef<HTMLDivElement>(null)
   current.current = { view, form, locked }
@@ -41,7 +41,7 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
   const currentPreview = Boolean(preview && source.current === identity && canonical(preview.input) === canonical(input) && !expired)
   const blocked = Boolean(preview && (preview.blockers.length || preview.preserved.existingChanges === 'blocked'))
   const canCommit = allowed && !locked && !previewing && !publicationBusy && currentPreview && confirmed && !blocked
-  function update(next: PublishForm) { setLinkNotice(''); setForm(next); memory.save(next.dirty ? next : undefined); setPreview(undefined); setConfirmed(false); setError(''); setDiscard(false); epoch.current++ }
+  function update(next: PublishForm) { setLinkNotice(''); setSourceNotice(''); setForm(next); memory.save(next.dirty ? next : undefined); setPreview(undefined); setConfirmed(false); setError(''); setDiscard(false); epoch.current++ }
   useEffect(() => {
     if (!initialDraftId || !Number.isSafeInteger(initialDraftVersion) || initialDraftVersion! < 1 || !view || loading || locked) return
     const key = JSON.stringify([initialDraftId, initialDraftVersion])
@@ -54,14 +54,17 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
   }, [initialDraftId, initialDraftVersion, view, loading, locked, form.dirty, onInitialDraftConsumed])
   useEffect(() => { onDirtyChange(form.dirty || previewing || publicationBusy); return () => onDirtyChange(false) }, [form.dirty, previewing, publicationBusy, onDirtyChange])
   useEffect(() => { if (!form.dirty && view && !initialDraftId) setForm(blank(view)) }, [view, form.dirty, initialDraftId])
-  useEffect(() => { epoch.current++; setPreview(undefined); setConfirmed(false); setPreviewing(false); requestRunning.current = false; source.current = identity }, [identity])
+  useEffect(() => {
+    if (source.current !== identity && form.dirty) setSourceNotice('현재 초안이나 시간표가 갱신되어 이전 검토를 해제했습니다. 선택한 초안과 적용 기간은 보관했습니다. 변경 영향을 다시 확인해 주세요.')
+    epoch.current++; setPreview(undefined); setConfirmed(false); setPreviewing(false); requestRunning.current = false; source.current = identity
+  }, [identity])
   useEffect(() => () => { epoch.current++; requestRunning.current = false }, [])
   useEffect(() => { if (!preview) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [preview])
   useEffect(() => { if (error) feedback.current?.focus() }, [error])
   function change(patch: Partial<PublishForm>) { if (!allowed || locked || previewing || publicationBusy) return; update({ ...form, ...patch, dirty: true }) }
   async function inspect() {
     if (!allowed || locked || publicationBusy || requestRunning.current || !validInput) { if (!validInput) setError('저장된 초안과 올바른 적용 기간을 선택해 주세요.'); return }
-    requestRunning.current = true; setPreviewing(true); setError(''); setPreview(undefined); setConfirmed(false)
+    requestRunning.current = true; setPreviewing(true); setError(''); setSourceNotice(''); setPreview(undefined); setConfirmed(false)
     const run = ++epoch.current, requested = structuredClone(input), basis = identity
     try {
       const result = await server.previewPublish(member.id, requested)
@@ -92,6 +95,7 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
     <h3 id={`${id}-title`}>저장한 초안을 학교 시간표로 확정</h3>
     <p className="ttops-muted">초안과 적용 기간을 고른 뒤, 실제로 달라질 수업을 확인하세요. 미리보기만으로 시간표가 바뀌지 않습니다.</p>
     {linkNotice && <p role="status">{linkNotice}</p>}
+    {sourceNotice && <p role="status">{sourceNotice}</p>}
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="ttops-error">{error}</p>}</div>
     {!view?.drafts.length && <p role="status">공개할 수 있는 저장 초안이 없습니다. 편성 화면에서 초안을 먼저 저장해 주세요.</p>}
     <fieldset disabled={locked || previewing || publicationBusy} className="ttops-fields">
@@ -116,6 +120,7 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
       <OperationChangeList changes={preview.changes} timeZone={view!.timeZone} />
       {preview.participants.length > 0 && <details><summary>영향을 받는 교사 {preview.participants.length}명</summary><p>{preview.participants.map(row => row.name).join(' · ')}</p></details>}
       {expired && <p role="alert" className="ttops-error">미리보기 유효 시간이 지났습니다. 변경 영향을 다시 확인해 주세요.</p>}
+      {expired && <button type="button" className="secondary" disabled={locked || previewing || publicationBusy || !validInput} onClick={() => void inspect()}>같은 입력으로 변경 영향 다시 확인</button>}
       <label className="ttops-check"><input type="checkbox" checked={confirmed} disabled={locked || publicationBusy || expired || blocked} onChange={event => setConfirmed(event.target.checked)} />적용 기간과 변경 수업을 확인했으며, 학교 시간표로 확정합니다.</label>
       <button type="button" disabled={!canCommit} onClick={() => void publish()}>확인한 시간표 확정</button>
       <p className="ttops-muted">확정 결과는 서버 응답으로 확인합니다. 교사에게 메시지가 발송되었다는 뜻은 아닙니다.</p>

@@ -60,7 +60,7 @@ interface DraftSession {
   conditionBatch?: ConditionBatchState
   savedDraft?: SavedTimetableDraft
 }
-interface WorkspaceProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onOpenSchoolAdmin?: () => void; initialLessonId?: string; initialDate?: string }
+interface WorkspaceProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onOpenSchoolAdmin?: () => void; initialLessonId?: string; initialDate?: string; initialRequestId?: string }
 interface PanelProps extends Omit<WorkspaceProps, 'connection'> { server: TimetableServer; assistantServer?: AssistantServer; preparationServer?: PreparationServer; setupServer?: SetupServer; targetServer?: TargetServer; runSolver?: TimetableSolver; onOpenOperations?: (draft: { id: string; version: number }) => void }
 const days = ['월', '화', '수', '목', '금', '토', '일']
 const steps: { id: Step; label: string }[] = [{ id: 'basis', label: '기초 자료' }, { id: 'conditions', label: '조건 정리' }, { id: 'compose', label: '배치·비교' }, { id: 'publish', label: '공개 검토' }]
@@ -82,7 +82,7 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   const targetServer = useMemo(() => createTimetableTargetServer(props.connection), [props.connection])
   const route = useEditDraft<'editor' | 'operations'>(props.member, 'timetable-entry')
   const recovery = usePendingRequest(props.member, 'timetableOperations')
-  const [mode, setMode] = useState<'editor' | 'operations'>(() => recovery.request || props.initialLessonId !== undefined ? 'operations' : route.initial ?? 'editor')
+  const [mode, setMode] = useState<'editor' | 'operations'>(() => recovery.request || (props.initialLessonId !== undefined || props.initialRequestId !== undefined) ? 'operations' : route.initial ?? 'editor')
   const [locked, setLocked] = useState(false)
   const [publicationDraft, setPublicationDraft] = useState<{ id: string; version: number }>()
   const consumePublicationDraft = useCallback(() => setPublicationDraft(undefined), [])

@@ -31,7 +31,7 @@ export interface MessagingWorkspaceProps {
 type DraftMemory = { draft: MessageDraft; composing: boolean; pending: MessageAttempt | null; folded?: boolean }
 const errorOf = (error: unknown) => error instanceof MessagingError ? error : new MessagingError('QUERY_FAILED')
 const timeLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
-const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료', cooperation: '협업 요청' }
+const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료', cooperation: '협업 요청', timetable: '시간표 변경 요청' }
 function mergePage<T>(before: T[], after: T[], key: (item: T) => string): T[] {
   const result = new Map(before.map(item => [key(item), item]))
   for (const item of after) result.set(key(item), item)

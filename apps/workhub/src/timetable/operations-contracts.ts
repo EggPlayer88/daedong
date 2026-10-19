@@ -55,4 +55,6 @@ export interface TimetableOperationsServer {
   previewExchange(memberId: string, input: ExchangeInput): Promise<ExchangePreview>
   execute(memberId: string, command: OperationCommand, requestKey: string): Promise<OperationReceipt>
   recover(memberId: string, command: OperationCommand, requestKey: string): Promise<OperationReceipt>
+  /** 조회에서 접수증을 찾지 못한 원키·원문만 명시적으로 다시 보낸다. */
+  resend?(memberId: string, command: OperationCommand, requestKey: string): Promise<OperationReceipt>
 }

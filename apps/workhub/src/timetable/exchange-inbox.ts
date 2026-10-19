@@ -22,7 +22,7 @@ export function selectExchangeRequests(requests: ExchangeRequestView[], filter: 
     const attention = exchangeAttention(request, now)
     const matches = filter === 'all' || filter === 'mine' && (attention.consent || attention.approval) || filter === 'consent' && attention.consent || filter === 'approval' && attention.approval || filter === 'requested' && request.requesterIsViewer || filter === 'active' && activeExchange(request) || filter === 'finished' && !activeExchange(request)
     if (!matches) return false
-    const text = normalize([request.requester.name, request.reason, ...request.participants.map(person => person.name), ...request.changes.flatMap(change => { const lesson = change.before ?? change.after; return [lesson.label, ...lesson.groupNames, ...lesson.teachers.map(person => person.name)] })].join(' '))
+    const text = normalize([request.id, request.requester.name, request.reason, ...request.participants.map(person => person.name), ...request.changes.flatMap(change => { const lesson = change.before ?? change.after; return [lesson.label, ...lesson.groupNames, ...lesson.teachers.map(person => person.name)] })].join(' '))
     return terms.every(term => text.includes(term))
   }).sort((a, b) => {
     const left = exchangeAttention(a, now), right = exchangeAttention(b, now)
@@ -39,4 +39,27 @@ export function exchangeNextStep(request: ExchangeRequestView, now: number) {
   if (request.state === 'applied') return '변경된 시간표가 반영되었습니다. 공유 시간표에서 확인할 수 있습니다.'
   if (request.state === 'stale') return '수업 정보가 달라졌습니다. 최신 시간표를 확인하고 새 요청을 준비해 주세요.'
   return '이 요청의 처리가 끝났습니다. 이 요청으로 실제 수업을 바꾸지 않습니다.'
+}
+
+/** 알림에 든 ID는 조회 권한이 확인된 현재 목록에서만 찾는다. 이름·순번 대체는 하지 않는다. */
+export function findExchangeRequest(requests: ExchangeRequestView[], requestId: string) {
+  return requests.find(request => request.id === requestId)
+}
+export function exchangeConsentSummary(request: ExchangeRequestView) {
+  const accepted = request.participants.filter(person => person.response === 'accepted').length
+  const pending = request.participants.filter(person => person.response === 'pending').length
+  const rejected = request.participants.filter(person => person.response === 'rejected').length
+  return { accepted, pending, rejected, total: request.participants.length }
+}
+export type ExchangeProgressState = 'complete' | 'current' | 'waiting' | 'stopped'
+export function exchangeProgress(request: ExchangeRequestView, now: number): { label: string; state: ExchangeProgressState }[] {
+  const applied = request.state === 'applied'
+  const stopped = !applied && (!activeExchange(request) || Date.parse(request.expiresAt) <= now)
+  const consentComplete = request.participants.length > 0 && request.participants.every(person => person.response === 'accepted')
+  return [
+    { label: '요청 접수', state: 'complete' },
+    { label: '관련 교사 동의', state: consentComplete ? 'complete' : stopped ? 'stopped' : 'current' },
+    { label: '담당자 승인', state: applied ? 'complete' : stopped ? 'stopped' : request.state === 'awaiting_approval' ? 'current' : 'waiting' },
+    { label: '시간표 반영', state: applied ? 'complete' : stopped ? 'stopped' : 'waiting' },
+  ]
 }

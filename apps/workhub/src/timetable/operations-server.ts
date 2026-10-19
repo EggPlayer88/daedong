@@ -261,7 +261,13 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
   const views = new Map<string, { data: OperationsView; scope: string }>()
   const previews = new Map<string, { scope: string; kind: 'publish' | 'submit'; data: PublishPreview | ExchangePreview }>()
   const generations = new Map<string, number>()
-  const originals = new Map<string, { command: OperationCommand; changes: { id: string; version: number }[]; status?: RequestState }>()
+  const originals = new Map<string, { command: OperationCommand; changes?: { id: string; version: number }[]; status?: RequestState }>()
+  const missingReceipts = new Set<string>(), receipts = new Map<string, string>()
+  const stableReceipt = (key: string, receipt: OperationReceipt) => {
+    const content = canonical(receipt), previous = receipts.get(key)
+    if (previous && previous !== content) throw new ServiceError('INVALID_RESPONSE')
+    receipts.set(key, content); return receipt
+  }
   const scope = (memberId: string) => {
     identifier(memberId); const member = connection.info().memberships.find(m => m.id === memberId)
     if (!member) throw new ServiceError('CANCELLED'); return recoveryScope(member)
@@ -364,7 +370,7 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
       originals.set(cacheKey, { command: structuredClone(command), changes: structuredClone(expectedChanges), status: expectedStatus })
       const commandHash = await operationCommandHash(command)
       if (originalScope !== scope(memberId) || generation !== generations.get(memberId)) throw new ServiceError('CANCELLED')
-      const receipt = await rpc.call(memberId, 'workhub_timetable_operations_execute', { p_command: command, p_request_key: key, p_recover_only: false }, raw => parseOperationReceipt(raw, command, key, commandHash, now(), expectedChanges, expectedStatus), true)
+      const receipt = await rpc.call(memberId, 'workhub_timetable_operations_execute', { p_command: command, p_request_key: key, p_recover_only: false }, raw => stableReceipt(cacheKey, parseOperationReceipt(raw, command, key, commandHash, now(), expectedChanges, expectedStatus)), true)
       invalidate(memberId); return receipt
     },
     async recover(memberId, value, requestedKey) {
@@ -372,8 +378,24 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
       if (original && !equal(original.command, command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
       const commandHash = await operationCommandHash(command)
       if (originalScope !== scope(memberId)) throw new ServiceError('CANCELLED')
-      // 마감·최신판과 무관하게 원래 명령의 원장 결과만 읽는다. 신규 실행은 절대 금지한다.
-      const result = await rpc.call(memberId, 'workhub_timetable_operations_execute', { p_command: command, p_request_key: key, p_recover_only: true }, raw => parseOperationReceipt(raw, command, key, commandHash, now(), original?.changes, original?.status))
+      const cacheKey = keyFor(memberId, key)
+      originals.set(cacheKey, original ?? { command: structuredClone(command) }); missingReceipts.delete(cacheKey)
+      // 접수증 부재는 늦게 도착할 최초 요청을 취소하지 않는다. 원키를 계속 보관한다.
+      const result = await rpc.call(memberId, 'workhub_timetable_operations_execute', { p_command: command, p_request_key: key, p_recover_only: true }, raw => stableReceipt(cacheKey, parseOperationReceipt(raw, command, key, commandHash, now(), original?.changes, original?.status))).catch(error => {
+        if (error instanceof ServiceError && error.code === 'NOT_FOUND') missingReceipts.add(cacheKey)
+        throw error
+      })
+      invalidate(memberId); return result
+    },
+    async resend(memberId, value, requestedKey) {
+      const command = parseOperationCommand(value), key = requestKey(requestedKey), originalScope = scope(memberId), cacheKey = keyFor(memberId, key), original = originals.get(cacheKey)
+      if (original && !equal(original.command, command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
+      if (!original || !missingReceipts.has(cacheKey)) throw new ServiceError('NOT_READY')
+      const commandHash = await operationCommandHash(command)
+      if (scope(memberId) !== originalScope) throw new ServiceError('CANCELLED')
+      missingReceipts.delete(cacheKey)
+      // 이전 접수증을 우선 반환하고, 미접수인 경우만 현재 권한·판·만료를 서버에서 검사한다.
+      const result = await rpc.call(memberId, 'workhub_timetable_operations_execute', { p_command: command, p_request_key: key, p_recover_only: false }, raw => stableReceipt(cacheKey, parseOperationReceipt(raw, command, key, commandHash, now(), original.changes, original.status)), true)
       invalidate(memberId); return result
     },
   }

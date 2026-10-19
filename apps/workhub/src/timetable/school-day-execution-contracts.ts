@@ -31,4 +31,6 @@ export interface SchoolDayExecutionServer {
   preview(memberId: string, input: SchoolDayExecutionInput, view: OperationsView, references: OperationReferenceView): Promise<SchoolDayExecutionPreview>
   execute(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<SchoolDayCommitReceipt>
   recover(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<SchoolDayCommitReceipt>
+  /** 조회에서 접수증을 찾지 못한 원키·원문만 명시적으로 다시 보낸다. */
+  resend?(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<SchoolDayCommitReceipt>
 }
