@@ -1,0 +1,18 @@
+.timetable-setup-batch { margin-block: 1rem; padding: 1rem; border: 1px solid var(--border, #d6dce5); border-radius: 12px; background: var(--surface, #fff); min-width: 0; }
+.timetable-setup-batch > summary { cursor: pointer; font-weight: 650; padding-block: .25rem; }
+.timetable-setup-batch label { display: grid; gap: .45rem; }
+.timetable-setup-batch .timetable-check { display: flex; align-items: flex-start; gap: .5rem; }
+.timetable-setup-batch .timetable-check input { flex: 0 0 auto; }
+.timetable-setup-batch-file input { display: block; max-width: 100%; min-width: 0; padding: .65rem; border: 1px solid var(--border, #d6dce5); border-radius: 8px; }
+.timetable-setup-batch-counts { display: flex; flex-wrap: wrap; gap: .65rem 1.2rem; padding-block: .65rem; }
+.timetable-setup-batch-list { padding: 0; list-style: none; display: grid; gap: .65rem; }
+.timetable-setup-batch-list > li { min-width: 0; padding: .8rem; border: 1px solid var(--border, #d6dce5); border-radius: 8px; overflow-wrap: anywhere; }
+.timetable-setup-batch-rowtitle { display: flex; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+.timetable-setup-batch-rowtitle > span { font-size: .85rem; color: var(--muted, #526274); }
+.timetable-setup-batch-list dl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem; margin-bottom: 0; }
+.timetable-setup-batch-list dt { color: var(--muted, #526274); font-size: .85rem; margin-bottom: .3rem; }
+.timetable-setup-batch-list dd { margin: 0; display: grid; gap: .2rem; font-size: .9rem; }
+.timetable-setup-batch-confirm { display: grid; justify-items: start; gap: .8rem; margin-block: 1rem; }
+.timetable-setup-batch input[type="text"], .timetable-setup-batch input:not([type]) { max-width: 30rem; }
+.timetable-setup-batch button { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .timetable-setup-batch { padding: .7rem; } .timetable-setup-batch-list dl { grid-template-columns: 1fr; } .timetable-setup-batch .timetable-actions { align-items: stretch; } .timetable-setup-batch .timetable-actions button { max-width: 100%; } }

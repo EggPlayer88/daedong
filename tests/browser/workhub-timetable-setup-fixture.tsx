@@ -1,5 +1,8 @@
 import React from 'react'
 import {createRoot} from 'react-dom/client'
+import {setupWorkbookSheets} from '../../apps/workhub/src/timetable/setup-workbook'
+import {writeTimetableXlsx} from '../../apps/workhub/src/timetable/xlsx'
+import batchStyles from '../../apps/workhub/src/timetable/timetable-setup-batch.css?inline'
 import {TimetableSetupPanel} from '../../apps/workhub/src/timetable/TimetableSetupPanel'
 import {createTimetableSetupServer} from '../../apps/workhub/src/timetable/setup-server'
 import {TimetablePreparationPanel} from '../../apps/workhub/src/timetable/TimetablePreparationPanel'
@@ -79,5 +82,13 @@ const connection:any={info:()=>({memberships:[member],schools:[{id:'s'}],basisDa
   return envelope(copy(w.receipts[key]))
 }}
 const server=createTimetableSetupServer(connection),preparationServer=createPreparationServer(connection)
-w.mount=()=>{w.root=createRoot(document.getElementById('root'));w.root.render(<EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{appStyles+themeStyles+baseStyles+setupStyles}</style><main className="timetable-workspace">{w.mode==='workspace'?<TimetableWorkspace connection={connection} member={member} date="2026-10-19" onNavigationLockChange={value=>w.locked=value} onOpenSchoolAdmin={()=>w.openedAdmin++}/>:w.mode==='preparation'?<TimetablePreparationPanel server={preparationServer} setupServer={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onBasisConfirmed={()=>w.confirmed++}/>:<TimetableSetupPanel server={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onSaved={()=>w.saved++} onOpenSchoolAdmin={()=>w.openedAdmin++}/>}</main></PendingRequestsProvider></EditDraftsProvider>)}
+w.mount=()=>{w.root=createRoot(document.getElementById('root'));w.root.render(<EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{appStyles+themeStyles+baseStyles+setupStyles+batchStyles}</style><main className="timetable-workspace">{w.mode==='workspace'?<TimetableWorkspace connection={connection} member={member} date="2026-10-19" onNavigationLockChange={value=>w.locked=value} onOpenSchoolAdmin={()=>w.openedAdmin++}/>:w.mode==='preparation'?<TimetablePreparationPanel server={preparationServer} setupServer={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onBasisConfirmed={()=>w.confirmed++}/>:<TimetableSetupPanel server={server} member={member} disabled={false} onLockChange={value=>w.locked=value} onSaved={()=>w.saved++} onOpenSchoolAdmin={()=>w.openedAdmin++}/>}</main></PendingRequestsProvider></EditDraftsProvider>)}
+w.makeBatchFile=()=>{
+  const sheets=setupWorkbookSheets(w.view,'s')
+  sheets.find(row=>row.name==='공간')!.rows.find(row=>row[0]==='room-free')![3]='2'
+  const course=sheets.find(row=>row.name==='수업연결')!.rows.find(row=>row[0]==='course-a')!
+  course[3]='class-a';course[5]='room-free'
+  return Array.from(writeTimetableXlsx(sheets))
+}
+const originalUrl=URL.createObjectURL.bind(URL);URL.createObjectURL=blob=>{w.lastBlob=blob;return originalUrl(blob)}
 w.mount()

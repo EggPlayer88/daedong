@@ -23,6 +23,13 @@ async function editCourse(id='course-a'){await row('국어 ['+id+']').getByRole(
 async function preview(){await button('변경 내용 확인').click();await page.getByRole('region',{name:'저장 전 변경 비교',exact:true}).waitFor()}
 async function save(){await field('변경 내용을 확인했습니다').check();await button('확인한 내용 저장').click();await page.waitForFunction(()=>window.saved>0)}
 async function executeCalls(){return page.evaluate(()=>window.calls.filter(call=>call.name==='workhub_timetable_setup_execute'))}
+async function uploadBatch(){
+  await page.getByText('엑셀로 공간·수업 연결 한 번에 준비',{exact:true}).click()
+  const buffer=Buffer.from(await page.evaluate(()=>window.makeBatchFile()))
+  await field('편집한 준비 입력 엑셀 가져오기').setInputFiles({name:'일괄준비.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer})
+  await button('선택한 항목 순서대로 저장').waitFor()
+}
+async function beginBatch(){await field('변경 내용과 일부만 저장될 수 있음을 확인했습니다').check();await button('선택한 항목 순서대로 저장').click()}
 async function reload(){await button('준비 입력 자료 다시 확인').click()}
 try{
   await test('정원이 비어 있는 새 공간을 1로 추정하지 않고 명시 확인 뒤 null로 저장한다',async()=>{
@@ -156,6 +163,45 @@ try{
     await editRoom();await field('동시 수업 수').fill('2');await preview();await page.evaluate(()=>window.dropOnce=true);await field('변경 내용을 확인했습니다').check();await button('확인한 내용 저장').click();await button('원래 저장 요청 결과 확인').waitFor()
     await page.evaluate(()=>{window.root.unmount();window.mount()});await button('원래 저장 요청 결과 확인').waitFor();await page.waitForFunction(()=>window.locked===true);assert.equal(await button('확정·공유·교환').isDisabled(),true);assert.equal(await button('예시로 편성 연습').isDisabled(),true)
     await button('원래 저장 요청 결과 확인').click();await page.waitForFunction(()=>window.pending.count()===0);const calls=await executeCalls();assert.equal(calls.length,2);assert.equal(calls[0].args.p_request_key,calls[1].args.p_request_key);assert.deepEqual(calls[0].args.p_command,calls[1].args.p_command);assert.equal(calls[1].args.p_recover_only,true);assert.equal(await page.evaluate(()=>window.actualWrites),1)
+  },'workspace')
+  await test('점검 항목에서 정확한 동명 수업의 연결 편집을 열고 키보드 초점을 옮긴다',async()=>{
+    await page.getByText('편성 전 확인할 항목 1건',{exact:true}).click()
+    await button('국어 [course-a] 연결 확인').click();await courseEditor().waitFor()
+    assert.match(await courseEditor().getByRole('heading').innerText(),/course-a/)
+    assert.equal(await courseEditor().evaluate(node=>node===document.activeElement),true)
+    assert.equal(await page.evaluate(()=>window.locked),true);assert.equal((await executeCalls()).length,0)
+  })
+  await test('공간 정원과 공식 교사 진단을 구별하고 준비 점검표를 내려받는다',async()=>{
+    await page.evaluate(()=>{window.view.spaces[0].capacity=null;window.view.findings=[{code:'TEACHER_LEAVES_IN_TERM',targetId:'course-b',message:'학기 중 교사 배정을 확인하세요.',blocksConfirm:true}]})
+    await reload();await page.getByText('편성 전 확인할 항목 3건',{exact:true}).click()
+    await field('준비 점검 항목').selectOption('official');await button('공식 자료 학교 관리에서 확인').click();assert.equal(await page.evaluate(()=>window.openedAdmin),1)
+    await button('준비 점검표 내려받기').click();const report=await page.evaluate(()=>window.lastBlob.text());assert.match(report,/학기 중 교사 배정/);assert.match(report,/과학실/);assert.match(report,/확정을 증명하지 않습니다/)
+    await field('준비 점검 항목').selectOption('capacity');await button('과학실 [room-used] 동시 수업 수 확인').click();await roomEditor().waitFor();assert.equal(await field('동시 수업 수').inputValue(),'');assert.equal((await executeCalls()).length,0)
+  })
+  await test('실제 시간표 메뉴에서 엑셀 미리보기와 선택을 재진입 후 보존하고 다른 편집을 잠근다',async()=>{
+    await uploadBatch();await page.waitForFunction(()=>window.locked===true)
+    assert.equal(await button('공간 추가').isDisabled(),true);assert.equal(await button('확정·공유·교환').isDisabled(),true);assert.equal(await field('준비 자료 이름').isDisabled(),true)
+    await page.getByRole('checkbox',{name:/국어.*course-a/}).uncheck()
+    await page.evaluate(()=>{window.root.unmount();window.mount()});await button('선택한 항목 순서대로 저장').waitFor()
+    assert.equal(await page.getByRole('checkbox',{name:/국어.*course-a/}).isChecked(),false);assert.equal(await field('변경 내용과 일부만 저장될 수 있음을 확인했습니다').isChecked(),false)
+    await beginBatch();await page.getByText('선택한 1건을 저장했습니다.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.actualWrites),1);assert.equal(await page.evaluate(()=>window.view.courses[0].link),null)
+  },'workspace')
+  await test('일괄 공간·수업 저장 후에도 이전 시수·일과를 보존하고 명시적으로 새 원본을 채택한다',async()=>{
+    await uploadBatch();await beginBatch();await page.getByText('선택한 2건을 저장했습니다.',{exact:true}).waitFor()
+    await page.getByRole('region',{name:'공식 자료 변경 확인',exact:true}).waitFor();assert.equal(await button('준비 초안 서버에 저장').isDisabled(),true)
+    await field('변경된 공식 자료를 확인했고 기존 시수·일과를 이어서 사용합니다').check();await button('입력 보존하고 현재 자료 채택').click()
+    await button('준비 초안 서버에 저장').click();await page.waitForFunction(()=>window.prepWrites===1)
+    assert.deepEqual(await page.evaluate(()=>window.savedPreparation.draft),await page.evaluate(()=>window.initialPreparation.draft));assert.deepEqual(await page.evaluate(()=>window.view.courses[0].link.spaceIds),['room-free']);assert.equal(await page.evaluate(()=>window.confirmed),0)
+  },'preparation')
+  await test('실제 시간표 메뉴에서 일괄 응답 유실을 재진입 뒤 조회 실패 중에도 원래 번호로 복구한다',async()=>{
+    await uploadBatch();await page.evaluate(()=>window.dropOnce=true);await beginBatch();await button('원래 일괄 저장 요청 결과 확인').waitFor()
+    assert.equal(await page.evaluate(()=>window.actualWrites),1);await page.evaluate(()=>{window.failRead=true;window.root.unmount();window.mount()})
+    await button('원래 일괄 저장 요청 결과 확인').waitFor();await page.waitForFunction(()=>window.locked===true);assert.equal(await button('확정·공유·교환').isDisabled(),true)
+    await button('원래 일괄 저장 요청 결과 확인').click();await page.waitForFunction(()=>window.pending.count()===0)
+    const calls=await executeCalls();assert.equal(calls.length,2);assert.equal(calls[1].args.p_recover_only,true);assert.equal(calls[0].args.p_request_key,calls[1].args.p_request_key);assert.deepEqual(calls[0].args.p_command,calls[1].args.p_command);assert.equal(await page.evaluate(()=>window.actualWrites),1)
+    assert.equal(await button('남은 항목 다시 확인하고 이어 저장').isDisabled(),true)
+    await page.evaluate(()=>window.failRead=false);await reload();await button('공간 추가').waitFor()
+    await field('변경 내용과 일부만 저장될 수 있음을 확인했습니다').check();await button('남은 항목 다시 확인하고 이어 저장').click();await page.getByText('선택한 2건을 저장했습니다.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.actualWrites),2)
   },'workspace')
   assert.deepEqual(errors,[]);console.log('시간표 공간·수업 연결 브라우저 검사: '+count+'개 통과 · 화면: '+output)
 }catch(error){console.log(await page.locator('body').innerText());throw error}finally{await browser.close()}
