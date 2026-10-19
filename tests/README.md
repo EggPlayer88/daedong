@@ -297,3 +297,11 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-timetable-setup-batch.mjs`: 실제 XLSX 파일·화면·어댑터와 합성 RPC로 13개 시나리오. 전체 브라우저 러너에 등록했다.
 - 실행: `npm test -- workhub_timetable_setup`, `npm run test:workhub:browser -- timetable-setup timetable-preparation timetable-connected`.
 - 실제 Supabase·Excel 편집 시험은 포함하지 않는다. [구현·검증 경계](../docs/workhub/timetable/setup-batch-implementation.md).
+
+## 시간표 주당 시수 일괄 입력·누락 점검 (#69 추가)
+
+- `test_workhub_timetable_preparation_hours_workbook.mjs`: 92건. 전체 원본/초안 대조, 공식 시수 보호, 숫자·행·식별자 검사, 선택/변조/순서 보존.
+- `test_workhub_timetable_preparation_progress.mjs`: 27건. 누락·합계·미정 시수·동명 식별·페이지 전체 집계와 React SSR.
+- `workhub-timetable-preparation-hours.mjs`: 실제 XLSX·React 14건. 미반영 입력·파일 재검사·늦은 응답·범위/권한 변경·검색/선택·모바일.
+- `workhub-timetable-preparation-hours-connected.mjs`: 실제 준비 화면과 전송 어댑터 9건. 로컬 반영/서버 저장 분리, 판 충돌, 미반영 파일 보관, 기존 요청 복구, 정확한 수업 이동·교사 합계.
+- 두 브라우저 파일은 전체 러너에 등록했다. RPC 응답은 합성이며 실제 Supabase/Excel 편집 성공을 의미하지 않는다.

@@ -1,6 +1,6 @@
 # 시간표 구축 — 편성, 교사 조회, 날짜별 변경
 
-> 2026-10-19 일괄 준비 후속: [엑셀·순차 저장·준비 점검](setup-batch-implementation.md), [Claude 검토 요청](setup-batch-review-request.md). #68 준비 화면 위에 묶었으며 추가 SQL은 없다.
+> 2026-10-19 일괄 준비 후속: [공간·연결·시수 엑셀·순차 저장·입력 점검](setup-batch-implementation.md), [Claude 검토 요청](setup-batch-review-request.md). #68 준비 화면 위에 묶었으며 추가 SQL은 없다.
 
 > 2026-10-19 후속: [공간·정원·수업↔학급 준비 입력](setup-implementation.md), [Claude 검토 요청](setup-review-request.md). T1 setup 계약을 실제 준비 화면에 연결하고 시수·일과 보존과 원키 복구를 보완했다. DB 적용은 포함하지 않는다.
 
