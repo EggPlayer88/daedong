@@ -437,7 +437,13 @@ class HttpTests(unittest.TestCase):
     def test_04_non_json_refused(self):
         self.assertEqual(self.request('{}', {'Content-Type': 'text/plain'})[0], 415)
     def test_05_oversized_refused(self):
-        self.assertEqual(self.request(' ' * (basic.REQUEST_LIMIT + 1))[0], 413)
+        # 본문을 보내는 중 서버가 먼저 413으로 닫으면 Windows TCP가 응답 대신 RST를 낼 수 있다.
+        # 길이 헤더만 보내 본문 수신 전 거절을 검사한다. 연결 오류를 성공으로 취급하지 않는다.
+        headers = {'Content-Type': 'application/json', 'Authorization': TOKEN,
+                   'Content-Length': str(basic.REQUEST_LIMIT + 1)}
+        with patch.object(endpoint, 'check_file') as checker:
+            self.assertEqual(self.request(headers=headers)[0], 413)
+            checker.assert_not_called()
     def test_06_get_refused(self):
         status, headers, _ = self.request(method='GET')
         self.assertEqual(status, 405)
