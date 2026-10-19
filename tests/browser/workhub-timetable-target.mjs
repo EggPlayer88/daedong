@@ -74,7 +74,7 @@ try {
   })
   await test('접수증 성공 후 재조회 실패는 접수증을 보관·잠금하고 조회만 다시 한다', async () => {
     await select().selectOption('next'); await page.evaluate(() => window.failGetAfter = true); await save(); await page.getByRole('alert').waitFor()
-    assert.equal(await page.evaluate(() => window.changed.length), 0); assert.equal(await page.evaluate(() => window.pending.count()), 0); assert.equal(await page.evaluate(() => window.locked), true); assert.equal(await select().count(), 0)
+    assert.equal(await page.evaluate(() => window.changed.length), 0); assert.equal(await page.evaluate(() => window.pending.count()), 0); assert.equal(await page.evaluate(() => window.locked), true); await select().waitFor({ state: 'hidden' }); assert.equal(await select().count(), 0)
     await page.evaluate(() => { window.root.unmount(); window.mount() }); await page.getByRole('alert').waitFor(); assert.equal(await page.evaluate(() => window.locked), true)
     await page.evaluate(() => window.failGet = false); await button('준비 학기 다시 확인').click(); await page.waitForFunction(() => window.changed.length === 1); assert.equal((await writes()).length, 1); assert.equal(await page.evaluate(() => window.locked), false)
   })
@@ -102,13 +102,13 @@ try {
     assert.equal(await page.evaluate(() => window.states.at(-1).status), 'unavailable'); assert.equal(await button('합성 기존 메뉴').isEnabled(), true); assert.equal(await page.evaluate(() => window.locked), false)
   })
   await test('불명확한 통신 실패를 미설치로 단정하지 않고 상태 오류로 전달한다', async () => {
-    await page.evaluate(() => window.failGet = true); await button('준비 학기 다시 확인').click(); await page.getByRole('alert').waitFor()
-    assert.equal(await page.evaluate(() => window.states.at(-1).status), 'error'); assert.equal(await select().count(), 0); assert.equal((await writes()).length, 0)
+    await page.evaluate(() => window.failGet = true); await button('준비 학기 다시 확인').click(); await page.waitForFunction(() => window.states.at(-1)?.status === 'error'); await select().waitFor({ state: 'hidden' })
+    assert.equal(await page.evaluate(() => window.states.at(-1).status), 'error'); await select().waitFor({ state: 'hidden' }); assert.equal(await select().count(), 0); assert.equal((await writes()).length, 0)
   })
   await test('학교 변경 뒤 늦은 응답이 새 학교 선택에 채택되지 않는다', async () => {
     await select().selectOption('next'); await page.evaluate(() => window.holdWrite = true); await save(); await page.waitForFunction(() => typeof window.releaseWrite === 'function')
     await page.evaluate(() => { window.member = { ...window.member, schoolId: 'other' }; window.render(); window.releaseWrite() }); await page.getByRole('alert').waitFor()
-    assert.equal(await page.evaluate(() => window.changed.length), 0); assert.equal(await select().count(), 0)
+    assert.equal(await page.evaluate(() => window.changed.length), 0); await select().waitFor({ state: 'hidden' }); assert.equal(await select().count(), 0)
   })
   await test('320px·글자 200%에서도 선택·확인·취소가 가로 스크롤 없이 보인다', async () => {
     await page.setViewportSize({ width: 320, height: 800 }); await page.evaluate(() => document.documentElement.style.fontSize = '200%'); await select().selectOption('next')
