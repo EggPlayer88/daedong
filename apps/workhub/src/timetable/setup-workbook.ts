@@ -9,6 +9,7 @@ export interface SetupWorkbookItem {
 }
 export interface SetupWorkbookPreview {
   sourceKey: string; items: SetupWorkbookItem[]; unchanged: number; notices: string[]
+  referenceDayChange?: { from: string; to: string }
 }
 const headers = {
   기준: ['항목', '값'],
@@ -47,7 +48,7 @@ function rawSheets(source: SetupSnapshot, schoolId: string): WorkbookSheet[] {
       ['추가·삭제', '행과 ID·종류·기준판을 바꾸지 않습니다. 새 공간 추가와 공간 삭제는 화면에서 처리합니다.'],
       ['공식 자료', '교사 배정·학급명·수강 학생 수는 참고 자료이며 이 파일로 수정할 수 없습니다.'],
       ['저장 방식', '항목별로 순서대로 저장합니다. 전체가 한 번에 성공하거나 취소되는 방식이 아니므로 중단 시 완료된 항목을 확인합니다.'],
-      ['원본 유효기간', '학교·학기·기준일 또는 원본이 바뀌면 새 양식을 내려받아 다시 확인합니다.'],
+      ['원본 유효기간', '학교·학기·원본이 바뀌면 새 양식을 내려받아 다시 확인합니다. 날짜만 지난 파일은 공식 자료·판·원본지문이 그대로인지 대조한 뒤 변경 비교를 다시 확인합니다.'],
       ['파일 보관', '교사명과 학급·수업 정보가 포함됩니다. 학교에서 허용한 위치에 보관해 주세요.']] },
     { name: '기준', rows: [Array.from(headers.기준), ['형식', 'timetable.setup.workbook.v1'], ['학교', schoolId], ['학기', source.termId], ['학기명', source.termLabel], ['학기시작', source.firstDay], ['학기종료', source.lastDay], ['기준일', source.referenceDay], ['기준판', String(source.sourceRevision)], ['원본지문', source.sourceFingerprint]] },
     { name: '공간', rows: [Array.from(headers.공간), ...source.spaces.map(row => [row.id, row.kind, row.label, row.capacity === null ? '' : String(row.capacity), String(row.version)])] },
@@ -65,7 +66,8 @@ export function setupWorkbookSheets(source: SetupSnapshot, schoolId: string): Wo
 export function previewSetupWorkbook(sheets: WorkbookSheet[], source: SetupSnapshot, schoolId: string): SetupWorkbookPreview {
   source = checkedSource(source, schoolId)
   if (!Array.isArray(sheets) || sheets.length > workbookLimits.sheets || sheets.some(sheet => !sheet || typeof sheet.name !== 'string' || !Array.isArray(sheet.rows) || sheet.rows.length > workbookLimits.rows || sheet.rows.some(row => !Array.isArray(row) || row.length > workbookLimits.columns || row.some(cell => typeof cell !== 'string' || cell.length > workbookLimits.cellChars)))) fail('읽을 수 있는 준비 자료 엑셀인지 확인해 주세요.')
-  const expected = rawSheets(source, schoolId), byName = new Map(sheets.map(sheet => [sheet.name, sheet]))
+  let expected = rawSheets(source, schoolId)
+  const byName = new Map(sheets.map(sheet => [sheet.name, sheet]))
   if (byName.size !== sheets.length || byName.size !== expected.length || expected.some(sheet => !byName.has(sheet.name))) fail('필수 시트가 빠졌거나 다른 양식입니다. 현재 준비 화면에서 엑셀을 다시 내려받아 주세요.')
   function rows(name: keyof typeof headers): { line: number; cells: string[] }[] {
     const sheet = byName.get(name)!, header = Array.from(headers[name])
@@ -86,6 +88,18 @@ export function previewSetupWorkbook(sheets: WorkbookSheet[], source: SetupSnaps
       if (changed >= 0) at(name, line, changed, '학교·학기 또는 공식 원본이 다릅니다. 현재 자료를 다시 내려받아 주세요.')
     }
     if (used.size !== originals.size) fail(`${name} 시트에서 제공한 행이 빠졌습니다. 행을 지우지 말아 주세요.`)
+  }
+  const fileReferenceDay = rows('기준').find(row => row.cells[0] === '기준일')?.cells[1]
+  let referenceDayChange: SetupWorkbookPreview['referenceDayChange']
+  if (fileReferenceDay && fileReferenceDay !== source.referenceDay) {
+    // 지난 날짜 하나만 바꿔 과거 대조본을 재생성한다. 판·지문·실제 자료는 현재값 그대로 비교한다.
+    // 미래 날짜나 학기 밖 날짜는 파일 메타데이터를 바꾼 것으로 보고 허용하지 않는다.
+    if (fileReferenceDay > source.referenceDay) fail('기준 시트의 기준일이 현재 자료보다 뒤입니다. 제공한 기준 정보를 유지해 주세요.')
+    let datedSource: SetupSnapshot
+    try { datedSource = setupSnapshot({ ...source, referenceDay: fileReferenceDay }) }
+    catch { return fail('기준 시트의 기준일이 올바르지 않거나 현재 학기 밖입니다. 제공한 기준 정보를 유지해 주세요.') }
+    expected = rawSheets(datedSource, schoolId)
+    referenceDayChange = { from: fileReferenceDay, to: source.referenceDay }
   }
   fixedTable('기준', expected.find(sheet => sheet.name === '기준')!.rows.slice(1))
   // 숨은 원본은 인증 장치가 아니라 자료가 바뀌었는지 확인하는 대조본이다. 서버는 별도로 권한·판을 검사한다.
@@ -148,7 +162,7 @@ export function previewSetupWorkbook(sheets: WorkbookSheet[], source: SetupSnaps
     items.push({ id: `course:${original.id}`, label: `${original.label} [${original.id}]`, command, before: linkDetails(previous), after: linkDetails(input) })
   }
   if (usedCourses.size !== source.courses.length) fail('수업연결 시트에서 수업 행이 빠졌습니다. 행을 지우지 말고 연결할 학급·공간 칸을 수정해 주세요.')
-  const notices: string[] = []
+  const notices: string[] = referenceDayChange ? [`파일 기준일(${referenceDayChange.from})에서 현재 기준일(${referenceDayChange.to})로 날짜만 바뀌었습니다. 학교·학기·공식 자료·판·원본지문이 그대로인지 대조했습니다. 저장할 변경 내용을 다시 확인해 주세요.`] : []
   const missingCapacity = planned.spaces.filter(row => row.capacity === null).length
   const missingLinks = planned.courses.filter(row => !row.link || (!row.link.studentGroup && !row.link.classIds.length)).length
   const excluded = planned.courses.filter(row => !row.inTimetable).length
@@ -157,5 +171,5 @@ export function previewSetupWorkbook(sheets: WorkbookSheet[], source: SetupSnaps
   if (missingLinks) notices.push(`파일 전체 기준 ${missingLinks}개 수업이 학급·수강집단에 연결되지 않았습니다. 자동으로 연결하지 않습니다.`)
   if (excluded) notices.push(`${excluded}개 수업은 현재 편성 대상에서 제외되어 있습니다. 연결을 수정해도 학사 기간·원본 문제가 자동으로 해결되지는 않습니다.`)
   if (brokenLinks) notices.push(`${brokenLinks}개 수업의 변경하지 않은 원본에 없어진 학급·공간 연결이 있습니다. 해당 수업은 화면에서 직접 확인해 주세요.`)
-  return { sourceKey: canonical([schoolId, source]), items: [...items.filter(item => item.command.kind === 'space_save').sort(compareId), ...items.filter(item => item.command.kind === 'course_link').sort(compareId)], unchanged: source.spaces.length + source.courses.length - items.length, notices }
+  return { sourceKey: canonical([schoolId, source]), items: [...items.filter(item => item.command.kind === 'space_save').sort(compareId), ...items.filter(item => item.command.kind === 'course_link').sort(compareId)], unchanged: source.spaces.length + source.courses.length - items.length, notices, ...(referenceDayChange ? { referenceDayChange } : {}) }
 }

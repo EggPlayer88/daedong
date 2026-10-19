@@ -4,15 +4,17 @@ import policy from './setup-policy.json'
 
 export interface SetupBatchScope { schoolId: string; memberId: string; scopeKey: string }
 export interface SetupBatchItem { id: string; label: string; command: SetupCommand; before?: string[]; after?: string[] }
-export type SetupBatchJobStatus = 'waiting' | 'saving' | 'saved' | 'rejected' | 'unknown' | 'not_found'
+export type SetupBatchJobStatus = 'waiting' | 'saving' | 'saved' | 'rejected' | 'unknown' | 'not_found' | 'skipped'
 export type SetupBatchPhase = 'ready' | 'running' | 'paused' | 'blocked' | 'unknown' | 'complete'
 export interface SetupBatchJob extends SetupBatchItem {
   before: string[]; after: string[]; requestKey: string; status: SetupBatchJobStatus
   errorCode: ServiceCode | null; receipt: SetupReceipt | null
+  replacedRequests?: { command: SetupCommand; requestKey: string }[]
 }
 export interface SetupBatch {
   version: 1; scope: SetupBatchScope; source: SetupSnapshot; jobs: SetupBatchJob[]
   phase: SetupBatchPhase; approvalSeal: string
+  checkpoint?: { source: SetupSnapshot; completed: number; keptCurrentIds: string[] }
 }
 export interface SetupBatchOptions {
   onChange?: (batch: SetupBatch) => void
@@ -23,7 +25,7 @@ export interface SetupBatchOptions {
 }
 const copy = <T,>(value: T): T => structuredClone(value)
 const phases: SetupBatchPhase[] = ['ready', 'running', 'paused', 'blocked', 'unknown', 'complete']
-const statuses: SetupBatchJobStatus[] = ['waiting', 'saving', 'saved', 'rejected', 'unknown', 'not_found']
+const statuses: SetupBatchJobStatus[] = ['waiting', 'saving', 'saved', 'rejected', 'unknown', 'not_found', 'skipped']
 const codes: ServiceCode[] = ['NOT_READY', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'CANCELLED', 'QUERY_FAILED', 'RESULT_UNKNOWN', 'INVALID_RESPONSE']
 const rejectedCodes: ServiceCode[] = ['NOT_READY', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'IDEMPOTENCY_CONFLICT']
 const running = new Set<string>()
@@ -43,9 +45,11 @@ function batchCommand(raw: unknown, source?: SetupSnapshot): SetupCommand {
   if (command.kind === 'space_remove' || command.kind === 'space_save' && command.spaceId === null) invalid()
   return source ? setupCommand(command, source) : command
 }
-function seal(batch: Pick<SetupBatch, 'scope' | 'source' | 'jobs'>): string {
-  return canonical({ scope: batch.scope, source: batch.source, items: batch.jobs.map(({ id, label, command, before, after, requestKey }) => ({ id, label, command, before, after, requestKey })) })
+function seal(batch: Pick<SetupBatch, 'scope' | 'source' | 'jobs' | 'checkpoint'>): string {
+  return canonical({ scope: batch.scope, source: batch.source, ...(batch.checkpoint ? { checkpoint: batch.checkpoint } : {}), items: batch.jobs.map(({ id, label, command, before, after, requestKey, replacedRequests }) => ({ id, label, command, before, after, requestKey, ...(replacedRequests ? { replacedRequests } : {}) })) })
 }
+const done = (job: SetupBatchJob) => job.status === 'saved' || job.status === 'skipped'
+
 
 /** 확인 화면에서 승인한 원본·명령·요청 번호를 한 묶음으로 고정한다. 보안 경계는 기존 서버에 있다. */
 export function createSetupBatch(source: SetupSnapshot, items: SetupBatchItem[], scope: SetupBatchScope, keyFactory: () => string = () => crypto.randomUUID()): SetupBatch {
@@ -65,18 +69,34 @@ export function createSetupBatch(source: SetupSnapshot, items: SetupBatchItem[],
 
 function checked(raw: SetupBatch, scope?: SetupBatchScope): SetupBatch {
   try {
-    exact(raw, ['version', 'scope', 'source', 'jobs', 'phase', 'approvalSeal'])
+    exact(raw, ['version', 'scope', 'source', 'jobs', 'phase', 'approvalSeal', ...(Object.hasOwn(raw, 'checkpoint') ? ['checkpoint'] : [])])
     if (raw.version !== 1 || !phases.includes(raw.phase as SetupBatchPhase) || !Array.isArray(raw.jobs) || !raw.jobs.length) invalid()
     const bound = validScope(raw.scope as SetupBatchScope), source = setupSnapshot(raw.source)
     if (scope && canonical(bound) !== canonical(validScope(scope))) throw new ServiceError('CANCELLED')
+    const checkpoint = raw.checkpoint as SetupBatch['checkpoint']
+    if (Object.hasOwn(raw, 'checkpoint') && !checkpoint) invalid()
+    if (checkpoint) {
+      exact(checkpoint, ['source', 'completed', 'keptCurrentIds']); setupSnapshot(checkpoint.source)
+      if (!Array.isArray(checkpoint.keptCurrentIds) || !same(checkpoint.keptCurrentIds, raw.jobs.filter(row => row.status === 'skipped').map(row => row.id))) invalid()
+      if (!Number.isSafeInteger(checkpoint.completed) || checkpoint.completed < 0 || checkpoint.completed >= raw.jobs.length || checkpoint.source.termId !== source.termId || raw.jobs.slice(0, checkpoint.completed).some(row => !done(row))) invalid()
+    }
     const ids = new Set<string>(), targets = new Set<string>(), keys = new Set<string>()
     let pastSaved = false, stopped = false, waitingSeen = false
     for (const row of raw.jobs) {
-      exact(row, ['id', 'label', 'command', 'before', 'after', 'requestKey', 'status', 'errorCode', 'receipt'])
-      const command = batchCommand(row.command, source), id = plain(row.id), key = identifier(row.requestKey)
+      exact(row, ['id', 'label', 'command', 'before', 'after', 'requestKey', 'status', 'errorCode', 'receipt', ...(Object.hasOwn(row, 'replacedRequests') ? ['replacedRequests'] : [])])
+      const command = batchCommand(row.command, row.status === 'saved' || row.status === 'skipped' ? undefined : checkpoint?.source ?? source), id = plain(row.id), key = identifier(row.requestKey)
       plain(row.label); lines(row.before); lines(row.after)
       if (key.length < policy.minRequestKeyLength || ids.has(id) || keys.has(key) || targets.has(target(command)) || !statuses.includes(row.status as SetupBatchJobStatus) || row.errorCode !== null && !codes.includes(row.errorCode as ServiceCode)) invalid()
       ids.add(id); keys.add(key); targets.add(target(command))
+      if (row.replacedRequests !== undefined) {
+        if (!Array.isArray(row.replacedRequests) || !row.replacedRequests.length) invalid()
+        for (const previous of row.replacedRequests) {
+          exact(previous, ['command', 'requestKey']); const old = batchCommand(previous.command), oldKey = identifier(previous.requestKey)
+          if (oldKey.length < policy.minRequestKeyLength || keys.has(oldKey) || target(old) !== target(command)) invalid()
+          keys.add(oldKey)
+        }
+      }
+      if (row.status === 'skipped') { if (!checkpoint || row.errorCode !== null || row.receipt !== null) invalid(); continue }
       if (row.status === 'saved') {
         if (pastSaved || row.errorCode !== null) invalid()
         setupReceipt(row.receipt, command, key)
@@ -89,7 +109,7 @@ function checked(raw: SetupBatch, scope?: SetupBatchScope): SetupBatch {
     }
     const batch = copy(raw) as unknown as SetupBatch
     if (batch.approvalSeal !== seal(batch)) invalid()
-    const unknown = batch.jobs.some(row => row.status === 'unknown'), allSaved = batch.jobs.every(row => row.status === 'saved')
+    const unknown = batch.jobs.some(row => row.status === 'unknown'), allSaved = batch.jobs.every(done)
     if ((batch.phase === 'complete') !== allSaved || unknown && batch.phase !== 'unknown' || batch.phase === 'unknown' && !unknown) invalid()
     return batch
   } catch (error) {
@@ -132,8 +152,8 @@ function applyReceipt(source: SetupSnapshot, job: SetupBatchJob): void {
   if (receipt.sourceFingerprint !== null) source.sourceFingerprint = receipt.sourceFingerprint
 }
 function expectedSource(batch: SetupBatch): SetupSnapshot {
-  const source = copy(batch.source)
-  for (const job of batch.jobs) { if (job.status !== 'saved') break; applyReceipt(source, job) }
+  const source = copy(batch.checkpoint?.source ?? batch.source)
+  for (const job of batch.jobs.slice(batch.checkpoint?.completed ?? 0)) { if (job.status === 'skipped') continue; if (job.status !== 'saved') break; applyReceipt(source, job) }
   return source
 }
 const same = (left: unknown, right: unknown) => canonical(left) === canonical(right)
@@ -170,16 +190,85 @@ function paused(batch: SetupBatch, options: SetupBatchOptions): boolean {
   return false
 }
 
+export interface SetupBatchConflictItem {
+  id: string; label: string; before: string[]; current: string[]; after: string[]
+  command: SetupCommand | null; errorCode: ServiceCode | null
+}
+export interface SetupBatchConflictReview { source: SetupSnapshot; batchSeal: string; items: SetupBatchConflictItem[] }
+export type SetupBatchConflictChoices = Record<string, 'mine' | 'server'>
+function conflictIndex(batch: SetupBatch): number {
+  if (batchHasUnknown(batch) || batch.jobs.some(row => row.status === 'not_found')) throw new ServiceError('RESULT_UNKNOWN')
+  const index = batch.jobs.findIndex(row => !done(row))
+  if (index < 0 || batch.jobs[index].status !== 'rejected' || batch.jobs[index].errorCode !== 'CONFLICT') throw new ServiceError('INVALID_INPUT')
+  return index
+}
+function details(source: SetupSnapshot, command: SetupCommand): string[] {
+  if (command.kind === 'space_save') {
+    const row = source.spaces.find(value => value.id === command.spaceId)
+    return row ? [`종류: ${row.kind === 'room' ? '공간' : '기자재'}`, `이름: ${row.label}`, `동시수업수: ${row.capacity ?? '미입력'}`, `현재 판: ${row.version}`] : ['현재 자료에서 공간을 찾을 수 없습니다.']
+  }
+  if (command.kind !== 'course_link') return []
+  const row = source.courses.find(value => value.id === command.courseId)
+  if (!row) return ['현재 자료에서 수업을 찾을 수 없습니다.']
+  const label = (ids: string[], values: { id: string; label: string }[]) => ids.map(id => `${values.find(value => value.id === id)?.label ?? '없어진 항목'} [${id}]`).join(', ') || '선택 없음'
+  return [`수업: ${row.label} [${row.id}]`, `교사: ${row.teacherLabels.join(', ') || '미배정'}`, `학생 수: ${row.studentCount}`, `편성 대상: ${row.inTimetable ? '포함' : '제외'}`, `대상: ${row.link?.studentGroup ? '별도 수강집단' : label(row.link?.classIds ?? [], source.classes)}`, `공간: ${label(row.link?.spaceIds ?? [], source.spaces)}`, `현재 판: ${row.link?.version ?? '연결 없음'}`, ...source.findings.filter(value => value.targetId.split('/').includes(row.id)).map(value => value.message)]
+}
+/** 거절이 확정된 CONFLICT만 새 원본과 대조한다. 결과 미상·미접수 확인은 원키 복구 대상으로 남긴다. */
+export function previewSetupBatchConflict(raw: SetupBatch, current: SetupSnapshot, scope: SetupBatchScope): SetupBatchConflictReview {
+  const batch = checked(raw, scope), start = conflictIndex(batch), source = setupSnapshot(current)
+  for (const field of ['termId', 'firstDay', 'lastDay'] as const) if (batch.source[field] !== source[field]) throw new ServiceError('CONFLICT')
+  const items = batch.jobs.slice(start).filter(row => !done(row)).map(row => {
+    let command: SetupCommand | null = null, code: ServiceCode | null = null
+    try {
+      const wanted = copy(row.command)
+      if (wanted.kind === 'space_save') {
+        const space = source.spaces.find(value => value.id === wanted.spaceId)
+        if (!space) throw new ServiceError('NOT_FOUND')
+        wanted.expectedVersion = space.version
+      } else if (wanted.kind === 'course_link') {
+        const course = source.courses.find(value => value.id === wanted.courseId)
+        if (!course) throw new ServiceError('NOT_FOUND')
+        wanted.expectedVersion = course.link?.version ?? null
+      }
+      command = batchCommand(wanted, source)
+    } catch (error) { code = errorCode(error, 'INVALID_INPUT') }
+    return { id: row.id, label: row.label, before: copy(row.before), current: details(source, row.command), after: copy(row.after), command, errorCode: code }
+  })
+  return { source, batchSeal: canonical(batch), items }
+}
+/** 모든 남은 행에서 내 입력 또는 현재 서버 유지의 명시 선택을 받은 뒤 새 승인 묶음을 만든다. 쓰기는 하지 않는다. */
+export function approveSetupBatchConflict(raw: SetupBatch, review: SetupBatchConflictReview, choices: SetupBatchConflictChoices, scope: SetupBatchScope, keyFactory: () => string = () => crypto.randomUUID()): SetupBatch {
+  const batch = checked(raw, scope), start = conflictIndex(batch), expected = previewSetupBatchConflict(batch, review.source, scope)
+  if (!same(expected, review) || !choices || typeof choices !== 'object' || Array.isArray(choices) || Object.keys(choices).length !== review.items.length) invalid()
+  const keys = new Set(batch.jobs.flatMap(row => [row.requestKey, ...(row.replacedRequests ?? []).map(value => value.requestKey)]))
+  for (const item of review.items) {
+    const choice = choices[item.id], job = batch.jobs.find(row => row.id === item.id)!
+    if (choice !== 'mine' && choice !== 'server') invalid()
+    if (choice === 'server') { job.status = 'skipped'; job.errorCode = null; continue }
+    if (!item.command) invalid()
+    if (job.status === 'rejected') {
+      const key = identifier(keyFactory())
+      if (key.length < policy.minRequestKeyLength || keys.has(key)) invalid()
+      keys.add(key); job.replacedRequests = [...(job.replacedRequests ?? []), { command: copy(job.command), requestKey: job.requestKey }]; job.requestKey = key
+    }
+    job.command = copy(item.command); job.before = copy(item.current); job.status = 'waiting'; job.errorCode = null
+  }
+  batch.checkpoint = { source: copy(review.source), completed: start, keptCurrentIds: batch.jobs.filter(row => row.status === 'skipped').map(row => row.id) }
+  batch.phase = batch.jobs.every(done) ? 'complete' : 'paused'; batch.approvalSeal = seal(batch)
+  return checked(batch, scope)
+}
+
 /** 전체 원자 저장이 아니다. 한 건씩 접수하며 첫 오류에서 멈추고 완료된 접수증을 보존한다. */
 export async function runSetupBatch(raw: SetupBatch, server: SetupServer, options: SetupBatchOptions = {}): Promise<SetupBatch> {
   const batch = checked(raw)
   if (batchHasUnknown(batch)) throw new ServiceError('RESULT_UNKNOWN')
   if (batch.phase === 'complete') return batch
+  if (batch.jobs.some(row => row.status === 'rejected' && row.errorCode === 'CONFLICT')) throw new ServiceError('CONFLICT')
   const release = lease(batch)
   try {
     const expected = expectedSource(batch)
     for (const job of batch.jobs) {
-      if (job.status === 'saved') continue
+      if (done(job)) continue
       const retryingMissing = job.status === 'not_found'
       if (paused(batch, options)) return batch
       batch.phase = 'running'; publish(batch, options)
@@ -206,7 +295,7 @@ export async function runSetupBatch(raw: SetupBatch, server: SetupServer, option
         if (!active(options)) return batch
         job.status = 'saved'; job.receipt = result; job.errorCode = null
         applyReceipt(expected, job)
-        batch.phase = batch.jobs.every(row => row.status === 'saved') ? 'complete' : 'running'
+        batch.phase = batch.jobs.every(done) ? 'complete' : 'running'
       } catch (error) {
         if (!active(options)) return batch
         const code = errorCode(error, 'RESULT_UNKNOWN')
@@ -232,7 +321,7 @@ export async function recoverSetupBatch(raw: SetupBatch, server: SetupServer, op
       if (!active(options)) return batch
       job.status = 'saved'; job.receipt = result; job.errorCode = null
       // 복구 성공 뒤에도 남은 항목은 사용자가 다시 시작해야 한다.
-      batch.phase = batch.jobs.every(row => row.status === 'saved') ? 'complete' : 'paused'
+      batch.phase = batch.jobs.every(done) ? 'complete' : 'paused'
     } catch (error) {
       if (!active(options)) return batch
       const code = errorCode(error, 'RESULT_UNKNOWN')
