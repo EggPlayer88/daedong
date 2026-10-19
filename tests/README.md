@@ -287,3 +287,13 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-school-transitions.mjs`: 총 42개 브라우저 시나리오. 실제 React·어댑터에서 C8 수정 전 사라진 인수 버튼을 재현하고, 입력·기존 요청 번호 보존, 응답 유실 뒤 한 번 접수된 결과의 재조회, 공식 담당 보호와 학교·권한·판 변경을 확인한다.
 - `npm test -- workhub_school_transitions`, `npm run test:workhub:browser -- workhub-school-transitions`로 개별 실행한다. 브라우저의 요청 원장은 합성 서버이며 실제 DB 원자성·PostgREST 연결을 증명하지 않는다.
 - SQL 대조 도구에서도 새 명령(`mutate`)과 원요청 복구(`recover`)를 분리한다. [수정·검증·Claude 재검토](../docs/workhub/pilot-completion/transition-c8-fix.md).
+
+## 시간표 준비 엑셀·순차 저장·점검표
+
+- `test_workhub_timetable_setup_workbook.mjs`: 원본 대조·편집 범위·행/열 오류·명시 ID·미정 정원·원문/배열 보존·XLSX 문자열 출력 77건.
+- `test_workhub_timetable_setup_batch.mjs`: 항목별 승인·접수·부분 성공·중지·같은 키 복구·늦은 요청·범위 변경·학생 겹침 해소 45건.
+- `test_workhub_timetable_setup_checklist.mjs`: 서버 진단 보존·분모·바로가기·점검표·SSR 17건.
+- `workhub-timetable-setup.mjs`: 기존 단독/준비/실제 메뉴와 일괄 연결을 포함한 27개 시나리오.
+- `workhub-timetable-setup-batch.mjs`: 실제 XLSX 파일·화면·어댑터와 합성 RPC로 13개 시나리오. 전체 브라우저 러너에 등록했다.
+- 실행: `npm test -- workhub_timetable_setup`, `npm run test:workhub:browser -- timetable-setup timetable-preparation timetable-connected`.
+- 실제 Supabase·Excel 편집 시험은 포함하지 않는다. [구현·검증 경계](../docs/workhub/timetable/setup-batch-implementation.md).
