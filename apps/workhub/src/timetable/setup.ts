@@ -127,4 +127,3 @@ export function setupReceipt(value: unknown, command: SetupCommand, key: string)
   if (target !== null && value.targetId !== target) fail()
   return structuredClone(value) as unknown as SetupReceipt
 }
-

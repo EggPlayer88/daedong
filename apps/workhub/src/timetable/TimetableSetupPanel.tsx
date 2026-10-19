@@ -201,6 +201,3 @@ export function TimetableSetupPanel(props: Props) {
     {edit && !pending && <div className="timetable-actions">{discarding ? <><p>저장하지 않은 이 항목의 입력을 버립니다. 서버 자료는 바뀌지 않습니다.</p><button type="button" className="secondary" disabled={busy} onClick={() => patch(undefined)}>입력 버리고 닫기</button><button type="button" className="secondary" onClick={() => setDiscarding(false)}>입력 계속 보관</button></> : <button type="button" className="secondary" disabled={busy} onClick={() => setDiscarding(true)}>편집 입력 정리</button>}</div>}
   </details>
 }
-
-
-
