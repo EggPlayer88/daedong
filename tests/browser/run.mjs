@@ -11,7 +11,7 @@ const scripts = [
   'workhub-timetable', 'workhub-timetable-worker', 'workhub-timetable-publication', 'workhub-timetable-exchanges',
   'workhub-timetable-foundation', 'workhub-timetable-board', 'workhub-timetable-workbook', 'workhub-timetable-assistant',
   'workhub-timetable-agenda', 'workhub-timetable-connected',
-  'workhub-timetable-preparation', 'workhub-timetable-setup', 'workhub-timetable-setup-batch', 'workhub-timetable-engine-panel', 'workhub-timetable-appearance',
+  'workhub-timetable-preparation', 'workhub-timetable-setup', 'workhub-timetable-setup-batch', 'workhub-timetable-preparation-hours', 'workhub-timetable-preparation-hours-connected', 'workhub-timetable-engine-panel', 'workhub-timetable-appearance',
   'workhub-timetable-publication-commit', 'workhub-timetable-school-day-commit', 'workhub-timetable-operation-recovery',
   'workhub-timetable-preparation-editing', 'workhub-timetable-adjustments', 'workhub-timetable-preflight',
   'workhub-timetable-local-engine', 'workhub-timetable-published-export', 'workhub-timetable-condition-batch',

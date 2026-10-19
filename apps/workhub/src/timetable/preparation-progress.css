@@ -1,0 +1,11 @@
+.timetable-preparation-progress { margin-block: 1rem; }
+.timetable-preparation-progress > details { margin-block: .65rem; }
+.timetable-preparation-progress summary { cursor: pointer; padding-block: .4rem; font-weight: 600; }
+.timetable-progress-summary { font-weight: 600; }
+.timetable-progress-controls { display: flex; flex-wrap: wrap; gap: .75rem; margin-block: .75rem; }
+.timetable-progress-controls > label { flex: 1 1 14rem; min-width: 0; }
+.timetable-progress-controls input, .timetable-progress-controls select { width: 100%; box-sizing: border-box; }
+.timetable-progress-courses, .timetable-progress-resources { list-style: none; padding: 0; margin: .5rem 0; }
+.timetable-progress-courses > li, .timetable-progress-resources > li { display: grid; gap: .35rem; padding-block: .75rem; border-bottom: 1px solid var(--border, #dce2ea); overflow-wrap: anywhere; }
+.timetable-progress-courses button { justify-self: start; text-align: start; max-width: 100%; white-space: normal; }
+.timetable-progress-courses p { margin-block: .25rem; }

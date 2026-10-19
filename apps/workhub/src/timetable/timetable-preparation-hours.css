@@ -1,0 +1,16 @@
+.timetable-preparation-hours { margin-block: 1rem; padding: 1rem; border: 1px solid var(--border, #d6dce5); border-radius: 12px; background: var(--surface, #fff); min-width: 0; overflow-wrap: anywhere; }
+.timetable-preparation-hours > summary { cursor: pointer; font-weight: 650; padding-block: .25rem; }
+.timetable-preparation-hours label { display: grid; gap: .4rem; }
+.timetable-preparation-hours input { max-width: 100%; min-width: 0; }
+.timetable-preparation-hours input[type="file"] { display: block; width: 100%; box-sizing: border-box; padding: .65rem; border: 1px solid var(--border, #d6dce5); border-radius: 8px; }
+.timetable-preparation-hours .timetable-check { display: flex; align-items: flex-start; gap: .5rem; }
+.timetable-preparation-hours .timetable-check input { flex: 0 0 auto; }
+.timetable-hours-changes { padding: 0; list-style: none; display: grid; gap: .65rem; }
+.timetable-hours-changes > li { min-width: 0; padding: .8rem; border: 1px solid var(--border, #d6dce5); border-radius: 8px; }
+.timetable-hours-changes dl { display: flex; flex-wrap: wrap; gap: .75rem 1.2rem; }
+.timetable-hours-changes dt { color: var(--muted, #526274); font-size: .85rem; }
+.timetable-hours-changes dd { margin: .2rem 0 0; font-weight: 600; }
+.timetable-hours-changes > li > ul { padding-left: 1.2rem; }
+.timetable-hours-confirm, .timetable-hours-recovery { margin-block: 1rem; }
+.timetable-preparation-hours button { white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .timetable-preparation-hours { padding: .7rem; } .timetable-preparation-hours .timetable-actions { align-items: stretch; } .timetable-preparation-hours .timetable-actions button { max-width: 100%; } }
