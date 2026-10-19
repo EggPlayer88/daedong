@@ -1,0 +1,13 @@
+{
+  "maxSpaceLabel": 100,
+  "maxCapacity": 1000,
+  "maxClassIds": 20,
+  "maxSpaceIds": 10,
+  "maxTermLabel": 120,
+  "maxClassLabel": 30,
+  "maxGrade": 20,
+  "maxCourseLabel": 160,
+  "maxTeacherLabel": 200,
+  "maxFindingMessage": 200,
+  "minRequestKeyLength": 8
+}
