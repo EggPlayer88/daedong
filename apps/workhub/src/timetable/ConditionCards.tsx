@@ -1,24 +1,21 @@
-import { useState } from 'react'
-import { canonical } from '../services/scoped-rpc'
+import { useMemo, useState } from 'react'
 import type { TimetableBasis, TimetableConditions } from './contracts'
+import { conditionReviewSearch, reviewConditions, type ConditionReviewRow } from './condition-review'
 
 const labels = { fixed: '반드시 이 시간에', unavailable: '사용할 수 없는 시간', preferences: '가능하면 피할 시간' }
-const days = ['월', '화', '수', '목', '금', '토', '일']
-const clock = (minute: number) => `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
+function ConditionList({ kind, rows, total, disabled, onRemove }: { kind: keyof TimetableConditions; rows: ConditionReviewRow[]; total: number; disabled: boolean; onRemove: (kind: keyof TimetableConditions, index: number) => void }) {
+  const [page, setPage] = useState(0), pages = Math.max(1, Math.ceil(rows.length / 20)), current = Math.min(page, pages - 1)
+  return <section aria-label={`${labels[kind]} 목록`}><h3>{labels[kind]} · {total}건</h3><p className="timetable-muted">현재 검색 {rows.length}건{pages > 1 && ` · ${current + 1}/${pages}쪽`}</p><ul className="timetable-list">{rows.slice(current * 20, (current + 1) * 20).map(row => <li key={row.key} className="timetable-list-row"><div><strong>{row.label}</strong><small>{row.protected ? '학교가 확정한 조건' : row.inherited ? '학교 기준자료의 선호' : '담당자가 이 초안에 추가한 조건'}</small><small>{row.details}</small><span className="timetable-badge">{kind === 'preferences' ? '선호' : '필수'}</span>{row.issueIds.length > 0 && <small>계산 전 충돌에서 함께 확인할 조건</small>}<small>형식 확인 완료 · 배치 전체 검사는 생성·조정 후 진행</small></div><button type="button" className="secondary" disabled={disabled || row.protected} aria-label={`${row.label} 조건 삭제`} onClick={() => onRemove(row.kind, row.index)}>삭제</button></li>)}</ul>{!rows.length && <p className="timetable-muted">{total ? '검색 또는 충돌에 해당하는 조건이 없습니다.' : '등록한 조건이 없습니다.'}</p>}{pages > 1 && <nav className="timetable-actions" aria-label={`${labels[kind]} 조건 쪽 이동`}><button type="button" className="secondary" disabled={!current} onClick={() => setPage(current - 1)}>이전 {labels[kind]} 조건</button><button type="button" className="secondary" disabled={current + 1 >= pages} onClick={() => setPage(current + 1)}>다음 {labels[kind]} 조건</button></nav>}</section>
+}
 export function ConditionCards({ basis, conditions, disabled, onRemove }: { basis: TimetableBasis; conditions: TimetableConditions; disabled: boolean; onRemove: (kind: keyof TimetableConditions, index: number) => void }) {
-  const [query, setQuery] = useState('')
-  const search = query.normalize('NFKC').toLowerCase().replace(/\s/g, '')
-  return <div className="timetable-conditions">
-    <label>등록한 조건 검색<input aria-label="등록한 조건 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="교사·수업·시간" /></label>
+  const [query, setQuery] = useState(''), [origin, setOrigin] = useState('all'), [issueId, setIssueId] = useState('')
+  const review = useMemo(() => { try { return { ...reviewConditions(basis, conditions), invalid: false } } catch { return { rows: [], issues: [], invalid: true } } }, [basis, conditions]), search = conditionReviewSearch(query), selectedIssue = review.issues.find(row => row.id === issueId)
+  const matching = review.rows.filter(row => (!search || row.search.includes(search)) && (origin === 'all' || (origin === 'school' ? row.inherited : !row.inherited)) && (!selectedIssue || row.issueIds.includes(selectedIssue.id)))
+  if (review.invalid) return <p role="alert" className="timetable-error">현재 조건을 기준자료와 대조하지 못했습니다. 조건을 바꾸지 말고 자료를 다시 확인해 주세요.</p>
+  return <div className="timetable-conditions" style={{ overflowWrap: 'anywhere' }}>
+    <div className="timetable-grid"><label>등록한 조건 검색<input aria-label="등록한 조건 검색" value={query} onChange={event => setQuery(event.target.value)} placeholder="교사·학급·수업·ID·시간" /></label><label>조건 출처<select aria-label="등록한 조건 출처" value={origin} onChange={event => setOrigin(event.target.value)}><option value="all">전체 조건</option><option value="school">학교 기준자료</option><option value="draft">이번 초안에서 추가·변경</option></select></label></div>
     <p className="timetable-muted">적용 범위: 현재 기준판의 학기 주간 편성. 특정 날짜만 바꿀 때는 확정된 수업에서 변경을 요청합니다.</p>
-    {(Object.keys(labels) as (keyof TimetableConditions)[]).map(kind => <section key={kind} aria-label={`${labels[kind]} 목록`}><h3>{labels[kind]} · {conditions[kind].length}건</h3><ul className="timetable-list">{conditions[kind].map((row, index) => {
-      const inherited = basis[kind].some(item => canonical(item) === canonical(row)), protectedRow = inherited && kind !== 'preferences'
-      const slot = 'slotId' in row ? basis.slots.find(item => item.id === row.slotId) : undefined
-      const label = 'resourceId' in row
-        ? `${basis.resources.find(item => item.id === row.resourceId)?.label ?? '확인되지 않은 대상'} · ${days[row.day - 1]} ${clock(row.startMinute)}–${clock(row.endMinute)}`
-        : `${basis.lessons.find(item => item.id === row.lessonId)?.label ?? '확인되지 않은 수업'} · ${slot ? `${days[slot.day - 1]} ${slot.label} · ${clock(slot.startMinute)}–${clock(slot.endMinute)}` : '확인되지 않은 시간대'}${'weight' in row ? ` · 피하기 ${row.weight}` : ''}`
-      if (!label.normalize('NFKC').toLowerCase().replace(/\s/g, '').includes(search)) return null
-      return <li key={`${kind}-${index}`} className="timetable-list-row"><div><strong>{label}</strong><small>{protectedRow ? '학교가 확정한 조건' : inherited ? '학교 기준자료의 선호' : '담당자가 이 초안에 추가한 조건'}</small><span className="timetable-badge">{kind === 'preferences' ? '선호' : '필수'}</span><small>형식 확인 완료 · 배치 전체 검사는 생성·조정 후 진행</small></div><button type="button" className="secondary" disabled={disabled || protectedRow} aria-label={`${label} 조건 삭제`} onClick={() => onRemove(kind, index)}>삭제</button></li>
-    })}</ul>{!conditions[kind].length && <p className="timetable-muted">등록한 조건이 없습니다.</p>}</section>)}
+    {review.issues.length > 0 && <details className="timetable-notice" open={selectedIssue ? true : undefined}><summary>계산 전에 확인할 충돌 {review.issues.length}건 · 관련 조건 찾기</summary><label>함께 확인할 충돌<select aria-label="함께 확인할 충돌" value={selectedIssue?.id ?? ''} onChange={event => { setIssueId(event.target.value); setQuery(''); setOrigin('all') }}><option value="">모든 조건 보기</option>{review.issues.map(issue => <option key={issue.id} value={issue.id}>{issue.title}</option>)}</select></label>{selectedIssue && <div role="status"><p>{selectedIssue.message}</p><p>{selectedIssue.nextStep}</p>{!selectedIssue.conditionKeys.length && <p>이 초안에서 지울 조건이 없습니다. 기초자료의 시수·수업 연결·허용 시간대를 확인해 주세요.</p>}<p className="timetable-muted">관련 조건을 모아 보여 줍니다. 한 조건을 지운다고 해결된다는 뜻은 아니며 학교 확정 조건은 여기서 지울 수 없습니다.</p></div>}</details>}
+    {(Object.keys(labels) as (keyof TimetableConditions)[]).map(kind => <ConditionList key={`${kind}:${search}:${origin}:${selectedIssue?.id ?? ''}`} kind={kind} rows={matching.filter(row => row.kind === kind)} total={conditions[kind].length} disabled={disabled} onRemove={onRemove} />)}
   </div>
 }

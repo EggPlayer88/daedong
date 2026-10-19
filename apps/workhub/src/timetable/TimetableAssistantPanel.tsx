@@ -13,6 +13,7 @@ import { conditionTargetLabels } from './condition-policy'
 
 interface Props {
   server?: AssistantServer; member: Membership; basis: TimetableBasis | null; conditions: TimetableConditions | null; placements: Placement[]
+  openRequest?: { stage: 'setup' | 'adjust'; token: number }
   disabled: boolean; onApply: (conditions: TimetableConditions) => void; onLockChange?: (locked: boolean) => void
 }
 const message = (error: unknown) => error instanceof AssistantError || error instanceof ServiceError || error instanceof TimetableAssistantInputError ? error.message : 'AI 답변을 확인하지 못했습니다. 원래 요청과 입력은 유지됩니다.'
@@ -21,7 +22,8 @@ export function TimetableAssistantPanel(props: Props) {
   const [prompt, setPrompt] = useState(memory.initial?.prompt ?? ''), [resourceId, setResourceId] = useState(memory.initial?.resourceId ?? '')
   const [stage, setStage] = useState<'setup' | 'adjust'>(memory.initial?.stage ?? 'setup')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [rawAnswer, setRawAnswer] = useState('')
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(false), [focusTicket, setFocusTicket] = useState(0)
+  const promptRef = useRef<HTMLTextAreaElement>(null), summaryRef = useRef<HTMLElement>(null), lastOpenRequest = useRef('')
   const [proposal, setProposal] = useState<{ value: TimetableAiProposal; context: TimetableAiContext }>(), [confirmed, setConfirmed] = useState(false)
   const review = useMemo(() => {
     if (!proposal || proposal.value.questions.length) return null
@@ -35,6 +37,23 @@ export function TimetableAssistantPanel(props: Props) {
   useEffect(() => { props.onLockChange?.(locked); return () => props.onLockChange?.(false) }, [locked, props.onLockChange])
   useEffect(() => { memory.save(prompt || resourceId ? { prompt, resourceId, stage } : undefined, !!prompt.trim()) }, [prompt, resourceId, stage, memory])
   useEffect(() => { setProposal(undefined); setConfirmed(false); setRawAnswer('') }, [props.disabled, canonical([props.basis, props.conditions, props.placements])])
+  // 바로가기는 패널과 질문 입력만 연다. 남은 질문·답변·원키 복구를 다른 단계로 바꾸거나 유료 호출하지 않는다.
+  useEffect(() => {
+    if (!props.openRequest) return
+    const key = `${props.openRequest.stage}:${props.openRequest.token}`
+    if (lastOpenRequest.current === key) return
+    lastOpenRequest.current = key; setExpanded(true); setFocusTicket(value => value + 1)
+    if (prompt || resourceId || proposal || rawAnswer || locked) setNotice('기존 AI 입력·답변과 작업 단계를 유지했습니다. 현재 내용을 먼저 확인해 주세요.')
+    else if (props.disabled) setNotice('현재 작업을 마치거나 기준자료를 다시 확인한 뒤 질문할 수 있습니다. AI를 호출하지 않았습니다.')
+    else if (props.openRequest.stage === 'adjust' && !canReview) setNotice('현재 배치의 필수조건 검사를 먼저 통과해 주세요. AI를 호출하거나 작업 단계를 바꾸지 않았습니다.')
+    else { setStage(props.openRequest.stage); setNotice('대상과 질문을 확인한 뒤 요청 버튼을 눌러 주세요. 아직 AI를 호출하지 않았습니다.') }
+  }, [props.openRequest, props.disabled, prompt, resourceId, proposal, rawAnswer, locked, canReview])
+  useEffect(() => {
+    if (!focusTicket) return
+    const handle = requestAnimationFrame(() => { if (!current.current.disabled && promptRef.current && !promptRef.current.disabled) promptRef.current.focus(); else summaryRef.current?.focus() })
+    return () => cancelAnimationFrame(handle)
+  }, [focusTicket])
+
   async function send(request: TimetableAssistantRequest, key: string, recovering: boolean) {
     if (!current.current.server || operation.current) return
     const epoch = life.current; operation.current = true; setBusy(true); setError(''); setNotice('')
@@ -98,13 +117,13 @@ export function TimetableAssistantPanel(props: Props) {
   const targetLabels = useMemo(() => conditionTargetLabels(props.basis?.resources ?? []), [props.basis?.resources])
   const lessonLabels = useMemo(() => conditionTargetLabels(props.basis?.lessons ?? []), [props.basis?.lessons])
   const selected = props.basis?.resources.find(r => r.id === resourceId)
-  return <details className="timetable-card" style={{ overflowWrap: 'anywhere' }} open={expanded || !!pending} onToggle={event => setExpanded(event.currentTarget.open)}><summary>Claude와 조건 정리하기</summary>
+  return <details className="timetable-card" style={{ overflowWrap: 'anywhere' }} open={expanded || !!pending} onToggle={event => setExpanded(event.currentTarget.open)}><summary ref={summaryRef}>Claude와 조건 정리하기</summary>
     <p>교사·학급·공간을 고르고 필요한 조건을 말로 설명해 주세요. 답변은 확인 후 반영하며 수업을 자동으로 옮기거나 요청을 보내지 않습니다.</p>
     {!props.server && <p>실제 학교 연결에서 사용할 수 있습니다. 편성 연습에서는 AI를 호출하지 않습니다.</p>}
     <label htmlFor={`${id}-stage`}>AI와 할 작업</label><select id={`${id}-stage`} value={stage} disabled={locked || props.disabled} onChange={event => { setStage(event.target.value as 'setup' | 'adjust'); setProposal(undefined); setConfirmed(false) }}><option value="setup">편성 조건 정리</option><option value="adjust" disabled={!canReview}>현재 배치 피드백</option></select>
     {stage === 'adjust' && <p>선택한 대상의 현재 배치를 함께 보냅니다. AI 설명은 참고이며, 수업 이동과 최종 판정은 담당자 확인과 프로그램 검사를 거칩니다.</p>}
     <label htmlFor={`${id}-target`}>AI에게 설명할 대상</label><select id={`${id}-target`} value={resourceId} disabled={locked || props.disabled} onChange={e => { setResourceId(e.target.value); setProposal(undefined); setConfirmed(false) }}><option value="">대상을 선택해 주세요</option>{props.basis?.resources.filter(r => r.kind !== 'equipment').map(r => <option key={r.id} value={r.id}>{targetLabels.get(r.id)}</option>)}</select>
-    <label htmlFor={`${id}-prompt`}>시간표 조건 요청</label><textarea id={`${id}-prompt`} rows={3} maxLength={900} value={prompt} disabled={locked || props.disabled} onChange={e => { setPrompt(e.target.value); setProposal(undefined) }} placeholder="예: 이번 학기 수요일 1교시를 가능하면 피하고 싶어요." />
+    <label htmlFor={`${id}-prompt`}>시간표 조건 요청</label><textarea ref={promptRef} id={`${id}-prompt`} rows={3} maxLength={900} value={prompt} disabled={locked || props.disabled} onChange={e => { setPrompt(e.target.value); setProposal(undefined) }} placeholder="예: 이번 학기 수요일 1교시를 가능하면 피하고 싶어요." />
     <p className="timetable-muted">선택한 대상의 수업명·시간대·요청 내용을 학교가 승인한 Claude 연결로 보냅니다. 의료·가족 사정 등 개인의 상세 사유는 적지 않아도 됩니다.</p>
     <div className="timetable-actions"><button type="button" disabled={locked || props.disabled || !props.server || !selected || !prompt.trim()} onClick={() => void ask()}>Claude에게 조건 정리 요청</button><button type="button" className="secondary" disabled={locked} onClick={() => { setPrompt(''); setResourceId(''); setProposal(undefined); setRawAnswer(''); setError(''); setNotice('') }}>AI 입력 비우기</button>{pending && <button type="button" disabled={busy || !props.server} onClick={() => void recover()}>원래 AI 요청 결과 확인</button>}</div>
     {busy && <p role="status">원래 요청과 기준자료를 확인하고 있습니다…</p>}{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
