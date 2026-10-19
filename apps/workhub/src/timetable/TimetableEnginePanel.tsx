@@ -16,7 +16,7 @@ import { LocalTimetableEngine } from './LocalTimetableEngine'
 interface EngineSession { fingerprint: string; request: CpSatRequest; response?: CpSatResponse; scope: 'all' | 'selected' }
 interface Props {
   member: Membership; basis: TimetableBasis; placements: Placement[] | null; lockedLessonIds: string[]; scopeResourceId: string
-  disabled: boolean; onAdopt: (placements: Placement[]) => void
+  disabled: boolean; onAdopt: (placements: Placement[]) => void | boolean
   previous?: PreviousTimetable
 }
 const resultLabels: Record<CpSatResponse['status'], string> = {
@@ -86,7 +86,8 @@ export function TimetableEnginePanel(props: Props) {
   }
   function adopt() {
     if (!confirmed || !candidate || !current || props.disabled || busy || !validatePlacements(props.basis, candidate.placements).valid) return
-    props.onAdopt(structuredClone(candidate.placements)); keep(undefined); setConfirmed(false); setNotice('선택한 후보를 작업 초안에 반영했습니다. 학교 서버 저장과 확정은 별도입니다.')
+    if (props.onAdopt(structuredClone(candidate.placements)) === false) { setConfirmed(false); setNotice(''); setError('현재 작업의 조건·고정·권한 때문에 후보를 반영하지 못했습니다. 계산 요청과 결과는 보관했으니 작업 배치 안내를 확인한 뒤 다시 검토해 주세요.'); return }
+    setError(''); keep(undefined); setConfirmed(false); setNotice('선택한 후보를 작업 초안에 반영했습니다. 학교 서버 저장과 확정은 별도입니다.')
   }
   return <details className="timetable-card"><summary>최적화 엔진으로 계산·후보 비교</summary>
     <p>브라우저 계산과 같은 공식 자료·필수조건으로 최적화 후보를 비교합니다. 담당자 PC의 계산기를 연결하거나 계산 파일을 직접 주고받을 수 있습니다.</p>
