@@ -1,8 +1,8 @@
 # Claude 검토 요청 — 시간표 조건·생성·결과·확정 통합
 
-시간표 앱의 다음 통합 후보를 검토해 주세요. 브랜치는 `feat/workhub-timetable-flow-completion`입니다. PR URL과 검토 head는 최종 PR 설명을 기준으로 확인해 주세요.
+시간표 앱의 다음 통합 후보를 검토해 주세요. PR은 [#70](https://github.com/EggPlayer88/daedong/pull/70), 브랜치는 `feat/workhub-timetable-flow-completion`입니다. 검토 head는 PR의 최신 커밋을 기준으로 확인해 주세요.
 
-이 후보는 **main #67 + 앱 #68·#69 + 이번 5개 묶음**을 포함합니다. #68·#69 기존 브랜치는 수정하지 않았습니다. #67을 merge commit으로 가져왔고 rebase/force push는 하지 않았습니다. SQL 원문은 main과 같습니다. #68·#69 검토 결과는 이 후보와 대조해 한 번에 정리해 주세요.
+이 후보는 **main #69(#67 T1·#68·#69 포함) + 이번 5개 묶음**입니다. 작업 중 #68·#69가 main에 병합된 것을 확인해 최신 main을 merge commit으로 연결했습니다. 기존 검증 코드와 내용 차이는 없었고 rebase/force push는 하지 않았습니다. SQL 원문은 main과 같습니다. 이번에는 #70의 추가 묶음을 중심으로 검토해 주세요.
 
 ## 이번 구현
 
