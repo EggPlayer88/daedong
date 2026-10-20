@@ -533,6 +533,68 @@ def body():
     check('K09 그 뒤 같은 초안 → 일반 · 명세 모두 변경 0(한 occurrence 의 여러 행은 살아 있는 행 하나에만 맞춤) · T2-07 FAIL 없음',
           ok(pv5) and [b['code'] for b in d(pv5)['blockers']] == ['NO_CHANGES'] and ok(mf5) and d(mf5)['totalChanges'] == 0 and not fails(t207()),
           (pv5 if not ok(pv5) else d(pv5)['blockers'], fails(t207())))
+    # ======================================================================= L. 합반과 휴업 기록 여러 건(Codex #73 P1 2차)
+    W2, W3 = DAY(16), DAY(36)   # DAY(15) 은 G 에서 시각을 직접 옮긴 시험용 수업이 있어 뺀다
+    days_ = [datetime.date.fromisoformat(DAY(k_)) for k_ in range(16, 36)]
+    pubd = [x for x in days_ if x.isoformat() < DAY(29)]                        # 이미 공개된 날(휴업은 수업이 있어야 반영됨)
+    B_day = next(x for x in pubd if x.isoweekday() == 3).isoformat()           # 1-1 만 닫는 수요일(공개된 첫 수요일)
+    A_day = [x for x in pubd if x.isoweekday() == 1 and x.isoformat() > B_day][-1].isoformat()   # 두 반을 휴업 기록 두 건으로 따로 닫는 월요일(그 뒤)
+    A2 = [x.isoformat() for x in days_ if x.isoweekday() == 1 and x.isoformat() != A_day]   # 휴업 없는 월요일
+    G = d(adm.oget(W2, W3)); refs_ = d(adm.refs(G['asOf'], W2, W3))
+    gid = {g_['name']: g_['id'] for x in refs_['lessons'] for g_ in x['groups']}
+    def close_(day_, names):
+        G_ = d(adm.oget(W2, W3)); adm.refs(G_['asOf'], W2, W3)   # 앱처럼 조회 → 참조 → 미리보기
+        sp_ = adm.sdprev({'kind': 'closure', 'date': day_, 'groupIds': sorted(gid[x] for x in names), 'reason': '재량휴업', 'bells': []}, G_['asOf'], W2, W3); S_ = d(sp_) or {}
+        if not ok(sp_) or S_['blockers']: return sp_
+        return adm.sdexec({'kind': 'school_day', 'preview': {'previewId': S_['previewId'], 'previewHash': S_['previewHash'], 'expiresAt': S_['expiresAt']}})
+    cs = [close_(A_day, ['1-1']), close_(A_day, ['1-2']), close_(B_day, ['1-1'])]
+    check('L01 준비: 첫 수요일은 1-1 만 휴업, 그 뒤 월요일은 1-1 · 1-2 를 휴업 기록 두 건으로', all(ok(x) and d(x)['status'] == 'applied' for x in cs)
+          and n('timetable_school_day_changes', "input->>'date' in (%s, %s)", (A_day, B_day)) == 3 and live_on(A_day) == 0 and len(A2) > 0, (A_day, B_day, cs))
+    # 다른 학교의 같은 날 휴업 기록(시험 전용 직접 입력): 이 학교 판단에 섞이면 안 됨
+    call(run, "insert into workhub.timetable_school_day_changes (school_id, preview_id, input, changed_lessons, lost_lesson_count, membership_id, request_key, recorded_at)"
+              " values ('school-2', 'pv-other-school', %s, '[{\"id\": \"x\", \"version\": 1}]', 0, 'm-27', 'k-other-school', now())",
+         (json.dumps({'kind': 'closure', 'date': B_day, 'groupIds': [gid['1-2']], 'reason': '다른 학교', 'bells': []}),))
+    # 새 합반(국어 1-1 + 1-2, 월 · 수 3교시)을 더한 기준판과 편성 초안
+    CJ = mk('국어 합반', 'subj-kor', [M[23]])
+    rl = adm.sx(link(CJ, None, ['cls-1-1', 'cls-1-2']))
+    psL = d(adm.prep())
+    draftL = dict(draft, title='2학기 운영 기준(합반)', plans=[{'courseId': c_['id'], 'weeklyPeriods': 2, 'blocks': [{'id': f"L{c_['id'][-6:]}-{i}", 'periods': 1, 'allowedSlotIds': ids} for i in range(2)]}
+                                                         for c_ in psL['courses']])
+    rcL = adm.pex(pin('confirm', psL, draftL, DID, 2)); BL = (d(rcL) or {}).get('basis') or {}   # 같은 준비 초안을 판 2 로 다시 확정
+    LL = {}
+    for l_ in BL.get('lessons', []): LL.setdefault(l_['courseId'], []).append(l_['id'])
+    planL = dict(plan_, **{CJ: ['s1-3', 's3-3']})
+    rsv = adm.save(dict(inp, basisId=BL.get('id'), basisRevision=BL.get('revision', 1), sourceFingerprint=BL.get('sourceFingerprint'), title='운영 합반안',
+                        placements=[{'lessonId': lid, 'slotId': planL[cid][i]} for cid, lids in LL.items() for i, lid in enumerate(lids)]))
+    DRL = (d(rsv) or {}).get('draftId')
+    check('L02 준비: 합반 연결 · 기준판 다시 확정 · 합반 편성 초안 저장', ok(rl) and ok(rcL) and ok(rsv) and CJ in LL, (ecode(rl), rcL, rsv))
+    joint = lambda c_: c_['after']['groupNames'] == ['1-1', '1-2']
+    pL = {'draftId': DRL, 'draftVersion': 1, 'from': W2, 'until': W3}
+    pv = adm.pprev(pL); PV = d(pv) or {}
+    jn = [c_ for c_ in PV.get('changes', []) if joint(c_)]
+    bl_ = [b for b in PV.get('blockers', []) if b['code'] == 'PARTIAL_GROUP_SCOPE']
+    check('L03 일반 공개 미리보기: 두 기록으로 전부 휴업한 월요일 합반은 만들지 않음 · 1-1 만 휴업한 수요일 합반은 PARTIAL_GROUP_SCOPE 차단(그 수업만) · 다른 학교 기록은 무관',
+          ok(pv) and [b['code'] for b in PV['blockers']] == ['PARTIAL_GROUP_SCOPE'] and len(bl_[0]['lessonIds']) == 1
+          and [kday(c_['after']['time']['startsAt']) for c_ in jn if c_['after']['id'] in bl_[0]['lessonIds']] == [B_day]
+          and A_day not in [kday(c_['after']['time']['startsAt']) for c_ in jn] and all(c_['before'] is None for c_ in jn),
+          pv if not ok(pv) else (PV['blockers'], [kday(c_['after']['time']['startsAt']) for c_ in jn]))
+    rx_ = adm.oexec({'kind': 'publish', 'preview': {'previewId': PV.get('previewId'), 'previewHash': PV.get('previewHash'), 'expiresAt': PV.get('expiresAt'), 'input': pL}})
+    mfL = adm.manifest(pL)
+    check('L04 차단된 미리보기로 공개 → INVALID_INPUT · 명세도 blockerCount 1 · 아무것도 바뀌지 않음', ecode(rx_) == 'INVALID_INPUT' and ok(mfL) and d(mfL)['blockerCount'] == 1
+          and n('timetable_lessons', "activity_id like %s", (f"L{CJ[-6:]}-%",)) == 0, (rx_, mfL))
+    # 수요일(일부 휴업)을 빼고 명세 경로로 공개: 전부 휴업한 월요일만 건너뛰고 나머지 날은 정상 반영
+    B1 = (datetime.date.fromisoformat(B_day) + datetime.timedelta(days=1)).isoformat()
+    pL2 = dict(pL, **{'from': B1})
+    mf2 = adm.manifest(pL2); M2 = d(mf2) or {}
+    rm2 = adm.pubexec({'kind': 'publish_manifest', 'previewId': M2.get('previewId'), 'previewHash': M2.get('previewHash'), 'manifestHash': M2.get('manifestHash'),
+                       'basisFingerprint': M2.get('basisFingerprint'), 'input': pL2, 'expiresAt': M2.get('expiresAt'), 'totalChanges': M2.get('totalChanges')})
+    jdays = ids_(f"select occurrence_date::text from workhub.timetable_lessons where state <> 'cancelled' and activity_id like 'L{CJ[-6:]}-%%' order by 1")
+    exp_j = [x.isoformat() for x in days_ if x.isoweekday() in (1, 3) and x.isoformat() > B_day and x.isoformat() != A_day]
+    check('L05 명세 공개: 합반은 휴업 없는 월 · 수에만 생김(다른 날짜 격리) · 전부 휴업한 월요일 0 · 휴업 취소 수업 그대로', ok(rm2) and M2['blockerCount'] == 0
+          and jdays == exp_j and len(exp_j) > 0 and live_on(A_day) == 0 and all(x in jdays for x in A2 if x > B_day), (rm2, jdays, exp_j))
+    pv3 = adm.pprev(pL2); mf3 = adm.manifest(pL2)
+    check('L06 같은 범위 다시 → 일반 · 명세 모두 변경 0 · T2-07 FAIL 없음', ok(pv3) and [b['code'] for b in d(pv3)['blockers']] == ['NO_CHANGES']
+          and ok(mf3) and d(mf3)['totalChanges'] == 0 and not fails(t207()), (pv3, fails(t207())))
     if POLICY:
         check('H06 한도 = 앱 execution-records-policy.json(메모 1000 · 사유 500 · 쪽 20 · 수업 14400초)', POLICY['note'] == 1000 and POLICY['correctionReason'] == 500
               and POLICY['pageSize'] == 20 and POLICY['maxLessonSeconds'] == 14400)
