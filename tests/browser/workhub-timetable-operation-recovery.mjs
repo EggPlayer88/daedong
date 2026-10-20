@@ -7,7 +7,7 @@ const bundle = buildSync({ entryPoints: [fileURLToPath(new URL('./workhub-timeta
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(), errors = [], passed = []
 page.on('pageerror', e => errors.push(e.message)); page.setDefaultTimeout(10000)
 await context.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta name="viewport" content="width=device-width,initial-scale=1"><div id="root"></div></html>' }))
-async function start(kind, options = {}) { await page.goto('http://127.0.0.1:5187/operation-recovery'); await page.addScriptTag({ content: bundle }); await page.evaluate(({ kind, options }) => { Object.assign(window, options); if (kind) window.seed(kind); window.mount() }, { kind, options }); await page.getByRole('heading', { name: '시간표 운영', exact: true }).waitFor() }
+async function start(kind, options = {}) { await page.goto('http://127.0.0.1:5187/operation-recovery'); await page.addScriptTag({ content: bundle }); await page.evaluate(async ({ kind, options }) => { Object.assign(window, options); if (kind) await window.seed(kind); window.mount() }, { kind, options }); await page.getByRole('heading', { name: '시간표 운영', exact: true }).waitFor() }
 const recovery = () => page.getByRole('button', { name: '원래 요청 결과만 다시 확인', exact: true })
 async function check(name, run) { await run(); passed.push(name); console.log('  ✓ ' + name) }
 try {
@@ -28,6 +28,19 @@ try {
     const resend=page.getByRole('button',{name:'같은 번호·같은 내용으로 다시 보내기',exact:true});assert.equal(await resend.isDisabled(),true)
     await page.getByLabel('늦은 처리 가능성을 확인했고 같은 번호·같은 내용으로 다시 보냅니다').check();await resend.click();await page.waitForFunction(()=>window.pending.count()===0)
     const calls=await page.evaluate(()=>window.calls);assert.equal(calls.length,2);assert.equal(calls[1].key,calls[0].key);assert.deepEqual(calls[1].command,calls[0].command)
+  })
+  await check('학사 변경의 만료된 원요청 복구 뒤 반영 날짜와 원수업 선택을 유지한다', async () => {
+    await start('school_day', { onlyRecoveryDraft: true })
+    assert.equal(await page.evaluate(() => Date.parse(window.seeded.preview.expiresAt) < Date.now()), true)
+    await recovery().click(); await page.waitForFunction(() => window.pending.count() === 0)
+    await page.getByRole('button', { name: '반영한 날짜의 시간표 보기', exact: true }).click()
+    const detail = page.getByRole('region', { name: '선택한 수업', exact: true })
+    await detail.waitFor()
+    assert.match(await detail.innerText(), /복구한 학사 변경의 원수업/)
+    assert.equal(await page.getByLabel('운영 조회 날짜', { exact: true }).inputValue(), await page.evaluate(() => window.seeded.context.result.input.date))
+    assert.match(await page.locator('.ttboard-lesson[aria-pressed="true"]').innerText(), /복구한 학사 변경의 원수업/)
+    const state = await page.evaluate(() => ({ calls: window.calls, seeded: window.seeded }))
+    assert.deepEqual(state.calls, [{ method: 'schoolDay.recover', command: state.seeded, key: 'original-request-123' }])
   })
   await check('복구 권한 오류는 원래 요청과 입력을 지우지 않는다', async () => {
     await start('school_day', { recoveryError: 'FORBIDDEN' }); const before = await page.evaluate(() => window.saved()); await recovery().click(); await page.getByRole('alert').waitFor()

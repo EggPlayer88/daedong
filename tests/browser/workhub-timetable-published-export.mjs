@@ -41,7 +41,13 @@ await check('실제 출력 미리보기·인쇄·XLSX에 확인된 대강과 보
 })
 await check('대강 이력 재조회 실패는 이전 출력 확인을 폐기하고 변경 원인을 추정하지 않는다', async () => {
   await page.evaluate(() => window.withInterventions()); await show(); await page.evaluate(() => { delete window.fixture.interventions; window.refresh() })
-  assert.equal(await preview().count(), 0); await show(); assert.doesNotMatch(await preview().innerText(), /이전 담당:|취소 원수업:/)
+  // refresh는 React 갱신을 예약한다. 새 원본의 안내가 실제 렌더된 뒤 이전 확인 폐기를 검증한다.
+  await page.getByText('조회 자료나 선택 범위가 바뀌었습니다. 현재 자료로 미리보기를 다시 열어 주세요.', { exact: true }).waitFor()
+  await preview().waitFor({ state: 'detached' })
+  assert.equal(await preview().count(), 0)
+  assert.equal(await page.getByRole('button', { name: '인쇄·PDF로 저장', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: '확정 시간표 XLSX 내려받기', exact: true }).count(), 0)
+  await show(); assert.doesNotMatch(await preview().innerText(), /이전 담당:|취소 원수업:/)
   await preview().getByText('출력 범위와 변경 표시 안내', { exact: true }).click(); await preview().getByText(/대강·보강 이력 연결을 확인하지 못했습니다/).waitFor()
 })
 assert.deepEqual(errors, []); assert.deepEqual(external, []); console.log(`확정 시간표 출력 브라우저 검사: ${n}개 통과`)
