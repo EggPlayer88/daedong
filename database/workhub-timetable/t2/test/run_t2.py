@@ -433,6 +433,9 @@ def body():
     ki = key(); cmd_i = ecmd(li['id'], li['version'], 0, None, 'completed', '')
     a3 = t[21].abandon('execution', cmd_i, ki)
     check('I08 모듈을 꺼도 포기는 됨(NOT_READY 아님) · 켠 뒤에도 그 번호는 CONFLICT', ok(a3) and d(a3)['outcome'] == 'abandoned', a3)
+    spoof = O(T[22], M[21]).abandon('execution', cmd_i, ki); other = O(T[21], M[22]).abandon('execution', cmd_i, key())
+    check('I10 모듈 중지 중에도 본인 확인 유지: 남의 소속 ID 로 포기 → 거부(소속 아님) · 원장 그대로', not ok(spoof) and not ok(other)
+          and 'INACTIVE_MEMBERSHIP' in str(spoof) + str(other) and n('timetable_operation_requests', 'request_key=%s', (ki,)) == 1, [spoof, other])
     sqlfile(text=module_sql('P2-81_모듈재개.sql', 'timetable_operations', '시험 재개'))
     check('I09 재개 뒤 포기한 번호 CONFLICT · 원장 행은 고칠 수 없음 · T2-07 FAIL 없음', ecode(t[21].erec(cmd_i, ki)) == 'CONFLICT'
           and sqlerr("update workhub.timetable_operation_requests set outcome='applied' where outcome='abandoned'") != 'OK' and not fails(t207()), fails(t207()))
