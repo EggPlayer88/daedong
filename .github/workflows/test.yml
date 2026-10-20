@@ -82,6 +82,9 @@ jobs:
       - name: 시간표 구축의 포함 이력과 SQL·인증·공개 보존
         if: github.event_name == 'pull_request' && (github.head_ref == 'feat/workhub-timetable-completion' || github.head_ref == 'feat/workhub-timetable-usability' || github.head_ref == 'feat/workhub-timetable-setup' || github.head_ref == 'feat/workhub-timetable-setup-batch' || github.head_ref == 'feat/workhub-timetable-flow-completion' || github.head_ref == 'feat/workhub-timetable-operations-completion')
         run: npm run check:workhub:timetable
+      - name: 학교 연결·시간표 운영 묶음의 증분 승인 범위
+        if: github.event_name == 'pull_request' && github.head_ref == 'feat/workhub-school-timetable-pilot'
+        run: npm run check:workhub:school-pilot
       - run: npm run check:workhub:design
       - run: npm test
         env:
@@ -129,6 +132,16 @@ jobs:
           path: ${{ runner.temp }}/workhub-release-r0-verify/run-*/reports
           if-no-files-found: ignore
           retention-days: 7
+      # 승인 회원 연결은 기존 회원과 접근 게이트를 보존한 새 격리 PG17에서 검사한다.
+      - name: 학교 교사 연결 SQL·실제 응답 대조
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          P9_CAPTURE: ${{ runner.temp }}/workhub-p9-captures.json
+          P9_TEST_PORT: '55519'
+        run: |
+          python database/workhub-school-data/p9/test/run_p9.py
+          node tests/test_workhub_school_roster.mjs
+          git diff --exit-code -- database/workhub-school-data/p9/P9-05_통합사후점검.sql
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub
