@@ -22,6 +22,11 @@ const connection={getIdentity:async()=>copy(identity),loadContext:async()=>copy(
  if(name==='workhub_messaging_readiness')return {contractVersion:1,schoolId:member.schoolId,memberId:member.id,userId:identity.userId,ok:true,data:{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'}};
  if(name==='workhub_message_threads'||name==='workhub_message_recipients')return {contractVersion:1,schoolId:member.schoolId,memberId:member.id,userId:identity.userId,ok:true,data:{items:[],nextCursor:null}};
  if(name==='workhub_inbox_list')return {contractVersion:1,schoolId:member.schoolId,memberId:member.id,userId:identity.userId,ok:true,data:{items:[{id:'notice-distinct-id',schoolId:member.schoolId,ownerMemberId:member.id,title:'확인할 수업 교환 요청',body:'현재 시간표 요청 원본을 확인해 주세요.',createdAt:now(),readAt:null,version:1,source:{module:'timetable',id:window.state.noticeRequestId}}],nextCursor:null}};
+ if(name.startsWith('workhub_timetable_interventions_')){
+  if(name.endsWith('_resolve')&&window.state.resolveFailure)return {contract:'timetable-interventions.v1',schoolId:member.schoolId,memberId:member.id,error:{code:window.state.resolveFailure}};
+  if(name.endsWith('_resolve')&&window.state.resolvedSource)return env(copy(window.state.resolvedSource),'timetable-interventions.v1');
+  throw {code:'PGRST202'};
+ }
  if(name==='workhub_timetable_operations_readiness')return env({available:true});
  if(name==='workhub_timetable_operations_get'){
   if(window.state.failOperations)throw new ContractError('QUERY_FAILED');

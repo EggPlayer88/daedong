@@ -39,6 +39,15 @@ try {
     assert.equal(await page.evaluate(() => window.state.writes.length), 0)
     await page.getByRole('button', { name: '메시지·알림으로 돌아가기', exact: true }).click(); await page.getByRole('heading', { name: '메시지와 알림', exact: true, level: 2 }).waitFor()
   })
+  await check('서버가 확인한 교환 원본으로 이동하고 다른 학교·권한 오류에는 종전 ID를 대입하지 않는다', async () => {
+    await page.evaluate(() => window.state.resolvedSource = { kind: 'exchange', requestId: 'request-24', schoolDayChangeId: null, date: window.state.basisDate, lessonId: null })
+    await sourceButton().click(); await exactCard().waitFor()
+    await page.getByRole('button', { name: '메시지·알림으로 돌아가기', exact: true }).click()
+    await page.getByRole('group', { name: '메시지 분류' }).getByRole('button', { name: '업무 알림', exact: true }).click()
+    await page.evaluate(() => window.state.resolveFailure = 'FORBIDDEN')
+    await sourceButton().click(); await page.getByText('알림의 시간표 원본을 확인하지 못했습니다. 다른 요청으로 연결하지 않았습니다.', { exact: false }).waitFor()
+    assert.equal(await openedNotice().count(), 0); assert.equal(await page.evaluate(() => window.state.writes.length), 0)
+  })
   await check('접어 둔 메시지 초안은 알림→시간표→복귀 뒤 보존되고320px에서 키보드 이동이 된다', async () => {
     await page.getByRole('button', { name: '새 메시지', exact: true }).click(); await page.getByLabel('메시지', { exact: true }).fill('보존할 메시지 초안')
     await page.getByRole('button', { name: '입력 접고 목록 보기', exact: true }).click(); await page.getByRole('group', { name: '메시지 분류' }).getByRole('button', { name: '업무 알림', exact: true }).click()

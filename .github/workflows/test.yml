@@ -142,6 +142,38 @@ jobs:
           python database/workhub-school-data/p9/test/run_p9.py
           node tests/test_workhub_school_roster.mjs
           git diff --exit-code -- database/workhub-school-data/p9/P9-05_통합사후점검.sql
+      - name: 학교 자료 정정 SQL·보호 이력·앱 응답
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          P10_CAPTURE: ${{ runner.temp }}/workhub-p10-captures.json
+          P9_TEST_PORT: '55549'
+        run: |
+          python database/workhub-school-data/p10/test/run_p10.py
+          node tests/test_workhub_school_data_maintenance.mjs
+      - name: 시간표 운영 확장 SQL·독립 승인·앱 응답
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          T3_CAPTURE: ${{ runner.temp }}/workhub-t3-captures.json
+          T3_TEST_PORT: '55529'
+        run: |
+          python database/workhub-timetable/t3/test/run_t3.py
+          node tests/integration/timetable-interventions-capture.mjs "$T3_CAPTURE"
+      - name: 실제 시간표 가져오기 SQL·원자성·앱 응답
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          T4_CAPTURE: ${{ runner.temp }}/workhub-t4-captures.json
+          T4_TEST_PORT: '55539'
+          T4_WITH_OPERATIONS: '1'
+        run: |
+          python database/workhub-timetable/t4/test/run_t4.py
+          node tests/test_workhub_timetable_import.mjs
+      - name: 학교 정정·시간표 운영 확장 전체 설치 점검
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_INT_TEST_PORT: '55559'
+        run: |
+          python database/workhub-school-data/integration/test/run_integrated.py
+          git diff --exit-code -- database/workhub-school-data/integration/INT-04_운영확장_통합점검.sql
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub

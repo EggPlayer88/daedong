@@ -1,4 +1,4 @@
-// 2026-10-20 승인 묶음: 기존 코드 보존 위에 P9 증분과 로컬 운영 연습만 더한다.
+// 2026-10-20 승인 묶음: 기존 확정 파일을 보존하며 학교 정정·실제 시간표 운영의 새 증분만 허용한다.
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -15,6 +15,10 @@ const sqlFiles = [
   'P9-03_교사연결_승인양식.sql', 'P9-04_사후점검.sql', 'P9-05_통합사후점검.sql',
   'P9_원안_출처PR75.md', 'README.md', 'test/gen_p9_05.py', 'test/run_p9.py',
 ].map(path => 'database/workhub-school-data/p9/' + path)
+const newIncrement = path =>
+  /^database\/workhub-school-data\/p10\/(?:P10-\d{2}_[^/]+\.sql|README\.md|test\/[^/]+\.(?:py|mjs|json|sql))$/.test(path) ||
+  /^database\/workhub-timetable\/t[34]\/(?:T[34]-\d{2}_[^/]+\.sql|README\.md|test\/[^/]+\.(?:py|mjs|json|sql))$/.test(path) ||
+  /^database\/workhub-school-data\/integration\/(?:INT-04_[^/]+\.sql|README\.md|test\/(?:gen_int_04|run_integrated)\.py)$/.test(path)
 try {
   const ancestors = new Set(git('rev-list', 'HEAD').split('\n'))
   for (const sha of [baseline, ...required]) assert(ancestors.has(sha), `필수 이력 누락: ${sha}`)
@@ -23,7 +27,7 @@ try {
   const existing = new Set(split(git('ls-tree', '-r', '--name-only', '-z', baseline)))
   const protectedPath = /^(?:database\/|migrations\/|packages\/shared\/|apps\/main\/api\/|workers\/|docs\/workhub\/release-candidate\/|scripts\/(?:verify-workhub-release-sql\.sh|check-workhub-release\.mjs)$|apps\/main\/src\/(?:lib\/(?:modules\.js|AuthContext\.jsx)|pages\/LoginPage\.jsx)$)/
   for (const path of changed.filter(path => protectedPath.test(path))) {
-    assert(sqlFiles.includes(path) && !existing.has(path), `승인 밖 또는 기존 확정 파일 변경: ${path}`)
+    assert((sqlFiles.includes(path) || newIncrement(path)) && !existing.has(path), `승인 밖 또는 기존 확정 파일 변경: ${path}`)
   }
   assert.deepEqual(changed.filter(path => path.startsWith('.github/workflows/') && path !== '.github/workflows/test.yml'), [])
   const modules = [...read('apps/workhub/src/modules.ts').matchAll(/\{ id: '[^']+'[^\n]+/g)]
@@ -31,7 +35,7 @@ try {
   assert(modules.every(row => row[0].includes("visibility: 'superadmin'") && row[0].includes('productionEnabled: false')))
   const deferred = JSON.parse(read('docs/workhub/integration-r2/pr-inventory.json')).deferred.concat(JSON.parse(read('docs/workhub/pilot-completion/inventory.json')).excluded)
   for (const row of deferred) assert(!ancestors.has(row.sha), `보류 이력 포함: #${row.number}`)
-  console.log(JSON.stringify({ included: [72, 74], newSql: 'P9 별도 증분만 허용', historicalSqlPreserved: true, authAndVisibilityPreserved: true, dbApplied: false, changedPaths: changed.length }, null, 2))
+  console.log(JSON.stringify({ included: [72, 74], newSql: 'P9·P10·T3·T4 새 증분 및 읽기 전용 INT-04', historicalSqlPreserved: true, authAndVisibilityPreserved: true, dbApplied: false, changedPaths: changed.length }, null, 2))
 } catch (error) {
   console.error('학교·시간표 운영 묶음 보호 검사 실패:', error.message)
   process.exitCode = 1
