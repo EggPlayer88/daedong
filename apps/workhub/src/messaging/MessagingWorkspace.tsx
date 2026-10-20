@@ -8,6 +8,8 @@ import { MessagingError, type InboxNotice, type Message, type MessageCommand, ty
 import { createSupabaseMessagingServer } from './supabase-messaging'
 import { blankMessageDraft, isMessageDraftDirty, messageAttempt, newMessageKey, retryMessageAttempt, type MessageAttempt, type MessageDraft } from './composer'
 import { MessagePreview } from './MessagePreview'
+import { SentDeliveryPanel } from './SentDeliveryPanel'
+import { recipientLabel, restoreSentDelivery, sentDeliveryRecord, type SentDeliveryRecord } from './deliveries'
 import { command as checkedCommand } from './validation'
 import { createMessageFileServer, type MessageFileServer } from './files'
 import { MessageAttachments } from './MessageAttachments'
@@ -44,12 +46,14 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
   const server = useMemo(() => provided ?? createSupabaseMessagingServer(connection), [connection, provided])
   const fileServer = useMemo(() => providedFiles ?? createMessageFileServer(connection), [connection, providedFiles])
   const memory = useEditDraft<DraftMemory>(member, 'messaging-composer')
+  const deliveryMemory = useEditDraft<SentDeliveryRecord>(member, 'messaging-latest-delivery')
+  const [delivered, setDelivered] = useState(() => restoreSentDelivery(deliveryMemory.initial, recoveryScope(member), member.id))
   const recovery = usePendingRequest(member, 'messaging')
   const fileRecovery = usePendingRequest(member, 'messagingFile')
   const [restored] = useState(() => memory.initial)
   const [restoredPending] = useState<MessageAttempt | null>(() => {
     if (!recovery.request) return restored?.pending ?? null
-    try { return { key: recovery.request.key, command: checkedCommand(recovery.request.command, member.id), recipientNames: restored?.pending?.recipientNames ?? [] } }
+    try { return { key: recovery.request.key, command: checkedCommand(recovery.request.command, member.id), recipientNames: restored?.pending?.recipientNames ?? [], recipientSnapshots: restored?.pending?.recipientSnapshots } }
     catch { return null }
   })
   const [draft, setDraft] = useState<MessageDraft>(restored?.draft ?? blankMessageDraft())
@@ -76,14 +80,16 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
   const [recipientQuery, setRecipientQuery] = useState(''), [recipientSearch, setRecipientSearch] = useState(''), [recipientRefresh, setRecipientRefresh] = useState(0)
   const [recipients, setRecipients] = useState<Page<Recipient>>({ items: [], nextCursor: null }), [loadingRecipients, setLoadingRecipients] = useState(false), [recipientError, setRecipientError] = useState('')
   const alive = useRef(true), inFlight = useRef(false), listGeneration = useRef(0), messageGeneration = useRef(0), recipientGeneration = useRef(0), inboxGeneration = useRef(0)
+  const serverGeneration = useRef(0)
   const heading = useRef<HTMLHeadingElement>(null), composerInput = useRef<HTMLTextAreaElement>(null), id = useId()
   const enabled = activeAt(member, date), usable = enabled && !denied && readiness?.available === true
   const dirty = composing && isMessageDraftDirty(draft), locked = busy || fileLocked || Boolean(pending || preview || openingSource)
   const navigationLocked = busy || fileLocked || Boolean(preview) || (!folded && (dirty || Boolean(pending)))
   const hasAnyDraft = dirty || Boolean(pending)
   const waitingOpen = Boolean(openRequest && openRequest.key !== handledOpenKey)
-  useEffect(() => { alive.current = true; return () => { alive.current = false; listGeneration.current++; messageGeneration.current++; recipientGeneration.current++; inboxGeneration.current++ } }, [server])
+  useEffect(() => { alive.current = true; serverGeneration.current++; return () => { alive.current = false; serverGeneration.current++; listGeneration.current++; messageGeneration.current++; recipientGeneration.current++; inboxGeneration.current++ } }, [server])
   useEffect(() => { memory.save(hasAnyDraft ? { draft, composing, pending, folded } : undefined, hasAnyDraft) }, [memory, draft, composing, pending, folded, hasAnyDraft])
+  useEffect(() => { deliveryMemory.save(delivered ?? undefined, false) }, [deliveryMemory, delivered])
   useEffect(() => { onNavigationLockChange?.(navigationLocked); return () => onNavigationLockChange?.(false) }, [navigationLocked, onNavigationLockChange])
   useEffect(() => {
     if (!hasAnyDraft) return
@@ -94,6 +100,7 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
     listGeneration.current++; messageGeneration.current++; recipientGeneration.current++; inboxGeneration.current++
     setThreads({ items: [], nextCursor: null }); setInbox({ items: [], nextCursor: null }); setMessages([]); setSelected(null); setOpenedId(null); focusThread.current = false; setRecipients({ items: [], nextCursor: null })
     setPreview(null); setPending(null); recovery.remove(); setDraft(blankMessageDraft()); setComposing(false); memory.remove(); setDenied(true)
+    setDelivered(null); deliveryMemory.remove()
   }
   function report(failure: unknown, assign: (value: string) => void) {
     if (!alive.current) return
@@ -146,6 +153,12 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
   function closeThread() {
     messageGeneration.current++; setOpenedId(null); setSelected(null); setMessages([]); setMessageCursor(null)
     setMessageError(''); setLoadingMessages(false); focusThread.current = false; heading.current?.focus()
+  }
+  function openDeliveredThread(threadId: string) {
+    if (!usable || checking || locked || !delivered?.receipt.deliveries.some(row => row.threadId === threadId)) return
+    // 새 초안은 접기만 한다. 접수증에 있는 번호로 조회하며 새 전송이나 자동 읽음은 하지 않는다.
+    if (composing) setFolded(true)
+    openThread(threadId)
   }
   async function loadThreads(more: boolean) {
     const generation = ++listGeneration.current, cursor = more ? threads.nextCursor ?? undefined : undefined
@@ -212,20 +225,24 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
     if (inFlight.current) return
     inFlight.current = true; setBusy(true); setError(''); setNotice('')
     const saved = retryMessageAttempt(attempt)
+    const generation = serverGeneration.current
     setPending(saved); recovery.put({ key: saved.key, command: saved.command }); setPreview(null)
     try {
       // 연결 복원 후에는 대화 권한을 먼저 다시 조회한다. 요청 번호와 원본 버전은 바꾸지 않는다.
       if (saved.command.kind === 'read_thread' && usable) await server.messages(member.id, saved.command.threadId)
       const result = await server.mutate(member.id, saved.command, saved.key, { recovering, replayOnly: recovering && !usable })
-      if (!alive.current) return
+      if (!alive.current || generation !== serverGeneration.current) return
+      const confirmed = saved.command.kind === 'start' || saved.command.kind === 'reply'
+        ? sentDeliveryRecord(saved, result, recoveryScope(member), member.id) : null
       setPending(null); recovery.remove(saved.key); setFolded(false)
       if (saved.command.kind === 'start' || saved.command.kind === 'reply') {
+        setDelivered(confirmed)
         setDraft(blankMessageDraft()); setComposing(false); memory.remove()
         setNotice(`메시지를 보냈습니다. ${result.deliveries.length}개 대화에 접수되었습니다. ${timeLabel(result.recordedAt)}`)
       } else setNotice('읽음으로 표시했습니다. 업무 처리나 문서 제출 상태는 바뀌지 않습니다.')
       setRefresh(value => value + 1)
     } catch (failure) {
-      if (!alive.current) return
+      if (!alive.current || generation !== serverGeneration.current) return
       const problem = errorOf(failure)
       if (!['RESULT_UNKNOWN', 'QUERY_FAILED', 'INVALID_RESPONSE', 'IDEMPOTENCY_CONFLICT', 'CANCELLED', 'NOT_READY'].includes(problem.code)) { setPending(null); recovery.remove(saved.key) }
       if (problem.code === 'CONFLICT' && saved.command.kind === 'read_notice') {
@@ -282,6 +299,7 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
   }
   const selectedSequence = messages.reduce((max, item) => Math.max(max, item.sequence), 0)
   const canRead = selected && selectedSequence > selected.readSequence
+  const recipientPeers = mergePage(recipients.items, draft.recipients, item => item.memberId)
   return <section className="messaging-workspace" aria-labelledby={`${id}-heading`}>
     <style>{messagingStyles}</style>
     <header className="messaging-header"><div><h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>메시지와 알림</h2><p>학교 선생님과 대화하고, 내 업무 알림을 확인합니다.</p></div><button type="button" className="messaging-primary" disabled={!usable || locked || dirty} onClick={() => start()}>새 메시지</button></header>
@@ -295,6 +313,7 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
     {pending && <section className="messaging-status messaging-recovery" aria-label="이전 메시지 요청 확인"><h3>이전 요청의 결과를 먼저 확인해 주세요</h3><p>같은 내용과 요청 번호로 다시 확인합니다. 확인 전에는 새 메시지 전송을 멈춥니다. 보관 정보는 현재 탭에만 남습니다. 연결 준비를 확인하지 못한 경우에는 기존 접수증만 조회합니다.</p><div className="messaging-actions"><button type="button" className="messaging-primary" disabled={busy || !enabled || denied} onClick={() => void send(pending, true)}>이전 요청 그대로 다시 확인</button><button type="button" disabled={busy} onClick={() => setFolded(value => !value)}>{folded ? '보관한 입력 보기' : '입력 접고 목록 보기'}</button></div></section>}
     {!usable && !denied && enabled && fileRecovery.request && <MessageAttachments server={fileServer} member={member} enabled={false} disabled={busy || Boolean(pending)} files={draft.attachments} onChange={files => setDraft(value => ({ ...value, attachments: files }))} onLockChange={setFileLocked} />}
     {usable && <>
+      {delivered && !checking && <SentDeliveryPanel key={delivered.receipt.requestKey} record={delivered} disabled={locked} hasDraft={dirty} onOpen={openDeliveredThread} onDismiss={() => setDelivered(null)} />}
       <div className="messaging-tabs" role="group" aria-label="메시지 분류"><button type="button" aria-pressed={tab === 'messages'} onClick={() => setTab('messages')}>대화</button><button type="button" aria-pressed={tab === 'inbox'} onClick={() => setTab('inbox')}>업무 알림</button></div>
       {composing && <form hidden={folded} className="messaging-compose" onSubmit={prepare} aria-label={draft.thread ? '답장 작성' : '새 메시지 작성'}><h3>{draft.thread ? '답장 작성' : '새 메시지 작성'}</h3>
         {conflict && <div className="messaging-status" role="alert"><p>{draft.thread ? '참여자가 바뀌었습니다. 아래 버튼으로 현재 참여자를 확인한 뒤 다시 보내 주세요.' : '받는 사람 정보를 다시 확인해 주세요. 교사 명단을 다시 조회하고 받는 사람을 다시 선택하면 최신 정보를 사용합니다. 메시지 내용은 유지됩니다.'}</p>{draft.thread && <button type="button" disabled={locked} onClick={() => void refreshReplyParticipants()}>현재 참여자 다시 확인</button>}</div>}
@@ -305,10 +324,10 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
             <div className="messaging-filters"><label htmlFor={`${id}-recipient-search`}>교사 이름·부서 검색<input id={`${id}-recipient-search`} value={recipientQuery} onChange={event => setRecipientQuery(event.target.value)} maxLength={200} /></label><button type="button" disabled={loadingRecipients} onClick={() => { setRecipientSearch(recipientQuery); setRecipientRefresh(value => value + 1) }}>교사 찾기</button></div>
             {recipientError && <div role="alert">{recipientError}<button type="button" onClick={() => void loadRecipients(false)}>받는 사람 다시 조회</button></div>}
             {loadingRecipients && <p role="status">교사 명단 확인 중…</p>}
-            <ul className="messaging-recipient-list" aria-label="받는 사람 선택">{recipients.items.map(recipient => <li key={recipient.memberId}><label><input type="checkbox" checked={draft.recipients.some(item => item.memberId === recipient.memberId)} disabled={!draft.recipients.some(item => item.memberId === recipient.memberId) && draft.mode !== 'direct' && draft.recipients.length >= (readiness?.limits?.recipients ?? 0)} onChange={() => chooseRecipient(recipient)} /><span>{recipient.name}{recipient.department && ` · ${recipient.department}`}</span></label></li>)}</ul>
+            <ul className="messaging-recipient-list" aria-label="받는 사람 선택">{recipients.items.map(recipient => <li key={recipient.memberId}><label><input type="checkbox" aria-describedby={`${id}-person-${recipient.memberId}`} checked={draft.recipients.some(item => item.memberId === recipient.memberId)} disabled={!draft.recipients.some(item => item.memberId === recipient.memberId) && draft.mode !== 'direct' && draft.recipients.length >= (readiness?.limits?.recipients ?? 0)} onChange={() => chooseRecipient(recipient)} /><span>{recipientLabel(recipient, recipientPeers)}</span></label><small id={`${id}-person-${recipient.memberId}`}>소속 번호: {recipient.memberId}</small></li>)}</ul>
             {!loadingRecipients && !recipientError && recipients.items.length === 0 && <p className="messaging-muted">검색 조건에 맞는 교사가 없습니다.</p>}
             {recipients.nextCursor && <button type="button" disabled={loadingRecipients} onClick={() => void loadRecipients(true)}>교사 더 보기</button>}
-            <div className="messaging-selected" aria-label={`선택한 받는 사람 ${draft.recipients.length}명`}>{draft.recipients.map(recipient => <button type="button" key={recipient.memberId} onClick={() => chooseRecipient(recipient)} aria-label={`${recipient.name} 받는 사람에서 제외`}>{recipient.name} ×</button>)}</div>
+            <div className="messaging-selected" aria-label={`선택한 받는 사람 ${draft.recipients.length}명`}>{draft.recipients.map(recipient => <button type="button" key={recipient.memberId} onClick={() => chooseRecipient(recipient)} aria-label={`${recipientLabel(recipient, recipientPeers)} 받는 사람에서 제외`}>{recipientLabel(recipient, recipientPeers)} ×</button>)}</div>
             {draft.mode === 'group' && <label htmlFor={`${id}-title`}>대화 제목<input id={`${id}-title`} value={draft.title} maxLength={readiness?.limits?.titleCharacters} required onChange={event => setDraft(value => ({ ...value, title: event.target.value }))} /></label>}
           </>}
           <div><label htmlFor={`${id}-body`}>메시지</label><textarea id={`${id}-body`} ref={composerInput} value={draft.body} maxLength={readiness?.limits?.bodyCharacters} required={!draft.attachments.length} onChange={event => setDraft(value => ({ ...value, body: event.target.value }))} /></div>
