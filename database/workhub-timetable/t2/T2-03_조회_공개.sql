@@ -260,13 +260,16 @@ BEGIN
 END $$;
 
 -- 계획: p_cutoff(미리보기 시각) 이전에 시작하는 수업은 건드리지 않는다(지난 기록 보존). 교환 · 학사 변경으로 옮긴 수업(pinned)은 그대로 둔다.
--- 학사 변경(휴업)으로 취소한 수업도 pinned 로 보고 되살리지 않으며, 휴업한 날 · 학급에 새 배치가 와도 만들지 않는다(Codex #73 P1).
+-- 학사 변경(휴업)으로 취소한 수업도 pinned 로 보고 되살리지 않는다(Codex #73 P1).
+-- 새로 만들 수업의 날짜에 휴업 기록이 있으면 그 학교 · 날짜의 모든 휴업 기록 학급을 합쳐 본다(Codex #73 P1 2차):
+--   수업의 학급이 전부 휴업이면 만들지 않고, 일부만 휴업이면(합반) PARTIAL_GROUP_SCOPE 로 공개 전체를 막는다.
 --   돌려주는 값: rows(바뀌는 수업 — k new · update · cancel, 앱 change 와 반영용 값), blockers, excludedDays, existingChanges, 고정 값들.
 --   미리보기 · 확정 명세 · 확정이 모두 같은 (미리보기 ID, 시각)으로 이 함수를 불러 같은 결과를 얻는다(지문 비교).
 CREATE FUNCTION workhub_private.t2_publish_plan(p_ctx workhub_private.actor_context, i jsonb, p_preview text, p_cutoff timestamptz) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_range daterange := workhub_private.t2_publish_input(i); v_tz text := p_ctx.school_timezone; d workhub.timetable_drafts; t workhub.terms;
         b workhub.timetable_basis_revisions; v_excluded jsonb; v_rows jsonb; v_blockers jsonb := '[]'::jsonb; v_missing integer; v_busy jsonb; v_conf text[];
+        v_partial jsonb;
 BEGIN
   SELECT * INTO d FROM workhub.timetable_drafts WHERE school_id = p_ctx.school_id AND id = i ->> 'draftId';
   IF d.id IS NULL THEN RAISE EXCEPTION 'NOT_FOUND'; END IF;
@@ -305,19 +308,24 @@ BEGIN
      WHERE l.school_id = d.school_id AND l.term_id = d.term_id AND l.occurrence_date >= lower(v_range) AND l.occurrence_date < upper(v_range)
        AND (l.state <> 'cancelled' OR (l.pinned AND l.changed_by = 'school_day'))
      ORDER BY l.activity_id, l.occurrence_date, (l.state = 'cancelled'), l.changed_at DESC, l.id COLLATE "C"
+  ), cl AS (   -- 그 학교 · 날짜의 휴업 학급(휴업 기록 여러 건의 합집합)
+    SELECT (c.input ->> 'date')::date AS day, array_agg(DISTINCT g.v) AS gids
+      FROM workhub.timetable_school_day_changes c CROSS JOIN jsonb_array_elements_text(c.input -> 'groupIds') g(v)
+     WHERE c.school_id = d.school_id AND c.input ->> 'kind' = 'closure'
+       AND (c.input ->> 'date')::date >= lower(v_range) AND (c.input ->> 'date')::date < upper(v_range)
+     GROUP BY 1
   ), j AS (
     SELECT pl.act AS p_act, pl.course AS p_course, pl.label AS p_label, pl.allowed AS p_allowed, pl.teachers AS p_teachers, pl.groups AS p_groups, pl.rooms AS p_rooms,
-           pl.uses AS p_uses, pl.occ AS p_occ, pl.s AS p_s, pl.e AS p_e, ex.r AS e_row
+           pl.uses AS p_uses, pl.occ AS p_occ, pl.s AS p_s, pl.e AS p_e, ex.r AS e_row,
+           (SELECT count(*) FROM jsonb_array_elements(pl.groups) g JOIN cl ON cl.day = pl.occ AND (g ->> 'id') = ANY (cl.gids)) AS p_closed
       FROM pl FULL JOIN ex ON ex.act = pl.act AND ex.occ = pl.occ
   ), k AS (
     SELECT j.*, CASE
         WHEN (e_row).id IS NOT NULL AND (e_row).starts_at <= p_cutoff THEN NULL          -- 이미 시작한 수업: 그대로(지난 기록)
         WHEN p_act IS NOT NULL AND p_s <= p_cutoff THEN NULL                               -- 계획 시각이 이미 지남: 그대로
         WHEN (e_row).id IS NOT NULL AND (e_row).pinned THEN NULL                           -- 교환 · 학사 변경(휴업 취소 포함) 수업: 그대로(retained)
-        WHEN (e_row).id IS NULL AND jsonb_array_length(p_groups) > 0 AND EXISTS (          -- 학사 변경으로 휴업한 날 · 학급(전부 휴업 대상)에는 새로 만들지 않음
-               SELECT 1 FROM workhub.timetable_school_day_changes c
-                WHERE c.school_id = d.school_id AND c.input ->> 'kind' = 'closure' AND c.input ->> 'date' = to_char(p_occ, 'YYYY-MM-DD')
-                  AND NOT EXISTS (SELECT 1 FROM jsonb_array_elements(p_groups) g WHERE NOT ((c.input -> 'groupIds') ? (g ->> 'id')))) THEN NULL
+        WHEN (e_row).id IS NULL AND p_act IS NOT NULL AND jsonb_array_length(p_groups) > 0
+             AND p_closed = jsonb_array_length(p_groups) THEN NULL                          -- 학급이 전부 휴업인 날: 새로 만들지 않음
         WHEN p_act IS NOT NULL AND cardinality(p_teachers) = 0 THEN 'skip'                 -- 담당 교사 없는 수업: 공개하지 않음(차단)
         WHEN (e_row).id IS NULL THEN 'new'
         WHEN p_act IS NULL THEN 'cancel'
@@ -342,8 +350,10 @@ BEGIN
                                                  (e_row).groups, (e_row).rooms, 'cancelled')) END
            ORDER BY CASE WHEN kind = 'cancel' THEN (e_row).starts_at ELSE p_s END,
                     CASE WHEN kind = 'new' THEN workhub_private.t2_new_id(p_preview, p_act, p_occ) ELSE (e_row).id END)
-           FILTER (WHERE kind IN ('new','update','cancel')), '[]'::jsonb)
-    INTO v_missing, v_rows FROM k;
+           FILTER (WHERE kind IN ('new','update','cancel')), '[]'::jsonb),
+         jsonb_agg(workhub_private.t2_new_id(p_preview, p_act, p_occ) ORDER BY workhub_private.t2_new_id(p_preview, p_act, p_occ))
+           FILTER (WHERE kind = 'new' AND p_closed > 0)                                     -- 일부 학급만 휴업인 날의 새 합반 수업
+    INTO v_missing, v_rows, v_partial FROM k;
 
   -- 차단 사유(앱 blocker: code · message · lessonIds ⊆ 바뀌는 수업)
   IF d.basis_id IS DISTINCT FROM t.current_timetable_basis_id THEN
@@ -353,6 +363,10 @@ BEGIN
   IF v_missing > 0 THEN
     v_blockers := v_blockers || jsonb_build_array(jsonb_build_object('code', 'TEACHER_MISSING',
       'message', format('담당 교사가 없는 수업 %s건은 공개할 수 없습니다. 수업 담당을 지정한 뒤 기준판을 다시 확정해 주세요.', v_missing), 'lessonIds', '[]'::jsonb));
+  END IF;
+  IF v_partial IS NOT NULL THEN
+    v_blockers := v_blockers || jsonb_build_array(jsonb_build_object('code', 'PARTIAL_GROUP_SCOPE',
+      'message', '휴업한 학급과 수업하는 학급이 섞인 합반 수업이 있습니다. 휴업 범위나 배치를 먼저 정리해 주세요.', 'lessonIds', v_partial));
   END IF;
   SELECT jsonb_agg(x ->> 'id' ORDER BY x ->> 'id') INTO v_busy FROM jsonb_array_elements(v_rows) x
    WHERE x ->> 'k' <> 'new' AND workhub_private.t2_lesson_busy(p_ctx.school_id, x ->> 'id', p_cutoff);
