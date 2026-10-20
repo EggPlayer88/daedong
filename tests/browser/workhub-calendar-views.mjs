@@ -42,7 +42,7 @@ try {
   assert.equal(await upcoming.locator('.event-card').count(), 3)
   assert.ok((await upcoming.innerText()).includes('6개 중 먼저 3개 표시'))
   assert.equal(await upcoming.getByText('7일 밖의 일정').count(), 0)
-  await page.getByRole('button', { name: '전체 관련 일정 보기' }).click()
+  await page.getByRole('button', { name: '관련 일정 모두 보기' }).click()
   assert.equal(await page.getByLabel('조회 기간', { exact: true }).inputValue(), 'all')
   assert.equal(await page.getByLabel('표시할 일정', { exact: true }).inputValue(), 'related')
   await page.getByRole('button', { name: '다음 달 일정 · 원본 v1 보기', exact: true }).waitFor()

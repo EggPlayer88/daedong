@@ -25,7 +25,8 @@ test('메뉴의 실제 구현 범위와 공개 제한을 중앙 목록에서 고
 })
 test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공한다', () => {
   const html=body(renderShell({mode:'connected',page:'tasks'}))
-  for(const name of ['오늘','학교 일정','내 업무','자료 수합','학교 자료','메시지와 알림','학교 관리','시간표','수업과 학생'])assert(html.includes(`>${name}</span>`))
+  for(const name of ['오늘','학교 일정','내 업무','메시지와 알림','시간표'])assert(html.includes(`>${name}</span>`))
+  for(const name of ['자료 수합','학교 자료','학교 관리','수업과 학생'])assert(!html.includes(`>${name}</span>`))
   assert.equal(workhubModules.find(value=>value.id==='timetable').visibility,'superadmin')
   const assistant=html.match(/<button[^>]*class="[^"]*ws-assistant-trigger[^"]*"[\s\S]*?<\/button>/g)||[]
   assert.equal(assistant.length,1);assert(assistant[0].includes('AI 비서'));assert(!assistant[0].includes('준비 중'))
@@ -34,12 +35,12 @@ test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공
   assert.match(html,/class="ws-more-button"[^>]*aria-haspopup="dialog"/)
   assert.match(html,/ws-child-menu[^>]*aria-current="page"/)
 })
-test('미리보기 메뉴는 업무와 나의 수업으로 묶고 더보기의 연결을 제공한다', () => {
+test('미리보기의 보조 화면은 더보기와 현재 위치로 연결하고 숨은 링크를 만들지 않는다', () => {
   const html=body(renderShell({page:'students'}))
   assert.match(html,/aria-label="업무 메뉴"/);assert.match(html,/aria-expanded="false" aria-controls="([^"]+)"/)
   const target=html.match(/aria-expanded="false" aria-controls="([^"]+)"/)[1]
-  assert(html.includes(`id="${target}"`));assert.match(html,/>업무<\/p>/);assert.match(html,/>나의 수업<\/p>/)
-  assert.match(html,/aria-current="page"[^>]*>[\s\S]*?수업과 학생/)
+  assert(html.includes(`id="${target}"`));assert.match(html,/ws-more-current/);assert(!html.includes('>수업과 학생</span>'))
+  assert.match(html,/<strong aria-current="page">수업과 학생<\/strong>/)
 })
 test('본문 제목과 main을 중복하지 않고 건너뛰기와 현재 위치를 제공한다', () => {
   const html=body(renderShell({page:'tasks'}))
@@ -50,7 +51,7 @@ test('본문 제목과 main을 중복하지 않고 건너뛰기와 현재 위치
 test('편집 잠금은 모든 이동 버튼에 적용하되 더보기는 탐색 가능하다', () => {
   const html=body(renderShell({locked:true}))
   const buttons=html.match(/<button[^>]*class="ws-menu-button[^>]*>/g)||[]
-  assert.equal(buttons.length,5);assert(buttons.every(value=>value.includes('disabled=""')&&value.includes('aria-describedby=')))
+  assert.equal(buttons.length,4);assert(buttons.every(value=>value.includes('disabled=""')&&value.includes('aria-describedby=')))
   assert.match(html,/role="status"[^>]*>작성한 내용을 저장/)
   assert(!html.match(/class="ws-more-button"[^>]*disabled/))
 })

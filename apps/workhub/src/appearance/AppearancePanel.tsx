@@ -31,10 +31,12 @@ export function AppearancePanel(props: AppearancePanelProps) {
 }
 
 // 별도 컴포넌트로 두어 닫을 때마다 초점과 대화상자 상태가 함께 정리된다.
-export function AppearanceDialog({ preferences: input, onChange, onReset, persistenceError, onClose, returnFocus }: AppearancePanelProps & { onClose: () => void; returnFocus?: HTMLElement | null }) {
+export function AppearanceDialog({ preferences: input, onChange, onReset, persistenceError, onClose, returnFocus, restoreFocus }: AppearancePanelProps & { onClose: () => void; returnFocus?: HTMLElement | null; restoreFocus?: () => void }) {
   const preferences = normalizeAppearancePreferences(input)
   const dialog = useRef<HTMLDialogElement>(null)
   const id = useId()
+  const restore = useRef(restoreFocus)
+  restore.current = restoreFocus
   const [resetNotice, setResetNotice] = useState(false)
   useEffect(() => {
     const element = dialog.current
@@ -43,7 +45,7 @@ export function AppearanceDialog({ preferences: input, onChange, onReset, persis
     const previouslyFocused = returnFocus ?? (active instanceof HTMLElement ? active : null)
     element?.showModal()
     element?.querySelector<HTMLInputElement>('input[name="' + id + '-theme"]:checked')?.focus()
-    return () => { element?.close(); if (previouslyFocused?.isConnected) previouslyFocused.focus() }
+    return () => { element?.close(); if (restore.current) restore.current(); else if (previouslyFocused?.isConnected) previouslyFocused.focus() }
   }, [id, returnFocus])
   function change(patch: Partial<AppearancePreferences>) { setResetNotice(false); onChange(patch) }
   const summary = `${themes.find(item => item.value === preferences.theme)?.label} · ${densities.find(item => item.value === preferences.density)?.label} · ${textSizes.find(item => item.value === preferences.textSize)?.description}`

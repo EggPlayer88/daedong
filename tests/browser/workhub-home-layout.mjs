@@ -43,18 +43,18 @@ async function home() { await page.getByRole('navigation', { name: '업무 메�
 async function assertFits(label) { const value = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth })); assert(value.width <= value.viewport + 1, label + ': ' + JSON.stringify(value)) }
 async function assertOrder() {
   const value = await page.locator('.home-dashboard').evaluate(element => {
-    const selectors = ['.home-today', '.home-work-column', '.home-follow-up', '.home-upcoming']; const nodes = selectors.map(selector => element.querySelector(selector))
+    const selectors = ['.home-priority', '.home-today', '.home-work-column', '.home-upcoming']; const nodes = selectors.map(selector => element.querySelector(selector))
     return { dom: nodes.slice(1).every((node, index) => Boolean(nodes[index].compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING)), tops: nodes.map(node => Math.round(node.getBoundingClientRect().top + scrollY)) }
   })
   assert.equal(value.dom, true); if (page.viewportSize().width <= 820) assert.deepEqual(value.tops, [...value.tops].sort((a, b) => a - b))
 }
 try {
   await page.goto('http://127.0.0.1:5176/home-layout'); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await page.getByRole('heading', { name: '다가오는 7일', exact: true }).waitFor(); await settle()
-  await test('홈 읽기 순서는 오늘 일정·내 할 일·수합·다가오는 일정으로 이어진다', async () => {
+  await test('홈은 처리할 수합을 먼저 보여 주고 일정·내 할 일·다가오는 일정으로 이어진다', async () => {
     await assertOrder(); await screenshot('home-layout-desktop')
     await page.setViewportSize({ width: 390, height: 844 }); await settle(); await assertOrder(); await assertFits('390px')
-    const top = await page.locator('.home-today h2').evaluate(element => element.getBoundingClientRect().top + scrollY)
-    assert(top < 844, '오늘 일정 제목이 모바일 첫 화면에 표시되어야 합니다: ' + top)
+    const top = await page.locator('.home-priority h2').evaluate(element => element.getBoundingClientRect().top + scrollY)
+    assert(top < 844, '처리할 수합 제목이 모바일 첫 화면에 표시되어야 합니다: ' + top)
     await page.evaluate(() => scrollTo(0, 0)); await screenshot('home-layout-mobile')
   })
   await test('오늘 일정은 세 개부터 펼치며 숨겨진 원본도 열고 다시 돌아온다', async () => {
@@ -69,7 +69,7 @@ try {
   await test('다가오는 일정은 전체 건수와 생략 안내를 유지하고 전체 원본으로 연결된다', async () => {
     const upcoming = page.locator('.home-upcoming'); assert.equal(await upcoming.locator('.event-card').count(), 3)
     assert.match(await upcoming.innerText(), /5개 중 먼저 3개 표시/)
-    await upcoming.getByRole('button', { name: '전체 관련 일정 보기', exact: true }).click()
+    await upcoming.getByRole('button', { name: '관련 일정 모두 보기', exact: true }).click()
     await page.getByRole('heading', { name: '학교 일정', level: 1, exact: true }).waitFor(); await settle()
     assert.equal(await page.getByLabel('조회 기간', { exact: true }).inputValue(), 'all'); await page.getByRole('button', { name: '추가 관련 일정 3 · 원본 v1 보기', exact: true }).waitFor(); await home()
   })

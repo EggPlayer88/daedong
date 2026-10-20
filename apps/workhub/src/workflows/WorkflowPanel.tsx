@@ -63,9 +63,10 @@ export function HomeWorkSummary(props: Props & { onOpenCollections?: (requestId?
   try { summary = collectionHomeSummary(props.store, props.member, props.date) } catch (error) { failure = error }
   const shown = summary?.cards.slice(0, 4) ?? []
   const categories: CollectionHomeCategory[] = ['submit', 'review', 'contribute', 'waiting']
-  return <section className="wf-home wf-home-compact" aria-label={includeTasks ? '오늘의 내 업무' : '오늘 처리할 수합'}>
+  const empty = !includeTasks && Boolean(summary && summary.cards.length === 0)
+  return <section className={`wf-home wf-home-compact${empty ? ' wf-home-empty-state' : ''}`} aria-label={includeTasks ? '오늘의 내 업무' : '오늘 처리할 수합'}>
     <style>{homeSummaryStyles}</style>
-    <div className="wf-section-title wf-home-heading"><h2>{includeTasks ? '오늘 챙길 업무' : '오늘 처리할 수합'}</h2><span>{summary ? `처리할 ${summary.actionCount}건 · 검토 대기 ${summary.waitingCount}건` : '수합 현황 확인 안 됨'}</span></div>
+    <div className="wf-section-title wf-home-heading"><h2>{includeTasks ? '오늘 챙길 업무' : '오늘 처리할 수합'}</h2>{!empty && <span>{summary ? `처리할 ${summary.actionCount}건 · 검토 대기 ${summary.waitingCount}건` : '수합 현황 확인 안 됨'}</span>}</div>
     {includeTasks && <Tasks {...props} compact onOpenTasks={props.onOpenTasks} />}
     {!summary ? <div className="wf-summary-error"><ReadError error={failure} /><button type="button" className="secondary small" onClick={() => retry(value => value + 1)}>수합 현황 다시 확인</button><p className="wf-hint">조회 실패를 할 일 없음으로 표시하지 않습니다.</p></div> : <>
       <div className="wf-home-obligations">

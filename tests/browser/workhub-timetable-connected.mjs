@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 셸·일정·시간표 어댑터를 합성 RPC와 연결한다. 운영 DB·외부 서비스는 호출하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -58,7 +59,7 @@ const agenda = () => page.getByRole('region', { name: '내 수업', exact: true 
 const detail = () => page.getByRole('region', { name: '선택한 수업', exact: true })
 const monday = date => { const value = new Date(date + 'T00:00:00Z'); value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7); return value.toISOString().slice(0, 10) }
 async function boot() { await page.goto('http://127.0.0.1:5187/home'); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await agenda().getByRole('button', { name: /가온 원본 수업/ }).waitFor() }
-async function go(name) { await page.getByRole('navigation', { name: '신축 업무 메뉴', exact: true }).getByRole('button', { name, exact: true }).click() }
+async function go(name) { await clickWorkspaceMenu(page,name) }
 async function openLesson() { await agenda().getByRole('button', { name: /원본 수업/ }).click(); await detail().waitFor() }
 async function check(name, run) { await boot(); try { await run() } catch (error) { console.error(await page.locator('.workhub-connected').innerText()); console.error(await page.evaluate(() => window.state.calls)); throw error } passed.push(name); console.log('  ✓ ' + name) }
 try {

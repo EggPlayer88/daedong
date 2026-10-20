@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 미리보기와 브라우저 저장소에서 파일 자료의 비영속성과 기존 업무 복원을 검증한다.
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
@@ -59,7 +60,7 @@ const unit = name => page.getByRole('article', { name: name + ' 제출 단위', 
 const answer = name => unit(name).getByRole('form', { name: name + ' 응답 초안', exact: true })
 const persisted = () => page.evaluate(key => JSON.parse(localStorage.getItem(key)), storageKey)
 async function screen(name) { await page.getByRole('heading', { name, exact: true, level: 1 }).waitFor() }
-async function menu(name) { await page.getByRole('navigation', { name: '업무 메뉴' }).getByRole('button', { name, exact: true }).click(); await screen(name) }
+async function menu(name) { await clickWorkspaceMenu(page,name); await screen(name) }
 async function actor(id) {
   const tools = page.locator('.developer-panel')
   if (!await tools.evaluate(node => node.open)) await tools.locator('summary').click()

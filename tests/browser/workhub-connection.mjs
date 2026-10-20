@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { launchBrowser } from './launch-browser.mjs'
@@ -87,7 +88,15 @@ try{
   await page.getByRole('button',{name:'할 일 등록',exact:true}).click()
   await page.getByLabel('해야 할 일',{exact:true}).fill('기존 로그인으로 연결한 업무')
   assert.equal(await page.getByLabel('사용할 학교').isDisabled(),true)
-  for(const button of await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button').all()) assert.equal(await button.isDisabled(),true)
+  const lockedNavigation=page.getByRole('navigation',{name:'신축 업무 메뉴'})
+  for(const button of await lockedNavigation.locator('.ws-menu-button').all()) assert.equal(await button.isDisabled(),true)
+  assert.equal(await lockedNavigation.getByRole('button',{name:'더보기',exact:true}).isEnabled(),true)
+  await lockedNavigation.getByRole('button',{name:'더보기',exact:true}).click()
+  const lockedMore=page.getByRole('dialog',{name:'더보기',exact:true})
+  for(const button of await lockedMore.locator('.ws-menu-button').all()) assert.equal(await button.isDisabled(),true)
+  assert.equal(await lockedMore.getByRole('button',{name:'AI 비서',exact:true}).isDisabled(),true)
+  assert.equal(await lockedMore.getByRole('button',{name:'화면 설정',exact:true}).isEnabled(),true)
+  await page.keyboard.press('Escape')
   count=await page.evaluate(()=>window.scenario.contextCalls)
   await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
   await page.waitForFunction(old=>window.scenario.contextCalls>old,count)
@@ -106,7 +115,7 @@ try{
   await page.getByText('누리 학교의 내 업무',{exact:true}).waitFor()
   assert.equal(await page.getByText('가온 학교의 내 업무',{exact:true}).count(),0)
   console.log('  ✓ 학교 전환 중 이전 학교의 늦은 업무 조회 결과 폐기')
-  await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'자료 수합',exact:true}).click()
+  await clickWorkspaceMenu(page,'자료 수합')
   await page.getByText('현재 연결을 확인하지 못해 원인을 확정할 수 없습니다.',{exact:true}).waitFor()
   await page.getByText('수합 목록을 확인하지 못했습니다. 빈 목록으로 판단하지 않습니다. 다시 확인해 주세요.',{exact:true}).waitFor()
   assert.equal(await page.getByText('현재 볼 수 있는 수합이 없습니다.',{exact:true}).count(),0)
