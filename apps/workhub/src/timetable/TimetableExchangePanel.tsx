@@ -20,6 +20,7 @@ export interface TimetableExchangePanelProps {
   onReload: () => void; revision?: number
   requestSelection?: { requestId: string; token: number }; onRequestSelectionConsumed?: () => void
   sourceSelection?: { lessonId: string; token: number }; extensions?: OperationsExtensions; onSelectionConsumed?: () => void
+  proposalSelection?: { input: ExchangeInput; token: number }; onProposalSelectionConsumed?: () => void
 }
 interface ExchangeDraft { kind: 'move' | 'swap'; lessonId: string; targetKey: string; otherLessonId: string; reason: string }
 interface SelectedAction { requestId: string; expectedVersion: number; proposalHash: string; action: RequestAction }
@@ -59,13 +60,14 @@ function ExchangeRequestDetails({ request, timeZone, selected }: { request: Exch
 export function TimetableExchangePanel(props: TimetableExchangePanelProps) {
   return <ExchangePanelSession key={recoveryScope(props.member)} {...props} />
 }
-function ExchangePanelSession({ server, member, view, loading, locked, onCommand, onDirtyChange, onReload, revision = 0, sourceSelection, extensions, onSelectionConsumed, requestSelection, onRequestSelectionConsumed }: TimetableExchangePanelProps) {
+function ExchangePanelSession({ server, member, view, loading, locked, onCommand, onDirtyChange, onReload, revision = 0, sourceSelection, extensions, onSelectionConsumed, requestSelection, onRequestSelectionConsumed, proposalSelection, onProposalSelectionConsumed }: TimetableExchangePanelProps) {
   const id = useId(), memory = useEditDraft<ExchangeDraft>(member, 'timetable-exchanges')
   const [draft, setDraft] = useState<ExchangeDraft>(() => memory.initial ?? emptyDraft())
   const [preview, setPreview] = useState<ExchangePreview>(), [confirmed, setConfirmed] = useState(false)
   const [selected, setSelected] = useState<SelectedAction>(), [actionConfirmed, setActionConfirmed] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [clock, setClock] = useState(Date.now)
   const [suggestions, setSuggestions] = useState<ExchangeRecommendations>(), [replaceSource, setReplaceSource] = useState<string>()
+  const [replaceProposal, setReplaceProposal] = useState<ExchangeInput>(), usedProposal = useRef<number>()
   const [requestFilter, setRequestFilter] = useState<ExchangeFilter>('all'), [requestQuery, setRequestQuery] = useState(''), [requestLimit, setRequestLimit] = useState(20)
   const [sourceQuery, setSourceQuery] = useState(''), [candidateQuery, setCandidateQuery] = useState('')
   const [openedRequest, setOpenedRequest] = useState<{ requestId: string; token: number }>()
@@ -106,6 +108,12 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
     setOpenedRequest({ ...requestSelection }); onRequestSelectionConsumed?.()
   }, [requestSelection, unavailable, sourceKey, onRequestSelectionConsumed])
   useEffect(() => {
+    if (!proposalSelection || proposalSelection.token === usedProposal.current || unavailable || !view) return
+    usedProposal.current = proposalSelection.token; onProposalSelectionConsumed?.()
+    if (dirtyDraft(draft) || selected) { setReplaceProposal(structuredClone(proposalSelection.input)); return }
+    adoptExternalProposal(proposalSelection.input)
+  }, [proposalSelection, unavailable, sourceKey, onProposalSelectionConsumed])
+  useEffect(() => {
     if (!openedRequest || !visible) return
     if (opened && focusedRequest.current !== openedRequest.token) {
       const card = requestCards.current.get(opened.id)
@@ -145,6 +153,14 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
     if (unavailable) return
     update(input.kind === 'swap' ? { kind: 'swap', lessonId: input.lessonId, otherLessonId: input.otherLessonId, targetKey: '', reason: input.reason } : { kind: 'move', lessonId: input.lessonId, targetKey: timeKey(input.target), otherLessonId: '', reason: input.reason })
     setSuggestions(undefined); setNotice('추천안을 선택했습니다. 변경 전후를 다시 확인한 뒤 직접 요청을 보내 주세요.')
+  }
+  function adoptExternalProposal(proposal: ExchangeInput) {
+    if (unavailable || !view) return
+    const next: ExchangeDraft = proposal.kind === 'swap' ? { kind: 'swap', lessonId: proposal.lessonId, otherLessonId: proposal.otherLessonId, targetKey: '', reason: proposal.reason } : { kind: 'move', lessonId: proposal.lessonId, otherLessonId: '', targetKey: timeKey(proposal.target), reason: proposal.reason }
+    // AI의 오래된 판이나 현재 공식 허용 시간 밖 제안은 직접 입력처럼 보이게 채우지 않는다.
+    if (canonical(inputFor(next, view)) !== canonical(proposal)) { setError('제안 이후 수업 판이나 허용 시간이 바뀌었습니다. 최신 수업으로 다시 상담해 주세요. 기존 입력은 유지합니다.'); return }
+    update(next); setReplaceProposal(undefined); setSelected(undefined); setActionConfirmed(false)
+    setNotice('확인한 제안을 입력에 채웠습니다. 서버에서 변경 전후를 다시 확인한 뒤 직접 보내 주세요.')
   }
   function clearDraft() {
     if (locked || busy) return
@@ -213,6 +229,7 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
     <header><h2 id={id + '-title'}>수업 변경 요청</h2><p className="timetable-muted">변경안을 먼저 확인하고, 관련 교사의 동의와 담당자 승인 후 시간표에 반영합니다.</p><ol className="timetable-exchange-flow" aria-label="수업 변경 진행 순서"><li>후보 비교·내 동의와 요청</li><li>관련 교사 동의</li><li>담당자 승인</li><li>시간표 반영</li></ol></header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status" className="timetable-notice">{notice}</p>}</div>
     {replaceSource && visible && <section className="ttops-pending" aria-label="기존 변경 요청 입력 보존"><p>작성 중인 요청이 있습니다. 시간표에서 선택한 수업으로 바꾸면 보내지 않은 입력을 비웁니다.</p><button type="button" disabled={unavailable} onClick={replaceSelectedSource}>기존 입력을 비우고 선택한 수업으로 시작</button><button type="button" className="secondary" disabled={unavailable} onClick={() => setReplaceSource(undefined)}>기존 입력 계속 작성</button></section>}
+    {replaceProposal && visible && <section className="ttops-pending" aria-label="AI 제안과 기존 입력 확인"><p>작성 중인 입력을 보관했습니다. 확인한 AI 제안으로 바꾸려면 아래 버튼을 눌러 주세요.</p><p>{replaceProposal.reason}</p><button type="button" disabled={unavailable} onClick={() => adoptExternalProposal(replaceProposal)}>기존 입력 대신 확인한 AI 제안 채우기</button><button type="button" className="secondary" disabled={unavailable} onClick={() => setReplaceProposal(undefined)}>기존 입력 계속 작성</button></section>}
     {!visible ? <p role="status">{loading ? '현재 수업과 요청 권한을 확인하고 있습니다.' : '현재 권한과 수업을 확인할 때까지 보관한 변경 요청 입력을 숨깁니다.'}</p> : view && <>
       <section className="timetable-card" aria-labelledby={id + '-compose'}>
         <h3 id={id + '-compose'}>새 변경 요청</h3>

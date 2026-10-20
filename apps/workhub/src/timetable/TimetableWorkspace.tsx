@@ -41,9 +41,11 @@ import { createTimetableTargetServer } from './target-server'
 import type { TargetServer, TargetSnapshot } from './target'
 import { TimetableTargetPanel, type TargetPanelState } from './TimetableTargetPanel'
 import { scopeTimetableServers, targetScopeKey } from './target-scope'
+import { createTimetableImportServer } from './import-server'
 export { TimetableBoard } from './TimetableBoard'
 const TimetableOperationsWorkspace = lazy(() => import('./TimetableOperationsWorkspace').then(module => ({ default: module.TimetableOperationsWorkspace })))
 const TimetablePilotPanel = lazy(() => import('./pilot/TimetablePilotPanel').then(module => ({ default: module.TimetablePilotPanel })))
+const TimetableImportPanel = lazy(() => import('./TimetableImportPanel').then(module => ({ default: module.TimetableImportPanel })))
 const TimetableWorkbookPanel = lazy(() => import('./TimetableWorkbookPanel').then(module => ({ default: module.TimetableWorkbookPanel })))
 const TimetableCandidateLibrary = lazy(() => import('./TimetableCandidateLibrary').then(module => ({ default: module.TimetableCandidateLibrary })))
 const TimetableEnginePanel = lazy(() => import('./TimetableEnginePanel').then(module => ({ default: module.TimetableEnginePanel })))
@@ -61,7 +63,7 @@ interface DraftSession {
   conditionBatch?: ConditionBatchState
   savedDraft?: SavedTimetableDraft
 }
-interface WorkspaceProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onOpenSchoolAdmin?: () => void; initialLessonId?: string; initialDate?: string; initialRequestId?: string }
+interface WorkspaceProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onOpenSchoolAdmin?: () => void; onOpenTeaching?: () => void; initialLessonId?: string; initialDate?: string; initialRequestId?: string; initialNotificationId?: string }
 interface PanelProps extends Omit<WorkspaceProps, 'connection'> { server: TimetableServer; assistantServer?: AssistantServer; preparationServer?: PreparationServer; setupServer?: SetupServer; targetServer?: TargetServer; runSolver?: TimetableSolver; onOpenOperations?: (draft: { id: string; version: number }) => void }
 const days = ['월', '화', '수', '목', '금', '토', '일']
 const steps: { id: Step; label: string }[] = [{ id: 'basis', label: '기초 자료' }, { id: 'conditions', label: '조건 정리' }, { id: 'compose', label: '배치·비교' }, { id: 'publish', label: '공개 검토' }]
@@ -81,9 +83,12 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   const preparationServer = useMemo(() => createPreparationServer(props.connection), [props.connection])
   const setupServer = useMemo(() => createTimetableSetupServer(props.connection), [props.connection])
   const targetServer = useMemo(() => createTimetableTargetServer(props.connection), [props.connection])
-  const route = useEditDraft<'editor' | 'operations' | 'pilot'>(props.member, 'timetable-entry')
+  const importServer = useMemo(() => createTimetableImportServer(props.connection), [props.connection])
+  const route = useEditDraft<'editor' | 'operations' | 'pilot' | 'import'>(props.member, 'timetable-entry')
   const recovery = usePendingRequest(props.member, 'timetableOperations')
-  const [mode, setMode] = useState<'editor' | 'operations' | 'pilot'>(() => recovery.request || (props.initialLessonId !== undefined || props.initialRequestId !== undefined) ? 'operations' : route.initial ?? 'editor')
+  const importRecovery = usePendingRequest(props.member, 'timetableImport'), interventionRecovery = usePendingRequest(props.member, 'timetableInterventions')
+  const operationsAiRecovery = usePendingRequest(props.member, 'timetableOperationsAssistant')
+  const [mode, setMode] = useState<'editor' | 'operations' | 'pilot' | 'import'>(() => importRecovery.request ? 'import' : recovery.request || interventionRecovery.request || operationsAiRecovery.request || (props.initialLessonId !== undefined || props.initialRequestId !== undefined || props.initialNotificationId !== undefined) ? 'operations' : route.initial ?? 'editor')
   const [locked, setLocked] = useState(false)
   const [publicationDraft, setPublicationDraft] = useState<{ id: string; version: number }>()
   const consumePublicationDraft = useCallback(() => setPublicationDraft(undefined), [])
@@ -91,7 +96,7 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
     setLocked(value)
     props.onNavigationLockChange?.(value)
   }, [props.onNavigationLockChange])
-  function navigate(next: 'editor' | 'operations' | 'pilot') {
+  function navigate(next: 'editor' | 'operations' | 'pilot' | 'import') {
     if (locked || next === mode) return
     route.save(next, false)
     setMode(next)
@@ -105,10 +110,12 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
       <button type="button" className="secondary" aria-pressed={mode === 'editor'} disabled={locked && mode !== 'editor'} onClick={() => navigate('editor')}>내 수업·편성</button>
       <button type="button" className="secondary" aria-pressed={mode === 'operations'} disabled={locked && mode !== 'operations'} onClick={() => navigate('operations')}>확정·공유·교환</button>
       <button type="button" className="secondary" aria-pressed={mode === 'pilot'} disabled={locked && mode !== 'pilot'} onClick={() => navigate('pilot')}>9학급 운영 연습</button>
+      <button type="button" className="text-button" aria-pressed={mode === 'import'} disabled={locked && mode !== 'import'} onClick={() => navigate('import')}>실제 시간표 가져오기</button>
     </nav>
     {mode === 'editor'
       ? <TimetableWorkspacePanel {...props} server={server} assistantServer={assistantServer} preparationServer={preparationServer} setupServer={setupServer} targetServer={targetServer} onOpenOperations={openPublication} onNavigationLockChange={notifyLock} />
       : mode === 'pilot' ? <Suspense fallback={<p role="status">학교 운영 연습을 준비하는 중…</p>}><TimetablePilotPanel scope={JSON.stringify([props.member.schoolId, props.member.userId])} member={props.member} connection={props.connection} onNavigationLockChange={notifyLock} /></Suspense>
+      : mode === 'import' ? <Suspense fallback={<p role="status">시간표 가져오기를 준비하는 중…</p>}><TimetableImportPanel server={importServer} member={props.member} onLockChange={notifyLock} onOpenPublish={openPublication} onOpenSchoolAdmin={props.onOpenSchoolAdmin} onOpenTeaching={props.onOpenTeaching} /></Suspense>
       : <Suspense fallback={<p role="status">시간표 운영 화면을 준비하는 중…</p>}><TimetableOperationsWorkspace {...props} initialDraftId={publicationDraft?.id} initialDraftVersion={publicationDraft?.version} onInitialDraftConsumed={consumePublicationDraft} onNavigationLockChange={notifyLock} /></Suspense>}
   </>
 }

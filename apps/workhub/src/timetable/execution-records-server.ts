@@ -11,7 +11,7 @@ export function createTimetableExecutionRecordsServer(connection: SupabaseConnec
   const scopedConnection: SupabaseConnection = { ...connection, async rpcVerified(name, args) {
     try { return await connection.rpcVerified(name, args) }
     catch (error) {
-      if (object(error) && error.code === 'PGRST202') {
+      if (object(error) && (error.code === 'PGRST202' || error.rpcCode === 'PGRST202')) {
         const member = connection.info().memberships.find(row => row.id === args?.p_member_id)
         return { contract: EXECUTION_RECORDS_CONTRACT, schoolId: member?.schoolId, memberId: args?.p_member_id, error: { code: 'NOT_READY' } }
       }
