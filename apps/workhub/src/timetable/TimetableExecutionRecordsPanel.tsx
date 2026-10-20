@@ -9,7 +9,7 @@ import policy from './execution-records-policy.json'
 import executionStyles from './execution-records.css?inline'
 import { RequestClosePanel } from './RequestClosePanel'
 
-interface Props { member: Membership; lesson?: OperationLesson; server?: TimetableExecutionRecordsServer; disabled?: boolean; refreshKey?: number; onLockChange?: (locked: boolean) => void; onRecorded?: (receipt: ExecutionRecordReceipt) => void }
+interface Props { member: Membership; lesson?: OperationLesson; server?: TimetableExecutionRecordsServer; disabled?: boolean; refreshKey?: number; onLockChange?: (locked: boolean) => void; onRecorded?: (receipt: ExecutionRecordReceipt) => void; openRequest?: { lessonId: string; token: number } }
 type Draft = { kind: 'editing'; command: ExecutionRecordCommand } | { kind: 'saved'; receipt: ExecutionRecordReceipt }
 const errorText = (error: unknown) => error instanceof ServiceError ? error.message : '기록 결과를 확인하지 못했습니다. 입력과 요청 번호를 보관했습니다.'
 const definitive = ['INVALID_INPUT', 'CONFLICT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_READY', 'NOT_FOUND']
@@ -23,6 +23,7 @@ export function TimetableExecutionRecordsPanel(props: Props) {
   const [snapshot, setView] = useState<ExecutionRecordsView>(), [loadedSelection, setLoadedSelection] = useState(''), [history, setHistory] = useState<ExecutionRecord[]>([]), [nextCursor, setNextCursor] = useState<string | null>(null)
   const view = loadedSelection === selection ? snapshot : undefined
   const [expanded, setExpanded] = useState(false)
+  useEffect(() => { if (props.openRequest?.lessonId === lessonId && !props.disabled) setExpanded(true) }, [props.openRequest, lessonId, props.disabled])
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [historyBusy, setHistoryBusy] = useState(false), [unavailable, setUnavailable] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [refresh, setRefresh] = useState(0)
   const [confirmed, setConfirmed] = useState(false), [resendConfirmed, setResendConfirmed] = useState(false), [missingKey, setMissingKey] = useState<string>()
   const current = useRef({ props, selection, draft }), life = useRef(0), operation = useRef(false), readEpoch = useRef(0)

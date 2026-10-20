@@ -15,17 +15,20 @@ interface Props {
   member: Membership; view: OperationsView | null; references?: OperationReferenceView; extensions?: OperationsExtensions
   execution?: SchoolDayExecutionServer; onCommand?: (command: SchoolDayCommitCommand) => Promise<SchoolDayCommitReceipt>
   onBusyChange?: (busy: boolean) => void; locked: boolean; onDirtyChange: (dirty: boolean) => void
+  onOpenRequest?: (requestId: string) => void
 }
 const emptyDraft = (): Draft => ({ kind: 'closure', date: '', groupIds: [], reason: '', bells: {} })
 const lossTime = (seconds: number) => `${Math.floor(seconds / 60)}분${seconds % 60 ? ` ${seconds % 60}초` : ''}`
 /** 입력은 보존하고 내용 확인 후에만 부모의 공통 요청 보관으로 명령을 넘긴다. */
-export function SchoolDayChangePanel({ member, view, references, extensions, execution, onCommand, onBusyChange, locked, onDirtyChange }: Props) {
+export function SchoolDayChangePanel({ member, view, references, extensions, execution, onCommand, onBusyChange, locked, onDirtyChange, onOpenRequest }: Props) {
   const id = useId(), memory = useEditDraft<Draft>(member, 'timetable-school-day')
   const [draft, setDraft] = useState<Draft>(() => memory.initial ?? emptyDraft())
-  const [preview, setPreview] = useState<SchoolDayExecutionPreview>(), [legacyPreview, setLegacyPreview] = useState<SchoolDayChangePreview>()
+  const [storedPreview, setPreview] = useState<SchoolDayExecutionPreview>(), [storedLegacyPreview, setLegacyPreview] = useState<SchoolDayChangePreview>(), [previewSource, setPreviewSource] = useState('')
   const [busy, setBusy] = useState(false), [sending, setSending] = useState(false), [confirmed, setConfirmed] = useState(false), [error, setError] = useState(''), [success, setSuccess] = useState('')
   const [now, setNow] = useState(Date.now), [groupQuery, setGroupQuery] = useState(''), [sourceNotice, setSourceNotice] = useState('')
+  const [expanded, setExpanded] = useState(false)
   const sequence = useRef(0), mounted = useRef(true), source = view ? canonical([view.asOf, view.from, view.until, view.timeZone, view.canPublish, view.lessons, view.requests, references]) : ''
+  const preview = previewSource === source ? storedPreview : undefined, legacyPreview = previewSource === source ? storedLegacyPreview : undefined
   const current = useRef(source), previousSource = useRef(source); current.current = source
   const dirty = Boolean(draft.date || draft.groupIds.length || draft.reason), blocked = locked || busy || sending
   const visible = Boolean(view?.canPublish), referencesCurrent = Boolean(references && references.asOf === view?.asOf && references.from === view?.from && references.until === view?.until)
@@ -61,10 +64,10 @@ export function SchoolDayChangePanel({ member, view, references, extensions, exe
       if (execution && onCommand) {
         const input: SchoolDayExecutionInput = { kind, date: draft.date, groupIds: [...draft.groupIds].sort(), reason: draft.reason.trim(), bells: kind === 'closure' ? [] : sourceTimes.map(([key, before]) => { const value = draft.bells?.[key]; return { before, after: { startsAt: value?.start === undefined ? before.startsAt : schoolDayLocalTime(draft.date, value.start, view.timeZone), endsAt: value?.end === undefined ? before.endsAt : schoolDayLocalTime(draft.date, value.end, view.timeZone) } } }) }
         const result = await execution.preview(member.id, input, view, references!)
-        if (token === sequence.current && current.current === original) setPreview(result)
+        if (token === sequence.current && current.current === original) { setPreviewSource(original); setPreview(result) }
       } else if (extensions) {
         const result = await extensions.previewSchoolDay(member.id, { kind: 'closure', date: draft.date, groupIds: [...draft.groupIds], reason: draft.reason.trim(), bells: [] }, view, references!)
-        if (token === sequence.current && current.current === original) setLegacyPreview(result)
+        if (token === sequence.current && current.current === original) { setPreviewSource(original); setLegacyPreview(result) }
       }
     } catch (failure) { if (token === sequence.current) setError(failure instanceof ServiceError ? failure.message : '영향을 확인하지 못했습니다. 입력은 보관했습니다.') }
     finally { if (mounted.current) setBusy(false) }
@@ -80,7 +83,7 @@ export function SchoolDayChangePanel({ member, view, references, extensions, exe
   }
   if (!visible && !dirty) return null
   if (!visible) return <section className="ttops-card" aria-label="학사 변경 초안 보관"><p>담당 권한과 최신 자료를 확인할 때까지 학사 변경 입력을 숨깁니다.</p><button type="button" className="secondary" disabled={blocked} onClick={clear}>학사 변경 초안 버리기</button></section>
-  return <details className="ttops-card"><summary>행사·휴업·특별일과 관리</summary><style>{reviewStyles}</style><p className="ttops-muted">날짜와 학급을 정하고 바뀔 수업을 확인합니다. 행사 일정 등록만으로 수업이 취소되지는 않습니다.</p>
+  return <details className="ttops-card" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}><summary>행사·휴업·특별일과 관리</summary><style>{reviewStyles}</style><p className="ttops-muted">날짜와 학급을 정하고 바뀔 수업을 확인합니다. 행사 일정 등록만으로 수업이 취소되지는 않습니다.</p>
     {(!extensions && !canExecute) || !referencesCurrent ? <p role="status">학급 식별 정보와 학사 변경 서버 연결을 준비 중입니다.</p> : <fieldset className="ttops-fields" disabled={blocked}><legend>학사 변경 입력</legend>
       {canExecute && <label>변경 종류<select aria-label="학사 변경 종류" value={kind} onChange={event => update({ kind: event.target.value as Draft['kind'] })}><option value="closure">휴업·행사로 수업 취소</option><option value="special_bells">특별일과로 수업 시각 변경</option></select></label>}
       <label>학사 변경 날짜<input type="date" aria-label="학사 변경 날짜" min={view!.from} max={dateOffset(view!.until, -1)} value={draft.date} onChange={event => update({ date: event.target.value, bells: {} })} /></label>
@@ -96,7 +99,7 @@ export function SchoolDayChangePanel({ member, view, references, extensions, exe
     {preview && <section aria-labelledby={id + '-preview'}><h4 id={id + '-preview'}>반영 전 수업 확인</h4><div className="ttops-review-summary" aria-label="학사 변경 적용 범위"><span>{preview.input.kind === 'closure' ? '휴업·행사로 수업 취소' : '특별일과로 수업 시각 변경'}</span><span>{preview.input.date} · {view!.timeZone}</span><span>선택 학급 {preview.input.groupIds.length}개</span></div><p>대상 수업 {preview.affectedLessons.length}건 · 변경 {preview.changes.length}건 · 보강 검토 {preview.lostLessonCount}차시 · 줄어드는 수업 시간 {lossTime(preview.lostSeconds)}</p><p className="ttops-muted">보강 수업은 자동 생성하지 않습니다. 취소·단축된 수업은 담당자가 따로 검토해 주세요.</p>
       <OperationChangeList changes={preview.changes} timeZone={view!.timeZone} />
       {preview.blockers.length > 0 && <div role="alert"><p>먼저 해결할 항목이 있어 반영할 수 없습니다.</p><ul>{preview.blockers.map(blocker => <li key={blocker.code}>{blocker.message}</li>)}</ul></div>}
-      {preview.requestEffects.length > 0 && <details className="ttops-request-effects"><summary>먼저 확인할 기존 교환 {preview.requestEffects.length}건</summary><p>기존 교환을 임의로 취소하거나 덮어쓰지 않습니다. 교환·변경 요청에서 해당 요청을 확인한 뒤 학사 변경을 다시 검토해 주세요.</p><ul>{preview.requestEffects.map(effect => { const request = view!.requests.find(row => row.id === effect.requestId && row.version === effect.version); return <li key={effect.requestId}><strong>{request ? request.requester.name + ' · ' + request.reason : '현재 조회에서 상세를 확인할 수 없는 요청'}</strong><p>{effect.state === 'applied' ? '이미 시간표 반영됨' : effect.state === 'awaiting_approval' ? '담당자 승인 대기' : '관련 교사 동의 대기'} · {effect.version}판 · 요청 번호 {effect.requestId}</p></li> })}</ul></details>}
+      {preview.requestEffects.length > 0 && <details className="ttops-request-effects"><summary>먼저 확인할 기존 교환 {preview.requestEffects.length}건</summary><p>기존 교환을 임의로 취소하거나 덮어쓰지 않습니다. 요청을 확인해도 작성 중인 학사 변경 입력은 보관합니다.</p><ul>{preview.requestEffects.map(effect => { const request = view!.requests.find(row => row.id === effect.requestId && row.version === effect.version); return <li key={effect.requestId}><strong>{request ? request.requester.name + ' · ' + request.reason : '현재 조회에서 상세를 확인할 수 없는 요청'}</strong><p>{effect.state === 'applied' ? '이미 시간표 반영됨' : effect.state === 'awaiting_approval' ? '담당자 승인 대기' : '관련 교사 동의 대기'} · {effect.version}판 · 요청 번호 {effect.requestId}</p>{request && onOpenRequest && <button type="button" className="secondary" disabled={blocked} onClick={() => onOpenRequest(effect.requestId)}>이 교환 요청 확인 · {effect.requestId}</button>}</li> })}</ul></details>}
       {!preview.changes.length && <p role="status">반영할 변경 수업이 없습니다. 대상 날짜·학급과 위의 확인 필요 항목을 먼저 확인해 주세요. 실제 반영 요청은 보내지 않습니다.</p>}
       {expired && <p role="status">미리보기의 확인 기한이 지났습니다. 입력은 보관했습니다. 바뀔 수업 미리보기를 다시 확인해 주세요.</p>}
       {expired && <button type="button" className="secondary" disabled={blocked || !dateInRange || !referencesCurrent || staleGroupIds.length > 0} onClick={() => void inspect()}>보관한 학사 변경 다시 검토</button>}

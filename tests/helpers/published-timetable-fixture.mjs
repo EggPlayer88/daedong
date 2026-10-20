@@ -8,3 +8,29 @@ export function publishedFixture() {
   const references = { asOf: view.asOf, from: view.from, until: view.until, lessons: lessons.map(lesson => ({ lessonId: lesson.id, version: lesson.version, groups: [{ id: lesson.id === 'second' ? 'group-b' : 'group-a', name: '같은 학급' }], rooms: [{ id: 'room', name: '교실' }] })) }
   return { view, references, selection: { mode: 'week', date: '2026-10-19', teacherId: 'teacher-a', groupId: '' } }
 }
+
+export function publishedInterventionsFixture() {
+  const fixture = publishedFixture(), person = (id, name) => ({ id, name })
+  const teacher = person('teacher-a', '같은 이름'), replacement = person('replacement', '대강 교사')
+  const rows = [], requests = [], reason = '출력하면 안 되는 대강 개인 사유'
+  const add = (kind, before, after, input) => {
+    const people = [...new Map([...(before?.teachers ?? []), ...after.teachers].map(row => [row.id, row])).values()]
+    requests.push({ id: 'intervention-' + kind, version: 3, proposalHash: 'a'.repeat(64), state: 'applied', kind, input: { kind, ...input, reason }, requester: teacher, requesterIsViewer: true,
+      createdAt: '2026-10-17T00:00:00.000Z', expiresAt: '2026-10-18T00:00:00.000Z', reason, changes: [{ before, after: structuredClone(after) }],
+      participants: people.map(row => ({ ...row, response: 'accepted', respondedAt: '2026-10-17T01:00:00.000Z' })), actions: [] })
+    rows.push(after)
+  }
+  const base = { ...structuredClone(fixture.view.lessons[0]), canRequest: false, allowedTargets: [], version: 1, label: '국어' }
+  add('substitute', structuredClone(base), { ...structuredClone(base), version: 2, teachers: [replacement] }, { lessonId: base.id, expectedVersion: 1, substituteTeacherId: replacement.id })
+  const cancelled = { ...structuredClone(base), id: 'cancelled', version: 2, state: 'cancelled' }
+  add('cancel', { ...structuredClone(cancelled), version: 1, state: 'scheduled' }, cancelled, { lessonId: 'cancelled', expectedVersion: 1 })
+  const makeup = { ...structuredClone(base), id: 'makeup', version: 1, time: { startsAt: '2026-10-20T00:00:30.000Z', endsAt: '2026-10-20T00:45:30.000Z' } }
+  add('makeup', null, makeup, { lessonId: 'cancelled', expectedVersion: 2, target: makeup.time })
+  const reopened = { ...structuredClone(base), id: 'reopened', version: 3 }
+  add('reopen', { ...structuredClone(reopened), version: 2, state: 'cancelled' }, reopened, { schoolDayChangeId: 'closure-one' })
+  fixture.view.lessons = structuredClone(rows); fixture.view.requests = []
+  fixture.references.lessons = rows.map(row => ({ lessonId: row.id, version: row.version, groups: [{ id: 'group-a', name: '같은 학급' }], rooms: [{ id: 'room', name: '교실' }] }))
+  fixture.selection.teacherId = ''
+  fixture.interventions = { asOf: fixture.view.asOf, timeZone: fixture.view.timeZone, from: fixture.view.from, until: fixture.view.until, lessons: structuredClone(rows), teachers: [teacher, replacement], closures: [], requests }
+  return fixture
+}

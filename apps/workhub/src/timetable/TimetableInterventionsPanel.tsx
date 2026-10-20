@@ -7,7 +7,8 @@ import { canonical, ServiceError } from '../services/scoped-rpc'
 import type { ExchangeInput, OperationsView, RequestAction } from './operations-contracts'
 import type { InterventionCommand, InterventionInput, InterventionKind, InterventionPreview, InterventionRequest, InterventionsView, TimetableInterventionsServer } from './interventions-contracts'
 import { duplicateInterventionRequests, interventionAction, interventionCommand, interventionDisplayState, interventionInput, interventionInputProblem, interventionLabels, interventionStateLabels, interventionActionLabels, interventionNeedsMyAction, interventionSubmit, selectInterventionRequests, type InterventionRequestFilter } from './interventions-domain'
-import { timetableDateOffset } from './operations-calendar'
+import { timetableDateOffset, timetableLocalDate } from './operations-calendar'
+import type { InterventionOpenIntent } from './operations-links'
 import { InterventionAssistantPanel } from './InterventionAssistantPanel'
 import type { OperationsAiProposal } from './interventions-assistant'
 import { schoolDayLocalTime } from './school-day-execution-server'
@@ -18,8 +19,10 @@ interface Props {
   selectedLessonId?: string; initialRequestId?: string; initialSchoolDayChangeId?: string; revision?: number
   disabled?: boolean; assistantServer?: AssistantServer; onChanged?: () => void; onLockChange?: (locked: boolean) => void
   onExchangeProposal?: (input: ExchangeInput) => void
-  initialIntent?: { kind: 'makeup'; lessonId: string; token: string }
+  initialIntent?: InterventionOpenIntent
   onInitialIntentConsumed?: (token: string) => void
+  onViewChange?: (value: InterventionsView | undefined) => void
+  onApplied?: (lessonId: string, date: string) => void
 }
 interface Form { kind: InterventionKind; lessonId: string; teacherId: string; closureId: string; targetStart: string; targetEnd: string; reason: string }
 const empty = (): Form => ({ kind: 'substitute', lessonId: '', teacherId: '', closureId: '', targetStart: '', targetEnd: '', reason: '' })
@@ -59,6 +62,7 @@ function InterventionsPanel(props: Props) {
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [])
   useEffect(() => { props.onLockChange?.(locked || dirty || aiLocked); return () => props.onLockChange?.(false) }, [locked, dirty, aiLocked, props.onLockChange])
   useEffect(() => { memory.save(form, dirty) }, [form, dirty, memory])
+  useEffect(() => { props.onViewChange?.(ready ? source : undefined); return () => props.onViewChange?.(undefined) }, [source, ready, props.onViewChange])
   useEffect(() => {
     let active = true
     setLoading(true); setReady(false); setPreview(undefined); setConfirmed(false); setSelectedAction(undefined)
@@ -91,15 +95,15 @@ function InterventionsPanel(props: Props) {
     if (!linkedIntent) return
     props.onInitialIntentConsumed?.(linkedIntent.token); setLinkedIntent(undefined); setReplaceConfirmed(false)
   }
-  function openMakeupIntent() {
+  function openLessonIntent() {
     if (!linkedIntent || locked || aiLocked || props.disabled || !ready || !source || dirty && !replaceConfirmed) return
     const lesson = source.lessons.find(row => row.id === linkedIntent.lessonId)
-    if (!lesson || lesson.state !== 'cancelled') return
-    setForm({ ...empty(), kind: 'makeup', lessonId: lesson.id }); setPreview(undefined); setSelectedAction(undefined); setConfirmed(false)
-    setNotice('홈에서 선택한 취소 수업을 보강 대상으로 열었습니다. 보강할 시각을 정해 주세요.'); setError(''); finishIntent()
+    if (!lesson || lesson.state !== (linkedIntent.kind === 'makeup' ? 'cancelled' : 'scheduled') || linkedIntent.expectedVersion !== undefined && lesson.version !== linkedIntent.expectedVersion) return
+    setForm({ ...empty(), kind: linkedIntent.kind, lessonId: lesson.id }); setPreview(undefined); setSelectedAction(undefined); setConfirmed(false)
+    setNotice(linkedIntent.origin === 'timetable' ? `시간표에서 선택한 수업을 ${interventionLabels[linkedIntent.kind]} 입력으로 열었습니다. 아직 요청을 보내지 않았습니다.` : '홈에서 선택한 취소 수업을 보강 대상으로 열었습니다. 보강할 시각을 정해 주세요.'); setError(''); finishIntent()
   }
   useEffect(() => {
-    if (linkedIntent && !dirty && !locked && !aiLocked && !props.disabled && ready && source?.lessons.some(row => row.id === linkedIntent.lessonId && row.state === 'cancelled')) openMakeupIntent()
+    if (linkedIntent && !dirty && !locked && !aiLocked && !props.disabled && ready) openLessonIntent()
   }, [linkedIntent, dirty, locked, aiLocked, props.disabled, ready, source])
   useEffect(() => { setShownCount(20) }, [query, filter, kindFilter])
   function change(patch: Partial<Form>) { setForm(value => ({ ...value, ...patch })); setPreview(undefined); setConfirmed(false); setError('') }
@@ -139,7 +143,10 @@ function InterventionsPanel(props: Props) {
     try {
       const receipt = await (recover ? props.server.recover(props.member.id, command, key) : props.server.execute(props.member.id, command, key))
       if (epoch !== life.current) return
+      const latest = latestSource.current
+      const applied = receipt.status === 'applied' ? latest?.requests.find(row => row.id === receipt.entityId)?.changes.find(row => receipt.changedLessons.some(saved => saved.id === row.after.id && saved.version === row.after.version))?.after : undefined
       finish(key, receipt.status === 'applied' ? '수업 변경을 반영했습니다. 최신 시간표에서 확인해 주세요.' : `요청 결과: ${interventionStateLabels[receipt.status]}`, command.kind === 'submit')
+      if (applied && latest) current.current.onApplied?.(applied.id, timetableLocalDate(applied.time.startsAt, latest.timeZone))
     } catch (e) {
       if (epoch !== life.current) return
       setError(message(e))
@@ -173,7 +180,12 @@ function InterventionsPanel(props: Props) {
       recovery.put({ ...pending, closeState: 'closing' })
       const result = await props.server.close(props.member.id, command, pending.key)
       if (epoch !== life.current) return
-      if (result.outcome === 'applied') finish(pending.key, `기존 처리 결과를 확인했습니다: ${interventionStateLabels[result.receipt.status]}`, command.kind === 'submit')
+      if (result.outcome === 'applied') {
+        const receipt = result.receipt, latest = latestSource.current
+        const applied = receipt.status === 'applied' ? latest?.requests.find(row => row.id === receipt.entityId)?.changes.find(row => receipt.changedLessons.some(saved => saved.id === row.after.id && saved.version === row.after.version))?.after : undefined
+        finish(pending.key, `기존 처리 결과를 확인했습니다: ${interventionStateLabels[receipt.status]}`, command.kind === 'submit')
+        if (applied && latest) current.current.onApplied?.(applied.id, timetableLocalDate(applied.time.startsAt, latest.timeZone))
+      }
       else {
         recovery.remove(pending.key); setPreview(undefined); setConfirmed(false); setSelectedAction(undefined); setActionConfirmed(false); setCloseConfirmed(false)
         setNotice('이 요청을 닫았습니다. 작성한 내용은 유지하며, 다시 보내려면 새 변경 확인을 거칩니다.')
@@ -215,6 +227,8 @@ function InterventionsPanel(props: Props) {
   const mineCount = source?.requests.filter(row => interventionNeedsMyAction(row, now)).length ?? 0
   const pendingCount = source?.requests.filter(row => ['awaiting_consent', 'awaiting_approval'].includes(interventionDisplayState(row, now))).length ?? 0
   const intentLesson = source?.lessons.find(row => row.id === linkedIntent?.lessonId)
+  const intentCurrent = Boolean(intentLesson && intentLesson.state === (linkedIntent?.kind === 'makeup' ? 'cancelled' : 'scheduled') && (linkedIntent?.expectedVersion === undefined || intentLesson.version === linkedIntent.expectedVersion))
+  const intentFromTimetable = linkedIntent?.origin === 'timetable'
   function showRequest(row: InterventionRequest) {
     setQuery(''); setFilter('all'); setKindFilter(''); setShownCount(source?.requests.length ?? 20)
     requestAnimationFrame(() => { const element = requestNodes.current.get(row.id); element?.scrollIntoView({ block: 'center' }); element?.focus() })
@@ -230,11 +244,11 @@ function InterventionsPanel(props: Props) {
     <div className="timetable-toolbar"><div><h3 id={`${id}-title`}>대강·휴강·보강</h3><p>변경안 확인 → 관련 교사 수락 → 다른 담당자 승인 순서로 반영합니다.</p></div><button type="button" className="secondary" disabled={loading || locked} onClick={() => setReload(value => value + 1)}>최신 요청 확인</button></div>
     {error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status">{notice}</p>}{loading && <p role="status">현재 수업과 요청을 확인하고 있습니다.</p>}
     {pending && <section className="timetable-card" aria-label="수업 요청 복구"><h4>원래 요청 결과 확인</h4><p>입력과 요청 번호를 보관했습니다. 확인 전에는 새 번호로 보내지 않습니다.</p><div className="timetable-actions"><button type="button" disabled={busy || pending.closeState === 'closing'} onClick={() => void recover()}>같은 요청 결과 확인</button></div><label><input type="checkbox" checked={closeConfirmed} disabled={busy || pending.closeState === 'closing'} onChange={e => setCloseConfirmed(e.target.checked)} />이미 처리된 결과 또는 닫힘을 확인한 뒤 이 요청을 종료합니다.</label><button type="button" disabled={busy || !closeConfirmed && pending.closeState !== 'closing'} onClick={() => void close()}>{pending.closeState === 'closing' ? '요청 닫힘 다시 확인' : '이 요청 닫기'}</button></section>}
-    {linkedIntent && <section className="timetable-card" aria-label="홈에서 연 보강 입력"><h4>홈에서 선택한 보강</h4>
-      {loading ? <p>원수업의 현재 상태를 확인하고 있습니다.</p> : !intentLesson || intentLesson.state !== 'cancelled' ? <p>현재 조회에서 취소된 원수업을 확인하지 못했습니다. 입력을 바꾸지 않았으니 최신 요청을 다시 확인해 주세요.</p> : <p>{intentLesson.label} · {intentLesson.groupNames.join(', ')} · {displayTime(intentLesson.time.startsAt)}</p>}
+    {linkedIntent && <section className="timetable-card" aria-label={intentFromTimetable ? '시간표에서 연 수업 변경 입력' : '홈에서 연 보강 입력'}><h4>{intentFromTimetable ? '시간표에서 선택한 수업' : '홈에서 선택한 보강'}</h4>
+      {loading ? <p>원수업의 현재 상태를 확인하고 있습니다.</p> : !intentCurrent ? <p>{intentFromTimetable ? '선택한 수업의 판이나 상태가 달라졌습니다. 입력을 바꾸지 않았으니 최신 시간표에서 다시 선택해 주세요.' : '현재 조회에서 취소된 원수업을 확인하지 못했습니다. 입력을 바꾸지 않았으니 최신 요청을 다시 확인해 주세요.'}</p> : <p>{intentLesson!.label} · {intentLesson!.groupNames.join(', ')} · {displayTime(intentLesson!.time.startsAt)}</p>}
       {(locked || aiLocked) && <p>보관한 요청 결과를 먼저 확인해 주세요. 기존 입력과 요청 번호는 유지합니다.</p>}
-      {dirty && <><p>작성 중인 변경 입력은 그대로 두었습니다.</p><label><input type="checkbox" checked={replaceConfirmed} disabled={locked || aiLocked || props.disabled} onChange={e => setReplaceConfirmed(e.target.checked)} />작성 중인 입력을 정리하고 선택한 수업의 보강을 작성합니다.</label></>}
-      <div className="timetable-actions"><button type="button" disabled={locked || aiLocked || props.disabled || !ready || intentLesson?.state !== 'cancelled' || dirty && !replaceConfirmed} onClick={openMakeupIntent}>선택한 보강 입력으로 이동</button><button type="button" className="secondary" disabled={locked || aiLocked} onClick={finishIntent}>기존 입력 계속 작성</button></div>
+      {dirty && <><p>작성 중인 변경 입력은 그대로 두었습니다.</p><label><input type="checkbox" checked={replaceConfirmed} disabled={locked || aiLocked || props.disabled} onChange={e => setReplaceConfirmed(e.target.checked)} />{intentFromTimetable ? '작성 중인 입력을 정리하고 선택한 수업 변경을 작성합니다.' : '작성 중인 입력을 정리하고 선택한 수업의 보강을 작성합니다.'}</label></>}
+      <div className="timetable-actions"><button type="button" disabled={locked || aiLocked || props.disabled || !ready || !intentCurrent || dirty && !replaceConfirmed} onClick={openLessonIntent}>{intentFromTimetable ? '선택한 수업 변경 입력으로 이동' : '선택한 보강 입력으로 이동'}</button><button type="button" className="secondary" disabled={locked || aiLocked} onClick={finishIntent}>기존 입력 계속 작성</button></div>
     </section>}
     {!ready && dirty && !locked && !aiLocked && <section aria-label="보관한 수업 변경 입력"><p>작성한 입력은 현재 탭에 남아 있습니다. 연결을 복구하거나, 입력을 버리고 다른 작업으로 이동할 수 있습니다.</p><label><input type="checkbox" checked={discardConfirmed} onChange={e => setDiscardConfirmed(e.target.checked)} />서버로 보내지 않은 수업 변경 입력을 버립니다.</label><button type="button" disabled={!discardConfirmed} onClick={() => { setForm(empty()); memory.remove(); setPreview(undefined); setSelectedAction(undefined); setDiscardConfirmed(false); setNotice('보관한 입력을 버렸습니다.') }}>입력 버리고 이동 잠금 해제</button></section>}
     {ready && source && <><fieldset className="tt-intervention-form" disabled={locked || props.disabled || aiLocked}><legend>수업 변경 요청</legend>
