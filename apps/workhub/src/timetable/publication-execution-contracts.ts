@@ -1,3 +1,4 @@
+import type { RequestAbandonResult } from './request-abandon'
 import type { PublicationManifest } from './operations-next-contracts'
 
 /** 전체 명세는 탭 메모리에서 복구 문맥으로 보관하고, 전송할 때는 고정 참조만 보낸다. */
@@ -12,6 +13,8 @@ export interface PublicationCommitReceipt {
   recordedAt: string; manifestHash: string; basisFingerprint: string; changedCount: number
 }
 export interface PublicationExecutionServer {
+  /** 원키의 처리 또는 영구 닫힘이 확인된 때만 입력 잠금을 해제한다. */
+  abandon?(memberId: string, command: PublicationCommitCommand, requestKey: string): Promise<RequestAbandonResult<PublicationCommitReceipt>>
   execute(memberId: string, command: PublicationCommitCommand, requestKey: string): Promise<PublicationCommitReceipt>
   recover(memberId: string, command: PublicationCommitCommand, requestKey: string): Promise<PublicationCommitReceipt>
   /** 조회에서 접수증을 찾지 못한 원키·원문만 명시적으로 다시 보낸다. */

@@ -1,3 +1,4 @@
+import { createRequestAbandonClient } from './request-abandon'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import { canonical, createScopedRpc, identifier, object, ServiceError } from '../services/scoped-rpc'
@@ -18,28 +19,40 @@ export function createTimetableExecutionRecordsServer(connection: SupabaseConnec
     }
   } }
   const rpc = createScopedRpc(scopedConnection, EXECUTION_RECORDS_CONTRACT, options)
+  const closing = createRequestAbandonClient(connection, 'execution', { ...options, now })
   const sources = new Map<string, { token: string; view: ExecutionRecordsView }>(), generations = new Map<string, number>()
   const cursors = new Map<string, { token: string; lessonId: string; anchor: number; last: ExecutionRecord; asOf: string; generation: number }>()
   const originals = new Map<string, ExecutionRecordCommand>(), missing = new Set<string>(), receipts = new Map<string, string>()
   const scope = (memberId: string) => { const member = connection.info().memberships.find(row => row.id === memberId); if (!member) throw new ServiceError('CANCELLED'); return recoveryScope(member) }
   const sourceKey = (memberId: string, lessonId: string) => memberId + ':' + lessonId
-  function request(memberId: string, raw: ExecutionRecordCommand, key: string) {
+  function request(memberId: string, raw: ExecutionRecordCommand, key: string, allowClosed = false) {
     identifier(key); if (key.length < policy.minRequestKeyLength) throw new ServiceError('INVALID_INPUT')
     const command = executionRecordCommand(raw), token = scope(memberId), id = token + ':' + key, previous = originals.get(id)
     if (previous && canonical(previous) !== canonical(command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
+    if (!allowClosed) closing.assertOpen(id, command)
     return { command, token, id }
   }
   async function send(memberId: string, command: ExecutionRecordCommand, key: string, recover: boolean, token: string) {
+    closing.assertOpen(token + ':' + key, command)
     const hash = await executionRecordCommandHash(command)
     if (scope(memberId) !== token) throw new ServiceError('CANCELLED')
     return rpc.call(memberId, 'workhub_timetable_execution_record', { p_command: command, p_request_key: key, p_recover_only: recover }, raw => {
       const receipt = parseExecutionRecordReceipt(raw, command, key, hash, memberId, now()), id = token + ':' + key, value = canonical(receipt), original = receipts.get(id)
       // 첫 기록의 ID와 기록시각도 한번 확인한 접수증 뒤에는 달라질 수 없다.
       if (original !== undefined && original !== value) throw new ServiceError('INVALID_RESPONSE')
-      receipts.set(id, value); return receipt
+      closing.acceptReceipt(id, receipt); receipts.set(id, value); return receipt
     }, !recover)
   }
   return {
+    async abandon(memberId, raw, key) {
+      const { command, token, id } = request(memberId, raw, key, true), hash = await executionRecordCommandHash(command)
+      if (scope(memberId) !== token) throw new ServiceError('CANCELLED')
+      originals.set(id, structuredClone(command))
+      const result = await closing.abandon(memberId, command, key, value => parseExecutionRecordReceipt(value, command, key, hash, memberId, now()))
+      if (result.outcome === 'applied') receipts.set(id, canonical(result.receipt))
+      missing.delete(id)
+      return result
+    },
     async get(memberId, lessonId) {
       identifier(lessonId); const token = scope(memberId), id = sourceKey(memberId, lessonId), generation = (generations.get(id) ?? 0) + 1
       generations.set(id, generation); sources.delete(id)

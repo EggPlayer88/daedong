@@ -1,3 +1,4 @@
+import { createRequestAbandonClient } from './request-abandon'
 import { recoveryScope } from '../app/pending-requests'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { createScopedRpc, canonical, exact, identifier, isoDate, text, version, ServiceError } from '../services/scoped-rpc'
@@ -258,6 +259,7 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
   const now = () => { const value = options.now ? options.now() : Date.now(); if (!Number.isFinite(value)) throw new ServiceError('INVALID_INPUT'); return value }
   now()
   const rpc = createScopedRpc(connection, TIMETABLE_OPERATIONS_API, { timeoutMs: options.timeoutMs })
+  const closing = createRequestAbandonClient(connection, 'operations', { ...options, now })
   const views = new Map<string, { data: OperationsView; scope: string }>()
   const previews = new Map<string, { scope: string; kind: 'publish' | 'submit'; data: PublishPreview | ExchangePreview }>()
   const generations = new Map<string, number>()
@@ -266,7 +268,7 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
   const stableReceipt = (key: string, receipt: OperationReceipt) => {
     const content = canonical(receipt), previous = receipts.get(key)
     if (previous && previous !== content) throw new ServiceError('INVALID_RESPONSE')
-    receipts.set(key, content); return receipt
+    closing.acceptReceipt(key, receipt); receipts.set(key, content); return receipt
   }
   const scope = (memberId: string) => {
     identifier(memberId); const member = connection.info().memberships.find(m => m.id === memberId)
@@ -340,6 +342,7 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
     async execute(memberId, value, requestedKey) {
       const command = parseOperationCommand(value), key = requestKey(requestedKey), originalScope = scope(memberId), cacheKey = keyFor(memberId, key), generation = generations.get(memberId)
       const original = originals.get(cacheKey)
+      closing.assertOpen(cacheKey, command)
       if (original && !equal(original.command, command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
       let expectedChanges: { id: string; version: number }[] = [], expectedStatus: RequestState | undefined
       if (command.kind !== 'action') {
@@ -375,6 +378,7 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
     },
     async recover(memberId, value, requestedKey) {
       const command = parseOperationCommand(value), key = requestKey(requestedKey), originalScope = scope(memberId), original = originals.get(keyFor(memberId, key))
+      closing.assertOpen(keyFor(memberId, key), command)
       if (original && !equal(original.command, command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
       const commandHash = await operationCommandHash(command)
       if (originalScope !== scope(memberId)) throw new ServiceError('CANCELLED')
@@ -389,6 +393,7 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
     },
     async resend(memberId, value, requestedKey) {
       const command = parseOperationCommand(value), key = requestKey(requestedKey), originalScope = scope(memberId), cacheKey = keyFor(memberId, key), original = originals.get(cacheKey)
+      closing.assertOpen(cacheKey, command)
       if (original && !equal(original.command, command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
       if (!original || !missingReceipts.has(cacheKey)) throw new ServiceError('NOT_READY')
       const commandHash = await operationCommandHash(command)
@@ -397,6 +402,17 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
       // 이전 접수증을 우선 반환하고, 미접수인 경우만 현재 권한·판·만료를 서버에서 검사한다.
       const result = await rpc.call(memberId, 'workhub_timetable_operations_execute', { p_command: command, p_request_key: key, p_recover_only: false }, raw => stableReceipt(cacheKey, parseOperationReceipt(raw, command, key, commandHash, now(), original.changes, original.status)), true)
       invalidate(memberId); return result
+    },
+    async abandon(memberId, value, requestedKey) {
+      const command = parseOperationCommand(value), key = requestKey(requestedKey), originalScope = scope(memberId), cacheKey = keyFor(memberId, key), original = originals.get(cacheKey)
+      if (original && !equal(original.command, command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
+      originals.set(cacheKey, original ?? { command: structuredClone(command) })
+      const commandHash = await operationCommandHash(command)
+      if (scope(memberId) !== originalScope) throw new ServiceError('CANCELLED')
+      const result = await closing.abandon(memberId, command, key, raw => parseOperationReceipt(raw, command, key, commandHash, now(), original?.changes, original?.status))
+      if (result.outcome === 'applied') stableReceipt(cacheKey, result.receipt)
+      missingReceipts.delete(cacheKey); invalidate(memberId)
+      return result
     },
   }
 }

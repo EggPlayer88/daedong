@@ -1,3 +1,4 @@
+import type { RequestAbandonResult } from './request-abandon'
 export const TIMETABLE_OPERATIONS_API = 'timetable-operations.v1' as const
 export interface OperationTime { startsAt: string; endsAt: string }
 export interface OperationTeacher { id: string; name: string }
@@ -49,6 +50,8 @@ export interface OperationReceipt {
   status: 'published' | RequestState; recordedAt: string; changedLessons: { id: string; version: number }[]
 }
 export interface TimetableOperationsServer {
+  /** 원키의 처리 또는 영구 닫힘이 확인된 때만 입력 잠금을 해제한다. */
+  abandon?(memberId: string, command: OperationCommand, requestKey: string): Promise<RequestAbandonResult<OperationReceipt>>
   readiness(memberId: string): Promise<OperationsReadiness>
   get(memberId: string, from: string, until: string): Promise<OperationsView>
   previewPublish(memberId: string, input: PublishInput): Promise<PublishPreview>

@@ -1,3 +1,4 @@
+import type { RequestAbandonResult } from './request-abandon'
 import { canonical, exact, identifier, text, ServiceError } from '../services/scoped-rpc'
 import policy from './execution-records-policy.json'
 
@@ -11,6 +12,8 @@ export interface ExecutionHistoryPage { lessonId: string; anchorRecordVersion: n
 export interface ExecutionRecordCommand { lessonId: string; expectedLessonVersion: number; expectedRecordVersion: number; expectedRecordId: string | null; outcome: ExecutionOutcome; note: string; correctionReason: string | null }
 export interface ExecutionRecordReceipt { requestKey: string; commandHash: string; record: ExecutionRecord }
 export interface TimetableExecutionRecordsServer {
+  /** 원키의 처리 또는 영구 닫힘이 확인된 때만 입력 잠금을 해제한다. */
+  abandon?(memberId: string, command: ExecutionRecordCommand, requestKey: string): Promise<RequestAbandonResult<ExecutionRecordReceipt>>
   get(memberId: string, lessonId: string): Promise<ExecutionRecordsView>
   history(memberId: string, lessonId: string, anchorRecordVersion: number, cursor: string): Promise<ExecutionHistoryPage>
   execute(memberId: string, command: ExecutionRecordCommand, key: string): Promise<ExecutionRecordReceipt>

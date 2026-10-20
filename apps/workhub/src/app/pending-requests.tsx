@@ -7,7 +7,9 @@ export type TaskRecovery = { command: TaskCommand; key: string; original?: Perso
 export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
 export type CollectionRecovery = { command: CollectionCommand; key: string }
 export type ModuleRecovery = { command: unknown; key: string }
-type Requests = { timetableExecutionRecords: ModuleRecovery; timetableTarget: ModuleRecovery; timetableSetupBatch: ModuleRecovery; timetableSetup: ModuleRecovery; timetableAssistant: ModuleRecovery; timetablePreparation: ModuleRecovery; timetableOperations: ModuleRecovery; timetable: ModuleRecovery; task: TaskRecovery; calendar: CalendarRecovery; collection: CollectionRecovery; schoolAdmin: ModuleRecovery; teaching: ModuleRecovery; teachingRelations: ModuleRecovery; messaging: ModuleRecovery; messagingFile: ModuleRecovery; knowledge: ModuleRecovery; assistant: ModuleRecovery; collectionOps: ModuleRecovery; documents: ModuleRecovery; cooperation: ModuleRecovery; calendarBatch: ModuleRecovery; handover: ModuleRecovery; guidedDocuments: ModuleRecovery; knowledgeImport: ModuleRecovery }
+// 닫기 응답이 유실되어도 원키·원문과 닫는 단계를 같은 탭에서 함께 보관한다.
+export type TimetableRecovery = ModuleRecovery & { closeState?: 'available' | 'closing' }
+type Requests = { timetableExecutionRecords: TimetableRecovery; timetableTarget: ModuleRecovery; timetableSetupBatch: ModuleRecovery; timetableSetup: ModuleRecovery; timetableAssistant: ModuleRecovery; timetablePreparation: ModuleRecovery; timetableOperations: TimetableRecovery; timetable: ModuleRecovery; task: TaskRecovery; calendar: CalendarRecovery; collection: CollectionRecovery; schoolAdmin: ModuleRecovery; teaching: ModuleRecovery; teachingRelations: ModuleRecovery; messaging: ModuleRecovery; messagingFile: ModuleRecovery; knowledge: ModuleRecovery; assistant: ModuleRecovery; collectionOps: ModuleRecovery; documents: ModuleRecovery; cooperation: ModuleRecovery; calendarBatch: ModuleRecovery; handover: ModuleRecovery; guidedDocuments: ModuleRecovery; knowledgeImport: ModuleRecovery }
 type Listener = () => void
 
 // 결과 미확정 명령만 현재 탭 메모리에 둔다. 새로고침·로그아웃 후 복구 저장소로 쓰지 않는다.

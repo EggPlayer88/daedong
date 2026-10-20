@@ -3,7 +3,7 @@ import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { activeAt } from '../domain'
 import { useEditDraft } from '../app/edit-drafts'
-import { recoveryScope, usePendingRequest } from '../app/pending-requests'
+import { recoveryScope, usePendingRequest, type TimetableRecovery } from '../app/pending-requests'
 import { ServiceError } from '../services/scoped-rpc'
 import { createTimetableOperationsServer } from './operations-server'
 import type { OperationCommand, OperationLesson, OperationReceipt, OperationsReadiness, OperationsView, TimetableOperationsServer } from './operations-contracts'
@@ -22,6 +22,7 @@ import { timetableWeekStart } from './operations-calendar'
 import { createTimetableExecutionRecordsServer } from './execution-records-server'
 import type { TimetableExecutionRecordsServer } from './execution-records'
 import { TimetableExecutionRecordsPanel } from './TimetableExecutionRecordsPanel'
+import { RequestClosePanel } from './RequestClosePanel'
 import nextLimits from './operations-next-limits.json'
 import styles from './operations.css?inline'
 import themeStyles from './timetable-theme.css?inline'
@@ -49,7 +50,8 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const route = useEditDraft<Tab>(member, 'timetable-operations-tab'), publishMemory = useEditDraft<unknown>(member, 'timetable-publish'), exchangeMemory = useEditDraft<unknown>(member, 'timetable-exchanges')
   const schoolDayMemory = useEditDraft<unknown>(member, 'timetable-school-day')
   const initialRecordsRecovery = usePendingRequest(member, 'timetableExecutionRecords')
-  const pending = pendingStore.request as { command: OperationsCommand; key: string } | undefined
+  const pending = pendingStore.request as (TimetableRecovery & { command: OperationsCommand }) | undefined
+  const memberScope = recoveryScope(member)
   const [tab, setTab] = useState<Tab>(() => initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId ? 'exchange' : route.initial ?? 'shared')
   const focusedDate = dateOffset(initialDate ?? date, 0) || date, focusSource = useRef(focusedDate)
   const [from, setFrom] = useState(() => timetableWeekStart(focusedDate)), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
@@ -96,7 +98,7 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
     setPublishLink({ id: initialDraftId, version: initialDraftVersion! }); setTab('publish'); route.save('publish', false)
   }, [initialDraftId, initialDraftVersion, pending, navLocked, onInitialDraftConsumed])
   useEffect(() => { if (focusedDate !== focusSource.current && !locked) { focusSource.current = focusedDate; setBoardDate(focusedDate); setFrom(timetableWeekStart(focusedDate)) } }, [focusedDate, locked])
-  useEffect(() => { life.current++; return () => { life.current++; running.current = false } }, [server, publicationExecution, schoolDayExecution])
+  useEffect(() => { life.current++; return () => { life.current++; running.current = false } }, [server, publicationExecution, schoolDayExecution, memberScope])
   useEffect(() => { onNavigationLockChange?.(navLocked); return () => onNavigationLockChange?.(false) }, [navLocked, onNavigationLockChange])
   useEffect(() => { if (!navLocked) return; const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', beforeLeave); return () => window.removeEventListener('beforeunload', beforeLeave) }, [navLocked])
   useEffect(() => {
@@ -166,7 +168,7 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const executePublication = (command: PublicationCommitCommand) => runCommand(command) as Promise<PublicationCommitReceipt>
   const executeSchoolDay = (command: SchoolDayCommitCommand) => runCommand(command) as Promise<SchoolDayCommitReceipt>
   async function recover(resend = false) {
-    if (!pending || running.current || !enabled || resend && (missingKey !== pending.key || !resendConfirmed)) return
+    if (!pending || pending.closeState === 'closing' || running.current || !enabled || resend && (missingKey !== pending.key || !resendConfirmed)) return
     const request = structuredClone(pending), generation = life.current
     running.current = true; setBusy(true); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
     try {
@@ -177,7 +179,45 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
       if (generation !== life.current) return
       // 현재 권한·준비 조회 실패로 이전 실행이 취소되었다고 판단하지 않는다.
       if (!resend && failure instanceof ServiceError && failure.code === 'NOT_FOUND') { setMissingKey(request.key); setNotice('아직 접수증을 찾지 못했습니다. 최초 요청이 늦게 처리될 수 있어 입력과 원래 요청 번호를 유지합니다.') }
-      else setError(message(failure))
+      else {
+        if (resend && rejected(failure)) pendingStore.put({ ...request, closeState: 'available' })
+        setError(message(failure))
+      }
+    } finally { if (generation === life.current) { running.current = false; setBusy(false) } }
+  }
+  async function closeRequest() {
+    if (!pending?.closeState || running.current || !enabled) return
+    const request = structuredClone(pending), generation = life.current
+    running.current = true; setBusy(true); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
+    // 닫기를 보낸 뒤 응답이 끊겨도 같은 요청의 닫기만 다시 확인한다.
+    pendingStore.put({ ...request, closeState: 'closing' })
+    try {
+      let result
+      if (request.command.kind === 'publish_manifest') {
+        if (!publicationExecution?.abandon) throw new ServiceError('NOT_READY')
+        result = await publicationExecution.abandon(member.id, request.command, request.key)
+      } else if (request.command.kind === 'school_day') {
+        if (!schoolDayExecution?.abandon) throw new ServiceError('NOT_READY')
+        result = await schoolDayExecution.abandon(member.id, request.command, request.key)
+      } else {
+        if (!server.abandon) throw new ServiceError('NOT_READY')
+        result = await server.abandon(member.id, request.command, request.key)
+      }
+      if (generation !== life.current) return
+      pendingStore.remove(request.key)
+      if (result.outcome === 'applied') {
+        clearCommandDraft(request.command)
+        setNotice('원래 요청이 이미 처리된 것을 확인했습니다. ' + receiptMessage(result.receipt))
+      } else {
+        // 입력은 남기고 이전 미리보기·확인만 버려 새 검토 없이 재전송하지 않게 한다.
+        if (request.command.kind === 'publish' || request.command.kind === 'publish_manifest') setPublishEpoch(value => value + 1)
+        else if (request.command.kind === 'school_day') setSchoolDayEpoch(value => value + 1)
+        else if (request.command.kind === 'submit') setExchangeEpoch(value => value + 1)
+        setNotice('이 요청을 닫았습니다. 입력은 보관했습니다. 최신 시간표와 변경 내용을 다시 확인한 뒤 새 요청으로 보낼 수 있습니다.')
+      }
+      refresh()
+    } catch (failure) {
+      if (generation === life.current) setError('요청 닫기를 확인하지 못했습니다. 원래 번호와 입력을 유지합니다. ' + message(failure))
     } finally { if (generation === life.current) { running.current = false; setBusy(false) } }
   }
   function discardInputs() {
@@ -194,13 +234,14 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
     <header className="ttops-header"><div><p className="ttops-eyebrow">학교 시간표</p><h1 id={`${id}-title`}>시간표 운영</h1><p className="ttops-muted">확정된 수업을 함께 확인하고, 변경은 상대 확인과 승인을 거쳐 반영합니다.</p></div><button type="button" className="secondary" onClick={refresh} disabled={busy || publicationBusy || schoolDayBusy || recordsLocked || loading}>최신 시간표 확인</button></header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="ttops-error">{error}</p>}{notice && <p role="status" className="ttops-notice">{notice}</p>}</div>
     {pending && <section className="ttops-pending" aria-labelledby={`${id}-pending`}>
-      <h3 id={`${id}-pending`}>원래 요청의 결과 확인이 필요합니다</h3><p>새 요청을 만들지 않고 보관한 요청 번호의 결과만 조회합니다. 확인 전에는 다른 시간표 변경을 시작할 수 없습니다.</p>
+      <h3 id={`${id}-pending`}>{pending.closeState === 'closing' ? '요청 닫기 결과 확인이 필요합니다' : '원래 요청의 결과 확인이 필요합니다'}</h3><p>{pending.closeState === 'closing' ? '보관한 번호와 내용으로 닫기 결과를 확인합니다.' : '새 요청을 만들지 않고 보관한 요청 번호의 결과만 조회합니다.'} 확인 전에는 다른 시간표 변경을 시작할 수 없습니다.</p>
       <details><summary>보관한 요청 번호</summary><code>{pending.key}</code></details>
-      <button type="button" disabled={busy || !enabled} onClick={() => void recover()}>{busy ? '처리 결과 확인 중…' : '원래 요청 결과만 다시 확인'}</button>
-      {missingKey === pending.key && <div className="ttops-retry"><p>다시 조회하거나, 원래 내용 그대로 같은 번호로만 다시 보낼 수 있습니다. 이미 처리됐다면 원래 결과를 받습니다. 새 요청 번호를 만들지 않습니다.</p>
+      {pending.closeState !== 'closing' && <button type="button" disabled={busy || !enabled} onClick={() => void recover()}>{busy ? '처리 결과 확인 중…' : '원래 요청 결과만 다시 확인'}</button>}
+      {pending.closeState !== 'closing' && missingKey === pending.key && <div className="ttops-retry"><p>다시 조회하거나, 원래 내용 그대로 같은 번호로만 다시 보낼 수 있습니다. 이미 처리됐다면 원래 결과를 받습니다. 새 요청 번호를 만들지 않습니다.</p>
         <label><input type="checkbox" checked={resendConfirmed} disabled={busy || !enabled} onChange={event => setResendConfirmed(event.target.checked)} />늦은 처리 가능성을 확인했고 같은 번호·같은 내용으로 다시 보냅니다</label>
         <button type="button" disabled={busy || !enabled || !resendConfirmed || !(pending.command.kind === 'publish_manifest' ? publicationExecution?.resend : pending.command.kind === 'school_day' ? schoolDayExecution?.resend : server.resend)} onClick={() => void recover(true)}>같은 번호·같은 내용으로 다시 보내기</button>
       </div>}
+      <RequestClosePanel key={pending.key} state={pending.closeState} busy={busy} disabled={!enabled || !(pending.command.kind === 'publish_manifest' ? publicationExecution?.abandon : pending.command.kind === 'school_day' ? schoolDayExecution?.abandon : server.abandon)} onConfirm={() => void closeRequest()} />
       <p className="ttops-muted">입력과 요청 번호는 현재 탭에만 보관됩니다. 확인을 마칠 때까지 새로고침하거나 창을 닫지 마세요.</p>
     </section>}
     {loading && <p role="status">시간표 운영 연결을 확인하고 있습니다…</p>}
