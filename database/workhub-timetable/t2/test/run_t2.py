@@ -223,12 +223,19 @@ def body():
 
     # ======================================================================= E. 교환 · 이동 요청 → 동의 → 승인 · 알림
     G = d(t[21].oget(F, DAY(8)))
-    la = next(l_ for l_ in G['lessons'] if any(x['id'] == M[21] for x in l_['teachers']) and l_['canRequest']
-              and any(x != l_['time'] and x['startsAt'] > G['asOf'] for x in l_['allowedTargets']))
-    tgt = next(x for x in la['allowedTargets'] if x != la['time'] and x['startsAt'] > G['asOf'])
-    mv = {'kind': 'move', 'lessonId': la['id'], 'expectedVersion': la['version'], 'target': {'startsAt': tgt['startsAt'], 'endsAt': tgt['endsAt']}, 'reason': '출장'}
+    # 허용 시각표에는 다른 수업과 충돌하는 칸도 있다. 실행 요일과 관계없이 실제로 이동 가능한 시험 자료를 고른다.
+    move_candidates = ((lesson, target) for lesson in G['lessons']
+                       if any(x['id'] == M[21] for x in lesson['teachers']) and lesson['canRequest']
+                       for target in lesson['allowedTargets'] if target != lesson['time'] and target['startsAt'] > G['asOf'])
+    move_attempts = []
+    for la, tgt in move_candidates:
+        mv = {'kind': 'move', 'lessonId': la['id'], 'expectedVersion': la['version'], 'target': {'startsAt': tgt['startsAt'], 'endsAt': tgt['endsAt']}, 'reason': '출장'}
+        xp = t[21].xprev(mv); X = d(xp) or {}
+        move_attempts.append({'lessonId': la['id'], 'target': mv['target'], 'error': ecode(xp), 'blockers': X.get('blockers')})
+        if ok(xp) and X.get('blockers') == []: break
+    else:
+        raise AssertionError(f'E02 이동 가능한 시험 후보가 없습니다: {move_attempts}')
     check('E01 남의 수업 이동 미리보기 → FORBIDDEN · 판 다름 → CONFLICT', ecode(t[22].xprev(mv)) == 'FORBIDDEN' and ecode(t[21].xprev(dict(mv, expectedVersion=9))) == 'CONFLICT')
-    xp = t[21].xprev(mv); X = d(xp) or {}
     check('E02 이동 미리보기: 바뀌는 수업 1 · 참여 = 본인 · 차단 0', ok(xp) and len(X['changes']) == 1 and [x['id'] for x in X['participants']] == [M[21]] and X['blockers'] == [], xp)
     sub = {'kind': 'submit', 'preview': {'previewId': X.get('previewId'), 'previewHash': X.get('previewHash'), 'expiresAt': X.get('expiresAt'), 'input': mv}}
     rsub = t[21].oexec(sub)
@@ -291,12 +298,16 @@ def body():
 
     # ======================================================================= F. 학사 변경(휴업)
     G = d(adm.oget(F, DAY(8)))
-    day_ = next(l_['time']['startsAt'] for l_ in G['lessons'] if not l_['canRequest'] is None)
+    pinned = set(x[0] for x in sqlfile(text="select id from workhub.timetable_lessons where pinned"))
+    # 뒤의 실시 기록·경합 시험에 담당 수업 두 개가 필요하므로 그 자료를 남긴다.
+    record_lessons = {l_['id'] for l_ in G['lessons'] if l_['state'] == 'scheduled' and any(x['id'] == M[21] for x in l_['teachers'])}
     target_day = None
-    for k in range(2, 8):
+    for k in range(1, 8):
         dd = DAY(k)
         ls = [l_ for l_ in G['lessons'] if datetime.datetime.fromisoformat(l_['time']['startsAt'].replace('Z', '+00:00')).astimezone(datetime.timezone(datetime.timedelta(hours=9))).date().isoformat() == dd]
-        if ls and all(l_['state'] == 'scheduled' for l_ in ls): target_day = dd; break
+        if ls and all(l_['state'] == 'scheduled' and l_['id'] not in pinned for l_ in ls) and len(record_lessons - {l_['id'] for l_ in ls}) >= 2:
+            target_day = dd; break
+    assert target_day is not None, 'F02 교환 이력이 없는 휴업 시험 날짜가 없습니다'
     refs_ = d(adm.refs(G['asOf'], F, DAY(8)))
     gids = sorted({g_['id'] for x in refs_['lessons'] for g_ in x['groups']})
     sd = {'kind': 'closure', 'date': target_day, 'groupIds': gids, 'reason': '재량휴업', 'bells': []}
@@ -407,7 +418,8 @@ def body():
     check('I02 반영된 번호를 다른 명령으로 포기 → IDEMPOTENCY_CONFLICT', ecode(adm.abandon('operations', dict(cmd_pub, kind='submit'), k_pub)) == 'IDEMPOTENCY_CONFLICT')
     lg, lh, li = eligible({le['id'], lf['id']})[:3]
     for l_ in (lg, lh, li):
-        call(run, "update workhub.timetable_lessons set starts_at = starts_at - interval '14 days', ends_at = ends_at - interval '14 days' where id=%s", (l_['id'],))
+        # 조회 범위가 29일이므로 14일 이동만으로는 아직 끝나지 않은 수업이 남을 수 있다.
+        call(run, "update workhub.timetable_lessons set starts_at = starts_at - interval '35 days', ends_at = ends_at - interval '35 days' where id=%s", (l_['id'],))
     kg = key(); cmd_g = ecmd(lg['id'], lg['version'], 0, None, 'completed', '늦은 원요청')
     a1 = t[21].abandon('execution', cmd_g, kg); a2 = t[21].abandon('execution', cmd_g, kg); A1 = d(a1) or {}
     check('I03 모르는 번호 포기 → outcome abandoned · receipt null · 다시 포기해도 같은 응답(같은 decidedAt)', ok(a1) and A1['outcome'] == 'abandoned'
@@ -486,7 +498,7 @@ def body():
     G = d(adm.oget(F, DAY(8)))
     pinned0 = set(vers())
     sp_day, ls = None, []
-    for k_ in range(2, 8):
+    for k_ in range(1, 8):
         ls = [l_ for l_ in G['lessons'] if kday(l_['time']['startsAt']) == DAY(k_)]
         if DAY(k_) != target_day and ls and all(l_['state'] == 'scheduled' and l_['id'] not in pinned0 for l_ in ls): sp_day = DAY(k_); break
     def shift(t_, m): return iso(datetime.datetime.fromisoformat(t_.replace('Z', '+00:00')) + datetime.timedelta(minutes=m))

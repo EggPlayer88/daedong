@@ -62,7 +62,8 @@ def tests():
  q("update workhub.timetable_intervention_policies set allowed_member_ids=array_remove(allowed_member_ids,'m-24')")
  check('승인자 1계정은 비활성',data(rpc('readiness'))['reason']=='approvers_missing')
  q('update workhub.timetable_intervention_policies set allowed_member_ids=%s',(allowed,))
- anchor=old.TODAY+datetime.timedelta(days=42);anchor-=datetime.timedelta(days=anchor.weekday())
+ # T2의 36일 공개 구간과 뒤의 7일 재공개 시험이 합성 수업에 닿지 않도록 분리한다.
+ anchor=old.TODAY+datetime.timedelta(days=49);anchor-=datetime.timedelta(days=anchor.weekday())
  f=anchor.isoformat();u=(anchor+datetime.timedelta(days=28)).isoformat()
  template=q("select to_jsonb(l) from workhub.timetable_lessons l where l.school_id=%s and l.teacher_ids=array['m-21'] and l.state='scheduled' order by l.starts_at desc limit 1",(school,))[0][0]
  publication=q('select to_jsonb(p) from workhub.timetable_publications p where id=%s',(template['publication_id'],))[0][0]
@@ -188,7 +189,8 @@ def tests():
  # 실제 편성 활동의 개별 휴강은 재공개가 되살리지 않는다.
  real=q("select id,version,occurrence_date,activity_id from workhub.timetable_lessons where school_id=%s and teacher_ids=array['m-21'] and state='scheduled' and id not like 't3-%%' order by starts_at desc limit 1",(school,))[0]
  realinput={'kind':'cancel','lessonId':real[0],'expectedVersion':real[1],'reason':'실제 공개 활동 보존'}
- realfrom=real[2].isoformat();realuntil=(real[2]+datetime.timedelta(days=5)).isoformat()
+ # 마지막 수업이 수요일이어도 다음 월요일의 실제 신규 공개를 포함한다.
+ realfrom=real[2].isoformat();realuntil=(real[2]+datetime.timedelta(days=7)).isoformat()
  realview=data(rpc('get',(realfrom,realuntil),range={'from':realfrom,'until':realuntil}));realp=data(rpc('preview',(realinput,),input=realinput,source=realview));realr=data(execute(command(realp),'real-preserve-key'));data(approve(realr['entityId']))
  draft=q('select id,1 from workhub.timetable_drafts where school_id=%s order by created_at desc,id desc limit 1',(school,))[0]
  pubin={'draftId':draft[0],'draftVersion':draft[1],'from':realfrom,'until':realuntil};pv=data(oa.pprev(pubin))

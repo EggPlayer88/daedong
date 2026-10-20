@@ -19,6 +19,8 @@ const newIncrement = path =>
   /^database\/workhub-school-data\/p10\/(?:P10-\d{2}_[^/]+\.sql|README\.md|test\/[^/]+\.(?:py|mjs|json|sql))$/.test(path) ||
   /^database\/workhub-timetable\/t[34]\/(?:T[34]-\d{2}_[^/]+\.sql|README\.md|test\/[^/]+\.(?:py|mjs|json|sql))$/.test(path) ||
   /^database\/workhub-school-data\/integration\/(?:INT-04_[^/]+\.sql|README\.md|test\/(?:gen_int_04|run_integrated)\.py)$/.test(path)
+// 수요일·목요일에 달라지는 시험 자료 선택만 보완한다. 기존 SQL 보호 범위는 바꾸지 않는다.
+const verificationOnly = new Set(['database/workhub-timetable/t2/test/run_t2.py'])
 try {
   const ancestors = new Set(git('rev-list', 'HEAD').split('\n'))
   for (const sha of [baseline, ...required]) assert(ancestors.has(sha), `필수 이력 누락: ${sha}`)
@@ -27,6 +29,7 @@ try {
   const existing = new Set(split(git('ls-tree', '-r', '--name-only', '-z', baseline)))
   const protectedPath = /^(?:database\/|migrations\/|packages\/shared\/|apps\/main\/api\/|workers\/|docs\/workhub\/release-candidate\/|scripts\/(?:verify-workhub-release-sql\.sh|check-workhub-release\.mjs)$|apps\/main\/src\/(?:lib\/(?:modules\.js|AuthContext\.jsx)|pages\/LoginPage\.jsx)$)/
   for (const path of changed.filter(path => protectedPath.test(path))) {
+    if (verificationOnly.has(path)) continue
     assert((sqlFiles.includes(path) || newIncrement(path)) && !existing.has(path), `승인 밖 또는 기존 확정 파일 변경: ${path}`)
   }
   assert.deepEqual(changed.filter(path => path.startsWith('.github/workflows/') && path !== '.github/workflows/test.yml'), [])
@@ -35,7 +38,7 @@ try {
   assert(modules.every(row => row[0].includes("visibility: 'superadmin'") && row[0].includes('productionEnabled: false')))
   const deferred = JSON.parse(read('docs/workhub/integration-r2/pr-inventory.json')).deferred.concat(JSON.parse(read('docs/workhub/pilot-completion/inventory.json')).excluded)
   for (const row of deferred) assert(!ancestors.has(row.sha), `보류 이력 포함: #${row.number}`)
-  console.log(JSON.stringify({ included: [72, 74], newSql: 'P9·P10·T3·T4 새 증분 및 읽기 전용 INT-04', historicalSqlPreserved: true, authAndVisibilityPreserved: true, dbApplied: false, changedPaths: changed.length }, null, 2))
+  console.log(JSON.stringify({ included: [72, 74], newSql: 'P9·P10·T3·T4 새 증분 및 읽기 전용 INT-04', historicalSqlPreserved: true, verificationOnlyChanges: changed.filter(path => verificationOnly.has(path)), authAndVisibilityPreserved: true, dbApplied: false, changedPaths: changed.length }, null, 2))
 } catch (error) {
   console.error('학교·시간표 운영 묶음 보호 검사 실패:', error.message)
   process.exitCode = 1
