@@ -3,9 +3,10 @@ import { CLASS_KINDS, SCHOOL_TYPES, SETUP_LIMITS, setupGradeLimit, newSetupRowId
 import { SCHOOL_ADMIN_LIMITS, type SchoolSubject } from './school-admin-contract'
 import { ListPagination } from '../app/ListPagination'
 import { LIST_PAGE_SIZE, listWindow } from '../app/list-window'
-export interface SchoolConfigurationEditorProps { value: SetupDraft; subjects: SchoolSubject[]; createYear: boolean; disabled: boolean; onChange: (value: SetupDraft,subjects:SchoolSubject[])=>void }
+import { SchoolConfigurationBatchPanel, type SchoolConfigurationBatchPanelProps } from './SchoolConfigurationBatchPanel'
+export interface SchoolConfigurationEditorProps { value: SetupDraft; subjects: SchoolSubject[]; createYear: boolean; disabled: boolean; onChange: (value: SetupDraft,subjects:SchoolSubject[])=>void; batch?:Omit<SchoolConfigurationBatchPanelProps,'value'|'disabled'> }
 // 행 식별자를 편집 과정 전체에서 보존한다. 이름 변경을 삭제·재생성으로 처리하지 않는다.
-export function SchoolConfigurationEditor({value,subjects,createYear,disabled,onChange}:SchoolConfigurationEditorProps) {
+export function SchoolConfigurationEditor({value,subjects,createYear,disabled,onChange,batch}:SchoolConfigurationEditorProps) {
   const uid=useId(), [pages,setPages]=useState<Record<string,number>>({})
   const change=(key:string,next:string)=>onChange({...value,[key]:next},subjects)
   const input=(label:string,key:string,val:string,edit:(text:string)=>void,type='text',maxLength?:number,readOnly=false)=><label className="setup-field" key={key} htmlFor={`${uid}-${key}`}><span>{label}</span><input aria-label={label} id={`${uid}-${key}`} value={val} onChange={event=>edit(event.target.value)} type={type} maxLength={maxLength} readOnly={readOnly}/></label>
@@ -28,6 +29,7 @@ export function SchoolConfigurationEditor({value,subjects,createYear,disabled,on
     setPages(current=>({...current,[group]:Math.floor(count/LIST_PAGE_SIZE)}))
   }
   return <fieldset className="setup-fields" disabled={disabled}><legend className="setup-sr-only">학교 운영 구성 입력</legend>
+    {batch&&<SchoolConfigurationBatchPanel {...batch} value={{configuration:value,subjects}} disabled={disabled}/>}
     <section className="setup-section"><h3>학교와 학년도</h3><div className="setup-grid">
       {input('학교명','schoolName',value.schoolName,v=>change('schoolName',v),'text',SETUP_LIMITS.schoolName)}
       {input('학교 코드','schoolCode',value.schoolCode,v=>change('schoolCode',v),'text',SETUP_LIMITS.schoolCode,true)}

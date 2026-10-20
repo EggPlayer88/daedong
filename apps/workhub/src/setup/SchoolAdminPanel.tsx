@@ -12,11 +12,12 @@ import { SCHOOL_ADMIN_LIMITS, SCHOOL_ASSIGNMENT_KINDS, SCHOOL_MEMBER_LABELS, Sch
 import { createSupabaseSchoolAdminServer } from './school-admin-server'
 import { reconcileSchoolConfiguration, schoolConfigurationChanges, schoolConfigurationValue, type SchoolConflictChoices } from './school-admin-edit'
 import { SchoolConfigurationEditor } from './SchoolConfigurationEditor'
+import type { SchoolBatchInput } from './school-configuration-batch'
 import styles from './school-setup.css?inline'
 import adminStyles from './school-admin.css?inline'
 
 export interface SchoolAdminPanelProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked:boolean)=>void; onUpdated?:()=>void; server?:SchoolAdminServer }
-type Session = { command?:SchoolAdminCommand; base?:SchoolAdminSnapshot; reviewing?:boolean; pending?:{command:SchoolAdminCommand;key:string}; conflict?:boolean; choices?:SchoolConflictChoices }
+type Session = { command?:SchoolAdminCommand; base?:SchoolAdminSnapshot; reviewing?:boolean; pending?:{command:SchoolAdminCommand;key:string}; conflict?:boolean; choices?:SchoolConflictChoices; batch?:SchoolBatchInput }
 const layoutEffect=typeof window==='undefined'?useEffect:useLayoutEffect
 const confirmedRejection=(error:unknown)=>error instanceof SchoolAdminError&&['NOT_READY','INVALID_INPUT','FORBIDDEN','INACTIVE_MEMBERSHIP','NOT_FOUND','CONFLICT'].includes(error.code)
 const safeMessage=(error:unknown)=>error instanceof SchoolAdminError?error.message:'학교 관리 요청을 완료하지 못했습니다. 입력은 보존했습니다.'
@@ -91,6 +92,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     if(command.expectedVersion!==snapshot.version){update({...session,conflict:true,reviewing:false,choices:{}});setError('편집을 시작한 뒤 학교 자료가 변경되었습니다. 변경을 비교해 주세요.');move('conflict');return}
     const problems:string[]=[]
     if(command.kind==='save_configuration'){
+      if(session.batch?.text.trim())problems.push('일괄 입력이 아직 구성 초안에 반영되지 않았습니다. 비교 후 초안에 반영하거나 일괄 입력을 비워 주세요.')
       problems.push(...validateSetupDraft(command.configuration).map(issue=>issue.message))
       try{schoolAdminSubjects(command.subjects)}catch{problems.push('교과의 이름·식별자가 중복되거나 비어 있는지 확인해 주세요.')}
       if(command.mode==='create_year'&&!academicYearStartMatches(Number(command.configuration.schoolYear),command.configuration.startsOn))problems.push(ACADEMIC_YEAR_START_MESSAGE)
@@ -151,7 +153,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     let next:SchoolAdminCommand={...command,expectedVersion:snapshot.version}
     if(command.kind==='save_configuration'&&configMerge)next={...command,...configMerge.value,expectedVersion:snapshot.version}
     if(command.kind==='save_configuration'&&command.mode==='create_year'&&snapshot.availableYears.includes(Number(command.configuration.schoolYear))){setError('같은 학년도가 이미 생성되었습니다. 초안을 보관하고 해당 학년도를 선택해 다시 편집해 주세요.');return}
-    update({command:next,base:structuredClone(snapshot)});setError('');setIssues([]);move('editor')
+    update({command:next,base:structuredClone(snapshot),batch:session.batch});setError('');setIssues([]);move('editor')
   }
   const filteredMembers=(snapshot?.memberships??[]).filter(item=>`${item.name} ${SCHOOL_MEMBER_LABELS[item.status]}`.includes(search.trim()))
   const memberPage=listWindow(filteredMembers,page)
@@ -182,7 +184,11 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     </>}
     {command&&<section className="school-admin-editor" data-admin-focus="editor" tabIndex={-1} aria-labelledby={`${uid}-editor`}><header><h2 id={`${uid}-editor`}>{command.kind==='save_configuration'?(command.mode==='create_year'?'새 학년도 구성':'학교 구성 수정'):command.kind==='assign_duty'?'공식 담당 배정':command.kind==='end_assignment'?'담당 종료':'교사 소속 관리'}</h2><p>입력은 현재 탭에 보관하며, 변경 내용을 확인한 뒤 서버에 반영합니다.</p></header>
       <form onSubmit={event=>{event.preventDefault();review()}}>
-        {command.kind==='save_configuration'&&<SchoolConfigurationEditor value={command.configuration} subjects={command.subjects} createYear={command.mode==='create_year'} disabled={!editable} onChange={(configuration,subjects)=>change({configuration,subjects})}/>}
+        {command.kind==='save_configuration'&&<SchoolConfigurationEditor value={command.configuration} subjects={command.subjects} createYear={command.mode==='create_year'} disabled={!editable} onChange={(configuration,subjects)=>change({configuration,subjects})} batch={{
+          scope:{schoolId:member.schoolId,schoolYear:command.configuration.schoolYear},sourceVersion:snapshot?.version??command.expectedVersion,expectedVersion:command.expectedVersion,input:session.batch,
+          onInput:batch=>{if(!editable||operation.current)return;update({...latest.current,batch,reviewing:false});setIssues([]);setError('')},
+          onApply:value=>{if(!editable||operation.current||latest.current.command?.kind!=='save_configuration')return;update({...latest.current,batch:undefined,reviewing:false,command:{...latest.current.command,...value}});setIssues([]);setError('')},
+        }}/>}
         <fieldset className="setup-fields" disabled={!editable}><legend className="setup-sr-only">관리 변경 내용</legend><div className="setup-grid">
           {command.kind==='assign_duty'&&<>
             {selection('담당 교사','assignment-member',command.memberId,value=>change({memberId:value}),assignable.map(item=>({value:item.id,label:item.name})))}
