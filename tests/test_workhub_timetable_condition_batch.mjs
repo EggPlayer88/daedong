@@ -75,4 +75,44 @@ check('같은 이름 수업의 선호 미리보기는 각 수업 ID를 표시한
   for (const lesson of [b.lessons[0], b.lessons[2]]) assert.ok(p.rows.some(row => row.startsWith(`국어 1회 [${lesson.id}] · `)))
   assert.equal(p.conditions.preferences.filter(row => [b.lessons[0].id, b.lessons[2].id].includes(row.lessonId)).length, 2)
 })
+const slotAction = (patch = {}) => ({ kind: 'unavailable', resourceIds: ['practice-teacher-a'], slotIds: ['practice-1-1', 'practice-3-2'], weight: 3, ...patch })
+check('서로 다른 요일·교시를 실제 시간대로 한 번에 반영하고 선택하지 않은 시각은 만들지 않는다', () => {
+  const b = basis(), current = conditions(b), p = m.previewConditionBatch(b, current, slotAction())
+  assert.deepEqual(p.conditions.unavailable, [{ resourceId: 'practice-teacher-a', day: 1, startMinute: 540, endMinute: 585 }, { resourceId: 'practice-teacher-a', day: 3, startMinute: 595, endMinute: 640 }])
+  assert.equal(p.rows.length, 2); assert.equal(current.unavailable.length, 0); assert.deepEqual(m.applyConditionBatch(b, current, p), p.conditions)
+})
+check('같은 실제 시각의 학년별 시간대는 중복 불가를 만들지 않는다', () => {
+  const b = basis(); b.slots.push({ ...b.slots[0], id: 'other-grade-slot' })
+  const p = m.previewConditionBatch(b, conditions(b), slotAction({ slotIds: [b.slots[0].id, 'other-grade-slot'] }))
+  assert.equal(p.rows.length, 1); assert.equal(p.conditions.unavailable.length, 1); assert.deepEqual(p.action.slotIds, ['other-grade-slot', 'practice-1-1'])
+})
+check('선택 순서가 달라도 실제 시간대 조건의 미리보기와 결과는 같다', () => {
+  const b = basis(), a = slotAction({ resourceIds: ['practice-teacher-a', 'practice-teacher-b'] }), p = m.previewConditionBatch(b, conditions(b), a)
+  a.resourceIds.reverse(); a.slotIds.reverse(); assert.deepEqual(m.previewConditionBatch(b, conditions(b), a), p)
+})
+check('실제 시간대의 선호는 공동 수업·겹친 연속 시간에 중복 가산하지 않는다', () => {
+  const b = basis(); b.slots.push({ id: 'long-slot', day: 1, label: '연속', startMinute: 540, endMinute: 640, periods: 2 }); b.preferences.push({ lessonId: b.lessons[0].id, slotId: b.slots[0].id, weight: 8 })
+  const p = m.previewConditionBatch(b, conditions(b), slotAction({ kind: 'preferences', resourceIds: ['practice-teacher-a', 'practice-class-a'], slotIds: ['long-slot', 'practice-1-1'] }))
+  assert.equal(p.conditions.preferences.find(row => row.lessonId === b.lessons[0].id && row.slotId === b.slots[0].id).weight, 8)
+  assert.equal(new Set(p.conditions.preferences.map(row => row.lessonId + ':' + row.slotId)).size, p.conditions.preferences.length)
+  assert.ok(p.conditions.preferences.every(row => row.slotId === 'practice-1-1' || row.slotId === 'practice-1-2'))
+})
+check('빈·삭제·중복 시간대와 범위 입력을 섞은 명령은 전체 거절한다', () => {
+  const b = basis(), current = conditions(b)
+  for (const patch of [{ slotIds: [] }, { slotIds: ['missing'] }, { slotIds: ['practice-1-1', 'practice-1-1'] }, { days: [1] }, { slotIds: null }, { weight: 0 }]) assert.throws(() => m.previewConditionBatch(b, current, slotAction(patch)))
+  assert.equal(current.unavailable.length, 0)
+})
+check('시간대 선택 뒤 시각·권한자료가 바뀌면 기존 미리보기를 재사용하지 않는다', () => {
+  const b = basis(), current = conditions(b), p = m.previewConditionBatch(b, current, slotAction()), changed = structuredClone(b)
+  changed.slots[0].startMinute++; assert.throws(() => m.applyConditionBatch(changed, current, p), /바뀌었습니다/)
+  const altered = structuredClone(p); altered.action.slotIds.pop(); assert.throws(() => m.applyConditionBatch(b, current, altered), /미리보기 내용/)
+})
+check('시간대 선택은 미반영 입력으로 보존되지만 보기 방식만 바꾸면 잠그지 않는다', () => {
+  assert.equal(m.hasConditionBatchInput({ ...m.initialConditionBatch(), inputMode: 'slots' }), false)
+  assert.equal(m.hasConditionBatchInput({ ...m.initialConditionBatch(), inputMode: 'slots', slotIds: ['practice-1-1'] }), true)
+})
+check('실제 시간대 불가가 학교 고정과 충돌해도 학교 조건을 지우거나 선호로 낮추지 않는다', () => {
+  const b = basis(); b.fixed.push({ lessonId: b.lessons[0].id, slotId: b.slots[0].id }); const p = m.previewConditionBatch(b, conditions(b), slotAction())
+  assert.deepEqual(p.conditions.fixed, b.fixed); assert.equal(p.conditions.preferences.length, 0); assert.ok(p.warnings.some(row => row.includes('배치할 시간 없음')))
+})
 console.log(`시간표 조건 일괄 입력 검사: ${count}개 통과`)

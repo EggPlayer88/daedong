@@ -15,7 +15,7 @@ type CourseInput = { classIds: string[]; studentGroup: boolean; spaceIds: string
 type Edit = { termId: string; referenceDay: string } & (
   { kind: 'space'; original: Space | null; input: { kind: Space['kind']; label: string; capacity: string }; removing: boolean }
   | { kind: 'course'; original: Course; input: CourseInput })
-interface Props { server?: SetupServer; member: Membership; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: () => void; onOpenSchoolAdmin?: () => void }
+interface Props { server?: SetupServer; member: Membership; expectedTermId?: string | null; refreshRevision?: number; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: () => void; onOpenSchoolAdmin?: () => void }
 const PAGE_SIZE = 20
 const display = (row: { label: string; id: string }) => `${row.label} [${row.id}]`
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '')
@@ -66,7 +66,7 @@ export function TimetableSetupPanel(props: Props) {
   current.current = { props, scope }
   const pending = recovery.request, locked = busy || Boolean(pending)
   const source = loadedScope === scope ? snapshot : undefined
-  const visible = Boolean(source && !loading && !loadError && !props.disabled)
+  const visible = Boolean((props.expectedTermId === undefined || source?.termId === props.expectedTermId) && source && !loading && !loadError && !props.disabled)
   const stale = Boolean(edit && source && isStale(edit, source))
   const canEdit = visible && !locked && !batchLocked && Boolean(source?.canEdit)
   const patch = (next: Edit | undefined) => { setEdit(next); memory.save(next, Boolean(next)); setPreview(false); setConfirmed(false); setDiscarding(false); setError(''); setNotice('') }
@@ -90,7 +90,7 @@ export function TimetableSetupPanel(props: Props) {
       setSnapshot(undefined); setLoadedScope(''); setLoadError(message(failure))
     }).finally(() => { if (!cancelled && current.current.scope === token) setLoading(false) })
     return () => { cancelled = true }
-  }, [opened, props.server, props.member.id, props.disabled, scope, reload])
+  }, [opened, props.server, props.member.id, props.disabled, scope, reload, props.expectedTermId, props.refreshRevision])
 
   const filteredCourses = useMemo(() => source?.courses.filter(course => {
     const linked = Boolean(course.link?.studentGroup || course.link?.classIds.length)
