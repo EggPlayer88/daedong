@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 const bundle = buildSync({ entryPoints: [fileURLToPath(new URL('./workhub-collection-submission-list-fixture.tsx', import.meta.url))], bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' }).outputFiles[0].text
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 320, height: 800 } }), page = await context.newPage(), errors = [], external = []
@@ -11,6 +13,8 @@ const pages = () => page.getByRole('navigation', { name: '제출 현황 페이�
 const unit = n => page.getByRole('article', { name: `${n}번 제출 단위 제출 현황`, exact: true })
 const writes = () => page.evaluate(() => window.qa.calls.filter(c => c.name === 'workhub_collection_mutate'))
 let count = 0
+const output = process.env.WORKHUB_QA_OUTPUT
+if (output) mkdirSync(output, { recursive: true })
 async function test(name, run) {
   await page.goto('http://127.0.0.1:5179/collections'); await page.addScriptTag({ content: bundle })
   await page.getByRole('button', { name: /45개 단위 운영 자료/ }).click(); await bench().waitFor()
@@ -40,6 +44,7 @@ try {
     await bench().getByRole('button', { name: '검토 대기 18', exact: true }).click(); assert.equal(await unit(5).count(), 1)
     assert.match(await unit(5).innerText(), /새 제출의 검토가 끝나기 전에는 완료본 v1이 유지됩니다/)
     assert.equal((await writes()).length, 0)
+    if (output) await page.screenshot({ path: join(output, 'collection-submission-list-320.png'), fullPage: true })
   })
   await test('동명 교사 이름은 두 단위를 찾고 소속 번호는 정확한 한 단위를 찾는다', async () => {
     const search = bench().getByLabel('제출 단위·교사 찾기', { exact: true })
@@ -74,5 +79,5 @@ try {
     await openReview27(); await page.evaluate(() => { window.qa.denyDetail = true; window.qa.refresh() }); await bench().waitFor({ state: 'detached' })
     assert.equal(await page.getByLabel('검토 의견', { exact: true }).count(), 0); assert.equal(await unit(27).count(), 0); assert.equal((await writes()).length, 0)
   })
-  assert.deepEqual(errors, []); assert.deepEqual(external, []); console.log(`수합 제출 단위 찾기 브라우저 ${count}건 통과 · 실제 RPC/외부 접속 0`)
+  assert.deepEqual(errors, []); assert.deepEqual(external, []); if (output) writeFileSync(join(output, 'collection-submission-list-results.json'), JSON.stringify({ passed: count, errors, external }, null, 2)); console.log(`수합 제출 단위 찾기 브라우저 ${count}건 통과 · 실제 RPC/외부 접속 0`)
 } finally { await context.close(); await browser.close() }

@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 const bundle = buildSync({ entryPoints: [fileURLToPath(new URL('./workhub-messaging-deliveries-fixture.tsx', import.meta.url))], bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' }).outputFiles[0].text
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 320, height: 800 } }), page = await context.newPage(), errors = [], external = []
 page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message))
 await context.route('**/*', route => route.request().url().startsWith('http://127.0.0.1:5179/') ? route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div></body></html>' }) : (external.push(route.request().url()), route.abort()))
 let count = 0
+const output = process.env.WORKHUB_QA_OUTPUT
+if (output) mkdirSync(output, { recursive: true })
 const result = () => page.getByRole('region', { name: '최근 발송 결과', exact: true })
 const writes = () => page.evaluate(() => window.qa.calls.filter(c => c.name === 'workhub_message_mutate'))
 async function test(name, run) {
@@ -35,6 +39,7 @@ try {
     assert.equal(calls.at(-1).args.p_thread_id, 'thread-recipient-a'); assert.equal((await writes()).length, 1)
     assert.equal(await page.getByRole('region', { name: '선택한 대화' }).getByRole('heading').evaluate(el => el === document.activeElement), true)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
+    if (output) await page.screenshot({ path: join(output, 'messaging-deliveries-320.png'), fullPage: true })
   })
   await test('수신자 검색은 발송된 대화만 좁히며 읽음·재전송하지 않는다', async () => {
     await compose(); await send(); await result().waitFor(); await result().getByLabel('발송 결과에서 받는 사람 찾기').fill('recipient-b')
@@ -84,5 +89,5 @@ try {
     assert.equal(await result().count(), 0); await page.getByRole('button', { name: '이전 요청 그대로 다시 확인' }).click(); await result().waitFor()
     const calls = await writes(); assert.deepEqual(calls[0].args, calls[1].args); assert.equal(await page.evaluate(() => window.qa.writes), 1)
   })
-  assert.deepEqual(errors, []); assert.deepEqual(external, []); console.log(`메시지 발송 결과 브라우저 ${count}건 통과 · 실제 RPC/외부 접속 0`)
+  assert.deepEqual(errors, []); assert.deepEqual(external, []); if (output) writeFileSync(join(output, 'messaging-deliveries-results.json'), JSON.stringify({ passed: count, errors, external }, null, 2)); console.log(`메시지 발송 결과 브라우저 ${count}건 통과 · 실제 RPC/외부 접속 0`)
 } finally { await context.close(); await browser.close() }
