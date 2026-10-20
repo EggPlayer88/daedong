@@ -43,6 +43,7 @@ import { TimetableTargetPanel, type TargetPanelState } from './TimetableTargetPa
 import { scopeTimetableServers, targetScopeKey } from './target-scope'
 export { TimetableBoard } from './TimetableBoard'
 const TimetableOperationsWorkspace = lazy(() => import('./TimetableOperationsWorkspace').then(module => ({ default: module.TimetableOperationsWorkspace })))
+const TimetablePilotPanel = lazy(() => import('./pilot/TimetablePilotPanel').then(module => ({ default: module.TimetablePilotPanel })))
 const TimetableWorkbookPanel = lazy(() => import('./TimetableWorkbookPanel').then(module => ({ default: module.TimetableWorkbookPanel })))
 const TimetableCandidateLibrary = lazy(() => import('./TimetableCandidateLibrary').then(module => ({ default: module.TimetableCandidateLibrary })))
 const TimetableEnginePanel = lazy(() => import('./TimetableEnginePanel').then(module => ({ default: module.TimetableEnginePanel })))
@@ -80,9 +81,9 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   const preparationServer = useMemo(() => createPreparationServer(props.connection), [props.connection])
   const setupServer = useMemo(() => createTimetableSetupServer(props.connection), [props.connection])
   const targetServer = useMemo(() => createTimetableTargetServer(props.connection), [props.connection])
-  const route = useEditDraft<'editor' | 'operations'>(props.member, 'timetable-entry')
+  const route = useEditDraft<'editor' | 'operations' | 'pilot'>(props.member, 'timetable-entry')
   const recovery = usePendingRequest(props.member, 'timetableOperations')
-  const [mode, setMode] = useState<'editor' | 'operations'>(() => recovery.request || (props.initialLessonId !== undefined || props.initialRequestId !== undefined) ? 'operations' : route.initial ?? 'editor')
+  const [mode, setMode] = useState<'editor' | 'operations' | 'pilot'>(() => recovery.request || (props.initialLessonId !== undefined || props.initialRequestId !== undefined) ? 'operations' : route.initial ?? 'editor')
   const [locked, setLocked] = useState(false)
   const [publicationDraft, setPublicationDraft] = useState<{ id: string; version: number }>()
   const consumePublicationDraft = useCallback(() => setPublicationDraft(undefined), [])
@@ -90,7 +91,7 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
     setLocked(value)
     props.onNavigationLockChange?.(value)
   }, [props.onNavigationLockChange])
-  function navigate(next: 'editor' | 'operations') {
+  function navigate(next: 'editor' | 'operations' | 'pilot') {
     if (locked || next === mode) return
     route.save(next, false)
     setMode(next)
@@ -103,9 +104,11 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
     <nav aria-label="시간표 작업 구분" className="timetable-entry-navigation" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
       <button type="button" className="secondary" aria-pressed={mode === 'editor'} disabled={locked && mode !== 'editor'} onClick={() => navigate('editor')}>내 수업·편성</button>
       <button type="button" className="secondary" aria-pressed={mode === 'operations'} disabled={locked && mode !== 'operations'} onClick={() => navigate('operations')}>확정·공유·교환</button>
+      <button type="button" className="secondary" aria-pressed={mode === 'pilot'} disabled={locked && mode !== 'pilot'} onClick={() => navigate('pilot')}>9학급 운영 연습</button>
     </nav>
     {mode === 'editor'
       ? <TimetableWorkspacePanel {...props} server={server} assistantServer={assistantServer} preparationServer={preparationServer} setupServer={setupServer} targetServer={targetServer} onOpenOperations={openPublication} onNavigationLockChange={notifyLock} />
+      : mode === 'pilot' ? <Suspense fallback={<p role="status">학교 운영 연습을 준비하는 중…</p>}><TimetablePilotPanel scope={JSON.stringify([props.member.schoolId, props.member.userId])} member={props.member} connection={props.connection} onNavigationLockChange={notifyLock} /></Suspense>
       : <Suspense fallback={<p role="status">시간표 운영 화면을 준비하는 중…</p>}><TimetableOperationsWorkspace {...props} initialDraftId={publicationDraft?.id} initialDraftVersion={publicationDraft?.version} onInitialDraftConsumed={consumePublicationDraft} onNavigationLockChange={notifyLock} /></Suspense>}
   </>
 }

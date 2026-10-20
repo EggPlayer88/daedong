@@ -1,0 +1,41 @@
+{
+  "id": "daedong-legacy-first-term-pilot",
+  "schoolId": "pilot-daedong",
+  "revision": 1,
+  "label": "1학기 시드 기반 9학급 운영 연습",
+  "source": {
+    "kind": "legacy-synthetic-seed",
+    "sha256": "d7014ef433c38dd0bdf2ad661a3c89f3fd49a17b7943c1c96f58d3507d34ec34",
+    "originalCollisionCount": 90,
+    "notes": [
+      "backup/v1_timetables_data.csv의 2026학년도 1학기 (시드) 행을 바탕으로 한 개발용 자료입니다. 실제 확정 시간표가 아닙니다.",
+      "원본 9학급·279칸의 과목과 요일·교시는 유지하고, 학년별 가상 교사 18명으로 나눠 중복 90건을 없애고 교환 연습용 공강을 확보했습니다.",
+      "교과 이름은 2학기 변경 전 b2d05ce:src/lib/timetableData.js의 번호를 따릅니다.",
+      "목요일 7교시 창체 담당, 종소리, 공간과 동시 수업 수는 운영 연습용 임시값입니다.",
+      "날짜는 과거 시드의 표시 기간이며 현재 학교의 공식 학사일정으로 사용하지 않습니다."
+    ]
+  },
+  "classLabels": ["1학년 1반", "1학년 2반", "1학년 3반", "2학년 1반", "2학년 2반", "2학년 3반", "3학년 1반", "3학년 2반", "3학년 3반"],
+  "subjects": [
+    {"id": "s1", "label": "국어", "legacyTeacherId": "t2"},
+    {"id": "s5", "label": "수학", "legacyTeacherId": "t7"},
+    {"id": "s14", "label": "영어", "legacyTeacherId": "t20"},
+    {"id": "s8", "label": "과학", "legacyTeacherId": "t12"},
+    {"id": "s2", "label": "사회", "legacyTeacherId": "t4"},
+    {"id": "s9", "label": "체육", "legacyTeacherId": "t14"}
+  ],
+  "regularPeriodsPerDay": [6, 6, 6, 6, 6],
+  "special": {"weekday": 4, "period": 7, "label": "창체"},
+  "daySlots": [
+    {"period": 1, "startTime": "09:00", "endTime": "09:45"},
+    {"period": 2, "startTime": "09:55", "endTime": "10:40"},
+    {"period": 3, "startTime": "10:50", "endTime": "11:35"},
+    {"period": 4, "startTime": "11:45", "endTime": "12:30"},
+    {"period": 5, "startTime": "13:20", "endTime": "14:05"},
+    {"period": 6, "startTime": "14:15", "endTime": "15:00"},
+    {"period": 7, "startTime": "15:10", "endTime": "15:55"}
+  ],
+  "roomCapacity": 1,
+  "dateRange": {"startsOn": "2026-03-02", "endsOn": "2026-08-15"},
+  "defaultDate": "2026-03-09"
+}
