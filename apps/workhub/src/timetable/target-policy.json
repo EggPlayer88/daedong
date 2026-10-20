@@ -1,0 +1,8 @@
+{
+  "maxTerms": 20,
+  "minSchoolYear": 2020,
+  "maxSchoolYear": 2100,
+  "maxTermLabel": 30,
+  "maxVersion": 2147483647,
+  "minRequestKeyLength": 8
+}

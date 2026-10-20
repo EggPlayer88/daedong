@@ -1,5 +1,7 @@
 # 시간표 구축 — 편성, 교사 조회, 날짜별 변경
 
+> 2026-10-19 PR #70 추가 통합: [대상 학기 선택](target-selection.md), [U-1 날짜가 지난 준비 엑셀](setup-workbook-day.md), [U-2 일괄 저장 충돌 복구](setup-conflict-recovery.md). #71 계약에 맞춘 앱 작업이며 DB 적용은 포함하지 않는다. [최신 검증](flow-verification.md), [Claude 전달문](flow-review-request.md).
+
 > 2026-10-19 일괄 준비 후속: [공간·연결·시수 엑셀·순차 저장·입력 점검](setup-batch-implementation.md), [Claude 검토 요청](setup-batch-review-request.md). #68 준비 화면 위에 묶었으며 추가 SQL은 없다.
 
 > 2026-10-19 후속: [공간·정원·수업↔학급 준비 입력](setup-implementation.md), [Claude 검토 요청](setup-review-request.md). T1 setup 계약을 실제 준비 화면에 연결하고 시수·일과 보존과 원키 복구를 보완했다. DB 적용은 포함하지 않는다.
@@ -126,3 +128,9 @@ AI는 수업의 가능 여부를 보증하는 주체가 아니다. 조건과 배
 - [확정·공유·교환 화면 구축](operations-implementation.md)
 - [확정·교환 API 인계](operations-api.md)
 - [운영 화면 검증 기록](operations-verification.md)
+
+## 편성 흐름 통합 후속 작업
+
+- [조건→생성→후보 비교→저장→확정·운영 통합](flow-completion.md)
+- [자동 검증 기록](flow-verification.md)
+- [Claude 통합 검토 요청](flow-review-request.md)

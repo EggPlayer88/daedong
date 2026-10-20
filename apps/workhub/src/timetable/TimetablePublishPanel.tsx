@@ -12,6 +12,7 @@ interface PublishForm { draftId: string; draftVersion: number; from: string; las
 interface Props {
   server: TimetableOperationsServer; member: Membership; view: OperationsView | null; loading: boolean; locked: boolean
   onCommand: (command: OperationCommand) => Promise<OperationReceipt>; onDirtyChange: (dirty: boolean) => void
+  initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void
   extensions?: OperationsExtensions
   onPublicationCommand?: (command: PublicationCommitCommand) => Promise<PublicationCommitReceipt>
   onPublicationBusyChange?: (busy: boolean) => void
@@ -19,12 +20,13 @@ interface Props {
 const message = (error: unknown) => error instanceof ServiceError ? error.message : '검토 결과를 확인하지 못했습니다. 입력을 보관했습니다.'
 const blank = (view: OperationsView | null): PublishForm => ({ draftId: '', draftVersion: 0, from: view?.from ?? '', lastDay: view ? dateOffset(view.until, -1) : '', dirty: false })
 
-export function TimetablePublishPanel({ server, member, view, loading, locked, onCommand, onDirtyChange, extensions, onPublicationCommand, onPublicationBusyChange }: Props) {
+export function TimetablePublishPanel({ server, member, view, loading, locked, onCommand, onDirtyChange, extensions, onPublicationCommand, onPublicationBusyChange, initialDraftId, initialDraftVersion, onInitialDraftConsumed }: Props) {
   const id = useId(), memory = useEditDraft<PublishForm>(member, 'timetable-publish')
   const [form, setForm] = useState(() => memory.initial ?? blank(view)), [preview, setPreview] = useState<PublishPreview>()
   const [confirmed, setConfirmed] = useState(false), [previewing, setPreviewing] = useState(false), [error, setError] = useState('')
   const [now, setNow] = useState(Date.now), [discard, setDiscard] = useState(false)
-  const [publicationBusy, setPublicationBusy] = useState(false)
+  const [publicationBusy, setPublicationBusy] = useState(false), [linkNotice, setLinkNotice] = useState('')
+  const linkedDraft = useRef('')
   const epoch = useRef(0), requestRunning = useRef(false), current = useRef({ view, form, locked }), feedback = useRef<HTMLDivElement>(null)
   current.current = { view, form, locked }
   const identity = view ? canonical(view) : ''
@@ -39,9 +41,19 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
   const currentPreview = Boolean(preview && source.current === identity && canonical(preview.input) === canonical(input) && !expired)
   const blocked = Boolean(preview && (preview.blockers.length || preview.preserved.existingChanges === 'blocked'))
   const canCommit = allowed && !locked && !previewing && !publicationBusy && currentPreview && confirmed && !blocked
-  function update(next: PublishForm) { setForm(next); memory.save(next.dirty ? next : undefined); setPreview(undefined); setConfirmed(false); setError(''); setDiscard(false); epoch.current++ }
+  function update(next: PublishForm) { setLinkNotice(''); setForm(next); memory.save(next.dirty ? next : undefined); setPreview(undefined); setConfirmed(false); setError(''); setDiscard(false); epoch.current++ }
+  useEffect(() => {
+    if (!initialDraftId || !Number.isSafeInteger(initialDraftVersion) || initialDraftVersion! < 1 || !view || loading || locked) return
+    const key = JSON.stringify([initialDraftId, initialDraftVersion])
+    if (linkedDraft.current === key) return
+    linkedDraft.current = key; onInitialDraftConsumed?.()
+    if (form.dirty) { setLinkNotice('작성 중인 확정 입력을 보존했습니다. 연결한 초안으로 자동 교체하지 않습니다.'); return }
+    if (!view.canPublish || !view.drafts.some(row => row.id === initialDraftId && row.version === initialDraftVersion)) { setLinkNotice('편성 화면에서 연결한 초안의 현재 판이나 확정 권한을 확인할 수 없습니다. 최신 저장 초안을 직접 선택해 주세요.'); return }
+    const next = { ...blank(view), draftId: initialDraftId, draftVersion: initialDraftVersion!, dirty: true }
+    setForm(next); memory.save(next, true); setPreview(undefined); setConfirmed(false); setLinkNotice('편성 화면에서 저장한 초안을 선택했습니다. 적용 기간을 정하고 변경 영향을 확인해 주세요. 아직 학교 시간표로 확정하지 않았습니다.')
+  }, [initialDraftId, initialDraftVersion, view, loading, locked, form.dirty, onInitialDraftConsumed])
   useEffect(() => { onDirtyChange(form.dirty || previewing || publicationBusy); return () => onDirtyChange(false) }, [form.dirty, previewing, publicationBusy, onDirtyChange])
-  useEffect(() => { if (!form.dirty && view) setForm(blank(view)) }, [view, form.dirty])
+  useEffect(() => { if (!form.dirty && view && !initialDraftId) setForm(blank(view)) }, [view, form.dirty, initialDraftId])
   useEffect(() => { epoch.current++; setPreview(undefined); setConfirmed(false); setPreviewing(false); requestRunning.current = false; source.current = identity }, [identity])
   useEffect(() => () => { epoch.current++; requestRunning.current = false }, [])
   useEffect(() => { if (!preview) return; const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [preview])
@@ -73,11 +85,13 @@ export function TimetablePublishPanel({ server, member, view, loading, locked, o
   if (!allowed) return <section className="ttops-card" aria-labelledby={`${id}-title`}>
     <h3 id={`${id}-title`}>시간표 확정</h3>
     <p>{loading ? '공개 권한과 저장된 초안을 확인하는 중입니다.' : '시간표 확정 담당 권한과 서버 준비 상태가 확인되어야 초안을 열 수 있습니다.'}</p>
+    {linkNotice && <p role="status">{linkNotice}</p>}
     {form.dirty && <p className="ttops-muted">작성 중인 입력은 현재 탭에 보관했습니다. 다시 연결되면 이어서 확인할 수 있습니다.</p>}
   </section>
   return <section className="ttops-card" aria-labelledby={`${id}-title`}>
     <h3 id={`${id}-title`}>저장한 초안을 학교 시간표로 확정</h3>
     <p className="ttops-muted">초안과 적용 기간을 고른 뒤, 실제로 달라질 수업을 확인하세요. 미리보기만으로 시간표가 바뀌지 않습니다.</p>
+    {linkNotice && <p role="status">{linkNotice}</p>}
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="ttops-error">{error}</p>}</div>
     {!view?.drafts.length && <p role="status">공개할 수 있는 저장 초안이 없습니다. 편성 화면에서 초안을 먼저 저장해 주세요.</p>}
     <fieldset disabled={locked || previewing || publicationBusy} className="ttops-fields">

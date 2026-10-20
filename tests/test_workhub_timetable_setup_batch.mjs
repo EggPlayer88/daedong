@@ -158,7 +158,7 @@ await check('기억장소 저장 실패 뒤에는 서버 쓰기를 시작하지 
 })
 for (const [name, mutate] of [
   ['명령 변경', b => b.jobs[0].command.input.capacity = 99], ['원키 변경', b => b.jobs[0].requestKey = 'other-request'], ['승인 원본 변경', b => b.source.spaces[0].capacity = 99],
-  ['범위 변경', b => b.scope.memberId = 'other-member'], ['항목 바꿔치기', b => b.jobs.reverse()], ['성공 표시만 변경', b => b.jobs[0].status = 'saved'],
+  ['범위 변경', b => b.scope.memberId = 'other-member'], ['항목 바꿔치기', b => b.jobs.reverse()], ['성공 표시만 변경', b => b.jobs[0].status = 'saved'], ['현재 값 유지 표시만 변경', b => b.jobs[0].status = 'skipped'],
 ]) await check('보관 자료 변조는 서버 호출 전에 거절한다: ' + name, async () => {
   const f = fake(), bad = batch(); mutate(bad); await assert.rejects(() => m.runSetupBatch(bad, f.server), code('INVALID_INPUT')); assert.equal(f.calls.length, 0)
 })
@@ -180,4 +180,93 @@ for (const lost of [false, true]) await check('자기 연결로 해소된 학생
   if(lost){assert.equal(value.phase,'unknown');value=await m.recoverSetupBatch(value,f.server);value=await m.runSetupBatch(value,f.server)}
   assert.equal(value.phase,'complete');assert.equal(f.calls.filter(row=>row.kind==='execute').length,2);assert.equal(value.jobs.filter(row=>row.status==='saved').length,2)
 })
+
+const mine = review => Object.fromEntries(review.items.map(row => [row.id, 'mine']))
+async function conflictBatch(commands = [space, course]) {
+  const f = fake(); f.source.spaces[0].capacity = 9; f.source.spaces[0].version = 8
+  const stopped = await m.runSetupBatch(batch(commands), f.server)
+  return { f, stopped, review: m.previewSetupBatchConflict(stopped, f.source, scope) }
+}
+await check('U2 최신 판 변경 충돌을 원키 재실행하지 않고 읽기 비교·명시 재승인 후 새키로 저장한다', async () => {
+  const { f, stopped, review } = await conflictBatch(); const before = f.calls.length
+  await assert.rejects(() => m.runSetupBatch(stopped, f.server), code('CONFLICT')); assert.equal(f.calls.length, before)
+  assert.match(review.items[0].current.join(' '), /9/); assert.equal(review.items[0].command.expectedVersion, 8)
+  const revised = m.approveSetupBatchConflict(stopped, review, mine(review), scope, () => 'new-conflict-key')
+  assert.equal(f.calls.length, before); assert.equal(revised.jobs[0].requestKey, 'new-conflict-key'); assert.equal(revised.jobs[1].requestKey, 'request-key-2')
+  assert.deepEqual(revised.jobs[0].replacedRequests, [{ command: space, requestKey: 'request-key-1' }])
+  const result = await m.runSetupBatch(revised, f.server)
+  assert.equal(result.phase, 'complete'); assert.equal(f.source.spaces[0].capacity, 2); assert.deepEqual(f.calls.filter(row => row.kind === 'execute').map(row => row.key), ['new-conflict-key', 'request-key-2'])
+})
+await check('U2 앞선 완료 접수증은 그대로 두고 두 번째 충돌만 새 판으로 이어 저장한다', async () => {
+  const f = fake(); let gets = 0
+  f.beforeGet(() => { if (++gets === 2) f.source.courses[0].link = { version: 3, studentGroup: true, classIds: [], spaceIds: [] } })
+  const stopped = await m.runSetupBatch(batch(), f.server), receipt = clone(stopped.jobs[0])
+  assert.equal(stopped.jobs[0].status, 'saved'); assert.equal(stopped.jobs[1].errorCode, 'CONFLICT')
+  const review = m.previewSetupBatchConflict(stopped, f.source, scope), revised = m.approveSetupBatchConflict(stopped, review, mine(review), scope, () => 'next-conflict-key')
+  assert.deepEqual(revised.jobs[0], receipt); assert.equal(revised.jobs[1].command.expectedVersion, 3)
+  assert.equal((await m.runSetupBatch(m.restoreSetupBatch(revised, scope), f.server)).phase, 'complete')
+  assert.deepEqual(f.calls.filter(row => row.kind === 'execute').map(row => row.key), ['request-key-1', 'next-conflict-key'])
+})
+await check('U2 현재 서버 유지를 고른 행은 저장하지 않고 남은 행만 원래 미전송 키로 보낸다', async () => {
+  const { f, stopped, review } = await conflictBatch()
+  const choices = mine(review); choices[review.items[0].id] = 'server'
+  const revised = m.approveSetupBatchConflict(stopped, review, choices, scope, () => { throw Error('새 키 불필요') })
+  assert.equal(revised.jobs[0].status, 'skipped'); assert.equal(revised.jobs[0].command.expectedVersion, 3)
+  const result = await m.runSetupBatch(revised, f.server)
+  assert.equal(result.phase, 'complete'); assert.equal(f.source.spaces[0].capacity, 9)
+  assert.deepEqual(f.calls.filter(row => row.kind === 'execute').map(row => row.key), ['request-key-2'])
+})
+await check('U2 전부 현재 값 유지를 선택하면 쓰기 없이 종료하고 입력·원키는 결과에 보존한다', async () => {
+  const { f, stopped, review } = await conflictBatch()
+  const revised = m.approveSetupBatchConflict(stopped, review, Object.fromEntries(review.items.map(row => [row.id, 'server'])), scope)
+  const count = f.calls.length; assert.equal(revised.phase, 'complete'); await m.runSetupBatch(revised, f.server); assert.equal(f.calls.length, count)
+  assert.deepEqual(revised.jobs.map(row => [row.command, row.requestKey]), stopped.jobs.map(row => [row.command, row.requestKey]))
+})
+await check('U2 삭제된 대상은 내 입력 덮어쓰기를 허용하지 않고 현재 유지 선택만 허용한다', async () => {
+  const { f, stopped } = await conflictBatch(); f.source.spaces.shift()
+  const review = m.previewSetupBatchConflict(stopped, f.source, scope)
+  assert.equal(review.items[0].command, null); assert.equal(review.items[0].errorCode, 'NOT_FOUND')
+  assert.throws(() => m.approveSetupBatchConflict(stopped, review, mine(review), scope), code('INVALID_INPUT'))
+  const choices = Object.fromEntries(review.items.map(row => [row.id, 'server']))
+  assert.equal(m.approveSetupBatchConflict(stopped, review, choices, scope).phase, 'complete')
+})
+await check('U2 선택 누락·새키 재사용·비교결과 변조는 쓰기 전에 거부한다', async () => {
+  const { stopped, review } = await conflictBatch()
+  for (const choices of [{}, { [review.items[0].id]: 'mine' }, { ...mine(review), fake: 'mine' }, { ...mine(review), [review.items[0].id]: 'auto' }]) assert.throws(() => m.approveSetupBatchConflict(stopped, review, choices, scope), code('INVALID_INPUT'))
+  assert.throws(() => m.approveSetupBatchConflict(stopped, review, mine(review), scope, () => 'request-key-2'), code('INVALID_INPUT'))
+  const bad = clone(review); bad.items[0].command.input.capacity = 99
+  assert.throws(() => m.approveSetupBatchConflict(stopped, bad, mine(bad), scope), code('INVALID_INPUT'))
+})
+await check('U2 unknown·not_found는 새키·새명령 재계획을 허용하지 않는다', async () => {
+  const f = fake(); f.error('RESULT_UNKNOWN'); const unknown = await m.runSetupBatch(batch(), f.server)
+  assert.throws(() => m.previewSetupBatchConflict(unknown, f.source, scope), code('RESULT_UNKNOWN'))
+  const missing = await m.recoverSetupBatch(unknown, f.server)
+  assert.throws(() => m.previewSetupBatchConflict(missing, f.source, scope), code('RESULT_UNKNOWN'))
+  assert.deepEqual(missing.jobs[0].command, space); assert.equal(missing.jobs[0].requestKey, 'request-key-1')
+})
+await check('U2 다른 학기·학교·소속·역할의 원본으로 재승인하지 않는다', async () => {
+  const { stopped, f, review } = await conflictBatch()
+  assert.throws(() => m.previewSetupBatchConflict(stopped, { ...f.source, termId: 'next-term' }, scope), code('CONFLICT'))
+  for (const changed of [{ ...scope, schoolId: 'other' }, { ...scope, memberId: 'other' }, { ...scope, scopeKey: 'different-role' }]) assert.throws(() => m.approveSetupBatchConflict(stopped, review, mine(review), changed), code('CANCELLED'))
+})
+await check('U2 재검토 이후 다시 바뀐 자료는 쓰기 전 또 충돌시키고 이전 승인으로 덮지 않는다', async () => {
+  const { stopped, f, review } = await conflictBatch()
+  const revised = m.approveSetupBatchConflict(stopped, review, mine(review), scope, () => 'new-first-key')
+  f.source.spaces[0].version++; f.source.spaces[0].capacity = 10
+  const again = await m.runSetupBatch(revised, f.server)
+  assert.equal(again.jobs[0].errorCode, 'CONFLICT'); assert.equal(f.calls.filter(row => row.kind === 'execute').length, 0)
+  const againReview = m.previewSetupBatchConflict(again, f.source, scope), next = m.approveSetupBatchConflict(again, againReview, mine(againReview), scope, () => 'new-second-key')
+  assert.deepEqual(next.jobs[0].replacedRequests.map(row => row.requestKey), ['request-key-1', 'new-first-key'])
+  assert.equal((await m.runSetupBatch(next, f.server)).phase, 'complete')
+})
+await check('U2 새 승인 뒤 응답 유실도 새로 승인된 원키로 복구하고 완료 행은 재전송하지 않는다', async () => {
+  const { stopped, f, review } = await conflictBatch()
+  const revised = m.approveSetupBatchConflict(stopped, review, mine(review), scope, () => 'new-unknown-key')
+  f.error('drop'); const unknown = await m.runSetupBatch(revised, f.server)
+  assert.equal(unknown.phase, 'unknown'); assert.throws(() => m.previewSetupBatchConflict(unknown, f.source, scope), code('RESULT_UNKNOWN'))
+  const recovered = await m.recoverSetupBatch(unknown, f.server)
+  assert.equal(recovered.jobs[0].receipt.requestKey, 'new-unknown-key'); assert.equal((await m.runSetupBatch(recovered, f.server)).phase, 'complete')
+  assert.deepEqual(f.calls.filter(row => row.kind === 'execute').map(row => row.key), ['new-unknown-key', 'request-key-2'])
+})
+
 console.log(`시간표 준비 일괄 저장 실행 검사: ${checks}개 통과`)

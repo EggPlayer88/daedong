@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "maxCandidates": 6,
+  "maximumBytes": 8388608,
+  "titleLength": 120,
+  "pageSize": 20
+}
