@@ -332,7 +332,14 @@ try {
       await transientFailure(page, kind, 'context')
       await verifyDraft(page, kind, text)
       await save(page, kind, true)
-      await page.getByRole('alert').waitFor()
+      // 합성 서버에 없는 선택 기능(내 수업)의 경고도 함께 있을 수 있다.
+      // 다른 경고를 숨기거나 첫 번째 경고를 고르지 않고 이 저장의 충돌만 확인한다.
+      const conflictMessage = kind === 'calendar'
+        ? '다른 사람이 먼저 수정했습니다. 내 입력은 보존했습니다.'
+        : '다른 창에서 업무를 먼저 변경했습니다. 최신 내용과 내 변경을 비교해 주세요.'
+      const conflictAlert = page.getByRole('alert').filter({ hasText: conflictMessage })
+      await conflictAlert.waitFor()
+      assert.equal(await conflictAlert.innerText(), conflictMessage)
       assert.equal(await titleInput(page, kind).inputValue(), text)
       const command = await page.evaluate(() => qa.writes[0].args.p_command)
       assert.equal(command.expectedVersion, 1)
