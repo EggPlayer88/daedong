@@ -54,8 +54,8 @@ class O(A):
     def ehist(self, lid, anchor, cur, size=20): return self.keep2('execution_history', self.go('workhub_timetable_execution_history', lid, anchor, cur, size), lessonId=lid, anchor=anchor, cursor=cur)
     def erec(self, cmd, k=None, recover=False):
         k = k or key(); return self.keep2('execution_record', self.go('workhub_timetable_execution_record', cmd, k, recover), command=cmd, key=k, recover=recover)
-    # 요청 번호 포기 — 앱 parser 가 아직 없어(Codex 와 계약 맞추는 중) 앱 대조용으로 남기지 않는다
-    def abandon(self, kind, cmd, k): return self.go('workhub_timetable_operations_abandon', kind, cmd, k)
+    # 요청 번호 포기 — 받은 응답을 PR #72 의 parseRequestAbandonResult + 종류별 접수증 parser 에 넣는다(III)
+    def abandon(self, kind, cmd, k): return self.keep2('abandon', self.go('workhub_timetable_operations_abandon', kind, cmd, k), abandonKind=kind, command=cmd, key=k)
 
 
 def main():
@@ -439,6 +439,35 @@ def body():
     sqlfile(text=module_sql('P2-81_모듈재개.sql', 'timetable_operations', '시험 재개'))
     check('I09 재개 뒤 포기한 번호 CONFLICT · 원장 행은 고칠 수 없음 · T2-07 FAIL 없음', ecode(t[21].erec(cmd_i, ki)) == 'CONFLICT'
           and sqlerr("update workhub.timetable_operation_requests set outcome='applied' where outcome='abandoned'") != 'OK' and not fails(t207()), fails(t207()))
+    # ======================================================================= J. 요청 닫기 — 네 종류 실제 응답(PR #72 9845eac 대조용)
+    def last_cap(kind_): return next(c_ for c_ in reversed(captures) if c_['kind'] == kind_ and isinstance(c_['raw'], dict) and 'data' in c_['raw']) if OUT else None
+    pub_cap, sd_cap = last_cap('publication_execute'), last_cap('school_day_execute')
+    applied_cases = [('operations', adm, cmd_pub, k_pub, d(rp)), ('execution', t[21], c1, k1, d(r1))]
+    if OUT:
+        applied_cases += [('publication', adm, pub_cap['command'], pub_cap['key'], pub_cap['raw']['data']), ('school_day', adm, sd_cap['command'], sd_cap['key'], sd_cap['raw']['data'])]
+    res = []
+    for kind_, who, cmd_, k_, rec in applied_cases:
+        a_, b_ = who.abandon(kind_, cmd_, k_), who.abandon(kind_, cmd_, k_)
+        A_ = d(a_) or {}
+        res.append(ok(a_) and a_ == b_ and A_['outcome'] == 'applied' and A_['receipt'] == rec and A_['kind'] == kind_
+                   and (rec.get('recordedAt') or rec['record']['recordedAt']) <= A_['decidedAt'])
+    check('J01 네 종류 이미 반영된 번호 닫기 → applied · 원래 접수증 그대로 · 두 번 불러도 같은 응답 · 접수증 시각 <= 결정 시각', OUT == '' or (len(res) == 4 and all(res)), res)
+    before = (n('timetable_publications'), n('timetable_school_day_changes'), n('timetable_execution_records'))
+    fresh = [('operations', adm, cmd_pub), ('publication', adm, pub_cap['command'] if OUT else mcmd), ('execution', t[21], cmd_g)]
+    if OUT: fresh.append(('school_day', adm, sd_cap['command']))
+    res = []
+    for kind_, who, cmd_ in fresh:
+        k_ = key(); a_ = who.abandon(kind_, cmd_, k_); A_ = d(a_) or {}
+        late = {'operations': lambda: who.oexec(cmd_, k_), 'publication': lambda: who.pubexec(cmd_, k_), 'school_day': lambda: who.sdexec(cmd_, k_),
+                'execution': lambda: who.erec(cmd_, k_)}[kind_]
+        res.append((kind_, ok(a_) and A_['outcome'] == 'abandoned' and A_['receipt'] is None and who.abandon(kind_, cmd_, k_) == a_,
+                    ecode(late()), ecode(who.abandon(kind_, {'other': 1}, k_))))
+    check('J02 네 종류 새 번호 닫기 → abandoned · 다시 닫아도 같은 응답 · 늦은 원요청 CONFLICT · 다른 명령 IDEMPOTENCY_CONFLICT · 반영 0',
+          all(r_[1] and r_[2] == 'CONFLICT' and r_[3] == 'IDEMPOTENCY_CONFLICT' for r_ in res)
+          and before == (n('timetable_publications'), n('timetable_school_day_changes'), n('timetable_execution_records')), res)
+    o27 = t[27].abandon('operations', cmd_pub, k_pub)
+    check('J03 다른 학교 소속이 같은 번호 · 같은 명령으로 닫기 → 내 접수증을 받지 못함(그 학교 자기 원장만)', ok(o27) and d(o27)['outcome'] == 'abandoned'
+          and d(o27)['receipt'] is None and adm.oexec(cmd_pub, k_pub, recover=True) == rp, o27)
     if POLICY:
         check('H06 한도 = 앱 execution-records-policy.json(메모 1000 · 사유 500 · 쪽 20 · 수업 14400초)', POLICY['note'] == 1000 and POLICY['correctionReason'] == 500
               and POLICY['pageSize'] == 20 and POLICY['maxLessonSeconds'] == 14400)

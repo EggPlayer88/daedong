@@ -13,6 +13,12 @@ import { parseOperationReferences, parseExchangeRecommendations, parseRecommenda
 import { parsePublicationCommitReceipt, publicationCommandHash } from 't2app/timetable/publication-execution-server'
 import { parseSchoolDayExecutionInput, parseSchoolDayExecutionPreview, parseSchoolDayCommitReceipt, schoolDayCommitCommand } from 't2app/timetable/school-day-execution-server'
 import { parseExecutionRecordsView, parseExecutionHistoryPage, parseExecutionRecordReceipt, executionRecordCommand, executionRecordCommandHash } from 't2app/timetable/execution-records'
+import { publicationCommitReference } from 't2app/timetable/publication-execution-server'
+import { schoolDayCompactCommand } from 't2app/timetable/school-day-execution-server'
+import { parseRequestAbandonResult } from 't2app/timetable/request-abandon'
+import { canonical } from 't2app/services/scoped-rpc'
+import { createHash } from 'node:crypto'
+const sha = (x: unknown) => createHash('sha256').update(canonical(x)).digest('hex')
 
 type Capture = { kind: string; at: number; scope: { schoolId: string; memberId: string }; raw: any; error: string | null; [k: string]: any }
 const file = process.env.T2_CAPTURE
@@ -50,6 +56,23 @@ for (const c of captures) {
       case 'execution_history': { const v = execViews.get(m + ':' + c.lessonId), last = v.history.at(-1)
         parseExecutionHistoryPage(data, c.lessonId, c.anchor, last.version - 1, last.id, last, v.asOf); break }
       case 'execution_record': { const cmd = executionRecordCommand(c.command); parseExecutionRecordReceipt(data, cmd, c.key, await executionRecordCommandHash(cmd), m, now); break }
+      case 'abandon': {
+        // 앱이 그 종류의 실행 RPC 로 보낸 명령과 닫기에 보내는 명령이 같은 모양인지 먼저 본다(지문이 같아야 원장과 맞음)
+        const k = c.abandonKind, sent = c.command; let parseReceipt: (v: unknown) => unknown
+        if (k === 'operations') { const cmd = parseOperationCommand(sent); if (canonical(cmd) !== canonical(sent)) throw new Error('운영 명령 모양 다름')
+          const h = await operationCommandHash(cmd); parseReceipt = v => parseOperationReceipt(v, cmd, c.key, h, now) }
+        else if (k === 'publication') { const cmd = { kind: 'publish_manifest' as const, manifest: lastManifest }
+          if (canonical(publicationCommitReference(cmd as any)) !== canonical(sent)) throw new Error('공개 명령 모양 다름')
+          const h = await publicationCommandHash(cmd as any); parseReceipt = v => parsePublicationCommitReceipt(v, cmd as any, c.key, h, now) }
+        else if (k === 'school_day') { const cmd = schoolDayCommitCommand(lastSchoolDay!.result, lastSchoolDay!.view, lastSchoolDay!.refs)
+          if (canonical(schoolDayCompactCommand(cmd)) !== canonical(sent)) throw new Error('학사 변경 명령 모양 다름')
+          parseReceipt = v => parseSchoolDayCommitReceipt(v, cmd, c.key, now) }
+        else if (k === 'execution') { const cmd = executionRecordCommand(sent); if (canonical(cmd) !== canonical(sent)) throw new Error('실시 기록 명령 모양 다름')
+          const h = await executionRecordCommandHash(cmd); parseReceipt = v => parseExecutionRecordReceipt(v, cmd, c.key, h, m, now) }
+        else throw new Error('모르는 닫기 종류 ' + k)
+        const r = await parseRequestAbandonResult(data, k, c.key, sha(sent), parseReceipt, now)
+        seen['abandon:' + k + ':' + r.outcome] = (seen['abandon:' + k + ':' + r.outcome] ?? 0) + 1
+        break }
       default: throw new Error('모르는 종류 ' + c.kind)
     }
   } catch (e) { ok = false; info = { error: err(e), data } }
@@ -57,7 +80,9 @@ for (const c of captures) {
   check(`${c.kind} #${seen[c.kind]} (${m})`, ok, info)
 }
 const need = ['ops_readiness', 'ops_get', 'references', 'publish_preview', 'exchange_preview', 'recommend', 'ops_execute', 'publish_manifest', 'publish_page',
-              'publication_execute', 'school_day_preview', 'school_day_execute', 'execution_get', 'execution_history', 'execution_record']
+              'publication_execute', 'school_day_preview', 'school_day_execute', 'execution_get', 'execution_history', 'execution_record',
+              'abandon:operations:applied', 'abandon:operations:abandoned', 'abandon:publication:applied', 'abandon:publication:abandoned',
+              'abandon:school_day:applied', 'abandon:school_day:abandoned', 'abandon:execution:applied', 'abandon:execution:abandoned']
 check('모든 응답 종류를 한 번 이상 앱 parser 로 대조함', need.every(k => (seen[k] ?? 0) > 0), need.filter(k => !seen[k]))
 console.log(`PASS 앱 parser 대조: 성공 응답 ${pass}건 통과 · 실패 ${fail}건 (종류별 ${JSON.stringify(seen)})`)
 if (fail) { console.log('FAIL 앱 parser 대조 실패 ' + fail + '건'); process.exit(1) }
