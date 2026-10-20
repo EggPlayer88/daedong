@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
@@ -17,6 +17,7 @@ type Edit = { termId: string; referenceDay: string } & (
   | { kind: 'course'; original: Course; input: CourseInput })
 interface Props { server?: SetupServer; member: Membership; expectedTermId?: string | null; refreshRevision?: number; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: () => void; onOpenSchoolAdmin?: () => void; initialOpen?: boolean }
 const PAGE_SIZE = 20
+const layoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const display = (row: { label: string; id: string }) => `${row.label} [${row.id}]`
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '')
 const capacityText = (value: number | null) => value === null ? '미입력' : `동시에 ${value}개 수업`
@@ -73,7 +74,8 @@ export function TimetableSetupPanel(props: Props) {
   const editKey = edit ? edit.kind + ':' + (edit.original?.id ?? 'new') : ''
   useEffect(() => { if (editKey) editorNode.current?.focus() }, [editKey])
   useEffect(() => () => { life.current++ }, [])
-  useEffect(() => { props.onLockChange?.(locked || Boolean(edit) || batchLocked || Boolean(batchRecovery.request)); return () => props.onLockChange?.(false) }, [locked, edit, batchLocked, batchRecovery.request, props.onLockChange])
+  // 입력을 보여 준 프레임에서 복귀 버튼도 함께 잠근다.
+  layoutEffect(() => { props.onLockChange?.(locked || Boolean(edit) || batchLocked || Boolean(batchRecovery.request)); return () => props.onLockChange?.(false) }, [locked, edit, batchLocked, batchRecovery.request, props.onLockChange])
   useEffect(() => {
     life.current++; operation.current = false; setBusy(false); setSnapshot(undefined); setLoadedScope(''); setEdit(memory.initial); setPreview(false); setConfirmed(false); setError(''); setNotice('')
   }, [scope, memory])
