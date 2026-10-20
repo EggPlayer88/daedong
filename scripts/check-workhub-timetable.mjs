@@ -8,6 +8,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8'),split=s=>s.s
 try{
 const inventory=JSON.parse(read('docs/workhub/timetable/completion-inventory.json')),ancestors=new Set(git('rev-list','HEAD').split('\n'))
 assert.equal(git('ls-files','--unmerged'),'')
+assert(ancestors.has(inventory.baseline),'보호 경계 기준이 현재 이력에 없습니다')
 for(const row of inventory.included)assert(ancestors.has(row.sha),`포함 이력 누락 #${row.number}`)
 const deferred=JSON.parse(read('docs/workhub/integration-r2/pr-inventory.json')).deferred.concat(JSON.parse(read('docs/workhub/pilot-completion/inventory.json')).excluded)
 for(const row of deferred)assert(!ancestors.has(row.sha),`보류 이력 포함 #${row.number}`)
