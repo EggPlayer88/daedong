@@ -1,1 +1,27 @@
-.home-overview{border:1px solid var(--border);padding:18px;border-radius:12px;background:var(--surface,#fff);margin-top:18px}.home-overview header{display:flex;align-items:center;justify-content:space-between;gap:10px}.home-overview header span,.home-overview-note{font-size:.82rem;color:var(--muted,#626c7c)}.home-overview ul{list-style:none;padding:0;margin:0}.home-overview li+li{border-top:1px solid var(--border)}.home-overview li button{display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;border:0;background:transparent;padding:14px 0;overflow-wrap:anywhere;white-space:normal}.home-overview small{color:var(--muted,#626c7c)}.home-overview h2{font-size:1rem}.home-overview details p{font-size:.85rem}
+/* 서버가 확인한 후속 업무만 표시한다. 이용 설명은 목록 아래에서 필요할 때 펼친다. */
+.home-overview{padding:22px 24px;border:1px solid var(--ui-line,var(--border));border-radius:var(--ui-radius,16px);background:var(--ui-surface,var(--surface,#fff));color:var(--ui-text,inherit);margin:0;min-width:0}
+.home-overview .home-overview-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin:0 0 12px;min-height:28px}
+.home-overview .home-overview-heading h2{margin:0;font-size:calc(var(--ui-body-size,14px) + 3px);font-weight:700;letter-spacing:-.03em}
+.home-overview .home-overview-context{font-size:var(--ui-small-size,12px);color:var(--ui-muted,#626c7c);font-weight:500}
+.home-overview .home-overview-items{list-style:none;padding:0;margin:0}
+.home-overview li+li{border-top:1px solid var(--ui-line,var(--border))}
+.home-overview .home-overview-items button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-radius:0;background:transparent;color:var(--ui-text,inherit);padding:var(--ui-row-padding,16px) 0;min-height:76px;overflow-wrap:anywhere;white-space:normal;font-size:var(--ui-body-size,14px)}
+.home-overview .home-overview-items button:hover{background:var(--ui-surface-muted,#f1f3f6)}
+.home-overview .home-overview-icon{display:grid;place-items:center;flex-shrink:0;width:36px;height:36px;border-radius:11px;background:var(--ui-surface-muted,#f1f3f6);color:var(--ui-muted,#626c7c)}
+.home-overview .is-urgent .home-overview-icon{background:var(--ui-warning-soft,#fff7e9);color:var(--ui-warning,#8a5b10)}
+.home-overview .home-overview-content{flex:1;min-width:0;display:grid;gap:5px}
+.home-overview .home-overview-title{font-weight:600;line-height:1.55}
+.home-overview .home-overview-title strong{color:var(--ui-warning,#8a5b10);font-weight:650}
+.home-overview .home-overview-content small{font-size:var(--ui-small-size,12px);color:var(--ui-muted,#626c7c);line-height:1.6;font-weight:400}
+.home-overview .home-overview-arrow{font-size:22px;color:var(--ui-muted,#626c7c);flex-shrink:0;line-height:1}
+.home-overview .home-overview-empty{font-size:var(--ui-body-size,14px);line-height:1.7;color:var(--ui-muted,#626c7c);margin:0;padding:22px 0}
+.home-overview .home-overview-note{font-size:var(--ui-small-size,12px);line-height:1.7;color:var(--ui-muted,#626c7c);margin:12px 0}
+.home-overview .home-overview-help{border-top:1px solid var(--ui-line,var(--border));margin-top:7px;color:var(--ui-muted,#626c7c)}
+.home-overview .home-overview-help summary{min-height:44px;align-content:center;cursor:pointer;font-size:var(--ui-small-size,12px)}
+.home-overview .home-overview-help p,.home-overview .home-overview-failure p{font-size:var(--ui-small-size,12px);line-height:1.75;margin:3px 0 10px}
+.home-overview .home-overview-failure{padding:12px 14px;border-radius:10px;background:var(--ui-surface-muted,#f1f3f6);color:var(--ui-muted,#626c7c)}
+.home-overview .home-overview-failure summary{font-size:var(--ui-small-size,12px);line-height:1.7;min-height:44px;align-content:center;cursor:pointer}
+.home-overview .home-overview-failure button{font-size:var(--ui-small-size,12px)}
+@media(max-width:1050px){.home-overview{padding:20px}}
+@media(max-width:720px){.home-overview{padding:18px}}
+@media(max-width:380px){.home-overview{padding:16px}.home-overview .home-overview-items button{gap:10px}.home-overview .home-overview-icon{width:32px;height:32px}}

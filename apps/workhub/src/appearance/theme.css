@@ -1,8 +1,8 @@
-/* 기능의 배치와 동작은 유지하고, 셸 안의 기존 색상만 공통 스킨에 연결한다. */
-.ws-shell{--teal:var(--ui-accent);--navy:var(--ui-text);--muted:var(--ui-muted);--border:var(--ui-line);--surface:var(--ui-surface);--ink:var(--ui-text)}
+/* 기존 기능의 동작은 유지하고 공통 색상·조작·목록의 위계를 한곳에서 맞춘다. */
+.ws-shell{--teal:var(--ui-accent);--navy:var(--ui-text);--muted:var(--ui-muted);--border:var(--ui-line);--surface:var(--ui-surface);--ink:var(--ui-text);--wh-text:var(--ui-text);--wh-muted:var(--ui-muted);--wh-border:var(--ui-line);--wh-surface:var(--ui-surface);--wh-accent:var(--ui-accent);--wh-accent-soft:var(--ui-accent-soft);--wh-warning-bg:var(--ui-warning-soft)}
 .ws-shell :is(.task-panel,.wf-panel,.wf-home,.students-panel,.ws-search,.connection-readiness){color:var(--ui-text);font-family:inherit;font-size:var(--ui-body-size)}
 .ws-shell :is(.main-content,.task-panel,.wf-panel,.wf-home,.students-panel,.ws-search-dialog,.connection-readiness) :is(p,li,dt,dd,label,button,input,select,textarea,summary){font-size:var(--ui-body-size)}
-.ws-shell :is(h1,h2,h3,h4,h5){color:var(--ui-text);letter-spacing:-.025em}
+.ws-shell :is(h1,h2,h3,h4,h5){color:var(--ui-text);letter-spacing:-.025em;font-weight:650}
 .ws-shell :is(.page-header,.students-header) h1{font-size:clamp(24px,2.1vw,30px);line-height:1.45}
 .ws-shell :is(.task-heading,.wf-page-heading) h2{font-size:calc(var(--ui-body-size) + 10px);line-height:1.45}
 .ws-shell :is(.students-card h2,.section-heading h2,.task-compact .task-heading h2,.wf-section-title h2,.connection-readiness h2){font-size:calc(var(--ui-body-size) + 4px)}
@@ -15,7 +15,7 @@
 
 /* 조작 요소는 색상보다 위치와 이름으로 구분하며, 터치 영역은 줄이지 않는다. */
 .ws-shell button:not(.cv-month-day){min-height:44px}
-.ws-shell :is(.primary,.secondary,.text-button,.icon-button,.task-primary,.task-secondary,.task-text-button,.list-pagination-actions button,.ws-search-close,.wf-tabs button,.wf-state-filters button,.students-tabs button,.cv-switch button){font-size:var(--ui-body-size);border-radius:var(--ui-radius);box-shadow:none}
+.ws-shell :is(.primary,.secondary,.text-button,.icon-button,.task-primary,.task-secondary,.task-text-button,.list-pagination-actions button,.ws-search-close,.wf-tabs button,.wf-state-filters button,.students-tabs button,.cv-switch button){font-size:var(--ui-body-size);border-radius:var(--ui-control-radius,10px);font-weight:600;box-shadow:none}
 .ws-shell :is(.primary,.task-primary,.connection-readiness .readiness-button){color:var(--ui-on-accent);background:var(--ui-accent);border-color:var(--ui-accent);box-shadow:none}
 .ws-shell :is(.primary,.task-primary,.connection-readiness .readiness-button):hover:not(:disabled){color:var(--ui-on-accent);background:var(--ui-accent);filter:brightness(.94)}
 .ws-shell :is(.secondary,.task-secondary,.list-pagination-actions button,.ws-search-close,.students-tabs button,.wf-state-filters button,.connection-readiness .readiness-button.readiness-secondary){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line)}
@@ -27,7 +27,7 @@
 .ws-shell :is(button,a,input,select,textarea,summary,[tabindex="-1"]):focus-visible{outline:3px solid var(--ui-focus);outline-offset:3px}
 .ws-shell :is(.task-panel,.wf-panel,.students-panel,.ws-search,.connection-readiness,.cv-month,.cv-switch) :is(button,input,select,textarea,summary):focus-visible{outline:3px solid var(--ui-focus);outline-offset:3px}
 .ws-shell :is(.task-card,.task-error,.task-notice,.students-record,.students-source,.students-entry-target,.students-saved,.students-error,.wf-unit,.wf-unit-unavailable,.wf-request-list,.wf-unit-list,.wf-workbench-scroll,.wf-version-comparison>h4,.ci-summary-title,.ci-row):focus{outline-color:var(--ui-focus)}
-.ws-shell :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);border-radius:var(--ui-radius);min-height:44px;font-size:var(--ui-body-size);box-shadow:none}
+.ws-shell :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);border-radius:var(--ui-control-radius,10px);min-height:44px;font-size:var(--ui-body-size);padding:10px 12px;line-height:1.6;box-shadow:none}
 .ws-shell :is(.task-panel,.students-panel,.wf-panel,.ws-search-fields) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){background:var(--ui-surface);color:var(--ui-text);border-color:var(--ui-line);font-size:var(--ui-body-size)}
 .ws-shell :is(input,textarea)::placeholder{color:var(--ui-muted);opacity:1}
 .ws-shell :is(input[type=checkbox],input[type=radio]){accent-color:var(--ui-accent)}
@@ -100,7 +100,7 @@
 .ws-shell .cv-month-keyboard{line-height:1.7}
 
 /* 모달 역시 현재 선택한 스킨 안에서 읽히도록 한다. */
-.ws-shell :is(.editor-dialog,.detail-dialog,.calendar-import-dialog,.ws-search-dialog,.appearance-dialog){background:var(--ui-surface);color:var(--ui-text);border:1px solid var(--ui-line);border-radius:10px;box-shadow:0 16px 48px #10182829}
+.ws-shell :is(.editor-dialog,.detail-dialog,.calendar-import-dialog,.ws-search-dialog,.appearance-dialog){background:var(--ui-surface);color:var(--ui-text);border:1px solid var(--ui-line);border-radius:var(--ui-dialog-radius,20px);box-shadow:0 20px 60px #10182824}
 .ws-shell dialog::backdrop{background:#11182770;backdrop-filter:none}
 .ws-shell :is(.dialog-header,.dialog-footer,.ws-search-header){border-color:var(--ui-line)}
 .ws-shell .dialog-footer{background:var(--ui-surface-muted)}
@@ -122,4 +122,189 @@
   .ws-shell .wf-date input{font-size:max(16px,var(--ui-body-size))!important}
   .ws-shell :is(.event-card,.task-card,.wf-request-card,.students-roster button,.ws-search-result){padding:var(--ui-row-padding)}
   .ws-shell :is(.wf-home,.task-compact,.students-card,.wf-request-detail,.wf-editor){border-radius:var(--ui-radius)}
+}
+
+
+/* 버튼은 실행·보조·선택을 구분한다. 상태나 문구를 숨기지 않는다. */
+.ws-shell .primary,
+.ws-shell .task-primary,
+.ws-shell .documents-primary,
+.ws-shell .messaging-primary {
+  padding: 10px 18px;
+  border-radius: var(--ui-control-radius,10px);
+  font-weight: 650;
+  line-height: 1.5;
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-on-accent);
+}
+.ws-shell .secondary,
+.ws-shell .task-secondary {
+  padding: 10px 15px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+.ws-shell .text-button,
+.ws-shell .task-text-button { font-weight: 550; }
+.ws-shell .documents-workspace button,
+.ws-shell .messaging-workspace button,
+.ws-shell .teaching-workspace button {
+  border-radius: var(--ui-control-radius,10px);
+  line-height: 1.5;
+  font-size: var(--ui-body-size);
+}
+.ws-shell .documents-actions button,
+.ws-shell .messaging-actions button,
+.ws-shell .teaching-actions button { padding: 10px 16px; }
+.ws-shell .documents-workspace button:hover:not(:disabled),
+.ws-shell .messaging-workspace button:hover:not(:disabled) { border-color: var(--ui-accent); }
+.ws-shell .documents-workspace .documents-primary,
+.ws-shell .messaging-workspace .messaging-primary { color: var(--ui-on-accent); }
+
+/* 화면 제목 아래 선택 탭은 한 줄의 기준선으로 묶어 버튼 더미처럼 보이지 않게 한다. */
+.ws-shell .documents-tabs,
+.ws-shell .messaging-tabs,
+.ws-shell .teaching-tabs,
+.ws-shell .students-tabs {
+  gap: 4px 18px;
+  padding: 0;
+  background: transparent;
+  border-bottom: 1px solid var(--ui-line);
+  align-items: stretch;
+}
+.ws-shell .documents-tabs button,
+.ws-shell .messaging-tabs button,
+.ws-shell .teaching-tabs button,
+.ws-shell .students-tabs button {
+  padding: 12px 4px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ui-muted);
+  font-weight: 550;
+  box-shadow: none;
+}
+.ws-shell .documents-tabs button[aria-pressed=true],
+.ws-shell .messaging-tabs button[aria-pressed=true],
+.ws-shell .teaching-tabs button[aria-pressed=true],
+.ws-shell .students-tabs button[aria-pressed=true] {
+  color: var(--ui-accent);
+  background: transparent;
+  border-bottom-color: var(--ui-accent);
+  font-weight: 650;
+}
+
+/* 상세 영역은 여백을 주고, 목록의 보조 정보는 한 단계 낮춘다. */
+.ws-shell .documents-header h2,
+.ws-shell .messaging-header h2,
+.ws-shell .teaching-heading h2 {
+  font-size: calc(var(--ui-body-size) + 10px);
+  line-height: 1.4;
+  letter-spacing: -.03em;
+}
+.ws-shell .documents-header p,
+.ws-shell .messaging-header p { line-height: 1.65; }
+.ws-shell .documents-workspace,
+.ws-shell .messaging-workspace { gap: var(--ui-section-gap); font-size: var(--ui-body-size); }
+.ws-shell .documents-panel,
+.ws-shell .documents-editor,
+.ws-shell .messaging-panel,
+.ws-shell .messaging-compose,
+.ws-shell .messaging-preview,
+.ws-shell .students-card,
+.ws-shell .wf-request-detail,
+.ws-shell .wf-editor,
+.ws-shell .teaching-card {
+  padding: calc(var(--ui-row-padding) + 4px);
+  border-radius: var(--ui-card-radius,16px);
+  box-shadow: none;
+}
+.ws-shell .documents-list,
+.ws-shell .messaging-list { gap: 4px; }
+.ws-shell .documents-list button,
+.ws-shell .messaging-list li>button {
+  padding: var(--ui-row-padding);
+  gap: 6px;
+  border-color: transparent;
+  background: transparent;
+}
+.ws-shell .documents-list button:hover:not(:disabled),
+.ws-shell .messaging-list li>button:hover:not(:disabled) {
+  background: var(--ui-surface-muted);
+  border-color: transparent;
+}
+.ws-shell .documents-list button[aria-current=true],
+.ws-shell .messaging-list li>button[aria-current=true] {
+  background: var(--ui-accent-soft);
+  border-color: var(--ui-line);
+}
+.ws-shell .documents-list strong,
+.ws-shell .messaging-list strong { font-weight: 600; line-height: 1.6; }
+.ws-shell .messaging-list small,
+.ws-shell .messaging-message-meta,
+.ws-shell .messaging-muted { font-size: var(--ui-small-size); line-height: 1.65; }
+.ws-shell .messaging-badge {
+  font-size: var(--ui-small-size);
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.ws-shell .messaging-messages { gap: 14px; }
+.ws-shell .messaging-messages li {
+  padding: var(--ui-row-padding);
+  max-width: 94%;
+  border-radius: var(--ui-card-radius,16px);
+  background: var(--ui-surface-muted);
+  border-color: transparent;
+}
+.ws-shell .messaging-messages li[data-own=true] {
+  margin-left: auto;
+  width: 94%;
+  background: var(--ui-accent-soft);
+}
+.ws-shell .messaging-status[role=alert] {
+  border-color: var(--ui-warning);
+  color: var(--ui-warning);
+  background: var(--ui-warning-soft);
+}
+.ws-shell .teaching-card>h3,
+.ws-shell .students-card>h2 { margin-bottom: 16px; }
+.ws-shell .teaching-roster button { padding: var(--ui-row-padding); }
+.ws-shell .students-record,
+.ws-shell .students-source { border-radius: var(--ui-card-radius,16px); }
+.ws-shell .students-form { gap: 20px; }
+.ws-shell .students-panel label,
+.ws-shell .documents-editor label,
+.ws-shell .messaging-compose label { font-weight: 550; }
+.ws-shell .documents-check,
+.ws-shell .messaging-check { font-weight: 400; }
+
+/* 관리자 목록도 같은 색상 규칙을 쓰며 입력·충돌 안내를 그대로 보존한다. */
+.ws-shell .school-admin-tabs,
+.ws-shell .school-admin-list li,
+.ws-shell .school-admin-changes li { border-color: var(--ui-line); }
+.ws-shell .school-admin-tabs button,
+.ws-shell .school-admin-list span { color: var(--ui-muted); }
+.ws-shell .school-admin-tabs button[aria-current] { color: var(--ui-accent); border-bottom-color: var(--ui-accent); }
+.ws-shell .school-admin .setup-field input[readonly] { background: var(--ui-surface-muted); }
+.ws-shell .school-admin-conflict { border-color: var(--ui-line); border-radius: var(--ui-card-radius,16px); }
+
+@media(max-width:720px) {
+  .ws-shell .documents-tabs,
+  .ws-shell .messaging-tabs,
+  .ws-shell .teaching-tabs,
+  .ws-shell .students-tabs { gap: 4px 12px; }
+  .ws-shell .documents-panel,
+  .ws-shell .documents-editor,
+  .ws-shell .messaging-panel,
+  .ws-shell .messaging-compose,
+  .ws-shell .messaging-preview,
+  .ws-shell .students-card,
+  .ws-shell .wf-request-detail,
+  .ws-shell .wf-editor,
+  .ws-shell .teaching-card { padding: var(--ui-row-padding); }
+  .ws-shell .messaging-messages li { max-width: 100%; }
+  .ws-shell .messaging-messages li[data-own=true] { width: 100%; }
+  .ws-shell .students-form { gap: 16px; }
 }
