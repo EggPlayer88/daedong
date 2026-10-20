@@ -10,12 +10,15 @@ import { createDocumentsService, type DocumentsService } from './adapter'
 import { blankDocument, documentAiDraft, documentAiRequest, documentCommand, documentInput, documentKindLabels, documentPlainText, DOCUMENT_KINDS, type DocumentAiDraft, type DocumentAiRequest, type DocumentCommand, type DocumentInput, type LibraryDocument } from './contracts'
 import { GuidedWorkspace } from './GuidedWorkspace'
 import type { GeneratedDocument } from './guided-contracts'
+import type { GuidedAiRequest, GuidedAiSuggestion } from './guided-ai'
 import documentStyles from './documents.css?inline'
 
 export interface DocumentsWorkspaceProps {
   connection: SupabaseConnection; member: Membership; date: string; revision?: number
   onNavigationLockChange?: (locked: boolean) => void
   onRequestAi?: (request: DocumentAiRequest) => void
+  onRequestGuidedAi?: (request: GuidedAiRequest) => void
+  guidedAiSuggestion?: GuidedAiSuggestion
   legacyPlanHref?: string
   aiDraft?: DocumentAiDraft
   onOpenCollection?: (requestId: string) => void
@@ -31,10 +34,12 @@ const scaffolds = { parent_letter: '제목\n\n안내 목적\n\n대상\n\n일정 
 
 export function DocumentsWorkspace(props: DocumentsWorkspaceProps) { return <DocumentsRouter key={recoveryScope(props.member)} {...props} /> }
 function DocumentsRouter(props: DocumentsWorkspaceProps) {
-  const [tab, setTab] = useState<'library' | 'guided'>('library'), [locked, setLocked] = useState(false)
+  const [tab, setTab] = useState<'library' | 'guided'>(props.guidedAiSuggestion ? 'guided' : 'library'), [locked, setLocked] = useState(false)
   const onLock = useCallback((value: boolean) => { setLocked(value); props.onNavigationLockChange?.(value) }, [props.onNavigationLockChange])
   useEffect(() => { if (props.aiDraft && !locked) setTab('library') }, [props.aiDraft])
-  return <div className="documents-workspace"><style>{documentStyles}</style><div className="documents-tabs" aria-label="문서 작업 선택"><button type="button" aria-pressed={tab === 'library'} disabled={locked && tab !== 'library'} onClick={() => setTab('library')}>내 문서함</button><button type="button" aria-pressed={tab === 'guided'} disabled={locked && tab !== 'guided'} onClick={() => setTab('guided')}>질문형 수합 양식</button></div>{tab === 'library' ? <DocumentsWorkspaceScope {...props} onNavigationLockChange={onLock} /> : <GuidedWorkspace connection={props.connection} member={props.member} date={props.date} revision={props.revision} onNavigationLockChange={onLock} onRequestAi={props.onRequestAi} onOpenCollection={props.onOpenCollection} onUseGenerated={props.onUseGenerated} />}</div>
+  const consumedSuggestion = useRef<string>()
+  useEffect(() => { if (props.guidedAiSuggestion && !locked && consumedSuggestion.current !== props.guidedAiSuggestion.requestId) { consumedSuggestion.current = props.guidedAiSuggestion.requestId; setTab('guided') } }, [props.guidedAiSuggestion, locked])
+  return <div className="documents-workspace"><style>{documentStyles}</style><div className="documents-tabs" aria-label="문서 작업 선택"><button type="button" aria-pressed={tab === 'library'} disabled={locked && tab !== 'library'} onClick={() => setTab('library')}>내 문서함</button><button type="button" aria-pressed={tab === 'guided'} disabled={locked && tab !== 'guided'} onClick={() => setTab('guided')}>질문형 수합 양식</button></div>{tab === 'library' ? <DocumentsWorkspaceScope {...props} onNavigationLockChange={onLock} /> : <GuidedWorkspace connection={props.connection} member={props.member} date={props.date} revision={props.revision} onNavigationLockChange={onLock} onRequestAi={props.onRequestAi} onRequestGuidedAi={props.onRequestGuidedAi} aiSuggestion={props.guidedAiSuggestion} onOpenCollection={props.onOpenCollection} onUseGenerated={props.onUseGenerated} />}</div>
 }
 function DocumentsWorkspaceScope({ connection, member, date, revision = 0, onNavigationLockChange, onRequestAi, legacyPlanHref, aiDraft, service: supplied }: DocumentsWorkspaceProps) {
   const service = useMemo(() => supplied ?? createDocumentsService(connection), [connection, supplied]), id = useId(), memory = useEditDraft<Memory>(member, 'document-editor'), recovery = usePendingRequest(member, 'documents')

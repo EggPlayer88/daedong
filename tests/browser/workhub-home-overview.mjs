@@ -10,10 +10,10 @@ import theme from './apps/workhub/src/style.css?inline';
 import home from './apps/workhub/src/calendar/home-dashboard.css?inline';
 const member={id:'member',schoolId:'school',userId:'user',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',role:'teacher',departmentIds:[],gradeIds:[],subjectIds:[]};
 const root=createRoot(document.getElementById('root'));
-window.state={mode:'busy',calls:[],opened:[],revision:0,resolve:()=>{}};
-const payload=()=>{const mode=window.state.mode;const items=mode==='busy'?Array.from({length:8},(_,i)=>({id:'item-'+i,kind:'message',title:'원본 업무 '+i,dueDate:null,sourceId:'source-'+i,priority:i===6?'urgent':'normal',label:'메시지 열기'})):[];return{asOf:'2026-10-20T00:00:00Z',items,counts:{collection:0,supplement:0,message:mode==='partial'?null:items.length,student_followup:0,cooperation:0},unavailable:mode==='partial'?['message']:[]}};
+window.state={mode:'busy',calls:[],opened:[],lists:[],locked:false,revision:0,resolve:()=>{}};
+const payload=()=>{const mode=window.state.mode;const items=mode==='busy'?Array.from({length:8},(_,i)=>({id:'item-'+i,kind:'message',title:'원본 업무 '+i,dueDate:null,sourceId:'source-'+i,priority:i===6?'urgent':'normal',label:'메시지 열기'})):[];return{asOf:'2026-10-20T00:00:00Z',items,counts:{collection:0,supplement:0,message:mode==='partial'?null:mode==='counts'?108:items.length,student_followup:mode==='counts'?3:0,cooperation:0},unavailable:mode==='partial'?['message']:[]}};
 const connection={info:()=>({memberships:[member],schools:[{id:'school'}],basisDate:'2026-10-20'}),async getIdentity(){return{userId:'user',approved:true,profile:{role:'superadmin',is_active:true,extra_permissions:[],department_id:null}}},async rpcVerified(name,args){window.state.calls.push({name,args});if(window.state.mode==='failed')throw new Error('합성 조회 실패');if(window.state.mode==='loading')await new Promise(resolve=>window.state.resolve=resolve);return{contract:'home.v1',schoolId:'school',memberId:'member',data:payload()}}};
-window.renderHome=()=>root.render(<><style>{theme}{home}</style><div className="ws-shell"><main className="ui-home-main"><div className="home-priority"><HomeOverviewPanel connection={connection} member={member} revision={window.state.revision++} onOpen={item=>window.state.opened.push(item.sourceId)}/></div></main></div></>);
+window.renderHome=()=>root.render(<><style>{theme}{home}</style><div className="ws-shell"><main className="ui-home-main"><div className="home-priority"><HomeOverviewPanel connection={connection} member={member} revision={window.state.revision++} locked={window.state.locked} onOpenList={kind=>window.state.lists.push(kind)} onOpen={item=>window.state.opened.push(item.sourceId)}/></div></main></div></>);
 window.renderHome();
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"production"' }, logLevel: 'silent' })
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage(), errors = [], external = [], passed = []
@@ -80,6 +80,17 @@ try {
     await panel().getByRole('button', { name: '확인 필요 · 원본 업무 6 메시지 열기', exact: true }).click()
     assert.deepEqual(await page.evaluate(() => window.state.opened), ['source-7', 'source-6'])
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+  })
+  await test('대표 카드가 없어도 실제 건수를 표시하고 올바른 전체 메뉴를 열며 입력 잠금은 따른다', async () => {
+    await state('counts')
+    const messages=panel().getByRole('button',{name:'안 읽은 대화 108개 · 메시지 목록 열기',exact:true})
+    await messages.waitFor();assert.equal(await panel().getByText('지금 표시할 추가 업무가 없습니다.',{exact:true}).count(),0)
+    assert.equal(await panel().getByRole('button',{name:'기록 확인할 수업 3개 · 수업·학생 목록 열기',exact:true}).count(),1)
+    await messages.focus();await page.keyboard.press('Enter')
+    assert.deepEqual(await page.evaluate(()=>window.state.lists),['message'])
+    await page.evaluate(()=>{window.state.locked=true;window.renderHome()});await page.waitForFunction(()=>document.querySelector('[aria-label="안 읽은 대화 108개 · 메시지 목록 열기"]')?.disabled===true);assert.equal(await messages.isDisabled(),true)
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
+    await page.evaluate(()=>{window.state.locked=false;window.renderHome()});await messages.waitFor()
   })
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
   assert((await page.evaluate(() => window.state.calls)).every(call => call.name === 'workhub_home_overview'), '홈 표시와 펼치기는 조회 이외 서버 명령을 보내지 않습니다')

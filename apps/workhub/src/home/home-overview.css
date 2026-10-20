@@ -23,6 +23,11 @@
 .home-overview .home-overview-failure summary{font-size:var(--ui-small-size,12px);line-height:1.7;min-height:44px;align-content:center;cursor:pointer}
 .home-overview .home-overview-failure button{font-size:var(--ui-small-size,12px)}
 .home-overview .home-overview-more{min-height:44px;margin-top:2px;padding-inline:0;font-size:var(--ui-small-size,12px)}
+.home-overview .home-overview-counts{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 8px}
+.home-overview .home-overview-counts>div{min-width:0;flex:1 1 145px}
+.home-overview .home-overview-counts button,.home-overview .home-overview-counts>div>span{display:flex;gap:12px;justify-content:space-between;align-items:center;width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--ui-line,var(--border));border-radius:8px;background:var(--ui-surface-muted,#f1f3f6);color:var(--ui-text,inherit);font-size:var(--ui-small-size,12px);text-align:left;overflow-wrap:anywhere;white-space:normal}
+.home-overview .home-overview-counts strong{flex-shrink:0}
+.home-overview .home-overview-counts button:focus-visible{outline:2px solid var(--ui-accent,#2563eb);outline-offset:2px}
 .home-overview-empty-state .home-overview-heading{margin-bottom:4px}
 .home-overview-empty-state .home-overview-help{margin-top:4px}
 .home-priority .home-overview-empty-state{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:12px;row-gap:0;padding:10px 16px}

@@ -27,7 +27,7 @@ export interface AssistantPanelProps {
         id: string;
         request: AssistantContextRequest;
     };
-    onDraftReady?: (draft: AssistantDraftReady) => void;
+    onDraftReady?: (draft: AssistantDraftReady, contextId?: string) => void;
     onComposeMessage?: (draft: { requestId: string; body: string }) => void;
     server?: AssistantServer;
 }
@@ -48,6 +48,7 @@ type Session = {
     proposal?: TaskProposal;
     taskReview?: boolean;
     contextId?: string;
+    requestContexts?: Record<string, string>;
 };
 const initial: Session = { mode: 'school', intent: 'school_advice', prompt: '', references: [], studentContext: null };
 const intentLabels: Record<AssistantIntent, string> = { school_advice: '학교 업무 안내', personal_assistant: '내 업무와 할 일', document_draft: '문서 내용 초안', student_record_draft: '학생 기록 초안', guided_collection: '문답형 수합 초안' };
@@ -217,7 +218,9 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
     function ask() { if (!editable || operation.current)
         return; try {
         const current = latest.current, input = assistantInput({ mode: current.mode, intent: current.intent, prompt: current.prompt, threadId: current.thread?.id ?? null, expectedVersion: current.thread?.version ?? 0, references: current.references, studentContext: current.studentContext });
-        void execute({ kind: 'ask', input }, newKey());
+        const key = newKey();
+        if (current.contextId) update({ ...current, requestContexts: { ...current.requestContexts, [key]: current.contextId } });
+        void execute({ kind: 'ask', input }, key);
     }
     catch {
         setError('질문 내용과 선택한 근거를 확인해 주세요.');
@@ -280,7 +283,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
         }
         catch {
             setError('초안 파일을 내려받지 못했습니다.');
-        } }}>내용 초안 내려받기</button>{onDraftReady && <button type="button" disabled={!editable || locked} onClick={() => onDraftReady({ intent: exchange.intent, segments: structuredClone(exchange.segments), requestKey: exchange.requestKey, threadId: session.thread!.id, studentContext: exchange.studentContext })}>이 초안을 작성 화면으로 보내기</button>}</div>}{onComposeMessage && exchange.intent !== 'student_record_draft' && !exchange.studentContext && <div className="assistant-actions"><button type="button" disabled={!editable || locked} onClick={() => onComposeMessage({ requestId: exchange.requestKey, body: exchange.segments.map(segment => segment.text).join('\n\n') })}>메시지 초안으로 사용</button><span className="assistant-hint">메신저에서 받는 사람과 내용을 확인한 뒤 전송합니다.</span></div>}</article>)}
+        } }}>내용 초안 내려받기</button>{onDraftReady && <button type="button" disabled={!editable || locked} onClick={() => onDraftReady({ intent: exchange.intent, segments: structuredClone(exchange.segments), requestKey: exchange.requestKey, threadId: session.thread!.id, studentContext: exchange.studentContext }, session.requestContexts?.[exchange.requestKey])}>이 초안을 작성 화면으로 보내기</button>}</div>}{onComposeMessage && exchange.intent !== 'student_record_draft' && !exchange.studentContext && <div className="assistant-actions"><button type="button" disabled={!editable || locked} onClick={() => onComposeMessage({ requestId: exchange.requestKey, body: exchange.segments.map(segment => segment.text).join('\n\n') })}>메시지 초안으로 사용</button><span className="assistant-hint">메신저에서 받는 사람과 내용을 확인한 뒤 전송합니다.</span></div>}</article>)}
   </div>
   {draft && <section className="assistant-task-editor" aria-labelledby={`${uid}-task`}>
    <h3 id={`${uid}-task`}>개인 할 일 확인</h3>

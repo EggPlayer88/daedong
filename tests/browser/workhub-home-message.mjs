@@ -55,6 +55,16 @@ await test('홈 카드는 목록에 없는 정확한 대화를 조회하고 초�
  assert.deepEqual(await page.evaluate(()=>window.state.writes.map(x=>x.p_command)),[{kind:'read_thread',threadId:'home-thread',throughSequence:2}])
  await page.getByRole('button',{name:'홈으로 돌아가기',exact:true}).click();await sourceButton().waitFor();assert.equal(await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})).then(x=>x.local+x.session),0)
 })
+await test('홈 전체 대화 건수는 목록을 열고 읽음·발송 없이 홈 요약으로 돌아온다',async()=>{
+ const count=page.getByRole('button',{name:'안 읽은 대화 1개 · 메시지 목록 열기',exact:true})
+ await count.click();await page.getByRole('region',{name:'대화 목록',exact:true}).getByText('목록의 다른 대화',{exact:true}).waitFor()
+ assert.equal(await page.evaluate(()=>window.state.calls.filter(x=>x.name==='workhub_message_get').length),0)
+ const back=page.getByRole('button',{name:'홈 업무 요약으로 돌아가기',exact:true});await back.waitFor()
+ await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByLabel('메시지',{exact:true}).fill('홈 목록 이동 뒤 입력')
+ assert.equal(await back.isDisabled(),true)
+ await page.getByRole('button',{name:'입력 접고 목록 보기',exact:true}).click();await page.setViewportSize({width:320,height:760});await back.focus();await page.keyboard.press('Enter');await sourceButton().waitFor()
+ assert.equal(await page.evaluate(()=>window.state.writes.length),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
+})
 await test('홈 선택 재렌더가 다른 대화 선택을 되돌리지 않고 목록으로 돌아갈 수 있다',async()=>{
  await open();await page.getByRole('button',{name:/목록의 다른 대화/}).click();await detail().getByText('다른 대화 내용입니다.',{exact:true}).waitFor();await page.evaluate(()=>window.state.refresh());await detail().getByText('다른 대화 내용입니다.',{exact:true}).waitFor()
  assert.equal(await detail().getByText('정확한 홈 원본 내용입니다.',{exact:true}).count(),0)
