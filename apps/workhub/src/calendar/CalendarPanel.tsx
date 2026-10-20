@@ -19,7 +19,7 @@ export function CalendarPanel(props: Parameters<typeof CalendarPanelScope>[0]) {
   return <PendingRequestsProvider store={recovery}><CalendarPanelScope {...props} /></PendingRequestsProvider>
 }
 
-function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homeExtras, homeFollowUp, storageLabel, onNavigationLockChange, openRequest, onOpenBatchImport, renderLessonAgenda }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homeExtras?: ReactNode; homeFollowUp?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest; onOpenBatchImport?: () => void; renderLessonAgenda?: (date: string) => ReactNode }) {
+function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homePriority, homeExtras, homeFollowUp, storageLabel, onNavigationLockChange, openRequest, onOpenBatchImport, renderLessonAgenda }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homePriority?: ReactNode; homeExtras?: ReactNode; homeFollowUp?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest; onOpenBatchImport?: () => void; renderLessonAgenda?: (date: string) => ReactNode }) {
   const recovery = usePendingRequest(member, 'calendar')
   const draft = useEditDraft<CalendarSession>(member, 'calendar-panel')
   const browse = useEditDraft<CalendarBrowseState>(member, 'calendar-browse')
@@ -136,11 +136,12 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
     </section>}
     {page === 'calendar' && renderLessonAgenda?.(anchor)}
     {page === 'home' ? <div className="home-dashboard">
+      {homePriority && <div className="home-priority">{homePriority}</div>}
+      {renderLessonAgenda && <div className="home-timetable-section">{renderLessonAgenda(date)}</div>}
       <section className="home-calendar-section home-today" aria-labelledby={id + '-today'}>
         <div className="section-heading home-calendar-heading"><div><h2 id={id + '-today'}>오늘의 일정</h2>{!loading && !error && <span className="count" aria-label={'오늘 관련 일정 ' + cards.today.length + '개'}>{cards.today.length}</span>}</div><button type="button" className="text-button" aria-label="학교 전체 일정 살펴보기" onClick={() => { setAllDates(false); setAnchor(date); clearFilters(); changePage('calendar') }}>전체 일정 <Icon name="arrow" /></button></div>
         {loading ? <section className="loading-state" role="status" aria-live="polite"><div className="skeleton" /><div className="skeleton" /><p>현재 소속의 일정을 불러오는 중…</p></section> : error ? <section className="error-state" role="alert"><span className="state-symbol">!</span><h2>일정을 확인할 수 없어요</h2><p>{error}</p><button className="secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></section> : <><div className="event-list" id={id + '-today-list'}>{shownToday.length ? shownToday.map(({ event, reason }) => <EventCard key={event.id} event={event} reason={reason} onOpen={setDetail} summary today />) : <p className="home-empty">오늘 나와 관련된 일정이 없습니다.</p>}</div>{cards.today.length > 3 && <button type="button" className="text-button cv-home-more" aria-expanded={todayExpanded} aria-controls={id + '-today-list'} onClick={() => setTodayExpanded(value => !value)}>{todayExpanded ? '오늘 일정 접기' : '오늘 일정 ' + cards.today.length + '개 모두 보기'}</button>}</>}
       </section>
-      {renderLessonAgenda && <div className="home-timetable-section">{renderLessonAgenda(date)}</div>}
       {homeExtras && <div className="home-work-column">{homeExtras}</div>}
       {homeFollowUp && <div className="home-follow-up">{homeFollowUp}</div>}
       {!loading && !error && <section className="home-calendar-section home-upcoming" aria-labelledby={id + '-upcoming'}>

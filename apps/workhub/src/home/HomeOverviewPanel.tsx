@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { createHomeService, type HomeAction, type HomeKind, type HomeOverview } from './overview'
@@ -18,29 +18,36 @@ export function HomeOverviewPanel({ connection, member, revision, onOpen }: Prop
   const [data, setData] = useState<HomeOverview>()
   const [failed, setFailed] = useState(false)
   const [reload, setReload] = useState(0)
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
   useEffect(() => {
     let live = true
-    setData(undefined); setFailed(false)
+    setData(undefined); setFailed(false); setExpanded(false)
     void service.load(member.id).then(value => { if (live) setData(value) }).catch(() => { if (live) setFailed(true) })
     return () => { live = false }
   }, [service, member.id, revision, reload])
 
-  return <section className="home-overview" aria-label="확인할 학교 업무">
+  const empty = Boolean(data && !data.items.length && !data.unavailable.length)
+  // 서버가 준 순서는 유지한다. 첫 목록을 줄이더라도 긴급 항목은 접지 않는다.
+  const collapsedItems = data?.items.filter((item, index) => index < 4 || item.priority === 'urgent') ?? []
+  const shownItems = data ? (expanded ? data.items : collapsedItems) : []
+  return <section className={`home-overview${empty ? ' home-overview-empty-state' : ''}`} aria-label="확인할 학교 업무">
     <style>{styles}</style>
     <header className="home-overview-heading"><h2>확인할 일</h2><span className="home-overview-context">내게 온 업무</span></header>
-    {failed ? <details className="home-overview-failure">
-      <summary>수합·메시지·학생 후속 업무를 불러오지 못했습니다</summary>
+    {failed ? <div className="home-overview-failure" role="alert">
+      <p>수합·메시지·학생 후속 업무를 불러오지 못했습니다</p>
       <p>일정과 내 업무는 각각 확인할 수 있습니다. 다른 항목을 0건으로 판단하지 않습니다.</p>
       <button type="button" className="secondary" onClick={() => setReload(value => value + 1)}>추가 업무 다시 확인</button>
-    </details> : !data ? <p className="home-overview-empty" role="status">내게 연결된 업무를 확인 중…</p> : <>
-      <ul className="home-overview-items">{data.items.map(item => <li key={item.id}>
+    </div> : !data ? <p className="home-overview-empty" role="status">내게 연결된 업무를 확인 중…</p> : <>
+      <ul className="home-overview-items" id={listId}>{shownItems.map(item => <li key={item.id}>
         <button type="button" onClick={() => onOpen(item)} className={item.priority === 'urgent' ? 'is-urgent' : undefined}>
           <span className="home-overview-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"><path d={iconPaths[item.kind]} /></svg></span>
           <span className="home-overview-content"><span className="home-overview-title">{item.priority === 'urgent' && <strong>확인 필요 · </strong>}{item.title}</span><small>{item.label}{item.dueDate && ` · ${item.dueDate}까지`}</small></span>
           <span className="home-overview-arrow" aria-hidden="true">›</span>
         </button>
       </li>)}</ul>
-      {!data.items.length && !data.unavailable.length && <p className="home-overview-empty">지금 확인할 추가 업무가 없습니다.</p>}
+      {data.items.length > collapsedItems.length && <button type="button" className="text-button home-overview-more" aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded(value => !value)}>{expanded ? '업무 목록 접기' : `확인할 업무 ${data.items.length}개 모두 보기`}</button>}
+      {!data.items.length && !data.unavailable.length && <p className="home-overview-empty">지금 표시할 추가 업무가 없습니다.</p>}
       {data.unavailable.length > 0 && <p className="home-overview-note">일부 연결 항목은 확인 중입니다. 확인되지 않은 항목은 건수에 포함하지 않았습니다.</p>}
       <details className="home-overview-help"><summary>업무 표시 기준</summary>
         <p>원본에서 제출·검토·처리를 마치면 반영됩니다. 홈에서 읽었다고 완료되지 않습니다.</p>

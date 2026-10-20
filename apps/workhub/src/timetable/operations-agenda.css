@@ -1,1 +1,14 @@
 .ttagenda{border:1px solid var(--border,#d7dfe8);border-radius:12px;padding:18px;background:var(--surface,#fff);color:var(--text,#202630);margin:16px 0}.ttagenda *{box-sizing:border-box}.ttagenda-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}.ttagenda h3{font-size:17px;margin:0}.ttagenda-header>span,.ttagenda p,.ttagenda small{font-size:13px;color:var(--text-muted,#586575)}.ttagenda ol{list-style:none;padding:0;margin:0}.ttagenda li+li{border-top:1px solid var(--border,#d7dfe8)}.ttagenda button{font:inherit;cursor:pointer;min-height:44px;max-width:100%;overflow-wrap:anywhere;border:1px solid var(--border,#d7dfe8);border-radius:7px;padding:9px 12px;background:var(--surface,#fff);color:var(--text,#202630)}.ttagenda li button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:0;border-radius:4px;padding:12px 0}.ttagenda li button>span{flex:1;min-width:0}.ttagenda li button span span{display:block;font-size:12px;color:var(--text-muted,#586575);margin-top:3px}.ttagenda time{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}.ttagenda strong{font-size:14px}.ttagenda .ttagenda-all{margin-top:12px;width:100%}.ttagenda button:focus-visible{outline:3px solid var(--accent,#2f65ac);outline-offset:3px}@media(max-width:420px){.ttagenda{padding:14px 12px}.ttagenda li button{flex-wrap:wrap;gap:6px}.ttagenda time{width:100%}.ttagenda small{flex-shrink:0}}
+
+/* 홈에서는 중첩 카드를 없애고 확인된 빈 상태와 준비 상태를 짧게 구분한다. */
+.ws-shell .ui-home-main .ttagenda{margin:0;padding:0;border:0;border-radius:0;background:transparent;color:var(--ui-text)}
+.ws-shell .ui-home-main .ttagenda :is(p,small,.ttagenda-header>span){color:var(--ui-muted);font-size:var(--ui-small-size);line-height:1.7}
+.ws-shell .ui-home-main .ttagenda h3{font-size:calc(var(--ui-body-size) + 3px);letter-spacing:-.03em}
+.ws-shell .ui-home-main .ttagenda strong{font-size:var(--ui-body-size);font-weight:600}
+.ws-shell .ui-home-main .ttagenda button{background:transparent;color:var(--ui-text);border-color:var(--ui-line);font-size:var(--ui-small-size)}
+.ws-shell .ui-home-main .ttagenda li+li{border-color:var(--ui-line)}
+.ws-shell .ui-home-main .ttagenda time{font-size:var(--ui-small-size)}
+.ws-shell .ui-home-main .ttagenda .ttagenda-all{width:auto;margin-top:8px;border:0;padding:8px 0;color:var(--ui-accent)}
+.ws-shell .ui-home-main :is(.ttagenda-empty,.ttagenda-unavailable,.ttagenda-loading) .ttagenda-header{margin-bottom:4px}
+.ws-shell .ui-home-main :is(.ttagenda-empty,.ttagenda-unavailable,.ttagenda-loading) p{margin:4px 0}
+.ws-shell .ui-home-main .ttagenda-error [role="alert"]{color:var(--ui-danger,#b42332)}

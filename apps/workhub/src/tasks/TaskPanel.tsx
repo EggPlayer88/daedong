@@ -340,7 +340,9 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     focusList.current = true; setListPage(page)
   }
   const emptyMessage = !tasks.length ? '아직 등록한 개인 업무가 없습니다.' : compact ? '지금 진행할 개인 업무가 없습니다.' : '현재 검색·분류에 맞는 업무가 없습니다.'
-  return <section ref={panel} className={`task-panel${compact ? ' task-compact' : ''}`} aria-labelledby={`${id}-heading`}>
+  // 확인된 빈 목록만 작게 표시한다. 입력·오류·결과 미상 안내는 기존 공간을 유지한다.
+  const compactEmpty = compact && !loading && !loadError && !denied && enabled && !pending && !editor && !conflict && !error && !openError && !notice && restoreState === 'ready' && summary.total === 0
+  return <section ref={panel} className={`task-panel${compact ? ' task-compact' : ''}${compactEmpty ? ' task-state-empty' : ''}`} aria-labelledby={`${id}-heading`}>
     <style>{taskStyles}</style>
     <header className="task-heading"><div><p className="task-eyebrow">{compact ? '나만 보기' : '현재 학교 · 나만 보는 업무'}</p><h2 id={`${id}-heading`}>{compact ? '내 할 일' : '내 업무'}</h2>{!compact && <p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p>}</div><button ref={registrationButton} type="button" className="task-primary" disabled={locked || !!editor || loading || !!loadError} onClick={event => { editorTrigger.current = event.currentTarget; nextFocus.current = 'title'; retiredDraft.current = false; setEditor({}); setInput(blank()); setError(''); setNotice('') }}>할 일 등록</button></header>
     {denied || !enabled ? <div ref={deniedMessage} tabIndex={-1} className="task-error" role="alert"><p>{denied || failureText.INACTIVE_MEMBERSHIP}</p>{enabled && <button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>연결 다시 확인</button>}</div> : <>
@@ -358,7 +360,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
         onSubmit={submit}
         onCancel={() => { nextFocus.current = 'return'; retiredDraft.current = true; editMemory.remove(); setEditor(undefined); setInput(blank()); setError('') }} />}
       {!compact && <div className="task-filters"><label htmlFor={`${id}-search`}>업무 검색<input id={`${id}-search`} aria-label="업무 검색" type="search" value={search} onChange={event => { setSearch(event.target.value); setListPage(0) }} placeholder="제목·나의 메모 검색" /></label><label htmlFor={`${id}-status`}>상태<select id={`${id}-status`} aria-label="상태" value={filter} onChange={event => { setFilter(event.target.value as typeof filter); setListPage(0) }}><option value="open">진행할 업무</option><option value="all">모든 상태</option>{TASK_STATUSES.map(status => <option key={status} value={status}>{labels[status]}</option>)}</select></label><label htmlFor={`${id}-filter-due`}>기한 분류<select id={`${id}-filter-due`} aria-label="기한 분류" value={dueFilter} onChange={event => { setDueFilter(event.target.value); setListPage(0) }}><option value="all">모든 기한</option><option value="overdue">기한 지남</option><option value="today">오늘까지</option><option value="upcoming">앞으로</option><option value="none">기한 없음</option></select></label></div>}
-      <div ref={listHeading} className="task-list-heading" tabIndex={-1} aria-label="내 업무 목록"><span>{loading ? '내 업무 확인 중' : loadError ? '조회 실패 · 건수 확인 안 됨' : compact ? `진행할 업무 ${summary.total}개${summary.total > 4 ? ' · 먼저 4개 표시' : ''}` : `현재 분류 ${filtered.length}개`}</span><button type="button" className="task-text-button" disabled={!!busy || loading} onClick={() => setReload(value => value + 1)}>목록 새로고침</button></div>
+      {!compactEmpty && <div ref={listHeading} className="task-list-heading" tabIndex={-1} aria-label="내 업무 목록"><span>{loading ? '내 업무 확인 중' : loadError ? '조회 실패 · 건수 확인 안 됨' : compact ? `진행할 업무 ${summary.total}개${summary.total > 4 ? ' · 먼저 4개 표시' : ''}` : `현재 분류 ${filtered.length}개`}</span><button type="button" className="task-text-button" disabled={!!busy || loading} onClick={() => setReload(value => value + 1)}>목록 새로고침</button></div>}
       {compact && summary.total > 0 && <TaskDueSummary tasks={currentTasks} date={date} state={loading ? 'loading' : loadError ? 'error' : 'ready'} disabled={navigationLocked} onOpenTasks={onOpenTasks} />}
       {loading ? <p className="task-loading" role="status">내 업무를 불러오는 중…</p> : loadError ? <div className="task-error" role="alert"><p>{loadError}</p><button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></div> : <div className="task-list">{shown.length ? shown.map(task => <TaskCard key={task.id} id={id} task={task} date={date} compact={compact}
         highlighted={selectedTask?.id === task.id} locked={locked} editing={!!editor}
@@ -366,8 +368,10 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
         onEdit={trigger => { void beginEdit(task, trigger) }} />) : <p className="task-empty">{emptyMessage}</p>}</div>}
       {!compact && !loading && !loadError && <ListPagination label="내 업무 목록 페이지" window={taskWindow} disabled={navigationLocked} onPageChange={changeListPage} />}
       {busy === 'opening' && <p role="status" className="task-loading">업무 원본을 확인하는 중…</p>}
-      {compact && onOpenTasks && <button type="button" className="task-text-button task-more" disabled={navigationLocked} onClick={() => onOpenTasks()}>모든 내 업무 보기</button>}
-      {compact && <details className="task-home-help"><summary>개인 할 일 이용 안내</summary><p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p></details>}
+      {compact && <div className={compactEmpty ? 'task-empty-actions' : undefined}>
+        {onOpenTasks && <button type="button" className="task-text-button task-more" disabled={navigationLocked} onClick={() => onOpenTasks()}>모든 내 업무 보기</button>}
+        <details className="task-home-help"><summary>개인 할 일 이용 안내</summary><p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p>{compactEmpty && <button type="button" className="task-text-button" disabled={!!busy || loading} onClick={event => { event.currentTarget.closest('details')?.querySelector('summary')?.focus(); setReload(value => value + 1) }}>목록 새로고침</button>}</details>
+      </div>}
     </>}
   </section>
 }
