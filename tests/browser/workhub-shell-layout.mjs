@@ -118,6 +118,26 @@ try {
     await capture('shell-menu-'+width)
     await legacySummary().click()
   })
+  await test('빈 수합과 개인 업무는 모바일에서도 작게 표시하고 원래 조회·이동 행동을 유지한다',async()=>{
+    for(const width of [584,390,320]){
+      await page.setViewportSize({width,height:844});await start()
+      const collections=page.getByRole('region',{name:'오늘 처리할 수합',exact:true}),tasks=page.getByRole('region',{name:'내 할 일',exact:true})
+      const collectionHeight=(await collections.boundingBox()).height,taskHeight=(await tasks.boundingBox()).height
+      assert(collectionHeight<=110,`${width}px 빈 수합 높이 ${collectionHeight}px`)
+      assert(taskHeight<=190,`${width}px 빈 개인 업무 높이 ${taskHeight}px`)
+      assert.equal(await tasks.locator('.task-list-heading').count(),0)
+      assert.equal(await tasks.getByRole('button',{name:'할 일 등록',exact:true}).isVisible(),true)
+      await tasks.locator('.task-home-help>summary').click()
+      await tasks.getByRole('button',{name:'목록 새로고침',exact:true}).click();await settle()
+      assert.equal(await tasks.locator('.task-home-help>summary').evaluate(node=>node.getRootNode().activeElement===node),true)
+      await tasks.getByRole('button',{name:'모든 내 업무 보기',exact:true}).click()
+      await page.getByRole('heading',{name:'내 업무',level:1,exact:true}).waitFor()
+      await page.getByRole('navigation',{name:'업무 메뉴',exact:true}).getByRole('button',{name:'오늘',exact:true}).click();await settle()
+      await page.getByRole('region',{name:'오늘 처리할 수합',exact:true}).getByRole('button',{name:'수합 전체 보기',exact:true}).click()
+      await page.getByRole('heading',{name:'자료 수합',level:1,exact:true}).waitFor()
+      await assertFits(width+'px 빈 업무 이동')
+    }
+  })
   await test('기존 메뉴 링크도 실제 작성 중 입력을 버리지 않고 안내 뒤 취소하면 이동한다',async()=>{
     await page.setViewportSize({width:1440,height:1000});await start()
     await page.getByRole('button',{name:'할 일 등록',exact:true}).click()

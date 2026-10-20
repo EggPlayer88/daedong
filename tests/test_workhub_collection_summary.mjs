@@ -128,13 +128,21 @@ test('실제 JSX는 대기를 직접 처리할 업무 수와 분리하고 기존
 test('실제 JSX는 조회 실패와 정상 0건을 구별하며 다시 확인 행동을 제공한다', () => {
   const store = createWorkflowStore({ members, date })
   const empty = renderHome(store, author)
-  assert(empty.includes('처리할 0건')); assert(empty.includes('지금 처리하거나 검토를 기다리는 수합이 없습니다'))
+  assert.equal(summary(store, author).actionCount, 0); assert.equal(summary(store, author).waitingCount, 0)
+  assert(empty.includes('class="wf-home wf-home-compact wf-home-empty-state"'))
+  assert(empty.includes('지금 처리하거나 검토를 기다리는 수합이 없습니다'))
+  assert(!empty.includes('수합 현황 확인 안 됨')); assert(!empty.includes('role="alert"'))
   const failed = renderHome({ ...store, listCollections() { throw new Error('합성 조회 실패') } }, author)
   assert(failed.includes('수합 현황 확인 안 됨')); assert(failed.includes('수합 현황 다시 확인')); assert(!failed.includes('처리할 0건'))
+  assert(failed.includes('role="alert"')); assert(failed.includes('합성 조회 실패'))
+  assert(!failed.includes('class="wf-home wf-home-compact wf-home-empty-state"'))
+  assert(!failed.includes('지금 처리하거나 검토를 기다리는 수합이 없습니다'))
 })
-test('빈 홈은 반복 0건 격자를 생략하고 실제 처리·대기 총수만 남긴다', () => {
+test('빈 홈은 반복 0건 표시 대신 빈 상태 안내와 전체 보기 행동을 남긴다', () => {
   const html = renderHome(createWorkflowStore({ members, date }), author)
-  assert(html.includes('처리할 0건 · 검토 대기 0건'))
+  assert(!html.includes('처리할 0건 · 검토 대기 0건'))
+  assert(html.includes('지금 처리하거나 검토를 기다리는 수합이 없습니다'))
+  assert.match(html, /<button[^>]*>수합 전체 보기<\/button>/)
   assert(!html.includes('<dl class="wf-role-counts">')); assert(!html.includes('<details class="wf-home-details"'))
 })
 test('역할별 현황은 접힌 상태이며 겹치는 역할과 대기 안내를 그대로 보존한다', () => {

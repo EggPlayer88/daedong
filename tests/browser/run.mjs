@@ -21,7 +21,7 @@ const scripts = [
   'workhub-school-setup', 'workhub-tasks', 'workhub-connection', 'workhub-connection-exit', 'workhub-draft-recovery', 'workhub-day-refresh', 'workhub-readiness',
   'workhub-navigation', 'workhub-help', 'workhub-foundation', 'workhub-calendar-views',
   'workhub-calendar-recovery', 'workhub-calendar-import', 'workhub-cooperation-batch', 'workhub-cooperation-handover', 'workhub-request-recovery',
-  'workhub-home-search', 'workhub-home-layout', 'workhub-shell-layout', 'workhub-home-message', 'workhub-task-navigation',
+  'workhub-home-search', 'workhub-home-layout', 'workhub-home-overview', 'workhub-shell-layout', 'workhub-home-message', 'workhub-task-navigation',
   'workhub-collection-workbench', 'workhub-collection-entry', 'workhub-collection-followup', 'workhub-collection-server', 'workhub-collection-hwpx', 'workhub-collection-usability', 'workhub-knowledge', 'workhub-knowledge-import', 'workhub-pilot-connected', 'workhub-assistant', 'workhub-documents', 'workhub-document-appearance', 'workhub-collection-operations', 'workhub-school-admin', 'workhub-school-transitions', 'workhub-teaching', 'workhub-teaching-relations', 'workhub-relations-list', 'workhub-record-export', 'workhub-messaging', 'workhub-messaging-file-recovery', 'workhub-collection-export', 'workhub-file-controls', 'workhub-file-collections', 'workhub-file-persistence',
   'workhub-student-workspace', 'workhub-student-entry',
   'workhub-accessibility', 'workhub-collection-accessibility', 'workhub-student-accessibility',
