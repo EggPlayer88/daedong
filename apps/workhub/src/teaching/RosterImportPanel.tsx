@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { TeachingImportPanelProps } from './ImportPanel'
 import { assertRosterImportReady, compareRosterImport, readRosterFile, rosterReviewBasis, rosterWorkbook } from './roster-import'
 import { safeCsv } from './csv'
+import { rosterCorrectionTargets, rosterCorrectionLabels } from './roster-correction'
 import policy from './policy.json'
 import workbookLimits from '../timetable/workbook-limits.json'
 import styles from './roster-import.css?inline'
@@ -15,7 +16,7 @@ const message = (failure: unknown) => failure instanceof Error ? failure.message
 export function RosterImportPanel(props: TeachingImportPanelProps) {
   const { draft, course, disabled, onChange, onSave, onCancel, saveLabel = '확인한 자료 저장' } = props
   const id = useId(), [reading, setReading] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
-  const [filter, setFilter] = useState('all'), [page, setPage] = useState(0), generation = useRef(0), current = useRef(props)
+  const [filter, setFilter] = useState(draft.rosterView?.filter ?? 'all'), [page, setPage] = useState(draft.rosterView?.page ?? 0), generation = useRef(0), current = useRef(props)
   current.current = props
   const basis = rosterReviewBasis(course), scope = JSON.stringify([course.schoolId, course.memberId, course.ownerUserId, course.course.id])
   useEffect(() => () => { generation.current++ }, [scope])
@@ -38,7 +39,7 @@ export function RosterImportPanel(props: TeachingImportPanelProps) {
         setError('파일을 읽는 동안 수업 또는 명부가 바뀌었습니다. 이전 입력은 유지했습니다. 최신 자료를 확인한 뒤 파일을 다시 선택해 주세요.')
         return
       }
-      latest.onChange({ ...latest.draft, ...next, rosterBasis: original, expectedVersion: latest.course.course.version, confirmed: false })
+      latest.onChange({ ...latest.draft, ...next, rosterView: {filter: 'all', page: 0}, rosterBasis: original, expectedVersion: latest.course.course.version, confirmed: false })
       setPage(0); setFilter('all'); setNotice('파일을 읽었습니다. 현재 수업 명부와 비교한 뒤 저장해 주세요.')
     } catch (failure) { if (turn === generation.current) setError(`${message(failure)} 이전에 읽은 입력은 유지했습니다.`) }
     finally { if (turn === generation.current) setReading(false) }
@@ -82,10 +83,10 @@ export function RosterImportPanel(props: TeachingImportPanelProps) {
     {comparison && draft.roster.length > 0 && <>
       <div className="teaching-roster-counts" role="status"><span>새 연결 후보 {comparison.added}명</span><span>현재 명부와 일치 {comparison.matched}명</span><span>정정 필요 {comparison.corrections}명</span><span>파일에 없는 기존 학생 {comparison.kept}명 유지</span></div>
       <p className="teaching-roster-scope">새 연결 후보가 학교 전체의 새 학생이라는 뜻은 아닙니다. 다른 수업의 학생번호·학적과 실제 저장 가능 여부는 서버가 다시 확인합니다.</p>
-      {comparison.corrections > 0 && <p role="alert" className="teaching-error">정정 필요 행이 있어 저장을 막았습니다. 기존 학생 정보는 학교 자료 정정·보관에서, 수강 기간은 담당·수강 관계 관리에서 먼저 확인하거나 파일을 고쳐 주세요.</p>}
+      {comparison.corrections > 0 && <p role="alert" className="teaching-error">정정 필요 행이 있어 저장을 막았습니다. 기존 학생 정보는 학교 자료 정정·보관에서, 수강 기간은 담당·수강 관계 관리에서 먼저 확인하거나 파일을 고쳐 주세요. 아래 정정 버튼을 사용하면 읽은 파일과 입력을 보관하고 돌아올 수 있습니다.</p>}
       <label>비교 행 보기<select aria-label="명부 비교 상태" value={filter} onChange={event => { setFilter(event.target.value); setPage(0) }}><option value="all">전체</option><option value="new">새 연결 후보</option><option value="matched">현재 명부와 일치</option><option value="correction">정정 필요</option></select></label>
       <div className="teaching-table-wrap" tabIndex={0} role="region" aria-label="명부 비교 표"><table><caption>저장 전 수강 명부 확인 · {rows.length}행</caption><thead><tr>{[...policy.rosterHeaders, '비교 결과'].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
-        <tbody>{rows.slice(shownPage * 20, (shownPage + 1) * 20).map(item => <tr key={item.row.schoolStudentKey}><td>{item.row.schoolStudentKey}</td><td>{item.row.name}</td><td>{item.row.grade}</td><td>{item.row.classLabel}</td><td>{item.row.seatNumber}</td><td><strong>{({ new: '새 연결 후보', matched: '현재 명부와 일치', correction: '정정 필요' })[item.state]}</strong>{item.differences.length > 0 && <ul>{item.differences.map(difference => <li key={difference}>{difference}</li>)}</ul>}</td></tr>)}</tbody></table></div>
+        <tbody>{rows.slice(shownPage * 20, (shownPage + 1) * 20).map(item => <tr key={item.row.schoolStudentKey}><td>{item.row.schoolStudentKey}</td><td>{item.row.name}</td><td>{item.row.grade}</td><td>{item.row.classLabel}</td><td>{item.row.seatNumber}</td><td><strong>{({ new: '새 연결 후보', matched: '현재 명부와 일치', correction: '정정 필요' })[item.state]}</strong>{item.differences.length > 0 && <ul>{item.differences.map(difference => <li key={difference}>{difference}</li>)}</ul>}{props.onOpenCorrection && rosterCorrectionTargets(draft, course, item.row.schoolStudentKey).filter(target => target.kind === 'membership' ? props.canCorrectMembership : props.canCorrectStudent).map(target => <button type="button" className="secondary" key={target.kind} disabled={disabled || reading || stale} aria-label={`${rosterCorrectionLabels[target.kind]} · ${item.row.schoolStudentKey}`} onClick={() => props.onOpenCorrection?.(target, {filter, page: shownPage})}>{rosterCorrectionLabels[target.kind]}</button>)}</td></tr>)}</tbody></table></div>
       {pages > 1 && <nav className="teaching-actions" aria-label="가져올 자료 페이지"><button type="button" className="secondary" disabled={shownPage === 0} onClick={() => setPage(shownPage - 1)}>이전 20행</button><span>{shownPage + 1} / {pages}</span><button type="button" className="secondary" disabled={shownPage + 1 >= pages} onClick={() => setPage(shownPage + 1)}>다음 20행</button></nav>}
       <label className="teaching-check"><input type="checkbox" checked={draft.confirmed && !blocked} disabled={blocked} onChange={event => {
         if (event.target.checked) { try { assertRosterImportReady(draft, course) } catch (failure) { setError(message(failure)); return } }

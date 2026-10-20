@@ -4,9 +4,10 @@ import { parseRosterCsv, parseActivityCsv, readCsvFile, csvHash, safeCsv, valida
 import policy from './policy.json'
 import { RosterImportPanel } from './RosterImportPanel'
 import type { RosterFileInfo } from './roster-import'
-export interface ImportDraft {mode:'roster'|'activity';kind:ActivityKind;rawCsv:string;roster:RosterRow[];activity:ActivityImportInput|null;validFrom:string;validThrough:string;expectedVersion:number;confirmed:boolean;file?:RosterFileInfo;rosterBasis?:string}
+import type { RosterCorrectionTarget, RosterView } from './roster-correction'
+export interface ImportDraft {mode:'roster'|'activity';kind:ActivityKind;rawCsv:string;roster:RosterRow[];activity:ActivityImportInput|null;validFrom:string;validThrough:string;expectedVersion:number;confirmed:boolean;file?:RosterFileInfo;rosterBasis?:string;rosterView?:RosterView}
 function download(name:string,contents:string){const url=URL.createObjectURL(new Blob([contents],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-export interface TeachingImportPanelProps {saveLabel?:string;activityKindLocked?:boolean;draft:ImportDraft;course:CourseSnapshot;disabled:boolean;onChange:(d:ImportDraft)=>void;onSave:()=>void;onCancel:()=>void}
+export interface TeachingImportPanelProps {onOpenCorrection?:(target:RosterCorrectionTarget,view:RosterView)=>void;canCorrectStudent?:boolean;canCorrectMembership?:boolean;saveLabel?:string;activityKindLocked?:boolean;draft:ImportDraft;course:CourseSnapshot;disabled:boolean;onChange:(d:ImportDraft)=>void;onSave:()=>void;onCancel:()=>void}
 export function TeachingImportPanel(props:TeachingImportPanelProps){return props.draft.mode==='roster'?<RosterImportPanel {...props}/>:<ActivityImportPanel {...props}/>}
 function ActivityImportPanel({draft,course,disabled,onChange,onSave,onCancel,saveLabel='확인한 자료 저장',activityKindLocked=false}:TeachingImportPanelProps){
   const id=useId(),[error,setError]=useState(''),[reading,setReading]=useState(false),[page,setPage]=useState(0)
