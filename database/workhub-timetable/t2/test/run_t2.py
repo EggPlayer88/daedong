@@ -595,6 +595,65 @@ def body():
     pv3 = adm.pprev(pL2); mf3 = adm.manifest(pL2)
     check('L06 같은 범위 다시 → 일반 · 명세 모두 변경 0 · T2-07 FAIL 없음', ok(pv3) and [b['code'] for b in d(pv3)['blockers']] == ['NO_CHANGES']
           and ok(mf3) and d(mf3)['totalChanges'] == 0 and not fails(t207()), (pv3, fails(t207())))
+    # ======================================================================= M. 기존 수업의 학급을 바꾸는 재공개와 휴업(Codex #73 P1 3차)
+    # 1-2 만 휴업한 월요일(합반이 아직 없는 앞쪽 기간)에서, 기존 과학(1-1) 수업의 학급 연결을 바꿔 기준판을 다시 확정하고 다시 공개한다.
+    pinned_now = set(vers())
+    M_day = None
+    for k_ in range(2, 15):
+        x_ = DAY(k_)
+        if datetime.date.fromisoformat(x_).isoweekday() != 1 or x_ in (target_day, sp_day): continue
+        if n('timetable_lessons', "occurrence_date = %s and state <> 'cancelled' and (pinned or changed_by <> 'publish')", (x_,)) == 0: M_day = x_; break
+    sci = ids_(f"select id from workhub.timetable_lessons where occurrence_date = '{M_day}' and state <> 'cancelled' and course_id = '{CC}'") if M_day else []
+    G = d(adm.oget(F, U)); adm.refs(G['asOf'], F, U)
+    spm = adm.sdprev({'kind': 'closure', 'date': M_day, 'groupIds': [gid['1-2']], 'reason': '1-2 재량휴업', 'bells': []}, G['asOf'], F, U); SPM = d(spm) or {}
+    rxm = adm.sdexec({'kind': 'school_day', 'preview': {'previewId': SPM.get('previewId'), 'previewHash': SPM.get('previewHash'), 'expiresAt': SPM.get('expiresAt')}}) \
+        if ok(spm) and not SPM['blockers'] else spm
+    check('M01 준비: 합반 없는 월요일에 1-2 만 휴업 · 그날 과학(1-1) 수업은 그대로', M_day is not None and ok(rxm) and len(sci) == 1
+          and scalar("select state from workhub.timetable_lessons where id=%s", (sci[0],)) == 'scheduled', (M_day, rxm, sci))
+    def relink(classes, ver, rev, title):
+        r1_ = adm.sx(link(CC, ver, classes))
+        psx = d(adm.prep())
+        dr_ = dict(draftL, plans=[{'courseId': c_['id'], 'weeklyPeriods': 2, 'blocks': [{'id': f"L{c_['id'][-6:]}-{i}", 'periods': 1, 'allowedSlotIds': ids} for i in range(2)]}
+                                  for c_ in psx['courses']])
+        r2_ = adm.pex(pin('confirm', psx, dr_, DID, rev)); Bx = (d(r2_) or {}).get('basis') or {}
+        Lx = {}
+        for l_ in Bx.get('lessons', []): Lx.setdefault(l_['courseId'], []).append(l_['id'])
+        r3_ = adm.save(dict(inp, basisId=Bx.get('id'), basisRevision=Bx.get('revision', 1), sourceFingerprint=Bx.get('sourceFingerprint'), title=title,
+                            placements=[{'lessonId': lid, 'slotId': planL[cid][i]} for cid, lids in Lx.items() for i, lid in enumerate(lids)]))
+        return [r1_, r2_, r3_], (d(r3_) or {}).get('draftId'), Lx.get(CC) == L.get(CC)
+    def both(pin_x):
+        pv_ = adm.pprev(pin_x); P_ = d(pv_) or {}
+        ex_ = adm.oexec({'kind': 'publish', 'preview': {'previewId': P_.get('previewId'), 'previewHash': P_.get('previewHash'), 'expiresAt': P_.get('expiresAt'), 'input': pin_x}})
+        mf_ = adm.manifest(pin_x); MFx = d(mf_) or {}
+        pg_ = adm.page(MFx.get('previewId'), MFx.get('manifestHash'), 0) if ok(mf_) and MFx['totalChanges'] else None
+        me_ = adm.pubexec({'kind': 'publish_manifest', 'previewId': MFx.get('previewId'), 'previewHash': MFx.get('previewHash'), 'manifestHash': MFx.get('manifestHash'),
+                           'basisFingerprint': MFx.get('basisFingerprint'), 'input': pin_x, 'expiresAt': MFx.get('expiresAt'), 'totalChanges': MFx.get('totalChanges')})
+        return pv_, ex_, mf_, me_
+    def blk(pv_, code): return next((b['lessonIds'] for b in (d(pv_) or {}).get('blockers', []) if b['code'] == code), [])
+    def sci_state(): return scalar("select array[version::text, groups::text] from workhub.timetable_lessons where id=%s", (sci[0],)) if sci else None
+    before_m = sci_state()
+    rr, DRM, same_act = relink(['cls-1-1', 'cls-1-2'], 1, 3, '운영 과학 합반안')
+    check('M02 준비: 과학을 1-1 + 1-2 로 다시 연결 · 기준판 다시 확정(활동 ID 그대로) · 초안 저장', all(ok(x) for x in rr) and same_act, [ecode(x) or 'ok' for x in rr])
+    pm = {'draftId': DRM, 'draftVersion': 1, 'from': M_day, 'until': (datetime.date.fromisoformat(M_day) + datetime.timedelta(days=1)).isoformat()}
+    pv_, ex_, mf_, me_ = both(pm)
+    check('M03 기존 과학 수업이 일부 휴업 합반으로 바뀜 → 일반 미리보기 PARTIAL_GROUP_SCOPE(그 기존 수업 ID) · 일반 확정 INVALID_INPUT · 명세 blockerCount ≥ 1 · 명세 확정 거부 · 수업 그대로',
+          ok(pv_) and sci and sci[0] in blk(pv_, 'PARTIAL_GROUP_SCOPE') and ecode(ex_) == 'INVALID_INPUT' and ok(mf_) and d(mf_)['blockerCount'] >= 1
+          and ecode(me_) == 'INVALID_INPUT' and sci_state() == before_m, (d(pv_) or pv_).get('blockers') if isinstance(d(pv_) or pv_, dict) else pv_)
+    rr, DRM2, same_act = relink(['cls-1-2'], 2, 4, '운영 과학 1-2안')
+    check('M04 준비: 과학을 휴업한 1-2 로만 다시 연결 · 기준판 다시 확정 · 초안 저장', all(ok(x) for x in rr) and same_act, [ecode(x) or 'ok' for x in rr])
+    pm2 = dict(pm, draftId=DRM2)
+    pv_, ex_, mf_, me_ = both(pm2)
+    check('M05 기존 과학 수업이 전부 휴업한 학급으로 바뀜 → SCHOOL_CLOSED(그 기존 수업 ID) · 일반 · 명세 확정 모두 거부 · 수업 그대로(건너뛰거나 자동 취소하지 않음)',
+          ok(pv_) and sci and sci[0] in blk(pv_, 'SCHOOL_CLOSED') and ecode(ex_) == 'INVALID_INPUT' and ok(mf_) and d(mf_)['blockerCount'] >= 1
+          and ecode(me_) == 'INVALID_INPUT' and sci_state() == before_m, (d(pv_) or pv_).get('blockers') if isinstance(d(pv_) or pv_, dict) else pv_)
+    # 휴업과 관계없는 날: 같은 초안을 일반 경로로 공개 → 성공(과학 수업이 1-2 로 바뀜)
+    pn = dict(pm2, **{'from': DAY(29), 'until': DAY(36)})
+    pvn = adm.pprev(pn); PN = d(pvn) or {}
+    rn = adm.oexec({'kind': 'publish', 'preview': {'previewId': PN.get('previewId'), 'previewHash': PN.get('previewHash'), 'expiresAt': PN.get('expiresAt'), 'input': pn}})
+    sci_n = ids_(f"select groups::text from workhub.timetable_lessons where course_id = '{CC}' and state <> 'cancelled' and occurrence_date >= '{DAY(29)}' and occurrence_date < '{DAY(36)}'")
+    check('M06 휴업 없는 기간 일반 공개 → 차단 0 · published · 과학 수업이 1-2 로 갱신 · 휴업 수업 · 보존 수업 그대로 · T2-07 FAIL 없음',
+          ok(pvn) and PN['blockers'] == [] and ok(rn) and d(rn)['status'] == 'published' and sci_n and all('1-2' in x and '1-1' not in x for x in sci_n)
+          and set(vers()) >= pinned_now and sci_state() == before_m and not fails(t207()), (PN.get('blockers'), rn, sci_n))
     if POLICY:
         check('H06 한도 = 앱 execution-records-policy.json(메모 1000 · 사유 500 · 쪽 20 · 수업 14400초)', POLICY['note'] == 1000 and POLICY['correctionReason'] == 500
               and POLICY['pageSize'] == 20 and POLICY['maxLessonSeconds'] == 14400)
