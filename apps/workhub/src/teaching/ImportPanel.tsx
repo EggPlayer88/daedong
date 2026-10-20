@@ -2,9 +2,13 @@ import { useId, useState } from 'react'
 import type { ActivityKind, ActivityImportInput, CourseSnapshot, RosterRow } from './contracts'
 import { parseRosterCsv, parseActivityCsv, readCsvFile, csvHash, safeCsv, validateActivityInput } from './csv'
 import policy from './policy.json'
-export interface ImportDraft {mode:'roster'|'activity';kind:ActivityKind;rawCsv:string;roster:RosterRow[];activity:ActivityImportInput|null;validFrom:string;validThrough:string;expectedVersion:number;confirmed:boolean}
+import { RosterImportPanel } from './RosterImportPanel'
+import type { RosterFileInfo } from './roster-import'
+export interface ImportDraft {mode:'roster'|'activity';kind:ActivityKind;rawCsv:string;roster:RosterRow[];activity:ActivityImportInput|null;validFrom:string;validThrough:string;expectedVersion:number;confirmed:boolean;file?:RosterFileInfo;rosterBasis?:string}
 function download(name:string,contents:string){const url=URL.createObjectURL(new Blob([contents],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-export function TeachingImportPanel({draft,course,disabled,onChange,onSave,onCancel,saveLabel='확인한 자료 저장',activityKindLocked=false}:{saveLabel?:string;activityKindLocked?:boolean;draft:ImportDraft;course:CourseSnapshot;disabled:boolean;onChange:(d:ImportDraft)=>void;onSave:()=>void;onCancel:()=>void}){
+export interface TeachingImportPanelProps {saveLabel?:string;activityKindLocked?:boolean;draft:ImportDraft;course:CourseSnapshot;disabled:boolean;onChange:(d:ImportDraft)=>void;onSave:()=>void;onCancel:()=>void}
+export function TeachingImportPanel(props:TeachingImportPanelProps){return props.draft.mode==='roster'?<RosterImportPanel {...props}/>:<ActivityImportPanel {...props}/>}
+function ActivityImportPanel({draft,course,disabled,onChange,onSave,onCancel,saveLabel='확인한 자료 저장',activityKindLocked=false}:TeachingImportPanelProps){
   const id=useId(),[error,setError]=useState(''),[reading,setReading]=useState(false),[page,setPage]=useState(0)
   async function load(file?:File){if(!file)return;setReading(true);setError('');onChange({...draft,confirmed:false});try{const rawCsv=await readCsvFile(file);if(draft.mode==='roster')onChange({...draft,rawCsv,roster:parseRosterCsv(rawCsv),confirmed:false});else {const parsed=parseActivityCsv(rawCsv,draft.kind);onChange({...draft,rawCsv,confirmed:false,activity:{label:'',occurredOn:'',questionVersion:'',questionSnapshot:'',kind:draft.kind,parserVersion:'digital-ethics.csv.v1',rawCsv,fileHash:await csvHash(rawCsv),...parsed,supersedesImportId:null}})}setPage(0)}catch(e){setError(e instanceof Error?e.message:'CSV를 읽지 못했습니다.')}finally{setReading(false)}}
   const activity=draft.activity
