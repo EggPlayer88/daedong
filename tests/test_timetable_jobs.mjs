@@ -13,6 +13,7 @@ assert.ok(python, '고정 OR-Tools가 필요합니다: pip install -r packages/t
 const engine = resolve('packages/timetable/engine'), cliPath = join(engine, 'jobs.py')
 const temporary = mkdtempSync(join(tmpdir(), '학교 시간표 작업 ')), children = new Set()
 const env = { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
+const jobPolicy = JSON.parse(readFileSync(resolve('packages/timetable/_assets/job-policy.json'), 'utf8'))
 let count = 0, activeCheck = ''
 const json = p => JSON.parse(readFileSync(p, 'utf8'))
 const save = (p, value) => writeFileSync(p, JSON.stringify(value))
@@ -34,6 +35,7 @@ function worker(store, fixture = null, once = false) {
   let output = ''
   child.stderr.on('data', chunk => output += chunk)
   child.stdout.on('data', chunk => output += chunk)
+  child.diagnostics = () => ({ pid: child.pid, exitCode: child.exitCode, signalCode: child.signalCode, output: output.slice(-4000) })
   child.finished = new Promise((done, reject) => { child.on('error', reject); child.on('exit', code => { children.delete(child); done({ code, output }) }) })
   return child
 }
@@ -41,6 +43,39 @@ async function waitFor(fn, description = '상태 변경', milliseconds = 15000) 
   const until = Date.now() + milliseconds
   while (Date.now() < until) { try { const result = fn(); if (result) return result } catch {} await delay(40) }
   assert.fail(description + ' 대기 시간 초과')
+}
+// 두 순차 작업은 각각 계산 한도와 작업자의 종료 여유를 사용할 수 있다.
+// 대기 중 Python CLI를 반복 기동하지 않고 원자 저장된 접수증을 읽는다. 성공 판정은 마지막에 CLI로 다시 확인한다.
+async function waitForTwoJobs(store, child, requests) {
+  assert.equal(requests.length, 2)
+  const milliseconds = requests.reduce((total, request) => total + (request.options.maxSeconds + jobPolicy.hardTimeoutGraceSeconds) * 1000, 10000)
+  const until = Date.now() + milliseconds, terminalFailures = new Set(['failed', 'cancelled', 'timed_out', 'interrupted'])
+  let states = []
+  const diagnostics = () => {
+    let heartbeat
+    try { const row = json(join(store, 'worker.json')); heartbeat = { state: row.state, activeRequestId: row.activeRequestId, updatedAt: row.updatedAt } }
+    catch (error) { heartbeat = { readError: error.code ?? error.name } }
+    return JSON.stringify({ waitLimitMs: milliseconds, states, heartbeat, worker: child.diagnostics() })
+  }
+  const stopped = () => child.exitCode !== null || child.signalCode !== null
+  while (Date.now() < until) {
+    states = requests.map(request => {
+      try { const row = json(join(store, 'jobs', request.requestId, 'status.json')); return { requestId: request.requestId, state: row.state, code: row.code, updatedAt: row.updatedAt } }
+      catch (error) {
+        if (error.code === 'ENOENT') return { requestId: request.requestId, state: 'not_received' }
+        assert.fail(`접수증 읽기 실패: ${request.requestId} / ${error.code ?? error.name} / ${diagnostics()}`)
+      }
+    })
+    if (states.some(row => terminalFailures.has(row.state))) assert.fail(`순차 작업이 성공하지 못했습니다: ${diagnostics()}`)
+    if (stopped()) assert.fail(`지속 작업자가 먼저 종료했습니다: ${diagnostics()}`)
+    if (states.every(row => row.state === 'succeeded')) {
+      for (const request of requests) assert.equal(status(store, request.requestId)?.state, 'succeeded', `CLI 완료 재확인 실패: ${diagnostics()}`)
+      assert.equal(stopped(), false, `완료 확인 중 지속 작업자가 종료했습니다: ${diagnostics()}`)
+      return
+    }
+    await delay(jobPolicy.pollIntervalMilliseconds)
+  }
+  assert.fail(`두 순차 작업 완료 대기 시간 초과: ${diagnostics()}`)
 }
 function newStore() { const path = join(temporary, randomUUID()); call(['init', '--store', path]); return path }
 const basis = () => ({ schemaVersion: 1, id: 'basis', revision: 1, schoolId: 'school', termId: 'term', sourceFingerprint: 'a'.repeat(64), schoolLevel: 'middle', unsupportedFeatures: [], resources: [{ id: 'teacher', kind: 'teacher', label: '교사', capacity: 1 }, { id: 'class', kind: 'class', label: '학급', capacity: 1 }], slots: [{ id: 'm1', day: 1, label: '월1', startMinute: 540, endMinute: 585, periods: 1 }, { id: 'm2', day: 1, label: '월2', startMinute: 595, endMinute: 640, periods: 1 }], lessons: [{ id: 'l1', courseId: 'course', label: '국어', periods: 1, resourceIds: ['teacher', 'class'], allowedSlotIds: ['m1', 'm2'] }], courseLoads: [{ courseId: 'course', periods: 1 }], fixed: [], unavailable: [], preferences: [] })
@@ -159,7 +194,7 @@ try {
     const a = await request(), b = await request(), queuedAt = Date.now()
     // 빠른 Linux 파일 쓰기는 같은 밀리초가 될 수 있으므로 접수 순서의 근거를 명시한다.
     browserSubmit(store, a, true, new Date(queuedAt - 1000).toISOString()); browserSubmit(store, b, true, new Date(queuedAt).toISOString())
-    await waitFor(() => status(store, a.requestId)?.state === 'succeeded' && status(store, b.requestId)?.state === 'succeeded')
+    await waitForTwoJobs(store, first, [a, b])
     assert.ok(status(store, a.requestId).finishedAt <= status(store, b.requestId).startedAt)
     first.kill(); await first.finished
   })
@@ -167,7 +202,7 @@ try {
     const store = newStore(), a = await request('ffffffff-ffff-ffff-ffff-ffffffffffff'), b = await request('00000000-0000-0000-0000-000000000000'), queuedAt = new Date().toISOString()
     browserSubmit(store, a, true, queuedAt); browserSubmit(store, b, true, queuedAt)
     const first = worker(store)
-    await waitFor(() => status(store, a.requestId)?.state === 'succeeded' && status(store, b.requestId)?.state === 'succeeded')
+    await waitForTwoJobs(store, first, [a, b])
     assert.ok(status(store, b.requestId).finishedAt <= status(store, a.requestId).startedAt)
     first.kill(); await first.finished
   })

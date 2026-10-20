@@ -60,6 +60,8 @@ try {
   await check('필터 밖에 유지한 요청도 서버 판이 바뀌면 이전 확인을 취소한다', async () => {
     await inbox().getByRole('button', { name: '변경안에 동의', exact: true }).click(); await confirm().getByRole('checkbox').check(); await page.getByLabel('변경 요청 검색', { exact: true }).fill('완료 D')
     await page.evaluate(() => { window.view.requests.find(row => row.id === 'incoming').version++; window.refresh() }); await confirm().waitFor({ state: 'detached' })
+    // 확인 창은 재조회 시작 때 먼저 닫힌다. 최신 필터 결과가 나타난 뒤 실제 목록을 검사한다.
+    await cards().filter({ hasText: '완료 D' }).waitFor({ state: 'visible' })
     assert.equal(await cards().count(), 1); assert.match(await cards().innerText(), /완료 D/); assert.equal(await page.evaluate(() => window.actualWrites), 0)
   })
   await check('시간이 지나면 할 일 건수를 줄이고 확인 중인 만료 요청은 비활성으로 보존한다', async () => {

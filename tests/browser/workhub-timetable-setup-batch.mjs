@@ -19,6 +19,12 @@ async function start() { await page.setViewportSize({ width: 1280, height: 900 }
 async function test(name, run) { await start(); await run(); count++; console.log('  ✓ ' + name) }
 async function upload(kind = 'two') { const buffer = Buffer.from(await page.evaluate(kind => window.makeFile(kind), kind)); await field('편집한 준비 입력 엑셀 가져오기').setInputFiles({ name: '학교준비.xlsx', mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', buffer }); await page.waitForFunction(() => !document.body.textContent.includes('엑셀 파일과 현재 자료를 비교하고 있습니다')) }
 async function calls() { return page.evaluate(() => window.calls.filter(row => row.name === 'workhub_timetable_setup_execute')) }
+async function reconcile(choices = {}) {
+  await button('최신 자료로 남은 항목 다시 비교').click(); await field('국어 [course-a] 충돌 처리').waitFor()
+  for (const select of await page.getByRole('region', { name: '충돌한 일괄 입력 다시 비교' }).getByRole('combobox').all()) { await select.selectOption('mine') }
+  for (const [label, value] of Object.entries(choices)) await field(label + ' 충돌 처리').selectOption(value)
+  await field('최신 자료와 내 입력의 차이 및 각 항목 선택을 확인했습니다').check(); await button('선택한 비교 결과 적용').click()
+}
 async function begin() { await confirmation().check(); await apply().click() }
 try {
   await test('실제 내려받은 XLSX에서 학교·한글·빈 정원을 보존하고 다시 가져오면 변경이 없다', async () => {
@@ -62,8 +68,44 @@ try {
   await test('두 번째 항목의 실패는 첫 성공을 유지하고 재개 시 성공 항목을 다시 보내지 않는다', async () => {
     await upload(); await page.evaluate(() => window.rejectAt = 2); await begin(); await page.getByText('저장 완료 1건. 나머지 입력과 요청 번호를 보관했습니다.', { exact: true }).waitFor()
     assert.equal(await page.evaluate(() => window.actualWrites), 1); const before = await calls(); assert.equal(before.length, 2); assert.equal(await page.evaluate(() => window.pending.count()), 0)
-    await page.evaluate(() => window.rejectAt = 0); await confirmation().check(); await resume().click(); await page.getByText('선택한 2건을 저장했습니다.', { exact: true }).waitFor()
-    const after = await calls(); assert.equal(after.length, 3); assert.equal(after[2].args.p_request_key, before[1].args.p_request_key); assert.equal(await page.evaluate(() => window.actualWrites), 2)
+    await page.evaluate(() => window.rejectAt = 0); await reconcile(); await confirmation().check(); await resume().click(); await page.getByText('선택한 2건을 저장했습니다.', { exact: true }).waitFor()
+    const after = await calls(); assert.equal(after.length, 3); assert.notEqual(after[2].args.p_request_key, before[1].args.p_request_key); assert.equal(await page.evaluate(() => window.actualWrites), 2)
+  })
+  await test('U2 실제 공간 판 충돌을 최신 3-way 비교 후 새 키로 저장하고 미전송 수업 키는 유지한다', async () => {
+    await upload(); await page.evaluate(() => { window.view.spaces[0].capacity = 9; window.view.spaces[0].version = 5 })
+    await begin(); await button('최신 자료로 남은 항목 다시 비교').waitFor(); assert.equal((await calls()).length, 0); assert.equal(await resume().count(), 0)
+    await button('최신 자료로 남은 항목 다시 비교').click(); await field('과학실 [room-a] 충돌 처리').waitFor(); const region = page.getByRole('region', { name: '충돌한 일괄 입력 다시 비교' })
+    assert.match(await region.innerText(), /동시수업수: 9/); assert.equal(await button('선택한 비교 결과 적용').isDisabled(), true)
+    await field('과학실 [room-a] 충돌 처리').selectOption('mine'); await field('국어 [course-a] 충돌 처리').selectOption('mine')
+    await field('최신 자료와 내 입력의 차이 및 각 항목 선택을 확인했습니다').check(); await button('선택한 비교 결과 적용').click()
+    assert.equal((await calls()).length, 0); assert.equal(await confirmation().isChecked(), false)
+    await confirmation().check(); await resume().click(); await page.getByText('선택한 2건을 저장했습니다.', { exact: true }).waitFor()
+    const sent = await calls(); assert.equal(sent[0].args.p_command.expectedVersion, 5); assert.equal(sent[0].args.p_command.input.capacity, 2); assert.equal(await page.evaluate(() => window.actualWrites), 2)
+  })
+  await test('U2 현재 서버 값 유지 선택은 공간을 덮어쓰지 않고 남은 수업만 저장한다', async () => {
+    await upload(); await page.evaluate(() => { window.view.spaces[0].capacity = 9; window.view.spaces[0].version = 5 }); await begin()
+    await reconcile({ '과학실 [room-a]': 'server' }); await confirmation().check(); await resume().click()
+    await page.getByText('선택한 1건을 저장했습니다.', { exact: true }).waitFor(); assert.equal((await calls()).length, 1); assert.equal((await calls())[0].args.p_command.kind, 'course_link'); assert.equal(await page.evaluate(() => window.view.spaces[0].capacity), 9)
+  })
+  await test('U2 비교 후 자료가 다시 바뀌면 재승인을 풀고 저장 없이 다시 충돌한다', async () => {
+    await upload(); await page.evaluate(() => { window.view.spaces[0].capacity = 9; window.view.spaces[0].version = 5 }); await begin(); await reconcile()
+    await page.evaluate(() => { window.view.spaces[0].capacity = 10; window.view.spaces[0].version = 6 }); await confirmation().check(); await resume().click()
+    await button('최신 자료로 남은 항목 다시 비교').waitFor(); assert.equal((await calls()).length, 0)
+  })
+  await test('U2 충돌 3-way 비교도 320px·200% 확대에서 선택과 명시 확인을 사용할 수 있다', async () => {
+    await upload(); await page.evaluate(() => { window.view.spaces[0].version = 5 }); await begin(); await button('최신 자료로 남은 항목 다시 비교').click()
+    await field('과학실 [room-a] 충돌 처리').waitFor(); await page.setViewportSize({ width: 320, height: 900 }); await page.evaluate(() => document.documentElement.style.fontSize = '200%')
+    await field('과학실 [room-a] 충돌 처리').selectOption('server'); await field('국어 [course-a] 충돌 처리').selectOption('mine')
+    await field('최신 자료와 내 입력의 차이 및 각 항목 선택을 확인했습니다').focus(); await page.keyboard.press('Space')
+    assert.equal(await button('선택한 비교 결과 적용').isEnabled(), true); assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2))
+    await page.screenshot({ path: join(output, 'setup-conflict-mobile-200.png'), fullPage: true }); assert.equal((await calls()).length, 0)
+  })
+  await test('U2 최신 비교 도중 권한이 막히면 비교나 새 명령을 채택하지 않고 입력을 보관한다', async () => {
+    await upload(); await page.evaluate(() => { window.view.spaces[0].version = 5 }); await begin(); await button('최신 자료로 남은 항목 다시 비교').waitFor()
+    await page.evaluate(() => window.holdRead = true); await button('최신 자료로 남은 항목 다시 비교').click(); await page.waitForFunction(() => Boolean(window.releaseRead))
+    await page.evaluate(() => { window.disabled = true; window.render(); window.releaseRead() }); await page.waitForTimeout(80)
+    assert.equal(await page.getByRole('combobox').count(), 0); assert.equal((await calls()).length, 0); assert.equal(await page.evaluate(() => window.locked), true)
+    await page.evaluate(() => { window.disabled = false; window.render() }); await reconcile(); assert.equal(await resume().isDisabled(), true)
   })
   await test('응답 유실·재마운트·조회 장애에도 원키 복구만 하고 나머지는 다시 확인 후 저장한다', async () => {
     await upload(); await page.evaluate(() => window.dropOnce = true); await begin(); await button('원래 일괄 저장 요청 결과 확인').waitFor(); assert.equal(await page.evaluate(() => window.actualWrites), 1); assert.equal(await page.evaluate(() => window.pending.count()), 1)
@@ -75,7 +117,7 @@ try {
   })
   await test('접수 기록 없음은 자동 새 저장 없이 멈추고 확인 뒤 같은 요청 번호로 보낸다', async () => {
     await upload(); await page.evaluate(() => window.dropBeforeOnce = true); await begin(); await button('원래 일괄 저장 요청 결과 확인').waitFor(); const sent = await calls(); assert.equal(await page.evaluate(() => window.actualWrites), 0)
-    await button('원래 일괄 저장 요청 결과 확인').click(); await page.waitForFunction(() => window.pending.count() === 0); assert.equal(await page.evaluate(() => window.actualWrites), 0); assert.equal(await confirmation().isChecked(), false)
+    await button('원래 일괄 저장 요청 결과 확인').click(); await page.waitForFunction(() => window.pending.count() === 0); assert.equal(await button('일괄 입력 정리').count(), 0); assert.equal(await page.evaluate(() => window.actualWrites), 0); assert.equal(await confirmation().isChecked(), false)
     await confirmation().check(); await resume().click(); await page.getByText('선택한 2건을 저장했습니다.', { exact: true }).waitFor(); assert.equal((await calls())[2].args.p_request_key, sent[0].args.p_request_key)
   })
   await test('멈추기 요청은 현재 쓰기의 결과를 받은 뒤 다음 항목을 보내지 않는다', async () => {

@@ -24,7 +24,7 @@ import styles from './operations.css?inline'
 import themeStyles from './timetable-theme.css?inline'
 
 type Tab = 'shared' | 'publish' | 'exchange'
-interface Props { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; initialLessonId?: string; initialDate?: string; onOpenLesson?: (lessonId: string, date: string) => void }
+interface Props { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; initialLessonId?: string; initialDate?: string; initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void; onOpenLesson?: (lessonId: string, date: string) => void }
 interface PanelProps extends Omit<Props, 'connection'> { server: TimetableOperationsServer; extensions?: OperationsExtensions; publicationExecution?: PublicationExecutionServer; schoolDayExecution?: SchoolDayExecutionServer }
 type OperationsCommand = OperationCommand | PublicationCommitCommand | SchoolDayCommitCommand
 type OperationsReceipt = OperationReceipt | PublicationCommitReceipt | SchoolDayCommitReceipt
@@ -40,7 +40,7 @@ export function TimetableOperationsWorkspace(props: Props) {
   const schoolDayExecution = useMemo(() => createSchoolDayExecutionServer(props.connection), [props.connection])
   return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} />
 }
-export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, initialLessonId, initialDate, onOpenLesson }: PanelProps) {
+export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, initialLessonId, initialDate, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
   const id = useId(), pendingStore = usePendingRequest(member, 'timetableOperations')
   const route = useEditDraft<Tab>(member, 'timetable-operations-tab'), publishMemory = useEditDraft<unknown>(member, 'timetable-publish'), exchangeMemory = useEditDraft<unknown>(member, 'timetable-exchanges')
   const schoolDayMemory = useEditDraft<unknown>(member, 'timetable-school-day')
@@ -48,15 +48,16 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const [tab, setTab] = useState<Tab>(() => pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : route.initial ?? 'shared')
   const focusedDate = dateOffset(initialDate ?? date, 0) || date, focusSource = useRef(focusedDate)
   const [from, setFrom] = useState(() => timetableWeekStart(focusedDate)), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
-  const [boardDate, setBoardDate] = useState(focusedDate), [schoolDayDirty, setSchoolDayDirty] = useState(false)
+  const [boardDate, setBoardDate] = useState(focusedDate), [schoolDayDirty, setSchoolDayDirty] = useState(Boolean(schoolDayMemory.initial))
   const [boardFilter, setBoardFilter] = useState({ teacher: member.id, group: '' })
   const [boardMode, setBoardMode] = useState<'week' | 'day'>()
   const [fetched, setFetched] = useState<{ key: string; value: OperationsView }>(), [loading, setLoading] = useState(true), [loadError, setLoadError] = useState('')
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [discard, setDiscard] = useState(false)
-  const [publishDirty, setPublishDirty] = useState(false), [exchangeDirty, setExchangeDirty] = useState(false), [publishEpoch, setPublishEpoch] = useState(0), [exchangeEpoch, setExchangeEpoch] = useState(0)
+  const [publishDirty, setPublishDirty] = useState(Boolean(publishMemory.initial)), [exchangeDirty, setExchangeDirty] = useState(Boolean(exchangeMemory.initial)), [publishEpoch, setPublishEpoch] = useState(0), [exchangeEpoch, setExchangeEpoch] = useState(0)
   const [schoolDayEpoch, setSchoolDayEpoch] = useState(0), [publicationBusy, setPublicationBusy] = useState(false), [schoolDayBusy, setSchoolDayBusy] = useState(false)
   const inspecting = useRef({ publication: false, schoolDay: false })
   const [sourceSelection, setSourceSelection] = useState<{ lessonId: string; token: number }>(), selectionToken = useRef(0)
+  const [publishLink, setPublishLink] = useState<{ id: string; version: number }>(), handledPublishLink = useRef('')
   const [references, setReferences] = useState<OperationReferenceView>(), [referenceError, setReferenceError] = useState('')
   const life = useRef(0), running = useRef(false), feedback = useRef<HTMLDivElement>(null)
   const until = dateOffset(from, nextLimits.sharedWindowDays), enabled = activeAt(member, date), queryKey = JSON.stringify([date, from, until, revision, reload, enabled])
@@ -68,6 +69,14 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const changeExchangeDirty = useCallback((value: boolean) => setExchangeDirty(value), [])
   const changePublicationBusy = useCallback((value: boolean) => { inspecting.current.publication = value; setPublicationBusy(value) }, [])
   const changeSchoolDayBusy = useCallback((value: boolean) => { inspecting.current.schoolDay = value; setSchoolDayBusy(value) }, [])
+  useEffect(() => {
+    if (!initialDraftId || !Number.isSafeInteger(initialDraftVersion) || initialDraftVersion! < 1) return
+    const key = JSON.stringify([initialDraftId, initialDraftVersion])
+    if (handledPublishLink.current === key) return
+    handledPublishLink.current = key; onInitialDraftConsumed?.()
+    if (pending || navLocked) { setNotice('보관한 입력과 원래 요청을 먼저 확인해 주세요. 편성 화면에서 연결한 초안으로 기존 입력을 바꾸지 않았습니다.'); return }
+    setPublishLink({ id: initialDraftId, version: initialDraftVersion! }); setTab('publish'); route.save('publish', false)
+  }, [initialDraftId, initialDraftVersion, pending, navLocked, onInitialDraftConsumed])
   useEffect(() => { if (focusedDate !== focusSource.current && !locked) { focusSource.current = focusedDate; setBoardDate(focusedDate); setFrom(timetableWeekStart(focusedDate)) } }, [focusedDate, locked])
   useEffect(() => { life.current++; return () => { life.current++; running.current = false } }, [server, publicationExecution, schoolDayExecution])
   useEffect(() => { onNavigationLockChange?.(navLocked); return () => onNavigationLockChange?.(false) }, [navLocked, onNavigationLockChange])
@@ -182,7 +191,7 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
         <details className="ttops-publications"><summary>적용 중인 확정본 {view.publications.length}건</summary>{view.publications.length ? <ul>{view.publications.map(item => <li key={item.id}><strong>{item.title} · {item.version}판</strong><p>{item.from} ~ {dateOffset(item.until, -1)}</p><small>확정 시각 {new Date(item.publishedAt).toLocaleString('ko-KR', { timeZone: view.timeZone })}</small></li>)}</ul> : <p>이 조회 기간에 적용되는 확정본이 없습니다.</p>}</details>
       </section>}
     </div>
-    <div hidden={tab !== 'publish'}><TimetablePublishPanel key={publishEpoch} server={server} member={member} view={view} loading={loading} locked={writeLocked || schoolDayBusy} onCommand={execute} onDirtyChange={changePublishDirty} extensions={extensions} onPublicationCommand={publicationExecution ? executePublication : undefined} onPublicationBusyChange={changePublicationBusy} /><SchoolDayChangePanel key={'school-day-' + schoolDayEpoch} member={member} view={view} references={references} extensions={extensions} locked={writeLocked || publicationBusy} onDirtyChange={setSchoolDayDirty} execution={schoolDayExecution} onCommand={schoolDayExecution ? executeSchoolDay : undefined} onBusyChange={changeSchoolDayBusy} /></div>
+    <div hidden={tab !== 'publish'}><TimetablePublishPanel key={publishEpoch} initialDraftId={publishLink?.id} initialDraftVersion={publishLink?.version} onInitialDraftConsumed={() => setPublishLink(undefined)} server={server} member={member} view={view} loading={loading} locked={writeLocked || schoolDayBusy} onCommand={execute} onDirtyChange={changePublishDirty} extensions={extensions} onPublicationCommand={publicationExecution ? executePublication : undefined} onPublicationBusyChange={changePublicationBusy} /><SchoolDayChangePanel key={'school-day-' + schoolDayEpoch} member={member} view={view} references={references} extensions={extensions} locked={writeLocked || publicationBusy} onDirtyChange={setSchoolDayDirty} execution={schoolDayExecution} onCommand={schoolDayExecution ? executeSchoolDay : undefined} onBusyChange={changeSchoolDayBusy} /></div>
     <div hidden={tab !== 'exchange'}><TimetableExchangePanel key={exchangeEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changeExchangeDirty} onReload={refresh} revision={revision + reload} sourceSelection={sourceSelection} onSelectionConsumed={() => setSourceSelection(undefined)} extensions={extensions} /></div>
     {(publishDirty || exchangeDirty || schoolDayDirty) && !locked && (!view || tab === 'shared' || tab === 'publish' && !view.canPublish || tab === 'exchange' && (!view.canRequest || schoolDayDirty)) && <section className="ttops-reset" aria-label="보관한 입력 정리">
       {discard ? <><p>현재 탭에 보관한 확정·교환·학사 변경 입력을 모두 버립니다. 이미 서버에 반영된 시간표와 요청은 바뀌지 않습니다.</p><button type="button" className="secondary" onClick={discardInputs}>입력 버리고 메뉴 잠금 해제</button><button type="button" className="secondary" onClick={() => setDiscard(false)}>계속 작성하기</button></> : <button type="button" className="secondary" onClick={() => setDiscard(true)}>보관한 입력 정리</button>}

@@ -70,11 +70,56 @@ for (const [label, mutate] of [
   ['원본지문', book => sheet(book, '기준').rows.find(row => row[0] === '원본지문')[1] = 'b'.repeat(64)],
   ['양식판', book => sheet(book, '기준').rows.find(row => row[0] === '형식')[1] = 'timetable.workbook.v1'],
 ]) await check('다른 기준 파일 거부: ' + label, () => { const book = sheets(); mutate(book); assert.throws(() => preview(book), /기준 시트/) })
-await check('지문이 같아도 공식 내용 또는 기준일이 바뀐 원본에는 옛 파일을 쓰지 않는다', () => {
-  for (const mutate of [s => s.courses[0].teacherLabels.push('새 교사'), s => s.referenceDay = '2026-10-20', s => s.spaces[0].version++, s => s.classes[0].grade = 2]) {
+await check('지문이 같아도 공식 내용이나 판이 바뀐 원본에는 옛 파일을 쓰지 않는다', () => {
+  for (const mutate of [s => s.courses[0].teacherLabels.push('새 교사'), s => s.spaces[0].version++, s => s.classes[0].grade = 2]) {
     const current = clone(source); mutate(current); assert.throws(() => preview(sheets(), current)); assert.notEqual(m.setupWorkbookSourceKey(current, 'school'), m.setupWorkbookSourceKey(source, 'school'))
   }
   assert.throws(() => preview(sheets(), source, 'other'), /기준 시트/)
+})
+await check('자정 뒤 기준일만 바뀌면 이전 파일을 현재 판의 변경 미리보기로 받고 날짜 차이를 알린다', () => {
+  const book = sheets(); spaceRow(book)[3] = '2'; courseRow(book)[3] = 'class-a'
+  const current = { ...clone(source), referenceDay: '2026-10-20' }, result = preview(book, current)
+  assert.deepEqual(result.referenceDayChange, { from: '2026-10-19', to: '2026-10-20' })
+  assert.equal(result.items.length, 2); assert.equal(result.items[0].command.expectedVersion, 3)
+  assert.equal(result.items[1].command.expectedVersion, null)
+  assert.equal(result.sourceKey, m.setupWorkbookSourceKey(current, 'school'))
+  assert.notEqual(result.sourceKey, m.setupWorkbookSourceKey(source, 'school'))
+  assert.match(result.notices.join(' '), /2026-10-19.*2026-10-20.*날짜만.*판·원본지문.*다시 확인/)
+  assert.equal(sheet(book, '기준').rows.find(row => row[0] === '기준일')[1], '2026-10-19')
+})
+await check('여러 날 지난 파일도 실제 자료가 같으면 허용하며 같은 날 파일은 날짜 변경 표시가 없다', () => {
+  const current = { ...clone(source), referenceDay: '2027-01-15' }
+  assert.equal(preview(sheets(), current).unchanged, 5)
+  assert.deepEqual(preview(sheets(), current).referenceDayChange, { from: source.referenceDay, to: current.referenceDay })
+  assert.equal(preview(sheets()).referenceDayChange, undefined)
+})
+for (const [label, mutate] of [
+  ['원본지문', s => s.sourceFingerprint = 'b'.repeat(64)], ['기준판', s => s.sourceRevision++],
+  ['학기 ID', s => s.termId = 'other'], ['학기명', s => s.termLabel = '다른 학기'],
+  ['학기 시작', s => s.firstDay = '2026-08-14'], ['학기 종료', s => s.lastDay = '2027-02-27'],
+  ['공간 판', s => s.spaces[0].version++], ['공간 정원', s => s.spaces[0].capacity = 2],
+  ['공간 이름', s => s.spaces[0].label = '새 과학실'], ['공간 종류', s => s.spaces[0].kind = 'equipment'],
+  ['공간 추가', s => s.spaces.push({ id: 'new', kind: 'room', label: '새 공간', capacity: 1, version: 1 })],
+  ['학급 학년', s => s.classes[0].grade++], ['교사', s => s.courses[0].teacherLabels.push('새 교사')],
+  ['수강 인원', s => s.courses[0].studentCount++], ['편성 여부', s => s.courses[0].inTimetable = false],
+  ['연결판', s => s.courses[1].link.version++], ['연결 학급', s => s.courses[1].link.classIds.pop()],
+  ['연결 공간', s => s.courses[1].link.spaceIds.pop()],
+  ['경고', s => s.findings.push({ code: 'COURSE_TEACHER_MISSING', targetId: 'course-b', message: '담당 없음', blocksConfirm: false })],
+]) await check('자정 예외가 실제 변경을 허용하지 않는다: ' + label, () => {
+  const current = { ...clone(source), referenceDay: '2026-10-20' }; mutate(current)
+  assert.throws(() => preview(sheets(), current), error => error.name === 'TimetableWorkbookError')
+})
+await check('이전 파일의 기준일과 숨은 원본 중 한쪽만 고친 경우에도 거절한다', () => {
+  const book = sheets(), current = { ...clone(source), referenceDay: '2026-10-20' }
+  sheet(book, '기준').rows.find(row => row[0] === '기준일')[1] = '2026-10-18'
+  assert.throws(() => preview(book, current), /원본대조/)
+  const changedHidden = sheets(); sheet(changedHidden, '원본대조').rows[1][1] = sheet(changedHidden, '원본대조').rows[1][1].replace('2026-10-19', '2026-10-18')
+  assert.throws(() => preview(changedHidden, current), /원본대조/)
+  assert.throws(() => preview(sheets(), current, 'other'), /기준 시트/)
+})
+for (const day of ['2026-10-21', '2026-08-12', '2026-02-30', '2026-9-1', 'yesterday']) await check('이전 파일 예외에서도 잘못된 기준일은 거부: ' + day, () => {
+  const book = sheets(); sheet(book, '기준').rows.find(row => row[0] === '기준일')[1] = day
+  assert.throws(() => preview(book, { ...clone(source), referenceDay: '2026-10-20' }), /기준 시트/)
 })
 for (const [label, mutate, expected] of [
   ['공식 학급명', book => sheet(book, '공식학급').rows[1][1] = '다른 반', /공식학급 시트 2행 B열/],
