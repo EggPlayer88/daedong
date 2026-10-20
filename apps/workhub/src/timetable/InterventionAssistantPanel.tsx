@@ -8,15 +8,18 @@ import type { InterventionsView } from './interventions-contracts'
 import type { OperationsView } from './operations-contracts'
 import { buildOperationsAiRequest, operationsAiFingerprint, parseOperationsAiAnswer, type OperationsAiProposal, type OperationsAiRequest } from './interventions-assistant'
 
-export function InterventionAssistantPanel({ member, server, source, exchanges = null, selectedLessonId, disabled, onProposal, onLockChange }: {
+export function InterventionAssistantPanel({ member, server, source, exchanges = null, selectedLessonId, disabled, draftFingerprint, onProposal, onLockChange }: {
   member: Membership; server?: AssistantServer; source?: InterventionsView; exchanges?: OperationsView | null
   selectedLessonId: string; disabled: boolean; onProposal: (input: OperationsAiProposal) => void; onLockChange?: (locked: boolean) => void
+  draftFingerprint?: string
 }) {
   const memory = useEditDraft<string>(member, 'timetable-operations-ai-input'), recovery = usePendingRequest(member, 'timetableOperationsAssistant')
   const [prompt, setPrompt] = useState(memory.initial ?? ''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('')
   const [answer, setAnswer] = useState<ReturnType<typeof parseOperationsAiAnswer>>(), [basis, setBasis] = useState<string>(), [confirmed, setConfirmed] = useState(false)
   const [expanded, setExpanded] = useState(Boolean(recovery.request))
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false)
   const life = useRef(0), running = useRef(false), current = useRef({ source, exchanges, selectedLessonId, disabled })
+  const currentDraft = useRef(draftFingerprint); currentDraft.current = draftFingerprint
   current.current = { source, exchanges, selectedLessonId, disabled }
   const pending = recovery.request, locked = busy || !!pending, sourceKey = canonical([source, exchanges])
   useEffect(() => () => { life.current++ }, [])
@@ -24,6 +27,7 @@ export function InterventionAssistantPanel({ member, server, source, exchanges =
   useEffect(() => { memory.save(prompt || undefined, !!prompt.trim()) }, [prompt, memory])
   useEffect(() => { if (pending) setExpanded(true) }, [pending?.key])
   useEffect(() => { setAnswer(undefined); setBasis(undefined); setConfirmed(false) }, [sourceKey, selectedLessonId])
+  useEffect(() => { setReplaceConfirmed(false) }, [draftFingerprint, answer])
   async function send(request: OperationsAiRequest, key: string, recovering: boolean) {
     if (!server || running.current) return
     const epoch = life.current; running.current = true; setBusy(true); setError(''); setNotice('')
@@ -61,14 +65,14 @@ export function InterventionAssistantPanel({ member, server, source, exchanges =
     if (request && epoch === life.current) { const key = crypto.randomUUID(); recovery.put({ command: request, key }); await send(request, key, false) }
   }
   async function apply() {
-    if (!answer?.proposal || !basis || !confirmed || disabled || locked || running.current) return
-    const epoch = life.current; running.current = true; setBusy(true)
+    if (!answer?.proposal || !basis || !confirmed || draftFingerprint && !replaceConfirmed || disabled || locked || running.current) return
+    const epoch = life.current, originalDraft = draftFingerprint; running.current = true; setBusy(true)
     try {
       const latest = current.current, snapshot = canonical(latest)
       if (!latest.source) throw new ServiceError('NOT_READY')
       const value = await operationsAiFingerprint(latest.source, latest.exchanges)
       if (epoch !== life.current) return
-      if (snapshot !== canonical(current.current) || current.current.disabled || value !== basis) throw new ServiceError('CONFLICT')
+      if (snapshot !== canonical(current.current) || current.current.disabled || value !== basis || originalDraft !== currentDraft.current) throw new ServiceError('CONFLICT')
       onProposal(answer.proposal); setAnswer(undefined); setConfirmed(false); setPrompt(''); memory.remove(); setNotice('제안을 요청 입력에 채웠습니다. 서버 변경 확인을 거쳐 직접 제출해 주세요.')
     } catch (e) { if (epoch === life.current) setError(e instanceof Error ? e.message : '현재 수업 기준을 확인해 주세요.') }
     finally { if (epoch === life.current) { running.current = false; setBusy(false) } }
@@ -77,6 +81,6 @@ export function InterventionAssistantPanel({ member, server, source, exchanges =
     <label>도움받을 내용<textarea aria-label="도움받을 내용" rows={2} maxLength={900} value={prompt} disabled={locked || disabled} onChange={e => { setPrompt(e.target.value); setAnswer(undefined); setConfirmed(false) }} /></label>
     <div className="timetable-actions"><button type="button" disabled={!server || locked || disabled || !source || !prompt.trim() || !selectedLessonId} onClick={() => void ask()}>Claude에게 변경 상담</button><button type="button" disabled={locked} onClick={() => { setPrompt(''); setAnswer(undefined); setConfirmed(false); memory.remove() }}>상담 입력 비우기</button>{pending && <button type="button" disabled={busy || !server} onClick={() => void send(pending.command as OperationsAiRequest, pending.key, true)}>원래 AI 요청 결과 확인</button>}</div>
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {answer && <section aria-label="AI 수업 변경 제안"><p>{answer.summary}</p>{answer.questions.length > 0 && <ul>{answer.questions.map((question, index) => <li key={index}>{question}</li>)}</ul>}{answer.proposal ? <><p>제안 종류: {({ substitute: '대강', cancel: '휴강', makeup: '보강', reopen: '휴업 취소', move: '이동', swap: '교환' })[answer.proposal.kind]}</p><p>{answer.proposal.reason}</p><label><input type="checkbox" checked={confirmed} disabled={locked || disabled} onChange={e => setConfirmed(e.target.checked)} />AI 제안을 입력란에 채우고 서버에서 변경 영향을 확인하겠습니다.</label><button type="button" disabled={!confirmed || locked || disabled} onClick={() => void apply()}>확인한 제안을 입력에 채우기</button></> : <p>지금은 적용할 제안이 없습니다. 질문에 답하거나 직접 입력해 주세요.</p>}<details><summary>받은 답변 보기</summary><p style={{ whiteSpace: 'pre-wrap' }}>{answer.text}</p></details></section>}
+    {answer && <section aria-label="AI 수업 변경 제안"><p>{answer.summary}</p>{answer.questions.length > 0 && <ul>{answer.questions.map((question, index) => <li key={index}>{question}</li>)}</ul>}{answer.proposal ? <><p>제안 종류: {({ substitute: '대강', cancel: '휴강', makeup: '보강', reopen: '휴업 취소', move: '이동', swap: '교환' })[answer.proposal.kind]}</p><p>{answer.proposal.reason}</p><label><input type="checkbox" checked={confirmed} disabled={locked || disabled} onChange={e => setConfirmed(e.target.checked)} />AI 제안을 입력란에 채우고 서버에서 변경 영향을 확인하겠습니다.</label>{draftFingerprint && <label><input type="checkbox" checked={replaceConfirmed} disabled={locked || disabled} onChange={e => setReplaceConfirmed(e.target.checked)} />작성 중인 변경 입력을 이 제안으로 바꿉니다.</label>}<button type="button" disabled={!confirmed || !!draftFingerprint && !replaceConfirmed || locked || disabled} onClick={() => void apply()}>확인한 제안을 입력에 채우기</button></> : <p>지금은 적용할 제안이 없습니다. 질문에 답하거나 직접 입력해 주세요.</p>}<details><summary>받은 답변 보기</summary><p style={{ whiteSpace: 'pre-wrap' }}>{answer.text}</p></details></section>}
   </details>
 }

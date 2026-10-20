@@ -5,6 +5,7 @@ const api = await loadBrowserModule(`
 export * from '../apps/workhub/src/timetable/import-contracts'
 export * from '../apps/workhub/src/timetable/import-csv'
 export * from '../apps/workhub/src/timetable/import-server'
+export * from '../apps/workhub/src/timetable/import-workbook'
 export * from '../apps/workhub/src/timetable/pilot/fixture'
 `)
 const source = () => ({
@@ -79,6 +80,38 @@ await test('같은 원키의 재확인과 닫기는 원문을 변경하지 않�
  assert.equal(calls.length,3);for(const call of calls)assert.deepEqual(call.args.p_command,c)
  await assert.rejects(server.commit('manager',{...c,input:{...c.input,title:'다름'}},'request-0001'),e=>e.code==='IDEMPOTENCY_CONFLICT')
  assert.equal(calls.length,3)
+})
+await test('학교 엑셀 양식은 학기 지문과 공식 ID·동명이인 구분을 함께 보존',async()=>{
+ const s=source();s.resources[0].label='동일';s.resources[1].label='동일'
+ const sheets=await api.timetableImportWorkbookSheets(s),input=sheets.find(v=>v.name==='시간표입력')
+ assert.equal(input.rows[1][7],'teacher');assert.match(input.rows[1][11],/동일 \[teacher\]/);assert.match(input.rows[1][12],/동일 \[class\]/)
+ assert.equal(sheets.find(v=>v.name==='_학교연결').hidden,true)
+ input.rows[1].splice(2,5,'1','국어 1회','09:00','09:45','1')
+ const result=await api.reviewTimetableImport(s,api.timetableImportWorkbookCsv(sheets,s),'엑셀')
+ assert.equal(result.placements.length,1);assert.equal((await api.timetableImportWorkbook(s)).slice(0,2).toString(),'80,75')
+})
+await test('다른 학교·학기·오래된 지문과 망가진 열은 엑셀 입력으로 채택하지 않음',async()=>{
+ for(const key of ['schoolId','termId','sourceFingerprint']){
+  const s=source(),sheets=await api.timetableImportWorkbookSheets(s)
+  sheets.find(v=>v.name==='_학교연결').rows.find(row=>row[0]===key)[1]='other'
+  assert.throws(()=>api.timetableImportWorkbookCsv(sheets,s),e=>e.code==='INVALID_INPUT')
+ }
+ const s=source(),sheets=await api.timetableImportWorkbookSheets(s)
+ sheets[0].rows[0].reverse();assert.throws(()=>api.timetableImportWorkbookCsv(sheets,s))
+})
+await test('엑셀 시각 소수를 짐작하지 않고 참고 이름은 실제 배정에 사용하지 않음',async()=>{
+ const s=source(),sheets=await api.timetableImportWorkbookSheets(s),row=sheets[0].rows[1]
+ row.splice(2,5,'1','국어','0.375','09:45','1');assert.throws(()=>api.timetableImportWorkbookCsv(sheets,s),/09:00/)
+ row[4]='09:00';row[11]='다른 교사';const content=api.timetableImportWorkbookCsv(sheets,s)
+ const result=await api.reviewTimetableImport(s,content,'공식');assert.equal(result.placements.length,1)
+ const display=api.timetableImportDisplayRows(content,s);assert.match(display[0].teachers,/교사 \[teacher\]/);assert.equal(display[0].day,'월')
+})
+await test('엑셀의 빈 뒷행은 무시하지만 수업 누락·ID 변조는 기존 검증을 통과하지 못함',async()=>{
+ const s=source(),sheets=await api.timetableImportWorkbookSheets(s),row=sheets[0].rows[1]
+ row.splice(2,5,'1','국어','09:00','09:45','1');sheets[0].rows.push(['','',''])
+ assert.equal((await api.reviewTimetableImport(s,api.timetableImportWorkbookCsv(sheets,s),'정상')).placements.length,1)
+ row[7]='wrong';await assert.rejects(api.reviewTimetableImport(s,api.timetableImportWorkbookCsv(sheets,s),'변조'))
+ sheets[0].rows=[sheets[0].rows[0],[]];assert.throws(()=>api.timetableImportWorkbookCsv(sheets,s))
 })
 if(process.env.T4_CAPTURE) {
  const captures=JSON.parse(await readFile(process.env.T4_CAPTURE,'utf8'))

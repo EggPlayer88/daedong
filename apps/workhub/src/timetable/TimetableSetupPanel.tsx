@@ -15,7 +15,7 @@ type CourseInput = { classIds: string[]; studentGroup: boolean; spaceIds: string
 type Edit = { termId: string; referenceDay: string } & (
   { kind: 'space'; original: Space | null; input: { kind: Space['kind']; label: string; capacity: string }; removing: boolean }
   | { kind: 'course'; original: Course; input: CourseInput })
-interface Props { server?: SetupServer; member: Membership; expectedTermId?: string | null; refreshRevision?: number; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: () => void; onOpenSchoolAdmin?: () => void }
+interface Props { server?: SetupServer; member: Membership; expectedTermId?: string | null; refreshRevision?: number; disabled: boolean; onLockChange?: (locked: boolean) => void; onSaved?: () => void; onOpenSchoolAdmin?: () => void; initialOpen?: boolean }
 const PAGE_SIZE = 20
 const display = (row: { label: string; id: string }) => `${row.label} [${row.id}]`
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '')
@@ -57,7 +57,7 @@ export function TimetableSetupPanel(props: Props) {
   const batchMemory = useEditDraft<unknown>(props.member, 'timetable-setup-batch'), batchRecovery = usePendingRequest(props.member, 'timetableSetupBatch')
   const [batchLocked, setBatchLocked] = useState(Boolean(batchMemory.initial || batchRecovery.request)), [batchBusy, setBatchBusy] = useState(false)
   const batchChanged = useCallback(() => { setReload(value => value + 1); props.onSaved?.() }, [props.onSaved])
-  const [edit, setEdit] = useState<Edit | undefined>(memory.initial), [opened, setOpened] = useState(Boolean(memory.initial || recovery.request || batchMemory.initial || batchRecovery.request))
+  const [edit, setEdit] = useState<Edit | undefined>(memory.initial), [opened, setOpened] = useState(Boolean(props.initialOpen || memory.initial || recovery.request || batchMemory.initial || batchRecovery.request))
   const [snapshot, setSnapshot] = useState<SetupSnapshot>(), [loadedScope, setLoadedScope] = useState(''), [loading, setLoading] = useState(false), [loadError, setLoadError] = useState(''), [reload, setReload] = useState(0)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [preview, setPreview] = useState(false), [confirmed, setConfirmed] = useState(false), [discarding, setDiscarding] = useState(false)
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [page, setPage] = useState(0), [spacePage, setSpacePage] = useState(0)
@@ -161,7 +161,7 @@ export function TimetableSetupPanel(props: Props) {
   const showComparison = Boolean(edit && source && visible && (preview || stale))
   const labels = edit?.kind === 'space' ? ['종류', '이름', '동시 수업 수'] : ['편성 여부', '담당 교사', '수강 인원', '학생 집단', '사용 공간']
 
-  return <details className="timetable-setup" open={opened} onToggle={event => { if (!locked && !edit && !batchLocked) setOpened(event.currentTarget.open); else if (!event.currentTarget.open) event.currentTarget.open = true }}>
+  return <details ref={node => { if (node && props.initialOpen && node.dataset.focused !== 'true') { node.dataset.focused = 'true'; node.querySelector('summary')?.focus(); node.scrollIntoView({ block: 'nearest' }) } }} className="timetable-setup" open={opened} onToggle={event => { if (!locked && !edit && !batchLocked) setOpened(event.currentTarget.open); else if (!event.currentTarget.open) event.currentTarget.open = true }}>
     <summary onClick={event => { if (locked || edit || batchLocked) event.preventDefault() }}>공간·수업 연결 관리</summary>
     <p>교실·특별실·장비와 수업의 학급을 연결합니다. 먼저 이 입력을 저장한 뒤, 주당 시수와 일과를 준비해 주세요.</p>
     {!props.server && <p className="timetable-notice">준비 입력 기능을 연결 중입니다. 학교 관리의 공식 교사·학급·수업 배정은 먼저 확인할 수 있습니다.</p>}

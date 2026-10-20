@@ -18,6 +18,55 @@ const hash = (v: unknown): string => typeof v === 'string' && /^[a-f0-9]{64}$/.t
 const stateValues: RequestState[] = ['awaiting_consent', 'awaiting_approval', 'applied', 'rejected', 'withdrawn', 'expired', 'stale']
 const actionValues: RequestAction[] = ['accept', 'reject', 'withdraw', 'approve', 'rejectApproval']
 const activeStates = ['awaiting_consent', 'awaiting_approval']
+export type InterventionRequestFilter = 'all' | 'mine' | 'pending' | 'finished'
+/** 표시 시점에 만료됐더라도 서버 원문을 바꾸거나 임의로 완료 처리하지 않는다. */
+export function interventionDisplayState(row: InterventionRequest, now = Date.now()): RequestState {
+  return activeStates.includes(row.state) && Date.parse(row.expiresAt) <= now ? 'expired' : row.state
+}
+export function interventionNeedsMyAction(row: InterventionRequest, now = Date.now()): boolean {
+  return activeStates.includes(interventionDisplayState(row, now)) && row.actions.some(action => ['accept', 'reject', 'approve', 'rejectApproval'].includes(action))
+}
+export function selectInterventionRequests(list: InterventionRequest[], options: { query: string; filter: InterventionRequestFilter; kind?: InterventionInput['kind'] }, now = Date.now()): InterventionRequest[] {
+  const words = options.query.trim().toLocaleLowerCase('ko-KR').split(/\s+/).filter(Boolean)
+  return list.filter(row => {
+    const state = interventionDisplayState(row, now), active = activeStates.includes(state)
+    if (options.kind && row.kind !== options.kind || options.filter === 'mine' && !interventionNeedsMyAction(row, now) ||
+        options.filter === 'pending' && !active || options.filter === 'finished' && active) return false
+    const search = [row.id, row.reason, row.requester.name, interventionLabels[row.kind], interventionStateLabels[state],
+      ...row.participants.map(person => person.name), ...row.changes.flatMap(change => [change.after.label, ...change.after.groupNames])].join(' ').toLocaleLowerCase('ko-KR')
+    return words.every(word => search.includes(word))
+  }).sort((a, b) => Number(interventionNeedsMyAction(b, now)) - Number(interventionNeedsMyAction(a, now)) ||
+    Number(activeStates.includes(interventionDisplayState(b, now))) - Number(activeStates.includes(interventionDisplayState(a, now))) ||
+    b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id, 'en'))
+}
+/** 같은 대상·변경을 새 번호로 또 보내지 않는다. 사유 문구만 달라도 같은 변경이다. */
+export function duplicateInterventionRequests(input: InterventionInput, list: InterventionRequest[], now = Date.now()): InterventionRequest[] {
+  const meaning = (value: InterventionInput) => { const { reason: _reason, ...rest } = value; return canonical(rest) }
+  return list.filter(row => {
+    if (row.state === 'applied' && input.kind === 'makeup' && row.input.kind === 'makeup' && row.input.lessonId === input.lessonId) return true
+    return activeStates.includes(interventionDisplayState(row, now)) && meaning(row.input) === meaning(input)
+  })
+}
+/** 권한 판단은 서버에 맡기고 날짜·길이·현재 대상처럼 화면에서 확실한 실수만 안내한다. */
+export function interventionInputProblem(input: InterventionInput, source: InterventionsView, now = Date.now()): string | null {
+  if (input.kind === 'reopen') {
+    const closure = source.closures.find(row => row.id === input.schoolDayChangeId)
+    return !closure || closure.reopened ? '현재 휴업 기록을 다시 선택해 주세요.' : null
+  }
+  const lesson = source.lessons.find(row => row.id === input.lessonId)
+  if (!lesson || lesson.version !== input.expectedVersion) return '수업의 현재 판을 다시 확인해 주세요.'
+  if (lesson.state !== (input.kind === 'makeup' ? 'cancelled' : 'scheduled')) return '선택한 수업의 상태가 바뀌었습니다. 대상 수업을 다시 선택해 주세요.'
+  if (input.kind === 'substitute') {
+    if (!source.teachers.some(row => row.id === input.substituteTeacherId)) return '현재 학교의 대강 교사를 선택해 주세요.'
+    if (lesson.teachers.length === 1 && lesson.teachers[0].id === input.substituteTeacherId) return '현재 담당 교사와 다른 대강 교사를 선택해 주세요.'
+  }
+  if (input.kind !== 'makeup') return Date.parse(lesson.time.startsAt) <= now ? '이미 시작한 수업은 변경할 수 없습니다.' : null
+  const start = Date.parse(input.target.startsAt), end = Date.parse(input.target.endsAt)
+  if (start <= now) return '보강 시작 시각을 현재 시각 이후로 선택해 주세요.'
+  if (end - start !== Date.parse(lesson.time.endsAt) - Date.parse(lesson.time.startsAt)) return '보강 길이를 원수업과 같게 맞춰 주세요.'
+  const day = (at: number) => new Intl.DateTimeFormat('en-CA', { timeZone: source.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
+  return day(start) !== day(end - 1000) ? '보강은 학교 시간대의 같은 날 안에 끝나도록 입력해 주세요.' : null
+}
 function response<T>(read: () => T): T { try { return read() } catch { return fail() } }
 export function interventionTimestamp(v: unknown): string {
   if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v) || !Number.isFinite(Date.parse(v)) || new Date(v).toISOString() !== v) fail()

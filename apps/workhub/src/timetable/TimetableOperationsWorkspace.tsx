@@ -35,7 +35,7 @@ import styles from './operations.css?inline'
 import themeStyles from './timetable-theme.css?inline'
 
 type Tab = 'shared' | 'publish' | 'exchange'
-interface Props { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; initialLessonId?: string; initialDate?: string; initialRequestId?: string; initialNotificationId?: string; initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void; onOpenLesson?: (lessonId: string, date: string) => void }
+interface Props { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; initialLessonId?: string; initialDate?: string; initialRequestId?: string; initialNotificationId?: string; initialIntent?: { kind: 'makeup'; lessonId: string; token: string }; onInitialIntentConsumed?: (token: string) => void; initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void; onOpenLesson?: (lessonId: string, date: string) => void }
 interface PanelProps extends Omit<Props, 'connection'> { server: TimetableOperationsServer; extensions?: OperationsExtensions; publicationExecution?: PublicationExecutionServer; schoolDayExecution?: SchoolDayExecutionServer; executionRecords?: TimetableExecutionRecordsServer; interventions?: TimetableInterventionsServer; assistantServer?: AssistantServer }
 const operatingAssistantHttp: AssistantHttpPort = { async send(payload, expectedUserId, writing) { const { legacyAssistantHttp } = await import('../assistant/legacy-http'); return legacyAssistantHttp.send(payload, expectedUserId, writing) } }
 type OperationsCommand = OperationCommand | PublicationCommitCommand | SchoolDayCommitCommand
@@ -55,7 +55,7 @@ export function TimetableOperationsWorkspace(props: Props) {
   const assistantServer = useMemo(() => createAssistantServer(props.connection, operatingAssistantHttp), [props.connection])
   return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={assistantServer} />
 }
-export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
+export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
   const id = useId(), pendingStore = usePendingRequest(member, 'timetableOperations')
   const route = useEditDraft<Tab>(member, 'timetable-operations-tab'), publishMemory = useEditDraft<unknown>(member, 'timetable-publish'), exchangeMemory = useEditDraft<unknown>(member, 'timetable-exchanges')
   const schoolDayMemory = useEditDraft<unknown>(member, 'timetable-school-day')
@@ -63,13 +63,13 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const interventionPending = usePendingRequest(member, 'timetableInterventions')
   const interventionAssistantPending = usePendingRequest(member, 'timetableOperationsAssistant')
   const [interventionsLocked, setInterventionsLocked] = useState(false)
-  const [requestMode, setRequestMode] = useState<'exchange' | 'interventions'>(() => interventionPending.request || interventionAssistantPending.request ? 'interventions' : 'exchange')
+  const [requestMode, setRequestMode] = useState<'exchange' | 'interventions'>(() => interventionPending.request || interventionAssistantPending.request || initialIntent ? 'interventions' : 'exchange')
   const [interventionLink, setInterventionLink] = useState<{ requestId?: string; schoolDayChangeId?: string }>()
   const [proposalSelection, setProposalSelection] = useState<{ input: ExchangeInput; token: number }>()
   const resolvedNotification = useRef(''), [sourceError, setSourceError] = useState('')
   const pending = pendingStore.request as (TimetableRecovery & { command: OperationsCommand }) | undefined
   const memberScope = recoveryScope(member)
-  const [tab, setTab] = useState<Tab>(() => interventionPending.request || interventionAssistantPending.request ? 'exchange' : initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId || initialNotificationId ? 'exchange' : route.initial ?? 'shared')
+  const [tab, setTab] = useState<Tab>(() => interventionPending.request || interventionAssistantPending.request ? 'exchange' : initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId || initialNotificationId || initialIntent ? 'exchange' : route.initial ?? 'shared')
   const focusedDate = dateOffset(initialDate ?? date, 0) || date, focusSource = useRef(focusedDate)
   const [from, setFrom] = useState(() => timetableWeekStart(focusedDate)), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
   const [boardDate, setBoardDate] = useState(focusedDate), [schoolDayDirty, setSchoolDayDirty] = useState(Boolean(schoolDayMemory.initial))
@@ -93,6 +93,12 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const current = useRef({ view, enabled, pending }); current.current = { view, enabled, pending }
   const interventionLock = interventionsLocked || Boolean(interventionPending.request) || Boolean(interventionAssistantPending.request)
   const writeLocked = busy || Boolean(pending), otherLocked = writeLocked || publicationBusy || schoolDayBusy || recordsLocked || Boolean(recordsPending.request), locked = otherLocked || interventionLock, navLocked = locked || publishDirty || exchangeDirty || schoolDayDirty
+  const intentShown = useRef('')
+  useEffect(() => {
+    if (!initialIntent || intentShown.current === initialIntent.token || otherLocked || exchangeDirty || publishDirty || schoolDayDirty) return
+    intentShown.current = initialIntent.token
+    setRequestMode('interventions'); setTab('exchange'); route.save('exchange', false)
+  }, [initialIntent, otherLocked, exchangeDirty, publishDirty, schoolDayDirty])
   const refresh = useCallback(() => setReload(value => value + 1), [])
   const changePublishDirty = useCallback((value: boolean) => setPublishDirty(value), [])
   const changeExchangeDirty = useCallback((value: boolean) => setExchangeDirty(value), [])
@@ -305,7 +311,7 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
         <button type="button" aria-pressed={requestMode === 'interventions'} disabled={otherLocked || exchangeDirty} onClick={() => setRequestMode('interventions')}>대강·휴강·보강</button>
       </nav>}
       <div hidden={requestMode !== 'exchange'}><TimetableExchangePanel key={exchangeEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changeExchangeDirty} onReload={refresh} revision={revision + reload} requestSelection={requestSelection} onRequestSelectionConsumed={() => setRequestSelection(undefined)} sourceSelection={sourceSelection} onSelectionConsumed={() => setSourceSelection(undefined)} proposalSelection={proposalSelection} onProposalSelectionConsumed={() => setProposalSelection(undefined)} extensions={extensions} /></div>
-      {interventions && <div hidden={requestMode !== 'interventions'}><TimetableInterventionsPanel server={interventions} member={member} date={boardDate} view={view ?? undefined} selectedLessonId={recordLessonId} initialRequestId={interventionLink?.requestId} initialSchoolDayChangeId={interventionLink?.schoolDayChangeId} revision={revision + reload} disabled={otherLocked || exchangeDirty || publishDirty || schoolDayDirty || !enabled} assistantServer={assistantServer} onChanged={refresh} onLockChange={setInterventionsLocked} onExchangeProposal={input => { setProposalSelection({ input, token: ++selectionToken.current }); setRequestMode('exchange') }} /></div>}
+      {interventions && <div hidden={requestMode !== 'interventions'}><TimetableInterventionsPanel initialIntent={initialIntent} onInitialIntentConsumed={onInitialIntentConsumed} server={interventions} member={member} date={boardDate} view={view ?? undefined} selectedLessonId={recordLessonId} initialRequestId={interventionLink?.requestId} initialSchoolDayChangeId={interventionLink?.schoolDayChangeId} revision={revision + reload} disabled={otherLocked || exchangeDirty || publishDirty || schoolDayDirty || !enabled} assistantServer={assistantServer} onChanged={refresh} onLockChange={setInterventionsLocked} onExchangeProposal={input => { setProposalSelection({ input, token: ++selectionToken.current }); setRequestMode('exchange') }} /></div>}
     </div>
     {(publishDirty || exchangeDirty || schoolDayDirty) && !locked && (!view || tab === 'shared' || tab === 'publish' && !view.canPublish || tab === 'exchange' && (!view.canRequest || schoolDayDirty)) && <section className="ttops-reset" aria-label="보관한 입력 정리">
       {discard ? <><p>현재 탭에 보관한 확정·교환·학사 변경 입력을 모두 버립니다. 이미 서버에 반영된 시간표와 요청은 바뀌지 않습니다.</p><button type="button" className="secondary" onClick={discardInputs}>입력 버리고 메뉴 잠금 해제</button><button type="button" className="secondary" onClick={() => setDiscard(false)}>계속 작성하기</button></> : <button type="button" className="secondary" onClick={() => setDiscard(true)}>보관한 입력 정리</button>}

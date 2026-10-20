@@ -8,12 +8,20 @@ import { TimetableActionSummaryPanel } from '../../apps/workhub/src/timetable/Ti
 import { ServiceError } from '../../apps/workhub/src/services/scoped-rpc'
 import theme from '../../apps/workhub/src/style.css?inline'
 import styles from '../../apps/workhub/src/timetable/timetable.css?inline'
+import { timetableImportWorkbookSheets } from '../../apps/workhub/src/timetable/import-workbook'
+import { writeTimetableXlsx } from '../../apps/workhub/src/timetable/xlsx'
 const w: any = window, copy = (v: any) => structuredClone(v)
 w.member = { id: 'manager', schoolId: 'school', userId: 'user', name: '합성 관리자', role: 'school_admin', active: true, validFrom: '2020-01-01', validThrough: '2100-12-31', departmentIds: [], gradeIds: [], subjectIds: [] }
 w.source = { schoolId: 'school', schoolLevel: 'middle', termId: 'term', termLabel: '2027학년도 1학기', firstDay: '2027-03-01', lastDay: '2027-08-12', sourceRevision: 1, sourceFingerprint: 'a'.repeat(64),
  canEdit: true, canConfirm: true, resources: [{ id: 'teacher', kind: 'teacher', label: '교사', capacity: 1 }, { id: 'class', kind: 'class', label: '학급', capacity: 1 }, { id: 'room', kind: 'room', label: '교실', capacity: 1 }],
  courses: [{ id: 'course', label: '국어', requiredPeriods: 1, resourceIds: ['teacher', 'class', 'room'] }], unsupportedFeatures: [], savedDraft: null }
 w.calls = []; w.receipts = {}; w.closed = {}; w.commands = {}; w.actualWrites = 0; w.published = []; w.locks = []
+w.workbook = async (kind: string = 'valid') => {
+ const sheets = await timetableImportWorkbookSheets(w.source), row = sheets[0].rows[1]
+ row.splice(2, 5, '1', '국어 1회', '09:00', '09:45', '1')
+ if (kind === 'stale') sheets.find(s => s.name === '_학교연결')!.rows.find(r => r[0] === 'sourceFingerprint')![1] = 'b'.repeat(64)
+ return Array.from(writeTimetableXlsx(sheets))
+}
 w.pending = createPendingRequests(); w.drafts = createEditDrafts()
 const envelope = (data: any) => ({ contract: 'timetable-import.v1', schoolId: 'school', memberId: 'manager', data })
 const fail = (code: string) => ({ contract: 'timetable-import.v1', schoolId: 'school', memberId: 'manager', error: { code } })

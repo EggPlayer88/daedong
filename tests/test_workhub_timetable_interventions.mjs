@@ -189,4 +189,52 @@ await test('수업판과 명단 변화는 AI 근거 지문을 바꾸고 단순 �
   s.asOf = '2026-10-20T00:01:00.000Z'; assert.equal(await api.operationsAiFingerprint(s, null), before)
   s.lessons[0].version++; assert.notEqual(await api.operationsAiFingerprint(s, null), before)
 })
+await test('내 확인·진행·종료 필터는 서버 행동을 늘리지 않고 우선순위 정렬', () => {
+  const rows = [request({ id: 'done', state: 'applied', actions: [] }), request({ id: 'waiting', actions: ['withdraw'] }), request({ id: 'mine' })]
+  const before = structuredClone(rows)
+  assert.deepEqual(api.selectInterventionRequests(rows, { query: '', filter: 'all' }, now).map(row => row.id), ['mine', 'waiting', 'done'])
+  assert.deepEqual(api.selectInterventionRequests(rows, { query: '', filter: 'mine' }, now).map(row => row.id), ['mine'])
+  assert.deepEqual(api.selectInterventionRequests(rows, { query: '', filter: 'finished' }, now).map(row => row.id), ['done'])
+  assert.deepEqual(rows, before)
+})
+await test('요청 검색은 학급·수업·사유·교사와 종류를 함께 좁힘', () => {
+  const rows = [request(), request({ id: 'other', kind: 'cancel', reason: '다른 이유' })]
+  assert.equal(api.selectInterventionRequests(rows, { query: '1-1 연수', filter: 'all', kind: 'substitute' }, now).length, 1)
+  assert.equal(api.selectInterventionRequests(rows, { query: '없는 교사', filter: 'all' }, now).length, 0)
+})
+await test('화면에서 기한이 지나도 원문은 유지하고 내 확인 수에서 제외', () => {
+  const row = request(), late = Date.parse(row.expiresAt)
+  assert.equal(api.interventionDisplayState(row, late), 'expired')
+  assert.equal(api.interventionNeedsMyAction(row, late), false); assert.equal(row.state, 'awaiting_consent')
+  assert.equal(api.selectInterventionRequests([row], { query: '', filter: 'finished' }, late).length, 1)
+})
+await test('같은 대상·판·대강 교사는 사유만 바꿔 중복 전송하지 않음', () => {
+  const row = request()
+  assert.equal(api.duplicateInterventionRequests({ ...input(), reason: '다시 쓴 사유' }, [row], now).length, 1)
+  assert.equal(api.duplicateInterventionRequests({ ...input(), substituteTeacherId: 'm3' }, [row], now).length, 0)
+  assert.equal(api.duplicateInterventionRequests(input(), [{ ...row, state: 'rejected' }], now).length, 0)
+  assert.equal(api.duplicateInterventionRequests(input(), [row], Date.parse(row.expiresAt)).length, 0)
+})
+await test('반영된 보강은 날짜·판·사유를 바꾸어도 같은 원수업 중복을 안내', () => {
+  const i = { kind: 'makeup', lessonId: 'l1', expectedVersion: 1, target: nextSpan, reason: '보강' }
+  const row = request({ kind: 'makeup', input: i, state: 'applied' })
+  assert.equal(api.duplicateInterventionRequests({ ...i, expectedVersion: 2, target: span }, [row], now).length, 1)
+  assert.equal(api.duplicateInterventionRequests({ ...i, lessonId: 'other' }, [row], now).length, 0)
+})
+await test('대강 같은 교사·없는 대상·지난 수업을 RPC 전에 설명', () => {
+  const s = source()
+  assert.match(api.interventionInputProblem({ ...input(), substituteTeacherId: 'm1' }, s, now), /다른 대강/)
+  assert.match(api.interventionInputProblem({ ...input(), substituteTeacherId: 'unknown' }, s, now), /현재 학교/)
+  assert.match(api.interventionInputProblem(input(), s, Date.parse(span.startsAt)), /이미 시작/)
+  assert.equal(api.interventionInputProblem(input(), s, now), null)
+})
+await test('보강 길이·미래 시각·자정 경계는 원수업 기준으로 확인', () => {
+  const s = source(); s.lessons[0].state = 'cancelled'
+  const i = { kind: 'makeup', lessonId: 'l1', expectedVersion: 1, target: nextSpan, reason: '보강' }
+  assert.equal(api.interventionInputProblem(i, s, now), null)
+  assert.match(api.interventionInputProblem(i, s, Date.parse(nextSpan.startsAt)), /현재 시각 이후/)
+  assert.match(api.interventionInputProblem({ ...i, target: { ...nextSpan, endsAt: '2026-10-22T02:00:00.000Z' } }, s, now), /원수업과 같게/)
+  assert.match(api.interventionInputProblem({ ...i, target: { startsAt: '2026-10-22T14:30:00.000Z', endsAt: '2026-10-22T15:15:00.000Z' } }, s, now), /같은 날/)
+  assert.equal(api.interventionInputProblem({ ...i, target: { startsAt: '2026-10-22T14:15:00.000Z', endsAt: '2026-10-22T15:00:00.000Z' } }, s, now), null)
+})
 console.log(`시간표 실제 운영 확장 ${total}건 통과`)

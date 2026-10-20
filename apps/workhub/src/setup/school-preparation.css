@@ -1,0 +1,21 @@
+.school-preparation{border:1px solid var(--border,#dce2ea);border-radius:14px;padding:1rem;background:var(--surface,#fff);color:var(--text,#253044)}
+.school-preparation-heading,.school-preparation-overview{display:flex;gap:.8rem;align-items:center;justify-content:space-between}
+.school-preparation h3,.school-preparation h4,.school-preparation p{margin:0}
+.school-preparation-heading p,.school-preparation-overview p{margin-top:.3rem;font-size:.9rem;color:var(--muted,#5c6878)}
+.school-preparation-overview{padding:.9rem 0;border-bottom:1px solid var(--border,#dce2ea)}
+.school-preparation-steps{list-style:none;padding:0;margin:0}
+.school-preparation-steps>li{padding:.9rem 0;border-bottom:1px solid var(--border,#dce2ea)}
+.school-preparation-steps>li:last-child{border-bottom:0}
+.school-preparation-step-main{display:grid;grid-template-columns:1.7rem minmax(0,1fr) auto;align-items:center;gap:.7rem}
+.school-preparation-number{display:grid;place-items:center;border-radius:50%;background:var(--surface-alt,#edf1f6);font-size:.8rem;min-height:1.7rem}
+.school-preparation h4{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:.96rem}
+.school-preparation-state{font-weight:400;font-size:.75rem;color:var(--muted,#5c6878);border:1px solid var(--border,#dce2ea);padding:.1rem .4rem;border-radius:8px}
+.school-preparation [data-state=blocked] .school-preparation-state,.school-preparation [data-state=unknown] .school-preparation-state{color:var(--danger,#9e382a)}
+.school-preparation-step-main p{margin-top:.3rem;font-size:.88rem;line-height:1.5;overflow-wrap:anywhere}
+.school-preparation details{margin:.55rem 0 0 2.4rem;font-size:.85rem;color:var(--muted,#5c6878)}
+.school-preparation summary{cursor:pointer;width:fit-content;padding:.2rem 0}
+.school-preparation details ul{padding-left:1.2rem;line-height:1.6}
+.school-preparation .school-preparation-footnote{margin-top:.8rem;font-size:.8rem;line-height:1.6;color:var(--muted,#5c6878)}
+.school-preparation button{min-height:36px;white-space:normal}
+@media(max-width:650px){.school-preparation-heading,.school-preparation-overview{align-items:stretch;flex-direction:column}.school-preparation-step-main{grid-template-columns:1.7rem minmax(0,1fr)}.school-preparation-step-main>button{grid-column:2;justify-self:start}.school-preparation{padding:.85rem}.school-preparation details{margin-left:2.4rem}}
+@media print{.school-preparation button{display:none}}

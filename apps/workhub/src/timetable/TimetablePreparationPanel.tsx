@@ -19,7 +19,7 @@ type Session = PreparationSession
 type PreparationSection = 'slots' | 'courses' | 'review'
 interface SlotInput { day: string; label: string; start: string; end: string; periods: string }
 interface PreparationRequest { key: string; command: { input: PreparationInput; source: PreparationSource } }
-interface Props { server?: PreparationServer; setupServer?: SetupServer; onOpenSchoolAdmin?: () => void; member: Membership; expectedTermId?: string | null; refreshRevision?: number; disabled: boolean; onLockChange?: (locked: boolean) => void; onBasisConfirmed?: () => void }
+interface Props { server?: PreparationServer; setupServer?: SetupServer; onOpenSchoolAdmin?: () => void; member: Membership; expectedTermId?: string | null; refreshRevision?: number; disabled: boolean; onLockChange?: (locked: boolean) => void; onBasisConfirmed?: () => void; initialOpen?: boolean; initialSetupOpen?: boolean }
 const days = ['월', '화', '수', '목', '금', '토', '일']
 const minute = (value: string) => /^\d{2}:\d{2}$/.test(value) ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3)) : NaN
 const clock = (value: number) => `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
@@ -47,7 +47,7 @@ export function TimetablePreparationPanel(props: Props) {
   const editingPending = hasPreparationEditingInput(editing)
   const setEditing = (next: PreparationEditingState) => { setEditingValue(next); editingMemory.save(hasPreparationEditingInput(next) ? next : undefined, hasPreparationEditingInput(next)) }
   const [session, setSession] = useState<Session | undefined>(memory.initial), [source, setSource] = useState<PreparationSource>()
-  const [opened, setOpened] = useState(Boolean(hoursMemory.initial || memory.initial?.dirty || slotMemory.initial || editingMemory.initial || recovery.request || setupRecovery.request || setupMemory.initial || setupBatchRecovery.request || setupBatchMemory.initial)), [loading, setLoading] = useState(false), [loadError, setLoadError] = useState(''), [reload, setReload] = useState(0)
+  const [opened, setOpened] = useState(Boolean(props.initialOpen || hoursMemory.initial || memory.initial?.dirty || slotMemory.initial || editingMemory.initial || recovery.request || setupRecovery.request || setupMemory.initial || setupBatchRecovery.request || setupBatchMemory.initial)), [loading, setLoading] = useState(false), [loadError, setLoadError] = useState(''), [reload, setReload] = useState(0)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [confirmed, setConfirmed] = useState(false), [query, setQuery] = useState(''), [page, setPage] = useState(0)
   const [newSlot, setNewSlotValue] = useState<SlotInput>(slotMemory.initial ?? { day: '1', label: '', start: '', end: '', periods: '1' })
   const setNewSlot = (next: SlotInput) => { setNewSlotValue(next); slotMemory.save(next.label || next.start || next.end ? next : undefined, Boolean(next.label || next.start || next.end)) }
@@ -141,7 +141,7 @@ export function TimetablePreparationPanel(props: Props) {
     } finally { if (epoch === life.current) { operation.current = false; setBusy(false) } }
   }
   function discard() { if (hoursLocked || locked || setupLocked || setupRecovery.request) return; patch(source ? sessionFor(source, stale) : undefined); setNewSlot({ day: '1', label: '', start: '', end: '', periods: '1' }); setEditing(initialPreparationEditing()); setClearConfirmed(false); setError(''); setNotice(stale ? '현재 공식 자료로 준비를 다시 시작했습니다. 이전 서버 초안은 새로 저장하기 전까지 유지됩니다.' : '저장하지 않은 준비 입력을 정리했습니다. 학교 서버 자료는 삭제하지 않았습니다.') }
-  return <details className="timetable-card timetable-preparation-flow" open={opened} onToggle={event => { if (!locked && !setupLocked && !hoursLocked) setOpened(event.currentTarget.open) }}><summary onClick={event => { if (locked || setupLocked || hoursLocked) event.preventDefault() }}>학교 편성 자료 준비</summary>
+  return <details ref={node => { if (node && props.initialOpen && !props.initialSetupOpen && node.dataset.focused !== 'true') { node.dataset.focused = 'true'; node.querySelector('summary')?.focus(); node.scrollIntoView({ block: 'nearest' }) } }} className="timetable-card timetable-preparation-flow" open={opened} onToggle={event => { if (!locked && !setupLocked && !hoursLocked) setOpened(event.currentTarget.open) }}><summary onClick={event => { if (locked || setupLocked || hoursLocked) event.preventDefault() }}>학교 편성 자료 준비</summary>
     <p className="timetable-preparation-intro">공간 연결을 확인하고, 일과와 수업을 준비한 뒤 기준판을 만드세요.</p>
     {termAligned && source && session && !loading && !loadError && <><div className="timetable-preparation-source"><strong>{source.termLabel}</strong><span>{source.firstDay} ~ {source.lastDay}</span><small>공식 자료 {source.sourceRevision}판</small></div>
     <nav className="timetable-preparation-steps" aria-label="편성 준비 입력 이동">
@@ -151,7 +151,7 @@ export function TimetablePreparationPanel(props: Props) {
     </nav></>}
     <details className="timetable-preparation-help"><summary>학교 자료와 준비 입력의 차이</summary><p>학교 관리의 교사·학급·교과·수업 배정을 읽어, 시간표에 필요한 시수와 일과를 준비합니다. 공식 교사 배정과 학생 관계는 이 화면에서 바꾸지 않습니다.</p></details>
     {!props.server && <p>학교 준비 서버가 연결된 화면에서 사용할 수 있습니다. 편성 연습 자료로 실제 학교의 기준판을 만들지 않습니다.</p>}
-    {((opened || setupLocked) && props.setupServer || setupRecovery.request || setupBatchRecovery.request) && <TimetableSetupPanel server={props.setupServer} member={props.member} expectedTermId={props.expectedTermId} refreshRevision={props.refreshRevision} disabled={props.disabled || hoursLocked || locked || Boolean(session?.dirty) || slotPending || editingPending} onLockChange={setSetupLocked} onSaved={setupSaved} onOpenSchoolAdmin={props.onOpenSchoolAdmin} />}
+    {((opened || setupLocked) && props.setupServer || setupRecovery.request || setupBatchRecovery.request) && <TimetableSetupPanel initialOpen={props.initialSetupOpen} server={props.setupServer} member={props.member} expectedTermId={props.expectedTermId} refreshRevision={props.refreshRevision} disabled={props.disabled || hoursLocked || locked || Boolean(session?.dirty) || slotPending || editingPending} onLockChange={setSetupLocked} onSaved={setupSaved} onOpenSchoolAdmin={props.onOpenSchoolAdmin} />}
     {(props.setupServer && (session?.dirty || slotPending || editingPending || hoursLocked)) && <p className="timetable-muted">공간·수업 연결을 바꾸려면 먼저 작성 중인 시수·일과를 초안으로 저장하거나 입력을 정리해 주세요.</p>}
     {setupLocked && <p role="status" className="timetable-muted">공간·수업 연결 작업을 마치면 시수·일과 준비를 이어갈 수 있습니다.</p>}
     {loading && <p role="status">공식 학교 자료와 준비 초안을 확인하고 있습니다…</p>}{loadError && <p role="alert">{loadError} 시간표 준비 조회 기능의 설치·권한을 확인해 주세요.</p>}

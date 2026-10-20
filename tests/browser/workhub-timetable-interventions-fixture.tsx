@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { TimetableInterventionsPanel } from '../../apps/workhub/src/timetable/TimetableInterventionsPanel'
 import { TimetableExchangePanel } from '../../apps/workhub/src/timetable/TimetableExchangePanel'
+import { TimetableActionSummaryPanel } from '../../apps/workhub/src/timetable/TimetableActionSummary'
 import { createTimetableInterventionsServer } from '../../apps/workhub/src/timetable/interventions-server'
 import { interventionHash } from '../../apps/workhub/src/timetable/interventions-domain'
 import { createEditDrafts, EditDraftsProvider } from '../../apps/workhub/src/app/edit-drafts'
@@ -102,7 +103,8 @@ function Harness() {
   const exchanges = useMemo(() => w.exchangeView(), [revision])
   w.refresh = () => change(value => value + 1); w.locked = locked; w.switchMember = (id: string) => { w.member = member(id); change(value => value + 1) }
   return <EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{styles}</style><main>
-    <div hidden={mode !== 'interventions'}><TimetableInterventionsPanel server={server} member={w.member} date={w.date} view={exchanges} revision={revision} selectedLessonId="lesson-one" assistantServer={assistant} onChanged={w.refresh} onLockChange={setLocked} onExchangeProposal={input => { w.forwarded = copy(input); setProposal({ input, token: Date.now() }); setMode('exchange') }} /></div>
+    {w.summary && <TimetableActionSummaryPanel server={{ summary: async () => copy(w.summary) }} member={w.member} date={w.date} onOpen={item => { w.openedSummary = copy(item) }} />}
+    <div hidden={mode !== 'interventions'}><TimetableInterventionsPanel server={server} member={w.member} date={w.date} view={exchanges} revision={revision} selectedLessonId="lesson-one" initialIntent={w.initialIntent} onInitialIntentConsumed={token => { w.consumedIntent = token; w.initialIntent = undefined }} assistantServer={assistant} onChanged={w.refresh} onLockChange={setLocked} onExchangeProposal={input => { w.forwarded = copy(input); setProposal({ input, token: Date.now() }); setMode('exchange') }} /></div>
     <div hidden={mode !== 'exchange'}><TimetableExchangePanel server={{} as any} member={w.member} view={exchanges} loading={false} locked={locked} onCommand={async () => { throw Error('명시적 교환 제출은 이번 시험 대상 아님') }} onDirtyChange={() => {}} onReload={w.refresh} proposalSelection={proposal} onProposalSelectionConsumed={() => setProposal(undefined)} /></div>
   </main></PendingRequestsProvider></EditDraftsProvider>
 }
