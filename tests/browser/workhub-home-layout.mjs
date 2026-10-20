@@ -69,7 +69,7 @@ try {
   await test('다가오는 일정은 전체 건수와 생략 안내를 유지하고 전체 원본으로 연결된다', async () => {
     const upcoming = page.locator('.home-upcoming'); assert.equal(await upcoming.locator('.event-card').count(), 3)
     assert.match(await upcoming.innerText(), /5개 중 먼저 3개 표시/)
-    await upcoming.getByRole('button', { name: '전체 관련 일정 보기', exact: true }).click()
+    await upcoming.getByRole('button', { name: '관련 일정 모두 보기', exact: true }).click()
     await page.getByRole('heading', { name: '학교 일정', level: 1, exact: true }).waitFor(); await settle()
     assert.equal(await page.getByLabel('조회 기간', { exact: true }).inputValue(), 'all'); await page.getByRole('button', { name: '추가 관련 일정 3 · 원본 v1 보기', exact: true }).waitFor(); await home()
   })

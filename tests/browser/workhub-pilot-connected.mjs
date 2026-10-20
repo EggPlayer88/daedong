@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 셸·어댑터를 사용한다. 기본은 R0만 제공하고 협업 알림 시험만 합성 P2/P3 조회를 켠다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -62,7 +63,7 @@ const browser=await launchBrowser(),context=await browser.newContext({viewport:{
 page.setDefaultTimeout(15000);page.on('pageerror',e=>{if(e.message==='synthetic isolated render failure')expectedRenderErrors.push(e.message);else errors.push(e.message)});
 await context.route('**/*',route=>{const url=route.request().url();if(!url.startsWith('http://127.0.0.1:5179/')){external.push(url);return route.abort()}if(url.endsWith('/assets/fonts/PretendardVariable.woff2'))return route.fulfill({contentType:'font/woff2',body:fontBytes});return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0"><div id="root"></div></body></html>'})})
 async function boot(){await page.goto('http://127.0.0.1:5179/pilot');await page.addStyleTag({content:fontCss});await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByRole('heading',{name:'오늘',exact:true,level:1}).waitFor();await page.getByText('합성 학교의 확인할 업무',{exact:true}).waitFor()}
-async function go(name){const direct=page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name,exact:true});if(name==='AI 비서'){const trigger=page.locator('.ws-assistant-trigger');if(await trigger.isVisible())await trigger.click();else{await page.getByRole('button',{name:'더보기',exact:true}).click();await page.getByRole('dialog',{name:'더보기',exact:true}).getByRole('button',{name,exact:true}).click()}}else if(await direct.first().isVisible())await direct.first().click();else{await page.getByRole('button',{name:'더보기',exact:true}).click();await page.getByRole('dialog',{name:'더보기',exact:true}).getByRole('button',{name,exact:true}).click()}}
+async function go(name){await clickWorkspaceMenu(page,name)}
 async function openCooperationInbox(){await page.evaluate(()=>window.scenario.cooperationEnabled=true);await go('메시지와 알림');await page.getByRole('button',{name:'업무 알림',exact:true}).click();await page.getByRole('heading',{name:'협업 요청 알림',exact:true}).waitFor()}
 async function screenshot(name){await page.evaluate(()=>document.fonts.ready);if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,name),fullPage:true})}}
 // 메뉴 도착은 셸의 제목으로 확인한다. 하위 학교 관리 모듈의 같은 제목과 혼동하지 않는다.

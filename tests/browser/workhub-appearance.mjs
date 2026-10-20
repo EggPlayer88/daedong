@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 Vite 미리보기에서 스킨·설정 보존·입력 보호·반응형 화면을 검증한다.
 // 실행 전 npm run dev:workhub, 다른 주소는 WORKHUB_QA_URL로 지정한다.
 import assert from 'node:assert/strict'
@@ -39,17 +40,14 @@ async function resize(viewport) {
     const more = document.querySelector('.ws-more-button')
     return mobile
       ? !desktopSettings && Boolean(more?.getClientRects().length)
-      : Boolean(desktopSettings?.getClientRects().length) && !more?.getClientRects().length
+      : Boolean(desktopSettings?.getClientRects().length) && Boolean(more?.getClientRects().length)
   })
 }
 async function test(name, action) { await action(); results.push(name); console.log('  ✓ ' + name) }
 async function home() { await page.getByRole('heading', { name: '내 할 일', exact: true }).waitFor(); await settle() }
 async function heading(name) { await page.getByRole('heading', { name, exact: true, level: 1 }).waitFor(); await settle() }
 async function menu(name) {
-  const navigation = page.getByRole('navigation', { name: '업무 메뉴', exact: true })
-  const button = navigation.getByRole('button', { name, exact: true })
-  if (!await button.isVisible()) await navigation.getByRole('button', { name: '더보기', exact: true }).click()
-  await button.click()
+  await clickWorkspaceMenu(page,name)
   await heading(name)
 }
 async function openSettings() { if (!await trigger().isVisible()) await page.getByRole('button', { name: '더보기', exact: true }).click(); await trigger().click(); await dialog().waitFor(); await settle() }
@@ -149,7 +147,7 @@ try {
     await page.getByRole('button', { name: '할 일 등록', exact: true }).click()
     await page.getByLabel('해야 할 일', { exact: true }).fill('화면 설정 중 보존할 합성 초안')
     const before = page.url()
-    assert.equal(await page.getByRole('button', { name: 'AI 비서 준비 중', exact: true }).isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'AI 비서', exact: true }).isDisabled(), true)
     await openSettings(); await choose('dark'); await choose('large'); await closeSettings()
     assert.equal(page.url(), before)
     assert.equal(await page.getByLabel('해야 할 일', { exact: true }).inputValue(), '화면 설정 중 보존할 합성 초안')
@@ -157,7 +155,7 @@ try {
   })
   await test('AI 비서는 준비 상태를 밝히고 전송 없이 기존 업무 화면으로 연결한다', async () => {
     const before = commandRequests.length
-    const ai = page.getByRole('button', { name: 'AI 비서 준비 중', exact: true })
+    const ai = page.getByRole('button', { name: 'AI 비서', exact: true })
     await ai.click(); const assistant = page.getByRole('dialog', { name: 'AI 비서', exact: true })
     assert.match(await assistant.innerText(), /CLAUDE · 연결 준비 중/)
     assert.match(await assistant.innerText(), /현재는 대화를 전송하거나 AI 작업을 실행할 수 없습니다/)
@@ -200,7 +198,12 @@ try {
     await resize({ width: 320, height: 850 })
     for (const name of ['학교 일정', '내 업무', '자료 수합', '수업과 학생', '오늘']) {
       await menu(name); await assertFits(`320px ${name}`)
-      assert.equal(await page.getByRole('navigation', { name: '업무 메뉴', exact: true }).locator('[aria-current="page"]').innerText(), name)
+      const navigation=page.getByRole('navigation', { name: '업무 메뉴', exact: true })
+      if(['자료 수합','수업과 학생'].includes(name)){
+        assert.equal(await navigation.locator('[aria-current="page"]').count(),0)
+        assert.equal(await navigation.locator('.ws-more-current').count(),1)
+      }else assert.equal(await navigation.locator('[aria-current="page"]').innerText(),name)
+      assert.equal(await page.getByRole('heading',{name,exact:true,level:1}).count(),1)
     }
     await home(); await openSettings(); await dialog().getByRole('button', { name: '기본 설정으로', exact: true }).click(); await closeSettings()
     await resize({ width: 1440, height: 1000 }); await screenshot('appearance-final-white-home')

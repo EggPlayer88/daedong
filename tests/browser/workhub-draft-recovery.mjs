@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 화면에서 미저장 초안과 서버에 보낸 명령의 복구를 구분한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -103,7 +104,7 @@ const flush = page => page.evaluate(() => new Promise(resolve => requestAnimatio
 async function showPage(page, kind) {
   const name = kind === 'calendar' ? '학교 일정' : '내 업무'
   if (await titleInput(page, kind).isVisible()) return
-  await menu(page, name).click()
+  await clickWorkspaceMenu(page,name)
   await page.getByRole('heading', { name, exact: true, level: 1 }).waitFor()
 }
 async function newDraft(page, kind, title) {

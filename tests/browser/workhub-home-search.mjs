@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 공통 홈·검색·원본 화면을 미리보기와 연결 모드에서 검증한다. 외부 서버는 호출하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -49,7 +50,7 @@ await context.route('**/*',route=>{if(!route.request().url().startsWith('http://
 const dialog=()=>page.getByRole('dialog',{name:'업무 찾기',exact:true})
 const home=()=>page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor()
 const nav=()=>page.getByRole('navigation',{name:/^(업무 메뉴|신축 업무 메뉴)$/})
-async function menu(name){await nav().getByRole('button',{name,exact:true}).click()}
+async function menu(name){await clickWorkspaceMenu(page,name)}
 async function search(q=''){await page.getByRole('button',{name:'업무 찾기',exact:true}).click();await dialog().getByLabel('검색어',{exact:true}).fill(q);await dialog().locator('.ws-search-source-loading').first().waitFor({state:'hidden'});}
 async function test(name,fn){await fn();results.push(name);console.log('  ✓ '+name)}
 try{

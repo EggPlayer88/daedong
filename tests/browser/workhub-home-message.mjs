@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 셸·홈·메신저 어댑터를 합성 RPC에 연결한다. 운영 DB와 외부 API에는 접근하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -42,7 +43,7 @@ await context.route('**/*',route=>{const url=route.request().url();if(!url.start
 const sourceButton=()=>page.getByRole('button',{name:'확인할 원본 메시지 안 읽은 메시지 1개',exact:true}),detail=()=>page.getByRole('region',{name:'선택한 대화',exact:true})
 async function boot(){await page.setViewportSize({width:1280,height:1000});await page.goto('http://127.0.0.1:5187/home');await page.addStyleTag({content:fontCss});await page.addScriptTag({content:bundle.outputFiles[0].text});await sourceButton().waitFor()}
 async function test(name,run){await boot();try{await run()}catch(error){console.error(await page.locator('body').innerText());console.error(await page.evaluate(()=>window.state.calls));throw error}passed.push(name);console.log('  ✓ '+name)}
-async function go(name){await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name,exact:true}).click()}
+async function go(name){await clickWorkspaceMenu(page,name)}
 async function open(){await sourceButton().click();await detail().getByText('정확한 홈 원본 내용입니다.',{exact:true}).waitFor()}
 async function compose(){await go('메시지와 알림');await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByLabel('이민준 · 교무부',{exact:true}).check();await page.getByLabel('메시지',{exact:true}).fill('보관할 메시지 원문')}
 try{

@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 UI와 합성 접수 저장소로 응답 유실·재접속·이동 후 멱등 복구를 검사한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -42,7 +43,7 @@ const errors = [], results = []
 page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message))
 page.on('dialog', dialog => dialog.accept())
 const menu = name => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name, exact: true })
-async function go(name) { await menu(name).click(); await page.getByRole('heading', { name: name === '오늘' ? '오늘' : name, level: 1, exact: true }).waitFor() }
+async function go(name) { await clickWorkspaceMenu(page,name); await page.getByRole('heading', { name: name === '오늘' ? '오늘' : name, level: 1, exact: true }).waitFor() }
 async function test(name, run) { await run(); results.push(name); console.log('  ✓ ' + name) }
 async function boot() {
   await page.goto('http://127.0.0.1:5176/request-recovery-test')
