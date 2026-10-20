@@ -13,6 +13,12 @@ await page.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<!do
 const button=name=>page.getByRole('button',{name,exact:true}),field=name=>page.getByLabel(name,{exact:true}),target=()=>page.getByRole('combobox',{name:'준비할 학기 선택',exact:true})
 const called=name=>page.evaluate(name=>window.calls.filter(row=>row.name===name),name)
 const writes=()=>called('workhub_timetable_setup_execute'),targetWrites=()=>called('workhub_timetable_target_set')
+// 자식 편집 상태가 준비 패널과 Workspace를 거쳐 반영된 뒤 잠금 자체를 확인한다.
+// 단순 지연이나 재시도로 실패를 넘기지 않으며, 잠금이 누락되면 제한 시간 안에 실패한다.
+async function waitForTargetLock(locked=true){
+ await page.waitForFunction(locked=>{const select=document.querySelector('section[aria-label="준비할 학기 선택"] select');return select instanceof HTMLSelectElement&&select.disabled===locked},locked)
+ assert.equal(await target().isDisabled(),locked)
+}
 async function openPreparation(){await page.getByText('학교 편성 자료 준비',{exact:true}).click();await field('준비 자료 이름').waitFor()}
 async function openSetup(){await openPreparation();await page.getByText('공간·수업 연결 관리',{exact:true}).click();await button('공간 추가').waitFor()}
 async function changeTarget(){await target().selectOption('next');await field('학교 전체의 준비 대상이 바뀌며, 저장한 기존 학기 자료는 유지됨을 확인했습니다').check();await button('확인한 학기로 변경').click()}
@@ -28,21 +34,24 @@ try{
  })
  await test('준비 초안 입력이 있으면 학기 선택을 잠그고 입력을 보존한다',async()=>{
   await openPreparation();await field('준비 자료 이름').fill('아직 저장하지 않은 일과');await page.waitForFunction(()=>document.querySelector('section[aria-label="준비할 학기 선택"] select').disabled)
-  assert.equal(await target().isDisabled(),true);assert.equal((await targetWrites()).length,0);assert.equal(await page.evaluate(()=>window.readDraft('timetable-preparation').draft.title),'아직 저장하지 않은 일과')
+  await waitForTargetLock();assert.equal((await targetWrites()).length,0);assert.equal(await page.evaluate(()=>window.readDraft('timetable-preparation').draft.title),'아직 저장하지 않은 일과')
  })
  await test('공간 편집과 엑셀 변경 미리보기 중에는 학교 공통 학기를 바꾸지 않는다',async()=>{
-  await editSpace();assert.equal(await target().isDisabled(),true);await button('편집 입력 정리').click();await button('입력 버리고 닫기').click()
+  const originalTarget=await target().inputValue();await editSpace();await waitForTargetLock()
+  assert.equal(await field('공간 이름').inputValue(),'보존할 과학실 입력');assert.equal(await page.evaluate(()=>window.readDraft('timetable-setup').input.label),'보존할 과학실 입력')
+  assert.equal(await target().inputValue(),originalTarget);assert.equal((await targetWrites()).length,0);assert.equal((await writes()).length,0)
+  await button('편집 입력 정리').click();await button('입력 버리고 닫기').click();await waitForTargetLock(false)
   await page.getByText('엑셀로 공간·수업 연결 한 번에 준비',{exact:true}).click();const bytes=Buffer.from(await page.evaluate(()=>window.makeBatchFile()));await field('편집한 준비 입력 엑셀 가져오기').setInputFiles({name:'편집.xlsx',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',buffer:bytes})
-  await button('선택한 항목 순서대로 저장').waitFor();assert.equal(await target().isDisabled(),true);assert.equal((await targetWrites()).length,0);assert.equal((await writes()).length,0)
+  await button('선택한 항목 순서대로 저장').waitFor();await waitForTargetLock();assert.equal(await target().inputValue(),originalTarget);assert.equal((await targetWrites()).length,0);assert.equal((await writes()).length,0)
  })
  await test('아직 추가하지 않은 조건 선택도 학기 전환을 잠근다',async()=>{
   await button('시간표 만들기').click();await button('조건 정리').click();await field('조건 수업').selectOption('practice-lesson-a1')
-  assert.equal(await target().isDisabled(),true);assert.equal((await targetWrites()).length,0)
+  await waitForTargetLock();assert.equal((await targetWrites()).length,0)
  },{basis:true})
  await test('Claude에 아직 보내지 않은 질문을 보관하고 학기 전환을 잠근다',async()=>{
   await page.getByText('Claude와 조건 정리하기',{exact:true}).click();await field('시간표 조건 요청').fill('보존할 다음 학기 조건 질문')
   await page.waitForFunction(()=>document.querySelector('section[aria-label="준비할 학기 선택"] select').disabled)
-  assert.equal(await target().isDisabled(),true);assert.equal((await targetWrites()).length,0)
+  await waitForTargetLock();assert.equal((await targetWrites()).length,0)
  },{basis:true})
  await test('다른 담당자가 학기를 바꾸면 포커스 재조회 후 옛 준비 입력을 새 학기에 저장하지 않는다',async()=>{
   await openPreparation();await field('준비 자료 이름').fill('이전 학기 보관 초안');await page.evaluate(()=>{window.externalSelect('next');window.dispatchEvent(new Event('focus'))})
@@ -58,13 +67,13 @@ try{
  })
  await test('학기 변경 응답 유실은 원래 요청 번호로만 확인하고 그 전에는 준비 쓰기를 막는다',async()=>{
   await page.evaluate(()=>window.targetDrop=true);await changeTarget();await button('원래 학기 변경 결과 확인').waitFor();const sent=await targetWrites()
-  assert.equal(sent.length,1);assert.equal(await target().isDisabled(),true);assert.equal(await page.evaluate(()=>window.pending.count()),1)
+  assert.equal(sent.length,1);await waitForTargetLock();assert.equal(await page.evaluate(()=>window.pending.count()),1)
   await button('원래 학기 변경 결과 확인').click();await page.waitForFunction(()=>window.pending.count()===0);await openSetup();await page.getByRole('listitem',{name:'다음학기 과학실 [room-used]',exact:true}).waitFor()
   const recovered=await targetWrites();assert.equal(recovered.length,2);assert.equal(recovered[1].args.p_request_key,sent[0].args.p_request_key);assert.equal(recovered[1].args.p_recover_only,true);assert.equal(await page.evaluate(()=>window.targetWrites),1);assert.equal((await writes()).length,0)
  })
  await test('이전 학기의 공간 저장 결과 미상도 대상 변경 뒤 원래 번호로만 복구한다',async()=>{
   await editSpace();await page.evaluate(()=>window.dropOnce=true);await saveSpace();await button('원래 저장 요청 결과 확인').waitFor();const sent=await writes()
-  assert.equal(sent.length,1);assert.equal(await page.evaluate(()=>window.actualWrites),1);assert.equal(await target().isDisabled(),true)
+  assert.equal(sent.length,1);assert.equal(await page.evaluate(()=>window.actualWrites),1);await waitForTargetLock()
   await page.evaluate(()=>{window.externalSelect('next');window.dispatchEvent(new Event('focus'))});await page.getByText(/학교의 준비 대상 학기가 바뀌어 자료를 다시 확인합니다/).waitFor()
   await button('원래 저장 요청 결과 확인').click();await page.waitForFunction(()=>window.pending.count()===0)
   const recovered=await writes();assert.equal(recovered.length,2);assert.equal(recovered[1].args.p_request_key,sent[0].args.p_request_key);assert.deepEqual(recovered[1].args.p_command,sent[0].args.p_command);assert.equal(recovered[1].args.p_recover_only,true)
