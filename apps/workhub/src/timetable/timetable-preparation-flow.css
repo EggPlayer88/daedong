@@ -1,0 +1,137 @@
+.timetable-preparation-flow .timetable-preparation-intro {
+  max-width: 48rem;
+  color: var(--muted, #626b78);
+  margin: .3rem 0 .8rem;
+}
+.timetable-preparation-flow .timetable-preparation-help {
+  margin: .4rem 0 .8rem;
+  font-size: .88rem;
+}
+.timetable-preparation-flow .timetable-preparation-help summary {
+  color: var(--muted, #626b78);
+  font-weight: 500;
+}
+.timetable-preparation-flow > .timetable-setup:not([open]) {
+  margin: .25rem 0;
+  padding-top: 0;
+  border-top: 0;
+}
+.timetable-preparation-flow > .timetable-preparation-hours:not([open]) {
+  margin: .5rem 0;
+  padding: .15rem .75rem;
+}
+.timetable-preparation-flow > .timetable-actions {
+  margin-top: .5rem;
+}
+.timetable-preparation-source {
+  display: flex;
+  gap: .35rem 1rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+.timetable-preparation-source span,
+.timetable-preparation-source small {
+  color: var(--muted, #626b78);
+  overflow-wrap: anywhere;
+}
+.timetable-preparation-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .5rem;
+  margin: .8rem 0 1rem;
+}
+.timetable-preparation-steps button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: .1rem .65rem;
+  text-align: left;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.timetable-preparation-steps button > span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--surface-soft, #f7f9fc);
+  color: var(--muted, #626b78);
+  font-size: .8rem;
+}
+.timetable-preparation-steps strong {
+  font-size: .9rem;
+  font-weight: 650;
+}
+.timetable-preparation-steps small {
+  color: var(--muted, #626b78);
+  font-size: .78rem;
+}
+.timetable-preparation-steps button[aria-expanded="true"] {
+  border-color: var(--accent, #365f95);
+  background: var(--accent-soft, #eef4fc);
+}
+.timetable-preparation-flow .timetable-preparation-section {
+  margin: .7rem 0;
+  border: 1px solid var(--border, #dce1e7);
+  border-radius: .65rem;
+  padding: .25rem .9rem;
+}
+.timetable-preparation-section > summary {
+  gap: .6rem;
+  overflow-wrap: anywhere;
+  min-height: 3rem;
+}
+.timetable-preparation-section > summary::before {
+  content: "+";
+  color: var(--muted, #626b78);
+  font-weight: 400;
+}
+.timetable-preparation-section[open] > summary::before {
+  content: "−";
+}
+.timetable-preparation-section[open] {
+  padding-bottom: 1rem;
+}
+.timetable-preparation-section > p {
+  max-width: 50rem;
+}
+.timetable-preparation-section .timetable-list-row > button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.timetable-preparation-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem 1.2rem;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--border, #dce1e7);
+  padding: 1rem 0 .5rem;
+}
+.timetable-preparation-save strong {
+  font-size: .92rem;
+}
+.timetable-preparation-save p {
+  color: var(--muted, #626b78);
+  font-size: .85rem;
+  margin: .2rem 0;
+}
+@media (max-width: 600px) {
+  .timetable-preparation-steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .timetable-preparation-steps button {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: .6rem .75rem;
+  }
+  .timetable-preparation-flow .timetable-preparation-section {
+    padding-inline: .65rem;
+  }
+  .timetable-preparation-save > button {
+    width: 100%;
+  }
+}
