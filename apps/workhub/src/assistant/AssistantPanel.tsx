@@ -9,6 +9,8 @@ import { assistantInput, confirmTask, AssistantError, assistantError, definiteFa
 import { createAssistantServer } from './server';
 import { legacyAssistantHttp } from './legacy-http';
 import styles from './assistant.css?inline';
+import { knowledgeCitationRequest, type KnowledgeAssistantRequest } from '../knowledge/assistant-links';
+import type { Citation } from './contracts';
 export interface AssistantDraftReady {
     intent: AssistantIntent;
     segments: AnswerSegment[];
@@ -29,6 +31,7 @@ export interface AssistantPanelProps {
     };
     onDraftReady?: (draft: AssistantDraftReady, contextId?: string) => void;
     onComposeMessage?: (draft: { requestId: string; body: string }) => void;
+    onOpenKnowledgeCitation?: (request: KnowledgeAssistantRequest) => void | Promise<void>;
     server?: AssistantServer;
 }
 type Pending = {
@@ -63,7 +66,7 @@ function pendingCommand(raw: unknown): Pending { if (!raw || typeof raw !== 'obj
 }  throw new AssistantError('INVALID_INPUT'); }
 const newKey = () => globalThis.crypto.randomUUID();
 export function AssistantPanel(props: AssistantPanelProps) { return <AssistantScope key={recoveryScope(props.member)} {...props}/>; }
-function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, server: provided }: AssistantPanelProps) {
+function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenKnowledgeCitation, server: provided }: AssistantPanelProps) {
     const server = useMemo(() => provided ?? createAssistantServer(connection, legacyAssistantHttp), [provided, connection]), memory = useEditDraft<Session>(member, 'assistant'), recovery = usePendingRequest(member, 'assistant');
     const [session, setSession] = useState<Session>(() => { const saved = memory.initial ?? initial; if (recovery.request) {
         try {
@@ -74,6 +77,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
         catch { }
     } return saved; }), latest = useRef(session), life = useRef(0), operation = useRef(false), uid = useId();
     const [ready, setReady] = useState<Readiness>(), [threads, setThreads] = useState<ThreadSummary[]>([]), [nextCursor, setNextCursor] = useState<string | null>(null), [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [error, setError] = useState(''), [notice, setNotice] = useState(''), [readError, setReadError] = useState('');
+    const [openingCitation, setOpeningCitation] = useState(false), citationFlight = useRef(false);
     let pending: Pending | undefined;
     try {
         if (recovery.request)
@@ -239,6 +243,13 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
         return; update({ ...initial, mode, intent: mode === 'school' ? 'school_advice' : 'personal_assistant' }); setError(''); setNotice(''); }
     function changeIntent(intent: AssistantIntent) { if (!editable)
         return; update({ ...latest.current, intent, studentContext: intent === 'student_record_draft' ? latest.current.studentContext : null }); }
+    async function openKnowledgeCitation(citation: Citation) {
+        if (!onOpenKnowledgeCitation || !editable || locked || loading || citationFlight.current) return;
+        const epoch = life.current; citationFlight.current = true; setOpeningCitation(true); setError('');
+        try { await onOpenKnowledgeCitation(knowledgeCitationRequest(citation, member)); }
+        catch { if (epoch === life.current) setError('인용 원문을 열지 못했습니다. 답변과 작성 중인 입력은 그대로 유지했습니다.'); }
+        finally { citationFlight.current = false; if (epoch === life.current) setOpeningCitation(false); }
+    }
     const draft = session.proposal;
     let taskIssue = '';
     if (draft) {
@@ -273,7 +284,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
   <details className="assistant-history"><summary>이전 대화 {threads.length}개</summary><ul>{threads.map(row => <li key={row.id}><button type="button" disabled={!editable || locked} aria-current={session.thread?.id === row.id ? 'true' : undefined} onClick={() => void loadThread(row.id)}>{row.title}</button></li>)}</ul>{nextCursor && <button type="button" disabled={loading || busy} onClick={() => void moreThreads()}>이전 대화 더 보기</button>}</details>
   <div className="assistant-conversation"><div className="assistant-thread-heading"><h3>{readError ? '대화 연결을 다시 확인해 주세요' : session.thread?.title ?? '새 대화'}</h3><button type="button" disabled={locked || busy} onClick={() => update({ ...latest.current, thread: undefined })}>새 대화</button></div>
    {!readError && session.thread?.nextCursor && <button type="button" disabled={!editable} onClick={() => void moreMessages()}>앞선 답변 더 보기</button>}
-   {!readError && session.thread?.exchanges.map(exchange => <article className="assistant-exchange" key={exchange.id}><h4>내 질문</h4><p className="assistant-text">{exchange.prompt}</p><h4>Claude 답변</h4><AnswerView segments={exchange.segments}/>{exchange.proposal && <div className="assistant-proposal"><strong>{exchange.proposal.input.title}</strong><p>{exchange.proposal.status === 'applied' ? '개인 할 일에 추가된 제안입니다.' : '개인 할 일 제안입니다. 확인하기 전에는 저장되지 않습니다.'}</p>{exchange.proposal.status === 'pending' && <button type="button" disabled={!editable || Boolean(session.proposal) || Boolean(session.prompt.trim())} onClick={() => update({ ...latest.current, proposal: structuredClone(exchange.proposal!), taskReview: false })}>할 일 제안 검토</button>}</div>}
+   {!readError && session.thread?.exchanges.map(exchange => <article className="assistant-exchange" key={exchange.id}><h4>내 질문</h4><p className="assistant-text">{exchange.prompt}</p><h4>Claude 답변</h4><AnswerView segments={exchange.segments} onOpenKnowledgeCitation={onOpenKnowledgeCitation ? citation => void openKnowledgeCitation(citation) : undefined} disabled={!editable || locked || loading || openingCitation}/>{exchange.proposal && <div className="assistant-proposal"><strong>{exchange.proposal.input.title}</strong><p>{exchange.proposal.status === 'applied' ? '개인 할 일에 추가된 제안입니다.' : '개인 할 일 제안입니다. 확인하기 전에는 저장되지 않습니다.'}</p>{exchange.proposal.status === 'pending' && <button type="button" disabled={!editable || Boolean(session.proposal) || Boolean(session.prompt.trim())} onClick={() => update({ ...latest.current, proposal: structuredClone(exchange.proposal!), taskReview: false })}>할 일 제안 검토</button>}</div>}
    {['document_draft', 'student_record_draft', 'guided_collection'].includes(exchange.intent) && <div className="assistant-actions"><button type="button" onClick={() => { try {
             const blob = new Blob([exchange.segments.map(row => row.text + '\n' + row.citations.map(c => '근거: ' + c.title + ' · ' + c.locator).join('\n')).join('\n\n')], { type: 'text/plain;charset=utf-8' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
             anchor.href = url;
@@ -309,6 +320,8 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
   {recovery.request && <section className="assistant-pending" aria-label="미확정 요청"><h3>기존 요청 결과 확인</h3><p>요청 번호: <code>{recovery.request.key}</code></p>{pending?.kind === 'confirmTask' && <p>개인 할 일: {pending.input.input.title} · {pending.input.input.dueDate || '마감일 없음'}</p>}<p>입력과 요청 번호를 보관했습니다. 결과가 확정될 때까지 새 요청이나 입력 버리기를 진행하지 않습니다.</p><button type="button" disabled={busy || !pending || !enabled} onClick={() => pending && void execute(pending, recovery.request!.key)}>같은 요청으로 결과 확인</button>{!pending && <p role="alert">기존 요청 형식을 확인할 수 없습니다. 원 요청을 유지한 채 관리자에게 확인해 주세요.</p>}</section>}
  </section>;
 }
-export function AnswerView({ segments }: {
+export function AnswerView({ segments, onOpenKnowledgeCitation, disabled = false }: {
     segments: AnswerSegment[];
-}) { return <div className="assistant-answer">{segments.map((segment, index) => <div key={index}><p className="assistant-text">{segment.text}</p>{segment.citations.length > 0 ? <details><summary>근거 {segment.citations.length}개</summary><ul>{segment.citations.map((source, i) => <li key={i}><strong>{source.title}</strong><span>{source.locator}</span><small>{source.reference.kind} · {source.reference.id} · {'version' in source.reference ? '판 ' + source.reference.version : '개정 ' + source.reference.revisionId + ' · 구간 ' + source.reference.start + '–' + source.reference.end}</small></li>)}</ul></details> : <p className="assistant-hint">연결된 학교 근거가 없는 일반 안내입니다.</p>}</div>)}</div>; }
+    onOpenKnowledgeCitation?: (citation: Citation) => void;
+    disabled?: boolean;
+}) { return <div className="assistant-answer">{segments.map((segment, index) => <div key={index}><p className="assistant-text">{segment.text}</p>{segment.citations.length > 0 ? <details><summary>근거 {segment.citations.length}개</summary><ul>{segment.citations.map((source, i) => <li key={i}><strong>{source.title}</strong><span>{source.locator}</span><small>{source.reference.kind} · {source.reference.id} · {'version' in source.reference ? '판 ' + source.reference.version : '개정 ' + source.reference.revisionId + ' · 구간 ' + source.reference.start + '–' + source.reference.end}</small>{onOpenKnowledgeCitation && source.reference.kind === 'knowledge' && <button type="button" disabled={disabled} onClick={() => onOpenKnowledgeCitation(source)}>인용 원문 보기</button>}</li>)}</ul></details> : <p className="assistant-hint">연결된 학교 근거가 없는 일반 안내입니다.</p>}</div>)}</div>; }
