@@ -468,6 +468,71 @@ def body():
     o27 = t[27].abandon('operations', cmd_pub, k_pub)
     check('J03 다른 학교 소속이 같은 번호 · 같은 명령으로 닫기 → 내 접수증을 받지 못함(그 학교 자기 원장만)', ok(o27) and d(o27)['outcome'] == 'abandoned'
           and d(o27)['receipt'] is None and adm.oexec(cmd_pub, k_pub, recover=True) == rp, o27)
+    # ======================================================================= K. 재공개가 학사 변경 · 교환을 보존(Codex #73 P1)
+    KST = datetime.timezone(datetime.timedelta(hours=9))
+    def kday(ts): return datetime.datetime.fromisoformat(ts.replace('Z', '+00:00')).astimezone(KST).date().isoformat()
+    def ids_(q): return [r_[0] for r_ in sqlfile(text=q)]
+    def vers(): return {r_[0]: (r_[1], r_[2], r_[3]) for r_ in sqlfile(text="select id, version, state, starts_at::text from workhub.timetable_lessons where pinned")}
+    def touched(chs, bad): return [c_['after']['id'] for c_ in chs if c_['after']['id'] in bad or (c_['before'] or {}).get('id') in bad]
+    def live_on(day_): return n('timetable_lessons', "state <> 'cancelled' and occurrence_date = %s", (day_,))
+    closed = set(ids_("select id from workhub.timetable_lessons where state='cancelled' and changed_by='school_day'"))
+    check('K01 준비: 휴업한 날 수업은 학사 변경 취소로 남음 · 그날 살아 있는 수업 0', len(closed) > 0 and live_on(target_day) == 0, (len(closed), target_day))
+    pv = adm.pprev(pin_)
+    check('K02 같은 초안 일반 재공개 미리보기 → NO_CHANGES(휴업 취소 수업을 되살리지 않음)', ok(pv) and [b['code'] for b in d(pv)['blockers']] == ['NO_CHANGES']
+          and d(pv)['changes'] == [], pv if not ok(pv) else [(kday(c_['after']['time']['startsAt']), c_['before'] is None) for c_ in d(pv)['changes']])
+    mf = adm.manifest(pin_)
+    check('K03 같은 초안 명세 재공개 → totalChanges 0 · 차단 1(NO_CHANGES)', ok(mf) and d(mf)['totalChanges'] == 0 and d(mf)['blockerCount'] == 1, mf)
+    # 특별 일과(종 시각 변경): 휴업 · 교환이 없는 날
+    G = d(adm.oget(F, DAY(8)))
+    pinned0 = set(vers())
+    sp_day, ls = None, []
+    for k_ in range(2, 8):
+        ls = [l_ for l_ in G['lessons'] if kday(l_['time']['startsAt']) == DAY(k_)]
+        if DAY(k_) != target_day and ls and all(l_['state'] == 'scheduled' and l_['id'] not in pinned0 for l_ in ls): sp_day = DAY(k_); break
+    def shift(t_, m): return iso(datetime.datetime.fromisoformat(t_.replace('Z', '+00:00')) + datetime.timedelta(minutes=m))
+    times = sorted({(l_['time']['startsAt'], l_['time']['endsAt']) for l_ in ls})
+    bells = [{'before': {'startsAt': a_, 'endsAt': b_}, 'after': {'startsAt': shift(a_, 5), 'endsAt': shift(b_, 5)}} for a_, b_ in times]
+    gk = sorted({g_['id'] for x in d(adm.refs(G['asOf'], F, DAY(8)))['lessons'] if x['lessonId'] in {l_['id'] for l_ in ls} for g_ in x['groups']})
+    sp2 = adm.sdprev({'kind': 'special_bells', 'date': sp_day, 'groupIds': gk, 'reason': '단축 수업', 'bells': bells}, G['asOf'], F, DAY(8)); SP2 = d(sp2) or {}
+    rx2 = adm.sdexec({'kind': 'school_day', 'preview': {'previewId': SP2.get('previewId'), 'previewHash': SP2.get('previewHash'), 'expiresAt': SP2.get('expiresAt')}}) \
+        if ok(sp2) and not SP2['blockers'] else sp2
+    check('K04 특별 일과 반영(그날 수업 시각 +5분 · pinned)', sp_day is not None and ok(rx2) and d(rx2)['changedLessonCount'] == len(ls) > 0, (sp_day, rx2))
+    pv = adm.pprev(pin_)
+    check('K05 특별 일과 뒤 같은 초안 재공개 → 여전히 NO_CHANGES(교환 · 특별 일과 · 휴업 보존)', ok(pv) and [b['code'] for b in d(pv)['blockers']] == ['NO_CHANGES'], pv)
+    # 다른 학급 정상 변경: 정보(1-2) 수업만 다른 요일로 옮긴 초안
+    keep = vers(); bad = closed | set(keep)
+    p3, P3 = None, {}
+    for alt in (['s2-1', 's5-1'], ['s2-3', 's5-3'], ['s2-2', 's5-2']):
+        plan2 = dict(plan_, **{CB: alt})
+        rs3 = adm.save(dict(inp, title='운영 2안', placements=[{'lessonId': lid, 'slotId': plan2[cid][i]} for cid, lids in L.items() for i, lid in enumerate(lids)]))
+        p3 = {'draftId': (d(rs3) or {}).get('draftId'), 'draftVersion': 1, 'from': F, 'until': U}
+        pv3 = adm.pprev(p3); P3 = d(pv3) or {}
+        if ok(pv3) and not P3['blockers']: break
+    chs = P3.get('changes', [])
+    check('K06 다른 학급 변경 미리보기: 정보(1-2) 수업만 · 새로 만들기와 취소 둘 다 · 휴업한 날 변경 0 · 휴업 취소 · 교환 · 특별 일과 수업 건드리지 않음',
+          ok(pv3) and P3['blockers'] == [] and chs and all(c_['after']['groupNames'] == ['1-2'] for c_ in chs)
+          and any(c_['before'] is None for c_ in chs) and any(c_['after']['state'] == 'cancelled' for c_ in chs)
+          and not [c_ for c_ in chs if kday(c_['after']['time']['startsAt']) == target_day] and not touched(chs, bad),
+          (P3.get('blockers'), [(kday(c_['after']['time']['startsAt']), c_['after']['groupNames'], c_['after']['state'], c_['before'] is None) for c_ in chs]))
+    rp3 = adm.oexec({'kind': 'publish', 'preview': {'previewId': P3.get('previewId'), 'previewHash': P3.get('previewHash'), 'expiresAt': P3.get('expiresAt'), 'input': p3}})
+    check('K07 일반 공개 → 휴업 취소 그대로 · 휴업한 날 살아 있는 수업 0 · 교환 · 특별 일과 수업 판 · 시각 그대로', ok(rp3)
+          and set(ids_("select id from workhub.timetable_lessons where state='cancelled' and changed_by='school_day'")) == closed and live_on(target_day) == 0
+          and vers() == keep, rp3)
+    # 일반 재편성 취소 뒤 재생성: 원래 초안을 명세 경로로 다시 공개
+    pv4 = adm.pprev(pin_); ch4 = (d(pv4) or {}).get('changes', [])
+    mf4 = adm.manifest(pin_); MF4 = d(mf4) or {}
+    rm4 = adm.pubexec({'kind': 'publish_manifest', 'previewId': MF4.get('previewId'), 'previewHash': MF4.get('previewHash'), 'manifestHash': MF4.get('manifestHash'),
+                       'basisFingerprint': MF4.get('basisFingerprint'), 'input': pin_, 'expiresAt': MF4.get('expiresAt'), 'totalChanges': MF4.get('totalChanges')})
+    recreated = n('timetable_lessons', "state <> 'cancelled' and exists (select 1 from workhub.timetable_lessons o where o.school_id = timetable_lessons.school_id"
+                  " and o.activity_id = timetable_lessons.activity_id and o.occurrence_date = timetable_lessons.occurrence_date and o.state = 'cancelled' and o.changed_by = 'publish')")
+    check('K08 원래 초안 명세 재공개: 정보 수업 재생성(일반 재공개 취소 이력은 보존 대상 아님) · 휴업한 날 0 · 보존 수업 건드리지 않음',
+          ok(rm4) and recreated > 0 and MF4['totalChanges'] == len(ch4) and not touched(ch4, bad)
+          and not [c_ for c_ in ch4 if kday(c_['after']['time']['startsAt']) == target_day] and live_on(target_day) == 0 and vers() == keep,
+          (rm4, recreated, len(ch4)))
+    pv5, mf5 = adm.pprev(pin_), adm.manifest(pin_)
+    check('K09 그 뒤 같은 초안 → 일반 · 명세 모두 변경 0(한 occurrence 의 여러 행은 살아 있는 행 하나에만 맞춤) · T2-07 FAIL 없음',
+          ok(pv5) and [b['code'] for b in d(pv5)['blockers']] == ['NO_CHANGES'] and ok(mf5) and d(mf5)['totalChanges'] == 0 and not fails(t207()),
+          (pv5 if not ok(pv5) else d(pv5)['blockers'], fails(t207())))
     if POLICY:
         check('H06 한도 = 앱 execution-records-policy.json(메모 1000 · 사유 500 · 쪽 20 · 수업 14400초)', POLICY['note'] == 1000 and POLICY['correctionReason'] == 500
               and POLICY['pageSize'] == 20 and POLICY['maxLessonSeconds'] == 14400)
