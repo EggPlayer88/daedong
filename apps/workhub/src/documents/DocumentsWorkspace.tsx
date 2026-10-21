@@ -13,6 +13,7 @@ import { readSavedDocument } from './document-review'
 import { GuidedWorkspace } from './GuidedWorkspace'
 import type { GeneratedDocument } from './guided-contracts'
 import type { GuidedAiRequest, GuidedAiSuggestion } from './guided-ai'
+import type { GuidedSetupAiRequest, GuidedSetupAiSuggestion } from './guided-setup-ai'
 import documentStyles from './documents.css?inline'
 
 export interface DocumentsWorkspaceProps {
@@ -21,6 +22,9 @@ export interface DocumentsWorkspaceProps {
   onRequestAi?: (request: DocumentAiRequest) => void
   onRequestGuidedAi?: (request: GuidedAiRequest) => void
   guidedAiSuggestion?: GuidedAiSuggestion
+  onRequestGuidedSetupAi?: (request:GuidedSetupAiRequest)=>void
+  guidedSetupAiSuggestion?: GuidedSetupAiSuggestion
+  onOpenFileCollections?:()=>void
   legacyPlanHref?: string
   aiDraft?: DocumentAiDraft
   openRequest?: { key: string; id: string; version?: number }
@@ -44,19 +48,20 @@ export function DocumentsWorkspace(props: DocumentsWorkspaceProps) {
   return <DocumentsRouter key={scope} {...props} openRequest={binding.current.scope === scope ? props.openRequest : undefined} />
 }
 function DocumentsRouter(props: DocumentsWorkspaceProps) {
-  const route = useEditDraft<{tab:'library'|'guided'; aiId?:string; guidedId?:string}>(props.member, 'documents-route')
+  const route = useEditDraft<{tab:'library'|'guided'; aiId?:string; guidedId?:string;setupId?:string}>(props.member, 'documents-route')
   const libraryRecovery = usePendingRequest(props.member, 'documents'), guidedRecovery = usePendingRequest(props.member, 'guidedDocuments')
-  const seenAi = useRef(route.initial?.aiId), consumedSuggestion = useRef(route.initial?.guidedId)
+  const seenAi = useRef(route.initial?.aiId), consumedSuggestion = useRef(route.initial?.guidedId), consumedSetup = useRef(route.initial?.setupId)
   const [opened, setOpened] = useState<string | null>(null)
   const target = openToken(props.openRequest) === opened ? undefined : props.openRequest
-  const [tab, setTab] = useState<'library' | 'guided'>(() => guidedRecovery.request ? 'guided' : libraryRecovery.request ? 'library' : props.guidedAiSuggestion && props.guidedAiSuggestion.requestId !== consumedSuggestion.current ? 'guided' : props.aiDraft && props.aiDraft.requestId !== seenAi.current ? 'library' : route.initial?.tab ?? 'library'), [locked, setLocked] = useState(false)
+  const [tab, setTab] = useState<'library' | 'guided'>(() => guidedRecovery.request ? 'guided' : libraryRecovery.request ? 'library' : props.guidedSetupAiSuggestion && props.guidedSetupAiSuggestion.requestId !== consumedSetup.current ? 'guided' : props.guidedAiSuggestion && props.guidedAiSuggestion.requestId !== consumedSuggestion.current ? 'guided' : props.aiDraft && props.aiDraft.requestId !== seenAi.current ? 'library' : route.initial?.tab ?? 'library'), [locked, setLocked] = useState(false)
   const onLock = useCallback((value: boolean) => { setLocked(value); props.onNavigationLockChange?.(value) }, [props.onNavigationLockChange])
   const recovering = Boolean(libraryRecovery.request || guidedRecovery.request)
   useEffect(() => { if (props.aiDraft && !locked && !recovering && seenAi.current !== props.aiDraft.requestId) { seenAi.current = props.aiDraft.requestId; setTab('library') } }, [props.aiDraft, locked, recovering])
   useEffect(() => { if (props.guidedAiSuggestion && !locked && !recovering && consumedSuggestion.current !== props.guidedAiSuggestion.requestId) { consumedSuggestion.current = props.guidedAiSuggestion.requestId; setTab('guided') } }, [props.guidedAiSuggestion, locked, recovering])
+  useEffect(() => { if (props.guidedSetupAiSuggestion && !locked && !recovering && consumedSetup.current !== props.guidedSetupAiSuggestion.requestId) { consumedSetup.current = props.guidedSetupAiSuggestion.requestId; setTab('guided') } }, [props.guidedSetupAiSuggestion, locked, recovering])
   // AI 도움 요청 뒤에도 원래 문서 작업으로 돌아온다. 탭 기억은 미저장 입력 경고에 포함하지 않는다.
-  useEffect(() => { route.save({tab,aiId:seenAi.current,guidedId:consumedSuggestion.current},false) }, [tab, props.aiDraft, props.guidedAiSuggestion, route])
-  return <div className="documents-workspace"><style>{documentStyles}</style><div className="documents-tabs" aria-label="문서 작업 선택"><button type="button" aria-pressed={tab === 'library'} disabled={locked && tab !== 'library'} onClick={() => setTab('library')}>내 문서함</button><button type="button" aria-pressed={tab === 'guided'} disabled={locked && tab !== 'guided'} onClick={() => setTab('guided')}>질문형 수합 양식</button></div>{tab === 'guided' && target && <section className="documents-status" aria-label="선택한 문서 열기 대기"><p>선택한 문서가 있습니다. 작성 중인 양식은 먼저 입력을 보관하고 접어 주세요. 처리 결과를 모르는 요청은 원래 요청 번호로 확인한 뒤 열 수 있습니다.</p><button type="button" disabled={locked || recovering} onClick={() => setTab('library')}>선택한 문서 열기</button></section>}{tab === 'library' ? <DocumentsWorkspaceScope {...props} openRequest={target} onOpenRequestHandled={setOpened} onNavigationLockChange={onLock} /> : <GuidedWorkspace connection={props.connection} member={props.member} date={props.date} revision={props.revision} onNavigationLockChange={onLock} onRequestAi={props.onRequestAi} onRequestGuidedAi={props.onRequestGuidedAi} aiSuggestion={props.guidedAiSuggestion} onOpenCollection={props.onOpenCollection} onUseGenerated={props.onUseGenerated} />}</div>
+  useEffect(() => { route.save({tab,aiId:seenAi.current,guidedId:consumedSuggestion.current,setupId:consumedSetup.current},false) }, [tab, props.aiDraft, props.guidedAiSuggestion, props.guidedSetupAiSuggestion, route])
+  return <div className="documents-workspace"><style>{documentStyles}</style><div className="documents-tabs" aria-label="문서 작업 선택"><button type="button" aria-pressed={tab === 'library'} disabled={locked && tab !== 'library'} onClick={() => setTab('library')}>내 문서함</button><button type="button" aria-pressed={tab === 'guided'} disabled={locked && tab !== 'guided'} onClick={() => setTab('guided')}>질문형 수합 양식</button></div>{tab === 'guided' && target && <section className="documents-status" aria-label="선택한 문서 열기 대기"><p>선택한 문서가 있습니다. 작성 중인 양식은 먼저 입력을 보관하고 접어 주세요. 처리 결과를 모르는 요청은 원래 요청 번호로 확인한 뒤 열 수 있습니다.</p><button type="button" disabled={locked || recovering} onClick={() => setTab('library')}>선택한 문서 열기</button></section>}{tab === 'library' ? <DocumentsWorkspaceScope {...props} openRequest={target} onOpenRequestHandled={setOpened} onNavigationLockChange={onLock} /> : <GuidedWorkspace connection={props.connection} member={props.member} date={props.date} revision={props.revision} onNavigationLockChange={onLock} onRequestAi={props.onRequestAi} onRequestGuidedSetupAi={props.onRequestGuidedSetupAi} setupAiSuggestion={props.guidedSetupAiSuggestion} onOpenFileCollections={props.onOpenFileCollections} onRequestGuidedAi={props.onRequestGuidedAi} aiSuggestion={props.guidedAiSuggestion} onOpenCollection={props.onOpenCollection} onUseGenerated={props.onUseGenerated} />}</div>
 }
 function DocumentsWorkspaceScope({ connection, member, date, revision = 0, onNavigationLockChange, onRequestAi, legacyPlanHref, aiDraft, openRequest, onOpenRequestHandled, service: supplied }: DocumentsWorkspaceProps & { onOpenRequestHandled: (token: string) => void }) {
   const service = useMemo(() => supplied ?? createDocumentsService(connection), [connection, supplied]), id = useId(), memory = useEditDraft<Memory>(member, 'document-editor'), recovery = usePendingRequest(member, 'documents')

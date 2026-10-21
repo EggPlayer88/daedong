@@ -1,3 +1,4 @@
+import {guidedSetupOrigin,guidedSetupSuggestion,type GuidedSetupAiOrigin,type GuidedSetupAiSuggestion} from '../documents/guided-setup-ai'
 import { assistantDocumentDraft, documentAssistantRequest, studentAssistantRequest } from './pilot-handoff'
 import type { AssistantContextRequest } from '../assistant/contracts'
 import type { DocumentAiDraft } from '../documents/contracts'
@@ -95,6 +96,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [workReturn, setWorkReturn] = useState<{scope:string; page:PageId; fromPage:PageId}>()
   const [assistantContext, setAssistantContext] = useState<{scope:string; id:string; request:AssistantContextRequest}>()
   const [documentDraft, setDocumentDraft] = useState<{scope:string; draft:DocumentAiDraft}>()
+  const [setupOrigin,setSetupOrigin]=useState<GuidedSetupAiOrigin>()
+  const [setupSuggestion,setSetupSuggestion]=useState<GuidedSetupAiSuggestion>()
   const [guidedOrigin, setGuidedOrigin] = useState<GuidedAiOrigin>()
   const [guidedSuggestion, setGuidedSuggestion] = useState<GuidedAiSuggestion>()
   const [knowledgeOpen, setKnowledgeOpen] = useState<{ scope: string; request: KnowledgeOpenRequest; fromPage?: PageId }>()
@@ -104,7 +107,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [homeListOpen, setHomeListOpen] = useState<{ scope: string; kind: HomeKind; page: PageId }>()
   const [teachingOpen,setTeachingOpen]=useState<{scope:string;courseId:string;token:string;source:'home'|'search'}>()
   const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId?:string;requestId?:string;notificationId?:string;date?:string;key:string;fromPage:'home'|'calendar'|'messages'|'schoolAdmin';intent?:{kind:'makeup';lessonId:string;token:string};preparationStep?:'target'|'setup'|'preparation'|'import'}>()
-  const clearHandoffs = useCallback(() => {setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
+  const clearHandoffs = useCallback(() => {setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
 
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
@@ -226,7 +229,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function sendToAssistant(request: AssistantContextRequest, origin?: GuidedAiOrigin) {
     if (!member) return
-    setHandoffError('');setGuidedOrigin(origin);setGuidedSuggestion(undefined);setAssistantContext({scope:currentScope,id:origin?.id ?? crypto.randomUUID(),request});setHandoff({scope:currentScope,fromPage:page,page:'assistant'})
+    setHandoffError('');setSetupOrigin(undefined);setSetupSuggestion(undefined);setGuidedOrigin(origin);setGuidedSuggestion(undefined);setAssistantContext({scope:currentScope,id:origin?.id ?? crypto.randomUUID(),request});setHandoff({scope:currentScope,fromPage:page,page:'assistant'})
   }
 
   function discardUnsentInput() {
@@ -287,12 +290,18 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
              }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={value => {setMessageDraft({scope:currentScope,draft:{id:value.requestId,schoolId:member.schoolId,memberId:member.id,body:value.body}});setHandoff({scope:currentScope,fromPage:page,page:'messages'})}} onNavigationLockChange={setExtensionNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} onDraftReady={(value, contextId) => {try {
                const draft = assistantDocumentDraft(value,member)
                if (value.intent === 'guided_collection') {
-                 if (!guidedOrigin || guidedOrigin.scope !== currentScope || guidedOrigin.id !== contextId) throw new Error('질문형 원본 연결 없음')
-                 setGuidedSuggestion(guidedAiSuggestion({origin:guidedOrigin,requestId:value.requestKey,body:draft.body},member));setDocumentDraft(undefined)
-               } else {setDocumentDraft({scope:currentScope,draft});setGuidedSuggestion(undefined)}
+                 if(setupOrigin?.scope===currentScope&&setupOrigin.id===contextId){setSetupSuggestion(guidedSetupSuggestion({origin:setupOrigin,requestId:value.requestKey,body:draft.body},member));setGuidedSuggestion(undefined)}
+                 else{if (!guidedOrigin || guidedOrigin.scope !== currentScope || guidedOrigin.id !== contextId) throw new Error('질문형 원본 연결 없음')
+                 setGuidedSuggestion(guidedAiSuggestion({origin:guidedOrigin,requestId:value.requestKey,body:draft.body},member));setSetupSuggestion(undefined)}setDocumentDraft(undefined)
+               } else {setDocumentDraft({scope:currentScope,draft});setGuidedSuggestion(undefined);setSetupSuggestion(undefined)}
                setHandoff({scope:currentScope,fromPage:page,page:'documents'})
              } catch {setHandoffError('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} /> :
-             page === 'documents' ? <DocumentsWorkspace openRequest={requested?.kind === 'document' && requested.id ? {key:requested.key,id:requested.id,version:requested.version} : undefined} legacyPlanHref={legacyPlanHref} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} aiDraft={documentDraft?.scope === currentScope ? documentDraft.draft : undefined} guidedAiSuggestion={guidedSuggestion?.origin.scope === currentScope ? guidedSuggestion : undefined} onRequestGuidedAi={value => {try {
+             page === 'documents' ? <DocumentsWorkspace onOpenFileCollections={()=>setHandoff({scope:currentScope,fromPage:page,page:'collections'})} guidedSetupAiSuggestion={setupSuggestion?.origin.scope===currentScope?setupSuggestion:undefined} onRequestGuidedSetupAi={value=>{
+               const origin=guidedSetupOrigin(value.origin,member)
+               if(value.request.intent!=='guided_collection')throw new Error('질문형 준비 요청 불일치')
+               const request=documentAssistantRequest(value.request)
+               setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(origin);setSetupSuggestion(undefined);setHandoffError('');setAssistantContext({scope:currentScope,id:origin.id,request});setHandoff({scope:currentScope,fromPage:page,page:'assistant'})
+             }} openRequest={requested?.kind === 'document' && requested.id ? {key:requested.key,id:requested.id,version:requested.version} : undefined} legacyPlanHref={legacyPlanHref} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} aiDraft={documentDraft?.scope === currentScope ? documentDraft.draft : undefined} guidedAiSuggestion={guidedSuggestion?.origin.scope === currentScope ? guidedSuggestion : undefined} onRequestGuidedAi={value => {try {
                const origin = guidedAiOrigin(value.origin,member)
                if (value.request.intent !== 'guided_collection') throw new Error('질문형 작성 요청 불일치')
                sendToAssistant(documentAssistantRequest(value.request),origin)
