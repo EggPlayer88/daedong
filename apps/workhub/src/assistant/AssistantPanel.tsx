@@ -1,3 +1,6 @@
+import { AiMemoryPanel } from './AiMemoryPanel';
+import { composeMemoryPrompt } from './memory-prompt';
+import type { MemoryService } from './memory-contracts';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { Membership } from '../contracts';
 import type { SupabaseConnection } from '../connection/supabase-connection';
@@ -39,6 +42,7 @@ export interface AssistantPanelProps {
     onOpenKnowledgeCitation?: (request: KnowledgeAssistantRequest) => void | Promise<void>;
     server?: AssistantServer;
     settingsServer?: SchoolAiSettingsServer;
+    memoryServer?: MemoryService;
 }
 type Pending = {
     kind: 'ask';
@@ -72,7 +76,7 @@ function pendingCommand(raw: unknown): Pending { if (!raw || typeof raw !== 'obj
 }  throw new AssistantError('INVALID_INPUT'); }
 const newKey = () => globalThis.crypto.randomUUID();
 export function AssistantPanel(props: AssistantPanelProps) { return <AssistantScope key={recoveryScope(props.member)} {...props}/>; }
-function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenTask, onOpenKnowledgeCitation, server: provided, settingsServer: providedSettings }: AssistantPanelProps) {
+function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenTask, onOpenKnowledgeCitation, server: provided, settingsServer: providedSettings, memoryServer }: AssistantPanelProps) {
     const server = useMemo(() => provided ?? createAssistantServer(connection, legacyAssistantHttp, {policyReads:true}), [provided, connection]), memory = useEditDraft<Session>(member, 'assistant'), recovery = usePendingRequest(member, 'assistant');
     const [session, setSession] = useState<Session>(() => { const saved = memory.initial ?? initial; if (recovery.request) {
         try {
@@ -93,7 +97,8 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
             pending = pendingCommand(recovery.request.command);
     }
     catch { /* 보존한 원문이 읽히지 않으면 임의로 지우지 않는다. */ }
-    const enabled = activeAt(member, date), locked = Boolean(session.prompt.trim() || session.proposal || recovery.request || busy), editable = enabled && ready?.available === true && !busy && !recovery.request && !readError;
+    const [memoryLocked, setMemoryLocked] = useState(false);
+    const enabled = activeAt(member, date), locked = Boolean(session.prompt.trim() || session.proposal || recovery.request || busy || memoryLocked), baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError, editable = baseEditable && !memoryLocked;
     function update(value: Session) { latest.current = value; memory.save(value, Boolean(value.prompt.trim() || value.proposal)); setSession(value); }
     useEffect(() => () => { life.current++; }, [server]);
     useEffect(() => { onNavigationLockChange?.(locked); return () => onNavigationLockChange?.(false); }, [locked, onNavigationLockChange]);
@@ -302,7 +307,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
         } catch { setError('할 일 제목·메모의 문자와 날짜를 확인해 주세요.'); }
     }
     return <section className="assistant-workspace" aria-labelledby={`${uid}-title`}><style>{styles}</style>
-  <header className="assistant-header"><div><h2 id={`${uid}-title`}>Claude 비서</h2><p>학교 자료를 확인하고, 내 업무와 초안을 함께 정리합니다.</p></div><button type="button" disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>연결 다시 확인</button></header>
+  <header className="assistant-header"><div><h2 id={`${uid}-title`}>Claude 비서</h2><p>학교 자료를 확인하고, 내 업무와 초안을 함께 정리합니다.</p></div><button type="button" disabled={busy || loading || memoryLocked} onClick={() => setRefresh(value => value + 1)}>연결 다시 확인</button></header>
   <details className="assistant-budget-disclosure"><summary>학교 AI 예산 · 기본 {ASSISTANT_ROUTING.models.quick.label}</summary>{schoolStatus ? <SchoolAiBudget status={schoolStatus}/> : <p role="status">{budgetError || '학교 예산을 확인하고 있습니다.'}</p>}<p className="assistant-hint">정밀 검토는 완료된 기본 답변에서 직접 요청합니다. 학생 기록 초안은 처음부터 {ASSISTANT_ROUTING.models.review.label}으로 작성합니다.</p></details>
   <div className="assistant-modes" role="group" aria-label="비서의 자료 범위"><button type="button" aria-pressed={session.mode === 'school'} disabled={locked} onClick={() => changeMode('school')}>학교 업무 안내</button><button type="button" aria-pressed={session.mode === 'personal'} disabled={locked} onClick={() => changeMode('personal')}>내 개인 비서</button></div>
   <p className="assistant-scope">{session.mode === 'school' ? '현재 학교에서 열람 가능한 공통 자료만 사용합니다.' : '내가 볼 수 있는 학교 자료와 내 업무를 사용합니다. 상담 기록은 자동으로 가져오지 않습니다.'}</p>
@@ -339,13 +344,20 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
    {session.taskReview ? <><p>위 내용을 개인 할 일에 추가합니다. 다른 교사에게 전송하지 않습니다.</p><button type="button" disabled={!editable || Boolean(taskIssue)} onClick={addTask}>확인한 할 일 추가</button><button type="button" disabled={!editable} onClick={() => update({ ...latest.current, taskReview: false })}>다시 수정</button></> : <button type="button" disabled={!editable || Boolean(taskIssue)} onClick={reviewTask}>추가할 내용 확인</button>}
    <button type="button" disabled={busy || Boolean(recovery.request)} onClick={() => { if (!busy && !recovery.request) update({ ...latest.current, proposal: undefined, taskReview: false }); }}>제안 검토 닫기</button>
   </section>}
+  <AiMemoryPanel connection={connection} member={member} date={date} revision={revision} service={memoryServer} blocked={busy || Boolean(recovery.request) || Boolean(draft) || openingCitation} canUse={baseEditable && !draft && ['school_advice','personal_assistant','document_draft'].includes(session.intent)} onLockChange={setMemoryLocked} onUse={items => {
+    const current = latest.current;
+    if (!baseEditable || current.proposal || operation.current || !['school_advice','personal_assistant','document_draft'].includes(current.intent)) throw new AssistantError('INVALID_INPUT');
+    const prompt = composeMemoryPrompt(current.prompt, items);
+    update({ ...current, prompt });
+    setNotice('선택한 기억을 질문에 넣었습니다. 전송할 내용을 확인해 주세요.');
+  }}/>
   <form className="assistant-compose" onSubmit={event => { event.preventDefault(); ask(); }}><label htmlFor={`${uid}-intent`}>요청 종류</label><select id={`${uid}-intent`} disabled={!editable || Boolean(draft)} value={session.intent} onChange={event => changeIntent(event.target.value as AssistantIntent)}>{Object.entries(intentLabels).filter(([key]) => session.mode === 'personal' || key !== 'personal_assistant' && key !== 'student_record_draft').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
    {(session.references.length > 0 || session.studentContext) && <div className="assistant-context"><p>선택한 근거 {session.references.length + (session.studentContext?.evidence.length ?? 0)}개</p><ul>{session.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{ref.kind} · {ref.id} · 판 {ref.version}</li>)}{session.studentContext?.evidence.map(ref => <li key={`${ref.kind}:${ref.id}:${ref.start}`}>{ref.kind === 'observation' ? '관찰' : '평가'} · {ref.id} · 개정 {ref.revisionId} · 구간 {ref.start}–{ref.end}</li>)}</ul><button type="button" disabled={!editable} onClick={() => update({ ...latest.current, references: [], studentContext: null })}>선택한 근거 비우기</button></div>}
    {session.intent === 'student_record_draft' && <p className="assistant-hint">등록된 학생 번호·이름과 선택한 수업·평가 근거가 AI에 전달됩니다. 상담 기록은 제외합니다.</p>}
    {session.intent === 'student_record_draft' && !session.studentContext && <p>학생 관리 화면에서 확인한 관찰·평가 근거를 먼저 선택해 주세요.</p>}
-   <label htmlFor={`${uid}-prompt`}>질문 또는 부탁할 일</label><textarea id={`${uid}-prompt`} rows={5} aria-describedby={`${uid}-prompt-hint`} aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars} placeholder="예: 선택한 학교 규정에서 제출 절차를 알려 주세요." disabled={busy || Boolean(recovery.request) || Boolean(draft)} value={session.prompt} onChange={event => update({ ...latest.current, prompt: event.target.value })}/><span id={`${uid}-prompt-hint`} className="assistant-hint">{Array.from(session.prompt).length} / {ASSISTANT_LIMITS.promptChars}자 · 상담·건강 정보는 입력하지 마세요.</span>
+   <label htmlFor={`${uid}-prompt`}>질문 또는 부탁할 일</label><textarea id={`${uid}-prompt`} rows={5} aria-describedby={`${uid}-prompt-hint`} aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars} placeholder="예: 선택한 학교 규정에서 제출 절차를 알려 주세요." disabled={busy || memoryLocked || Boolean(recovery.request) || Boolean(draft)} value={session.prompt} onChange={event => update({ ...latest.current, prompt: event.target.value })}/><span id={`${uid}-prompt-hint`} className="assistant-hint">{Array.from(session.prompt).length} / {ASSISTANT_LIMITS.promptChars}자 · 상담·건강 정보는 입력하지 마세요.</span>
    {Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars && <p role="alert">질문은 {ASSISTANT_LIMITS.promptChars}자 이내로 줄여 주세요. 입력은 자동으로 자르지 않습니다.</p>}
-   <div className="assistant-actions"><button type="submit" className="assistant-primary" disabled={!editable || Boolean(draft) || Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars || !session.prompt.trim() || session.intent === 'student_record_draft' && !session.studentContext}>Claude에게 요청</button><button type="button" disabled={busy || Boolean(recovery.request) || !session.prompt} onClick={() => update({ ...latest.current, prompt: '' })}>질문 비우기</button></div>
+   <div className="assistant-actions"><button type="submit" className="assistant-primary" disabled={!editable || Boolean(draft) || Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars || !session.prompt.trim() || session.intent === 'student_record_draft' && !session.studentContext}>Claude에게 요청</button><button type="button" disabled={busy || memoryLocked || Boolean(recovery.request) || !session.prompt} onClick={() => update({ ...latest.current, prompt: '' })}>질문 비우기</button></div>
   </form>
   {recovery.request && <section className="assistant-pending" aria-label="미확정 요청"><h3>기존 요청 결과 확인</h3><p>요청 번호: <code>{recovery.request.key}</code></p>{pending?.kind === 'confirmTask' && <p>개인 할 일: {pending.input.input.title} · {pending.input.input.dueDate || '마감일 없음'}</p>}<p>입력과 요청 번호를 보관했습니다. 결과가 확정될 때까지 새 요청이나 입력 버리기를 진행하지 않습니다.</p><button type="button" disabled={busy || !pending || !enabled || recovery.request.closeState === 'closing' && !server.close} onClick={() => pending && void execute(pending, recovery.request!.key)}>{recovery.request.closeState === 'closing' ? '같은 번호로 AI 닫기 결과 확인' : '같은 요청으로 결과 확인'}</button>{pending?.kind === 'ask' && server.close && recovery.request.closeState !== 'closing' && <><p>요청 닫기는 AI를 새로 호출하지 않습니다. 이미 완료되었으면 원래 답변을 확인하고, 아직 시작하지 않았으면 늦은 실행도 막습니다. 이미 실행 중이면 결과 확인을 계속합니다.</p><button type="button" disabled={busy || !enabled} onClick={() => void execute(pending, recovery.request!.key, true)}>새 호출 없이 요청 닫기</button></>}{!pending && <p role="alert">기존 요청 형식을 확인할 수 없습니다. 원 요청을 유지한 채 관리자에게 확인해 주세요.</p>}</section>}
  </section>;
