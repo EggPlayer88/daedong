@@ -11,11 +11,12 @@ node tests/test_gate.mjs # 단독 실행
 
 ## Python 테스트 준비 (1회)
 
-`generate.py` / `extract.py`는 `lxml`이 필요하다. 수합 파일 검사에는 고정 버전의 `pypdf`·`olefile`·`Pillow`도 사용한다. 전체 시험은 다음 의존성을 함께 설치한다. 웹 API의 배포 의존성은 변경하지 않는다.
+`generate.py` / `extract.py`는 `lxml`이 필요하다. 수합 파일 검사에는 고정 버전의 `pypdf`·`olefile`·`Pillow`도 사용한다. 학교 API 키 암호화 시험에는 `cryptography`도 필요하다. 전체 시험은 작업자·시간표·웹 API의 아래 의존성을 함께 설치한다. `apps/main/requirements.txt`는 웹 API 배포에도 사용하는 의존성 원본이다.
 
 ```bash
 python3 -m venv tests/.venv
 tests/.venv/bin/pip install -r workers/requirements.txt
+tests/.venv/bin/pip install -r apps/main/requirements.txt
 tests/.venv/bin/pip install -r packages/timetable/requirements.txt
 ```
 
@@ -24,6 +25,7 @@ Windows PowerShell에서는 다음과 같이 준비한다.
 ```powershell
 python -m venv tests/.venv
 tests/.venv/Scripts/python.exe -m pip install -r workers/requirements.txt
+tests/.venv/Scripts/python.exe -m pip install -r apps/main/requirements.txt
 tests/.venv/Scripts/python.exe -m pip install -r packages/timetable/requirements.txt
 npm test
 ```
@@ -157,6 +159,27 @@ node tests/browser/workhub-appearance.mjs       # 실제 Vite 앱의 스킨·사
 ```
 
 내보내기와 오프라인 시험은 첫 번째 인자로 원하는 HTML 절대 경로를 받을 수 있다. `WORKHUB_QA_OUTPUT`을 지정하면 브라우저 러너는 파일별 하위 폴더에 화면·JSON·콘솔 로그를 저장하고 최상위 `summary.json`에 파일별 성공·실패와 실행 시간을 기록한다. 미지정 시 전용 임시 폴더를 사용하고 경로를 출력한다. 결과 이미지는 추적 소스로 커밋하지 않는다. `npm test`의 검사 수와 별도 브라우저 파일/시나리오 수를 구분해 보고한다.
+
+## 가상교사 AI 연습실
+
+`assistant/practice/`는 검증한 시간표 시드의 가상교사 18명에 가상교사 18명을 추가한 학교별 36명·9학급 연습 자료를 사용한다. 다른 가상학교의 ID와 대화도 별도로 구분한다. 실제 `AssistantPanel`과 응답 parser를 사용하지만 DB·AI 응답·예산은 브라우저 메모리의 합성 자료다. **실제 API·DB·로그인·유료 AI 호출은 0건**이며, 실제 회원 연결이나 모델 성능을 검증한 결과가 아니다.
+
+```bash
+node tests/test_workhub_assistant_practice.mjs
+PLAYWRIGHT_CHANNEL=chromium npm run test:workhub:browser -- assistant-practice
+```
+
+Windows PowerShell:
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = 'chromium'
+npm run test:workhub:browser -- assistant-practice
+```
+
+- 정상 기본 답변→명시 정밀 검토, 학생 초안의 Sonnet 표시, 예산 부족, 완료 응답 유실, 시작 전 요청 닫기, 닫기 응답 유실을 확인한다.
+- 학교·교사 전환 때 대화를 분리하고, 입력·미확정 요청 중에는 전환과 초기화를 막는다. 확인 후 연습 초기화가 운영 입력·키 저장 복구 데이터에 영향을 주지 않는지도 확인한다.
+- ShadowDOM·320px·키보드 이동을 실제 브라우저로 검사한다. 외부 요청이 발생하거나 페이지 오류가 나면 실패한다. `WORKHUB_QA_OUTPUT`을 지정하면 데스크톱·모바일 화면도 저장한다.
+- 연습 자료는 현재 연습실 메모리 안에만 있고, 연습실을 닫거나 새로고침하면 사라진다. 실제 키를 입력하는 화면이나 운영 자료 저장 기능은 제공하지 않는다.
 
 ## 작성 원칙
 

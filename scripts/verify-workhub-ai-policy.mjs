@@ -9,14 +9,17 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const report = process.env.WORKHUB_AI_SQL_REPORT ? resolve(process.env.WORKHUB_AI_SQL_REPORT) : mkdtempSync(join(tmpdir(), 'workhub-ai-policy-report-'))
 mkdirSync(report, { recursive: true })
 const capture = join(report, 'captures.json')
-const environment = { ...process.env, P10_AI_CAPTURE: capture, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
+const operationsCapture = join(report, 'operations-captures.json')
+const environment = { ...process.env, P10_AI_CAPTURE: capture, P10_AI_OPERATIONS_CAPTURE: operationsCapture, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' }
 const python = process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3')
 const cases = [
-  ['postgres', python, ['database/workhub-ai-policy/p10/test/run_p10_ai.py']],
+  ['postgres', python, ['database/workhub-ai-policy/p10/test/run_p10_operations.py']],
   ['app', process.execPath, ['tests/integration/ai-school-policy-capture.mjs', capture]],
   ['node', process.execPath, ['tests/verify_school_ai_gateway_capture.mjs', capture]],
   ['python', python, ['tests/verify_school_ai_python_capture.py', capture]],
   ['settings-transport', process.execPath, ['tests/integration/ai-school-settings-transport.mjs', python]],
+  ['operations-app', process.execPath, ['tests/integration/ai-school-operations-capture.mjs', operationsCapture]],
+  ['operations-python', python, ['tests/verify_school_ai_operations_capture.py', operationsCapture]],
 ]
 const results = []
 for (const [name, command, args] of cases) {
