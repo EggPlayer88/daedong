@@ -1,0 +1,6 @@
+{
+  "maxEntries": 50,
+  "titleCharacters": 80,
+  "bodyCharacters": 1000,
+  "maxSelected": 5
+}
