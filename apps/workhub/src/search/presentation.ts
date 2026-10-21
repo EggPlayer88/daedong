@@ -1,4 +1,4 @@
-import type { SearchItem, SearchKind } from './contracts'
+import { SEARCH_KINDS, type SearchItem, type SearchKind } from './contracts'
 
 const normalize = (value: string) => value.normalize('NFC').toLocaleLowerCase('ko').trim().replace(/\s+/gu, ' ')
 const compact = (value: string) => value.replace(/\s/gu, '')
@@ -8,7 +8,7 @@ export function filterSearchItems(items: readonly SearchItem[], query: string, k
   const words = phrase ? phrase.split(' ') : []
   const seen = new Set<string>()
   const matches = items.filter(item => {
-    if (!item || typeof item.id !== 'string' || !item.id || !['calendar', 'task', 'collection'].includes(item.kind)
+    if (!item || typeof item.id !== 'string' || !item.id || !SEARCH_KINDS.includes(item.kind)
       || typeof item.title !== 'string' || typeof item.description !== 'string' || typeof item.meta !== 'string') return false
     if (kind && item.kind !== kind) return false
     const key = JSON.stringify([item.kind, item.id, item.unitId ?? ''])

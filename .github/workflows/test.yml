@@ -165,6 +165,11 @@ jobs:
         run: |
           python database/workhub-school-data/p10/test/run_p10.py
           node tests/test_workhub_school_data_maintenance.mjs
+      - name: 학교 자료 과거 원문·판 이력 SQL·앱 응답
+        env:
+          K1_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          K1_TEST_PORT: '55579'
+        run: python database/workhub-knowledge-history/k1/test/run_k1.py
       - name: 시간표 운영 확장 SQL·독립 승인·앱 응답
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

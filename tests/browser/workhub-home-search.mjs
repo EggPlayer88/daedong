@@ -130,8 +130,8 @@ try{
   await page.keyboard.press('Escape')
  })
  await page.setViewportSize({width:1440,height:1100});await page.goto('http://127.0.0.1:5176/connected');await home();await page.getByRole('group',{name:'개인 업무 기한 요약'}).waitFor()
- await test('실제 연결 UI의 검색은 준비된 일정·개인 업무만 조회한다',async()=>{
-  await search('오늘 준비');assert.equal(await dialog().getByLabel('검색 범위',{exact:true}).locator('option').count(),3)
+ await test('실제 연결 UI는 전체 메뉴 범위를 제공하고 준비된 일정·개인 업무 원본을 연다',async()=>{
+  await search('오늘 준비');assert.equal(await dialog().getByLabel('검색 범위',{exact:true}).locator('option').count(),10)
   assert(!(await dialog().locator('.ws-search-header').innerText()).includes('자료 수합'))
   await dialog().locator('.ws-search-result').click();await page.getByRole('heading',{name:'내 업무',level:1,exact:true}).waitFor()
   const id=await page.evaluate(()=>window.qa.ids.today);await page.locator('[data-task-id="'+id+'"].task-card-highlighted').waitFor()
@@ -139,7 +139,7 @@ try{
  await test('검색 일부 조회 실패 시 다른 결과는 유지하고 해당 범위만 재시도한다',async()=>{
   await page.evaluate(()=>{window.qa.failTasks=true});await search('준비')
   await dialog().getByRole('button',{name:'내 업무 다시 불러오기'}).waitFor()
-  assert.match(await dialog().locator('.ws-search-count').innerText(),/일부 자료/)
+  assert.match(await dialog().locator('.ws-search-count').innerText(),/전체 보관 자료 수가 아닙니다/)
   assert(await dialog().locator('.ws-search-result').count()>0)
   await dialog().getByRole('button',{name:'내 업무 다시 불러오기'}).click()
   await dialog().getByRole('button',{name:/오늘 준비 업무/}).waitFor()

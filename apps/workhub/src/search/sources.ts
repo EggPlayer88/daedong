@@ -5,11 +5,28 @@ import { activeAt, canRead } from '../domain'
 import type { TaskAdapter, TaskStatus } from '../tasks/contracts'
 import { taskListResponse } from '../tasks/validation'
 import type { WorkflowStore } from '../workflows/store'
+import { enabledModules, type PageId, type WorkspaceMode } from '../modules'
 import type { SearchItem, SearchSource } from './contracts'
 
 const taskLabels: Record<TaskStatus, string> = { todo: '할 일', doing: '진행 중', waiting: '대기', done: '완료', cancelled: '취소' }
 function usable(member: Membership, date: string) {
   if (!activeAt(member, date)) throw new ContractError('INACTIVE_MEMBERSHIP', '현재 이용 가능한 학교 소속을 확인해 주세요.')
+}
+
+const menuHints: Record<PageId, string> = {
+  home: '오늘 할 일과 확인할 소식', calendar: '학사일정 · 학교 행사 · 일정 등록', tasks: '나의 할 일과 기한 관리',
+  collections: '양식 배포 · 문서 제출 · 제출 현황', documents: '문서 작성 · 초안 · 보관 문서 · 기존 평가계획서 연결은 문서함에서 확인',
+  cooperation: '업무 요청 · 수락 · 반려 · 완료 확인', assistant: '학교 업무 질문 · AI 도움',
+  knowledge: '학교 규정 · 연간 계획 · 업무 안내 · 원문', messages: '교사 대화 · 메신저 · 알림',
+  schoolAdmin: '교과 · 학급 · 교사 · 부서 · 학년도 관리', timetable: '시간표 편성 · 교환 · 날짜별 수업',
+  students: '수업 · 학생 · 관찰 · 평가 · 기록 출력',
+}
+// 실제 등록 메뉴만 제공하며 검색을 위해 메뉴 공개 범위를 늘리지 않는다.
+export function menuSearchSource(mode: WorkspaceMode): SearchSource {
+  return { kind: 'menu', label: '메뉴', async load() {
+    return { items: enabledModules(mode).map(module => ({ kind: 'menu' as const, id: module.id, title: module.title,
+      description: menuHints[module.id], meta: '메뉴로 이동' })), nextCursor: null, coverage: '현재 업무 공간에서 제공하는 메뉴' }
+  } }
 }
 
 export function calendarSearchSource(adapter: CalendarAdapter, member: Membership, date: string): SearchSource {
