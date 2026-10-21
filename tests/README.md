@@ -276,6 +276,14 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 `npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
 
 
+## 질문형 HWPX 생성부터 수합 ZIP까지
+
+- `test_workhub_document_collection_pipeline.mjs`: 가상 교사 36명·9학급, 실제 생성 HWPX 37개와 기존 확정 양식 사본 6개, 원본 보존·정정판 선택·ZIP 내부 해시/본문·응답 유실·부분 재시도·변조를 확인한다. 실제 Python 생성기와 최소 검사기를 사용하며 저장은 메모리 연습 저장소다.
+- `test_workhub_guided_storage.mjs`: 실제 문서 전송 서비스에서 파일·신원 조회 지연, 제한시간 이후 새 RPC·예약 등록 금지, 원키 복구, 원본 변조와 학교·계정·역할 변경을 확인한다.
+- `workhub-document-collection-flow.mjs`: 실제 연결 셸에서 답변→생성→파일 확인→수합 첨부→기본 검사→초안→최종 제출→담당자 ZIP, 재진입 복구·학교 변경·320px·키보드를 실행한다. 생성 파일과 ZIP은 실제 바이트로 검사하며 HTTP/RPC/Storage 경계만 합성한다.
+- `PYTHON`에 `lxml`이 설치된 실행 파일을 지정할 수 있다. `node tests/test_workhub_document_collection_pipeline.mjs`, `node tests/test_workhub_guided_storage.mjs`, `node tests/browser/run.mjs workhub-document-collection-flow`로 실행한다. 브라우저 파일은 전체 러너에도 등록했다.
+- 운영 SQL·Storage·유료 API·실제 회원·한글 화면은 사용하지 않는다. [전체 흐름과 남은 연결](../docs/workhub/ai-school-policy/document-collection-pipeline.md).
+
 ## 서버 문서 수합 사용성 후속
 
 - `test_workhub_collection_submission_guidance.mjs`: 필수 파일·글·숫자/0·저장판 비교·공동 작성·재제출/보완·깨진 입력·SSR 17건.
