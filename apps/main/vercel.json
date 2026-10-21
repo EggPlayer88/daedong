@@ -28,6 +28,10 @@
       "includeFiles": "{api/workhub-ai/**,api/collections/**}",
       "maxDuration": 60
     },
+    "api/workhub-ai/operations.py": {
+      "includeFiles": "{api/workhub-ai/**,api/collections/**}",
+      "maxDuration": 60
+    },
     "api/workhub-documents/guided.py": {
       "includeFiles": "{api/workhub-documents/**,api/collections/**}",
       "maxDuration": 60
