@@ -11,6 +11,13 @@ const button = name => page.getByRole('button', { name, exact: true })
 async function start() { await page.goto('http://127.0.0.1:5240/operations'); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor(); await page.waitForFunction(() => window.calls.some(row => row.method === 'interventions.get')) }
 async function check(name, run) { await start(); await run(); count++; console.log('  ✓ ' + name) }
 async function selectLesson(label) { await page.getByRole('button', { name: new RegExp(label) }).first().click(); await page.getByRole('region', { name: '선택 수업의 추가 처리', exact: true }).waitFor() }
+async function reopenLesson(id) {
+  const before = await page.evaluate(() => window.calls.filter(row => row.method === 'operations.get').length)
+  await page.evaluate(() => window.leaveOperations()); await page.getByText('합성 일정 화면', { exact: true }).waitFor()
+  await page.evaluate(value => window.openLesson(value), id)
+  await page.waitForFunction(count => window.calls.filter(row => row.method === 'operations.get').length > count, before)
+  await page.getByRole('navigation', { name: '시간표 운영 작업', exact: true }).waitFor()
+}
 async function publication() {
   await button('시간표 확정').click(); await page.getByLabel('확정할 저장 초안', { exact: true }).selectOption('draft@1')
   const date = await page.evaluate(() => window.later); await page.getByLabel('적용 시작일', { exact: true }).fill(date); await page.getByLabel('적용 마지막 날', { exact: true }).fill(date)
@@ -70,6 +77,47 @@ await check('T3 권한 조회 실패 뒤 이전 수업 연결을 사용하지 �
   await selectLesson('선택 국어'); assert.equal(await button('대강 요청 작성').isDisabled(), false)
   await page.evaluate(() => { window.failT3 = true; window.refresh() }); await button('대강 요청 작성').waitFor(); await page.waitForFunction(() => [...document.querySelectorAll('button')].find(row => row.textContent === '대강 요청 작성')?.disabled)
   assert.equal(await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).count(), 1); assert.equal(await page.evaluate(() => window.writes), 0)
+})
+for (const previousTab of ['교환·변경 요청', '시간표 확정']) {
+await check(`저장된 ${previousTab} 탭보다 일정의 정확한 수업 연결을 우선해 공유 시간표를 연다`, async () => {
+  await button(previousTab).click(); assert.equal(await button(previousTab).getAttribute('aria-pressed'), 'true')
+  await reopenLesson('cancelled')
+  assert.equal(await button('공유 시간표').getAttribute('aria-pressed'), 'true')
+  await page.getByRole('region', { name: '선택한 수업', exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: /취소 과학/ }).first().getAttribute('aria-pressed'), 'true')
+  assert.equal(await page.getByRole('button', { name: /선택 국어/ }).first().getAttribute('aria-pressed'), 'false')
+  assert.equal(await page.getByLabel('운영 조회 날짜', { exact: true }).inputValue(), await page.evaluate(() => window.future))
+  await button('이 수업 실시 기록 보기').click(); await page.getByRole('heading', { name: '취소 과학 [cancelled]', exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.calls.filter(row => row.method === 'records.get').at(-1).id), 'cancelled')
+  assert.equal(await page.evaluate(() => window.writes), 0)
+})
+}
+await check('수업 연결로 다시 열어도 미확정 확정 요청의 탭·원키·원문 복구가 먼저 유지된다', async () => {
+  await publication(); await page.evaluate(() => window.dropResult = true); await button('확인한 시간표 확정').click(); await button('원래 요청 결과만 다시 확인').waitFor()
+  const original = await page.evaluate(() => window.calls.find(row => row.method === 'execute'))
+  await reopenLesson('cancelled'); await button('원래 요청 결과만 다시 확인').waitFor()
+  assert.equal(await button('시간표 확정 · 작성 중').getAttribute('aria-pressed'), 'true')
+  assert.equal(await button('공유 시간표').isDisabled(), true)
+  assert.equal(await page.evaluate(() => window.pending.count()), 1)
+  assert.equal(await page.evaluate(() => window.calls.filter(row => row.method === 'execute').length), 1)
+  await button('원래 요청 결과만 다시 확인').click(); await button('반영한 날짜의 시간표 보기').waitFor()
+  const recovered = await page.evaluate(() => window.calls.find(row => row.method === 'recover'))
+  assert.equal(recovered.key, original.key); assert.deepEqual(recovered.command, original.command)
+  assert.equal(await page.evaluate(() => window.pending.count()), 0); assert.equal(await page.evaluate(() => window.writes), 1)
+})
+await check('다른 수업 링크보다 미확정 실시 기록의 원수업을 먼저 표시하고 원키로 복구한다', async () => {
+  await page.evaluate(() => window.leaveOperations()); await page.getByText('합성 일정 화면', { exact: true }).waitFor()
+  const original = await page.evaluate(() => window.seedRecordRecovery())
+  await page.evaluate(() => window.openLesson('cancelled'))
+  await page.getByRole('heading', { name: '복구할 지난 수업 [record-original]', exact: true }).waitFor()
+  assert.equal(await button('공유 시간표').getAttribute('aria-pressed'), 'true')
+  assert.equal(await page.getByRole('heading', { name: '취소 과학 [cancelled]', exact: true }).count(), 0)
+  assert.equal(await page.evaluate(() => window.calls.filter(row => row.method === 'records.get').at(-1).id), 'record-original')
+  assert.equal(await page.evaluate(() => window.pending.count()), 1)
+  await button('원래 실시 기록 결과 확인').click(); await page.getByText('저장한 실시 기록과 현재 기록을 다시 확인했습니다.', { exact: true }).waitFor()
+  const recovered = await page.evaluate(() => window.calls.find(row => row.method === 'records.recover'))
+  assert.equal(recovered.key, original.key); assert.deepEqual(recovered.command, original.command)
+  assert.equal(await page.evaluate(() => window.pending.count()), 0); assert.equal(await page.evaluate(() => window.writes), 0)
 })
 assert.deepEqual(errors, []); assert.deepEqual(external, []); console.log(`시간표 운영 동선 브라우저 검사: ${count}개 통과`)
 } catch (error) { console.log(await page.locator('body').innerText()); console.log(errors); throw error } finally { await browser.close() }

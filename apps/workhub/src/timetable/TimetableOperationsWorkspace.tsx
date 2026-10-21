@@ -76,12 +76,12 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const resolvedNotification = useRef(''), [sourceError, setSourceError] = useState('')
   const pending = pendingStore.request as (TimetableRecovery & { command: OperationsCommand }) | undefined
   const memberScope = recoveryScope(member)
-  const [tab, setTab] = useState<Tab>(() => interventionPending.request || interventionAssistantPending.request ? 'exchange' : initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId || initialNotificationId || initialIntent ? 'exchange' : route.initial ?? 'shared')
+  const [tab, setTab] = useState<Tab>(() => interventionPending.request || interventionAssistantPending.request ? 'exchange' : initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId || initialNotificationId || initialIntent ? 'exchange' : initialLessonId ? 'shared' : route.initial ?? 'shared')
   const focusedDate = dateOffset(initialDate ?? date, 0) || date, focusSource = useRef(focusedDate)
   const [from, setFrom] = useState(() => timetableWeekStart(focusedDate)), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
   const [boardDate, setBoardDate] = useState(focusedDate), [schoolDayDirty, setSchoolDayDirty] = useState(Boolean(schoolDayMemory.initial))
   const [boardFilter, setBoardFilter] = useState({ teacher: member.id, group: '' })
-  const [recordLessonId, setRecordLessonId] = useState(initialLessonId ?? (initialRecordsRecovery.request?.command as { lessonId?: string } | undefined)?.lessonId ?? ''), [recordsLocked, setRecordsLocked] = useState(false)
+  const [recordLessonId, setRecordLessonId] = useState((initialRecordsRecovery.request?.command as { lessonId?: string } | undefined)?.lessonId ?? initialLessonId ?? ''), [recordsLocked, setRecordsLocked] = useState(false)
   const recordsPending = initialRecordsRecovery, incomingLesson = useRef(initialLessonId)
   const [boardMode, setBoardMode] = useState<'week' | 'day'>()
   const [fetched, setFetched] = useState<{ key: string; value: OperationsView }>(), [loading, setLoading] = useState(true), [loadError, setLoadError] = useState('')
@@ -113,10 +113,10 @@ export function TimetableOperationsPanel({ server, member, date, revision = 0, o
   const changePublicationBusy = useCallback((value: boolean) => { inspecting.current.publication = value; setPublicationBusy(value) }, [])
   const changeSchoolDayBusy = useCallback((value: boolean) => { inspecting.current.schoolDay = value; setSchoolDayBusy(value) }, [])
   useEffect(() => {
-    if (incomingLesson.current === initialLessonId || locked) return
+    if (incomingLesson.current === initialLessonId || navLocked) return
     incomingLesson.current = initialLessonId
-    if (initialLessonId) setRecordLessonId(initialLessonId)
-  }, [initialLessonId, locked])
+    if (initialLessonId) { setRecordLessonId(initialLessonId); setTab('shared'); route.save('shared', false) }
+  }, [initialLessonId, navLocked])
   useEffect(() => {
     if (!initialRequestId || handledRequest.current === initialRequestId || locked) return
     handledRequest.current = initialRequestId; setRequestMode('exchange'); setRequestSelection({ requestId: initialRequestId, token: ++selectionToken.current }); setTab('exchange'); route.save('exchange', false)

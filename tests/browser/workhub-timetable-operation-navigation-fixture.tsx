@@ -2,9 +2,10 @@ import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { TimetableOperationsPanel } from '../../apps/workhub/src/timetable/TimetableOperationsWorkspace'
 import { createEditDrafts, EditDraftsProvider } from '../../apps/workhub/src/app/edit-drafts'
-import { createPendingRequests, PendingRequestsProvider } from '../../apps/workhub/src/app/pending-requests'
+import { createPendingRequests, PendingRequestsProvider, recoveryScope } from '../../apps/workhub/src/app/pending-requests'
 import { ServiceError } from '../../apps/workhub/src/services/scoped-rpc'
 import { operationCommandHash } from '../../apps/workhub/src/timetable/operations-server'
+import { executionRecordCommand, executionRecordCommandHash, parseExecutionRecordReceipt } from '../../apps/workhub/src/timetable/execution-records'
 import styles from '../../apps/workhub/src/style.css?inline'
 
 // 실제 React와 기간·입력·복구 연결을 시험한다. 서버 값과 쓰기 결과는 합성이다.
@@ -12,7 +13,7 @@ const w: any = window, copy = (value: any) => structuredClone(value)
 const now = () => new Date(Math.floor(Date.now() / 1000) * 1000).toISOString()
 const day = (offset: number) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10)
 w.date = day(0); w.future = day(3); w.later = day(35); w.calls = []; w.writes = 0; w.receipts = {}
-w.pending = createPendingRequests(); w.drafts = createEditDrafts()
+w.pending = createPendingRequests(); w.drafts = createEditDrafts(); w.entrySequence = 0
 const member = { id: 'teacher-a', userId: 'user-a', schoolId: 'school', name: '원담당', role: 'school_admin', active: true, validFrom: '2020-01-01', validThrough: '2099-12-31', departmentIds: [], gradeIds: [], subjectIds: [] }
 const person = { id: member.id, name: member.name }, replacement = { id: 'teacher-b', name: '대강 교사' }
 const time = (date: string, hour = '00') => ({ startsAt: date + `T${hour}:00:00.000Z`, endsAt: date + `T${hour}:45:00.000Z` })
@@ -58,14 +59,32 @@ const schoolDay: any = {
       blockers: w.blocking ? [{ code: 'PENDING_REQUEST', message: '기존 교환 확인 필요' }] : [], preserved: { pastRecords: true, outsideTarget: true, existingChanges: w.blocking ? 'blocked' : 'retained' }, lostLessonCount: rows.length, lostSeconds: rows.length * 2700, changesActualSchedule: false }
   },
 }
+w.seedRecordRecovery = () => {
+  const row = { ...lesson('record-original', '복구할 지난 수업'), time: time(day(-2)) }
+  w.lessons.push(row)
+  const original = { key: 'record-original-request', command: executionRecordCommand({ lessonId: row.id, expectedLessonVersion: row.version, expectedRecordVersion: 0, expectedRecordId: null, outcome: 'completed', note: '원래 실시 기록 입력', correctionReason: null }) }
+  w.pending.put(recoveryScope(member), 'timetableExecutionRecords', original)
+  return copy(original)
+}
 const records: any = {
   get: async (_member: string, id: string) => {
     w.calls.push({ method: 'records.get', id }); const row = w.lessons.find((value: any) => value.id === id)
-    return { asOf: now(), timeZone: 'Asia/Seoul', lesson: { id, version: row.version, label: row.label, startsAt: row.time.startsAt, endsAt: row.time.endsAt, state: row.state, teacherIds: row.teachers.map((value: any) => value.id) }, current: null, history: [], nextCursor: null, allowedOutcomes: [] }
+    const current = w.recordReceipt?.record.lessonId === id ? copy(w.recordReceipt.record) : null
+    return { asOf: now(), timeZone: 'Asia/Seoul', lesson: { id, version: row.version, label: row.label, startsAt: row.time.startsAt, endsAt: row.time.endsAt, state: row.state, teacherIds: row.teachers.map((value: any) => value.id) }, current, history: current ? [current] : [], nextCursor: null, allowedOutcomes: [] }
+  },
+  recover: async (_member: string, command: any, key: string) => {
+    w.calls.push({ method: 'records.recover', command: copy(command), key })
+    const commandHash = await executionRecordCommandHash(command)
+    w.recordReceipt = parseExecutionRecordReceipt({ requestKey: key, commandHash, record: { id: 'record-one', version: 1, lessonId: command.lessonId, lessonVersion: command.expectedLessonVersion, outcome: command.outcome, note: command.note, correctionReason: command.correctionReason, recordedBy: person, recordedAt: now() } }, command, key, commandHash, member.id)
+    return copy(w.recordReceipt)
   },
 }
 function Harness() {
   const [revision, setRevision] = useState(0); w.refresh = () => setRevision(value => value + 1)
-  return <EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{styles}</style><TimetableOperationsPanel member={member} date={w.date} initialDate={w.future} server={operations} extensions={extensions} interventions={interventions} schoolDayExecution={schoolDay} executionRecords={records} revision={revision} onNavigationLockChange={value => w.locked = value} /></PendingRequestsProvider></EditDraftsProvider>
+  const [entry, setEntry] = useState<{ key: number; lessonId?: string } | null>({ key: 0 })
+  // 연결 화면처럼 모듈만 교체하며 같은 학교의 탭 초안과 원래 요청 저장소는 유지한다.
+  w.leaveOperations = () => setEntry(null)
+  w.openLesson = (lessonId: string) => setEntry({ key: ++w.entrySequence, lessonId })
+  return <EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{styles}</style>{entry ? <TimetableOperationsPanel key={entry.key} member={member} date={w.date} initialDate={w.future} initialLessonId={entry.lessonId} server={operations} extensions={extensions} interventions={interventions} schoolDayExecution={schoolDay} executionRecords={records} revision={revision} onNavigationLockChange={value => w.locked = value} /> : <p>합성 일정 화면</p>}</PendingRequestsProvider></EditDraftsProvider>
 }
 createRoot(document.getElementById('root')!).render(<Harness />)
