@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
-import { AssistantError, type AssistantServer } from '../assistant/contracts'
+import { AssistantError, executionNotStartedFailure, type AssistantServer } from '../assistant/contracts'
 import { usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 import { canonical, ServiceError } from '../services/scoped-rpc'
@@ -33,12 +33,16 @@ export function InterventionAssistantPanel({ member, server, source, exchanges =
   useEffect(() => { memory.save(prompt || undefined, !!prompt.trim()) }, [prompt, memory])
   useEffect(() => { if (pending) setExpanded(true) }, [pending?.key])
   useEffect(() => { setAnswer(undefined); setBasis(undefined); setConfirmed(false) }, [sourceKey, selectedLessonId])
-  async function send(request: OperationsAiRequest, key: string, recovering: boolean) {
-    if (!server || running.current) return
+  async function send(request: OperationsAiRequest, key: string, recovering: boolean, closing = false) {
+    const isClosing = closing || recovery.request?.closeState === 'closing'
+    if (!server || running.current || isClosing && !server.close) return
+    if (isClosing) recovery.put({command:request,key,closeState:'closing'})
     const epoch = life.current; running.current = true; setBusy(true); setError(''); setNotice('')
     try {
-      const result = await server.ask(member.id, request.input, key)
+      const result = isClosing ? await server.close!(member.id, request.input, key) : await server.ask(member.id, request.input, key)
       if (epoch !== life.current) return
+      if (result.state === 'closed') { recovery.remove(key); setNotice('AI 요청을 닫았습니다. 늦은 실행을 막았으며 상담 입력은 그대로입니다.'); return }
+      if (isClosing && result.state === 'rejected') { setError('원 요청의 닫힘 또는 완료를 같은 번호로 다시 확인해 주세요.'); return }
       if (result.state === 'pending') { setNotice(result.reason === 'provider_unknown' ? 'AI 처리 결과가 아직 확인되지 않았습니다. 새 요청 대신 원래 번호로 확인합니다.' : '원래 AI 요청을 처리 중입니다.'); return }
       if (result.state === 'rejected') { recovery.remove(key); setError('답변으로 채택되지 않았습니다. 입력과 수업은 그대로입니다.'); return }
       const received = parseOperationsAiAnswer(result, request, key)
@@ -51,7 +55,7 @@ export function InterventionAssistantPanel({ member, server, source, exchanges =
     } catch (e) {
       if (epoch !== life.current) return
       setError(e instanceof Error ? e.message : 'AI 결과를 확인하지 못했습니다.')
-      if (!recovering && e instanceof AssistantError && ['NOT_READY', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'BUDGET_EXCEEDED'].includes(e.code)) recovery.remove(key)
+      if (!isClosing && (executionNotStartedFailure(e) || !recovering && e instanceof AssistantError && ['NOT_READY', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'BUDGET_EXCEEDED'].includes(e.code))) recovery.remove(key)
     } finally { if (epoch === life.current) { running.current = false; setBusy(false) } }
   }
   async function ask() {
@@ -84,7 +88,8 @@ export function InterventionAssistantPanel({ member, server, source, exchanges =
   }
   return <details className="timetable-card" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}><summary>Claude와 수업 변경 상담하기</summary><p>선택한 수업과 조회 범위 일부를 참고해 입력을 제안합니다. 이름·개인 사유를 추가로 적을 필요는 없습니다. 제안은 서버 검사와 교사 동의·승인 뒤에만 반영됩니다.</p>
     <label>도움받을 내용<textarea aria-label="도움받을 내용" rows={2} maxLength={900} value={prompt} disabled={locked || disabled} onChange={e => { setPrompt(e.target.value); setAnswer(undefined); setConfirmed(false) }} /></label>
-    <div className="timetable-actions"><button type="button" disabled={!server || locked || disabled || !source || !prompt.trim() || !selectedLessonId} onClick={() => void ask()}>Claude에게 변경 상담</button><button type="button" disabled={locked} onClick={() => { setPrompt(''); setAnswer(undefined); setConfirmed(false); memory.remove() }}>상담 입력 비우기</button>{pending && <button type="button" disabled={busy || !server} onClick={() => void send(pending.command as OperationsAiRequest, pending.key, true)}>원래 AI 요청 결과 확인</button>}</div>
+    <div className="timetable-actions"><button type="button" disabled={!server || locked || disabled || !source || !prompt.trim() || !selectedLessonId} onClick={() => void ask()}>Claude에게 변경 상담</button><button type="button" disabled={locked} onClick={() => { setPrompt(''); setAnswer(undefined); setConfirmed(false); memory.remove() }}>상담 입력 비우기</button>{pending && <button type="button" disabled={busy || !server || pending.closeState === 'closing' && !server.close} onClick={() => void send(pending.command as OperationsAiRequest, pending.key, true)}>{pending.closeState === 'closing' ? '같은 번호로 AI 닫기 결과 확인' : '원래 AI 요청 결과 확인'}</button>}{pending && server?.close && pending.closeState !== 'closing' && <button type="button" disabled={busy} onClick={() => void send(pending.command as OperationsAiRequest,pending.key,true,true)}>새 호출 없이 요청 닫기</button>}</div>
+    {pending && server?.close && <p>아직 시작하지 않은 요청은 닫고 늦은 실행을 막습니다. 이미 완료되었으면 원래 결과를, 실행 중이면 처리 상태를 확인합니다.</p>}
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {answer && <section aria-label="AI 수업 변경 제안"><p>{answer.summary}</p>{answer.questions.length > 0 && <ul>{answer.questions.map((question, index) => <li key={index}>{question}</li>)}</ul>}{answer.proposal ? <><p>제안 종류: {({ substitute: '대강', cancel: '휴강', makeup: '보강', reopen: '휴업 취소', move: '이동', swap: '교환' })[answer.proposal.kind]}</p><p>{answer.proposal.reason}</p><label><input type="checkbox" checked={confirmed} disabled={locked || disabled} onChange={e => setConfirmed(e.target.checked)} />AI 제안을 입력란에 채우고 서버에서 변경 영향을 확인하겠습니다.</label>{draftFingerprint && <label><input type="checkbox" checked={replaceConfirmed} disabled={locked || disabled} onChange={e => setReplaceApproval(e.target.checked ? replacementBasis.current.generation : undefined)} />작성 중인 변경 입력을 이 제안으로 바꿉니다.</label>}<button type="button" disabled={!confirmed || !!draftFingerprint && !replaceConfirmed || locked || disabled} onClick={() => void apply()}>확인한 제안을 입력에 채우기</button></> : <p>지금은 적용할 제안이 없습니다. 질문에 답하거나 직접 입력해 주세요.</p>}<details><summary>받은 답변 보기</summary><p style={{ whiteSpace: 'pre-wrap' }}>{answer.text}</p></details></section>}
   </details>

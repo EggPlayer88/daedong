@@ -5,7 +5,7 @@ import { validatePlacements } from '../../../../packages/timetable/src/validate'
 import type { TimetableConditions } from './contracts'
 import { usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
-import { AssistantError, assistantInput, type AssistantServer } from '../assistant/contracts'
+import { AssistantError, executionNotStartedFailure, assistantInput, type AssistantServer } from '../assistant/contracts'
 import { canonical, ServiceError } from '../services/scoped-rpc'
 import { applyTimetableAiProposal, buildTimetableAiContext, previewTimetableAiProposal, type TimetableAiProposal, type TimetableAiContext } from './assistant'
 import { timetableAssistantRequest, timetableAssistantAnswer, TimetableAssistantInputError, type TimetableAssistantRequest } from './assistant-bridge'
@@ -55,14 +55,18 @@ export function TimetableAssistantPanel(props: Props) {
     return () => cancelAnimationFrame(handle)
   }, [focusTicket])
 
-  async function send(request: TimetableAssistantRequest, key: string, recovering: boolean) {
-    if (!current.current.server || operation.current) return
+  async function send(request: TimetableAssistantRequest, key: string, recovering: boolean, closing = false) {
+    const isClosing = closing || recovery.request?.closeState === 'closing'
+    if (!current.current.server || operation.current || isClosing && !current.current.server.close) return
+    if (isClosing) recovery.put({command:request,key,closeState:'closing'})
     const epoch = life.current; operation.current = true; setBusy(true); setError(''); setNotice('')
     try {
       // 복구에서는 새 기준으로 명령을 만들거나 준비 상태를 앞세우지 않는다.
       assistantInput(request.input)
-      const result = await current.current.server.ask(props.member.id, request.input, key)
+      const result = isClosing ? await current.current.server.close!(props.member.id, request.input, key) : await current.current.server.ask(props.member.id, request.input, key)
       if (epoch !== life.current) return
+      if (result.state === 'closed') { recovery.remove(key); setNotice('AI 요청을 닫았습니다. 늦은 실행을 막았으며 조건 입력은 그대로입니다.'); return }
+      if (isClosing && result.state === 'rejected') { setError('원 요청의 닫힘 또는 완료를 같은 번호로 다시 확인해 주세요.'); return }
       if (result.state === 'pending') { setNotice(result.reason === 'provider_unknown' ? 'AI 제공자의 처리 결과를 아직 모릅니다. 같은 요청으로만 확인합니다.' : '원래 AI 요청을 처리 중입니다. 잠시 후 같은 요청으로 확인해 주세요.'); return }
       if (result.state === 'rejected') { recovery.remove(key); setError('이번 AI 요청은 답변으로 채택되지 않았습니다. 입력은 유지했으며 조건은 변경하지 않았습니다.'); return }
       const answer = timetableAssistantAnswer(result, request, key)
@@ -79,7 +83,7 @@ export function TimetableAssistantPanel(props: Props) {
       if (epoch !== life.current) return
       setError(message(failure))
       // 처음 요청의 확정 거절만 해제한다. 원키 복구 실패는 최초 실행 여부의 증거가 아니다.
-      if (!recovering && failure instanceof AssistantError && ['NOT_READY', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'BUDGET_EXCEEDED'].includes(failure.code)) recovery.remove(key)
+      if (!isClosing && (executionNotStartedFailure(failure) || !recovering && failure instanceof AssistantError && ['NOT_READY', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'BUDGET_EXCEEDED'].includes(failure.code))) recovery.remove(key)
     } finally { if (epoch === life.current) { operation.current = false; setBusy(false) } }
   }
   async function ask() {
@@ -126,7 +130,8 @@ export function TimetableAssistantPanel(props: Props) {
     <label htmlFor={`${id}-target`}>AI에게 설명할 대상</label><select id={`${id}-target`} value={resourceId} disabled={locked || props.disabled} onChange={e => { setResourceId(e.target.value); setProposal(undefined); setConfirmed(false) }}><option value="">대상을 선택해 주세요</option>{props.basis?.resources.filter(r => r.kind !== 'equipment').map(r => <option key={r.id} value={r.id}>{targetLabels.get(r.id)}</option>)}</select>
     <label htmlFor={`${id}-prompt`}>시간표 조건 요청</label><textarea ref={promptRef} id={`${id}-prompt`} rows={3} maxLength={900} value={prompt} disabled={locked || props.disabled} onChange={e => { setPrompt(e.target.value); setProposal(undefined) }} placeholder="예: 이번 학기 수요일 1교시를 가능하면 피하고 싶어요." />
     <p className="timetable-muted">선택한 대상의 수업명·시간대·요청 내용을 학교가 승인한 Claude 연결로 보냅니다. 의료·가족 사정 등 개인의 상세 사유는 적지 않아도 됩니다.</p>
-    <div className="timetable-actions"><button type="button" disabled={locked || props.disabled || !props.server || !selected || !prompt.trim()} onClick={() => void ask()}>Claude에게 조건 정리 요청</button><button type="button" className="secondary" disabled={locked} onClick={() => { setPrompt(''); setResourceId(''); setProposal(undefined); setRawAnswer(''); setError(''); setNotice('') }}>AI 입력 비우기</button>{pending && <button type="button" disabled={busy || !props.server} onClick={() => void recover()}>원래 AI 요청 결과 확인</button>}</div>
+    <div className="timetable-actions"><button type="button" disabled={locked || props.disabled || !props.server || !selected || !prompt.trim()} onClick={() => void ask()}>Claude에게 조건 정리 요청</button><button type="button" className="secondary" disabled={locked} onClick={() => { setPrompt(''); setResourceId(''); setProposal(undefined); setRawAnswer(''); setError(''); setNotice('') }}>AI 입력 비우기</button>{pending && <button type="button" disabled={busy || !props.server || pending.closeState === 'closing' && !props.server.close} onClick={() => void recover()}>{pending.closeState === 'closing' ? '같은 번호로 AI 닫기 결과 확인' : '원래 AI 요청 결과 확인'}</button>}{pending && props.server?.close && pending.closeState !== 'closing' && <button type="button" disabled={busy} onClick={() => void send(pending.command as TimetableAssistantRequest,pending.key,true,true)}>새 호출 없이 요청 닫기</button>}</div>
+    {pending && props.server?.close && <p>아직 시작하지 않은 요청은 닫고 늦은 실행을 막습니다. 이미 완료되었으면 원래 결과를, 실행 중이면 처리 상태를 확인합니다.</p>}
     {busy && <p role="status">원래 요청과 기준자료를 확인하고 있습니다…</p>}{error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
     {proposal && <section aria-label="AI 조건 제안"><h3>제안 검토</h3><p>{proposal.value.summary}</p>{proposal.value.questions.length ? <><ul>{proposal.value.questions.map((q, i) => <li key={i}>{q}</li>)}</ul><p>질문의 답을 요청에 보완한 뒤 다시 확인해 주세요. 아직 반영할 조건은 없습니다.</p></> : <><ul>{proposal.value.changes.map((c, i) => {
       const slot = props.basis?.slots.find(s => s.id === c.slotId), resource = 'resourceId' in c ? props.basis?.resources.find(r => r.id === c.resourceId) : undefined

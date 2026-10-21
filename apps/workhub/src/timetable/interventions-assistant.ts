@@ -1,4 +1,4 @@
-import { assistantInput, ASSISTANT_LIMITS, type AssistantInput, type AskResult } from '../assistant/contracts'
+import { freshAssistantInput, ASSISTANT_LIMITS, type AssistantInput, type AskResult } from '../assistant/contracts'
 import { canonical, exact, ServiceError, text } from '../services/scoped-rpc'
 import type { ExchangeInput, OperationsView } from './operations-contracts'
 import { parseExchangeInput } from './operations-server'
@@ -49,7 +49,7 @@ export async function buildOperationsAiRequest(source: InterventionsView, exchan
     else throw new ServiceError('INVALID_INPUT')
     content = instructions()
   }
-  const input = assistantInput({ mode: 'school', intent: 'school_advice', prompt: content, threadId: null, expectedVersion: 0, references: [], studentContext: null })
+  const input = freshAssistantInput({ mode: 'school', intent: 'school_advice', prompt: content, threadId: null, expectedVersion: 0, references: [], studentContext: null })
   return { input, fingerprint, selectedLessonId: lessonId, source: structuredClone(source), exchanges: exchanges && structuredClone(exchanges), lessons: lessons.map(row => row.id), teachers: teachers.map(row => row.id), closures: closures.map(row => row.id) }
 }
 export function parseOperationsAiAnswer(result: AskResult, request: OperationsAiRequest, key: string): { text: string; summary: string; questions: string[]; proposal: OperationsAiProposal | null } {

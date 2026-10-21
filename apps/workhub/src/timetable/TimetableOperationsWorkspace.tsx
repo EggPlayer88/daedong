@@ -54,7 +54,7 @@ export function TimetableOperationsWorkspace(props: Props) {
   const executionRecords = useMemo(() => createTimetableExecutionRecordsServer(props.connection), [props.connection])
   const schoolDayExecution = useMemo(() => createSchoolDayExecutionServer(props.connection), [props.connection])
   const interventions = useMemo(() => createTimetableInterventionsServer(props.connection), [props.connection])
-  const assistantServer = useMemo(() => createAssistantServer(props.connection, operatingAssistantHttp), [props.connection])
+  const assistantServer = useMemo(() => createAssistantServer(props.connection, operatingAssistantHttp, {policyReads:true}), [props.connection])
   return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={assistantServer} />
 }
 export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {

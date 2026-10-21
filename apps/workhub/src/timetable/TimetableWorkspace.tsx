@@ -79,7 +79,7 @@ export function TimetableWorkspace(props: WorkspaceProps) {
 }
 function TimetableWorkspaceEntry(props: WorkspaceProps) {
   const server = useMemo(() => createTimetableServer(props.connection), [props.connection])
-  const assistantServer = useMemo(() => createAssistantServer(props.connection, timetableAssistantHttp), [props.connection])
+  const assistantServer = useMemo(() => createAssistantServer(props.connection, timetableAssistantHttp, {policyReads:true}), [props.connection])
   const preparationServer = useMemo(() => createPreparationServer(props.connection), [props.connection])
   const setupServer = useMemo(() => createTimetableSetupServer(props.connection), [props.connection])
   const targetServer = useMemo(() => createTimetableTargetServer(props.connection), [props.connection])

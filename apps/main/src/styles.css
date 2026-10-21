@@ -429,6 +429,12 @@ button {
 .docai-main {
   min-width: 0; /* 긴 문장이 그리드를 밀어내지 않게 */
 }
+.docai fieldset { min-width: 0; }
+.docai .composer > input:not([type="file"]) { min-width: 0; }
+@media (max-width: 480px) {
+  .docai .composer { flex-wrap: wrap; }
+  .docai .composer > input:not([type="file"]) { flex-basis: 100%; order: -1; }
+}
 .conv-list {
   border: 1px solid var(--border);
   background: var(--card);

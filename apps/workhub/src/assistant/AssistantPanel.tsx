@@ -5,8 +5,12 @@ import { recoveryScope, usePendingRequest } from '../app/pending-requests';
 import { useEditDraft } from '../app/edit-drafts';
 import { activeAt } from '../domain';
 import { canonical } from '../services/scoped-rpc';
-import { assistantInput, confirmTask, AssistantError, assistantError, definiteFailure, ASSISTANT_LIMITS, TASK_INPUT_LIMITS, type AnswerSegment, type AssistantContextRequest, type AssistantInput, type AssistantIntent, type AssistantMode, type AssistantServer, type AssistantThread, type ConfirmTask, type Readiness, type StudentContext, type TaskProposal, type ThreadSummary } from './contracts';
+import { assistantInput, freshAssistantInput, precisionReviewInput, ASSISTANT_ROUTING, confirmTask, AssistantError, assistantError, definiteFailure, ASSISTANT_LIMITS, TASK_INPUT_LIMITS, type AnswerSegment, type AssistantContextRequest, type AssistantInput, type AssistantIntent, type AssistantMode, type AssistantServer, type AssistantThread, type ConfirmTask, type Readiness, type StudentContext, type TaskProposal, type ThreadSummary, type Exchange } from './contracts';
 import { createAssistantServer } from './server';
+import { SchoolAiBudget } from './SchoolAiSettingsPanel';
+import { createSchoolAiSettingsServer } from './school-settings-server';
+import type { SchoolAiSettingsServer, SchoolAiStatus } from './school-settings-contracts';
+import { legacySchoolAiHttp } from './legacy-http';
 import { legacyAssistantHttp } from './legacy-http';
 import styles from './assistant.css?inline';
 import { knowledgeCitationRequest, type KnowledgeAssistantRequest } from '../knowledge/assistant-links';
@@ -33,6 +37,7 @@ export interface AssistantPanelProps {
     onComposeMessage?: (draft: { requestId: string; body: string }) => void;
     onOpenKnowledgeCitation?: (request: KnowledgeAssistantRequest) => void | Promise<void>;
     server?: AssistantServer;
+    settingsServer?: SchoolAiSettingsServer;
 }
 type Pending = {
     kind: 'ask';
@@ -66,8 +71,8 @@ function pendingCommand(raw: unknown): Pending { if (!raw || typeof raw !== 'obj
 }  throw new AssistantError('INVALID_INPUT'); }
 const newKey = () => globalThis.crypto.randomUUID();
 export function AssistantPanel(props: AssistantPanelProps) { return <AssistantScope key={recoveryScope(props.member)} {...props}/>; }
-function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenKnowledgeCitation, server: provided }: AssistantPanelProps) {
-    const server = useMemo(() => provided ?? createAssistantServer(connection, legacyAssistantHttp), [provided, connection]), memory = useEditDraft<Session>(member, 'assistant'), recovery = usePendingRequest(member, 'assistant');
+function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenKnowledgeCitation, server: provided, settingsServer: providedSettings }: AssistantPanelProps) {
+    const server = useMemo(() => provided ?? createAssistantServer(connection, legacyAssistantHttp, {policyReads:true}), [provided, connection]), memory = useEditDraft<Session>(member, 'assistant'), recovery = usePendingRequest(member, 'assistant');
     const [session, setSession] = useState<Session>(() => { const saved = memory.initial ?? initial; if (recovery.request) {
         try {
             const command = pendingCommand(recovery.request.command);
@@ -77,6 +82,9 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
         catch { }
     } return saved; }), latest = useRef(session), life = useRef(0), operation = useRef(false), uid = useId();
     const [ready, setReady] = useState<Readiness>(), [threads, setThreads] = useState<ThreadSummary[]>([]), [nextCursor, setNextCursor] = useState<string | null>(null), [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [refresh, setRefresh] = useState(0), [error, setError] = useState(''), [notice, setNotice] = useState(''), [readError, setReadError] = useState('');
+    const settingsServer = useMemo(() => providedSettings ?? createSchoolAiSettingsServer(connection, legacySchoolAiHttp), [providedSettings, connection]);
+    const [schoolStatus, setSchoolStatus] = useState<SchoolAiStatus>(), [budgetError, setBudgetError] = useState('');
+    useEffect(() => { let cancelled = false; setSchoolStatus(undefined); setBudgetError(''); if (!activeAt(member, date)) return; void settingsServer.status(member.id).then(value => { if (!cancelled) setSchoolStatus(value); }).catch(() => { if (!cancelled) setBudgetError('학교 예산을 확인하지 못했습니다. 요청 시 서버에서 이용 가능 여부를 다시 확인합니다.'); }); return () => { cancelled = true; }; }, [settingsServer, member.id, date, revision, refresh]);
     const [openingCitation, setOpeningCitation] = useState(false), citationFlight = useRef(false);
     let pending: Pending | undefined;
     try {
@@ -166,27 +174,29 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
             setBusy(false);
         }
     } }
-    async function execute(command: Pending, key: string) {
+    async function execute(command: Pending, key: string, closing = false) {
         if (operation.current || !enabled)
             return;
         operation.current = true;
         setBusy(true);
         setError('');
         setNotice('');
-        const epoch = life.current;
-        recovery.put({ command, key });
+        const epoch = life.current, isClosing = command.kind === 'ask' && (closing || recovery.request?.closeState === 'closing');
+        recovery.put({ command, key, ...(isClosing ? {closeState:'closing' as const} : {}) });
         try {
             if (command.kind === 'ask') {
-                const result = await server.ask(member.id, command.input, key);
+                const result = isClosing ? await server.close!(member.id, command.input, key) : await server.ask(member.id, command.input, key);
                 if (life.current !== epoch)
                     return;
+                if (result.state === 'closed') { recovery.remove(key); setNotice('AI 요청을 닫았습니다. 늦게 도착한 요청은 새 답변을 만들지 않습니다. 작성한 입력은 유지합니다.'); return; }
+                if (isClosing && result.state === 'rejected') { setError('원래 요청이 종료되었으나 닫힘 또는 완료 확인이 필요합니다. 같은 번호로 닫기 결과를 다시 확인해 주세요.'); return; }
                 if (result.state === 'pending') {
                     setNotice(result.reason === 'provider_unknown' ? 'AI 응답 여부를 확인 중입니다. 같은 요청을 확인해도 AI를 새로 호출하지 않습니다.' : '기존 요청을 처리 중입니다. 잠시 뒤 같은 요청으로 확인해 주세요.');
                     return;
                 }
                 recovery.remove(key);
                 if (result.state === 'rejected') {
-                    setError(result.code === 'TRUNCATED' ? '답변 길이 제한으로 초안을 완료하지 못했습니다. 요청 범위를 줄여 다시 요청해 주세요.' : result.code === 'OUTPUT_INVALID' ? '근거와 형식 검증을 통과하지 못했습니다. 답변을 저장하지 않았습니다.' : 'AI 요청이 거절되었습니다. 설정과 이용 가능 상태를 확인해 주세요.');
+                    setError(result.code === 'COUNT_FAILED' ? '사용량을 미리 계산하지 못해 유료 답변 생성을 시작하지 않았습니다. 입력을 유지했습니다.' : result.code === 'INPUT_TOO_LARGE' ? '선택한 자료가 한 번에 처리할 수 있는 범위를 넘었습니다. 범위를 줄여 다시 요청해 주세요.' : result.code === 'TRUNCATED' ? '답변 길이 제한으로 초안을 완료하지 못했습니다. 요청 범위를 줄여 다시 요청해 주세요.' : result.code === 'OUTPUT_INVALID' ? '근거와 형식 검증을 통과하지 못했습니다. 답변을 저장하지 않았습니다.' : 'AI 요청이 거절되었습니다. 설정과 이용 가능 상태를 확인해 주세요.');
                     return;
                 }
                 update({ ...latest.current, thread: result.thread, prompt: '', references: [], studentContext: null, proposal: undefined, taskReview: false });
@@ -208,7 +218,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
             if (life.current !== epoch)
                 return;
             const mapped = assistantError(failure, 'RESULT_UNKNOWN');
-            if (definiteFailure(mapped))
+            if (!isClosing && definiteFailure(mapped))
                 recovery.remove(key);
             setError(mapped.message);
         }
@@ -221,7 +231,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
     }
     function ask() { if (!editable || operation.current)
         return; try {
-        const current = latest.current, input = assistantInput({ mode: current.mode, intent: current.intent, prompt: current.prompt, threadId: current.thread?.id ?? null, expectedVersion: current.thread?.version ?? 0, references: current.references, studentContext: current.studentContext });
+        const current = latest.current, input = freshAssistantInput({ mode: current.mode, intent: current.intent, prompt: current.prompt, threadId: current.thread?.id ?? null, expectedVersion: current.thread?.version ?? 0, references: current.references, studentContext: current.studentContext });
         const key = newKey();
         if (current.contextId) update({ ...current, requestContexts: { ...current.requestContexts, [key]: current.contextId } });
         void execute({ kind: 'ask', input }, key);
@@ -229,6 +239,15 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
     catch {
         setError('질문 내용과 선택한 근거를 확인해 주세요.');
     } }
+    function reviewAnswer(source: Exchange) {
+        if (!editable || locked || operation.current || !latest.current.thread) return;
+        try {
+            const current = latest.current, input = precisionReviewInput(current.thread!, source), key = newKey();
+            const contextId = current.requestContexts?.[source.requestKey];
+            if (contextId) update({ ...current, requestContexts: { ...current.requestContexts, [key]: contextId } });
+            void execute({ kind: 'ask', input }, key);
+        } catch { setError('정밀 검토할 원래 답변과 대화 상태를 다시 확인해 주세요.'); }
+    }
     function applyContext() { if (!contextRequest || locked || operation.current)
         return; const request = contextRequest.request; try {
         const input = assistantInput({ ...request, prompt: request.prompt?.trim() || '선택한 자료를 바탕으로 초안을 작성해 주세요.', threadId: null, expectedVersion: 0 });
@@ -275,6 +294,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
     }
     return <section className="assistant-workspace" aria-labelledby={`${uid}-title`}><style>{styles}</style>
   <header className="assistant-header"><div><h2 id={`${uid}-title`}>Claude 비서</h2><p>학교 자료를 확인하고, 내 업무와 초안을 함께 정리합니다.</p></div><button type="button" disabled={busy || loading} onClick={() => setRefresh(value => value + 1)}>연결 다시 확인</button></header>
+  <details className="assistant-budget-disclosure"><summary>학교 AI 예산 · 기본 {ASSISTANT_ROUTING.models.quick.label}</summary>{schoolStatus ? <SchoolAiBudget status={schoolStatus}/> : <p role="status">{budgetError || '학교 예산을 확인하고 있습니다.'}</p>}<p className="assistant-hint">정밀 검토는 완료된 기본 답변에서 직접 요청합니다. 학생 기록 초안은 처음부터 {ASSISTANT_ROUTING.models.review.label}으로 작성합니다.</p></details>
   <div className="assistant-modes" role="group" aria-label="비서의 자료 범위"><button type="button" aria-pressed={session.mode === 'school'} disabled={locked} onClick={() => changeMode('school')}>학교 업무 안내</button><button type="button" aria-pressed={session.mode === 'personal'} disabled={locked} onClick={() => changeMode('personal')}>내 개인 비서</button></div>
   <p className="assistant-scope">{session.mode === 'school' ? '현재 학교에서 열람 가능한 공통 자료만 사용합니다.' : '내가 볼 수 있는 학교 자료와 내 업무를 사용합니다. 상담 기록은 자동으로 가져오지 않습니다.'}</p>
   {loading && <p role="status">대화 연결을 확인하고 있습니다.</p>}
@@ -284,7 +304,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
   <details className="assistant-history"><summary>이전 대화 {threads.length}개</summary><ul>{threads.map(row => <li key={row.id}><button type="button" disabled={!editable || locked} aria-current={session.thread?.id === row.id ? 'true' : undefined} onClick={() => void loadThread(row.id)}>{row.title}</button></li>)}</ul>{nextCursor && <button type="button" disabled={loading || busy} onClick={() => void moreThreads()}>이전 대화 더 보기</button>}</details>
   <div className="assistant-conversation"><div className="assistant-thread-heading"><h3>{readError ? '대화 연결을 다시 확인해 주세요' : session.thread?.title ?? '새 대화'}</h3><button type="button" disabled={locked || busy} onClick={() => update({ ...latest.current, thread: undefined })}>새 대화</button></div>
    {!readError && session.thread?.nextCursor && <button type="button" disabled={!editable} onClick={() => void moreMessages()}>앞선 답변 더 보기</button>}
-   {!readError && session.thread?.exchanges.map(exchange => <article className="assistant-exchange" key={exchange.id}><h4>내 질문</h4><p className="assistant-text">{exchange.prompt}</p><h4>Claude 답변</h4><AnswerView segments={exchange.segments} onOpenKnowledgeCitation={onOpenKnowledgeCitation ? citation => void openKnowledgeCitation(citation) : undefined} disabled={!editable || locked || loading || openingCitation}/>{exchange.proposal && <div className="assistant-proposal"><strong>{exchange.proposal.input.title}</strong><p>{exchange.proposal.status === 'applied' ? '개인 할 일에 추가된 제안입니다.' : '개인 할 일 제안입니다. 확인하기 전에는 저장되지 않습니다.'}</p>{exchange.proposal.status === 'pending' && <button type="button" disabled={!editable || Boolean(session.proposal) || Boolean(session.prompt.trim())} onClick={() => update({ ...latest.current, proposal: structuredClone(exchange.proposal!), taskReview: false })}>할 일 제안 검토</button>}</div>}
+   {!readError && session.thread?.exchanges.map(exchange => <article className="assistant-exchange" key={exchange.id}><h4>내 질문</h4><p className="assistant-text">{exchange.prompt}</p><h4>Claude 답변</h4>{exchange.execution && <p className="assistant-execution">{exchange.execution.quality === 'quick' ? ASSISTANT_ROUTING.models.quick.label + ' 기본 답변' : ASSISTANT_ROUTING.models.review.label + (exchange.execution.reviewOf ? ' 정밀 검토' : ' 학생 기록 초안')}</p>}<AnswerView segments={exchange.segments} onOpenKnowledgeCitation={onOpenKnowledgeCitation ? citation => void openKnowledgeCitation(citation) : undefined} disabled={!editable || locked || loading || openingCitation}/>{exchange.execution?.quality === 'quick' && exchange.execution.model === ASSISTANT_ROUTING.models.quick.id && exchange.intent !== 'student_record_draft' && <div className="assistant-review"><button type="button" disabled={!editable || locked} onClick={() => reviewAnswer(exchange)}>이 답변 정밀 검토</button><span className="assistant-hint">{ASSISTANT_ROUTING.models.review.label}으로 새 요청을 보내며 학교 예산에서 비용을 사용합니다.</span></div>}{exchange.proposal && <div className="assistant-proposal"><strong>{exchange.proposal.input.title}</strong><p>{exchange.proposal.status === 'applied' ? '개인 할 일에 추가된 제안입니다.' : '개인 할 일 제안입니다. 확인하기 전에는 저장되지 않습니다.'}</p>{exchange.proposal.status === 'pending' && <button type="button" disabled={!editable || Boolean(session.proposal) || Boolean(session.prompt.trim())} onClick={() => update({ ...latest.current, proposal: structuredClone(exchange.proposal!), taskReview: false })}>할 일 제안 검토</button>}</div>}
    {['document_draft', 'student_record_draft', 'guided_collection'].includes(exchange.intent) && <div className="assistant-actions"><button type="button" onClick={() => { try {
             const blob = new Blob([exchange.segments.map(row => row.text + '\n' + row.citations.map(c => '근거: ' + c.title + ' · ' + c.locator).join('\n')).join('\n\n')], { type: 'text/plain;charset=utf-8' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
             anchor.href = url;
@@ -312,12 +332,13 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
   </section>}
   <form className="assistant-compose" onSubmit={event => { event.preventDefault(); ask(); }}><label htmlFor={`${uid}-intent`}>요청 종류</label><select id={`${uid}-intent`} disabled={!editable || Boolean(draft)} value={session.intent} onChange={event => changeIntent(event.target.value as AssistantIntent)}>{Object.entries(intentLabels).filter(([key]) => session.mode === 'personal' || key !== 'personal_assistant' && key !== 'student_record_draft').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
    {(session.references.length > 0 || session.studentContext) && <div className="assistant-context"><p>선택한 근거 {session.references.length + (session.studentContext?.evidence.length ?? 0)}개</p><ul>{session.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{ref.kind} · {ref.id} · 판 {ref.version}</li>)}{session.studentContext?.evidence.map(ref => <li key={`${ref.kind}:${ref.id}:${ref.start}`}>{ref.kind === 'observation' ? '관찰' : '평가'} · {ref.id} · 개정 {ref.revisionId} · 구간 {ref.start}–{ref.end}</li>)}</ul><button type="button" disabled={!editable} onClick={() => update({ ...latest.current, references: [], studentContext: null })}>선택한 근거 비우기</button></div>}
+   {session.intent === 'student_record_draft' && <p className="assistant-hint">등록된 학생 번호·이름과 선택한 수업·평가 근거가 AI에 전달됩니다. 상담 기록은 제외합니다.</p>}
    {session.intent === 'student_record_draft' && !session.studentContext && <p>학생 관리 화면에서 확인한 관찰·평가 근거를 먼저 선택해 주세요.</p>}
    <label htmlFor={`${uid}-prompt`}>질문 또는 부탁할 일</label><textarea id={`${uid}-prompt`} rows={5} aria-describedby={`${uid}-prompt-hint`} aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars} placeholder="예: 선택한 학교 규정에서 제출 절차를 알려 주세요." disabled={busy || Boolean(recovery.request) || Boolean(draft)} value={session.prompt} onChange={event => update({ ...latest.current, prompt: event.target.value })}/><span id={`${uid}-prompt-hint`} className="assistant-hint">{Array.from(session.prompt).length} / {ASSISTANT_LIMITS.promptChars}자 · 상담·건강 정보는 입력하지 마세요.</span>
    {Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars && <p role="alert">질문은 {ASSISTANT_LIMITS.promptChars}자 이내로 줄여 주세요. 입력은 자동으로 자르지 않습니다.</p>}
    <div className="assistant-actions"><button type="submit" className="assistant-primary" disabled={!editable || Boolean(draft) || Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars || !session.prompt.trim() || session.intent === 'student_record_draft' && !session.studentContext}>Claude에게 요청</button><button type="button" disabled={busy || Boolean(recovery.request) || !session.prompt} onClick={() => update({ ...latest.current, prompt: '' })}>질문 비우기</button></div>
   </form>
-  {recovery.request && <section className="assistant-pending" aria-label="미확정 요청"><h3>기존 요청 결과 확인</h3><p>요청 번호: <code>{recovery.request.key}</code></p>{pending?.kind === 'confirmTask' && <p>개인 할 일: {pending.input.input.title} · {pending.input.input.dueDate || '마감일 없음'}</p>}<p>입력과 요청 번호를 보관했습니다. 결과가 확정될 때까지 새 요청이나 입력 버리기를 진행하지 않습니다.</p><button type="button" disabled={busy || !pending || !enabled} onClick={() => pending && void execute(pending, recovery.request!.key)}>같은 요청으로 결과 확인</button>{!pending && <p role="alert">기존 요청 형식을 확인할 수 없습니다. 원 요청을 유지한 채 관리자에게 확인해 주세요.</p>}</section>}
+  {recovery.request && <section className="assistant-pending" aria-label="미확정 요청"><h3>기존 요청 결과 확인</h3><p>요청 번호: <code>{recovery.request.key}</code></p>{pending?.kind === 'confirmTask' && <p>개인 할 일: {pending.input.input.title} · {pending.input.input.dueDate || '마감일 없음'}</p>}<p>입력과 요청 번호를 보관했습니다. 결과가 확정될 때까지 새 요청이나 입력 버리기를 진행하지 않습니다.</p><button type="button" disabled={busy || !pending || !enabled || recovery.request.closeState === 'closing' && !server.close} onClick={() => pending && void execute(pending, recovery.request!.key)}>{recovery.request.closeState === 'closing' ? '같은 번호로 AI 닫기 결과 확인' : '같은 요청으로 결과 확인'}</button>{pending?.kind === 'ask' && server.close && recovery.request.closeState !== 'closing' && <><p>요청 닫기는 AI를 새로 호출하지 않습니다. 이미 완료되었으면 원래 답변을 확인하고, 아직 시작하지 않았으면 늦은 실행도 막습니다. 이미 실행 중이면 결과 확인을 계속합니다.</p><button type="button" disabled={busy || !enabled} onClick={() => void execute(pending, recovery.request!.key, true)}>새 호출 없이 요청 닫기</button></>}{!pending && <p role="alert">기존 요청 형식을 확인할 수 없습니다. 원 요청을 유지한 채 관리자에게 확인해 주세요.</p>}</section>}
  </section>;
 }
 export function AnswerView({ segments, onOpenKnowledgeCitation, disabled = false }: {
