@@ -9,7 +9,7 @@ import { hasPreviewUrl } from './preview-readiness.mjs'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const scripts = [
   'workhub-document-collection-flow', 'workhub-cross-module', 'workhub-assistant-practice', 'workhub-ai-operations', 'workhub-ai-school-policy', 'doc-ai-school-policy',
-  'workhub-global-search', 'workhub-document-open', 'workhub-document-review', 'workhub-collection-export-parts', 'workhub-knowledge-assistant',
+  'workhub-guided-setup', 'workhub-global-search', 'workhub-document-open', 'workhub-document-review', 'workhub-collection-export-parts', 'workhub-knowledge-assistant',
   'workhub-messaging-deliveries', 'workhub-roster-correction', 'workhub-guided-ai', 'workhub-collection-submission-list',
   'workhub-school-configuration-batch', 'workhub-course-batch', 'workhub-timetable-import-correction',
   'workhub-timetable-operation-navigation', 'workhub-roster-import', 'workhub-home-student-followup', 'workhub-school-roster', 'workhub-school-data-maintenance', 'workhub-school-preparation', 'workhub-school-preparation-connected', 'workhub-timetable-pilot', 'workhub-timetable-import', 'workhub-timetable-interventions',

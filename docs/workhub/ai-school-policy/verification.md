@@ -193,3 +193,34 @@ npm run test:workhub:ai-sql
 [상세 검증](search-history.md): 전체 `npm test` **4,962/0**(Python 건너뜀 없음), 검색 연결 **23**, UI 조정기 **28**, 기존 소스 **12**, 과거판 계약 **9**건. K1 격리 PostgreSQL 17.6 **31/0**, 실제 응답→앱 parser **8/0**, 관련 브라우저 **12파일/176항목** 통과. TypeScript·main/workhub 빌드·설계 정합·diff 검사 통과.
 
 가상 교사 36명 기반 자동 시험이며 운영 SQL·실제 회원·유료 AI·Claude 검토는 미진행이다. 신규 K1 SQL은 CI 격리 실행 항목에 추가했으며 운영 적용 전 전체 통합 지문 보강이 필요하다. 작업 시작 시 #77 `76e59ab` test/Vercel 성공, 이번 커밋의 원격 상태는 업로드 후 별도 확인한다.
+
+## 수합 방식 추천·질문과 빈칸 연결 제안 — 최신 후속
+
+2026-10-21. [상세 구현과 판단](guided-setup.md).
+
+| 검증 | 결과 |
+|---|---:|
+| 전체 `npm test` | **5,019 통과 · 실패 0**, Python 건너뜀 없음 |
+| 추천·후보·SSR | 27/27 |
+| AI 준비·응답·원본 대조 계약 | 22/22 |
+| 새 양식 준비 브라우저 | 17/17 |
+| 문서함·답변 AI·생성/수합·문서 열기 기존 브라우저 | 4파일 · 58항목 통과 |
+| 전체 연결 셸 브라우저 | 18/18 |
+| TypeScript·main 빌드·diff 검사 | 통과 |
+
+신규 단위/SSR 49건은 전체 5,019건에 포함된다. 관련 브라우저 합계는 6파일·93항목이며 이번 로컬 작업에서 브라우저 전체 묶음을 다시 돌렸다는 뜻은 아니다. 320px 캡처도 확인했다.
+
+작업 시작 시 #77 `7143534`의 Vercel은 성공했지만 GitHub test는 실패했다(run `39553329152`). 원격 로그상 브라우저 128파일 중 전체 연결 셸 1파일이 실패했다. 이 시험은 과거 원문 조회가 목록 조회에서 K1 정확한 판 단건 조회로 바뀐 뒤에도 옛 fixture와 기대값을 사용했다. 같은 시간초과를 로컬 재현한 뒤 fixture에 직접 조회를 구현하고 과거 7판/최신 8판을 분리했다. `NOT_READY/NOT_FOUND/FORBIDDEN` 시 최신 자료로 우회하지 않는 세 경우도 추가해 18건 모두 통과했다. 환경 문제나 재실행으로 해결된 것으로 분류하지 않는다.
+
+새 브라우저 시험에서 후보 편집을 양식 간에 보존하지 못하는 문제와 AI 복귀 시 최신 원본을 읽지 않는 문제를 발견했다. 양식 ID/판별 메모리와 복귀 직후 원본 재조회로 수정하고, 다른 양식 왕복·변경된 서버 판·무료 읽기 재시도·유료 호출 횟수 유지로 확인했다.
+
+```text
+node tests/test_workhub_guided_suggestions.mjs
+node tests/test_workhub_guided_setup_ai.mjs
+node tests/browser/run.mjs workhub-guided-setup workhub-pilot-connected workhub-document-collection-flow workhub-document-open workhub-guided-ai workhub-documents
+npm run check:workhub
+npm run build
+npm test
+```
+
+추천은 실제 검사 계약을 사용한다. 브라우저의 DB·Storage·Claude 응답은 합성이며 실제 공급자 품질·운영 연결 성공은 확인하지 않았다. 새 SQL 작성·운영 적용·실제 회원 연결·Claude 검토·유료 호출은 하지 않았다. 새 head의 원격 검사 상태는 push 뒤 PR Checks에서 별도 확인한다.
