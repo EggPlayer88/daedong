@@ -49,6 +49,71 @@ def finish(uid,member,k,p,feature='evaluation',usage=(120,30),response=None):
     else: response=response or dict(reply='합성 답변',stop_reason='end_turn',truncated=False,usage=dict(input_tokens=usage[0],output_tokens=usage[1]))
     v=dict(state='completed',response=response,usage=u,providerMessageId=mid)
     return gateway('finish',uid,member,k,data(p)['leaseToken'],v,feature=feature),v
+def finish_newline_tests(member, oldkey, oldlease):
+    # 실제 저장된 CRLF 함수 본문으로 설치하고, 본문 변조는 계속 거부하는지 확인한다.
+    signature = 'public.workhub_ai_finish(uuid,text,text,text,jsonb)'
+    original = Q('select pg_get_functiondef(%s::regprocedure)', (signature,))[0][0]
+    install = (STAGE/'P10-02_학교AI_공통실행.sql').read_text(encoding='utf-8').rstrip()
+    if not install.endswith('COMMIT;') or len(re.findall(r'^BEGIN;$', install, re.M)) != 1:
+        raise AssertionError('P10-02 설치 트랜잭션 경계를 확인해 주세요.')
+    transactional = re.sub(r'^BEGIN;\n', '', install[:-len('COMMIT;')], count=1, flags=re.M)
+    access_sql = "select has_function_privilege('service_role','public.workhub_ai_prepare(uuid,text,jsonb,text)','EXECUTE'), has_function_privilege('service_role','public.workhub_ai_start(uuid,text,text,text)','EXECUTE')"
+    original_access = Q(access_sql)[0]
+    original_rows = Q("select md5(coalesce(string_agg(to_jsonb(g)::text,chr(10) order by id),'')) from workhub.ai_gateway_requests g")[0][0]
+    check('AI 줄바꿈 회귀의 LF 함수 원본 확인', '\r' not in original)
+    for label, definition, expected_hash in (
+        ('LF', original, '49349f458c6da0e5a00453239a9d9c72'),
+        ('CRLF', original.replace('\n','\r\n'), '60b7b47a7685f378fdf612f17b8ea653'),
+    ):
+        cx = H.connect()
+        try:
+            with cx.cursor() as cur:
+                cur.execute('BEGIN')
+                cur.execute(definition)
+                cur.execute('select prosrc,md5(prosrc) from pg_proc where oid=%s::regprocedure',(signature,))
+                body, fingerprint = cur.fetchone()
+                check(label+' 실제 함수 원문 해시 확인', fingerprint == expected_hash)
+                cur.execute(transactional)
+                cur.execute("select count(*) from workhub_private.p10_ai_installs where batch='P10-AI-02'")
+                check(label+' AI 공통 실행 설치 성공', cur.fetchone()[0] == 1)
+                cur.execute("select prosrc from pg_proc where oid='workhub_private.p10_legacy_finish(uuid,text,text,text,jsonb)'::regprocedure")
+                expected_body = body.replace('\r\n','\n').replace('workhub_private.p6_cost(pol, v_in, v_out)','workhub_private.p10_cost(pol, v_in, v_out)')
+                check(label+' 기존 정산 본문은 공통 비용 검사 결합만 변경', cur.fetchone()[0] == expected_body)
+                result = dict(state='completed',usage=dict(inputTokens=100,outputTokens=10),providerMessageId='msg_newline',segments=[dict(text='합성 줄바꿈 정산',citations=[])],taskDraft=None)
+                cur.execute('SET LOCAL ROLE service_role')
+                cur.execute('select public.workhub_ai_finish(%s,%s,%s,%s,%s::jsonb)',(H.ADMIN,member,oldkey,oldlease,json.dumps(result,ensure_ascii=False)))
+                finished = cur.fetchone()[0]
+                cur.execute('RESET ROLE')
+                cur.execute('select g.state,g.actual_micro_usd,a.actual_micro_usd from workhub.ai_gateway_requests g join workhub.assistant_requests a on a.id=g.assistant_request_id where g.request_key=%s',(oldkey,))
+                check(label+' 기존 시작 요청 마무리·두 원장 정산', data(finished).get('state') == 'completed' and cur.fetchone() == ('completed',15,15))
+                cur.execute(access_sql)
+                check(label+' 기존 직접 prepare/start 차단 유지', cur.fetchone() == (False,False))
+        finally:
+            with cx.cursor() as cur: cur.execute('ROLLBACK')
+            cx.close()
+        check(label+' 회귀 롤백 뒤 원문·권한 복구', Q('select pg_get_functiondef(%s::regprocedure)',(signature,))[0][0] == original and Q(access_sql)[0] == original_access)
+        check(label+' 회귀 롤백 뒤 01만 유지', Q("select array_agg(batch order by batch) from workhub_private.p10_ai_installs")[0][0] == ['P10-AI-01'])
+    crlf = original.replace('\n','\r\n')
+    mutations = (
+        ('본문 변경', lambda value: value.replace('DECLARE','DECLARE\r\n-- 의도한 원문 변조\r\n',1)),
+        ('공백 변경', lambda value: value.replace('DECLARE','DECLARE ',1)),
+        ('단독 CR', lambda value: value.replace('\r\nDECLARE','\rDECLARE',1)),
+    )
+    for label, mutate in mutations:
+        changed = mutate(crlf)
+        if changed == crlf: raise AssertionError('변조가 실제로 발생하지 않았습니다: '+label)
+        try:
+            Q(changed)
+            fixture = Q('select pg_get_functiondef(%s::regprocedure)',(signature,))[0][0]
+            try: H.file(STAGE/'P10-02_학교AI_공통실행.sql')
+            except H.psycopg2.Error as ex:
+                check('AI CRLF + '+label+' 설치 거부', ex.diag.message_primary == 'P6 finish 원문 불일치')
+            else: check('AI CRLF + '+label+' 설치 거부', False)
+            check('AI '+label+' 뒤 함수·권한 무변경', Q('select pg_get_functiondef(%s::regprocedure)',(signature,))[0][0] == fixture and Q(access_sql)[0] == original_access)
+            check('AI '+label+' 뒤 02 설치 흔적 없음', Q("select count(*) from workhub_private.p10_ai_installs where batch='P10-AI-02'")[0][0] == 0 and Q("select to_regprocedure('workhub_private.p10_models()')")[0][0] is None)
+            check('AI '+label+' 뒤 01 비용 원장 보존', Q("select md5(coalesce(string_agg(to_jsonb(g)::text,chr(10) order by id),'')) from workhub.ai_gateway_requests g")[0][0] == original_rows)
+        finally: Q(original)
+
 def tests():
     school,member=Q('select m.school_id,m.id from workhub.memberships m join workhub.accounts a on a.id=m.account_id where a.auth_user_id=%s',(H.ADMIN,))[0]
     before=Q("select md5(string_agg(row_to_json(u)::text,'' order by id)) from public.users u")[0][0]
@@ -59,7 +124,9 @@ def tests():
     Q("insert into workhub.module_activations(school_id,module,state,approved_by_membership_id,approval_ref) values(%s,'assistant','active',%s,'합성 이전 활성화')",(school,member))
     oldkey=key(); old=svc('workhub_ai_prepare',H.ADMIN,member,inp('이전 요청'),oldkey); oldlease=data(old)['leaseToken']
     svc('workhub_ai_start',H.ADMIN,member,oldkey,oldlease)
-    for p in sorted(STAGE.glob('P10-0[123]_*.sql')):
+    H.file(STAGE/'P10-01_학교AI_모델.sql')
+    finish_newline_tests(member,oldkey,oldlease)
+    for p in sorted(STAGE.glob('P10-0[23]_*.sql')):
         if '.body.' not in p.name: H.file(p)
     check('이전 원장을 공통 원장에 한 번만 이관',row(oldkey)['origin']=='legacy_p6')
     check('새 준비 직접 우회 차단', 'permission denied' in code(svc('workhub_ai_prepare',H.ADMIN,member,inp(),key())))

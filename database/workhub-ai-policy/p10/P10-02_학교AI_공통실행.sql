@@ -2,7 +2,8 @@
 BEGIN;
 DO $$ BEGIN
   IF NOT EXISTS(SELECT 1 FROM workhub_private.p10_ai_installs WHERE batch='P10-AI-01') THEN RAISE EXCEPTION 'P10-AI-01 먼저 설치'; END IF;
-  IF md5((SELECT prosrc FROM pg_proc WHERE oid='public.workhub_ai_finish(uuid,text,text,text,jsonb)'::regprocedure))<>'49349f458c6da0e5a00453239a9d9c72' THEN RAISE EXCEPTION 'P6 finish 원문 불일치'; END IF;
+  -- SQL Editor의 CRLF만 LF로 비교한다. 본문·공백·단독 CR 차이는 계속 차단한다.
+  IF md5((SELECT replace(prosrc, E'\r\n', E'\n') FROM pg_proc WHERE oid='public.workhub_ai_finish(uuid,text,text,text,jsonb)'::regprocedure))<>'49349f458c6da0e5a00453239a9d9c72' THEN RAISE EXCEPTION 'P6 finish 원문 불일치'; END IF;
 END $$;
 CREATE FUNCTION workhub_private.p10_models() RETURNS jsonb LANGUAGE sql IMMUTABLE SET search_path='' AS $m$
 SELECT $j${"contract":"assistant.routing.v1","version":"2026-10-21.1","currency":"USD","schoolMonthlyLimitMicroUsd":100000000,"maxInputTokens":80000,"reserveInputTokens":100000,"maxOutputTokens":8000,"maxReviewDepth":1,"automaticEscalation":false,"cacheEnabled":false,"models":{"quick":{"id":"claude-haiku-5-5","label":"Haiku","inputMicroUsdPerMtok":100000,"outputMicroUsdPerMtok":500000,"effort":"low"},"review":{"id":"claude-sonnet-5-5","label":"Sonnet","inputMicroUsdPerMtok":2000000,"outputMicroUsdPerMtok":10000000,"effort":"medium"}},"intentDefaults":{"school_advice":"quick","personal_assistant":"quick","document_draft":"quick","student_record_draft":"review","guided_collection":"quick"},"sources":["https://platform.claude.com/docs/en/models/haiku-5-5/overview","https://platform.claude.com/docs/en/models/sonnet-5-5/overview"]}$j$::jsonb

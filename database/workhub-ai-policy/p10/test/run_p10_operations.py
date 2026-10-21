@@ -1,4 +1,4 @@
-"""신규 조회와 36 가상 교사 경합. 기존 72건을 포함하며 localhost 임시 PG17 외에는 실행하지 않는다."""
+"""신규 조회와 36 가상 교사 경합. 기본 AI 및 줄바꿈 회귀를 포함하며 localhost 임시 PG17 외에는 실행하지 않는다."""
 from pathlib import Path
 import os,sys,subprocess,json,uuid,random,threading,concurrent.futures,hashlib,base64,time
 ROOT=Path(os.environ.get('P10_AI_ROOT',str(Path(__file__).resolve().parents[4])))

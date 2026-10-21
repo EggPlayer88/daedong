@@ -317,7 +317,7 @@
       "id": "ai-p10-02",
       "packageId": "ai-p10",
       "path": "database/workhub-ai-policy/p10/P10-02_학교AI_공통실행.sql",
-      "sha256": "0ce4c19b78b18e76e6a5e1f1838433d610ee2fda84dbf377e6650d5e6a453356",
+      "sha256": "2a6534926831acf5f9e95a149e229eb9a0270bde834cb9f42ecc6d1e4544dc62",
       "kind": "install",
       "phase": "pending",
       "after": [
