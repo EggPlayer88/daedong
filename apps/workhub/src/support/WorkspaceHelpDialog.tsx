@@ -5,6 +5,11 @@ import { checkCodes, checkModules, createModuleChecker, exportModuleChecks, type
 import styles from './help.css?inline'
 
 type HelpTab = 'guide' | 'checks'
+type CheckFilter = 'all' | 'attention' | 'unchecked'
+function checkGroup(result: ModuleCheck | undefined): 'confirmed' | 'attention' | 'unchecked' {
+  if (!result || result.code === 'CANCELLED') return 'unchecked'
+  return result.code === 'READ_CONFIRMED' || result.code === 'READY_RESPONSE' ? 'confirmed' : 'attention'
+}
 const statusText: Record<CheckCode, { title: string; detail: string }> = {
   READ_CONFIRMED: { title: '조회 확인', detail: '현재 계정으로 조회 응답을 확인했습니다.' },
   READY_RESPONSE: { title: '준비 응답 확인', detail: '서버가 준비 상태를 응답했습니다. 저장과 파일 전송 확인은 별도입니다.' },
@@ -30,20 +35,24 @@ function validResult(result: ModuleCheck, id: CheckId): boolean {
   return result?.id === id && checkCodes.includes(result.code) && typeof result.checkedAt === 'string'
     && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(result.checkedAt) && Number.isFinite(Date.parse(result.checkedAt))
     && new Date(result.checkedAt).toISOString() === result.checkedAt
-    && new Date(result.checkedAt).toISOString() === result.checkedAt
 }
 
 export function WorkspaceHelpDialog({ connection, memberId, scopeKey, locked, onNavigate, runCheck, onClose, returnFocus }: WorkspaceHelpProps & { onClose: () => void; returnFocus?: HTMLElement | null }) {
   const id = useId(), dialog = useRef<HTMLDialogElement>(null), search = useRef<HTMLInputElement>(null)
   const [tab, setTab] = useState<HelpTab>('guide'), [query, setQuery] = useState(''), [selected, setSelected] = useState(workspaceGuides[0].id)
   const [results, setResults] = useState<ModuleCheck[]>([]), [running, setRunning] = useState<CheckId | null>(null)
+  const [checkFilter, setCheckFilter] = useState<CheckFilter>('all')
   const [notice, setNotice] = useState(''), [navigationNotice, setNavigationNotice] = useState('')
   const operation = useRef<{ epoch: number; controller: AbortController | null }>({ epoch: 0, controller: null })
+  const checkFocus = useRef<string | null>(null)
   const alive = useRef(false), lockedNow = useRef(locked)
   lockedNow.current = locked
   const checker = useMemo(() => runCheck ?? createModuleChecker(connection, memberId), [connection, memberId, runCheck])
   const guides = useMemo(() => findGuides(query), [query])
   const guide = guides.find(item => item.id === selected) ?? guides[0]
+  const checks = checkModules.map(item => ({ ...item, result: results.find(result => result.id === item.id) }))
+  const visibleChecks = checks.filter(item => checkFilter === 'all' || checkGroup(item.result) === checkFilter || running === item.id)
+  const counts = checks.reduce((count, item) => { count[checkGroup(item.result)]++; return count }, { confirmed: 0, attention: 0, unchecked: 0 })
   const stop = useCallback(() => {
     operation.current.epoch++
     operation.current.controller?.abort()
@@ -68,6 +77,16 @@ export function WorkspaceHelpDialog({ connection, memberId, scopeKey, locked, on
     }
   }, [returnFocus, scopeKey, memberId, connection])
   useLayoutEffect(() => { if (locked) { stop(); setNotice(lockProgressNotice) } else setNotice(previous => previous === lockProgressNotice ? '' : previous) }, [locked, stop])
+  useLayoutEffect(() => {
+    if (running || !checkFocus.current) return
+    const element = dialog.current, root = element?.getRootNode()
+    const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+    // 재확인 성공으로 필터에서 행이 사라질 때 키보드의 현재 위치를 보존한다.
+    if (element && !element.querySelector(`[data-check="${checkFocus.current}"]`) && (!active || !element.contains(active))) {
+      element.querySelector<HTMLButtonElement>('.wh-help-check-filter [aria-pressed="true"]')?.focus()
+    }
+    checkFocus.current = null
+  }, [running, results, checkFilter])
 
   function changeTab(next: HelpTab) {
     if (next === tab) return
@@ -76,10 +95,13 @@ export function WorkspaceHelpDialog({ connection, memberId, scopeKey, locked, on
   }
   async function startChecks(ids: readonly CheckId[], all: boolean) {
     if (lockedNow.current || operation.current.controller) return
+    const root = dialog.current?.getRootNode(), active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+    checkFocus.current = active?.closest<HTMLElement>('[data-check]')?.dataset.check ?? null
     const epoch = ++operation.current.epoch, controller = new AbortController()
     operation.current.controller = controller
     if (all) setResults([])
     else setResults(previous => previous.filter(result => !ids.includes(result.id)))
+    setNavigationNotice('')
     setNotice('항목을 하나씩 조회합니다. 자료를 저장하거나 변경하지 않습니다.')
     const current = () => alive.current && operation.current.epoch === epoch && !controller.signal.aborted && !lockedNow.current
     try {
@@ -135,9 +157,13 @@ export function WorkspaceHelpDialog({ connection, memberId, scopeKey, locked, on
       <div className="wh-help-check-intro"><h3>현재 계정으로 조회할 수 있는지 확인해요</h3><p>버튼을 누를 때만 {checkModules.length}개 기능을 차례로 조회합니다. 조회 성공은 기능 활성화 완료를 뜻하지 않습니다.</p><details><summary>이번 점검의 범위</summary><p>학교별 목록 또는 준비 상태 응답만 확인합니다. 저장·제출·메시지 읽음·파일 업로드와 내려받기·AI 호출은 하지 않습니다. 실제 사용 확인은 별도로 필요합니다.</p><p>지원용 파일에는 기능 코드와 확인 시각만 담습니다. 이름·이메일·계정 및 학교 식별자·학생 정보·문서와 메시지 내용은 담지 않습니다.</p></details></div>
       <div className="wh-help-actions"><button type="button" className="wh-help-primary" disabled={locked || !!running} onClick={() => void startChecks(checkModules.map(item => item.id), true)}>전체 연결 점검</button>{running && <button type="button" className="wh-help-secondary" onClick={() => { stop(); setNotice('점검을 중지했습니다. 완료한 항목의 조회 결과만 남아 있습니다.') }}>점검 중지</button>}<button type="button" className="wh-help-secondary" disabled={!results.length || !!running} onClick={downloadChecks}>지원용 JSON 내려받기</button></div>
       <p className="wh-help-progress" role="status" aria-live="polite">{running ? `${checkModules.find(item => item.id === running)?.label} 조회 중 · ` : ''}{results.length} / {checkModules.length}개 항목 결과{notice && ` · ${notice}`}</p>
-      <ul className="wh-help-checks">{checkModules.map(item => {
-        const result = results.find(value => value.id === item.id), status = result ? statusText[result.code] : null
-        return <li key={item.id} data-check={item.id}><div><h4>{item.label}</h4><p className="wh-help-check-status">{running === item.id ? '조회 중…' : status?.title ?? '아직 확인하지 않음'}</p>{result && <><p>{status?.detail}</p><details><summary>진단 코드와 확인 시각</summary><code>{result.code}</code><time dateTime={result.checkedAt}>{new Date(result.checkedAt).toLocaleString('ko-KR')}</time></details></>}</div><button type="button" className="wh-help-secondary" disabled={locked || !!running} aria-label={`${item.label} ${result ? '다시 확인' : '확인'}`} onClick={() => void startChecks([item.id], false)}>{result ? '다시 확인' : '확인'}</button></li>
+      <dl className="wh-help-check-summary" aria-label="연결 점검 요약"><div><dt>조회 응답 확인</dt><dd>{counts.confirmed}</dd></div><div><dt>확인 필요</dt><dd>{counts.attention}</dd></div><div><dt>미확인·취소</dt><dd>{counts.unchecked}</dd></div></dl>
+      <div className="wh-help-check-filter" role="group" aria-label="연결 점검 결과 보기">{([{ value: 'all', label: '전체' }, { value: 'attention', label: '확인 필요' }, { value: 'unchecked', label: '미확인·취소' }] as const).map(item => <button key={item.value} type="button" aria-pressed={checkFilter === item.value} onClick={() => setCheckFilter(item.value)}>{item.label}</button>)}</div>
+      {navigationNotice && <p className="wh-help-note" role="status">{navigationNotice}</p>}
+      {!visibleChecks.length && <p className="wh-help-empty">이 조건에 해당하는 항목이 없습니다. ‘전체’에서 모든 조회 상태를 확인할 수 있습니다.</p>}
+      <ul className="wh-help-checks">{visibleChecks.map(item => {
+        const { result } = item, status = result ? statusText[result.code] : null
+        return <li key={item.id} data-check={item.id}><div className="wh-help-check-content"><h4>{item.label}</h4><p className="wh-help-check-status">{running === item.id ? '조회 중…' : status?.title ?? '아직 확인하지 않음'}</p>{result && <><p>{status?.detail}</p><details><summary>진단 코드와 확인 시각</summary><code>{result.code}</code><time dateTime={result.checkedAt}>{new Date(result.checkedAt).toLocaleString('ko-KR')}</time></details></>}</div><div className="wh-help-row-actions"><button type="button" className="wh-help-secondary" disabled={locked || !!running} aria-label={`${item.label} ${result ? '다시 확인' : '확인'}`} onClick={() => void startChecks([item.id], false)}>{result ? '다시 확인' : '확인'}</button><button type="button" className="wh-help-secondary" disabled={locked || !!running} aria-label={`${item.label} 관련 메뉴 열기`} onClick={() => { if (lockedNow.current || operation.current.controller) return; if (onNavigate(item.page)) close(); else setNavigationNotice('현재 화면의 입력이나 처리 상태를 확인한 뒤 이동해 주세요.') }}>{guidePageTitle(item.page)} 열기</button></div></li>
       })}</ul>
     </section>}
     <footer className="wh-help-footer"><span>학교의 준비 상태와 현재 권한에 따라 사용할 수 있는 기능이 다릅니다.</span><button type="button" className="wh-help-secondary" onClick={close}>닫기</button></footer>
