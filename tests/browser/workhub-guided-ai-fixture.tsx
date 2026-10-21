@@ -2,7 +2,7 @@ import React,{useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {GuidedWorkspace} from '../../apps/workhub/src/documents/GuidedWorkspace'
 import {AssistantPanel} from '../../apps/workhub/src/assistant/AssistantPanel'
-import {askResult} from '../../apps/workhub/src/assistant/contracts'
+import {askResult,ASSISTANT_ROUTING} from '../../apps/workhub/src/assistant/contracts'
 import {guidedAiSuggestion,type GuidedAiRequest,type GuidedAiSuggestion} from '../../apps/workhub/src/documents/guided-ai'
 import {createEditDrafts,EditDraftsProvider} from '../../apps/workhub/src/app/edit-drafts'
 import {createPendingRequests,PendingRequestsProvider} from '../../apps/workhub/src/app/pending-requests'
@@ -44,14 +44,14 @@ const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[
  if(name==='workhub_calendar_list')return calendar.list(args.p_member_id)
  if(name==='workhub_task_list')return tasks.listTasks(args.p_member_id)
  if(name==='workhub_document_list')return {contract:'documents.v1',schoolId:member.schoolId,memberId:member.id,data:{items:[],nextCursor:null,canShare:false}}
- if(name==='workhub_ai_threads_list')return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data:{items:[],nextCursor:null}}
- if(name==='workhub_ai_thread_get')return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data:clone(thread)}
+ if(name==='workhub_ai_policy_threads_list')return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data:{items:[],nextCursor:null}}
+ if(name==='workhub_ai_policy_thread_get')return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data:clone(thread)}
  if(/mutate|commit|save|render|publish/.test(name))throw Error('unexpected write '+name)
  throw new ContractError('QUERY_FAILED','선택 기능은 합성 시험에 포함하지 않습니다')
 }}
 let thread:any=null
 const assistant:any={readiness:async()=>({available:true}),list:async()=>({items:[],nextCursor:null}),get:async()=>clone(thread),ask:async(_:string,input:any,key:string)=>{
- w.asks.push(clone({input,key}));thread={id:'thread',mode:input.mode,version:(thread?.version??0)+1,title:'질문형 작성 도움',nextCursor:null,exchanges:[...(thread?.exchanges??(w.includeOld?[{id:'old-exchange',requestKey:'old-request',intent:'guided_collection',prompt:'이전의 다른 양식 질문',segments:[{text:'다른 양식의 과거 제안',citations:[]}],proposal:null,createdAt:'2026-10-20T00:00:00Z',studentContext:null}]:[])),{id:'exchange-'+key,requestKey:key,intent:input.intent,prompt:input.prompt,segments:[{text:'제안한 참여 계획',citations:[]}],proposal:null,createdAt:'2026-10-21T00:00:00Z',studentContext:null}]};return askResult({state:'completed',requestKey:key,thread},key)
+ w.asks.push(clone({input,key}));thread={id:'thread',mode:input.mode,version:(thread?.version??0)+1,title:'질문형 작성 도움',nextCursor:null,exchanges:[...(thread?.exchanges??(w.includeOld?[{id:'old-exchange',requestKey:'old-request',intent:'guided_collection',prompt:'이전의 다른 양식 질문',segments:[{text:'다른 양식의 과거 제안',citations:[]}],proposal:null,createdAt:'2026-10-20T00:00:00Z',studentContext:null}]:[])),{id:'exchange-'+key,requestKey:key,intent:input.intent,prompt:input.prompt,segments:[{text:'제안한 참여 계획',citations:[]}],proposal:null,createdAt:'2026-10-21T00:00:00Z',studentContext:null,...(input.quality?{execution:{quality:input.quality,model:ASSISTANT_ROUTING.models[input.quality as 'quick'|'review'].id,reviewOf:input.reviewOf}}:{})}]};return askResult({state:'completed',requestKey:key,thread},key)
 }}
 w.aiPort={async send(payload:any){const data=payload.action==='readiness'?{available:true}:await assistant.ask(payload.memberId,payload.input,payload.requestKey);return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data}}}
 function App(){const[page,setPage]=useState('guided'),[request,setRequest]=useState<GuidedAiRequest>(),[suggestion,setSuggestion]=useState<GuidedAiSuggestion>(),[actor,setActor]=useState(member),[mounted,setMounted]=useState(true),[error,setError]=useState('')

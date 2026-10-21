@@ -1,3 +1,4 @@
+import {AssistantError} from '../../apps/workhub/src/assistant/contracts'
 import React, { useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { TimetableInterventionsPanel } from '../../apps/workhub/src/timetable/TimetableInterventionsPanel'
@@ -87,9 +88,10 @@ const connection: any = {
 }
 const server = createTimetableInterventionsServer(connection)
 const assistant: any = {
+  close:async(id:string,input:any,key:string)=>{w.aiCloses??=[];w.aiCloses.push({id,input:copy(input),key});if(w.aiCloseUnknown){w.aiCloseUnknown=false;throw new AssistantError('RESULT_UNKNOWN')}return{state:'closed',requestKey:key}},
   readiness: async () => ({ available: true }),
   ask: async (id: string, input: any, key: string) => {
-    w.aiCalls.push({ id, input: copy(input), key })
+    w.aiCalls.push({ id, input: copy(input), key });if(w.aiFailCode)throw new AssistantError(w.aiFailCode)
     if (w.aiPending) return { state: 'pending', requestKey: key, reason: 'provider_unknown' }
     const contextHash = /contextHash=([a-f0-9]{64})/.exec(input.prompt)![1]
     const proposal = w.aiMode === 'move' ? { kind: 'move', lesson: 'l0', reason: '상담한 수업 이동', target: span('02') } : { kind: 'substitute', lesson: 'l0', teacher: 't1', reason: '상담한 대강 요청' }

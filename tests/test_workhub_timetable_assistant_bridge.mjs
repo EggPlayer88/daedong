@@ -16,7 +16,7 @@ function proposal(r, changes) { const c = r.context; return { contract: c.contra
 function answer(r, value) {
   return m.askResult({ state: 'completed', requestKey: key, thread: { id: 'thread-1', mode: 'school', version: 1, title: '시간표', nextCursor: null, exchanges: [{ id: 'exchange-1', requestKey: key, intent: r.input.intent, prompt: r.input.prompt, segments: [{ text: JSON.stringify(value), citations: [] }], proposal: null, createdAt: '2026-10-17T01:00:00.000Z', studentContext: null }] } }, key)
 }
-await check('일반 35교시·20수업 UUID 자료가 기존 AI 4000자 한도 안에 들어간다', async () => { const r = await request(); assert.ok(Array.from(r.input.prompt).length <= 4000); assert.ok(r.input.prompt.includes('2학년 1반 과학 1회')); assert.ok(r.input.prompt.includes('예시 교사 가')); assert.ok(!r.input.prompt.includes(r.context.basis.lessons[0].id)); assert.equal(r.input.intent, 'school_advice'); assert.deepEqual(r.input.references, []); console.log('    실제 요청 길이 ' + Array.from(r.input.prompt).length) })
+await check('일반 35교시·20수업 UUID 자료가 기존 AI 4000자 한도 안에 들어간다', async () => { const r = await request(); assert.ok(Array.from(r.input.prompt).length <= 4000); assert.ok(r.input.prompt.includes('2학년 1반 과학 1회')); assert.ok(r.input.prompt.includes('예시 교사 가')); assert.ok(!r.input.prompt.includes(r.context.basis.lessons[0].id)); assert.equal(r.input.intent, 'school_advice'); assert.equal(r.input.quality, 'quick'); assert.equal(r.input.reviewOf, null); assert.deepEqual(r.input.references, []); console.log('    실제 요청 길이 ' + Array.from(r.input.prompt).length) })
 await check('생성 후 피드백은 선택 대상의 실제 배치를 짧은 별칭으로 포함하고 4000자 한도를 지킨다', async () => {
   const b = basis(), placements = b.lessons.map((lesson, index) => ({ lessonId: lesson.id, slotId: b.slots[index].id }))
   b.lessons.push({ ...structuredClone(b.lessons[0]), id: 'foreign-lesson', courseId: 'foreign-course', label: '선택 범위 밖 수업', resourceIds: ['practice-teacher-b', 'practice-class-b'] })
@@ -58,4 +58,7 @@ await check('연속 수업의 차시와 긴 블록을 표시하고 조건이 많
   const unavailable = Array.from({ length: 300 }, (_, i) => ({ resourceId: 'practice-teacher-a', day: 1, startMinute: i, endMinute: i + 1 })), context = await m.buildTimetableAiContext(b, { fixed: [], unavailable, preferences: [] }, 'setup', '현재 불가를 설명해 주세요.')
   assert.throws(() => m.timetableAssistantRequest(context, 'practice-teacher-a'), /AI 입력 한도/); assert.equal(context.basis.unavailable.length, 300)
 })
+
+
+await check('기존 시간표 미확정 원요청에는 품질 필드를 추가하지 않는다',async()=>{const r=await request();const {quality,reviewOf,...old}=r.input;assert.deepEqual(m.assistantInput(old),old);assert.equal(Object.keys(m.assistantInput(old)).length,7)})
 console.log(`시간표 Claude 별칭·원키 보존 ${count}건 통과`)

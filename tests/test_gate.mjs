@@ -7,6 +7,7 @@ process.env.VITE_SUPABASE_URL = 'https://fake.supabase.co'
 process.env.VITE_SUPABASE_ANON_KEY = 'anon'
 process.env.ANTHROPIC_API_KEY = 'sk-test'
 const mod = await import(pathToFileURL(`${API}/chat.js`).href)
+const handler = mod.createDocAiHandler(async request => { calls.push('gateway:verified-approved'); return {state:'completed',requestKey:request.requestKey,reply:'hi',stop_reason:'end_turn'} })
 
 let fail = 0
 const ck = (n, fn) => { try { fn(); console.log(`  ✓ ${n}`) } catch (e) { fail++; console.log(`  ✗ ${n}: ${e.message}`) } }
@@ -37,35 +38,35 @@ const mockRes = () => {
   r.json = (b) => { r.body = b; return r }
   return r
 }
-const req = { method: 'POST', headers: { authorization: 'Bearer tok' }, body: { messages: [{ role: 'user', content: '안녕' }] } }
+const req = { method: 'POST', headers: { authorization: 'Bearer tok' }, body: { messages: [{ role: 'user', content: '안녕' }], requestKey:'gate-request-one', quality:'quick' } }
 
 console.log('\n[chat 게이트]')
 mockFetch({ isActive: false })
-const r1 = mockRes(); await mod.default(req, r1)
+const r1 = mockRes(); await handler(req, r1)
 ck('미승인 → 403 PENDING_APPROVAL', () => {
   A(r1.code === 403, `code=${r1.code}`)
   A(r1.body.error === 'PENDING_APPROVAL', JSON.stringify(r1.body))
   A(r1.body.message?.includes('승인 대기'), '안내 문구 없음')
 })
 ck('미승인이면 Claude API 를 호출하지 않는다 (비용 방어선)', () => {
-  A(!calls.some(u => u.includes('anthropic.com')), `호출됨: ${calls.join(', ')}`)
+  A(!calls.some(u => u.includes('anthropic.com') || u.startsWith('gateway:')), `호출됨: ${calls.join(', ')}`)
 })
 
 mockFetch({ rowMissing: true })
-const r2 = mockRes(); await mod.default(req, r2)
+const r2 = mockRes(); await handler(req, r2)
 ck('users 행이 없으면 대기로 본다 (안전한 쪽)', () => A(r2.code === 403, `code=${r2.code}`))
 
 mockFetch({ isActive: true })
-const r3 = mockRes(); await mod.default(req, r3)
+const r3 = mockRes(); await handler(req, r3)
 ck('승인 → 정상 통과 + Claude 호출', () => {
   A(r3.code === 200, `code=${r3.code}`)
-  A(calls.some(u => u.includes('anthropic.com')), '호출 안 됨')
+  A(calls.includes('gateway:verified-approved'), '공통 예산 게이트웨이 호출 안 됨')
 })
 
 // 토큰 없음은 승인 조회 전에 401
 globalThis.fetch = async () => { throw new Error('호출되면 안 됨') }
 const r4 = mockRes()
-await mod.default({ ...req, headers: {} }, r4)
+await handler({ ...req, headers: {} }, r4)
 ck('토큰 없으면 401 (승인 조회도 안 함)', () => A(r4.code === 401, `code=${r4.code}`))
 
 globalThis.fetch = realFetch

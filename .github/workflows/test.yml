@@ -63,6 +63,7 @@ jobs:
       # 기존 생성 시험의 lxml과 독립 파일 검사기의 PDF/OLE 파서를 함께 설치한다.
       # 형식별 시험은 의존성 누락을 실패로 처리하므로 미지원 성공으로 건너뛰지 않는다.
       - run: pip install -r workers/requirements.txt
+      - run: pip install -r apps/main/requirements.txt
       # 시간표 결과는 실제 CP-SAT 엔진과 독립 검증기로 함께 확인한다.
       - run: pip install -r packages/timetable/requirements.txt
       - run: npm ci
@@ -133,6 +134,20 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
       # 승인 회원 연결은 기존 회원과 접근 게이트를 보존한 새 격리 PG17에서 검사한다.
+      - name: 학교 AI 키·공통 예산·실제 응답 대조
+        env:
+          P10_AI_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          P10_AI_PORT: '55569'
+          WORKHUB_AI_SQL_REPORT: ${{ runner.temp }}/workhub-ai-policy-results
+        run: npm run test:workhub:ai-sql
+      - name: 학교 AI 계약 검사 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-ai-policy-results
+          path: ${{ runner.temp }}/workhub-ai-policy-results
+          if-no-files-found: ignore
+          retention-days: 7
       - name: 학교 교사 연결 SQL·실제 응답 대조
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

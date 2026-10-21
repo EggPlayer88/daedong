@@ -17,6 +17,7 @@
     "build:workhub": "npm run build -w apps/workhub",
     "check:workhub": "npm run check -w apps/workhub",
     "test:workhub:postgres": "node tests/integration/workhub-postgres.mjs",
+    "test:workhub:ai-sql": "node scripts/verify-workhub-ai-policy.mjs",
     "test:workhub:browser": "node tests/browser/run.mjs",
     "check:workhub:integration": "node scripts/check-workhub-integration.mjs",
     "check:workhub:design": "node docs/workhub/database-integrated/validate-design.cjs && node docs/workhub/database-integrated/check-delivery.cjs",

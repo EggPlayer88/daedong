@@ -9,6 +9,7 @@ import { launchBrowser } from './launch-browser.mjs'
 const fontCss=readFileSync(new URL('../../apps/workhub/src/typography.css',import.meta.url),'utf8'),fontBytes=readFileSync(new URL('../../apps/workhub/src/assets/fonts/PretendardVariable.woff2',import.meta.url))
 const bundle = await build({stdin:{contents:`
 import React from 'react'; import {createRoot} from 'react-dom/client';
+import {ASSISTANT_ROUTING} from './apps/workhub/src/assistant/contracts';
 import {ConnectedWorkspace} from './apps/workhub/src/app/ConnectedWorkspace';
 import {ContractError} from './apps/workhub/src/contracts';
 import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
@@ -30,7 +31,7 @@ Object.assign(window.scenario,{knowledgeEnabled:false,knowledgeSource,aiCalls:[]
  if(payload.action!=='ask')throw Error('unexpected assistant action');
  window.scenario.aiCalls.push(structuredClone(payload));
  const prior=window.scenario.aiThread;if(prior?.exchanges.some(e=>e.requestKey===payload.requestKey))return assistantEnvelope({state:'completed',requestKey:payload.requestKey,thread:prior});
- const thread={id:payload.input.threadId??'knowledge-conversation',mode:payload.input.mode,version:payload.input.expectedVersion+1,title:'자료 근거 상담',exchanges:[{id:'knowledge-answer',requestKey:payload.requestKey,intent:payload.input.intent,prompt:payload.input.prompt,segments:[{text:'선택한 학교 자료를 근거로 확인한 답변입니다.',citations:[{reference:structuredClone(payload.input.references[0]),title:knowledgeSource.title,locator:knowledgeSource.locator}]}],proposal:null,createdAt:now,studentContext:null}],nextCursor:null};
+ const thread={id:payload.input.threadId??'knowledge-conversation',mode:payload.input.mode,version:payload.input.expectedVersion+1,title:'자료 근거 상담',exchanges:[{id:'knowledge-answer',requestKey:payload.requestKey,intent:payload.input.intent,prompt:payload.input.prompt,segments:[{text:'선택한 학교 자료를 근거로 확인한 답변입니다.',citations:[{reference:structuredClone(payload.input.references[0]),title:knowledgeSource.title,locator:knowledgeSource.locator}]}],proposal:null,createdAt:now,studentContext:null,...(payload.input.quality?{execution:{quality:payload.input.quality,model:ASSISTANT_ROUTING.models[payload.input.quality].id,reviewOf:payload.input.reviewOf}}:{})}],nextCursor:null};
  window.scenario.aiThread=thread;return assistantEnvelope({state:'completed',requestKey:payload.requestKey,thread});
 }});
 const cooperationRequest={id:'cooperation-target',schoolId:'fixture-school-gaon',version:1,senderMemberId:'gaon-minjun',recipientMemberId:'gaon-soyeon',senderName:'이민준',recipientName:'한소연',title:'알림이 가리킨 정확한 협업',description:'목록 첫 항목과 다른 원본입니다.',dueDate:'2026-10-20',status:'requested',createdAt:now,updatedAt:now,taskLink:null};
@@ -52,8 +53,8 @@ if(name==='workhub_task_list')return tasks.listTasks(args.p_member_id);
 if(name==='workhub_task_get')return tasks.listTasks(args.p_member_id).find(t=>t.id===args.p_task_id);
 if(window.scenario.knowledgeEnabled){
  if(name==='workhub_knowledge_list')return{contract:'knowledge.v1',schoolId:'fixture-school-gaon',memberId:'gaon-soyeon',data:{items:[structuredClone(knowledgeSource)],nextCursor:null,canManage:true}};
- if(name==='workhub_ai_threads_list')return assistantEnvelope({items:window.scenario.aiThread?[{id:window.scenario.aiThread.id,mode:'school',version:window.scenario.aiThread.version,title:'자료 근거 상담',updatedAt:now}]:[],nextCursor:null});
- if(name==='workhub_ai_thread_get')return assistantEnvelope(structuredClone(window.scenario.aiThread));
+ if(name==='workhub_ai_policy_threads_list')return assistantEnvelope({items:window.scenario.aiThread?[{id:window.scenario.aiThread.id,mode:'school',version:window.scenario.aiThread.version,title:'자료 근거 상담',updatedAt:now}]:[],nextCursor:null});
+ if(name==='workhub_ai_policy_thread_get')return assistantEnvelope(structuredClone(window.scenario.aiThread));
 }
 if(window.scenario.cooperationEnabled){
  if(name==='workhub_messaging_readiness')return messageEnvelope({available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'});
@@ -74,7 +75,7 @@ if(writes){window.scenario.writes.push(call);throw new Error('unexpected write '
 window.scenario.readFailures.push({name,code:'NOT_READY'});throw new ContractError('QUERY_FAILED','선택 기능의 조회 RPC가 아직 없습니다.');
 }};
 createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" legacyHomeHref="/legacy" connection={connection}/>);
-`,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},plugins:[{name:'synthetic-assistant-transport',setup(build){build.onLoad({filter:/assistant[\\/]legacy-http\.ts$/},()=>({contents:'export const legacyAssistantHttp={send:async payload=>window.scenario.assistantHttp(payload)}',loader:'ts'}))}}],define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
+`,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},plugins:[{name:'synthetic-assistant-transport',setup(build){build.onLoad({filter:/assistant[\\/]legacy-http\.ts$/},()=>({contents:'export const legacyAssistantHttp={send:async payload=>window.scenario.assistantHttp(payload)};export const legacySchoolAiHttp={send:async()=>{throw Error("synthetic settings unavailable")}}',loader:'ts'}))}}],define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage(),passed=[],errors=[],expectedRenderErrors=[],external=[],output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(15000);page.on('pageerror',e=>{if(e.message==='synthetic isolated render failure')expectedRenderErrors.push(e.message);else errors.push(e.message)});
 await context.route('**/*',route=>{const url=route.request().url();if(!url.startsWith('http://127.0.0.1:5179/')){external.push(url);return route.abort()}if(url.endsWith('/assets/fonts/PretendardVariable.woff2'))return route.fulfill({contentType:'font/woff2',body:fontBytes});return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0"><div id="root"></div></body></html>'})})

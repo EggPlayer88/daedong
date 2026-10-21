@@ -165,7 +165,7 @@ await test('긴 학교 목록은 후보 수를 줄여 기존 비서 4000자 한�
   const exchanges = { ...data, canRequest: true, canPublish: false, drafts: [], publications: [] }
   exchanges.lessons = exchanges.lessons.map(row => ({ ...row, allowedTargets: Array.from({ length: 20 }, () => nextSpan) }))
   const request = await api.buildOperationsAiRequest(data, exchanges, 'l1', '요청'.repeat(450))
-  assert(Array.from(request.input.prompt).length <= 4000); assert.equal(request.lessons[0], 'l1'); assert(request.input.prompt.includes('요청'.repeat(450)))
+  assert.equal(request.input.quality,'quick'); assert.equal(request.input.reviewOf,null); assert(Array.from(request.input.prompt).length <= 4000); assert.equal(request.lessons[0], 'l1'); assert(request.input.prompt.includes('요청'.repeat(450)))
 })
 await test('Claude 상담은 별칭·조회 일부만 보내고 기존 school_advice 사용', async () => {
   const req = await api.buildOperationsAiRequest(source(), null, 'l1', '대강 부탁합니다')

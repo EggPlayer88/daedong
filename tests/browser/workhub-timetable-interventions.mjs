@@ -195,5 +195,7 @@ try {
     await region.locator('li button').first().click()
     assert.equal(await page.evaluate(() => window.openedSummary.kind), 'makeup'); assert.equal(await page.evaluate(() => window.openedSummary.lessonId), 'lesson-2'); assert.equal(await page.evaluate(() => window.openedSummary.requestId), null)
   })
+  await test('운영 AI 선행비용 실패는 상담 원문을 유지하고 새 유료 요청을 자동 시작하지 않음',async()=>{await page.evaluate(()=>window.aiFailCode='KEY_UNAVAILABLE');await ask();await page.getByRole('alert').waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),0);assert.equal(await label('도움받을 내용').inputValue(),'다음 수업을 다른 선생님이 맡을 수 있을까요?');assert.equal(await page.evaluate(()=>window.aiCalls.length),1)})
+  await test('운영 상담 원키 닫기는 미상 뒤 같은 번호로 재닫고 수업을 바꾸지 않음',async()=>{await page.evaluate(()=>{window.aiPending=true;window.aiCloseUnknown=true});await ask();await button('새 호출 없이 요청 닫기').click();await button('같은 번호로 AI 닫기 결과 확인').waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),1);await button('같은 번호로 AI 닫기 결과 확인').click();await page.getByText('AI 요청을 닫았습니다. 늦은 실행을 막았으며 상담 입력은 그대로입니다.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),0);const calls=await page.evaluate(()=>window.aiCloses);assert.deepEqual(calls[0],calls[1]);assert.equal(await page.evaluate(()=>window.writes),0)})
   assert.deepEqual(errors, []); console.log(`시간표 대강·휴강·보강·Claude 화면 ${count}개 통과`)
 } finally { await browser.close() }
