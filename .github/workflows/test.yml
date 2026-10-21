@@ -209,6 +209,20 @@ jobs:
         run: |
           python database/workhub-school-data/integration/test/run_integrated.py
           git diff --exit-code -- database/workhub-school-data/integration/INT-04_운영확장_통합점검.sql
+      - name: 미적용 SQL 한 DB 통합·배포 목록 무결성
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55609'
+          WORKHUB_DEPLOYMENT_REPORT: ${{ runner.temp }}/workhub-deployment-results
+        run: node scripts/verify-workhub-deployment.mjs --integration-only
+      - name: 미적용 SQL 통합 검증 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-deployment-results
+          path: ${{ runner.temp }}/workhub-deployment-results
+          if-no-files-found: ignore
+          retention-days: 7
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub
