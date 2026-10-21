@@ -84,6 +84,32 @@ node tests/browser/run.mjs workhub-cross-module workhub-timetable-operation-navi
 
 DB 적용·실제 회원 연결·실제 키·유료 호출·Claude 검토는 하지 않았다. 현재 자동 HWPX 수합은 질문형 양식 경로이며 일반 자유 문서 TXT와 기존 평가계획 작성 화면까지 자동 제출로 확장한 것이 아니다. 남은 연결·100MiB ZIP 상한·사용성 개선은 [상세 기록](document-collection-pipeline.md)에 구분했다.
 
+### 후속: 분할 ZIP·원본 복귀·출력·학교 원문 전송 (2026-10-21)
+
+| 검증 | 결과 | 범위 |
+|---|---:|---|
+| 전체 `npm test` | **4,920 / 0** | 이전 4,880에 분할 ZIP 14, 학교 원문 전송 25, AI 할 일 1 추가. Python 건너뜀 없음 |
+| 관련 브라우저 | **11파일 / 152항목 통과** | 문서 전체 흐름10, 교차모듈8, 가상비서10, AI운영13, 저장판출력27, 분할ZIP5, 질문형AI15, 원문가져오기11, 비서26, 문서함14, 기존ZIP13 |
+| 분할 다운로드 | **36가상교사 / 540파일 / 2 ZIP** | 실제 ZIP 바이트·CSV 이름·전체 파일 해시·누락/중복 확인. 서버 응답·Storage 전송은 합성 |
+| 파일 전송 회귀 | **학교 원문25 + 질문형17** | 해시·신원·예약·Storage·추출 지연, 늦은 후속 처리 금지, 동일 키 복구, 범위 변경·변조. 전체 4,920에 포함 |
+| 타입·빌드·정적 | **통과** | `check:workhub`, `build`, `build:workhub`, `check:workhub:design`, `git diff --check` |
+
+실제 SQL·API·서비스 설정은 이번 묶음에서 바꾸지 않았다. 앞선 PG 시험 수는 이전 묶음의 결과이며 이번 시험에 재실행된 수로 합산하지 않는다. 브라우저는 실제 React·전송 서비스·공통 RPC·파서와 다운로드를 실행하지만 서버 저장소와 AI 응답은 합성이다.
+
+**기존 #77 자동 검사 실패 정리:** head `2a0da1e`의 GitHub test는 AI 운영 브라우저의 목록 새로고침 시험에서 `25 !== 0`으로 실패했다. 합성 요청 진입 신호는 React의 로딩 화면 반영보다 먼저 올 수 있는데 시험이 즉시 기존 행 수를 셌다. 응답을 계속 보류한 상태에서 실제 로딩 안내가 나타난 뒤 목록0·집계0·버튼 잠금을 확인하도록 수정했다. 실제 목록을 비우는 제품 코드를 제거한 반대시험은 같은 `25 !== 0`으로 실패한다. CPU 4배 지연으로 13항목을 3회 반복해 모두 통과했다. 정책·기대값을 완화하지 않았다.
+
+학교 원문 업로드는 이미 서버로 보낸 요청의 물리적 취소를 보장하지 않는다. 만료 뒤 새 추출이나 후속 RPC가 시작되지 않고, 원파일·기존 요청 번호로 명시 복구하는 것을 검증한다. TXT 재조회는 저장판과 현재 조회 권한을 확인하며 학생 근거 전체의 최신 유효성을 새로 검증한다고 주장하지 않는다.
+
+```text
+node tests/test_workhub_collection_export_parts.mjs
+node tests/test_workhub_knowledge_storage.mjs
+node tests/test_workhub_guided_storage.mjs
+node tests/browser/run.mjs workhub-document-collection-flow workhub-guided-ai workhub-documents workhub-document-review workhub-collection-export workhub-knowledge-import workhub-assistant workhub-cross-module workhub-ai-operations
+npm test
+```
+
+새 push의 원격 CI 결과는 PR의 해당 head에서 확인한다. 로컬 통과를 원격 CI 완료로 바꾸어 표기하지 않는다. DB 적용·실제 회원 연결·Claude 검토·유료 호출은 보류 상태를 유지했다.
+
 ## 2. Node 게이트웨이에서 확인한 것
 
 - AES-256-GCM 왕복, 매번 다른 IV, 학교·키 판·태그·IV·마스터 키 ID 훼손 거부.
