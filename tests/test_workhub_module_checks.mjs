@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import {loadBrowserModule} from './helpers/load-browser-module.mjs'
-const {createModuleChecker,checkModules,exportModuleChecks,ContractError}=await loadBrowserModule(`export * from '../apps/workhub/src/support/module-checks'; export {ContractError} from '../apps/workhub/src/contracts'`)
+const {createModuleChecker,checkModules,exportModuleChecks,ContractError,workhubModules}=await loadBrowserModule(`export * from '../apps/workhub/src/support/module-checks'; export {workhubModules} from '../apps/workhub/src/modules'; export {ContractError} from '../apps/workhub/src/contracts'`)
 const member={id:'member',schoolId:'school',userId:'user',name:'비공개 이름',role:'teacher',active:true,validFrom:'2026-03-01',validThrough:'2027-02-28',departmentIds:[],gradeIds:[],subjectIds:[]}
 const identity={userId:'user',approved:true,profile:{id:'user',name:'비공개 이름',email:'private@example.invalid',role:'superadmin',is_active:true,department_id:null,extra_permissions:[]}}
 const envelope=(contract,data)=>({contract,schoolId:'school',memberId:'member',data})
@@ -20,12 +20,17 @@ const normalResponses={
   teaching:{contractVersion:'teaching.v1',...catalogScope,courses:[],terms:[],subjects:[],approvedTeachers:[],canManageCourses:false},
   home:envelope('home.v1',home),
   transitions:envelope('school-transitions.v1',{canManageYear:false,dutyApproval:'admin_review_v1',years:[],recipients:[],resources:[],records:[],nextCursor:null}),
+  timetable:envelope('timetable.v1',{available:true}),
+  timetableOperations:envelope('timetable-operations.v1',{available:true}),
+  schoolRoster:envelope('school-roster.v1',{available:true,reason:null,version:1,asOfDate:'2026-10-16',candidates:[],teachers:[]}),
+  schoolData:envelope('school-data-maintenance.v1',{available:true,reason:null,courses:[],course:null,students:[],teachers:[]}),
+  memory:envelope('memory.v1',{items:[],today:'2026-10-16',canWrite:true}),
 }
 function fixture(respond=()=>[]){const state={context:{memberships:[structuredClone(member)],schools:[{id:'school'}],basisDate:'2026-10-16'},identity:structuredClone(identity),calls:[],get:async()=>structuredClone(state.identity)};const connection={info:()=>structuredClone(state.context),getIdentity:()=>state.get(),rpcVerified:async(name,args)=>{state.calls.push({name,args});return respond(name,args)}};return{state,connection,run:createModuleChecker(connection,'member',{timeoutMs:1000})}}
 const signal=()=>new AbortController().signal
 let passed=0
 async function test(name,run){await run();passed++;console.log('  ✓ '+name)}
-await test('12개 기능을 모두 명시적인 조회 RPC 하나로만 확인한다',async()=>{for(const item of checkModules){const f=fixture(()=>{throw new ContractError('FORBIDDEN','private@example.invalid')});const result=await f.run(item.id,signal());assert(['FORBIDDEN','CANCELLED'].includes(result.code),item.id+':'+result.code);assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc]);assert.equal(JSON.stringify(result).includes('private'),false);assert(!/mutate|prepare|download|read_thread|inspect|complete/.test(item.rpc))}})
+await test('구축된 17개 기능을 모두 명시적인 조회 RPC 하나로만 확인한다',async()=>{for(const item of checkModules){const f=fixture(()=>{throw new ContractError('FORBIDDEN','private@example.invalid')});const result=await f.run(item.id,signal());assert(['FORBIDDEN','CANCELLED'].includes(result.code),item.id+':'+result.code);assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc]);assert.equal(JSON.stringify(result).includes('private'),false);assert(!/mutate|prepare|download|read_thread|inspect|complete/.test(item.rpc))}})
 await test('빈 일정과 업무 목록을 조회 성공으로 확인하되 저장 완료라고 하지 않는다',async()=>{const f=fixture();for(const id of ['calendar','tasks'])assert.equal((await f.run(id,signal())).code,'READ_CONFIRMED')})
 await test('학교 준비 응답과 미설치·미설정·권한 제한을 구분한다',async()=>{for(const [data,code] of [[{available:true},'READY_RESPONSE'],[{available:false,reason:'not_installed'},'DATABASE_MISSING'],[{available:false,reason:'not_configured'},'NOT_CONFIGURED'],[{available:false,reason:'forbidden'},'FORBIDDEN']])assert.equal((await fixture(()=>school(data)).run('school',signal())).code,code)})
 await test('메시지 준비와 첨부 준비를 합쳐 완성이라고 표시하지 않는다',async()=>{const data={available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'};assert.equal((await fixture(()=>messaging(data)).run('messaging',signal())).code,'PARTIAL');data.attachments='hwpx_basic_v1';assert.equal((await fixture(()=>messaging(data)).run('messaging',signal())).code,'READY_RESPONSE')})
@@ -40,11 +45,19 @@ await test('시간 초과 뒤 도착한 응답을 성공으로 돌려놓지 않�
 await test('점검별 결과를 독립적으로 재시도하고 저장 요청을 만들지 않는다',async()=>{let fail=true;const f=fixture(()=>{if(fail)throw new Error('offline');return []});assert.equal((await f.run('calendar',signal())).code,'QUERY_FAILED');fail=false;assert.equal((await f.run('calendar',signal())).code,'READ_CONFIRMED');assert.deepEqual(f.state.calls.map(x=>x.args),[{p_member_id:'member'},{p_member_id:'member'}])})
 await test('지원 JSON에서 추가 필드와 개인정보를 제거한다',()=>{const result={id:'home',code:'READ_CONFIRMED',checkedAt:'2026-10-16T00:00:00.000Z',memberId:'private-member',title:'private-title',raw:{email:'private@example.invalid'}};assert.deepEqual(JSON.parse(exportModuleChecks([result])),{format:'workhub-module-check.v1',scope:'read_only',checks:[{id:'home',code:'READ_CONFIRMED',checkedAt:result.checkedAt}]})})
 await test('알 수 없는 기능·코드·날짜·중복 결과는 지원 파일에서 거부한다',()=>{const result={id:'home',code:'READ_CONFIRMED',checkedAt:'2026-10-16T00:00:00.000Z'};for(const change of [{id:'private'},{code:'private'},{checkedAt:'2026-02-31T00:00:00.000Z'},{checkedAt:'private'}])assert.throws(()=>exportModuleChecks([{...result,...change}]));assert.throws(()=>exportModuleChecks([result,result]))})
-await test('비서·비용·파일 검사를 점검 항목에 넣지 않는다',()=>{assert.equal(checkModules.some(item=>/assistant|inspect|cleanup|timetable/.test(item.id)),false);assert.throws(()=>createModuleChecker(fixture().connection,'member',{timeoutMs:0}))})
+await test('AI 생성·비용·파일 검사는 호출하지 않고 각 항목은 기존 메뉴로만 연결한다',()=>{
+  assert.equal(checkModules.length,17)
+  assert.equal(new Set(checkModules.map(item=>item.id)).size,checkModules.length)
+  for(const item of checkModules){
+    assert(workhubModules.some(module=>module.id===item.page),item.id)
+    assert.doesNotMatch(item.rpc,/mutate|prepare|commit|close|inspect|cleanup|generate|assistant|select_memory|delete/)
+  }
+  assert.throws(()=>createModuleChecker(fixture().connection,'member',{timeoutMs:0}))
+})
 // 점검 함수를 흉내 내지 않고 각 기능의 실제 어댑터와 응답 파서를 통과시킨다.
 for(const item of checkModules)await test(`${item.label}: 정상 계약은 실제 파서를 통과하고 조회 RPC 하나만 사용한다`,async()=>{
   const f=fixture(()=>structuredClone(normalResponses[item.id])),result=await f.run(item.id,signal())
-  assert.equal(result.code,['school','collections','messaging'].includes(item.id)?'READY_RESPONSE':'READ_CONFIRMED',item.id)
+  assert.equal(result.code,['school','collections','messaging','timetable','timetableOperations','schoolRoster','schoolData','memory'].includes(item.id)?'READY_RESPONSE':'READ_CONFIRMED',item.id)
   assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc])
   assert.equal(f.state.calls[0].args.p_member_id,'member')
   assert.deepEqual(Object.keys(result).sort(),['checkedAt','code','id'])
@@ -72,7 +85,7 @@ await test('인계의 옛 계약과 꺼진 관리자 확인은 모두 부분 준
   const legacy=structuredClone(modern);delete legacy.data.dutyApproval
   for(const raw of [modern,legacy])assert.equal((await fixture(()=>raw).run('transitions',signal())).code,'PARTIAL')
 })
-await test('12개 파서에 깨진 응답을 주면 준비 완료나 조회 성공으로 표시하지 않는다',async()=>{
+await test('모든 파서에 깨진 응답을 주면 준비 완료나 조회 성공으로 표시하지 않는다',async()=>{
   for(const item of checkModules){
     const result=await fixture(()=>({private:'private@example.invalid'})).run(item.id,signal())
     assert(!['READ_CONFIRMED','READY_RESPONSE','PARTIAL'].includes(result.code),item.id+':'+result.code)
@@ -96,5 +109,65 @@ await test('학교 소속이 사라진 뒤 모든 늦은 정상 응답은 이전
     assert.equal(typeof release,'function',item.id);f.state.context.memberships=[]
     release(structuredClone(normalResponses[item.id]));assert.equal((await pending).code,'CANCELLED',item.id)
   }
+})
+await test('시간표 편성과 운영은 미설치·기준판 미준비·권한 제한을 구분한다',async()=>{
+  for(const [id,contract] of [['timetable','timetable.v1'],['timetableOperations','timetable-operations.v1']]){
+    for(const [reason,code] of [['not_installed','DATABASE_MISSING'],['basis_missing','NOT_READY'],['not_allowed','FORBIDDEN']]){
+      const f=fixture(()=>envelope(contract,{available:false,reason})),result=await f.run(id,signal())
+      assert.equal(result.code,code,id+':'+reason)
+      assert.equal(f.state.calls.length,1)
+      assert.deepEqual(f.state.calls[0].args,{p_member_id:'member'})
+    }
+  }
+})
+await test('교사 연결과 자료 정정은 빈 목록과 이용 미설정을 혼동하지 않는다',async()=>{
+  for(const id of ['schoolRoster','schoolData']){
+    for(const [reason,code] of [['not_configured','NOT_CONFIGURED'],['forbidden','FORBIDDEN']]){
+      const raw=structuredClone(normalResponses[id]);raw.data.available=false;raw.data.reason=reason
+      const f=fixture(()=>raw),result=await f.run(id,signal());assert.equal(result.code,code,id+':'+reason)
+      assert.deepEqual(f.state.calls[0].args,id==='schoolData'?{p_member_id:'member',p_course_id:null}:{p_member_id:'member'})
+    }
+  }
+})
+await test('개인 기억의 쓰기가 중지됐으면 기존 기억을 읽어도 준비 응답으로 표시하지 않는다',async()=>{
+  const raw=structuredClone(normalResponses.memory);raw.data.canWrite=false
+  const entry={id:'memory-private',schoolId:'school',memberId:'member',version:1,title:'비공개 선호',body:'private@example.invalid 개인 습관',category:'preference',enabled:true,expiresOn:null,createdAt:'2026-10-16T00:00:00Z',updatedAt:'2026-10-16T00:00:00Z'}
+  for(const items of [[],[entry]]){
+    raw.data.items=items
+    const f=fixture(()=>raw),result=await f.run('memory',signal())
+    assert.equal(result.code,'DISABLED')
+    assert.deepEqual(f.state.calls.map(call=>call.name),['workhub_ai_memory_list'])
+    assert.doesNotMatch(exportModuleChecks([result]),/private|비공개|습관|canWrite|items|schoolId|memberId/)
+  }
+})
+await test('개인 기억 쓰기 준비는 개별 기억의 선택이나 AI 호출을 대신하지 않는다',async()=>{
+  const raw=structuredClone(normalResponses.memory)
+  raw.data.items=[{id:'memory-private',schoolId:'school',memberId:'member',version:1,title:'비공개 선호',body:'private@example.invalid',category:'routine',enabled:false,expiresOn:'2026-10-01',createdAt:'2026-10-01T00:00:00Z',updatedAt:'2026-10-01T00:00:00Z'}]
+  const f=fixture(()=>raw),result=await f.run('memory',signal())
+  assert.equal(result.code,'READY_RESPONSE')
+  assert.deepEqual(f.state.calls.map(call=>call.name),['workhub_ai_memory_list'])
+  assert.deepEqual(Object.keys(result).sort(),['checkedAt','code','id'])
+})
+await test('새 점검도 다른 학교·소속 응답과 준비 중 오류를 성공으로 받지 않는다',async()=>{
+  for(const id of ['timetable','timetableOperations','schoolRoster','schoolData','memory']){
+    for(const field of ['schoolId','memberId']){
+      const raw=structuredClone(normalResponses[id]);raw[field]='other'
+      assert.equal((await fixture(()=>raw).run(id,signal())).code,'INVALID_RESPONSE',id+':'+field)
+    }
+    const raw=structuredClone(normalResponses[id]);delete raw.data;raw.error={code:'NOT_READY'}
+    assert.equal((await fixture(()=>raw).run(id,signal())).code,'NOT_READY',id)
+  }
+})
+await test('전체 점검을 내보낼 때 조회 원문·교사·수업·기억 식별자는 남지 않는다',async()=>{
+  const results=[]
+  for(const item of checkModules){
+    const f=fixture(()=>structuredClone(normalResponses[item.id]));results.push(await f.run(item.id,signal()))
+    assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc])
+  }
+  const raw=exportModuleChecks(results),data=JSON.parse(raw)
+  assert.equal(data.checks.length,17)
+  assert.equal(data.scope,'read_only')
+  for(const check of data.checks)assert.deepEqual(Object.keys(check).sort(),['checkedAt','code','id'])
+  assert.doesNotMatch(raw,/private|비공개|schoolId|memberId|canWrite|candidates|courses|teachers/)
 })
 console.log(`${passed}건 통과`)

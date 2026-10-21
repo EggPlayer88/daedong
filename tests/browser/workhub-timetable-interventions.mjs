@@ -74,7 +74,10 @@ try {
   await test('명시적으로 이동 요청에 넘긴 뒤 T3/AI 잠금을 해제하고 기존 교환 입력 연결', async () => {
     await page.evaluate(() => window.aiMode = 'move'); await ask(); await page.getByRole('region', { name: 'AI 수업 변경 제안' }).waitFor()
     await label('AI 제안을 입력란에 채우고 서버에서 변경 영향을 확인하겠습니다.').check(); await button('확인한 제안을 입력에 채우기').click()
-    await label('변경 요청 사유').waitFor(); await page.waitForFunction(() => !window.locked); assert.equal(await label('변경 요청 사유').inputValue(), '상담한 수업 이동'); assert.equal(await label('요청할 변경 종류').inputValue(), 'move'); assert.equal(await page.evaluate(() => window.writes), 0)
+    await label('변경 요청 사유').waitFor(); await page.waitForFunction(() => !window.locked)
+    // 부모 잠금 해제 다음 효과에서 제안을 채우므로, 실제 입력 반영 안내까지 기다린다.
+    await page.getByText('확인한 제안을 입력에 채웠습니다. 서버에서 변경 전후를 다시 확인한 뒤 직접 보내 주세요.', { exact: true }).waitFor()
+    assert.equal(await label('변경 요청 사유').inputValue(), '상담한 수업 이동'); assert.equal(await label('요청할 변경 종류').inputValue(), 'move'); assert.equal(await page.evaluate(() => window.writes), 0)
   })
   await test('학교·계정 전환은 이전 입력과 비동기 응답을 새 소속에 노출하지 않음', async () => {
     await label('변경 사유').fill('원담당자의 보존 입력'); await page.evaluate(() => window.switchMember('teacher-b'))
