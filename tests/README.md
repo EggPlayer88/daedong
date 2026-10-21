@@ -277,6 +277,14 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 `npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
 
 
+## DB 적용 전 공통 복구·일정 표시
+
+- `test_workhub_calendar_time.mjs`: 여러 날 일정의 시작·진행·종료 표시와 단일일·종일·연도/윤일·자정 경계 8건.
+- `workhub-module-loading.mjs`: 실제 React 지연 모듈의 명시적 재시도, 정상 화면 입력·원래 요청 번호 보존, 자동 쓰기/재시도/새로고침 없음 10건. 실제 Chromium의 같은 URL 동적 가져오기 실패 캐시도 구분한다.
+- `workhub-knowledge-assistant.mjs`: 원문 전달 실패·권한 재조회 실패·늦은 전달 응답을 포함한 20건. `workhub-calendar-views.mjs`는 홈·주·월·상세의 여러 날 표시를 함께 확인한다.
+- 실행: `npm run test:workhub:browser -- workhub-module-loading workhub-knowledge-assistant workhub-calendar workhub-home-layout`. 공통 러너에 등록했으며 운영 DB/Storage/AI에 접속하지 않는다.
+- [수정 범위·검증 경계](../docs/workhub/deployment-preparation/pre-db-completion.md).
+
 ## 질문형 HWPX 생성부터 수합 ZIP까지
 
 - `test_workhub_document_collection_pipeline.mjs`: 가상 교사 36명·9학급, 실제 생성 HWPX 37개와 기존 확정 양식 사본 6개, 원본 보존·정정판 선택·ZIP 내부 해시/본문·응답 유실·부분 재시도·변조를 확인한다. 실제 Python 생성기와 최소 검사기를 사용하며 저장은 메모리 연습 저장소다.
