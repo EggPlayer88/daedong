@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합 왕복 6개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
+
 테스트 프레임워크 없이 실행하는 스크립트다. JSX 검사는 esbuild와 React를 사용하므로 먼저 `npm ci`를 실행한다.
 각 파일은 단독 실행 가능하고, 성공하면 `✓` 줄과 `전부 통과`, 실패하면 `✗` 와 종료코드 1.
 
