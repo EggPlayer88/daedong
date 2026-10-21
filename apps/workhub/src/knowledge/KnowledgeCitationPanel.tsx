@@ -23,6 +23,7 @@ export function KnowledgeCitationPanel(props: Props) {
 function CitationScope({ connection, member, date, revision, request, onAskAssistant, onReturnToSource, returnLabel = '비서 답변으로 돌아가기', context = 'citation' }: Props) {
   const service = useMemo(() => createKnowledgeService(connection), [connection])
   const [reload, setReload] = useState(0), [handing, setHanding] = useState(false)
+  const [handoffError, setHandoffError] = useState<{ key: object; message: string }>()
   const readKey = useMemo(() => ({}), [service, member, date, request.sourceId, request.sourceVersion, revision, reload])
   const [read, setRead] = useState<{ key: object; result?: KnowledgeRevision; error: string; loading: boolean }>()
   // 권한·학교·판이 달라진 렌더에서는 effect 전에 이전 원문부터 숨긴다.
@@ -31,7 +32,7 @@ function CitationScope({ connection, member, date, revision, request, onAskAssis
   const heading = useRef<HTMLHeadingElement>(null), generation = useRef(0), flight = useRef(false)
   useEffect(() => {
     const epoch = ++generation.current
-    setRead({ key: readKey, error: '', loading: true }); setHanding(false)
+    setRead({ key: readKey, error: '', loading: true }); setHanding(false); setHandoffError(undefined)
     if (!activeAt(member, date)) { setRead({ key: readKey, error: '현재 학교 소속을 확인한 뒤 원문을 열어 주세요.', loading: false }); return }
     void service.get(member.id, request.sourceId, request.sourceVersion).then(value => {
       if (generation.current === epoch) setRead({ key: readKey, result: value, error: '', loading: false })
@@ -45,9 +46,10 @@ function CitationScope({ connection, member, date, revision, request, onAskAssis
   async function ask() {
     if (flight.current || !source || !canAsk || !onAskAssistant) return
     const epoch = generation.current
-    flight.current = true; setHanding(true)
+    flight.current = true; setHanding(true); setHandoffError(undefined)
     try { await onAskAssistant(knowledgeAssistantRequest(source, member, date)) }
-    catch { if (epoch === generation.current) setRead(value => value?.key === readKey ? { ...value, error: '자료를 비서에게 전달하지 못했습니다. 원문은 그대로 유지했습니다.' } : value) }
+    // 원문 조회 실패와 화면 전달 실패를 구분한다. 전달 실패만으로 확인한 원문을 숨기지 않는다.
+    catch { if (epoch === generation.current) setHandoffError({ key: readKey, message: '자료를 비서에게 전달하지 못했습니다. 원문은 그대로 유지했습니다. 다시 전달하거나 원문을 계속 확인해 주세요.' }) }
     finally { flight.current = false; if (epoch === generation.current) setHanding(false) }
   }
   const label = context === 'citation' ? '인용 원문 확인' : '선택한 판 원문'
@@ -63,6 +65,7 @@ function CitationScope({ connection, member, date, revision, request, onAskAssis
       <KnowledgeSourceFile key={`${source.id}:${source.version}`} connection={connection} member={member} sourceId={source.id} sourceVersion={source.version}/>
       {onAskAssistant && <button type="button" disabled={handing || !canAsk} onClick={() => void ask()}>이 자료로 질문</button>}
     </> : null}
+    {!loading && handoffError?.key === readKey && <p role="alert">{handoffError.message}</p>}
     {!loading && <button type="button" disabled={handing} onClick={() => setReload(value => value + 1)}>원문 다시 확인</button>}
     <p className="knowledge-muted">원본 번호와 판이 일치하는 자료만 표시합니다. 과거 판 조회가 준비되지 않았거나 권한이 없으면 최신 판으로 대신 표시하지 않습니다. HWPX 원본은 해당 판에 연결된 파일만 내려받습니다.</p>
   </section>

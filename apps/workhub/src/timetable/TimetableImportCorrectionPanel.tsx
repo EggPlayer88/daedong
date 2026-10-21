@@ -1,4 +1,5 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react'
+import { retryableLazy as lazy } from '../app/retryable-lazy'
+import { Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { createSchoolDataMaintenanceServer } from '../teaching/school-data-maintenance-server'

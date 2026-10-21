@@ -1,3 +1,4 @@
+import { retryableLazy as lazy } from './retryable-lazy'
 import {guidedSetupOrigin,guidedSetupSuggestion,type GuidedSetupAiOrigin,type GuidedSetupAiSuggestion} from '../documents/guided-setup-ai'
 import { assistantDocumentDraft, documentAssistantRequest, studentAssistantRequest } from './pilot-handoff'
 import type { AssistantContextRequest } from '../assistant/contracts'
@@ -8,7 +9,7 @@ import { guidedAiOrigin, guidedAiSuggestion, type GuidedAiOrigin, type GuidedAiS
 import { knowledgeAssistantContext, validKnowledgeOpenRequest, type KnowledgeOpenRequest } from '../knowledge/assistant-links'
 import { createCollectionOperations } from '../collections/operations'
 import '../typography.css'
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { HomeOverviewPanel } from '../home/HomeOverviewPanel'
 import { homeCountLabels } from '../home/counts'

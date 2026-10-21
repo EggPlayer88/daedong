@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { retryableLazy as lazy } from '../app/retryable-lazy'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest, type TimetableRecovery } from '../app/pending-requests'

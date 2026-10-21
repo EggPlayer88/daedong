@@ -1,4 +1,5 @@
-import {lazy,Suspense,useEffect,useState} from 'react'
+import { retryableLazy as lazy } from '../app/retryable-lazy'
+import { Suspense, useEffect, useState } from 'react'
 import type {Membership} from '../contracts'
 import type {SupabaseConnection} from '../connection/supabase-connection'
 import {SchoolAdminPanel} from '../setup/SchoolAdminPanel'
