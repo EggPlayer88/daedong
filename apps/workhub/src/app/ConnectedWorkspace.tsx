@@ -91,6 +91,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchNavigationLocked, setBatchNavigationLocked] = useState(false)
   const [handoff, setHandoff] = useState<{scope:string; page:PageId; fromPage:PageId; requestId?:string}>()
+  const [workReturn, setWorkReturn] = useState<{scope:string; page:PageId; fromPage:PageId}>()
   const [assistantContext, setAssistantContext] = useState<{scope:string; id:string; request:AssistantContextRequest}>()
   const [documentDraft, setDocumentDraft] = useState<{scope:string; draft:DocumentAiDraft}>()
   const [guidedOrigin, setGuidedOrigin] = useState<GuidedAiOrigin>()
@@ -102,7 +103,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [homeListOpen, setHomeListOpen] = useState<{ scope: string; kind: HomeKind; page: PageId }>()
   const [teachingOpen,setTeachingOpen]=useState<{scope:string;courseId:string;token:string;source:'home'}>()
   const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId?:string;requestId?:string;notificationId?:string;date?:string;key:string;fromPage:'home'|'calendar'|'messages'|'schoolAdmin';intent?:{kind:'makeup';lessonId:string;token:string};preparationStep?:'target'|'setup'|'preparation'|'import'}>()
-  const clearHandoffs = useCallback(() => {setHandoff(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
+  const clearHandoffs = useCallback(() => {setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
 
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
@@ -188,7 +189,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const page = navigation.page as PageId
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
-  const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; setHandoff(undefined); return true }
+  const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; setHandoff(undefined); setWorkReturn(undefined); return true }
+  useEffect(() => { if (workReturn && (page !== workReturn.page || (currentScope && currentScope !== workReturn.scope))) setWorkReturn(undefined) }, [page, currentScope, workReturn])
   // 수업 선택은 한 번의 이동에만 속한다. 다른 메뉴에서 시간표를 다시 열 때 과거 수업을 강제로 열지 않는다.
   useEffect(() => { if (page !== 'timetable') setTimetableOpen(undefined) }, [page])
   useEffect(() => { if (page !== 'students') setTeachingOpen(undefined) }, [page])
@@ -200,7 +202,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!handoff || !currentScope || navigationLocked || handoff.scope !== currentScope) return
     if (handoff.fromPage !== page) {setHandoff(undefined);return}
     const moved = handoff.requestId ? resource.openCollection(handoff.requestId) : resource.navigate(handoff.page)
-    if (moved) setHandoff(undefined)
+    if (moved) {
+      // 이동에 성공한 현재 학교의 작업만 복귀 경로로 보관한다. 이동 자체로 전송·제출하지 않는다.
+      setWorkReturn(handoff.page !== 'knowledge' && handoff.page !== handoff.fromPage ? {scope:handoff.scope,page:handoff.page,fromPage:handoff.fromPage} : undefined)
+      setHandoff(undefined)
+    }
   }, [handoff, currentScope, navigationLocked, resource, page])
   function sendToAssistant(request: AssistantContextRequest, origin?: GuidedAiOrigin) {
     if (!member) return
@@ -239,6 +245,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
         <ModuleBoundary moduleName={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
           {handoffError && <p role="alert">{handoffError}</p>}
+          {workReturn?.scope === currentScope && workReturn.page === page && <nav aria-label="작업 연결" className="timetable-source-navigation">
+            <button type="button" className="text-button" disabled={navigationLocked} onClick={() => navigate(workReturn.fromPage)}>{workReturn.fromPage === 'assistant' ? 'AI 비서로 돌아가기' : workReturn.fromPage === 'knowledge' ? '학교 자료로 돌아가기' : `${enabledModules('connected').find(item => item.id === workReturn.fromPage)?.title ?? '이전 작업'}으로 돌아가기`}</button>
+            <span>{page === 'messages' ? '전달받은 초안은 받는 사람과 내용을 확인한 뒤 전송하세요.' : page === 'collections' ? '연결한 문서와 제출 대상을 확인한 뒤 첨부·제출하세요.' : page === 'documents' ? 'AI 초안을 검토하고 필요한 내용만 반영하세요.' : '답변을 확인한 뒤 원래 작업을 이어갈 수 있습니다.'}</span>
+            {navigationLocked && <span role="status">작성 중인 내용을 마치거나 같은 요청의 결과를 확인한 뒤 돌아갈 수 있습니다.</span>}
+          </nav>}
           {homeListOpen?.scope === currentScope && homeListOpen.page === page && <nav aria-label="홈 업무 목록 연결" className="timetable-source-navigation">
             <button type="button" className="text-button" disabled={navigationLocked} onClick={() => navigate('home')}>홈 업무 요약으로 돌아가기</button>
             <span>{homeCountLabels[homeListOpen.kind].label}에서 이동했습니다. 이 목록에는 다른 상태의 항목도 표시됩니다.</span>
