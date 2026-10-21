@@ -8,9 +8,9 @@ export function createAssistantHttp(options: {
     getSession(): Promise<LegacySession | null>;
     fetch?: typeof fetch;
     timeoutMs?: number;
-    endpoint?: '/api/workhub-ai/chat' | '/api/workhub-ai/settings';
+    endpoint?: '/api/workhub-ai/chat' | '/api/workhub-ai/settings' | '/api/workhub-ai/operations';
 }): AssistantHttpPort {
-    if (options.endpoint && !['/api/workhub-ai/chat', '/api/workhub-ai/settings'].includes(options.endpoint)) throw new AssistantError('INVALID_INPUT');
+    if (options.endpoint && !['/api/workhub-ai/chat', '/api/workhub-ai/settings', '/api/workhub-ai/operations'].includes(options.endpoint)) throw new AssistantError('INVALID_INPUT');
     const send = options.fetch ?? globalThis.fetch, timeout = options.timeoutMs ?? ASSISTANT_LIMITS.clientTimeoutMs;
     if (!Number.isFinite(timeout) || timeout < 1 || timeout > 60000)
         throw new AssistantError('INVALID_INPUT');

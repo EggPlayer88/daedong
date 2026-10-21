@@ -5,7 +5,7 @@ import {SchoolAdminPanel} from '../setup/SchoolAdminPanel'
 import {SchoolTransitions} from './SchoolTransitions'
 import {SchoolRosterPanel} from '../setup/SchoolRosterPanel'
 import type {SchoolPreparationDestination} from '../setup/school-preparation-summary'
-const SchoolAiSettingsPanel=lazy(()=>import('../assistant/SchoolAiSettingsPanel').then(module=>({default:module.SchoolAiSettingsPanel})))
+const SchoolAiSettingsPanel=lazy(()=>import('../assistant/SchoolAiWorkspace').then(module=>({default:module.SchoolAiWorkspace})))
 const SchoolPreparationPanel=lazy(()=>import('../setup/SchoolPreparationPanel').then(module=>({default:module.SchoolPreparationPanel})))
 export function SchoolAdministration({connection,member,date,revision=0,onNavigationLockChange,onUpdated,onOpenPreparation,initialGuideOpen=false}:{connection:SupabaseConnection;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onUpdated?:()=>void;onOpenPreparation?:(destination:SchoolPreparationDestination)=>void;initialGuideOpen?:boolean}){
  const[tab,setTab]=useState<'settings'|'transitions'|'roster'|'ai'>('settings')

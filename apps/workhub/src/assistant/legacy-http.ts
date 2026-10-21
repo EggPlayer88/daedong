@@ -3,3 +3,4 @@ import { createAssistantHttp } from './http';
 export const legacyAssistantHttp = createAssistantHttp({ getSession });
 
 export const legacySchoolAiHttp = createAssistantHttp({ getSession, endpoint:'/api/workhub-ai/settings' });
+export const legacySchoolAiOperationsHttp = createAssistantHttp({ getSession, endpoint:'/api/workhub-ai/operations' });
