@@ -7,7 +7,7 @@ import { createEditDrafts, EditDraftsProvider } from '../../apps/workhub/src/app
 import { createPendingRequests, PendingRequestsProvider } from '../../apps/workhub/src/app/pending-requests'
 let member = { id: 'member-one', schoolId: 'school-one', userId: 'user-one', name: '합성 교사', role: 'teacher', active: true, validFrom: '2026-01-01', validThrough: '2027-12-31', departmentIds: [], gradeIds: [], subjectIds: [] }
 const source = { id: 'source-one', schoolId: member.schoolId, authorMemberId: member.id, version: 7, status: 'published', title: '학교 자료 원본', kind: 'school_guide', body: '인용한 7판의 확인된 원문', locator: '제3조', effectiveFrom: '2026-03-01', effectiveThrough: '2027-02-28', updatedAt: '2026-10-19T00:00:00Z' }
-const qa = window.qa = { source, calls: [], asks: [], pages: null, revisions: null, historyPages: null, readError: null, fail: false, deferred: false, releases: [], writeUnknown: false, returns: 0, pending: createPendingRequests(), drafts: createEditDrafts(), connectionNumber: 0 }
+const qa = window.qa = { source, calls: [], asks: [], askFailure: false, askDeferred: false, askReleases: [], pages: null, revisions: null, historyPages: null, readError: null, fail: false, deferred: false, releases: [], writeUnknown: false, returns: 0, pending: createPendingRequests(), drafts: createEditDrafts(), connectionNumber: 0 }
 const envelope = data => ({ contract: 'knowledge.v1', schoolId: member.schoolId, memberId: member.id, data })
 function connection() { return { info: () => ({ memberships: [member], schools: [{ id: member.schoolId }], basisDate: '2026-10-19' }), getIdentity: async () => ({ userId: member.userId, approved: true }), rpcVerified: async (name, args) => {
   qa.calls.push({ name, args: structuredClone(args) })
@@ -37,7 +37,7 @@ function App() {
   qa.refresh = () => setRevision(x => x + 1)
   qa.syncChange = type => { flushSync(() => { if (type === 'date') setDate('2027-03-01'); else if (type === 'connection') setConn(connection()); else setRevision(x => x + 1) }); return document.querySelector('.knowledge-citation')?.textContent }
   qa.changeMember = () => { member = { ...member, id: 'member-other', userId: 'user-other', schoolId: 'school-other' }; setRevision(x => x + 1) }
-  const props = { connection: conn, member, date, revision, onAskAssistant: request => qa.asks.push(request), onReturnToSource: () => qa.returns++ }
+  const props = { connection: conn, member, date, revision, onAskAssistant: async request => { qa.asks.push(request); if (qa.askDeferred) await new Promise((resolve, reject) => qa.askReleases.push(() => qa.askFailure ? reject(Error('synthetic handoff')) : resolve())); else if (qa.askFailure) throw Error('synthetic handoff') }, onReturnToSource: () => qa.returns++ }
   return <EditDraftsProvider store={qa.drafts}><PendingRequestsProvider store={qa.pending}>{citationOnly && open ? <KnowledgeCitationPanel {...props} request={open}/> : <KnowledgeWorkspace {...props} openRequest={open}/>}</PendingRequestsProvider></EditDraftsProvider>
 }
 createRoot(document.getElementById('root')).render(<App/>)

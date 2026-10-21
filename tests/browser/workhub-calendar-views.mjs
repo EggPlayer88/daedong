@@ -15,6 +15,9 @@ const bundle = buildSync({ stdin: { contents: `
   data.events.push({...base,id:'boundary',title:'월 경계 장기 일정',startDate:'2026-09-30',endDate:'2026-10-02',allDay:true,startTime:'',endTime:''});
   data.events.push({...base,id:'next-month',title:'다음 달 일정',startDate:'2026-11-02',endDate:'2026-11-02'});
   data.events.push({...base,id:'very-far',title:'7일 밖의 일정',startDate:'2026-10-27',endDate:'2026-10-27'});
+  data.events.push({...base,id:'ongoing-timed',title:'이어지는 시간 지정 일정',startDate:'2026-10-18',endDate:'2026-10-20',allDay:false,startTime:'18:00',endTime:'09:00'});
+  data.events.push({...base,id:'starting-timed',title:'오늘 시작하는 기간 일정',startDate:'2026-10-19',endDate:'2026-10-21',allDay:false,startTime:'17:00',endTime:'10:00'});
+  data.events.push({...base,id:'ending-timed',title:'오늘 끝나는 기간 일정',startDate:'2026-10-17',endDate:'2026-10-19',allDay:false,startTime:'20:00',endTime:'08:00'});
   for(let i=0;i<5;i++)data.events.push({...base,id:'many-'+i,title:'추가 관련 일정 '+i,startDate:'2026-10-'+(22+i),endDate:'2026-10-'+(22+i)});
   const adapter=createMemoryAdapter(data,15),member=data.memberships[0];
   const scenario={adapter,locked:false,revision:0,page:'home',refresh(){this.revision++;render()},unmount(){root.unmount()}};window.scenario=scenario;
@@ -38,6 +41,18 @@ async function settled() { await page.evaluate(() => new Promise(resolve => requ
 async function screenshot(name) { if (process.env.WORKHUB_QA_OUTPUT) { mkdirSync(process.env.WORKHUB_QA_OUTPUT, { recursive: true }); await page.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, name + '.png'), fullPage: true }) } }
 try {
   await boot()
+  const todayList=page.locator('.home-today')
+  const expandToday=todayList.getByRole('button',{name:/오늘 일정 \d+개 모두 보기/})
+  if(await expandToday.count())await expandToday.click()
+  for(const [title,primary,secondary] of [['이어지는 시간 지정 일정','진행','중'],['오늘 시작하는 기간 일정','17:00','시작'],['오늘 끝나는 기간 일정','08:00','종료']]){
+    const card=todayList.getByRole('button',{name:`${title} · 원본 v1 보기`,exact:true})
+    await card.waitFor();assert.equal(await card.locator('.home-time-tile strong').innerText(),primary);assert.equal(await card.locator('.home-time-tile small').innerText(),secondary)
+  }
+  const ongoing=todayList.getByRole('button',{name:'이어지는 시간 지정 일정 · 원본 v1 보기',exact:true})
+  assert.match(await ongoing.locator('.sr-only').innerText(),/2026-10-18 18:00 시작 · 2026-10-20 09:00 종료/)
+  await ongoing.click()
+  await page.getByRole('dialog').getByText('2026-10-18 18:00 시작 · 2026-10-20 09:00 종료',{exact:false}).waitFor()
+  await page.getByRole('dialog').getByRole('button',{name:'닫기',exact:true}).click()
   const upcoming = page.locator('.home-upcoming')
   assert.equal(await upcoming.locator('.event-card').count(), 3)
   assert.ok((await upcoming.innerText()).includes('6개 중 먼저 3개 표시'))
@@ -59,12 +74,17 @@ try {
   await page.getByRole('button', { name: '다음 달 일정 · 원본 v1 보기', exact: true }).waitFor()
   await page.getByRole('button', { name: '오늘로', exact: true }).click()
   await page.getByRole('button', { name: '주', exact: true }).click()
+  const ongoingToday=page.getByRole('region',{name:'2026-10-19 일정',exact:true}).getByRole('button',{name:'이어지는 시간 지정 일정 · 원본 v1 보기',exact:true})
+  await ongoingToday.waitFor();assert.equal(await ongoingToday.locator('.date-tile strong').innerText(),'19')
+  assert.match(await ongoingToday.innerText(),/2026-10-18 18:00 시작 · 2026-10-20 09:00 종료/)
   assert.equal(await page.locator('.cv-week-day').count(), 7)
   assert.equal(await page.getByRole('button', { name: '도서관 독서 주간 · 원본 v1 보기', exact: true }).count(), 5)
   await page.getByRole('button', { name: '다음 주', exact: true }).click()
   assert.equal(await page.getByRole('button', { name: '도서관 독서 주간 · 원본 v1 보기', exact: true }).count(), 0)
   await page.getByRole('button', { name: '오늘로', exact: true }).click()
   await page.getByRole('button', { name: '월', exact: true }).click()
+  const selectedOngoing=page.locator('.cv-selected-day').getByRole('button',{name:'이어지는 시간 지정 일정 · 원본 v1 보기',exact:true})
+  await selectedOngoing.waitFor();assert.equal(await selectedOngoing.locator('.date-tile strong').innerText(),'19')
   const initialDay = page.locator('[data-calendar-day="2026-10-19"]')
   await initialDay.focus(); await page.keyboard.press('ArrowRight'); await settled()
   assert.equal(await page.locator('[data-calendar-day="2026-10-20"]').getAttribute('aria-pressed'), 'true')
