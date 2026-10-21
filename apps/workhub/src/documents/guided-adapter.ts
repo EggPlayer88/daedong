@@ -2,6 +2,7 @@ import type {LegacySession} from '../connection/contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import { createScopedRpc, exact, identifier, object, ServiceError, text, version } from '../services/scoped-rpc'
+import { FILE_TECHNICAL_LIMITS } from '../files/contracts'
 import fileLimits from '../../../main/api/collections/_assets/hwpx-basic.json'
 import { artifact, detail, GUIDED_BUCKET, GUIDED_CONTRACT, guidedCommand, guidedReceipt, inspection, sha, template, type CollectionTarget, type GuidedCommand, type GuidedHttpInput } from './guided-contracts'
 
@@ -21,8 +22,19 @@ export const legacyGuidedPort:GuidedPort={
  run:createGuidedHttp({getSession:async()=>(await import('@daedong/shared')).getSession()}),
 }
 export const blobSha=async(blob:Blob)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),n=>n.toString(16).padStart(2,'0')).join('')
-export function createGuidedService(connection:SupabaseConnection,port:GuidedPort=legacyGuidedPort){
+export function createGuidedService(connection:SupabaseConnection,port:GuidedPort=legacyGuidedPort,options:{timeoutMs?:number}={}){
+ const timeoutMs=options.timeoutMs??FILE_TECHNICAL_LIMITS.timeoutMs
+ if(!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw new ServiceError('INVALID_INPUT')
  const rpc=createScopedRpc(connection,GUIDED_CONTRACT),reservations=new Map<string,{path:string;sha256:string;bytes:number;scope:string}>()
+ // Storage가 응답하지 않아도 입력 잠금을 풀되, 늦은 완료로 다음 요청을 보내지 않는다.
+ async function bounded<T>(run:(guard:()=>void)=>Promise<T>,code:'RESULT_UNKNOWN'|'QUERY_FAILED',memberId:string):Promise<T>{
+  const scope=recoveryScope(member(memberId))
+  let timer:ReturnType<typeof setTimeout>|undefined,expired=false
+  const guard=()=>{if(expired)throw new ServiceError(code);try{if(recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED')}catch{throw new ServiceError('CANCELLED')}}
+  try{return await Promise.race([Promise.resolve().then(()=>{guard();return run(guard)}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(new ServiceError(code))},timeoutMs)})])}
+  catch(error){throw error instanceof ServiceError?error:new ServiceError(code)}
+  finally{expired=true;clearTimeout(timer)}
+ }
  const member=(memberId:string)=>{const current=connection.info().memberships.find(m=>m.id===memberId);if(!current)throw new ServiceError('INACTIVE_MEMBERSHIP');return current}
  async function run(input:GuidedHttpInput){const original=member(input.memberId),scope=recoveryScope(original);const raw=await port.run(input,original.userId);let current;try{current=await connection.getIdentity()}catch{throw new ServiceError('CANCELLED')}if(!current?.approved||current.userId!==original.userId||recoveryScope(member(input.memberId))!==scope)throw new ServiceError('CANCELLED');if(!object(raw)||raw.contract!==GUIDED_CONTRACT||raw.schoolId!==original.schoolId||raw.memberId!==original.id)throw new ServiceError('INVALID_RESPONSE');exact(raw,['contract','schoolId','memberId','data']);return raw.data}
  return{
@@ -30,18 +42,35 @@ export function createGuidedService(connection:SupabaseConnection,port:GuidedPor
   get(memberId:string,id:string){return rpc.call(memberId,'workhub_template_get',{p_template_id:identifier(id)},(value,m)=>detail(value,m,id))},
   targets(memberId:string){return rpc.call(memberId,'workhub_template_collection_targets',{},value=>{exact(value,['items']);if(!Array.isArray(value.items)||value.items.length>200)throw new ServiceError('INVALID_RESPONSE');const items:CollectionTarget[]=value.items.map(v=>{exact(v,['requestId','title','version']);return{requestId:identifier(v.requestId),title:text(v.title,200,true),version:version(v.version)}});if(new Set(items.map(t=>t.requestId)).size!==items.length)throw new ServiceError('INVALID_RESPONSE');return items})},
   async prepare(memberId:string,file:File,title:string,key:string,replayOnly=false){
-   if(!/\.hwpx$/i.test(file.name)||/[<>:"/\\|?*\u0000-\u001f]/.test(file.name)||!file.size||file.size>fileLimits.maxFileBytes)throw new ServiceError('INVALID_INPUT');const hash=await blobSha(file)
-   return rpc.call(memberId,replayOnly?'workhub_template_prepare_get':'workhub_template_prepare',{p_file:{name:file.name,bytes:file.size,sha256:hash},p_title:text(title,200,true),p_request_key:key},(value,m)=>{exact(value,['templateId','templateVersion','bucket','path','bytes','sha256','uploaded']);const id=identifier(value.templateId),path=`${m.schoolId}/${m.id}/${id}/source.hwpx`;if(value.bucket!==GUIDED_BUCKET||value.path!==path||value.bytes!==file.size||value.sha256!==hash||typeof value.uploaded!=='boolean')throw new ServiceError('INVALID_RESPONSE');reservations.set(m.id+':'+id,{path,bytes:file.size,sha256:hash,scope:recoveryScope(m)});return{templateId:id,templateVersion:version(value.templateVersion),path,uploaded:value.uploaded}},!replayOnly)
+   if(!/\.hwpx$/i.test(file.name)||/[<>:"/\\|?*\u0000-\u001f]/.test(file.name)||!file.size||file.size>fileLimits.maxFileBytes)throw new ServiceError('INVALID_INPUT')
+   return bounded(async guard=>{
+    const hash=await blobSha(file);guard()
+    const result=await rpc.call(memberId,replayOnly?'workhub_template_prepare_get':'workhub_template_prepare',{p_file:{name:file.name,bytes:file.size,sha256:hash},p_title:text(title,200,true),p_request_key:key},(value,m)=>{guard();exact(value,['templateId','templateVersion','bucket','path','bytes','sha256','uploaded']);const id=identifier(value.templateId),path=`${m.schoolId}/${m.id}/${id}/source.hwpx`;if(value.bucket!==GUIDED_BUCKET||value.path!==path||value.bytes!==file.size||value.sha256!==hash||typeof value.uploaded!=='boolean')throw new ServiceError('INVALID_RESPONSE');reservations.set(m.id+':'+id,{path,bytes:file.size,sha256:hash,scope:recoveryScope(m)});return{templateId:id,templateVersion:version(value.templateVersion),path,uploaded:value.uploaded}},!replayOnly,guard)
+    guard();return result
+   },replayOnly?'QUERY_FAILED':'RESULT_UNKNOWN',memberId)
   },
-  async upload(memberId:string,templateId:string,file:File){const original=member(memberId),scope=recoveryScope(original),reservation=reservations.get(memberId+':'+templateId);if(!reservation||reservation.scope!==scope||file.size!==reservation.bytes||await blobSha(file)!==reservation.sha256)throw new ServiceError('INVALID_INPUT');const identity=await connection.getIdentity();if(!identity?.approved||identity.userId!==original.userId||recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED');await port.upload(reservation.path,file);let current;try{current=await connection.getIdentity()}catch{throw new ServiceError('CANCELLED')}if(!current?.approved||current.userId!==original.userId||recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED')},
+  async upload(memberId:string,templateId:string,file:File){return bounded(async guard=>{
+   const original=member(memberId),scope=recoveryScope(original),reservation=reservations.get(memberId+':'+templateId)
+   if(!reservation||reservation.scope!==scope||file.size!==reservation.bytes)throw new ServiceError('INVALID_INPUT')
+   const hash=await blobSha(file);guard();if(hash!==reservation.sha256)throw new ServiceError('INVALID_INPUT')
+   const identity=await connection.getIdentity();guard();if(!identity?.approved||identity.userId!==original.userId||recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED')
+   await port.upload(reservation.path,file);guard()
+   let current;try{current=await connection.getIdentity()}catch{throw new ServiceError('CANCELLED')}
+   guard();if(!current?.approved||current.userId!==original.userId||recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED')
+  },'RESULT_UNKNOWN',memberId)},
   async inspect(memberId:string,id:string,expectedVersion:number,key:string){const value=await run({action:'inspect',memberId,templateId:identifier(id),templateVersion:version(expectedVersion),responseId:null,responseVersion:null,requestKey:identifier(key)});exact(value,['templateId','templateVersion','inspection']);if(value.templateId!==id||value.templateVersion!==expectedVersion)throw new ServiceError('INVALID_RESPONSE');return inspection(value.inspection)},
   mutate(memberId:string,command:GuidedCommand,key:string){const checked=guidedCommand(command);return rpc.call(memberId,'workhub_template_mutate',{p_command:checked,p_request_key:key},value=>guidedReceipt(value,key,checked),true)},
   recover(memberId:string,command:GuidedCommand,key:string){const checked=guidedCommand(command);return rpc.call(memberId,'workhub_template_request_get',{p_command:checked,p_request_key:key},value=>guidedReceipt(value,key,checked))},
   recoverOperation(memberId:string,input:Omit<GuidedHttpInput,'memberId'>){return rpc.call(memberId,'workhub_template_operation_get',{p_operation:input},value=>{if(input.action==='inspect'){exact(value,['templateId','templateVersion','inspection']);if(value.templateId!==input.templateId||value.templateVersion!==input.templateVersion)throw new ServiceError('INVALID_RESPONSE');inspection(value.inspection);return value}const result=artifact(value);if(result.templateId!==input.templateId||result.templateVersion!==input.templateVersion||result.responseId!==input.responseId||result.responseVersion!==input.responseVersion)throw new ServiceError('INVALID_RESPONSE');return result})},
   async render(memberId:string,templateId:string,templateVersion:number,responseId:string,responseVersion:number,key:string){const value=artifact(await run({action:'render',memberId,templateId:identifier(templateId),templateVersion:version(templateVersion),responseId:identifier(responseId),responseVersion:version(responseVersion),requestKey:identifier(key)}));if(value.templateId!==templateId||value.templateVersion!==templateVersion||value.responseId!==responseId||value.responseVersion!==responseVersion)throw new ServiceError('INVALID_RESPONSE');return value},
   async download(memberId:string,artifactId:string){
-   const access=()=>rpc.call(memberId,'workhub_document_artifact_access',{p_artifact_id:identifier(artifactId)},(value,m)=>{exact(value,['artifact','bucket','path','ownerMemberId']);const a=artifact(value.artifact);if(a.artifactId!==artifactId||value.bucket!==GUIDED_BUCKET||value.path!==`${m.schoolId}/${identifier(value.ownerMemberId)}/${artifactId}/output.hwpx`)throw new ServiceError('INVALID_RESPONSE');return{artifact:a,path:value.path as string,ownerMemberId:value.ownerMemberId}})
-   const first=await access(),blob=await port.download(first.path);if(blob.size!==first.artifact.bytes||await blobSha(blob)!==first.artifact.sha256)throw new ServiceError('CONFLICT');const second=await access();if(JSON.stringify(first)!==JSON.stringify(second))throw new ServiceError('CONFLICT');return blob
+   const access=(guard:()=>void)=>rpc.call(memberId,'workhub_document_artifact_access',{p_artifact_id:identifier(artifactId)},(value,m)=>{exact(value,['artifact','bucket','path','ownerMemberId']);const a=artifact(value.artifact);if(a.artifactId!==artifactId||value.bucket!==GUIDED_BUCKET||value.path!==`${m.schoolId}/${identifier(value.ownerMemberId)}/${artifactId}/output.hwpx`)throw new ServiceError('INVALID_RESPONSE');return{artifact:a,path:value.path as string,ownerMemberId:value.ownerMemberId}},false,guard)
+   return bounded(async guard=>{
+    const first=await access(guard);guard();const blob=await port.download(first.path);guard()
+    if(!(blob instanceof Blob)||blob.size!==first.artifact.bytes)throw new ServiceError('CONFLICT')
+    const hash=await blobSha(blob);guard();if(hash!==first.artifact.sha256)throw new ServiceError('CONFLICT')
+    const second=await access(guard);guard();if(JSON.stringify(first)!==JSON.stringify(second))throw new ServiceError('CONFLICT');return blob
+   },'QUERY_FAILED',memberId)
   },
  }
 }
