@@ -13,7 +13,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # 전체 SQL·브라우저 회귀가 늘어 정상 검사도 30분을 넘는다. 개별 시험 제한은 유지한다.
+    timeout-minutes: 60
     services:
       # 운영과 관계없는 합성 시험 DB이며 작업이 끝나면 함께 폐기된다.
       postgres:
@@ -146,6 +147,20 @@ jobs:
         with:
           name: workhub-ai-policy-results
           path: ${{ runner.temp }}/workhub-ai-policy-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: 개인 AI 기억 SQL·격리·원번호 복구·앱 응답
+        env:
+          M1_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          M1_TEST_PORT: '55589'
+          WORKHUB_AI_MEMORY_REPORT: ${{ runner.temp }}/workhub-ai-memory-results
+        run: npm run test:workhub:memory-sql
+      - name: 개인 AI 기억 검사 결과 보관
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: workhub-ai-memory-results
+          path: ${{ runner.temp }}/workhub-ai-memory-results
           if-no-files-found: ignore
           retention-days: 7
       - name: 학교 교사 연결 SQL·실제 응답 대조

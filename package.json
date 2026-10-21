@@ -27,7 +27,8 @@
     "check:workhub:release": "node scripts/check-workhub-release.mjs",
     "test:workhub:release-sql": "bash scripts/verify-workhub-release-sql.sh",
     "check:workhub:timetable": "node scripts/check-workhub-timetable.mjs",
-    "check:workhub:school-pilot": "node scripts/check-workhub-school-pilot.mjs"
+    "check:workhub:school-pilot": "node scripts/check-workhub-school-pilot.mjs",
+    "test:workhub:memory-sql": "node scripts/verify-workhub-ai-memory.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

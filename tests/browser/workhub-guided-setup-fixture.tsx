@@ -1,4 +1,4 @@
-import React,{useState} from 'react'
+import React,{useEffect,useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {GuidedWorkspace} from '../../apps/workhub/src/documents/GuidedWorkspace'
 import {AssistantPanel} from '../../apps/workhub/src/assistant/AssistantPanel'
@@ -63,10 +63,12 @@ const assistant:any={readiness:async()=>({available:true}),list:async()=>({items
 }}
 w.aiPort={async send(payload:any){return aiEnvelope(payload.action==='readiness'?{available:true}:await assistant.ask(payload.memberId,payload.input,payload.requestKey))}}
 function App(){const[page,setPage]=useState('guided'),[request,setRequest]=useState<any>(),[suggestion,setSuggestion]=useState<any>(),[actor,setActor]=useState(member),[revision,setRevision]=useState(0)
+ // 시험에서 갱신 요청과 실제 React 반영을 구분한다. 하위 화면의 이전 요청 정리가 끝난 뒤 표시한다.
+ useEffect(()=>{w.appliedRevision=revision},[revision])
  w.changeTemplate=()=>{template={...template,version:3};response=response?{...response,templateVersion:3}:null}
  w.changeSource=()=>{template={...template,inspection:{...template.inspection,templateSha256:'c'.repeat(64)}}}
  w.changeScope=()=>{current={...localMember,id:'other-teacher',userId:'other-user',schoolId:'other-school'};setActor(current)}
- w.refresh=()=>setRevision(v=>v+1)
+ w.refresh=()=>{setRevision(v=>v+1);return revision+1}
  return <EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}><style>{styles}</style>{page==='guided'?<GuidedWorkspace key={actor.id} connection={connection} member={actor as any} date="2026-10-21" revision={revision} setupAiSuggestion={suggestion} onRequestGuidedSetupAi={value=>{w.lastRequest=clone(value);setRequest(value);setPage('assistant')}} onOpenFileCollections={()=>{w.fileOpens++}} onNavigationLockChange={value=>w.locked=value}/>:<AssistantPanel connection={connection} member={actor as any} date="2026-10-21" server={assistant} contextRequest={request?{id:request.origin.id,request:{mode:'personal',intent:'guided_collection',prompt:request.request.title+'\n\n'+request.request.details,references:[],studentContext:null}}:undefined} onDraftReady={(value,contextId)=>{w.returnContext=contextId;if(request&&contextId===request.origin.id){setSuggestion({origin:request.origin,requestId:value.requestKey,body:value.segments.map(s=>s.text).join('\n\n')});setPage('guided')}}}/>}</PendingRequestsProvider></EditDraftsProvider>
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode>{w.connected?<ConnectedWorkspace expectedUserId={member.userId} legacyHomeHref="/legacy" connection={connection}/>:<App/>}</React.StrictMode>)

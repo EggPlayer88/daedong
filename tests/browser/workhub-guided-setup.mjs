@@ -42,7 +42,13 @@ try{
   await choose();await confirm();await page.evaluate(()=>window.getError='FORBIDDEN');await panel().getByRole('button',{name:'선택한 연결 제안 반영',exact:true}).click();await panel().getByRole('alert').waitFor();assert.equal(await page.getByLabel('질문 내용',{exact:true}).count(),1);assert.deepEqual(await writes(),[])
  })
  await check('반영 조회 중 새로고침하면 늦은 응답을 버리고 기존 질문만 남긴다',async()=>{
-  await choose();await confirm();await page.evaluate(()=>window.deferGet=true);await panel().getByRole('button',{name:'선택한 연결 제안 반영',exact:true}).click();await page.waitForFunction(()=>typeof window.resolveGet==='function');await page.evaluate(()=>window.refresh());await page.evaluate(()=>window.resolveGet());await page.waitForFunction(()=>window.locked===false);assert.equal(await page.getByLabel('질문 내용',{exact:true}).count(),1);assert.deepEqual(await writes(),[])
+  await choose();await confirm();await page.evaluate(()=>window.deferGet=true);await panel().getByRole('button',{name:'선택한 연결 제안 반영',exact:true}).click();await page.waitForFunction(()=>typeof window.resolveGet==='function')
+  const revision=await page.evaluate(()=>window.refresh())
+  // setState 호출만으로 갱신이 반영된 것은 아니다. 화면의 세대 변경 뒤에 이전 응답을 도착시킨다.
+  await page.waitForFunction(value=>window.appliedRevision===value,revision)
+  await panel().locator('label').filter({hasText:'선택한 질문과 원본 위치를 확인했습니다'}).locator('input:not(:checked)').waitFor()
+  assert.equal(await panel().getByLabel('선택한 질문과 원본 위치를 확인했습니다',{exact:true}).isChecked(),false)
+  await page.evaluate(()=>window.resolveGet());await page.waitForFunction(()=>window.locked===false);assert.equal(await page.getByLabel('질문 내용',{exact:true}).count(),1);assert.deepEqual(await writes(),[])
  })
  await check('AI 요청은 선택 문맥 확인과 명시 전송 뒤에만 실행하고 제안으로만 돌아온다',async()=>{
   await ask();assert.equal(await page.evaluate(()=>window.asks.length),1);await back();await panel().getByLabel('제안 질문 1',{exact:true}).waitFor();assert.equal(await panel().getByLabel('제안 질문 1',{exact:true}).inputValue(),'활동 이름은 무엇인가요?');assert.equal(await page.getByLabel('질문 내용',{exact:true}).count(),1);assert.deepEqual(await writes(),[]);assert.equal(await page.evaluate(()=>window.lastRequest.origin.id===window.returnContext),true);await choose();await apply();assert.equal(await page.getByLabel('질문 내용',{exact:true}).count(),3)
