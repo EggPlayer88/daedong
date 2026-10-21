@@ -2,7 +2,7 @@ import type {LegacySession} from '../connection/contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import { createScopedRpc, exact, identifier, object, ServiceError, text, version } from '../services/scoped-rpc'
-import { FILE_TECHNICAL_LIMITS } from '../files/contracts'
+import { createScopedFileOperation } from '../services/scoped-file-operation'
 import fileLimits from '../../../main/api/collections/_assets/hwpx-basic.json'
 import { artifact, detail, GUIDED_BUCKET, GUIDED_CONTRACT, guidedCommand, guidedReceipt, inspection, sha, template, type CollectionTarget, type GuidedCommand, type GuidedHttpInput } from './guided-contracts'
 
@@ -23,18 +23,8 @@ export const legacyGuidedPort:GuidedPort={
 }
 export const blobSha=async(blob:Blob)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),n=>n.toString(16).padStart(2,'0')).join('')
 export function createGuidedService(connection:SupabaseConnection,port:GuidedPort=legacyGuidedPort,options:{timeoutMs?:number}={}){
- const timeoutMs=options.timeoutMs??FILE_TECHNICAL_LIMITS.timeoutMs
- if(!Number.isFinite(timeoutMs)||timeoutMs<1||timeoutMs>120000)throw new ServiceError('INVALID_INPUT')
  const rpc=createScopedRpc(connection,GUIDED_CONTRACT),reservations=new Map<string,{path:string;sha256:string;bytes:number;scope:string}>()
- // Storage가 응답하지 않아도 입력 잠금을 풀되, 늦은 완료로 다음 요청을 보내지 않는다.
- async function bounded<T>(run:(guard:()=>void)=>Promise<T>,code:'RESULT_UNKNOWN'|'QUERY_FAILED',memberId:string):Promise<T>{
-  const scope=recoveryScope(member(memberId))
-  let timer:ReturnType<typeof setTimeout>|undefined,expired=false
-  const guard=()=>{if(expired)throw new ServiceError(code);try{if(recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED')}catch{throw new ServiceError('CANCELLED')}}
-  try{return await Promise.race([Promise.resolve().then(()=>{guard();return run(guard)}),new Promise<never>((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(new ServiceError(code))},timeoutMs)})])}
-  catch(error){throw error instanceof ServiceError?error:new ServiceError(code)}
-  finally{expired=true;clearTimeout(timer)}
- }
+ const bounded=createScopedFileOperation(connection,options)
  const member=(memberId:string)=>{const current=connection.info().memberships.find(m=>m.id===memberId);if(!current)throw new ServiceError('INACTIVE_MEMBERSHIP');return current}
  async function run(input:GuidedHttpInput){const original=member(input.memberId),scope=recoveryScope(original);const raw=await port.run(input,original.userId);let current;try{current=await connection.getIdentity()}catch{throw new ServiceError('CANCELLED')}if(!current?.approved||current.userId!==original.userId||recoveryScope(member(input.memberId))!==scope)throw new ServiceError('CANCELLED');if(!object(raw)||raw.contract!==GUIDED_CONTRACT||raw.schoolId!==original.schoolId||raw.memberId!==original.id)throw new ServiceError('INVALID_RESPONSE');exact(raw,['contract','schoolId','memberId','data']);return raw.data}
  return{

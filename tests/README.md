@@ -1,6 +1,6 @@
 # tests/ — 검증 스크립트
 
-업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합 왕복 6개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
+업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합·할 일 원본 왕복 8개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
 
 테스트 프레임워크 없이 실행하는 스크립트다. JSX 검사는 esbuild와 React를 사용하므로 먼저 `npm ci`를 실행한다.
 각 파일은 단독 실행 가능하고, 성공하면 `✓` 줄과 `전부 통과`, 실패하면 `✗` 와 종료코드 1.
@@ -224,6 +224,7 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - 위 Python 시험은 `npm test`에 자동 포함된다. `npm test -- workhub_file_pdf` / `workhub_file_hwp` / `workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로 각각 실행할 수 있다. `workers/requirements.txt` 의존성이 필요하다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [실행 안내](../workers/collection_files/README.md), [처리 코어 인계](../docs/workhub/36-collection-file-workers.md), [최신 형식 지원과 실제 파일 실측](../docs/workhub/37-document-format-support.md)을 참고한다. 공개 HWP 원본 7개는 아직 미지원이며 합성 HWP 통과를 일반 문서 호환 완료로 계산하지 않는다.
 
 - `test_workhub_collection_export.mjs`: 실제 연결용 ZIP 계획·전체 단위 대조·완료/현재판 선택·원문/CSV·511개 경계·권한/판 변경·실패 재시도·취소 36건.
+- `test_workhub_collection_export_parts.mjs`: 파일·CSV 용량과 항목 상한을 유지하는 분할, 전체 지문·묶음 판·이름·해시, 실패 재시도·폐기 14건. `tests/browser/workhub-collection-export-parts.mjs`는 가상 교사 36명의 파일 540개를 실제 ZIP 두 개로 받아 대조하는 등 5건을 확인한다.
 - `test_workhub_collection_export_ui.mjs`: 접힌 화면·정확한 선택기 라벨·준비 전 다운로드 차단·범위/한도 안내 SSR 4건.
 - `workhub-collection-export.mjs`: 실제 연결 화면의 ZIP 다운로드·파일 내용 대조·누락 응답·오류/재시도·직전 권한 확인·계정 전환·관리 입력·320px/키보드 13개. 전체 브라우저 러너에 포함하며 [ZIP 인계](../docs/workhub/35-collection-server-export.md)에 보장 범위를 기록한다.
 - `test_workhub_collection_server.mjs`: 실제 연결 어댑터의 봉투/학교/판 검증, 미확정 접수, 파일 예약·원문·다운로드 권한 재확인.
@@ -280,6 +281,8 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 - `test_workhub_document_collection_pipeline.mjs`: 가상 교사 36명·9학급, 실제 생성 HWPX 37개와 기존 확정 양식 사본 6개, 원본 보존·정정판 선택·ZIP 내부 해시/본문·응답 유실·부분 재시도·변조를 확인한다. 실제 Python 생성기와 최소 검사기를 사용하며 저장은 메모리 연습 저장소다.
 - `test_workhub_guided_storage.mjs`: 실제 문서 전송 서비스에서 파일·신원 조회 지연, 제한시간 이후 새 RPC·예약 등록 금지, 원키 복구, 원본 변조와 학교·계정·역할 변경을 확인한다.
+- `test_workhub_knowledge_storage.mjs`: 같은 공통 제한시간을 사용하는 학교 HWPX 원문의 준비·업로드·추출·다운로드 25건. `tests/browser/workhub-knowledge-import.mjs`는 기존 8건에 실제 서비스·합성 전송 지연 3건을 더한다. 실제 서버 처리 취소를 주장하지 않고 원래 요청으로만 복구한다.
+- `tests/browser/workhub-document-review.mjs`: 저장판 비교·인쇄 15건과 TXT 판/권한 재조회·입력 보존·응답 지연·실패 복구 12건. 다운로드는 실제 브라우저 파일 내용을 읽어 확인한다.
 - `workhub-document-collection-flow.mjs`: 실제 연결 셸에서 답변→생성→파일 확인→수합 첨부→기본 검사→초안→최종 제출→담당자 ZIP, 재진입 복구·학교 변경·320px·키보드를 실행한다. 생성 파일과 ZIP은 실제 바이트로 검사하며 HTTP/RPC/Storage 경계만 합성한다.
 - `PYTHON`에 `lxml`이 설치된 실행 파일을 지정할 수 있다. `node tests/test_workhub_document_collection_pipeline.mjs`, `node tests/test_workhub_guided_storage.mjs`, `node tests/browser/run.mjs workhub-document-collection-flow`로 실행한다. 브라우저 파일은 전체 러너에도 등록했다.
 - 운영 SQL·Storage·유료 API·실제 회원·한글 화면은 사용하지 않는다. [전체 흐름과 남은 연결](../docs/workhub/ai-school-policy/document-collection-pipeline.md).

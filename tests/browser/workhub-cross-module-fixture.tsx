@@ -30,25 +30,27 @@ const mapping={profile:'explicit_paragraph_v1',templateSha256:'b'.repeat(64),que
 const template={id:'guided-template',schoolId:primary.schoolId,ownerMemberId:'gaon-minjun',title:'학교 행사 참여 원본 양식',version:2,state:'published',inspection:{profile:'explicit_paragraph_v1',templateSha256:'b'.repeat(64),anchors,unsupportedParagraphs:0},mapping,collectionRequestId:'collection-source',canManage:false}
 let response={id:'guided-response',templateId:template.id,templateVersion:2,schoolId:primary.schoolId,ownerMemberId:primary.id,version:3,answers:{q0:'저장된 계획',q1:'3'},preview:false,artifact:null}
 const receipts=new Map<string,any>(),aiThreads=new Map<string,any>()
-w.cross={calls:[],writes:[],aiCalls:[],unknownMessage:false,unknownGuided:false,holdMessage:false,releaseMessage:null,heldSettled:false,appliedMessages:0,appliedGuided:0,basisDate:data.basisDate}
+w.cross={calls:[],writes:[],aiCalls:[],unknownMessage:false,unknownGuided:false,unknownTask:false,appliedTasks:0,createdTaskId:null,holdMessage:false,releaseMessage:null,heldSettled:false,appliedMessages:0,appliedGuided:0,basisDate:data.basisDate}
 w.cross.assistantHttp=async(payload:any)=>{
  const member=actor(payload.memberId)
  if(payload.action==='readiness')return envelope(member,'assistant.v1',{available:true})
  if(payload.action!=='ask')throw Error('unexpected synthetic AI action '+payload.action)
  w.cross.aiCalls.push(copy(payload))
  const input=payload.input,prior=aiThreads.get(member.id)
+ const proposal=input.intent==='personal_assistant'?{id:'task-proposal-'+payload.requestKey,version:1,kind:'create_personal_task',input:{title:'제출 자료 확인',notes:'확인한 개인 할 일 원본',dueDate:data.basisDate},status:'pending',resourceId:null}:null
  if(prior?.exchanges.some((e:any)=>e.requestKey===payload.requestKey))return envelope(member,'assistant.v1',{state:'completed',requestKey:payload.requestKey,thread:prior})
- const result={id:input.threadId??'assistant-'+member.id,mode:input.mode,version:input.expectedVersion+1,title:'같은 학교의 작성 도움',exchanges:[...(prior?.exchanges??[]),{id:'answer-'+payload.requestKey,requestKey:payload.requestKey,intent:input.intent,prompt:input.prompt,segments:[{text:input.intent==='guided_collection'?'AI가 제안한 참여 계획':'검토 후 한 번 보낸 AI 초안',citations:[]}],proposal:null,createdAt:now(),studentContext:null,...(input.quality?{execution:{quality:input.quality,model:ASSISTANT_ROUTING.models[input.quality as 'quick'|'review'].id,reviewOf:input.reviewOf}}:{})}],nextCursor:null}
+ const result={id:input.threadId??'assistant-'+member.id,mode:input.mode,version:input.expectedVersion+1,title:'같은 학교의 작성 도움',exchanges:[...(prior?.exchanges??[]),{id:'answer-'+payload.requestKey,requestKey:payload.requestKey,intent:input.intent,prompt:input.prompt,segments:[{text:input.intent==='guided_collection'?'AI가 제안한 참여 계획':'검토 후 한 번 보낸 AI 초안',citations:[]}],proposal,createdAt:now(),studentContext:null,...(input.quality?{execution:{quality:input.quality,model:ASSISTANT_ROUTING.models[input.quality as 'quick'|'review'].id,reviewOf:input.reviewOf}}:{})}],nextCursor:null}
  aiThreads.set(member.id,result)
  return envelope(member,'assistant.v1',{state:'completed',requestKey:payload.requestKey,thread:result})
 }
 const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>copy(ctx),info:()=>copy(ctx),subscribeIdentity:()=>()=>{},subscribeInvalidation:()=>()=>{},checkReadiness:async()=>({stage:'ready',code:'READY',checkedAt:now(),readySchoolCount:2}),rpcVerified:async(name:string,args:any)=>{
  const member=actor(args.p_member_id)
  w.cross.calls.push(copy({name,args}))
- if(/_(mutate|execute|close|render|publish|commit|save)$/.test(name))w.cross.writes.push(copy({name,args}))
+ if(/_(mutate|execute|close|render|publish|commit|save|confirm_task)$/.test(name))w.cross.writes.push(copy({name,args}))
  if(name==='workhub_calendar_list')return calendar.list(member.id)
  if(name==='workhub_calendar_get')return calendar.get(member.id,args.p_event_id)
- if(name==='workhub_task_list')return tasks.listTasks(member.id)
+ if(name==='workhub_task_list')return tasks.listTasks(member.id).filter(t=>t.id!==w.cross.createdTaskId)
+ if(name==='workhub_task_get'){const task=tasks.listTasks(member.id).find(t=>t.id===args.p_task_id);if(!task)throw new ContractError('FORBIDDEN','합성 원본을 읽을 수 없습니다');return task}
  if(name==='workhub_home_overview')return envelope(member,'home.v1',{asOf:now(),items:member.id===primary.id?[{id:'home-message',kind:'message',title:'확인할 원본 메시지',dueDate:null,sourceId:'home-thread',priority:'normal',label:'안 읽은 메시지 1개'}]:[],counts:{collection:0,supplement:0,message:member.id===primary.id?1:0,student_followup:0,cooperation:0},unavailable:[]})
  if(name==='workhub_messaging_readiness')return messaging(member,{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'})
  if(name==='workhub_message_threads')return messaging(member,{items:[thread(member,'other-thread')],nextCursor:null})
@@ -89,8 +91,21 @@ const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>c
   if(w.cross.unknownGuided){w.cross.unknownGuided=false;throw Error('synthetic lost guided receipt')}
   return envelope(member,'guided.v1',result)
  }
+ if(name==='workhub_ai_confirm_task'){
+  const key=member.id+':task:'+args.p_request_key,input=args.p_input
+  if(receipts.has(key))return envelope(member,'assistant.v1',receipts.get(key))
+  const current=aiThreads.get(member.id),proposal=current?.exchanges.find((e:any)=>e.proposal?.id===input.proposalId)?.proposal
+  if(!proposal||current.id!==input.threadId||proposal.version!==input.expectedVersion)throw new ContractError('CONFLICT','합성 제안 충돌')
+  const task=tasks.createTask(member.id,input.input,args.p_request_key)
+  const result={requestKey:args.p_request_key,proposalId:proposal.id,proposalVersion:proposal.version+1,taskId:task.id,taskVersion:task.version,threadVersion:current.version+1}
+  aiThreads.set(member.id,{...current,version:result.threadVersion,exchanges:current.exchanges.map((e:any)=>e.proposal?.id===proposal.id?{...e,proposal:{...e.proposal,status:'applied',version:result.proposalVersion,resourceId:task.id}}:e)})
+  receipts.set(key,result);w.cross.appliedTasks++;w.cross.createdTaskId=task.id
+  if(w.cross.unknownTask){w.cross.unknownTask=false;throw Error('synthetic lost task receipt')}
+  return envelope(member,'assistant.v1',result)
+ }
  if(name==='workhub_ai_policy_threads_list')return envelope(member,'assistant.v1',{items:[],nextCursor:null})
  if(name==='workhub_ai_policy_thread_get')return envelope(member,'assistant.v1',aiThreads.get(member.id))
  throw new ContractError('QUERY_FAILED','이 선택 기능은 교차 모듈 합성 시험에 포함하지 않습니다')
 }}
+tasks.createTask(primary.id,{title:'제출 자료 확인',notes:'같은 제목의 다른 기존 업무',dueDate:data.basisDate},'seed-other-task')
 createRoot(document.getElementById('root')!).render(<React.StrictMode><ConnectedWorkspace expectedUserId={identity.userId} legacyHomeHref='/legacy' connection={connection}/></React.StrictMode>)

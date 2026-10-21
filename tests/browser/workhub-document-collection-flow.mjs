@@ -80,5 +80,28 @@ try{
   await savedAndGenerated();let downloads=0;const count=()=>downloads++;page.on('download',count)
   try{await page.evaluate(()=>window.flow.holdDownload=true);await page.getByRole('button',{name:'생성 HWPX 내려받기',exact:true}).click();await page.waitForFunction(()=>typeof window.flow.releaseDownload==='function');await page.getByRole('button',{name:'생성 HWPX 내려받기',exact:true}).and(page.locator(':enabled')).waitFor();assert.equal(await review().isDisabled(),true);assert.equal(downloads,0);await go('오늘');await page.evaluate(()=>window.flow.releaseDownload());await go('문서함');await page.getByRole('button',{name:/학교자료학교자료/}).click();await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).waitFor();assert.equal(await review().isDisabled(),true);assert.equal(downloads,0);await downloadGenerated();assert.equal(downloads,1);assert.equal((await matches()).uploads.length,0)}finally{page.off('download',count)}
  })
+ await test('수합에서 돌아오면 원래 양식을 다시 조회해 저장 답변·생성 파일을 열고 확인 체크는 다시 받는다',async()=>{
+  await savedAndGenerated();await downloadGenerated();await handoff();assert.equal(await page.getByRole('button',{name:'문서함으로 돌아가기',exact:true}).isDisabled(),true);await page.getByRole('button',{name:'작성 닫기',exact:true}).click();const before=(await matches()).calls.filter(c=>c.name==='workhub_template_get').length
+  await page.evaluate(()=>window.flow.template.title='수합에서 돌아온 원래 양식');await page.getByRole('button',{name:'문서함으로 돌아가기',exact:true}).click();await page.getByRole('heading',{name:'수합에서 돌아온 원래 양식 · v2',exact:true}).waitFor()
+  for(const q of seed.mapping.questions)assert.equal(await page.getByLabel(q.label+' (필수)',{exact:true}).inputValue(),seed.documents[0].answers[q.id])
+  assert.equal(await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).count(),1);assert.equal(await review().isDisabled(),true);assert.equal(await review().isChecked(),false);assert.equal((await matches()).uploads.length,0)
+  const reads=(await matches()).calls.filter(c=>c.name==='workhub_template_get');assert.ok(reads.length>before);assert.equal(reads.at(-1).args.p_template_id,'guided-real-hwpx')
+ })
+ await test('저장 완료 후 재진입은 최신 답변판을 읽고 옛 생성물 대신 새 상태를 보여 준다',async()=>{
+  await savedAndGenerated();await go('오늘');await page.evaluate(()=>window.flow.changeSavedAnswer('다른 화면에서 고친 최신 답변'));await go('문서함');await page.getByLabel('확인 내용 (필수)',{exact:true}).waitFor();assert.equal(await page.getByLabel('확인 내용 (필수)',{exact:true}).inputValue(),'다른 화면에서 고친 최신 답변');assert.equal(await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).count(),0)
+  assert.equal(await page.getByRole('button',{name:'답변 임시 저장',exact:true}).isDisabled(),true);assert.equal((await matches()).applied.filter(x=>x.kind==='save_answers').length,1)
+ })
+ await test('복귀 원본 조회 실패는 저장 답변을 노출하지 않고 같은 양식 번호로 다시 확인한다',async()=>{
+  await savedAndGenerated();await go('오늘');await page.evaluate(()=>window.flow.getError='QUERY_FAILED');await go('문서함');await page.getByRole('button',{name:'이전 양식 다시 확인',exact:true}).waitFor();assert.equal(await page.getByLabel('확인 내용 (필수)',{exact:true}).count(),0);assert.equal(await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).count(),0)
+  await page.evaluate(()=>window.flow.getError='');await page.getByRole('button',{name:'이전 양식 다시 확인',exact:true}).click();await page.getByLabel('확인 내용 (필수)',{exact:true}).waitFor();assert.equal(await page.getByLabel('확인 내용 (필수)',{exact:true}).inputValue(),seed.documents[0].answers.note);assert.equal(await review().isDisabled(),true)
+  assert.ok((await matches()).calls.filter(c=>c.name==='workhub_template_get').every(c=>c.args.p_template_id==='guided-real-hwpx'))
+ })
+ await test('사라진 양식의 복귀 번호를 지워 다음 재진입에서 반복 조회하지 않는다',async()=>{
+  await savedAndGenerated();await go('오늘');await page.evaluate(()=>window.flow.getError='NOT_FOUND');await go('문서함');await page.getByRole('region',{name:'이전 양식 다시 열기',exact:true}).waitFor();assert.equal(await page.getByLabel('확인 내용 (필수)',{exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'이전 양식 다시 확인',exact:true}).count(),0)
+  const before=(await matches()).calls.filter(c=>c.name==='workhub_template_get').length;await go('오늘');await go('문서함');await page.getByRole('button',{name:/학교자료학교자료/}).waitFor();assert.equal((await matches()).calls.filter(c=>c.name==='workhub_template_get').length,before)
+ })
+ await test('복귀 조회 도중 다른 학교로 바뀌면 늦은 답변·생성물·선택 번호를 다시 열지 않는다',async()=>{
+  await savedAndGenerated();await go('오늘');await page.evaluate(()=>window.flow.holdGet=true);await go('문서함');await page.waitForFunction(()=>typeof window.flow.releaseGet==='function');await login('nuri-harin');await page.evaluate(()=>window.flow.releaseGet());await go('문서함');await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).click();await page.getByText('사용할 수 있는 질문형 양식이 없습니다.',{exact:true}).waitFor();assert.equal(await page.getByLabel('확인 내용 (필수)',{exact:true}).count(),0);assert.equal(await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).count(),0);assert.equal(await page.getByRole('region',{name:'이전 양식 다시 열기',exact:true}).count(),0)
+ })
  writeFileSync(join(output,'results.json'),JSON.stringify({passed,errors,external,limits:'실제 React·전송 어댑터·파서 / 합성 HTTP·RPC·Storage / 실제 Python HWPX 생성·검사·ZIP 원문 대조'},null,2));console.log(`\n문서 생성→수합 전체 흐름 ${passed.length}/${passed.length} 통과 · ${output}`)
 }finally{await context.close();await browser.close()}

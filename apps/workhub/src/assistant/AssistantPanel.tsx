@@ -35,6 +35,7 @@ export interface AssistantPanelProps {
     };
     onDraftReady?: (draft: AssistantDraftReady, contextId?: string) => void;
     onComposeMessage?: (draft: { requestId: string; body: string }) => void;
+    onOpenTask?: (taskId: string) => void;
     onOpenKnowledgeCitation?: (request: KnowledgeAssistantRequest) => void | Promise<void>;
     server?: AssistantServer;
     settingsServer?: SchoolAiSettingsServer;
@@ -71,7 +72,7 @@ function pendingCommand(raw: unknown): Pending { if (!raw || typeof raw !== 'obj
 }  throw new AssistantError('INVALID_INPUT'); }
 const newKey = () => globalThis.crypto.randomUUID();
 export function AssistantPanel(props: AssistantPanelProps) { return <AssistantScope key={recoveryScope(props.member)} {...props}/>; }
-function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenKnowledgeCitation, server: provided, settingsServer: providedSettings }: AssistantPanelProps) {
+function AssistantScope({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, contextRequest, onDraftReady, onComposeMessage, onOpenTask, onOpenKnowledgeCitation, server: provided, settingsServer: providedSettings }: AssistantPanelProps) {
     const server = useMemo(() => provided ?? createAssistantServer(connection, legacyAssistantHttp, {policyReads:true}), [provided, connection]), memory = useEditDraft<Session>(member, 'assistant'), recovery = usePendingRequest(member, 'assistant');
     const [session, setSession] = useState<Session>(() => { const saved = memory.initial ?? initial; if (recovery.request) {
         try {
@@ -269,6 +270,14 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
         catch { if (epoch === life.current) setError('인용 원문을 열지 못했습니다. 답변과 작성 중인 입력은 그대로 유지했습니다.'); }
         finally { citationFlight.current = false; if (epoch === life.current) setOpeningCitation(false); }
     }
+    function openTask(proposal: TaskProposal) {
+        if (!onOpenTask || !editable || locked || loading || operation.current) return;
+        const current = latest.current.thread?.exchanges.find(row => row.proposal?.id === proposal.id)?.proposal;
+        if (current?.status !== 'applied' || !current.resourceId || current.resourceId !== proposal.resourceId) return;
+        // 서버가 확인한 원본 번호로만 이동한다. 이동을 위해 제안을 다시 저장하지 않는다.
+        try { onOpenTask(current.resourceId); }
+        catch { setError('추가한 할 일을 열지 못했습니다. 답변과 작성 중인 입력은 그대로 유지했습니다.'); }
+    }
     const draft = session.proposal;
     let taskIssue = '';
     if (draft) {
@@ -304,7 +313,7 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
   <details className="assistant-history"><summary>이전 대화 {threads.length}개</summary><ul>{threads.map(row => <li key={row.id}><button type="button" disabled={!editable || locked} aria-current={session.thread?.id === row.id ? 'true' : undefined} onClick={() => void loadThread(row.id)}>{row.title}</button></li>)}</ul>{nextCursor && <button type="button" disabled={loading || busy} onClick={() => void moreThreads()}>이전 대화 더 보기</button>}</details>
   <div className="assistant-conversation"><div className="assistant-thread-heading"><h3>{readError ? '대화 연결을 다시 확인해 주세요' : session.thread?.title ?? '새 대화'}</h3><button type="button" disabled={locked || busy} onClick={() => update({ ...latest.current, thread: undefined })}>새 대화</button></div>
    {!readError && session.thread?.nextCursor && <button type="button" disabled={!editable} onClick={() => void moreMessages()}>앞선 답변 더 보기</button>}
-   {!readError && session.thread?.exchanges.map(exchange => <article className="assistant-exchange" key={exchange.id}><h4>내 질문</h4><p className="assistant-text">{exchange.prompt}</p><h4>Claude 답변</h4>{exchange.execution && <p className="assistant-execution">{exchange.execution.quality === 'quick' ? ASSISTANT_ROUTING.models.quick.label + ' 기본 답변' : ASSISTANT_ROUTING.models.review.label + (exchange.execution.reviewOf ? ' 정밀 검토' : ' 학생 기록 초안')}</p>}<AnswerView segments={exchange.segments} onOpenKnowledgeCitation={onOpenKnowledgeCitation ? citation => void openKnowledgeCitation(citation) : undefined} disabled={!editable || locked || loading || openingCitation}/>{exchange.execution?.quality === 'quick' && exchange.execution.model === ASSISTANT_ROUTING.models.quick.id && exchange.intent !== 'student_record_draft' && <div className="assistant-review"><button type="button" disabled={!editable || locked} onClick={() => reviewAnswer(exchange)}>이 답변 정밀 검토</button><span className="assistant-hint">{ASSISTANT_ROUTING.models.review.label}으로 새 요청을 보내며 학교 예산에서 비용을 사용합니다.</span></div>}{exchange.proposal && <div className="assistant-proposal"><strong>{exchange.proposal.input.title}</strong><p>{exchange.proposal.status === 'applied' ? '개인 할 일에 추가된 제안입니다.' : '개인 할 일 제안입니다. 확인하기 전에는 저장되지 않습니다.'}</p>{exchange.proposal.status === 'pending' && <button type="button" disabled={!editable || Boolean(session.proposal) || Boolean(session.prompt.trim())} onClick={() => update({ ...latest.current, proposal: structuredClone(exchange.proposal!), taskReview: false })}>할 일 제안 검토</button>}</div>}
+   {!readError && session.thread?.exchanges.map(exchange => <article className="assistant-exchange" key={exchange.id}><h4>내 질문</h4><p className="assistant-text">{exchange.prompt}</p><h4>Claude 답변</h4>{exchange.execution && <p className="assistant-execution">{exchange.execution.quality === 'quick' ? ASSISTANT_ROUTING.models.quick.label + ' 기본 답변' : ASSISTANT_ROUTING.models.review.label + (exchange.execution.reviewOf ? ' 정밀 검토' : ' 학생 기록 초안')}</p>}<AnswerView segments={exchange.segments} onOpenKnowledgeCitation={onOpenKnowledgeCitation ? citation => void openKnowledgeCitation(citation) : undefined} disabled={!editable || locked || loading || openingCitation}/>{exchange.execution?.quality === 'quick' && exchange.execution.model === ASSISTANT_ROUTING.models.quick.id && exchange.intent !== 'student_record_draft' && <div className="assistant-review"><button type="button" disabled={!editable || locked} onClick={() => reviewAnswer(exchange)}>이 답변 정밀 검토</button><span className="assistant-hint">{ASSISTANT_ROUTING.models.review.label}으로 새 요청을 보내며 학교 예산에서 비용을 사용합니다.</span></div>}{exchange.proposal && <div className="assistant-proposal"><strong>{exchange.proposal.input.title}</strong><p>{exchange.proposal.status === 'applied' ? '개인 할 일에 추가된 제안입니다.' : '개인 할 일 제안입니다. 확인하기 전에는 저장되지 않습니다.'}</p>{exchange.proposal.status === 'pending' && <button type="button" disabled={!editable || Boolean(session.proposal) || Boolean(session.prompt.trim())} onClick={() => update({ ...latest.current, proposal: structuredClone(exchange.proposal!), taskReview: false })}>할 일 제안 검토</button>}{exchange.proposal.status === 'applied' && exchange.proposal.resourceId && onOpenTask && !recovery.request && <button type="button" disabled={!editable || locked || loading} onClick={() => openTask(exchange.proposal!)}>추가한 할 일 열기</button>}</div>}
    {['document_draft', 'student_record_draft', 'guided_collection'].includes(exchange.intent) && <div className="assistant-actions"><button type="button" onClick={() => { try {
             const blob = new Blob([exchange.segments.map(row => row.text + '\n' + row.citations.map(c => '근거: ' + c.title + ' · ' + c.locator).join('\n')).join('\n\n')], { type: 'text/plain;charset=utf-8' }), url = URL.createObjectURL(blob), anchor = document.createElement('a');
             anchor.href = url;

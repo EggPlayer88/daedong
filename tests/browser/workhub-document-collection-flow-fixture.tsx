@@ -20,7 +20,7 @@ identity=identityFor(active)
 const bytes=(base64:string)=>Uint8Array.from(atob(base64),c=>c.charCodeAt(0)),hash=async(blob:Blob)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),x=>x.toString(16).padStart(2,'0')).join('')
 const storage=new Map<string,Blob>(),fileRecords=new Map<string,any>(),receipts=new Map<string,any>(),responses=new Map<string,any>(),artifacts=new Map<string,any>()
 const policy={extensions:['hwpx'],maxFileBytes:1048576,maxFiles:3}
-const flow=w.flow={calls:[],http:[],uploads:[],downloads:[],applied:[],unknownKind:'',unknownGuided:false,holdDownload:false,releaseDownload:null,changedAccess:false}
+const flow=w.flow={calls:[],http:[],uploads:[],downloads:[],applied:[],unknownKind:'',unknownGuided:false,holdDownload:false,releaseDownload:null,changedAccess:false,getError:'',holdGet:false,releaseGet:null}
 const repository:any={check(refs:any[]){for(const ref of refs){const f=fileRecords.get(ref.id);if(!f||!f.ready||JSON.stringify(f.file)!==JSON.stringify(ref))throw new ContractError('INVALID_INPUT','합성 보관소의 확인된 원본만 사용합니다')}},retainSaved(){}}
 const workflows=createWorkflowStore({members:data.memberships,date:day,files:repository})
 const request=workflows.createCollection(manager.id,{title:'학급 운영 자료 최종 수합',instructions:'파일을 직접 확인한 뒤 책임 교사가 최종 제출합니다.',dueDate:'2099-12-01',reviewMode:'none',reviewerMemberId:'',textLabel:'',textRequired:false,numberLabel:'',numberRequired:false,units:teachers.map((m,i)=>({label:seed.documents[i].classLabel+' · '+m.name,responsibleMemberId:m.id,contributorMemberIds:[]})),fileCollection:{policy,required:true,templates:[]}},'setup-collection')
@@ -30,6 +30,7 @@ workflows.publishCollection(manager.id,wrong.id,1,'setup-other-publish')
 const template:any={id:'guided-real-hwpx',schoolId:teacher.schoolId,ownerMemberId:manager.id,title:'학교자료'.repeat(50),version:2,state:'published',inspection:seed.inspection,mapping:seed.mapping,collectionRequestId:request.id,canManage:false}
 flow.template=template;flow.requestId=request.id;flow.wrongRequestId=wrong.id;flow.teacherIds=teachers.map(m=>m.id);flow.managerId=manager.id
 flow.snapshot=()=>copy(workflows.exportState())
+flow.changeSavedAnswer=(note:string)=>{const r=responses.get(active.id);if(!r)throw Error('저장한 답변이 없습니다');r.answers.note=note;r.version++;r.artifact=null}
 const actor=(id:string)=>{const m=ctx.memberships.find(m=>m.id===id);if(!m||m.userId!==identity.userId)throw new ContractError('FORBIDDEN','합성 현재 계정과 소속이 다릅니다');return m}
 const env=(m:any,contract:string,value:any)=>({contract,schoolId:m.schoolId,memberId:m.id,data:copy(value)})
 const collection=(m:any,value:any)=>({contractVersion:1,schoolId:m.schoolId,memberId:m.id,data:copy(value)})
@@ -65,7 +66,7 @@ const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>c
  if(name==='workhub_home_overview')return env(m,'home.v1',{asOf:now(),items:[],counts:{collection:0,supplement:0,message:0,student_followup:0,cooperation:0},unavailable:[]})
  if(name==='workhub_document_list')return env(m,'documents.v1',{items:[],nextCursor:null,canShare:false})
  if(name==='workhub_template_list')return env(m,'guided.v1',{items:m.schoolId===template.schoolId?[template]:[],nextCursor:null,canCreate:false})
- if(name==='workhub_template_get'){scopedTemplate(m);return env(m,'guided.v1',{template,response:responses.get(m.id)??null})}
+ if(name==='workhub_template_get'){scopedTemplate(m);if(flow.holdGet){flow.holdGet=false;await new Promise(resolve=>flow.releaseGet=resolve)}if(flow.getError)return deny(m,'guided.v1',flow.getError);if(args.p_template_id!==template.id)return deny(m,'guided.v1');return env(m,'guided.v1',{template,response:responses.get(m.id)??null})}
  if(name==='workhub_template_mutate'||name==='workhub_template_request_get'){
   scopedTemplate(m);const key='guided:'+m.id+':'+args.p_request_key,c=args.p_command
   if(receipts.has(key))return env(m,'guided.v1',receipts.get(key))

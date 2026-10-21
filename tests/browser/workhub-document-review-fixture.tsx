@@ -36,6 +36,9 @@ const connection:any={info:()=>({memberships:[current],schools:[{id:current.scho
  throw Error('unexpected RPC '+name)
 }}
 const nativeOpen=window.open.bind(window)
+// 다운로드 실패 뒤에도 입력과 저장판을 다시 확인할 수 있는지 실제 링크 경로로 검사한다.
+const nativeClick=HTMLAnchorElement.prototype.click
+HTMLAnchorElement.prototype.click=function(){if(w.downloadFail&&this.download)throw Error('synthetic download blocked');return nativeClick.call(this)}
 window.open=((...args:any[])=>{if(w.popupBlocked)return null;const popup=nativeOpen(...args);if(popup){w.popup=popup;popup.print=()=>{w.prints.push({text:popup.document.body.innerText,html:popup.document.body.innerHTML,title:popup.document.title,openerNull:popup.opener===null,images:popup.document.images.length,script:popup.document.querySelectorAll('script').length,csp:popup.document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.getAttribute('content')})}}return popup}) as any
 function App(){const[actor,setActor]=useState(member),[mounted,setMounted]=useState(true),[revision,setRevision]=useState(0)
  w.changeScope=()=>{current={...member,id:'other',userId:'other-user',schoolId:'other-school'};setActor(current)}

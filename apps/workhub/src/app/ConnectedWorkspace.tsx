@@ -90,7 +90,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [extensionNavigationLocked, setExtensionNavigationLocked] = useState(false)
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchNavigationLocked, setBatchNavigationLocked] = useState(false)
-  const [handoff, setHandoff] = useState<{scope:string; page:PageId; fromPage:PageId; requestId?:string}>()
+  const [handoff, setHandoff] = useState<{scope:string; page:PageId; fromPage:PageId; requestId?:string; taskId?:string}>()
   const [workReturn, setWorkReturn] = useState<{scope:string; page:PageId; fromPage:PageId}>()
   const [assistantContext, setAssistantContext] = useState<{scope:string; id:string; request:AssistantContextRequest}>()
   const [documentDraft, setDocumentDraft] = useState<{scope:string; draft:DocumentAiDraft}>()
@@ -201,7 +201,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   useEffect(() => {
     if (!handoff || !currentScope || navigationLocked || handoff.scope !== currentScope) return
     if (handoff.fromPage !== page) {setHandoff(undefined);return}
-    const moved = handoff.requestId ? resource.openCollection(handoff.requestId) : resource.navigate(handoff.page)
+    const moved = handoff.taskId && handoff.page === 'tasks' ? resource.openSearchItem({kind:'task',id:handoff.taskId,title:'',description:'',meta:''}) : handoff.requestId ? resource.openCollection(handoff.requestId) : resource.navigate(handoff.page)
     if (moved) {
       // 이동에 성공한 현재 학교의 작업만 복귀 경로로 보관한다. 이동 자체로 전송·제출하지 않는다.
       setWorkReturn(handoff.page !== 'knowledge' && handoff.page !== handoff.fromPage ? {scope:handoff.scope,page:handoff.page,fromPage:handoff.fromPage} : undefined)
@@ -264,7 +264,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
              page === 'timetable' ? <TimetableWorkspace initialPreparationStep={timetableOpen?.scope === currentScope ? timetableOpen.preparationStep : undefined} initialIntent={timetableOpen?.scope === currentScope ? timetableOpen.intent : undefined} initialNotificationId={timetableOpen?.scope === currentScope ? timetableOpen.notificationId : undefined} initialRequestId={timetableOpen?.scope === currentScope ? timetableOpen.requestId : undefined} initialLessonId={timetableOpen?.scope === currentScope ? timetableOpen.lessonId : undefined} initialDate={timetableOpen?.scope === currentScope ? timetableOpen.date : undefined} key={`${resetKey}:${timetableOpen?.key ?? ''}`} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} onOpenSchoolAdmin={() => navigate('schoolAdmin')} onOpenTeaching={() => navigate('students')} /> :
              page === 'students' ? <TeachingWorkspace initialRequest={teachingOpen?.scope===currentScope?teachingOpen:undefined} onRequestStudentDraft={source => { try { sendToAssistant(studentAssistantRequest(source,member)) } catch { setHandoffError('현재 학교와 학생 근거를 다시 확인해 주세요.') } }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
              page === 'messages' ? <MessagingWorkspace openRequest={requested?.kind === 'message' && requested.id ? { key: requested.key, id: requested.id } : undefined} onReturnToSource={requested?.kind === 'message' ? () => resource.navigate('home') : undefined} composeRequest={messageDraft?.scope === currentScope ? messageDraft.draft : undefined} onComposeRequestConsumed={() => setMessageDraft(undefined)} canOpenSource={source => ['calendar', 'tasks', 'collections', 'cooperation', 'timetable'].includes(source.module)} onOpenSource={source => { if (source.module === 'timetable') { if (!navigate('timetable')) throw new Error('작성 중인 내용을 확인한 뒤 시간표 요청을 열어 주세요.'); setTimetableOpen({ scope: currentScope, notificationId: source.id, key: crypto.randomUUID(), fromPage: 'messages' }); return } const moved = source.module === 'cooperation' ? resource.openCooperation(source.id) : source.module === 'collections' ? resource.openCollection(source.id) : (source.module === 'tasks' || source.module === 'calendar') ? resource.openSearchItem({ kind: source.module === 'tasks' ? 'task' : 'calendar', id: source.id, title: '', description: '', meta: '' }) : false; if (!moved) throw new Error('작성 중인 내용을 확인한 뒤 원본을 열어 주세요.') }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
-             page === 'assistant' ? <AssistantPanel onOpenKnowledgeCitation={value => {
+             page === 'assistant' ? <AssistantPanel onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,page:'tasks',taskId:id})} onOpenKnowledgeCitation={value => {
                const request = {...value,key:crypto.randomUUID()}
                if (!validKnowledgeOpenRequest(request,member)) throw new Error('현재 학교의 인용인지 확인하지 못했습니다.')
                setKnowledgeOpen({scope:currentScope,request});setHandoff({scope:currentScope,fromPage:page,page:'knowledge'})
