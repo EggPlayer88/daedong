@@ -131,7 +131,7 @@
       "id": "school-p9-02",
       "packageId": "school-p9",
       "path": "database/workhub-school-data/p9/P9-02_담당교사후보_분리.sql",
-      "sha256": "f0a81ebe46a21b6af1cd21f5e833037fa35c48549ec2abd1e6131c247e3eecbb",
+      "sha256": "ea3df01a73a215d3e082ab7b0d07aa1bc9be35e9d1c54fe69e5ca72f0f1c104a",
       "kind": "install",
       "phase": "pending",
       "after": [

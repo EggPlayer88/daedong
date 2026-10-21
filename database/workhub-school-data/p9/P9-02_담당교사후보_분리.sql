@@ -14,7 +14,9 @@ BEGIN
   IF(SELECT count(*) FROM pg_proc WHERE pronamespace='workhub_private'::regnamespace AND proname=r.name)<>1 THEN RAISE EXCEPTION 'P9: 원본 함수가 없거나 중복됩니다: %',r.name;END IF;
   SELECT oid INTO f FROM pg_proc WHERE pronamespace='workhub_private'::regnamespace AND proname=r.name;
   body:=pg_get_functiondef(f);
-  IF md5(body)<>r.expected OR (length(body)-length(replace(body,old,'')))/length(old)<>1 THEN RAISE EXCEPTION 'P9: 교체 대상이 확정 P5/P8 원본과 다릅니다: %',r.name;END IF;
+  -- 비교할 때만 CRLF를 LF로 맞춘다. 실제 교체에는 원래 body를 써서 줄바꿈을 보존한다.
+  -- 단독 CR·다른 공백·본문·설정 변경은 허용하지 않는다.
+  IF md5(replace(body, E'\r\n', E'\n'))<>r.expected OR (length(body)-length(replace(body,old,'')))/length(old)<>1 THEN RAISE EXCEPTION 'P9: 교체 대상이 확정 P5/P8 원본과 다릅니다: %',r.name;END IF;
   EXECUTE replace(body,old,new);
  END LOOP;
 END $$;

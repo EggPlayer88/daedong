@@ -63,6 +63,60 @@ def setup():
     for batch in ("p1","p2","p3","p4","p5","p7"):
         for n in ("01","02"): file(next((W/batch).glob(batch.upper()+"-"+n+"_*.sql")))
     for n in ("01","02","03","04"): file(next((W/"p8").glob("P8-"+n+"_*.sql")))
+def candidate_newline_tests():
+    # 운영 SQL Editor가 보존한 CRLF도 같은 원본으로 판정하되, 본문 변경은 허용하지 않는다.
+    names=("p5_catalog","p5_course_create","p8_rel_snapshot","p8_rel_eval")
+    old="workhub_private.p2_member_reachable"
+    new="workhub_private.p9_teacher_assignable"
+    select_defs="select proname,pg_get_functiondef(oid) from pg_proc where pronamespace='workhub_private'::regnamespace and proname=any(%s) order by proname"
+    originals=dict(q(select_defs,(list(names),)))
+    check("줄바꿈 회귀의 확정 LF 원본 4개",len(originals)==4 and all("\r" not in body for body in originals.values()))
+    crlf={name:body.replace("\n","\r\n") for name,body in originals.items()}
+    install=(P9/"P9-02_담당교사후보_분리.sql").read_text(encoding="utf-8").rstrip()
+    if not install.endswith("COMMIT;"):
+        raise AssertionError("P9-02의 마지막 COMMIT을 확인해 주세요.")
+    # 실제 설치문의 마지막 COMMIT만 미룬다. 확인 후 전체를 롤백해 기존 LF 경로도 따로 시험한다.
+    cx=connect()
+    try:
+        with cx.cursor() as cur:
+            cur.execute("BEGIN")
+            for name in names:cur.execute(crlf[name])
+            cur.execute("select proname,prosrc from pg_proc where pronamespace='workhub_private'::regnamespace and proname=any(%s)",(list(names),))
+            before=dict(cur.fetchall())
+            check("실제 함수 본문에 CRLF 4개 준비",len(before)==4 and all("\r\n" in body for body in before.values()))
+            cur.execute(install[:-len("COMMIT;")])
+            cur.execute("select proname,prosrc from pg_proc where pronamespace='workhub_private'::regnamespace and proname=any(%s)",(list(names),))
+            after=dict(cur.fetchall())
+            check("CRLF 원본도 담당 후보 4개 교체",all(after[name].count(new)==1 and old not in after[name] for name in names))
+            check("교체 후 CRLF 원문은 호출 한 곳 외 그대로",all(after[name]==before[name].replace(old,new) for name in names))
+            cur.execute("select count(*) from workhub_private.p9_installs where batch='P9-02'")
+            check("CRLF 교체와 설치 기록 원자적 추가",cur.fetchone()[0]==1)
+    finally:
+        with cx.cursor() as cur:cur.execute("ROLLBACK")
+        cx.close()
+    check("CRLF 성공 시험 롤백 뒤 LF 원본 복구",dict(q(select_defs,(list(names),)))==originals)
+    check("CRLF 성공 시험 롤백 뒤 설치 기록 없음",count("select count(*) from workhub_private.p9_installs where batch='P9-02'")==0)
+    # 마지막 함수에서 거부되어야 앞선 세 함수의 교체도 롤백되는지 검증할 수 있다.
+    mutations=(
+        ("본문 변조",lambda body:body.replace("DECLARE","DECLARE\r\n-- 줄바꿈 외 본문 변조\r\n",1)),
+        ("호출 개수 변조",lambda body:body.replace("DECLARE","DECLARE\r\n-- "+old+"\r\n",1)),
+        ("단독 CR",lambda body:body.replace("\r\nDECLARE","\rDECLARE",1)),
+    )
+    for label,mutate in mutations:
+        changed=mutate(crlf["p8_rel_eval"])
+        if changed==crlf["p8_rel_eval"]:raise AssertionError("변조 회귀가 실제 원문을 바꾸지 않았습니다: "+label)
+        try:
+            for name in names:q(changed if name=="p8_rel_eval" else crlf[name])
+            fixture=dict(q(select_defs,(list(names),)))
+            try:file(P9/"P9-02_담당교사후보_분리.sql")
+            except psycopg2.Error as ex:
+                check("CRLF + "+label+"는 마지막 함수에서 차단","원본과 다릅니다: p8_rel_eval" in str(ex))
+            else:check("CRLF + "+label+"는 마지막 함수에서 차단",False)
+            check("CRLF + "+label+" 뒤 앞선 교체도 롤백",dict(q(select_defs,(list(names),)))==fixture)
+            check("CRLF + "+label+" 뒤 설치 기록 없음",count("select count(*) from workhub_private.p9_installs where batch='P9-02'")==0)
+        finally:
+            for name in names:q(originals[name])
+    check("줄바꿈 회귀 종료 뒤 원본 4개 복구",dict(q(select_defs,(list(names),)))==originals)
 def tests():
     global CAPTURES
     school,member=q("select m.school_id,m.id from workhub.memberships m join workhub.accounts a on a.id=m.account_id where a.auth_user_id=%s",(ADMIN,))[0]
@@ -197,6 +251,7 @@ def tests():
     q("update workhub.membership_roles set revoked_at=now(),revoke_reason='시험' where membership_id='other-admin'")
     check("관리 권한 없는 소속은 목록 비노출",rpc("workhub_school_roster_get",("other-admin",))["data"]["reason"]=="forbidden")
     # 기존 담당 후보 4곳만 바꾸고 메뉴 접근/메시지 대상은 유지한다.
+    candidate_newline_tests()
     original=q("select pg_get_functiondef(oid) from pg_proc where pronamespace='workhub_private'::regnamespace and proname='p8_rel_eval'")[0][0]
     q(original.replace("DECLARE","DECLARE\n-- 합성 훼손 시험\n",1))
     try:file(P9/"P9-02_담당교사후보_분리.sql")
