@@ -61,7 +61,10 @@ const server: any = {
     return { fileId: id, state: 'ready', file: clone(item.file) }
   },
   async fileStatus() { throw Error('예상 밖 호출') },
-  async download(member: string, parent: any, file: any) { return uploads.get(file.id).blob },
+  async download(member: string, parent: any, file: any) {
+    if (w.downloadFailure) throw new CollectionServerError(w.downloadFailure, '원시 서버 오류')
+    return uploads.get(file.id).blob
+  },
 }
 function App() {
   const [visible, setVisible] = useState(true), [who, setWho] = useState(0), [revision, setRevision] = useState(0)
