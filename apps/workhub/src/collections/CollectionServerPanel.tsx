@@ -22,12 +22,13 @@ import { formatCollectionRecordedTime, summarizeCollectionSubmission } from './s
 import { collectionSubmissionGuidance } from './submission-guidance'
 import { CollectionSubmissionGuide } from './CollectionSubmissionGuide'
 import { CollectionUnitWorkbench } from './CollectionUnitWorkbench'
+import { stageTemplates, type StagedTemplate } from './template-staging'
 import styles from './collection-server.css?inline'
 
 export interface CollectionServerPanelProps { server: CollectionServer; operations?: CollectionOperationsServer; incomingFile?: GeneratedDocument; onIncomingFileConsumed?: () => void; member: Membership; members: Membership[]; date: string; revision?: number; openRequest?: { key: string; id: string }; onNavigationLockChange?: (locked: boolean) => void }
-type Editor = { original?: CollectionRequest; input: CollectionInput }
+type Editor = { original?: CollectionRequest; input: CollectionInput; staged?: StagedTemplate[]; saving?: boolean; createdId?: string; createdVersion?: number }
 type Answer = { requestId: string; unitId: string; original: CollectionDraft | null; input: AnswerInput; reason: string; correctionRequestId: string; confirmedVersion?: number; confirmedInput?: AnswerInput }
-type Upload = { file: File; parent: CollectionFileParent; policy: FilePolicy; prepareKey: string; completeKey: string; intent?: CollectionUpload; phase: 'prepare' | 'upload' | 'complete' | 'status'; rejected?: boolean; cancelable?: boolean }
+type Upload = { stagedId?: string; file: File; parent: CollectionFileParent; policy: FilePolicy; prepareKey: string; completeKey: string; intent?: CollectionUpload; phase: 'prepare' | 'upload' | 'complete' | 'status'; rejected?: boolean; cancelable?: boolean }
 type Review = { unitId: string; submissionId: string; expectedVersion: number; note: string; dueDate: string }
 type Management = { kind: 'withdraw' | 'open_correction'; unitId: string; submissionId: string | null; expectedVersion: number; reason: string; dueDate: string; confirmed: boolean }
 type Session = { selectedId?: string; editor?: Editor; answer?: Answer; upload?: Upload; review?: Review; management?: Management; conflict?: boolean; parked?: boolean; recoveryConflict?: boolean }
@@ -66,7 +67,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
   const parked = Boolean(session.parked)
   const hasWork = Boolean(pending || dirty)
   const locked = Boolean(busy || exportBusy || (!parked && hasWork))
-  const blocked = Boolean(busy || pending || restoring || session.upload || session.conflict || session.answer?.confirmedVersion || exportBusy || parked || !readiness?.available)
+  const blocked = Boolean(busy || session.editor?.saving || pending || restoring || session.upload || session.conflict || session.answer?.confirmedVersion || exportBusy || parked || !readiness?.available)
   const submissionClosed = operationState?.requestId === detail?.request.id && operationState?.phase !== 'open'
   const selectedUnit = detail?.units.find(unit => unit.id === session.answer?.unitId)
   const policy = readiness?.policy
@@ -147,6 +148,13 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
       const latestDraft = answer ? await server.draft(member.id, selectedId, answer.unitId) : undefined
       if (!current) return
       setDetail(value)
+      const editor = sessionRef.current.editor
+      if (editor?.createdId === value.request.id && !editor.original) {
+        const changed = value.request.version !== editor.createdVersion
+        const original = { ...value.request, ...structuredClone(editor.input), version: editor.createdVersion! }
+        setSession({ ...sessionRef.current, conflict: changed, editor: { ...editor, original, saving: changed ? false : editor.saving } })
+        if (changed) { setComparison({ detail: value }); setError('초안을 만드는 동안 다른 변경이 확인되었습니다. 입력을 비교한 뒤 이어 저장해 주세요.') }
+      }
       const action = sessionRef.current.management ?? sessionRef.current.review
       if (action && !recovery.request) {
         const unit = value.units.find(item => item.id === action.unitId)
@@ -182,18 +190,25 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
       if (!stillHere(epoch)) return
       recovery.remove(key)
       // 접수 확인 이후 조회가 실패하더라도 이미 확인된 저장을 다시 실행하지 않는다.
-      if (request.command.kind === 'save_draft' && sessionRef.current.answer?.unitId === request.command.unitId) {
+      if (request.command.kind === 'create' && sessionRef.current.editor?.saving) {
+        // 생성 접수증을 먼저 보존한다. 뒤의 조회·파일 검사가 실패해도 새 수합을 만들지 않는다.
+        setSession({ ...sessionRef.current, selectedId: receipt.requestId, editor: { ...sessionRef.current.editor, createdId: receipt.requestId, createdVersion: receipt.resourceVersion } })
+      } else if (request.command.kind === 'save_draft' && sessionRef.current.answer?.unitId === request.command.unitId) {
         // 재제출 사유는 유지하고, 접수 뒤 경합은 방금 저장한 원문을 기준으로 비교한다.
         focusNext('answer')
         setSession({ ...sessionRef.current, recoveryConflict: undefined, answer: { ...sessionRef.current.answer, confirmedVersion: receipt.resourceVersion, confirmedInput: structuredClone(request.command.input) } }); setError('')
       } else { focusNext('detail'); resetEditing(receipt.requestId) }
-      const message = request.command.kind === 'save_draft' ? '초안을 저장했습니다. 최종 제출은 아직 하지 않았습니다.' : request.command.kind === 'submit' ? '최종 제출을 접수했습니다. 아래 제출 현황에서 검토 상태를 확인해 주세요.' : request.command.kind === 'create' ? '수합 초안을 저장했습니다. 양식을 추가한 뒤 대상 교사에게 공개해 주세요.' : request.command.kind === 'update' ? '수합 초안 변경을 저장했습니다.' : request.command.kind === 'publish' ? '대상 교사에게 수합을 공개했습니다.' : request.command.kind === 'review' ? '검토 결과를 저장했습니다.' : request.command.kind === 'withdraw' ? '제출 철회를 처리했습니다.' : '정정 기간을 저장했습니다.'
+      const message = request.command.kind === 'save_draft' ? '초안을 저장했습니다. 최종 제출은 아직 하지 않았습니다.' : request.command.kind === 'submit' ? '최종 제출을 접수했습니다. 아래 제출 현황에서 검토 상태를 확인해 주세요.' : request.command.kind === 'create' ? (sessionRef.current.editor?.saving ? '수합 초안을 만들었습니다. 선택한 양식의 검사와 저장을 이어갑니다.' : '수합 초안을 저장했습니다. 내용을 확인한 뒤 대상 교사에게 공개해 주세요.') : request.command.kind === 'update' ? '수합 초안 변경을 저장했습니다.' : request.command.kind === 'publish' ? '대상 교사에게 수합을 공개했습니다.' : request.command.kind === 'review' ? '검토 결과를 저장했습니다.' : request.command.kind === 'withdraw' ? '제출 철회를 처리했습니다.' : '정정 기간을 저장했습니다.'
       setNotice(`${message} 접수 시각 ${formatCollectionRecordedTime(receipt.recordedAt)} (한국 표준시)`); setReload(value => value + 1)
     } catch (failure) {
       if (!stillHere(epoch)) return
       // 준비 해제는 복구를 기다릴 수 있다. 원래 요청을 보존해 새 키로 중복 저장하지 않는다.
       const retryNotReady = retry && failure instanceof CollectionServerError && failure.code === 'NOT_READY'
-      if (knownRejection(failure) && !retryNotReady) recovery.remove(key)
+      if (knownRejection(failure) && !retryNotReady) {
+        recovery.remove(key)
+        const current = sessionRef.current
+        if (current.editor) setSession({ ...current, editor: { ...current.editor, saving: false } })
+      }
       if (failure instanceof CollectionServerError && failure.code === 'IDEMPOTENCY_CONFLICT') setSession({ ...sessionRef.current, recoveryConflict: true })
       if (accessDenied(failure)) hideDenied()
       else if (failure instanceof CollectionServerError && failure.code === 'CONFLICT') { setSession({ ...sessionRef.current, conflict: true }); setComparison(undefined) }
@@ -232,7 +247,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
     const epoch = life.current
     operation.current = true; setBusy('HWPX 파일을 확인 중…'); setError('')
     let job = initial
-    const keep = (next: Upload) => { job = next; if (stillHere(epoch)) setSession({ ...sessionRef.current, upload: next }) }
+    const keep = (next: Upload) => { job = next; if (stillHere(epoch)) setSession({ ...sessionRef.current, upload: next, editor: next.rejected && sessionRef.current.editor ? { ...sessionRef.current.editor, saving: false } : sessionRef.current.editor }) }
     try {
       if (!job.intent) {
         const intent = await server.prepareUpload(member.id, job.parent, job.file, job.policy, job.prepareKey)
@@ -251,11 +266,11 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
         const current = sessionRef.current, ref = status.file
         if (job.parent.kind === 'template' && current.editor?.original?.id === job.parent.requestId && current.editor.input.fileCollection) {
           const fileCollection = current.editor.input.fileCollection
-          setSession({ ...current, upload: undefined, editor: { ...current.editor, input: { ...current.editor.input, fileCollection: { ...fileCollection, templates: [...fileCollection.templates.filter(file => file.id !== ref.id), ref] } } } })
+          setSession({ ...current, upload: undefined, editor: { ...current.editor, input: { ...current.editor.input, fileCollection: { ...fileCollection, templates: [...fileCollection.templates.filter(file => file.id !== ref.id), ref] } }, staged: current.editor.staged?.filter(value => value.id !== job.stagedId) } })
         } else if (job.parent.kind === 'draft' && current.answer?.unitId === job.parent.unitId) {
           setSession({ ...current, upload: undefined, answer: { ...current.answer, input: { ...current.answer.input, files: [...(current.answer.input.files ?? []).filter(file => file.id !== ref.id), ref] } } })
         } else throw new CollectionServerError('CONFLICT', '파일을 연결할 입력이 바뀌었습니다.')
-        setNotice('파일 준비가 완료되었습니다. 아래 저장 버튼을 눌러 문서에 연결해 주세요. 아직 최종 제출된 상태는 아닙니다.')
+        setNotice(job.stagedId ? '양식 검사를 통과했습니다. 남은 파일과 초안 저장을 이어갑니다.' : '파일 준비가 완료되었습니다. 아래 저장 버튼을 눌러 문서에 연결해 주세요. 아직 최종 제출된 상태는 아닙니다.')
       } else {
         keep({ ...job, phase: status.state === 'awaiting_upload' ? 'upload' : status.state === 'pending_verification' ? 'complete' : 'status', rejected: status.state === 'rejected', cancelable: true })
         setNotice(status.state === 'rejected' ? '서버가 파일을 거부했습니다. 다른 파일을 선택해 주세요.' : status.state === 'awaiting_upload' ? '파일 전송이 아직 확인되지 않았습니다. 같은 파일을 다시 전송할 수 있습니다.' : '서버에서 HWPX 파일의 기본 형식을 확인하고 있습니다. 잠시 뒤 같은 파일 상태 다시 확인을 눌러 주세요. 완료된 파일만 저장·제출할 수 있습니다.')
@@ -263,17 +278,52 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
     } catch (failure) { if (stillHere(epoch)) { if (accessDenied(failure)) hideDenied(); else if (knownRejection(failure) || failure instanceof FileError) keep({ ...job, rejected: true, cancelable: true }); setError(failureMessage(failure)) } }
     finally { if (stillHere(epoch)) { operation.current = false; setBusy('') } }
   }
-  function chooseFile(file: File | undefined, parent: CollectionFileParent, existing: FileReference[], filePolicy: FilePolicy) {
-    if (!file || blocked) return
+  function chooseFile(file: File | undefined, parent: CollectionFileParent, existing: FileReference[], filePolicy: FilePolicy, stagedId?: string) {
+    if (!file || (blocked && !stagedId)) return
     let checkedPolicy: FilePolicy
     try {
       checkedPolicy = hwpxCollectionPolicy(filePolicy)
       validateFileMetadata(file, checkedPolicy)
-    } catch (failure) { setError(failure instanceof FileError && failure.code === 'FILE_TYPE_UNSUPPORTED' ? 'HWPX 파일만 새로 올릴 수 있습니다. 한글에서 HWPX 형식으로 저장해 주세요.' : failureMessage(failure)); return }
-    if (existing.length >= checkedPolicy.maxFiles) { setError(`파일은 최대 ${checkedPolicy.maxFiles}개입니다. 기존 파일을 제거한 뒤 선택해 주세요.`); return }
-    const job: Upload = { file, parent, policy: checkedPolicy, prepareKey: crypto.randomUUID(), completeKey: crypto.randomUUID(), phase: 'prepare' }
+    } catch (failure) { pauseTemplateSave(); setError(failure instanceof FileError && failure.code === 'FILE_TYPE_UNSUPPORTED' ? 'HWPX 파일만 새로 올릴 수 있습니다. 한글에서 HWPX 형식으로 저장해 주세요.' : failureMessage(failure)); return }
+    if (existing.length >= checkedPolicy.maxFiles) { pauseTemplateSave(); setError(`파일은 최대 ${checkedPolicy.maxFiles}개입니다. 기존 파일을 제거한 뒤 선택해 주세요.`); return }
+    const job: Upload = { stagedId, file, parent, policy: checkedPolicy, prepareKey: crypto.randomUUID(), completeKey: crypto.randomUUID(), phase: 'prepare' }
     setSession({ ...sessionRef.current, upload: job }); void uploadFile(job); return true
   }
+  function pauseTemplateSave() {
+    const current = sessionRef.current
+    if (current.editor?.saving) setSession({ ...current, editor: { ...current.editor, saving: false } })
+  }
+  function selectTemplates(files: File[]) {
+    const current = sessionRef.current, editor = current.editor
+    if (blocked || !editor?.input.fileCollection || !files.length) return
+    try {
+      const staged = stageTemplates(editor.staged ?? [], files, editor.input.fileCollection.policy, editor.input.fileCollection.templates.length)
+      setSession({ ...current, editor: { ...editor, staged } }); setError(''); setNotice('')
+    } catch (failure) { setError(failure instanceof Error ? failure.message : '파일 선택을 확인해 주세요.') }
+  }
+  function saveEditor(event: FormEvent) {
+    event.preventDefault()
+    const current = sessionRef.current, editor = current.editor
+    if (operation.current || blocked || !editor || !unitValidation?.valid) return
+    if (editor.staged?.length) {
+      setSession({ ...current, editor: { ...editor, saving: true } }); setError(''); setNotice('')
+    } else void mutate(editor.original ? { kind: 'update', requestId: editor.original.id, expectedVersion: editor.original.version, input: editor.input } : { kind: 'create', input: editor.input })
+  }
+  // 한 번 누른 저장을 단계별로 진행한다. 미확정 요청·파일 검사는 사용자 재확인 전까지 멈춘다.
+  useEffect(() => {
+    // 외부 요청 저장소의 동기 알림 뒤 늦게 실행되는 이전 렌더는 다음 단계를 시작하지 않는다.
+    if (sessionRef.current !== session) return
+    const editor = session.editor
+    if (!editor?.saving || operation.current || busy || loading || restoring || readError || pending || session.upload || session.conflict || parked || !enabled || !readiness?.available) return
+    if (!editor.original) {
+      if (!editor.createdId) void mutate({ kind: 'create', input: editor.input })
+      return
+    }
+    if (detail?.request.id !== editor.original.id) return
+    const next = editor.staged?.[0], collection = editor.input.fileCollection
+    if (next && collection) chooseFile(next.file, { kind: 'template', requestId: editor.original.id, version: editor.original.version }, collection.templates, collection.policy, next.id)
+    else void mutate({ kind: 'update', requestId: editor.original.id, expectedVersion: editor.original.version, input: editor.input })
+  }, [session, busy, loading, restoring, readError, pending, parked, enabled, readiness, detail])
   function attachGenerated() {
     const answer = sessionRef.current.answer
     if (submissionClosed || !incomingFile || !answer || incomingFile.requestId !== answer.requestId || detail?.request.id !== answer.requestId || !detail.request.fileCollection) return
@@ -330,8 +380,8 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
     if (form.kind === 'withdraw' && form.submissionId) void mutate({ kind: 'withdraw', requestId: detail.request.id, unitId: form.unitId, submissionId: form.submissionId, expectedVersion: form.expectedVersion, reason: form.reason })
     if (form.kind === 'open_correction' && form.dueDate && form.dueDate >= date) void mutate({ kind: 'open_correction', requestId: detail.request.id, unitId: form.unitId, expectedVersion: form.expectedVersion, dueDate: form.dueDate, reason: form.reason })
   }
-  function filesView(files: FileReference[], parent?: CollectionFileParent, remove?: (id: string) => void) {
-    return <ul className="cs-files">{files.map(file => <li key={file.id}><span>{file.name} <small>{formatFileBytes(file.bytes)}</small></span><div>{parent && <button type="button" disabled={!!busy || exportBusy} aria-label={`${file.name} 다운로드`} onClick={() => { void download(parent, file) }}>내려받기</button>}{remove && <button type="button" disabled={blocked} onClick={() => remove(file.id)} aria-label={`${file.name} 제거`}>제거</button>}</div></li>)}</ul>
+  function filesView(files: FileReference[], parent?: CollectionFileParent, remove?: (id: string) => void, downloadable?: string[]) {
+    return <ul className="cs-files">{files.map(file => <li key={file.id}><span>{file.name} <small>{formatFileBytes(file.bytes)}</small></span><div>{parent && (!downloadable || downloadable.includes(file.id)) && <button type="button" disabled={!!busy || exportBusy} aria-label={`${file.name} 다운로드`} onClick={() => { void download(parent, file) }}>내려받기</button>}{remove && <button type="button" disabled={blocked} onClick={() => remove(file.id)} aria-label={`${file.name} 제거`}>제거</button>}</div></li>)}</ul>
   }
   function picker(label: string, parent: CollectionFileParent, files: FileReference[]) {
     const originalPolicy = parent.kind === 'template' ? session.editor?.input.fileCollection?.policy : detail?.request.fileCollection?.policy
@@ -343,7 +393,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
     return <label className="cs-file-picker">{label}<input type="file" aria-label={label} aria-describedby={descriptionId} disabled={blocked || parent.kind === 'draft' && submissionClosed || files.length >= filePolicy.maxFiles} accept=".hwpx" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; chooseFile(file, parent, files, filePolicy) }} /><small id={descriptionId}>HWPX · 파일당 {formatFileBytes(filePolicy.maxFileBytes)} · 첨부 {files.length}/{filePolicy.maxFiles}개{files.length >= filePolicy.maxFiles ? ' · 다른 파일을 올리려면 기존 첨부 선택을 먼저 제거해 주세요.' : ' · 한글에서 HWPX 형식으로 저장한 파일을 선택하세요.'}</small></label>
   }
   return <section ref={panelRef} className="collection-server" aria-label="서버 문서 수합"><style>{styles}</style>
-    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>HWPX 양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && !parked && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" data-cs-focus="create-button" disabled={locked || loading || !newCollectionPolicy} onClick={() => { if (!newCollectionPolicy) return; focusNext('editor'); setSession({ editor: { input: { ...blank(), fileCollection: { policy: newCollectionPolicy, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
+    <header className="cs-heading"><div><p>학교 업무</p><h2>문서 수합</h2><span>HWPX 양식을 나누고 작성한 파일을 모읍니다.</span></div>{readiness?.available && !parked && <div className="cs-actions"><button type="button" disabled={!!busy || !!pending || loading || exportBusy} onClick={() => setReload(value => value + 1)}>새로 확인</button><button type="button" className="cs-primary" data-cs-focus="create-button" disabled={locked || loading || !newCollectionPolicy} onClick={() => { if (!newCollectionPolicy) return; focusNext('editor'); setSession({ editor: { staged: [], input: { ...blank(), fileCollection: { policy: newCollectionPolicy, required: true, templates: [] } } } }); setError(''); setNotice('') }}>새 수합 만들기</button></div>}</header>
     {readiness?.available && !parked && !newCollectionPolicy && <p className="cs-warning">HWPX 수합 규칙을 먼저 연결해야 새 수합을 만들 수 있습니다. 기존 기록은 확인할 수 있습니다.</p>}
     {busy && <p role="status">{busy}</p>}{notice && <p className="cs-notice" role="status">{notice}</p>}{error && <p className="cs-error" role="alert">{error}</p>}
     {parked && <section className="cs-notice" aria-label="보관한 수합 작업"><h3>작성 중인 수합 작업을 보관했습니다</h3><p>업무실 안의 다른 메뉴를 이용할 수 있습니다. 자료 수합으로 돌아와 보관한 입력{pending ? '과 기존 요청 번호로 결과를' : '을'} 다시 확인해 주세요.</p><p>새로고침·탭 닫기·로그아웃·학교 변경 시 보관 내용이 사라질 수 있습니다. 이 보관은 서버 저장이 아닙니다.</p><button type="button" disabled={!!busy || exportBusy} onClick={resumeEditing}>보관한 입력과 요청 다시 열기</button></section>}
@@ -364,12 +414,24 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
         </> : <button type="button" disabled={!!busy} onClick={() => { void compareLatest() }}>최신 원본과 비교</button>}
         <button type="button" disabled={!!busy || !!pending} onClick={() => { resetEditing(selectedId); setReload(value => value + 1) }}>내 변경 버리고 다시 열기</button>
       </section>}
-      {session.upload && <section className="cs-warning" aria-label="서버 파일 확인"><h3>{session.upload.file.name}</h3><p>{session.upload.rejected ? '이 파일은 사용할 수 없습니다.' : 'HWPX 기본 형식과 업로드 완료 여부를 확인하고 있습니다. 완료되면 양식이나 제출 파일로 저장할 수 있습니다.'}</p>{session.upload.rejected ? <button type="button" disabled={!!busy} onClick={() => setSession({ ...session, upload: undefined })}>거부된 파일 선택 해제</button> : <><button type="button" disabled={!!busy || restoring} onClick={() => { void uploadFile(session.upload!) }}>{session.upload.phase === 'upload' ? '같은 파일 전송 재시도' : '같은 파일 상태 다시 확인'}</button>{session.upload.cancelable && <button type="button" disabled={!!busy} onClick={() => { setSession({ ...session, upload: undefined }); setNotice('이 파일의 첨부 선택을 취소했습니다.') }}>첨부 선택 취소</button>}</>}</section>}
-      {canShowEditor && <form className="cs-card" data-cs-form="editor" aria-label="수합 초안 작성" onSubmit={(event: FormEvent) => { event.preventDefault(); if (!blocked && unitValidation?.valid) void mutate(session.editor!.original ? { kind: 'update', requestId: session.editor!.original.id, expectedVersion: session.editor!.original.version, input: session.editor!.input } : { kind: 'create', input: session.editor!.input }) }}>
-        <h3 tabIndex={-1} data-cs-focus="editor">{session.editor!.original ? '수합 초안 수정' : '새 수합 초안'}</h3><p className="cs-muted">제목·기한·제출 대상을 저장하고, HWPX 양식을 추가한 뒤 공개하세요.</p><fieldset disabled={blocked}><legend className="cs-sr-only">수합 내용</legend>
-          <label>수합 제목<input required value={session.editor!.input.title} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, title: event.target.value } } })} /></label>
-          <label>안내 내용<textarea aria-label="안내 내용" rows={3} value={session.editor!.input.instructions} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, instructions: event.target.value } } })} /></label>
+      {session.upload && <section className="cs-warning" aria-label="서버 파일 확인"><h3>{session.upload.file.name}</h3><p>{session.upload.rejected ? '이 파일은 사용할 수 없습니다.' : 'HWPX 기본 형식과 업로드 완료 여부를 확인하고 있습니다. 완료되면 양식이나 제출 파일로 저장할 수 있습니다.'}</p>{session.upload.rejected ? <button type="button" disabled={!!busy} onClick={() => setSession({ ...session, upload: undefined, editor: session.editor ? { ...session.editor, saving: false, staged: session.editor.staged?.filter(value => value.id !== session.upload?.stagedId) } : undefined })}>거부된 파일 선택 해제</button> : <><button type="button" disabled={!!busy || restoring} onClick={() => { void uploadFile(session.upload!) }}>{session.upload.phase === 'upload' ? '같은 파일 전송 재시도' : '같은 파일 상태 다시 확인'}</button>{session.upload.cancelable && <button type="button" disabled={!!busy} onClick={() => { setSession({ ...session, upload: undefined, editor: session.editor ? { ...session.editor, saving: false, staged: session.editor.staged?.filter(value => value.id !== session.upload?.stagedId) } : undefined }); setNotice('이 파일의 첨부 선택을 취소했습니다.') }}>첨부 선택 취소</button>}</>}</section>}
+      {canShowEditor && <form className="cs-card cs-composer" data-cs-form="editor" aria-label="수합 초안 작성" onSubmit={saveEditor}>
+        <div className="cs-composer-heading"><span className="cs-draft-badge">담당자 초안 · 공개 전</span><h3 tabIndex={-1} data-cs-focus="editor">{session.editor!.original ? '수합 초안 수정' : '새 수합 초안'}</h3><p className="cs-muted">내용과 양식을 한 번에 저장하세요. 공개는 저장 후 따로 결정합니다.</p></div><fieldset disabled={blocked}><legend className="cs-sr-only">수합 내용</legend>
+          <section className="cs-compose-section"><h4>1. 무엇을 받을까요?</h4><div className="cs-basics"><label>수합 제목<input placeholder="예: 1학기 학급 운영계획" required value={session.editor!.input.title} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, title: event.target.value } } })} /></label>
           <label>제출 기한<input type="date" required value={session.editor!.input.dueDate} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, dueDate: event.target.value } } })} /></label>
+          </div>
+          <label>안내 내용<textarea aria-label="안내 내용" rows={2} placeholder="작성 방법이나 꼭 알려야 할 내용을 적어 주세요." value={session.editor!.input.instructions} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, instructions: event.target.value } } })} /></label>
+          </section>
+          <section className="cs-compose-section"><h4>2. 나눠 줄 양식</h4><p className="cs-muted">{session.editor!.staged !== undefined ? '양식이 있으면 선택하세요. 저장할 때 HWPX 검사와 업로드를 진행합니다.' : '양식을 선택하고 검사 완료 후 초안 변경을 저장하세요.'}</p>
+          {session.editor!.staged !== undefined ? <>
+            <label className="cs-file-picker cs-template-picker"><span className="cs-template-prompt">HWPX 양식 선택</span><input className="cs-sr-only" type="file" aria-label="양식 파일 선택" aria-describedby={`${pickerId}-staged-rule`} accept=".hwpx" multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; selectTemplates(files) }} /><small id={`${pickerId}-staged-rule`}>HWPX · 파일당 {formatFileBytes(session.editor!.input.fileCollection!.policy.maxFileBytes)} · 최대 {session.editor!.input.fileCollection!.policy.maxFiles}개 · 선택한 파일은 아래에 표시됩니다.</small></label>
+            <ul className="cs-files" aria-label="선택한 양식">{session.editor!.staged.map(item => <li key={item.id}><span>{item.file.name}<small> · {formatFileBytes(item.file.size)} · 저장 대기</small></span><button type="button" aria-label={`${item.file.name} 선택 취소`} onClick={() => setSession({ ...session, editor: { ...session.editor!, staged: session.editor!.staged!.filter(value => value.id !== item.id) } })}>선택 취소</button></li>)}</ul>
+          </> : session.editor!.original && picker('양식 파일 선택', { kind: 'template', requestId: session.editor!.original.id, version: session.editor!.original.version }, session.editor!.input.fileCollection?.templates ?? [])}
+          {filesView(session.editor!.input.fileCollection?.templates ?? [], session.editor!.original ? { kind: 'template', requestId: session.editor!.original.id, version: session.editor!.original.version } : undefined, id => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, fileCollection: { ...session.editor!.input.fileCollection!, templates: session.editor!.input.fileCollection!.templates.filter(file => file.id !== id) } } } }), session.editor!.original?.fileCollection?.templates.map(file => file.id) ?? [])}
+          </section>
+          <section className="cs-compose-section"><h4>3. 누가 제출하나요?</h4>
+          <CollectionUnitsEditor units={session.editor!.input.units} members={allowedMembers} reviewerMemberId={session.editor!.input.reviewerMemberId} disabled={blocked} onChange={units => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, units } } })} />
+          </section>
           <details className="cs-optional" open={session.editor!.input.reviewMode === 'required' || undefined}><summary>선택 설정 · 제출 후 담당자 검토</summary><p className="cs-muted">검토자를 지정하면 제출한 파일을 확인하고 보완을 요청할 수 있습니다.</p>
           <label>제출 후 검토<select aria-label="제출 후 검토" value={session.editor!.input.reviewerMemberId} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, reviewerMemberId: event.target.value, reviewMode: event.target.value ? 'required' : 'none' } } })}><option value="">검토 없이 제출 완료</option>{session.editor!.input.reviewerMemberId && !allowedMembers.some(person => person.id === session.editor!.input.reviewerMemberId) && <option value={session.editor!.input.reviewerMemberId}>기존 검토자 · 현재 명부에 없음</option>}{allowedMembers.filter(person => person.id === session.editor!.input.reviewerMemberId || !session.editor!.input.units.some(unit => unit.responsibleMemberId === person.id)).map(person => <option key={person.id} value={person.id}>{memberLabel(person)} 검토</option>)}</select></label>
           </details>
@@ -379,12 +441,10 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
             <label>숫자 응답 질문<input maxLength={120} value={session.editor!.input.numberLabel} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, numberLabel: event.target.value, numberRequired: event.target.value.trim() ? session.editor!.input.numberRequired : false } } })} /></label>
             <label className="cs-confirmation"><input type="checkbox" checked={session.editor!.input.numberRequired} disabled={!session.editor!.input.numberLabel.trim()} onChange={event => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, numberRequired: event.target.checked } } })} />숫자 응답 필수 · 0도 유효한 응답</label>
           </details>
-          <CollectionUnitsEditor units={session.editor!.input.units} members={allowedMembers} reviewerMemberId={session.editor!.input.reviewerMemberId} disabled={blocked} onChange={units => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, units } } })} />
-          {session.editor!.original ? <>{picker('양식 파일 선택', { kind: 'template', requestId: session.editor!.original.id, version: session.editor!.original.version }, session.editor!.input.fileCollection?.templates ?? [])}{filesView(session.editor!.input.fileCollection?.templates ?? [], undefined, id => setSession({ ...session, editor: { ...session.editor!, input: { ...session.editor!.input, fileCollection: { ...session.editor!.input.fileCollection!, templates: session.editor!.input.fileCollection!.templates.filter(file => file.id !== id) } } } }))}</> : <p className="cs-muted">먼저 초안을 저장한 뒤 양식 파일을 올릴 수 있습니다. 대상 교사에게는 공개한 뒤 표시됩니다.</p>}
-        </fieldset><div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked || !unitValidation?.valid}>{session.editor!.original ? '수합 초안 변경 저장' : '수합 초안 저장'}</button><button type="button" disabled={blocked} onClick={() => { focusNext(session.editor?.original ? 'edit-button' : 'create-button'); resetEditing(session.editor?.original?.id) }}>작성 취소</button></div>
+        </fieldset><footer className="cs-compose-footer"><p role="status">{session.editor!.saving ? (session.upload ? "양식을 확인 중입니다. 완료된 파일만 초안에 연결합니다." : "초안과 양식을 저장 중입니다…") : session.editor!.createdId ? "초안은 만들어졌습니다. 남은 양식을 확인한 뒤 같은 초안에 저장합니다." : "저장해도 교사에게 공개되지 않습니다."}</p><div className="cs-actions"><button type="submit" className="cs-primary" disabled={blocked || !unitValidation?.valid}>{session.editor!.original ? '수합 초안 변경 저장' : '수합 초안 저장'}</button><button type="button" disabled={blocked} onClick={() => { focusNext(session.editor?.original ? 'edit-button' : 'create-button'); resetEditing(session.editor?.original?.id) }}>작성 취소</button></div></footer>
       </form>}
       {restoring && <p role="status">수합 원본과 보관한 입력의 접근 권한을 다시 확인 중…</p>}
-      {detail && !restoring && <section className="cs-card" aria-label="수합 상세"><div className="cs-heading"><div><h3 tabIndex={-1} data-cs-focus="detail">{detail.request.title}</h3><p>{detail.request.dueDate}까지 · {detail.request.status === 'draft' ? '담당자 초안' : '공개됨'} · v{detail.request.version}</p></div><button type="button" disabled={locked} onClick={() => { focusNext('list-item', detail.request.id); resetEditing(); setDetail(undefined) }}>목록으로</button></div><p className="cs-instructions">{detail.request.instructions}</p>
+      {detail && !restoring && !session.editor && <section className="cs-card" aria-label="수합 상세"><div className="cs-heading"><div><h3 tabIndex={-1} data-cs-focus="detail">{detail.request.title}</h3><p>{detail.request.dueDate}까지 · {detail.request.status === 'draft' ? '담당자 초안' : '공개됨'} · v{detail.request.version}</p></div><button type="button" disabled={locked} onClick={() => { focusNext('list-item', detail.request.id); resetEditing(); setDetail(undefined) }}>목록으로</button></div><p className="cs-instructions">{detail.request.instructions}</p>
         {incomingFile?.requestId === detail.request.id && <p className="cs-notice" role="status">문서함에서 만든 {incomingFile.fileName} 파일이 있습니다. 내 제출 파일 작성을 열고 첨부한 뒤 최종 제출을 확인하세요.</p>}
         {operations && detail.request.status === 'published' && <CollectionOperations key={detail.request.id} server={operations} member={member} requestId={detail.request.id} date={date} disabled={Boolean(busy || pending || session.editor || session.answer || session.upload || session.review || session.management || session.conflict || exportBusy)} revision={reload + revision} onLock={setOperationsLocked} onState={setOperationState} onChanged={() => setReload(value => value + 1)} />}
         {filesView(detail.request.fileCollection?.templates ?? [], { kind: 'template', requestId: detail.request.id, version: detail.request.version })}
