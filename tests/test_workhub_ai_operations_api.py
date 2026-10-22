@@ -352,7 +352,10 @@ def actual_http():
         eq(value[0], 200); eq(value[2]['Cache-Control'], 'no-store'); eq(value[2]['X-Content-Type-Options'], 'nosniff')
         eq(check_map(json.loads(value[1]))['providerConnection'], (None, 'NOT_CHECKED'))
         eq(send(json.dumps(dict(action='list', memberId=MEMBER, cursor=None)))[0], 200)
-        for body, headers in [('{"action":"list","action":"diagnostics"}', None), ('{}', {'Content-Type': 'text/plain'}), ('', None),
+        # 잘못된 Content-Type은 본문을 읽기 전에 거절해야 한다. 길이만 선언하고
+        # 보내지 않아 Windows에서 응답과 미수신 본문으로 생기는 TCP reset 경합을 피한다.
+        # 길이는 정상 범위(2)로 유지하므로 길이 오류로 이 검사를 통과할 수 없다.
+        for body, headers in [('{"action":"list","action":"diagnostics"}', None), (None, {'Content-Type': 'text/plain', 'Content-Length': '2'}), ('', None),
                               (None, {'Content-Type': 'application/json', 'Content-Length': '8193'})]:
             eq(send(body, headers)[0], 400)
         eq(send(method='GET')[0], 405)
