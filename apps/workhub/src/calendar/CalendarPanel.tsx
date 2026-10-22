@@ -9,7 +9,7 @@ import calendarStyles from './calendar-views.css?inline'
 import homeStyles from './home-dashboard.css?inline'
 import type { ResourceOpenRequest } from '../search/contracts'
 import { CalendarImport } from './CalendarImport'
-import { PendingRequestsProvider, useRecoveryStore, usePendingRequest } from '../app/pending-requests'
+import { PendingRequestsProvider, useRecoveryStore, usePendingRequest, recoveryScope } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 interface CalendarSession { editor?: { original?: CalendarEvent }; importing: boolean; importedCount: number }
 interface CalendarBrowseState { search: string; view: CalendarView; anchor: string; relation: CalendarRelation; allDates: boolean }
@@ -17,7 +17,7 @@ const Icon = ({ name }: { name: 'arrow' | 'plus' }) => <svg aria-hidden="true" w
 
 export function CalendarPanel(props: Parameters<typeof CalendarPanelScope>[0]) {
   const recovery = useRecoveryStore()
-  return <PendingRequestsProvider store={recovery}><CalendarPanelScope {...props} /></PendingRequestsProvider>
+  return <PendingRequestsProvider store={recovery}><CalendarPanelScope key={recoveryScope(props.member)} {...props} /></PendingRequestsProvider>
 }
 
 function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homePriority, homeExtras, homeFollowUp, storageLabel, onNavigationLockChange, openRequest, onOpenBatchImport, renderLessonAgenda }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homePriority?: ReactNode; homeExtras?: ReactNode; homeFollowUp?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest; onOpenBatchImport?: () => void; renderLessonAgenda?: (date: string) => ReactNode }) {
@@ -46,6 +46,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   const [importLocked, setImportLocked] = useState(false)
   const navigationLocked = editorLocked || importLocked
   const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [reload, setReload] = useState(0)
@@ -98,10 +99,11 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   }, [navigationLocked, Boolean(recovery.request)])
   useEffect(() => {
     const generation = ++listGeneration.current
-    setLoading(true); setError(''); setEvents([])
-    adapter.list(member.id).then(result => { if (generation === listGeneration.current) setEvents(result) }).catch(() => { if (generation === listGeneration.current) setError('일정 목록을 불러오지 못했습니다. 일정이 없는 것으로 처리하지 않습니다.') }).finally(() => { if (generation === listGeneration.current) setLoading(false) })
+    setLoading(true); setError('')
+    adapter.list(member.id).then(result => { if (generation === listGeneration.current) { setEvents(result); setHasLoaded(true) } }).catch(() => { if (generation === listGeneration.current) { setEvents([]); setHasLoaded(false); setError('일정 목록을 불러오지 못했습니다. 일정이 없는 것으로 처리하지 않습니다.') } }).finally(() => { if (generation === listGeneration.current) setLoading(false) })
     return () => { listGeneration.current += 1 }
   }, [adapter, member.id, revision, reload])
+  const initialLoading = loading && !hasLoaded
   const cards = homeItems(events, member, date)
   const upcoming = upcomingPreview(events, member, date, 3)
   const shownToday = todayExpanded ? cards.today : cards.today.slice(0, 3)
@@ -140,17 +142,17 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
       {homePriority && <div className="home-priority">{homePriority}</div>}
       {renderLessonAgenda && <div className="home-timetable-section">{renderLessonAgenda(date)}</div>}
       <section className="home-calendar-section home-today" aria-labelledby={id + '-today'}>
-        <div className="section-heading home-calendar-heading"><div><h2 id={id + '-today'}>오늘의 일정</h2>{!loading && !error && <span className="count" aria-label={'오늘 관련 일정 ' + cards.today.length + '개'}>{cards.today.length}</span>}</div><button type="button" className="text-button" aria-label="학교 전체 일정 살펴보기" onClick={() => { setAllDates(false); setAnchor(date); clearFilters(); changePage('calendar') }}>전체 일정 <Icon name="arrow" /></button></div>
-        {loading ? <section className="loading-state" role="status" aria-live="polite"><div className="skeleton" /><div className="skeleton" /><p>현재 소속의 일정을 불러오는 중…</p></section> : error ? <section className="error-state" role="alert"><span className="state-symbol">!</span><h2>일정을 확인할 수 없어요</h2><p>{error}</p><button className="secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></section> : <><div className="event-list" id={id + '-today-list'}>{shownToday.length ? shownToday.map(({ event, reason }) => <EventCard key={event.id} event={event} reason={reason} onOpen={setDetail} summary today shownDate={date} />) : <p className="home-empty">오늘 나와 관련된 일정이 없습니다.</p>}</div>{cards.today.length > 3 && <button type="button" className="text-button cv-home-more" aria-expanded={todayExpanded} aria-controls={id + '-today-list'} onClick={() => setTodayExpanded(value => !value)}>{todayExpanded ? '오늘 일정 접기' : '오늘 일정 ' + cards.today.length + '개 모두 보기'}</button>}</>}
+        <div className="section-heading home-calendar-heading"><div><h2 id={id + '-today'}>오늘의 일정</h2>{!initialLoading && !error && <span className="count" aria-label={'오늘 관련 일정 ' + cards.today.length + '개'}>{cards.today.length}</span>}</div><button type="button" className="text-button" aria-label="학교 전체 일정 살펴보기" onClick={() => { setAllDates(false); setAnchor(date); clearFilters(); changePage('calendar') }}>전체 일정 <Icon name="arrow" /></button></div>
+        {initialLoading ? <section className="loading-state" role="status" aria-live="polite"><div className="skeleton" /><div className="skeleton" /><p>현재 소속의 일정을 불러오는 중…</p></section> : error ? <section className="error-state" role="alert"><span className="state-symbol">!</span><h2>일정을 확인할 수 없어요</h2><p>{error}</p><button className="secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></section> : <><div className="event-list" id={id + '-today-list'}>{shownToday.length ? shownToday.map(({ event, reason }) => <EventCard key={event.id} event={event} reason={reason} onOpen={setDetail} summary today shownDate={date} />) : <p className="home-empty">오늘 나와 관련된 일정이 없습니다.</p>}</div>{cards.today.length > 3 && <button type="button" className="text-button cv-home-more" aria-expanded={todayExpanded} aria-controls={id + '-today-list'} onClick={() => setTodayExpanded(value => !value)}>{todayExpanded ? '오늘 일정 접기' : '오늘 일정 ' + cards.today.length + '개 모두 보기'}</button>}</>}
       </section>
       {homeExtras && <div className="home-work-column">{homeExtras}</div>}
       {homeFollowUp && <div className="home-follow-up">{homeFollowUp}</div>}
-      {!loading && !error && <section className="home-calendar-section home-upcoming" aria-labelledby={id + '-upcoming'}>
+      {!initialLoading && !error && <section className="home-calendar-section home-upcoming" aria-labelledby={id + '-upcoming'}>
         <div className="section-heading home-calendar-heading"><div><h2 id={id + '-upcoming'}>다가오는 7일</h2><span className="count">{upcoming.total}</span></div></div><p className="section-description">{dayLabel(upcoming.range.start)} ~ {dayLabel(upcoming.range.end)}</p>
         <div className="event-list">{upcoming.items.length ? upcoming.items.map(({ event, reason }) => <EventCard key={event.id} event={event} reason={reason} onOpen={setDetail} compact summary />) : <p className="home-empty">다음 7일에 시작하는 관련 일정이 없습니다.</p>}</div>
         {upcoming.total > upcoming.items.length && <p className="cv-home-count">{upcoming.total}개 중 먼저 {upcoming.items.length}개 표시</p>}<button type="button" className="text-button cv-home-more" onClick={showAllRelated}>관련 일정 모두 보기 <Icon name="arrow" /></button>
       </section>}
-    </div> : loading ? <section className="loading-state" role="status" aria-live="polite"><div className="skeleton" /><div className="skeleton" /><p>현재 소속의 일정을 불러오는 중…</p></section> : error ? <section className="error-state" role="alert"><span className="state-symbol">!</span><h2>일정을 확인할 수 없어요</h2><p>{error}</p><button className="secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></section> : <section className="calendar-section cv-results" aria-labelledby={`${id}-period`}>
+    </div> : initialLoading ? <section className="loading-state" role="status" aria-live="polite"><div className="skeleton" /><div className="skeleton" /><p>현재 소속의 일정을 불러오는 중…</p></section> : error ? <section className="error-state" role="alert"><span className="state-symbol">!</span><h2>일정을 확인할 수 없어요</h2><p>{error}</p><button className="secondary" onClick={() => setReload(value => value + 1)}>다시 불러오기</button></section> : <section className="calendar-section cv-results" aria-labelledby={`${id}-period`}>
       {view === 'month' ? <><div className="cv-month"><div className="cv-weekdays" aria-hidden="true">{['월', '화', '수', '목', '금', '토', '일'].map(day => <span key={day}>{day}</span>)}</div><div className="cv-month-grid" ref={monthRef} role="group" aria-label="월간 일정 날짜">{monthGrid(anchor).map(day => {
         const dayEvents = monthEvents.filter(event => overlaps(event, { start: day.date, end: day.date }))
         return <button type="button" key={day.date} className={`cv-month-day${day.inMonth ? '' : ' is-outside'}`} data-calendar-day={day.date} aria-pressed={anchor === day.date} aria-controls={`${id}-day`} tabIndex={anchor === day.date ? 0 : -1} aria-label={`${day.date} ${dayLabel(day.date)}${day.date === date ? ' 오늘' : ''} · 일정 ${dayEvents.length}개`} onClick={() => setAnchor(day.date)} onKeyDown={event => monthKeyboard(event, day.date)}><span className="cv-day-top"><strong>{Number(day.date.slice(8))}</strong>{day.date === date && <span className="cv-today-label">오늘</span>}</span><span className="cv-day-count">{dayEvents.length ? `${dayEvents.length}개` : '없음'}</span>{dayEvents[0] && <span className="cv-day-sample" aria-hidden="true">{dayEvents[0].title}{dayEvents.length > 1 ? ` 외 ${dayEvents.length - 1}` : ''}</span>}</button>

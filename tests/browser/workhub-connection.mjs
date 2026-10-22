@@ -63,6 +63,18 @@ try{
   await page.waitForFunction(old=>window.scenario.contextCalls>old,count)
   assert.equal(await page.locator('input[name="title"]').inputValue(),'보존해야 하는 미저장 초안')
   console.log('  ✓ 동일 UID 토큰 갱신에서 미저장 초안 유지')
+  await page.evaluate(() => {
+    const root = [...document.querySelectorAll('*')].find(node=>node.shadowRoot).shadowRoot;
+    window.focusBlanks = 0;
+    window.focusObserver = new MutationObserver(() => { if (root.querySelector('.connected-empty')) window.focusBlanks++ });
+    window.focusObserver.observe(root, {childList:true, subtree:true});
+    window.scenario.delay(120); window.dispatchEvent(new Event('focus'));
+    setTimeout(() => window.scenario.token(), 30);
+  })
+  await page.waitForTimeout(1200)
+  assert.equal(await page.evaluate(()=>window.focusBlanks),0,'포커스와 같은 계정 토큰 갱신이 겹쳐도 빈 연결 화면이 되지 않습니다')
+  await page.evaluate(()=>{window.focusObserver.disconnect();window.scenario.delay(0)})
+  console.log('  ✓ 포커스·동일 계정 갱신이 겹친 경우에도 연결 화면 유지')
   await page.evaluate(()=>window.scenario.deny())
   await page.getByRole('dialog').getByRole('button',{name:'일정 등록',exact:true}).click()
   await page.getByRole('heading',{name:'학교 연결을 완료하지 못했습니다'}).waitFor()
@@ -80,6 +92,16 @@ try{
 
   await boot();await page.getByRole('button',{name:'일정 편집 닫기'}).click()
   await page.getByText('가온 학교의 내 업무',{exact:true}).waitFor()
+  await page.evaluate(() => {
+    const root = [...document.querySelectorAll('*')].find(node=>node.shadowRoot).shadowRoot;
+    window.keptEvents = root.querySelector('.event-list'); window.keptTasks = root.querySelector('.task-list');
+    window.scenario.taskDelay(600); window.dispatchEvent(new Event('focus'));
+  })
+  await page.waitForTimeout(150)
+  assert.equal(await page.evaluate(()=>window.keptEvents.isConnected && window.keptTasks.isConnected),true,'창 복귀 중 홈의 일정·업무 DOM을 제거하지 않습니다')
+  await page.waitForTimeout(700)
+  await page.evaluate(()=>window.scenario.taskDelay(0))
+  console.log('  ✓ 창 복귀 재조회 중 홈 일정·내 업무 목록 DOM 유지')
   await page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name:'내 업무',exact:true}).click()
   await page.getByRole('heading',{name:'내 업무',exact:true,level:1}).waitFor()
   await page.getByText('가온 학교의 내 업무',{exact:true}).waitFor()

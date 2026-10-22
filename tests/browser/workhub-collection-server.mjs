@@ -258,8 +258,13 @@ try {
   await test('탭 재확인은 최신 원본을 갱신하고 작성 중 입력을 그대로 유지한다', async () => {
     await createInput(); await page.getByRole('button', { name: '수합 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '양식 추가·초안 수정' }).click(); await page.getByLabel('안내 내용', { exact: true }).fill('작성하던 안내')
     await page.evaluate(() => { window.state.request.instructions = '서버에 추가된 안내'; window.state.request.version++; window.refresh() })
-    await page.getByRole('region', { name: '수합 상세', exact: true }).getByText('서버에 추가된 안내', { exact: true }).waitFor(); assert.equal(await page.getByLabel('안내 내용', { exact: true }).inputValue(), '작성하던 안내')
+    await page.waitForFunction(() => { const field = document.querySelector('textarea[aria-label="안내 내용"]'); return field && !field.disabled })
+    assert.equal(await page.getByLabel('안내 내용', { exact: true }).inputValue(), '작성하던 안내')
     assert.equal(await page.locator('[data-lock]').innerText(), 'true')
+    // 편집 중에는 상세를 중복 표시하지 않는다. 취소 뒤에는 재조회한 최신 원본을 연다.
+    assert.equal(await page.getByRole('region', { name: '수합 상세', exact: true }).count(), 0)
+    await page.getByRole('button', { name: '작성 취소', exact: true }).click()
+    await page.getByRole('region', { name: '수합 상세', exact: true }).getByText('서버에 추가된 안내', { exact: true }).waitFor()
   })
   await test('준비 상태가 해제되어도 미확정 요청 없는 입력은 명시적으로 버리고 이동할 수 있다', async () => {
     await createInput(); if (output) await page.screenshot({ path: join(output, 'connected-collection-create.png'), fullPage: true })

@@ -189,8 +189,10 @@ try {
 
   await boot()
   await card('t1').getByRole('button',{name:'수정',exact:true}).click();await title().fill('목록 경합 후 저장')
+  await card('t1').evaluate(node=>window.keptTaskCard=node)
   await page.evaluate(()=>{window.scenario.holdList=true;window.scenario.refresh()})
-  await page.getByText('내 업무를 불러오는 중…',{exact:true}).waitFor()
+  await page.getByText('내 업무 확인 중',{exact:true}).waitFor()
+  assert.equal(await page.evaluate(()=>window.keptTaskCard.isConnected),true)
   assert.equal(await title().inputValue(),'목록 경합 후 저장')
   await page.getByRole('button',{name:'수정 저장',exact:true}).click()
   await card('t1').getByRole('heading',{name:'목록 경합 후 저장',exact:true}).waitFor()

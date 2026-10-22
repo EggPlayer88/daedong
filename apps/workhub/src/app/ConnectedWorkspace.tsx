@@ -16,6 +16,7 @@ import { homeCountLabels } from '../home/counts'
 import type { HomeKind } from '../home/overview'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { activeAt } from '../domain'
+import { ContractError } from '../contracts'
 import { createSupabaseConnection, type SupabaseConnection } from '../connection/supabase-connection'
 import { createSupabaseCalendarAdapter } from '../connection/supabase-calendar'
 import type { ConnectionContext } from '../connection/contracts'
@@ -154,6 +155,13 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
             setRefreshEpoch(value => value + 1)
             setMemberId(selected?.id ?? '')
           } catch (failure) {
+            // 창 복귀와 동일 계정의 토큰 갱신이 겹치면 이전 조회만 취소된다.
+            // 이 중간 결과로 화면을 비우지 않고 최신 신원·소속을 다시 읽는다.
+            // 실제 계정/권한 무효화는 아래 구독에서 세대를 바꾸고 즉시 화면을 닫는다.
+            if (alive && version === generation.current && failure instanceof ContractError && failure.code === 'CANCELLED') {
+              queued = ++generation.current
+              continue
+            }
             if (alive && version === generation.current) { setHandoff(undefined); editDrafts.suspend(); setContext(undefined); setError(failure instanceof Error ? failure.message : '학교 연결을 확인하지 못했습니다.') }
           } finally { if (alive && version === generation.current) setLoading(false) }
         }

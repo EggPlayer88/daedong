@@ -20,7 +20,7 @@ export function CollectionUnitsEditor({ units, members, reviewerMemberId = '', d
   function attempt(action: () => UnitInput[]) { if (locked) return; try { change(action()) } catch (failure) { setMessage(failure instanceof Error ? failure.message : '선택을 확인해 주세요.') } }
   const globalIssues = validation.issues.filter(issue => issue.unitIndex === null)
   return <fieldset className="cs-unit-editor" disabled={locked} aria-describedby={`${id}-help`}><style>{styles}</style><legend>제출 대상</legend>
-    <p id={`${id}-help`}>기본은 교사마다 한 부입니다. 학년·교과에서 함께 한 부를 낼 때는 공동 제출 단위를 추가하세요. 책임 교사는 최종 제출하고, 공동 작성자는 같은 초안을 함께 작성합니다.</p>
+    <p id={`${id}-help`}>제출할 교사를 선택하세요. 함께 한 부를 낼 때는 공동 제출 단위를 추가하세요.</p>
     <fieldset className="cs-personal-units"><legend>교사마다 한 부</legend><div className="cs-unit-options">{options.map(person => {
       const assigned = values.filter(unit => unit.responsibleMemberId === person.id)
       const personal = assigned.length === 1 && assigned[0].label === person.label && !assigned[0].contributorMemberIds.length
