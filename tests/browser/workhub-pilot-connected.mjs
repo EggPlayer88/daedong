@@ -81,7 +81,10 @@ if(window.scenario.cooperationEnabled){
 // 읽기 RPC를 쓰기 실패로 세지 않는다. 예상하지 못한 변경 경로는 시험을 실패시킨다.
 const writes=/(?:_mutate|_commit|_save|_prepare_upload|_complete|_send|_ask|_render|_publish|_confirm|_cancel|_update|_delete)$/.test(name);
 if(writes){window.scenario.writes.push(call);throw new Error('unexpected write '+name)}
-window.scenario.readFailures.push({name,code:'NOT_READY'});throw new ContractError('QUERY_FAILED','선택 기능의 조회 RPC가 아직 없습니다.');
+window.scenario.readFailures.push({name,code:'NOT_READY'});
+// 실패 관측과 React 오류 표시 사이를 분리해 조기 판정 회귀를 재현한다.
+if(window.scenario.holdReadFailure===name)await new Promise(resolve=>{window.scenario.releaseReadFailure=()=>{window.scenario.holdReadFailure=null;resolve()}});
+throw new ContractError('QUERY_FAILED','선택 기능의 조회 RPC가 아직 없습니다.');
 }};
 createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" legacyHomeHref="/legacy" connection={connection}/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},plugins:[{name:'synthetic-assistant-transport',setup(build){build.onLoad({filter:/assistant[\\/]legacy-http\.ts$/},()=>({contents:'export const legacyAssistantHttp={send:async payload=>window.scenario.assistantHttp(payload)};export const legacySchoolAiHttp={send:async()=>{throw Error("synthetic settings unavailable")}};export const legacySchoolAiOperationsHttp={send:async()=>{throw Error("synthetic operations unavailable")}}',loader:'ts'}))}}],define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
@@ -97,7 +100,43 @@ async function screenshot(name){await page.evaluate(()=>document.fonts.ready);if
 async function check(name,fn){await boot();try{await fn()}catch(error){console.error('실패 화면:',await page.locator('.workhub-connected').innerText(),'pageErrors:',errors);throw error}passed.push(name);console.log('  ✓ '+name)}
 try{
 await check('R0 일정·업무는 보이고 미연결 추가 항목은 0건으로 오인하지 않는다',async()=>{await page.getByText('수합·메시지·학생 후속 업무를 불러오지 못했습니다',{exact:true}).waitFor();await page.getByText('함께 여는 월요일 · 교직원 협의',{exact:true}).waitFor();assert.equal(await page.getByText('지금 확인할 추가 업무가 없습니다.',{exact:true}).count(),0);await screenshot('pilot-home-1280.png')})
-await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 영향을 주지 않는다',async()=>{for(const [title,rpc]of[['자료 수합','workhub_collection_basic_readiness'],['문서함','workhub_document_list'],['협업 요청','workhub_cooperation_catalog'],['AI 비서','workhub_assistant_readiness'],['학교 자료','workhub_knowledge_readiness'],['메시지와 알림','workhub_messaging_readiness'],['학교 관리','workhub_school_admin_snapshot'],['수업과 학생','workhub_teaching_catalog'],['시간표','workhub_timetable_readiness']]){const before=await page.evaluate(()=>window.scenario.readFailures.length);await go(title);await page.locator(title==='시간표'?'.timetable-workspace':'#main-content > .page-header').getByRole('heading',{name:title,exact:true,level:1}).waitFor();if(title==='AI 비서')await page.getByRole('alert').waitFor();else await page.waitForFunction(n=>window.scenario.readFailures.length>n,before);if(title==='시간표'){assert.equal(await page.getByRole('button',{name:'예시로 편성 연습',exact:true}).isEnabled(),true);assert.equal(await page.locator('.timetable-board').count(),0);assert.ok(await page.evaluate(rpc=>window.scenario.calls.some(call=>call.name===rpc),rpc))};assert.ok(await page.getByRole('alert').count()>0||await page.getByText(/준비|확인하지 못/).count()>0,title);assert.equal(await page.getByRole('heading',{name:'학교 연결을 완료하지 못했습니다'}).count(),0);assert.equal(await page.getByRole('button',{name:'시연용 자료로 체험하기',exact:true}).count(),0);await go('학교 일정');await page.getByRole('button',{name:'시트에서 가져오기',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'일정 등록',exact:true}).isEnabled(),true)}assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[]);await screenshot('pilot-calendar-1280.png')})
+await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 영향을 주지 않는다', async () => {
+  for (const [title, rpc] of [
+    ['자료 수합', 'workhub_collection_basic_readiness'], ['문서함', 'workhub_document_list'],
+    ['협업 요청', 'workhub_cooperation_catalog'], ['AI 비서', 'workhub_assistant_readiness'],
+    ['학교 자료', 'workhub_knowledge_list'], ['메시지와 알림', 'workhub_messaging_readiness'],
+    ['학교 관리', 'workhub_school_admin_snapshot'], ['수업과 학생', 'workhub_teaching_catalog'],
+    ['시간표', 'workhub_timetable_readiness'],
+  ]) {
+    const before = await page.evaluate(() => window.scenario.readFailures.length)
+    if (title === '학교 자료') await page.evaluate(name => { window.scenario.holdReadFailure = name }, rpc)
+    await go(title)
+    await page.locator(title === '시간표' ? '.timetable-workspace' : '#main-content > .page-header')
+      .getByRole('heading', { name: title, exact: true, level: 1 }).waitFor()
+    if (title !== 'AI 비서') await page.waitForFunction(n => window.scenario.readFailures.length > n, before)
+    if (title === '학교 자료') {
+      await page.waitForFunction(() => typeof window.scenario.releaseReadFailure === 'function')
+      await page.getByRole('status').filter({ hasText: '학교 자료를 불러오는 중' }).waitFor()
+      assert.equal(await page.locator('.knowledge').getByRole('alert').count(), 0)
+      // 조회 실패 기록만 먼저 생겨도 성공으로 세지 않는다. 응답을 풀고 오류 표시까지 기다린다.
+      await page.evaluate(() => window.scenario.releaseReadFailure())
+    }
+    // RPC 관측은 React 렌더 완료가 아니다. CI에서도 실제 사용자에게 보이는 오류가 기준이다.
+    await page.getByRole('alert').first().waitFor({ state: 'visible' })
+    if (title === '시간표') {
+      assert.equal(await page.getByRole('button', { name: '예시로 편성 연습', exact: true }).isEnabled(), true)
+      assert.equal(await page.locator('.timetable-board').count(), 0)
+      assert.ok(await page.evaluate(name => window.scenario.calls.some(call => call.name === name), rpc))
+    }
+    assert.equal(await page.getByRole('heading', { name: '학교 연결을 완료하지 못했습니다' }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: '시연용 자료로 체험하기', exact: true }).count(), 0)
+    await go('학교 일정')
+    await page.getByRole('button', { name: '시트에서 가져오기', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: '일정 등록', exact: true }).isEnabled(), true)
+  }
+  assert.deepEqual(await page.evaluate(() => window.scenario.writes), [])
+  await screenshot('pilot-calendar-1280.png')
+})
 await check('시간표 운영 RPC 미설치는 편성·기존 일정 이동을 막거나 자동 공개하지 않는다', async () => {
   await go('시간표')
   await page.getByRole('button', { name: '확정·공유·교환', exact: true }).click()
