@@ -4,7 +4,8 @@ import sys
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from _assistant import execute, CheckError, LIMITS, parse_json
+from _assistant import CheckError, LIMITS, parse_json
+from _school_policy import execute
 
 class handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):

@@ -14,7 +14,12 @@ const messages: Partial<Record<FailureCode, string>> = {
 }
 export function rpcFailure(error: RpcError): ContractError {
   const code = error.message as FailureCode
-  if (!Object.hasOwn(messages,code)) return new ContractError('QUERY_FAILED', '연결 요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  if (!Object.hasOwn(messages,code)) {
+    const failure = new ContractError('QUERY_FAILED', '연결 요청을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    // 기존 오류 코드·인증 판정은 유지한다. 미설치 증분을 식별할 안전한 코드만 어댑터에 전달한다.
+    if (error.code === 'PGRST202') Object.assign(failure, { rpcCode: 'PGRST202' })
+    return failure
+  }
   let current: CalendarEvent | undefined
   if (code === 'CONFLICT' && error.details) {
     try { current = JSON.parse(error.details) as CalendarEvent } catch { /* 내부 오류 원문은 노출하지 않는다. */ }

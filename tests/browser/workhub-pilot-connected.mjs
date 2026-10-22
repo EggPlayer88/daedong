@@ -1,13 +1,15 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 셸·어댑터를 사용한다. 기본은 R0만 제공하고 협업 알림 시험만 합성 P2/P3 조회를 켠다.
 import assert from 'node:assert/strict'
-import { buildSync } from 'esbuild'
+import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 const fontCss=readFileSync(new URL('../../apps/workhub/src/typography.css',import.meta.url),'utf8'),fontBytes=readFileSync(new URL('../../apps/workhub/src/assets/fonts/PretendardVariable.woff2',import.meta.url))
-const bundle = buildSync({stdin:{contents:`
+const bundle = await build({stdin:{contents:`
 import React from 'react'; import {createRoot} from 'react-dom/client';
+import {ASSISTANT_ROUTING} from './apps/workhub/src/assistant/contracts';
 import {ConnectedWorkspace} from './apps/workhub/src/app/ConnectedWorkspace';
 import {ContractError} from './apps/workhub/src/contracts';
 import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
@@ -21,6 +23,19 @@ const identity={userId:'fixture-soyeon',approved:true,profile:{id:'fixture-soyeo
 let onIdentity=()=>{},onInvalidation=()=>{},connected=true;
 window.scenario={calls:[],readFailures:[],writes:[],contextCalls:0,throwInfo:false,profileFailure:false,failConnection(){connected=false;onInvalidation(new ContractError('QUERY_FAILED','합성 연결 재확인 실패'))},restoreConnection(){connected=true},refresh(){onIdentity()},};
 const now='2026-10-19T00:00:00Z';
+const knowledgeSource={id:'knowledge-linked-source',schoolId:'fixture-school-gaon',authorMemberId:'gaon-minjun',version:7,status:'published',updatedAt:now,title:'연결한 학교 업무 안내',kind:'school_guide',body:'정확히 7판인 업무 안내 원문',locator:'학교 안내 제3조',effectiveFrom:'2026-03-01',effectiveThrough:'2027-02-28'};
+// 목록의 최신 판과 인용할 과거 판을 분리해 K1 직접 조회 계약을 재현한다.
+const knowledgeRevision=structuredClone(knowledgeSource);
+const assistantEnvelope=data=>({contract:'assistant.v1',schoolId:'fixture-school-gaon',memberId:'gaon-soyeon',data});
+Object.assign(window.scenario,{knowledgeEnabled:false,knowledgeSource,aiCalls:[],aiThread:null,assistantHttp:async payload=>{
+ if(!window.scenario.knowledgeEnabled)throw Error('synthetic assistant not configured');
+ if(payload.action==='readiness')return assistantEnvelope({available:true});
+ if(payload.action!=='ask')throw Error('unexpected assistant action');
+ window.scenario.aiCalls.push(structuredClone(payload));
+ const prior=window.scenario.aiThread;if(prior?.exchanges.some(e=>e.requestKey===payload.requestKey))return assistantEnvelope({state:'completed',requestKey:payload.requestKey,thread:prior});
+ const thread={id:payload.input.threadId??'knowledge-conversation',mode:payload.input.mode,version:payload.input.expectedVersion+1,title:'자료 근거 상담',exchanges:[{id:'knowledge-answer',requestKey:payload.requestKey,intent:payload.input.intent,prompt:payload.input.prompt,segments:[{text:'선택한 학교 자료를 근거로 확인한 답변입니다.',citations:[{reference:structuredClone(payload.input.references[0]),title:knowledgeSource.title,locator:knowledgeSource.locator}]}],proposal:null,createdAt:now,studentContext:null,...(payload.input.quality?{execution:{quality:payload.input.quality,model:ASSISTANT_ROUTING.models[payload.input.quality].id,reviewOf:payload.input.reviewOf}}:{})}],nextCursor:null};
+ window.scenario.aiThread=thread;return assistantEnvelope({state:'completed',requestKey:payload.requestKey,thread});
+}});
 const cooperationRequest={id:'cooperation-target',schoolId:'fixture-school-gaon',version:1,senderMemberId:'gaon-minjun',recipientMemberId:'gaon-soyeon',senderName:'이민준',recipientName:'한소연',title:'알림이 가리킨 정확한 협업',description:'목록 첫 항목과 다른 원본입니다.',dueDate:'2026-10-20',status:'requested',createdAt:now,updatedAt:now,taskLink:null};
 const cooperationHistory=[{id:'cooperation-history',action:'create',actorMemberId:'gaon-minjun',comment:'',version:1,recordedAt:now}];
 const cooperationNotice={id:'cooperation-notice',schoolId:'fixture-school-gaon',ownerMemberId:'gaon-soyeon',title:'협업 요청 알림',body:'원본에서 현재 담당자와 상태를 확인하세요.',createdAt:now,readAt:null,version:1,source:{module:'cooperation',id:'cooperation-target'}};
@@ -38,6 +53,18 @@ if(name==='workhub_calendar_list')return calendar.list(args.p_member_id);
 if(name==='workhub_calendar_get')return calendar.get(args.p_member_id,args.p_event_id);
 if(name==='workhub_task_list')return tasks.listTasks(args.p_member_id);
 if(name==='workhub_task_get')return tasks.listTasks(args.p_member_id).find(t=>t.id===args.p_task_id);
+if(window.scenario.knowledgeEnabled){
+ if(name==='workhub_knowledge_list')return{contract:'knowledge.v1',schoolId:'fixture-school-gaon',memberId:'gaon-soyeon',data:{items:[structuredClone(knowledgeSource)],nextCursor:null,canManage:true}};
+ if(name==='workhub_knowledge_get'){
+  const envelope={contract:'knowledge.v1',schoolId:'fixture-school-gaon',memberId:'gaon-soyeon'};
+  if(args.p_member_id!=='gaon-soyeon'||args.p_source_id!==knowledgeRevision.id||args.p_source_version!==knowledgeRevision.version)return{...envelope,error:{code:'NOT_FOUND'}};
+  if(window.scenario.knowledgeGetFailure)return{...envelope,error:{code:window.scenario.knowledgeGetFailure}};
+  return{...envelope,data:{source:structuredClone(knowledgeRevision),isCurrent:knowledgeSource.version===knowledgeRevision.version,canManage:true}};
+ }
+
+ if(name==='workhub_ai_policy_threads_list')return assistantEnvelope({items:window.scenario.aiThread?[{id:window.scenario.aiThread.id,mode:'school',version:window.scenario.aiThread.version,title:'자료 근거 상담',updatedAt:now}]:[],nextCursor:null});
+ if(name==='workhub_ai_policy_thread_get')return assistantEnvelope(structuredClone(window.scenario.aiThread));
+}
 if(window.scenario.cooperationEnabled){
  if(name==='workhub_messaging_readiness')return messageEnvelope({available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'});
  if(name==='workhub_message_threads'||name==='workhub_message_recipients')return messageEnvelope({items:[],nextCursor:null});
@@ -54,22 +81,62 @@ if(window.scenario.cooperationEnabled){
 // 읽기 RPC를 쓰기 실패로 세지 않는다. 예상하지 못한 변경 경로는 시험을 실패시킨다.
 const writes=/(?:_mutate|_commit|_save|_prepare_upload|_complete|_send|_ask|_render|_publish|_confirm|_cancel|_update|_delete)$/.test(name);
 if(writes){window.scenario.writes.push(call);throw new Error('unexpected write '+name)}
-window.scenario.readFailures.push({name,code:'NOT_READY'});throw new ContractError('QUERY_FAILED','선택 기능의 조회 RPC가 아직 없습니다.');
+window.scenario.readFailures.push({name,code:'NOT_READY'});
+// 실패 관측과 React 오류 표시 사이를 분리해 조기 판정 회귀를 재현한다.
+if(window.scenario.holdReadFailure===name)await new Promise(resolve=>{window.scenario.releaseReadFailure=()=>{window.scenario.holdReadFailure=null;resolve()}});
+throw new ContractError('QUERY_FAILED','선택 기능의 조회 RPC가 아직 없습니다.');
 }};
 createRoot(document.getElementById('root')).render(<ConnectedWorkspace expectedUserId="fixture-soyeon" legacyHomeHref="/legacy" connection={connection}/>);
-`,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
+`,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},plugins:[{name:'synthetic-assistant-transport',setup(build){build.onLoad({filter:/assistant[\\/]legacy-http\.ts$/},()=>({contents:'export const legacyAssistantHttp={send:async payload=>window.scenario.assistantHttp(payload)};export const legacySchoolAiHttp={send:async()=>{throw Error("synthetic settings unavailable")}};export const legacySchoolAiOperationsHttp={send:async()=>{throw Error("synthetic operations unavailable")}}',loader:'ts'}))}}],define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage(),passed=[],errors=[],expectedRenderErrors=[],external=[],output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(15000);page.on('pageerror',e=>{if(e.message==='synthetic isolated render failure')expectedRenderErrors.push(e.message);else errors.push(e.message)});
 await context.route('**/*',route=>{const url=route.request().url();if(!url.startsWith('http://127.0.0.1:5179/')){external.push(url);return route.abort()}if(url.endsWith('/assets/fonts/PretendardVariable.woff2'))return route.fulfill({contentType:'font/woff2',body:fontBytes});return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0"><div id="root"></div></body></html>'})})
 async function boot(){await page.goto('http://127.0.0.1:5179/pilot');await page.addStyleTag({content:fontCss});await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByRole('heading',{name:'오늘',exact:true,level:1}).waitFor();await page.getByText('합성 학교의 확인할 업무',{exact:true}).waitFor()}
-async function go(name){const direct=page.getByRole('navigation',{name:'신축 업무 메뉴'}).getByRole('button',{name,exact:true});if(name==='AI 비서'){const trigger=page.locator('.ws-assistant-trigger');if(await trigger.isVisible())await trigger.click();else{await page.getByRole('button',{name:'더보기',exact:true}).click();await page.getByRole('dialog',{name:'더보기',exact:true}).getByRole('button',{name,exact:true}).click()}}else if(await direct.first().isVisible())await direct.first().click();else{await page.getByRole('button',{name:'더보기',exact:true}).click();await page.getByRole('dialog',{name:'더보기',exact:true}).getByRole('button',{name,exact:true}).click()}}
+async function go(name){await clickWorkspaceMenu(page,name)}
 async function openCooperationInbox(){await page.evaluate(()=>window.scenario.cooperationEnabled=true);await go('메시지와 알림');await page.getByRole('button',{name:'업무 알림',exact:true}).click();await page.getByRole('heading',{name:'협업 요청 알림',exact:true}).waitFor()}
+async function askFromKnowledge(){await page.evaluate(()=>window.scenario.knowledgeEnabled=true);await go('학교 자료');await page.getByRole('heading',{name:'연결한 학교 업무 안내',exact:true}).waitFor();await page.getByRole('button',{name:'이 자료로 질문',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.scenario.aiCalls.length),0);await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();assert.match(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).inputValue(),/연결한 학교 업무 안내.*7판/);assert.equal(await page.evaluate(()=>window.scenario.aiCalls.length),0);await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click();await page.getByRole('heading',{name:'Claude 답변',exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>window.scenario.aiCalls[0].input.references),[{kind:'knowledge',id:'knowledge-linked-source',version:7}]);await page.getByText('근거 1개',{exact:true}).click()}
 async function screenshot(name){await page.evaluate(()=>document.fonts.ready);if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,name),fullPage:true})}}
 // 메뉴 도착은 셸의 제목으로 확인한다. 하위 학교 관리 모듈의 같은 제목과 혼동하지 않는다.
 async function check(name,fn){await boot();try{await fn()}catch(error){console.error('실패 화면:',await page.locator('.workhub-connected').innerText(),'pageErrors:',errors);throw error}passed.push(name);console.log('  ✓ '+name)}
 try{
 await check('R0 일정·업무는 보이고 미연결 추가 항목은 0건으로 오인하지 않는다',async()=>{await page.getByText('수합·메시지·학생 후속 업무를 불러오지 못했습니다',{exact:true}).waitFor();await page.getByText('함께 여는 월요일 · 교직원 협의',{exact:true}).waitFor();assert.equal(await page.getByText('지금 확인할 추가 업무가 없습니다.',{exact:true}).count(),0);await screenshot('pilot-home-1280.png')})
-await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 영향을 주지 않는다',async()=>{for(const [title,rpc]of[['자료 수합','workhub_collection_basic_readiness'],['문서함','workhub_document_list'],['협업 요청','workhub_cooperation_catalog'],['AI 비서','workhub_assistant_readiness'],['학교 자료','workhub_knowledge_readiness'],['메시지와 알림','workhub_messaging_readiness'],['학교 관리','workhub_school_admin_snapshot'],['수업과 학생','workhub_teaching_catalog'],['시간표','workhub_timetable_readiness']]){const before=await page.evaluate(()=>window.scenario.readFailures.length);await go(title);await page.locator(title==='시간표'?'.timetable-workspace':'#main-content > .page-header').getByRole('heading',{name:title,exact:true,level:1}).waitFor();if(title==='AI 비서')await page.getByRole('alert').waitFor();else await page.waitForFunction(n=>window.scenario.readFailures.length>n,before);if(title==='시간표'){assert.equal(await page.getByRole('button',{name:'예시로 편성 연습',exact:true}).isEnabled(),true);assert.equal(await page.locator('.timetable-board').count(),0);assert.ok(await page.evaluate(rpc=>window.scenario.calls.some(call=>call.name===rpc),rpc))};assert.ok(await page.getByRole('alert').count()>0||await page.getByText(/준비|확인하지 못/).count()>0,title);assert.equal(await page.getByRole('heading',{name:'학교 연결을 완료하지 못했습니다'}).count(),0);assert.equal(await page.getByRole('button',{name:'시연용 자료로 체험하기',exact:true}).count(),0);await go('학교 일정');await page.getByRole('button',{name:'시트에서 가져오기',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'일정 등록',exact:true}).isEnabled(),true)}assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[]);await screenshot('pilot-calendar-1280.png')})
+await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 영향을 주지 않는다', async () => {
+  for (const [title, rpc] of [
+    ['자료 수합', 'workhub_collection_basic_readiness'], ['문서함', 'workhub_document_list'],
+    ['협업 요청', 'workhub_cooperation_catalog'], ['AI 비서', 'workhub_assistant_readiness'],
+    ['학교 자료', 'workhub_knowledge_list'], ['메시지와 알림', 'workhub_messaging_readiness'],
+    ['학교 관리', 'workhub_school_admin_snapshot'], ['수업과 학생', 'workhub_teaching_catalog'],
+    ['시간표', 'workhub_timetable_readiness'],
+  ]) {
+    const before = await page.evaluate(() => window.scenario.readFailures.length)
+    if (title === '학교 자료') await page.evaluate(name => { window.scenario.holdReadFailure = name }, rpc)
+    await go(title)
+    await page.locator(title === '시간표' ? '.timetable-workspace' : '#main-content > .page-header')
+      .getByRole('heading', { name: title, exact: true, level: 1 }).waitFor()
+    if (title !== 'AI 비서') await page.waitForFunction(n => window.scenario.readFailures.length > n, before)
+    if (title === '학교 자료') {
+      await page.waitForFunction(() => typeof window.scenario.releaseReadFailure === 'function')
+      await page.getByRole('status').filter({ hasText: '학교 자료를 불러오는 중' }).waitFor()
+      assert.equal(await page.locator('.knowledge').getByRole('alert').count(), 0)
+      // 조회 실패 기록만 먼저 생겨도 성공으로 세지 않는다. 응답을 풀고 오류 표시까지 기다린다.
+      await page.evaluate(() => window.scenario.releaseReadFailure())
+    }
+    // RPC 관측은 React 렌더 완료가 아니다. CI에서도 실제 사용자에게 보이는 오류가 기준이다.
+    await page.getByRole('alert').first().waitFor({ state: 'visible' })
+    if (title === '시간표') {
+      assert.equal(await page.getByRole('button', { name: '예시로 편성 연습', exact: true }).isEnabled(), true)
+      assert.equal(await page.locator('.timetable-board').count(), 0)
+      assert.ok(await page.evaluate(name => window.scenario.calls.some(call => call.name === name), rpc))
+    }
+    assert.equal(await page.getByRole('heading', { name: '학교 연결을 완료하지 못했습니다' }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: '시연용 자료로 체험하기', exact: true }).count(), 0)
+    await go('학교 일정')
+    await page.getByRole('button', { name: '시트에서 가져오기', exact: true }).waitFor()
+    assert.equal(await page.getByRole('button', { name: '일정 등록', exact: true }).isEnabled(), true)
+  }
+  assert.deepEqual(await page.evaluate(() => window.scenario.writes), [])
+  await screenshot('pilot-calendar-1280.png')
+})
 await check('시간표 운영 RPC 미설치는 편성·기존 일정 이동을 막거나 자동 공개하지 않는다', async () => {
   await go('시간표')
   await page.getByRole('button', { name: '확정·공유·교환', exact: true }).click()
@@ -93,5 +160,14 @@ for(const [code,text]of[['FORBIDDEN','현재 계정으로 접근할 수 없는 �
 await check('협업 알림 원본의 깨진 처리 이력은 정상 상세나 수락 버튼으로 보이지 않는다',async()=>{await openCooperationInbox();await page.evaluate(()=>window.scenario.cooperationHistory[0].actorMemberId='gaon-seojin');await page.getByRole('button',{name:'협업 요청 원본 열기',exact:true}).click();await page.getByRole('alert').getByText('서버의 협업 처리 이력을 확인하지 못했습니다. 자료를 다시 불러와 주세요.',{exact:true}).waitFor();assert.equal(await page.getByRole('article',{name:'선택한 협업 요청',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'수락',exact:true}).count(),0);assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[])})
 await check('메시지를 작성하는 동안 협업 알림 원본으로 이동하지 않고 입력을 보존한다',async()=>{await openCooperationInbox();await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByLabel('메시지',{exact:true}).fill('원본을 열기 전에 보존할 메시지 입력');assert.equal(await page.getByRole('button',{name:'협업 요청 원본 열기',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'원본을 열기 전에 보존할 메시지 입력');assert.equal(await page.evaluate(()=>window.scenario.calls.filter(c=>c.name==='workhub_cooperation_get').length),0);assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[])})
 await check('390px 홈·더보기·새 모듈·학교 일정 동선을 유지한다',async()=>{await page.setViewportSize({width:390,height:844});await screenshot('pilot-home-390.png');await page.getByRole('button',{name:'더보기',exact:true}).click();const menu=page.getByRole('dialog',{name:'더보기',exact:true});await menu.waitFor();for(const name of ['자료 수합','문서함','협업 요청','수업과 학생','AI 비서'])assert.equal(await menu.getByRole('button',{name,exact:true}).isVisible(),true);await screenshot('pilot-menu-390.png');await menu.getByRole('button',{name:'수업과 학생',exact:true}).click();await page.getByRole('heading',{name:'수업과 학생',exact:true,level:1}).waitFor();assert.equal(await menu.isVisible(),false);await screenshot('pilot-students-390.png');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);await go('학교 일정');await page.getByRole('button',{name:'시트에서 가져오기',exact:true}).waitFor();await screenshot('pilot-calendar-390.png');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[]);assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})),{local:0,session:0})})
+await check('학교 자료에서 비서에 명시 전달하고 정확한 인용 원문을 본 뒤 같은 답변으로 돌아온다',async()=>{await page.setViewportSize({width:1280,height:1000});await askFromKnowledge();await page.getByRole('button',{name:'인용 원문 보기',exact:true}).click();const citation=page.getByRole('region',{name:'인용 원문 확인',exact:true});await citation.getByText('정확히 7판인 업무 안내 원문',{exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>window.scenario.calls.filter(c=>c.name==='workhub_knowledge_get').map(c=>c.args)),[{p_source_id:'knowledge-linked-source',p_source_version:7,p_member_id:'gaon-soyeon'}]);await citation.getByRole('button',{name:'비서 답변으로 돌아가기'}).click();await page.getByRole('heading',{name:'Claude 답변',exact:true}).waitFor();await page.getByText('선택한 학교 자료를 근거로 확인한 답변입니다.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.scenario.aiCalls.length),1);assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[]);await screenshot('pilot-knowledge-assistant-roundtrip.png')})
+await check('과거 인용을 최신 판으로 바꾸지 않고 새 질문 입력·학교 변경 범위를 보존한다',async()=>{await askFromKnowledge();await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('다음 질문을 작성 중');assert.equal(await page.getByRole('button',{name:'인용 원문 보기',exact:true}).isDisabled(),true);assert.equal(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).inputValue(),'다음 질문을 작성 중');await page.getByRole('button',{name:'질문 비우기',exact:true}).click();await page.evaluate(()=>{window.scenario.knowledgeSource.version=8;window.scenario.knowledgeSource.body='과거 판 대신 보여 주면 안 되는 새 원문'});await page.getByRole('button',{name:'인용 원문 보기',exact:true}).click();const citation=page.getByRole('region',{name:'인용 원문 확인',exact:true});await citation.getByText('정확히 7판인 업무 안내 원문',{exact:true}).waitFor();await citation.getByText(/과거에 보관한 원문입니다/).waitFor();assert.equal(await citation.getByRole('button',{name:'이 자료로 질문',exact:true}).isDisabled(),true);assert.doesNotMatch(await citation.innerText(),/과거 판 대신 보여 주면 안 되는 새 원문/);await page.getByLabel('사용할 학교').selectOption('nuri-soyeon');await page.getByText('겸임 학교의 확인할 업무',{exact:true}).waitFor();assert.equal(await citation.count(),0);assert.equal(await page.getByRole('heading',{name:'Claude 답변',exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.scenario.aiCalls.length),1)})
+for(const [code,message]of[['NOT_READY','이 기능의 서버 연결을 준비 중입니다. 기존 입력은 유지됩니다.'],['NOT_FOUND','현재 열람할 수 있는 자료가 아닙니다.'],['FORBIDDEN','현재 계정으로 이 자료를 처리할 수 없습니다.']])await check('K1 인용 원문 '+code+'은 최신 목록으로 우회하지 않고 답변 복귀를 유지한다',async()=>{
+ await askFromKnowledge();await page.evaluate(code=>{window.scenario.knowledgeGetFailure=code;window.scenario.knowledgeSource.version=8;window.scenario.knowledgeSource.body='우회해서 보여 주면 안 되는 최신 원문'},code);
+ await page.getByRole('button',{name:'인용 원문 보기',exact:true}).click();const citation=page.getByRole('region',{name:'인용 원문 확인',exact:true});await citation.getByRole('alert').getByText(message,{exact:true}).waitFor();
+ assert.equal(await citation.locator('.knowledge-body').count(),0);assert.doesNotMatch(await citation.innerText(),/우회해서 보여 주면 안 되는 최신 원문/);
+ assert.deepEqual(await page.evaluate(()=>window.scenario.calls.filter(c=>c.name==='workhub_knowledge_get').map(c=>c.args)),[{p_source_id:'knowledge-linked-source',p_source_version:7,p_member_id:'gaon-soyeon'}]);
+ await citation.getByRole('button',{name:'비서 답변으로 돌아가기'}).click();await page.getByText('선택한 학교 자료를 근거로 확인한 답변입니다.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.scenario.aiCalls.length),1);assert.deepEqual(await page.evaluate(()=>window.scenario.writes),[]);
+})
 assert.deepEqual(external,[]);assert.deepEqual(errors,[]);if(output){mkdirSync(output,{recursive:true});writeFileSync(join(output,'pilot-connected-results.json'),JSON.stringify({passed,pageErrors:errors,intentionallyInjectedRenderErrors:expectedRenderErrors.length,externalRequests:external,readFailures:await page.evaluate(()=>window.scenario.readFailures),writes:await page.evaluate(()=>window.scenario.writes)},null,2))}console.log('전체 연결 셸 브라우저 검사: '+passed.length+'개 통과')
 }finally{await browser.close()}

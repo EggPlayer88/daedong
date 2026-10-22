@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
@@ -13,6 +13,7 @@ import './timetable-setup-batch.css'
 interface Props { server?: SetupServer; snapshot?: SetupSnapshot; member: Membership; disabled: boolean; onLockChange?: (locked: boolean) => void; onActivityChange?: (busy: boolean) => void; onChanged?: () => void }
 interface Draft { fileName: string; sheets: WorkbookSheet[]; source: SetupSnapshot; preview: SetupWorkbookPreview; selected: string[]; batch?: SetupBatch }
 const PAGE_SIZE = 20
+const layoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const labelForStatus: Record<string, string> = { waiting: '대기', saving: '저장 중', saved: '저장 완료', rejected: '저장 안 됨', unknown: '결과 확인 필요', not_found: '접수 기록 없음', skipped: '현재 서버 값 유지' }
 const failureText = (failure: unknown) => failure instanceof TimetableWorkbookError ? failure.message : failure instanceof ServiceError ? failure.message : '처리 결과를 확인하지 못했습니다. 입력과 원래 요청을 보관합니다.'
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase().replace(/\s/g, '')
@@ -64,8 +65,8 @@ export function TimetableSetupBatchPanel(props: Props) {
   const selectedCount = draft?.selected.length ?? 0, savedCount = batch?.jobs.filter(row => row.status === 'saved').length ?? 0
   const persist = (value: Draft | undefined) => { setDraft(value); current.current.draft = value; memory.save(value, Boolean(value && (!value.batch ? value.preview.items.length : isUnfinished(value.batch)))) }
   useEffect(() => () => { life.current++; readTicket.current++; pause.current = true }, [])
-  useEffect(() => { props.onActivityChange?.(busy || reading); return () => props.onActivityChange?.(false) }, [busy, reading, props.onActivityChange])
-  useEffect(() => { props.onLockChange?.(locked); return () => props.onLockChange?.(false) }, [locked, props.onLockChange])
+  layoutEffect(() => { props.onActivityChange?.(busy || reading); return () => props.onActivityChange?.(false) }, [busy, reading, props.onActivityChange])
+  layoutEffect(() => { props.onLockChange?.(locked); return () => props.onLockChange?.(false) }, [locked, props.onLockChange])
   useEffect(() => { setConfirmed(false); setConflictReview(undefined); setConflictChoices({}); setReviewConfirmed(false) }, [sourceKey, props.disabled])
   useEffect(() => { life.current++; readTicket.current++; pause.current = true; operation.current = false; setBusy(false); setReading(false); setDraft(initial()); setConfirmed(false); setInvalidPreview(false); setError(''); setNotice(''); setConflictReview(undefined); setConflictChoices({}); setReviewConfirmed(false) }, [scopeKey, memory])
 

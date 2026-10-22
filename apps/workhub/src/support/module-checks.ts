@@ -1,28 +1,40 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import policy from './check-policy.json'
+import type { PageId } from '../modules'
 
 export const checkModules = [
-  { id: 'calendar', label: '학교 일정', rpc: 'workhub_calendar_list' },
-  { id: 'tasks', label: '내 업무', rpc: 'workhub_task_list' },
-  { id: 'school', label: '학교 관리', rpc: 'workhub_school_admin_readiness' },
-  { id: 'collections', label: '자료 수합', rpc: 'workhub_collection_basic_readiness' },
-  { id: 'messaging', label: '메시지와 알림', rpc: 'workhub_messaging_readiness' },
-  { id: 'cooperation', label: '협업 요청', rpc: 'workhub_cooperation_catalog' },
-  { id: 'knowledge', label: '학교 자료', rpc: 'workhub_knowledge_list' },
-  { id: 'documents', label: '문서함', rpc: 'workhub_document_list' },
-  { id: 'guided', label: '질문형 양식', rpc: 'workhub_template_list' },
-  { id: 'teaching', label: '수업과 학생', rpc: 'workhub_teaching_catalog' },
-  { id: 'home', label: '홈 요약', rpc: 'workhub_home_overview' },
-  { id: 'transitions', label: '인계와 학년도', rpc: 'workhub_school_transition_list' },
-] as const
+  { id: 'calendar', label: '학교 일정', rpc: 'workhub_calendar_list', page: 'calendar' },
+  { id: 'tasks', label: '내 업무', rpc: 'workhub_task_list', page: 'tasks' },
+  { id: 'school', label: '학교 관리', rpc: 'workhub_school_admin_readiness', page: 'schoolAdmin' },
+  { id: 'collections', label: '자료 수합', rpc: 'workhub_collection_basic_readiness', page: 'collections' },
+  { id: 'messaging', label: '메시지와 알림', rpc: 'workhub_messaging_readiness', page: 'messages' },
+  { id: 'cooperation', label: '협업 요청', rpc: 'workhub_cooperation_catalog', page: 'cooperation' },
+  { id: 'knowledge', label: '학교 자료', rpc: 'workhub_knowledge_list', page: 'knowledge' },
+  { id: 'documents', label: '문서함', rpc: 'workhub_document_list', page: 'documents' },
+  { id: 'guided', label: '질문형 양식', rpc: 'workhub_template_list', page: 'documents' },
+  { id: 'teaching', label: '수업과 학생', rpc: 'workhub_teaching_catalog', page: 'students' },
+  { id: 'home', label: '홈 요약', rpc: 'workhub_home_overview', page: 'home' },
+  { id: 'transitions', label: '인계와 학년도', rpc: 'workhub_school_transition_list', page: 'schoolAdmin' },
+  { id: 'timetable', label: '시간표 편성', rpc: 'workhub_timetable_readiness', page: 'timetable' },
+  { id: 'timetableOperations', label: '시간표 운영', rpc: 'workhub_timetable_operations_readiness', page: 'timetable' },
+  { id: 'schoolRoster', label: '교사 소속 연결', rpc: 'workhub_school_roster_get', page: 'schoolAdmin' },
+  { id: 'schoolData', label: '학교 자료 정정', rpc: 'workhub_school_data_get', page: 'students' },
+  { id: 'memory', label: '개인 AI 기억', rpc: 'workhub_ai_memory_list', page: 'assistant' },
+] as const satisfies readonly { id: string; label: string; rpc: string; page: PageId }[]
 export type CheckId = typeof checkModules[number]['id']
 export const checkCodes = ['READ_CONFIRMED', 'READY_RESPONSE', 'PARTIAL', 'DATABASE_MISSING', 'STORAGE_MISSING', 'VERIFICATION_MISSING', 'POLICY_MISSING', 'NOT_CONFIGURED', 'DISABLED', 'NOT_READY', 'UNAVAILABLE', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'QUERY_FAILED', 'INVALID_RESPONSE', 'CANCELLED', 'TIMEOUT'] as const
 export type CheckCode = typeof checkCodes[number]
 export interface ModuleCheck { id: CheckId; code: CheckCode; checkedAt: string }
 export type CheckRunner = (id: CheckId, signal: AbortSignal) => Promise<ModuleCheck>
 const code = (value: unknown): CheckCode => typeof value === 'string' && checkCodes.includes(value as CheckCode) ? value as CheckCode : 'QUERY_FAILED'
-const readinessCode = (result: { available: boolean; reason?: string }): CheckCode => result.available ? 'READY_RESPONSE' : result.reason === 'not_installed' ? 'DATABASE_MISSING' : code(result.reason?.toUpperCase())
+const readinessCode = (result: { available: boolean; reason?: string | null }): CheckCode => {
+  if (result.available) return 'READY_RESPONSE'
+  if (result.reason === 'not_installed') return 'DATABASE_MISSING'
+  if (result.reason === 'basis_missing') return 'NOT_READY'
+  if (result.reason === 'not_allowed') return 'FORBIDDEN'
+  return code(result.reason?.toUpperCase())
+}
 
 // 각 화면의 검증기를 그대로 이용한다. 저장·읽음·파일 획득·AI 호출은 실행하지 않는다.
 async function probe(id: CheckId, connection: SupabaseConnection, memberId: string): Promise<CheckCode> {
@@ -42,6 +54,13 @@ async function probe(id: CheckId, connection: SupabaseConnection, memberId: stri
     case 'teaching': await (await import('../teaching/adapter')).createTeachingAdapter(connection).catalog(memberId); return 'READ_CONFIRMED'
     case 'home': return (await (await import('../home/overview')).createHomeService(connection).load(memberId)).unavailable.length ? 'PARTIAL' : 'READ_CONFIRMED'
     case 'transitions': return (await (await import('../administration/transitions')).createTransitionService(connection).list(memberId)).dutyApproval === null ? 'PARTIAL' : 'READ_CONFIRMED'
+    case 'timetable': return readinessCode(await (await import('../timetable/server')).createTimetableServer(connection).readiness(memberId))
+    case 'timetableOperations': return readinessCode(await (await import('../timetable/operations-server')).createTimetableOperationsServer(connection).readiness(memberId))
+    case 'schoolRoster': return readinessCode(await (await import('../setup/school-roster-server')).createSchoolRosterServer(connection).get(memberId))
+    case 'schoolData': return readinessCode(await (await import('../teaching/school-data-maintenance-server')).createSchoolDataMaintenanceServer(connection).get(memberId, null))
+    // 비활성 상태에서도 목록은 읽을 수 있다. 목록 성공만으로 개인 기억의 쓰기 준비를 표시하지 않는다.
+    case 'memory': return (await (await import('../assistant/memory-server')).createAiMemoryService(connection).list(memberId)).canWrite ? 'READY_RESPONSE' : 'DISABLED'
+
   }
 }
 

@@ -40,14 +40,16 @@ export function createScopedRpc(connection:SupabaseConnection, contract:string, 
     if(!member||!context.schools.some(item=>item.id===member.schoolId)||!activeAt(member,context.basisDate))throw new ServiceError('INACTIVE_MEMBERSHIP')
     return { member, fingerprint:recoveryScope(member) }
   }
-  async function call<T>(memberId:string,name:string,args:Record<string,unknown>,parse:(data:unknown,member:Membership)=>T,writing=false):Promise<T> {
+  async function call<T>(memberId:string,name:string,args:Record<string,unknown>,parse:(data:unknown,member:Membership)=>T,writing=false,operationGuard?:()=>void):Promise<T> {
     const original=scope(memberId)
     const payload=structuredClone(args)
     if(writing){const key=text(payload.p_request_key,200,true);if(key.length<8)throw new ServiceError('INVALID_INPUT');const id=original.fingerprint+':'+name+':'+key, content=canonical(payload);if(commands.has(id)&&commands.get(id)!==content)throw new ServiceError('IDEMPOTENCY_CONFLICT');commands.set(id,content)}
     let timeout:ReturnType<typeof setTimeout>|undefined, expired=false
-    const checkDeadline=()=>{if(expired)throw new ServiceError(writing?'RESULT_UNKNOWN':'QUERY_FAILED')}
+    const checkDeadline=()=>{if(expired)throw new ServiceError(writing?'RESULT_UNKNOWN':'QUERY_FAILED');operationGuard?.()}
     try {
       const processResponse=async()=>{
+      // 파일 전송 등 상위 작업이 이미 끝났다면 신원 조회 뒤에도 새 RPC를 시작하지 않는다.
+      checkDeadline()
       const access=(identity:LegacyIdentity)=>canonical([identity.userId,identity.approved,identity.profile?.role,identity.profile?.is_active,identity.profile?.department_id,[...(identity.profile?.extra_permissions??[])].sort()])
       const before=await connection.getIdentity()
       checkDeadline()

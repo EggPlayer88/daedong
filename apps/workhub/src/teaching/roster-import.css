@@ -1,0 +1,5 @@
+.teaching-roster-import{min-width:0}.teaching-roster-import header p,.teaching-roster-import .teaching-roster-scope{font-size:.88rem;color:var(--muted,#586474);line-height:1.5}
+.teaching-roster-import fieldset{min-width:0}.teaching-roster-import input[type=file]{max-width:100%}
+.teaching-roster-counts{display:flex;flex-wrap:wrap;gap:.5rem;margin:1rem 0}.teaching-roster-counts span{padding:.4rem .6rem;background:var(--surface-alt,#eff3f7);border-radius:8px}
+.teaching-roster-file{overflow-wrap:anywhere}.teaching-roster-review-warning{border-left:3px solid var(--warning,#aa7400);padding:.6rem .8rem;background:var(--surface-alt,#f6f2e8)}
+.teaching-roster-import .teaching-table-wrap{max-width:100%;overflow:auto}.teaching-roster-import td ul{margin:.3rem 0;padding-left:1.1rem;min-width:13rem}

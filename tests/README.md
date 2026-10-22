@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합·할 일 원본 왕복 8개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
+
 테스트 프레임워크 없이 실행하는 스크립트다. JSX 검사는 esbuild와 React를 사용하므로 먼저 `npm ci`를 실행한다.
 각 파일은 단독 실행 가능하고, 성공하면 `✓` 줄과 `전부 통과`, 실패하면 `✗` 와 종료코드 1.
 
@@ -11,11 +13,12 @@ node tests/test_gate.mjs # 단독 실행
 
 ## Python 테스트 준비 (1회)
 
-`generate.py` / `extract.py`는 `lxml`이 필요하다. 수합 파일 검사에는 고정 버전의 `pypdf`·`olefile`·`Pillow`도 사용한다. 전체 시험은 다음 의존성을 함께 설치한다. 웹 API의 배포 의존성은 변경하지 않는다.
+`generate.py` / `extract.py`는 `lxml`이 필요하다. 수합 파일 검사에는 고정 버전의 `pypdf`·`olefile`·`Pillow`도 사용한다. 학교 API 키 암호화 시험에는 `cryptography`도 필요하다. 전체 시험은 작업자·시간표·웹 API의 아래 의존성을 함께 설치한다. `apps/main/requirements.txt`는 웹 API 배포에도 사용하는 의존성 원본이다.
 
 ```bash
 python3 -m venv tests/.venv
 tests/.venv/bin/pip install -r workers/requirements.txt
+tests/.venv/bin/pip install -r apps/main/requirements.txt
 tests/.venv/bin/pip install -r packages/timetable/requirements.txt
 ```
 
@@ -24,6 +27,7 @@ Windows PowerShell에서는 다음과 같이 준비한다.
 ```powershell
 python -m venv tests/.venv
 tests/.venv/Scripts/python.exe -m pip install -r workers/requirements.txt
+tests/.venv/Scripts/python.exe -m pip install -r apps/main/requirements.txt
 tests/.venv/Scripts/python.exe -m pip install -r packages/timetable/requirements.txt
 npm test
 ```
@@ -158,6 +162,27 @@ node tests/browser/workhub-appearance.mjs       # 실제 Vite 앱의 스킨·사
 
 내보내기와 오프라인 시험은 첫 번째 인자로 원하는 HTML 절대 경로를 받을 수 있다. `WORKHUB_QA_OUTPUT`을 지정하면 브라우저 러너는 파일별 하위 폴더에 화면·JSON·콘솔 로그를 저장하고 최상위 `summary.json`에 파일별 성공·실패와 실행 시간을 기록한다. 미지정 시 전용 임시 폴더를 사용하고 경로를 출력한다. 결과 이미지는 추적 소스로 커밋하지 않는다. `npm test`의 검사 수와 별도 브라우저 파일/시나리오 수를 구분해 보고한다.
 
+## 가상교사 AI 연습실
+
+`assistant/practice/`는 검증한 시간표 시드의 가상교사 18명에 가상교사 18명을 추가한 학교별 36명·9학급 연습 자료를 사용한다. 다른 가상학교의 ID와 대화도 별도로 구분한다. 실제 `AssistantPanel`과 응답 parser를 사용하지만 DB·AI 응답·예산은 브라우저 메모리의 합성 자료다. **실제 API·DB·로그인·유료 AI 호출은 0건**이며, 실제 회원 연결이나 모델 성능을 검증한 결과가 아니다.
+
+```bash
+node tests/test_workhub_assistant_practice.mjs
+PLAYWRIGHT_CHANNEL=chromium npm run test:workhub:browser -- assistant-practice
+```
+
+Windows PowerShell:
+
+```powershell
+$env:PLAYWRIGHT_CHANNEL = 'chromium'
+npm run test:workhub:browser -- assistant-practice
+```
+
+- 정상 기본 답변→명시 정밀 검토, 학생 초안의 Sonnet 표시, 예산 부족, 완료 응답 유실, 시작 전 요청 닫기, 닫기 응답 유실을 확인한다.
+- 학교·교사 전환 때 대화를 분리하고, 입력·미확정 요청 중에는 전환과 초기화를 막는다. 확인 후 연습 초기화가 운영 입력·키 저장 복구 데이터에 영향을 주지 않는지도 확인한다.
+- ShadowDOM·320px·키보드 이동을 실제 브라우저로 검사한다. 외부 요청이 발생하거나 페이지 오류가 나면 실패한다. `WORKHUB_QA_OUTPUT`을 지정하면 데스크톱·모바일 화면도 저장한다.
+- 연습 자료는 현재 연습실 메모리 안에만 있고, 연습실을 닫거나 새로고침하면 사라진다. 실제 키를 입력하는 화면이나 운영 자료 저장 기능은 제공하지 않는다.
+
 ## 작성 원칙
 
 - **실제로 돌려서 확인한다.** 빌드 통과나 정적 검사로 대신하지 않는다.
@@ -199,6 +224,7 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - 위 Python 시험은 `npm test`에 자동 포함된다. `npm test -- workhub_file_pdf` / `workhub_file_hwp` / `workhub_file_inspection` / `workhub_file_verification` / `workhub_file_cleanup` 필터로 각각 실행할 수 있다. `workers/requirements.txt` 의존성이 필요하다. **원장·Storage·스캐너는 대역**이며 실제 SQL/서비스 권한·물리 삭제·악성 탐지 자체를 검증하지 않는다. [실행 안내](../workers/collection_files/README.md), [처리 코어 인계](../docs/workhub/36-collection-file-workers.md), [최신 형식 지원과 실제 파일 실측](../docs/workhub/37-document-format-support.md)을 참고한다. 공개 HWP 원본 7개는 아직 미지원이며 합성 HWP 통과를 일반 문서 호환 완료로 계산하지 않는다.
 
 - `test_workhub_collection_export.mjs`: 실제 연결용 ZIP 계획·전체 단위 대조·완료/현재판 선택·원문/CSV·511개 경계·권한/판 변경·실패 재시도·취소 36건.
+- `test_workhub_collection_export_parts.mjs`: 파일·CSV 용량과 항목 상한을 유지하는 분할, 전체 지문·묶음 판·이름·해시, 실패 재시도·폐기 14건. `tests/browser/workhub-collection-export-parts.mjs`는 가상 교사 36명의 파일 540개를 실제 ZIP 두 개로 받아 대조하는 등 5건을 확인한다.
 - `test_workhub_collection_export_ui.mjs`: 접힌 화면·정확한 선택기 라벨·준비 전 다운로드 차단·범위/한도 안내 SSR 4건.
 - `workhub-collection-export.mjs`: 실제 연결 화면의 ZIP 다운로드·파일 내용 대조·누락 응답·오류/재시도·직전 권한 확인·계정 전환·관리 입력·320px/키보드 13개. 전체 브라우저 러너에 포함하며 [ZIP 인계](../docs/workhub/35-collection-server-export.md)에 보장 범위를 기록한다.
 - `test_workhub_collection_server.mjs`: 실제 연결 어댑터의 봉투/학교/판 검증, 미확정 접수, 파일 예약·원문·다운로드 권한 재확인.
@@ -250,6 +276,24 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 `npm run test:workhub:r2-sql`은 Linux 일반 사용자, PostgreSQL 17, psql, Python worker 의존성·psycopg2-binary와 `npm ci`가 필요하다. 전용 로컬 합성 DB에서 R0 전체 → R1 전체 → 실제 worker 연결을 실행하고 끝에 서버를 정지한다. `R0_WORK`는 `workhub-r2-r0-verify`로 시작하는 전용 폴더, `R0_PG_BIN`은 PG17 bin, `R0_PSQL`은 psql 절대 경로를 지정한다. 기존 원본 SQL·시험 파일은 수정하지 않는다. 환경·결과·미검증 범위는 [2차 통합 검증](../docs/workhub/integration-r2/verification.md)을 참고한다.
 
+
+## DB 적용 전 공통 복구·일정 표시
+
+- `test_workhub_calendar_time.mjs`: 여러 날 일정의 시작·진행·종료 표시와 단일일·종일·연도/윤일·자정 경계 8건.
+- `workhub-module-loading.mjs`: 실제 React 지연 모듈의 명시적 재시도, 정상 화면 입력·원래 요청 번호 보존, 자동 쓰기/재시도/새로고침 없음 10건. 실제 Chromium의 같은 URL 동적 가져오기 실패 캐시도 구분한다.
+- `workhub-knowledge-assistant.mjs`: 원문 전달 실패·권한 재조회 실패·늦은 전달 응답을 포함한 20건. `workhub-calendar-views.mjs`는 홈·주·월·상세의 여러 날 표시를 함께 확인한다.
+- 실행: `npm run test:workhub:browser -- workhub-module-loading workhub-knowledge-assistant workhub-calendar workhub-home-layout`. 공통 러너에 등록했으며 운영 DB/Storage/AI에 접속하지 않는다.
+- [수정 범위·검증 경계](../docs/workhub/deployment-preparation/pre-db-completion.md).
+
+## 질문형 HWPX 생성부터 수합 ZIP까지
+
+- `test_workhub_document_collection_pipeline.mjs`: 가상 교사 36명·9학급, 실제 생성 HWPX 37개와 기존 확정 양식 사본 6개, 원본 보존·정정판 선택·ZIP 내부 해시/본문·응답 유실·부분 재시도·변조를 확인한다. 실제 Python 생성기와 최소 검사기를 사용하며 저장은 메모리 연습 저장소다.
+- `test_workhub_guided_storage.mjs`: 실제 문서 전송 서비스에서 파일·신원 조회 지연, 제한시간 이후 새 RPC·예약 등록 금지, 원키 복구, 원본 변조와 학교·계정·역할 변경을 확인한다.
+- `test_workhub_knowledge_storage.mjs`: 같은 공통 제한시간을 사용하는 학교 HWPX 원문의 준비·업로드·추출·다운로드 25건. `tests/browser/workhub-knowledge-import.mjs`는 기존 8건에 실제 서비스·합성 전송 지연 3건을 더한다. 실제 서버 처리 취소를 주장하지 않고 원래 요청으로만 복구한다.
+- `tests/browser/workhub-document-review.mjs`: 저장판 비교·인쇄 15건과 TXT 판/권한 재조회·입력 보존·응답 지연·실패 복구 12건. 다운로드는 실제 브라우저 파일 내용을 읽어 확인한다.
+- `workhub-document-collection-flow.mjs`: 실제 연결 셸에서 답변→생성→파일 확인→수합 첨부→기본 검사→초안→최종 제출→담당자 ZIP, 재진입 복구·학교 변경·320px·키보드를 실행한다. 생성 파일과 ZIP은 실제 바이트로 검사하며 HTTP/RPC/Storage 경계만 합성한다.
+- `PYTHON`에 `lxml`이 설치된 실행 파일을 지정할 수 있다. `node tests/test_workhub_document_collection_pipeline.mjs`, `node tests/test_workhub_guided_storage.mjs`, `node tests/browser/run.mjs workhub-document-collection-flow`로 실행한다. 브라우저 파일은 전체 러너에도 등록했다.
+- 운영 SQL·Storage·유료 API·실제 회원·한글 화면은 사용하지 않는다. [전체 흐름과 남은 연결](../docs/workhub/ai-school-policy/document-collection-pipeline.md).
 
 ## 서버 문서 수합 사용성 후속
 

@@ -1,0 +1,21 @@
+{
+  "contract": "assistant.routing.v1",
+  "version": "2026-10-21.1",
+  "currency": "USD",
+  "schoolMonthlyLimitMicroUsd": 100000000,
+  "maxInputTokens": 80000,
+  "reserveInputTokens": 100000,
+  "maxOutputTokens": 8000,
+  "maxReviewDepth": 1,
+  "automaticEscalation": false,
+  "cacheEnabled": false,
+  "models": {
+    "quick": { "id": "claude-haiku-5-5", "label": "Haiku", "inputMicroUsdPerMtok": 100000, "outputMicroUsdPerMtok": 500000, "effort": "low" },
+    "review": { "id": "claude-sonnet-5-5", "label": "Sonnet", "inputMicroUsdPerMtok": 2000000, "outputMicroUsdPerMtok": 10000000, "effort": "medium" }
+  },
+  "intentDefaults": { "school_advice": "quick", "personal_assistant": "quick", "document_draft": "quick", "student_record_draft": "review", "guided_collection": "quick" },
+  "sources": [
+    "https://platform.claude.com/docs/en/models/haiku-5-5/overview",
+    "https://platform.claude.com/docs/en/models/sonnet-5-5/overview"
+  ]
+}

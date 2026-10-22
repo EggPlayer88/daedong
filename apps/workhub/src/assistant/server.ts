@@ -2,10 +2,10 @@ import type { LegacyIdentity } from '../connection/contracts';
 import type { SupabaseConnection } from '../connection/supabase-connection';
 import { recoveryScope } from '../app/pending-requests';
 import { activeAt } from '../domain';
-import { canonical, createScopedRpc, identifier } from '../services/scoped-rpc';
-import { ASSISTANT_LIMITS, assistantLocalInput, assistantEnvelope, assistantInput, assistantThread, askResult, AssistantError, assistantError, confirmTask, readiness, taskReceipt, threadList, type AssistantServer, type AssistantMode } from './contracts';
+import { canonical, createScopedRpc, exact, identifier, object } from '../services/scoped-rpc';
+import { ASSISTANT_LIMITS, ASSISTANT_ROUTING, assistantLocalInput, assistantEnvelope, assistantInput, assistantThread, askResult, AssistantError, assistantError, confirmTask, readiness, taskReceipt, threadList, type AssistantServer, type AssistantMode } from './contracts';
 import type { AssistantHttpPort } from './http';
-export function createAssistantServer(connection: SupabaseConnection, http: AssistantHttpPort, options: { timeoutMs?: number } = {}): AssistantServer {
+export function createAssistantServer(connection: SupabaseConnection, http: AssistantHttpPort, options: { timeoutMs?: number; policyReads?: boolean } = {}): AssistantServer {
     const timeoutMs = options.timeoutMs ?? ASSISTANT_LIMITS.clientTimeoutMs + 5000;
     if (!Number.isFinite(timeoutMs) || timeoutMs < 1 || timeoutMs > 120000) throw new AssistantError('INVALID_INPUT');
     const rpc = createScopedRpc(connection, 'assistant.v1'), attempts = new Map<string, string>();
@@ -55,11 +55,16 @@ export function createAssistantServer(connection: SupabaseConnection, http: Assi
     function keyFor(memberId: string, key: string, input: unknown) { assistantLocalInput(() => identifier(key)); if (key.length < 8)
         throw new AssistantError('INVALID_INPUT'); const id = scope(memberId).fingerprint + ':' + key, body = canonical(input); if (attempts.has(id) && attempts.get(id) !== body)
         throw new AssistantError('IDEMPOTENCY_CONFLICT'); attempts.set(id, body); }
+    function checkedAnswer(raw: unknown, key: string, checked: import('./contracts').AssistantInput) { const result = askResult(raw, key); if (result.state === 'completed') {
+            const exchange = result.thread.exchanges.find(e => e.requestKey === key)!;
+            if (result.thread.mode !== checked.mode || result.thread.version !== checked.expectedVersion + 1 || (checked.threadId !== null && result.thread.id !== checked.threadId) || exchange.prompt !== checked.prompt || exchange.intent !== checked.intent || canonical(exchange.studentContext) !== canonical(checked.studentContext) || (checked.quality !== undefined && (!exchange.execution || exchange.execution.quality !== (ASSISTANT_ROUTING.intentDefaults[checked.intent] === 'review' ? 'review' : checked.quality) || canonical(exchange.execution.reviewOf) !== canonical(checked.reviewOf) || exchange.execution.model !== ASSISTANT_ROUTING.models[exchange.execution.quality].id)))
+                throw new AssistantError('INVALID_RESPONSE');
+        } return result; }
     return {
         readiness(memberId) { return parsed(() => send(memberId, { action: 'readiness', memberId }), readiness); },
         list(memberId, mode: AssistantMode, cursor = null) { if (!['school', 'personal'].includes(mode))
-            return Promise.reject(new AssistantError('INVALID_INPUT')); return parsed(() => rpc.call(memberId, 'workhub_ai_threads_list', { p_mode: mode, p_cursor: cursor }, data => data), raw => threadList(raw, mode)); },
-        get(memberId, id, cursor = null) { assistantLocalInput(() => identifier(id)); return parsed(() => rpc.call(memberId, 'workhub_ai_thread_get', { p_thread_id: id, p_cursor: cursor }, data => data), raw => { const result = assistantThread(raw); if (result.id !== id)
+            return Promise.reject(new AssistantError('INVALID_INPUT')); return parsed(() => rpc.call(memberId, options.policyReads ? 'workhub_ai_policy_threads_list' : 'workhub_ai_threads_list', { p_mode: mode, p_cursor: cursor }, data => data), raw => threadList(raw, mode)); },
+        get(memberId, id, cursor = null) { assistantLocalInput(() => identifier(id)); return parsed(() => rpc.call(memberId, options.policyReads ? 'workhub_ai_policy_thread_get' : 'workhub_ai_thread_get', { p_thread_id: id, p_cursor: cursor }, data => data), raw => { const result = assistantThread(raw); if (result.id !== id)
             throw new AssistantError('INVALID_RESPONSE'); return result; }); },
         ask(memberId, input, key) { let checked; try {
             checked = assistantInput(input);
@@ -67,11 +72,13 @@ export function createAssistantServer(connection: SupabaseConnection, http: Assi
         }
         catch (error) {
             throw assistantError(error, 'INVALID_INPUT');
-        } return parsed(() => send(memberId, { action: 'ask', memberId, input: checked, requestKey: key }, true), raw => { const result = askResult(raw, key); if (result.state === 'completed') {
-            const exchange = result.thread.exchanges.find(e => e.requestKey === key)!;
-            if (result.thread.mode !== checked.mode || result.thread.version !== checked.expectedVersion + 1 || (checked.threadId !== null && result.thread.id !== checked.threadId) || exchange.prompt !== checked.prompt || exchange.intent !== checked.intent || canonical(exchange.studentContext) !== canonical(checked.studentContext))
-                throw new AssistantError('INVALID_RESPONSE');
-        } return result; }, true); },
+        } return parsed(() => send(memberId, { action: 'ask', memberId, input: checked, requestKey: key }, true), raw => { return checkedAnswer(raw, key, checked); }, true); },
+        close(memberId, input, key) { const checked = assistantInput(input); keyFor(memberId, key, { kind:'ask', input:checked });
+            return parsed(() => send(memberId, { action:'close', memberId, input:checked, requestKey:key }, true), raw => {
+                if (object(raw) && raw.state === 'closed') { exact(raw, ['state','requestKey']); if (raw.requestKey !== key) throw new AssistantError('INVALID_RESPONSE'); return {state:'closed' as const, requestKey:key}; }
+                return checkedAnswer(raw, key, checked);
+            }, true);
+        },
         confirmTask(memberId, input, key) { let checked; try {
             checked = confirmTask(input);
             keyFor(memberId, key, { kind: 'confirmTask', input: checked });

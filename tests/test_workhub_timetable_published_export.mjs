@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { unzipSync, strFromU8 } from 'fflate'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
-import { publishedFixture } from './helpers/published-timetable-fixture.mjs'
+import { publishedFixture, publishedInterventionsFixture } from './helpers/published-timetable-fixture.mjs'
 const m = await loadBrowserModule(`export * from '../apps/workhub/src/timetable/published-export';import React from 'react';import{renderToStaticMarkup}from'react-dom/server';import{PublishedTimetableExport}from'../apps/workhub/src/timetable/PublishedTimetableExport';export const render=props=>renderToStaticMarkup(React.createElement(PublishedTimetableExport,props));`)
-const build = (f = publishedFixture()) => m.buildPublishedExport(f.view, f.references, f.selection, 'teacher-a')
+const build = (f = publishedFixture()) => m.buildPublishedExport(f.view, f.references, f.selection, 'teacher-a', f.interventions)
 let n = 0; async function check(name, run) { await run(); n++; console.log('  ✓ ' + name) }
 await check('현재 주·선택 교사의 실제 날짜별 수업만 순서대로 내보낸다', () => { const r = build(); assert.deepEqual(r.rows.map(x => x.id), ['first', 'cancelled', 'performed']); assert.equal(r.from, '2026-10-19'); assert.equal(r.until, '2026-10-26'); assert.equal(r.rows[0].start, '09:00:30'); assert.equal(r.rows[0].end, '09:45:30'); assert.equal(r.dates.length, 7) })
 await check('현재 조회 전체는 14일 범위만 포함하고 학기 전체로 표현하지 않는다', () => { const f = publishedFixture(); f.selection.mode = 'loaded'; const r = build(f); assert.equal(r.rows.length, 4); assert.equal(r.until, '2026-11-02'); assert.match(r.notices.join(' '), /학기 전체 시간표가 아니며/); assert.equal(r.rows.some(x => x.id === 'later'), true) })
@@ -25,5 +25,36 @@ await check('동일한 시각으로 재확정한 판도 실제 시간 변경이�
   const f = publishedFixture(); f.view.requests = []; const original = structuredClone(f.view.lessons[0].time); f.view.lessons[0].version = f.references.lessons[0].version = 4
   const report = build(f), row = report.rows[0]; assert.deepEqual(f.view.lessons[0].time, original); assert.equal(row.change, '판 갱신 · 재확정·변경 여부 미확인'); assert.equal(row.originalTime, '')
   assert.match(report.notices.join(' '), /정식 재확정일 수도 있으며 실제 수업 시각 변경 여부와 원인은 추정하지 않습니다/)
+})
+await check('대강·휴강·보강·휴업 취소는 현재 판과 일치하는 적용 이력만 표시한다', () => {
+  const f = publishedInterventionsFixture(), report = build(f), changes = Object.fromEntries(report.rows.map(row => [row.id, row.change]))
+  assert.deepEqual(changes, { cancelled: '휴강 반영', first: '대강 반영', reopened: '휴업 취소 반영', makeup: '보강 반영' })
+  assert.equal(report.rows.find(row => row.id === 'first').previousTeachers, '같은 이름 [teacher-a]')
+  assert.equal(report.rows.find(row => row.id === 'makeup').originalLessonId, 'cancelled')
+})
+await check('운영 확장 이력의 판·시각·담당·상태가 다르면 이전 이력을 붙이지 않는다', () => {
+  for (const damage of [row => row.version++, row => row.time.startsAt = '2026-10-19T00:01:30.000Z', row => row.teachers = [{ id: 'other', name: '다른 교사' }], row => row.state = 'cancelled']) {
+    const f = publishedInterventionsFixture(); damage(f.interventions.lessons[0]); const row = build(f).rows.find(row => row.id === 'first')
+    assert.equal(row.change, '판 갱신 · 재확정·변경 여부 미확인'); assert.equal(row.previousTeachers, '')
+  }
+})
+await check('조회 기간·시간대·동의자와 조회 실패가 어긋나면 T3 이력을 출력하지 않는다', () => {
+  for (const damage of [f => f.interventions.from = '2026-10-20', f => f.interventions.timeZone = 'UTC', f => f.interventions.requests[0].participants.pop(), f => f.interventions.requests = null, f => delete f.interventions]) {
+    const f = publishedInterventionsFixture(); damage(f); const report = build(f)
+    assert.equal(report.rows.some(row => row.previousTeachers || row.originalLessonId), false); assert.match(report.notices.join(' '), /이력 연결을 확인하지 못했습니다/)
+  }
+})
+await check('대기 요청을 완료 이력처럼 출력하지 않고 권한 플래그 차이는 허용한다', () => {
+  const f = publishedInterventionsFixture(); f.interventions.requests[0].state = 'awaiting_approval'; f.interventions.requests[0].expiresAt = '2026-10-19T00:00:00.000Z'
+  assert.equal(build(f).rows.find(row => row.id === 'first').previousTeachers, '')
+  const g = publishedInterventionsFixture(); g.interventions.lessons[0].canRequest = true; g.interventions.lessons[0].allowedTargets = [g.interventions.lessons[0].time]
+  assert.equal(build(g).rows.find(row => row.id === 'first').change, '대강 반영')
+})
+await check('T3 출력은 개인 사유·동의 정보 없이 원수업과 이전 담당만 포함하고 원본을 보존한다', () => {
+  const f = publishedInterventionsFixture(), original = JSON.stringify(f), report = build(f)
+  const xml = Object.values(unzipSync(m.publishedExportXlsx(report))).map(value => strFromU8(value)).join('')
+  assert.match(xml, /취소 원수업 ID/); assert.match(xml, /대강 반영/); assert.match(xml, /보강 반영/)
+  assert.doesNotMatch(xml, /출력하면 안 되는 대강 개인 사유|accepted|proposalHash|intervention-/)
+  assert.equal(JSON.stringify(f), original); f.interventions.requests = []; assert.notEqual(build(f).sourceKey, report.sourceKey)
 })
 console.log(`확정 시간표 출력 검사: ${n}개 통과`)

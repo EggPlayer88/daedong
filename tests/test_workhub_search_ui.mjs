@@ -115,5 +115,61 @@ await test('배열이 아닌 검색 원문·문자열이 아닌 원문 값은 �
     assert.equal(latest[0].status,'failed');assert.deepEqual(latest[0].items,[]);loader.stop()
   }
 })
+await test('9종 자료원은 세 개씩 실행하고 한 자료원의 실패가 뒤의 메뉴 조회를 막지 않는다', async()=>{
+  const kinds=['menu','calendar','task','collection','document','knowledge','cooperation','message','course']
+  let latest=[],active=0,peak=0,started=[];const releases=[]
+  const loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start(kinds.map(kind=>({kind,label:kind,load:()=>{started.push(kind);active++;peak=Math.max(peak,active);return new Promise((resolve,reject)=>releases.push(()=>{active--;kind==='task'?reject(new Error('offline')):resolve([item({kind})])}))}})))
+  await tick();assert.equal(started.length,3)
+  while(started.length<9||releases.length){releases.splice(0).forEach(release=>release());await tick()}
+  assert.equal(peak,3);assert.equal(latest.filter(s=>s.status==='ready').length,8);assert.equal(latest.find(s=>s.kind==='task').status,'failed');loader.stop()
+})
+await test('검색어와 커서를 그대로 전달하고 추가 조회는 중복 없이 요청한 판을 유지한다',async()=>{
+  let latest=[];const calls=[],loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'document',label:'문서함',load:async options=>{calls.push(options);return options.cursor?{items:[item({kind:'document',id:'b',version:2})],nextCursor:null,coverage:'보관 문서',scanned:1}:{items:[item({kind:'document',version:7})],nextCursor:'page-2',coverage:'현재 문서',scanned:1}}}],'행사')
+  await tick();assert.equal(latest[0].items[0].version,7);assert.equal(calls.length,1)
+  loader.more('document');await tick();assert.equal(calls[1].query,'행사');assert.equal(calls[1].cursor,'page-2');assert.equal(latest[0].items.length,2);assert.equal(latest[0].nextCursor,null)
+  loader.more('document');await tick();assert.equal(calls.length,2);loader.stop()
+})
+await test('추가 목록 실패는 앞 결과를 보존하고 같은 커서로 재시도한다',async()=>{
+  let latest=[],count=0;const cursors=[],loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'knowledge',label:'학교 자료',load:async options=>{cursors.push(options.cursor);count++;if(count===2)throw new Error('transient');return {items:[item({kind:'knowledge',id:String(count),version:count,locator:'제1조'})],nextCursor:count===1?'next':null,coverage:'자료'}}}]);await tick()
+  loader.more('knowledge');await tick();assert.equal(latest[0].items.length,1);assert.equal(latest[0].moreFailed,true)
+  loader.more('knowledge');await tick();assert.equal(latest[0].items.length,2);assert.deepEqual(cursors,[null,'next','next']);loader.stop()
+})
+await test('추가 조회 도중 권한이 사라지면 앞 결과까지 숨긴다',async()=>{
+  let latest=[],count=0;const loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'document',label:'문서함',load:async()=>{if(++count>1)throw {code:'FORBIDDEN'};return {items:[item({kind:'document'})],nextCursor:'next',coverage:'문서'}}}]);await tick();loader.more('document');await tick()
+  assert.equal(latest[0].status,'unavailable');assert.deepEqual(latest[0].items,[]);loader.stop()
+})
+await test('같은 다음 커서가 반복되면 추가 실패로 멈추고 이미 읽은 결과를 보존한다',async()=>{
+  let latest=[];const loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'knowledge',label:'학교 자료',load:async()=>({items:[item({kind:'knowledge'})],nextCursor:'repeated',coverage:'자료'})}]);await tick();loader.more('knowledge');await tick()
+  assert.equal(latest[0].moreFailed,true);assert.equal(latest[0].items.length,1);loader.stop()
+})
+await test('검색 변경과 닫기는 이전 취소 신호를 전달하고 늦은 쪽 응답을 버린다',async()=>{
+  let latest=[];const calls=[],late=deferred(),loader=createWorkspaceSearchLoader(value=>latest=value)
+  const sources=[{kind:'document',label:'문서함',load:options=>{calls.push(options);return options.query==='old'?late.promise:Promise.resolve({items:[item({kind:'document',title:'새 검색'})],nextCursor:null,coverage:'문서'})}}]
+  loader.start(sources,'old');await tick();loader.start(sources,'new');assert.equal(calls[0].signal.aborted,true);await tick();late.resolve({items:[item({kind:'document',title:'옛 검색'})],nextCursor:null,coverage:'문서'});await tick();assert.equal(latest[0].items[0].title,'새 검색');loader.stop();assert.equal(calls[1].signal.aborted,true)
+})
+await test('한 자료원은 20쪽까지만 읽고 더 좁힌 검색을 안내한다',async()=>{
+  let latest=[],calls=0;const loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'document',label:'문서함',load:async()=>({items:[item({kind:'document',id:String(++calls)})],nextCursor:'next-'+calls,coverage:'현재 문서'})}]);await tick()
+  for(let i=0;i<25;i++){loader.more('document');await tick()}
+  assert.equal(calls,20);assert.equal(latest[0].items.length,20);assert.equal(latest[0].nextCursor,null);assert.match(latest[0].coverage,/검색어를 좁히거나/);loader.stop()
+})
+await test('한 자료원의 표시 자료도 4000건 한도를 명시하고 제한한다',async()=>{
+  let latest=[];const loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'calendar',label:'학교 일정',load:async()=>Array.from({length:4001},(_,i)=>item({id:String(i)}))}]);await tick();assert.equal(latest[0].items.length,4000);assert.match(latest[0].coverage,/범위에 도달/);loader.stop()
+})
+await test('검색 범위·다음 쪽·메뉴 열기를 명시하고 미제출 검색어로 추가 조회하지 않는다',()=>{
+  const html=renderResults({states:[{...state('menu','ready',[item({kind:'menu',id:'documents',title:'문서함'})]),coverage:'사용 가능한 메뉴',nextCursor:'next'}],query:'',moreDisabled:true,onMore:()=>{}})
+  assert.match(html,/메뉴 열기/);assert.match(html,/전체 보관 자료 수가 아닙니다/);assert.match(html,/<button[^>]+disabled=""[^>]+aria-label="[^"]*자료 더 조회"/)
+})
+await test('추가 조회의 계정·권한 변경 신호는 다른 범위의 결과와 늦은 응답도 모두 숨긴다',async()=>{
+  let latest=[],calls=0;const late=deferred(),loader=createWorkspaceSearchLoader(value=>latest=value)
+  loader.start([{kind:'document',label:'문서함',load:async()=>{if(++calls===2)throw{code:'CANCELLED'};return{items:[item({kind:'document'})],nextCursor:'next',coverage:'문서'}}},{kind:'knowledge',label:'학교 자료',load:()=>late.promise},{kind:'menu',label:'메뉴',load:async()=>[item({kind:'menu',id:'home'})]}]);await tick()
+  loader.more('document');await tick();assert(latest.every(s=>s.status==='unavailable'&&s.items.length===0));late.resolve([item({kind:'knowledge'})]);await tick();assert(latest.every(s=>s.items.length===0));loader.retry('document');await tick();assert.equal(latest.find(s=>s.kind==='document').status,'ready');loader.stop()
+})
 console.log(`업무 찾기 UI ${passed}개 통과, ${failed}개 실패`)
 if(failed)process.exit(1)

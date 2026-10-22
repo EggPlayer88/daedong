@@ -50,4 +50,11 @@ await check('시각 초과 뒤 늦은 저장 응답을 성공으로 되살리지
 await check('응답 중 소속이 바뀌면 이전 학교 자료를 닫는다',async()=>{const c=connection(async(_,args)=>{c.change({departmentIds:['changed']});return envelope(receipt(args))});await rejects(()=>m.createPublicationExecutionServer(c,{now:()=>now+1000}).execute('member',fixture().command,'request-one'),'CANCELLED')})
 await check('명세 해시를 계산하는 동안 소속이 바뀌면 전송 전에 멈춘다',async()=>{const c=connection(()=>assert.fail('호출 금지')),s=m.createPublicationExecutionServer(c,{now:()=>now+1000});const pending=s.execute('member',fixture().command,'request-one');c.change({departmentIds:['changed']});await rejects(()=>pending,'CANCELLED');assert.equal(c.calls.length,0)})
 await check('잘못된 검사 시각은 기한 검사를 우회하지 못한다',async()=>{for(const bad of [NaN,Infinity,-Infinity]){await rejects(()=>m.parsePublicationCommitCommand(fixture().command,bad),'INVALID_INPUT');assert.throws(()=>m.createPublicationExecutionServer(connection(()=>{}),{now:()=>bad}),e=>e.code==='INVALID_INPUT')}})
+await check('명세 만료 뒤 미접수 조회는 원키·원명세 재전송만 허용한다',async()=>{
+ const f=fixture(),c=connection(async(_,args)=>args.p_recover_only?{...Object.fromEntries(Object.entries(envelope(null)).filter(([key])=>key!=='data')),error:{code:'NOT_FOUND'}}:envelope(receipt(args))),s=m.createPublicationExecutionServer(c,{now:()=>now+900000})
+ await rejects(()=>s.resend('member',f.command,'original-key'),'NOT_READY');await rejects(()=>s.recover('member',f.command,'original-key'),'NOT_FOUND')
+ await rejects(()=>s.resend('member',fixture(200).command,'original-key'),'IDEMPOTENCY_CONFLICT');await rejects(()=>s.resend('member',f.command,'new-key-123'),'NOT_READY')
+ await s.resend('member',f.command,'original-key');await rejects(()=>s.resend('member',f.command,'original-key'),'NOT_READY')
+ assert.deepEqual(c.calls.map(c=>c.args.p_recover_only),[true,false]);assert.deepEqual(c.calls[0].args.p_command,c.calls[1].args.p_command)
+})
 console.log(`학기 전체 확정·페이지 검증·원키 복구 검사: ${n}개 통과`)

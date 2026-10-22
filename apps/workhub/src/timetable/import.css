@@ -1,0 +1,8 @@
+.timetable-import-start { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: .75rem; }
+.timetable-import-start p { margin: .35rem 0 0; }
+.timetable-import-start button { flex-shrink: 0; }
+.timetable-import-table { overflow: auto; max-width: 100%; margin-block: .75rem; border: 1px solid var(--line, #dce2e8); border-radius: .6rem; }
+.timetable-import-table table { border-collapse: collapse; width: 100%; min-width: 38rem; font-size: .9rem; }
+.timetable-import-table th, .timetable-import-table td { padding: .65rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line, #dce2e8); overflow-wrap: anywhere; max-width: 18rem; }
+.timetable-import-table small { display: block; margin-top: .3rem; opacity: .8; }
+@media (max-width: 600px) { .timetable-import-start { align-items: stretch; flex-direction: column; } }

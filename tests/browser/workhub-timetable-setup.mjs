@@ -127,7 +127,7 @@ try{
   },'preparation')
   await test('명시한 수업·학급 연결을 준비 원본으로 다시 읽고 재검사한 기준판에 포함한다',async()=>{
     await editCourse();await courseEditor().getByRole('checkbox',{name:'1학년 1반 [class-a]',exact:true}).check();await preview();await field('변경 내용을 확인했습니다').check();await button('확인한 내용 저장').click();await page.getByRole('region',{name:'공식 자료 변경 확인',exact:true}).waitFor()
-    await field('변경된 공식 자료를 확인했고 기존 시수·일과를 이어서 사용합니다').check();await button('입력 보존하고 현재 자료 채택').click();await page.getByText('기초 자료의 시수·배정·시간대 검사 통과',{exact:true}).waitFor()
+    await field('변경된 공식 자료를 확인했고 기존 시수·일과를 이어서 사용합니다').check();await button('입력 보존하고 현재 자료 채택').click();await page.getByRole('navigation',{name:'편성 준비 입력 이동',exact:true}).getByRole('button',{name:/기준판 검토/}).click();await page.getByText('기초 자료의 시수·배정·시간대 검사 통과',{exact:true}).waitFor()
     await field('시수·교사 배정·학년별 시간대를 확인했으며 이 자료를 새 편성 기준판으로 만듭니다').check();await button('확인한 편성 기준판 만들기').click();await page.waitForFunction(()=>window.confirmed===1)
     const result=await page.evaluate(()=>Object.values(window.receipts).find(value=>value.kind==='confirm'));assert.deepEqual(result.basis.lessons.find(lesson=>lesson.id==='block-a1').resourceIds,['teacher-a','class-a']);assert.equal(result.basis.courseLoads.find(load=>load.courseId==='course-a').periods,2);assert.equal(result.basis.slots[0].id,'slot-mon')
   },'preparation')

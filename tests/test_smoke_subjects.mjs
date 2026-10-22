@@ -13,12 +13,12 @@
 // 짝: tests/test_smoke_subjects.py (생성 완료 쪽 — 실제 hwpx 까지)
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const API = `${ROOT}/apps/main/api/doc-ai`
 
 // 핸들러는 env 와 외부 호출에 기댄다 — 여기서는 그 둘을 대신 세워 두고 **우리 코드만** 본다.
-process.env.ANTHROPIC_API_KEY = 'test-key'
 process.env.VITE_SUPABASE_URL = 'https://stub.invalid'
 process.env.VITE_SUPABASE_ANON_KEY = 'stub'
 
@@ -32,15 +32,21 @@ globalThis.fetch = async (url, opts) => {
     })
   if (u.includes('/auth/v1/user')) return J({ id: 'u1' })
   if (u.includes('/rest/v1/users')) return J([{ is_active: true }])
-  if (u.includes('api.anthropic.com')) {
-    lastRequest = JSON.parse(opts.body)
-    return J({ content: [{ type: 'text', text: '네, 시작하겠습니다.' }], stop_reason: 'end_turn' })
-  }
   throw new Error(`예상하지 못한 외부 호출: ${u}`)
 }
 
 const mod = await import(pathToFileURL(`${API}/chat.js`).href)
-const { default: handler, prefillIndex, normSubject, standardsDb } = mod
+const { prefillIndex, normSubject, standardsDb } = mod
+const routing = JSON.parse(readFileSync(`${ROOT}/apps/main/api/workhub-ai/_assets/model-routing.json`, 'utf8'))
+// 학교 예산·키는 게이트웨이 전용 시험이 검증한다. 여기서는 실제 프롬프트 조립과
+// 실제 응답 변환을 통과시켜 전 교과의 규정·작년 자료 경로를 그대로 검사한다.
+const handler = mod.createDocAiHandler(async request => {
+  if (request.actorUserId !== 'u1' || request.feature !== 'evaluation' || request.quality !== 'quick') throw new Error('검증된 계정·평가계획 기본 경로가 아님')
+  lastRequest = request.buildProviderBody({model:routing.models.quick.id,maxOutputTokens:routing.maxOutputTokens,effort:routing.models.quick.effort})
+  const response = await request.transformResponse({text:'네, 시작하겠습니다.',stop_reason:'end_turn',usage:{input_tokens:100,output_tokens:20}})
+  return {...response,state:'completed',requestKey:request.requestKey}
+})
+let sequence = 0
 
 let fail = 0
 const ck = (n, fn) => {
@@ -81,7 +87,7 @@ async function startChat(text) {
     {
       method: 'POST',
       headers: { authorization: 'Bearer t' },
-      body: { messages: [{ role: 'user', content: text }] },
+      body: { messages: [{ role: 'user', content: text }], requestKey:`subject-smoke-${++sequence}`, quality:'quick' },
     },
     res
   )

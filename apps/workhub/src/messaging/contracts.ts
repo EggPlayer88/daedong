@@ -19,7 +19,7 @@ export interface Message {
   sequence: number; body: string; createdAt: string; attachments: MessageAttachment[]
 }
 export interface MessagePage extends Page<Message> { thread: ThreadSummary }
-export type NotificationSource = { module: 'calendar' | 'tasks' | 'collections' | 'messages' | 'students' | 'knowledge' | 'cooperation'; id: string }
+export type NotificationSource = { module: 'calendar' | 'tasks' | 'collections' | 'messages' | 'students' | 'knowledge' | 'cooperation' | 'timetable'; id: string }
 export interface InboxNotice {
   id: string; schoolId: string; ownerMemberId: string; title: string; body: string
   createdAt: string; readAt: string | null; version: number; source: NotificationSource | null

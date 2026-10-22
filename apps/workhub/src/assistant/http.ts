@@ -8,7 +8,9 @@ export function createAssistantHttp(options: {
     getSession(): Promise<LegacySession | null>;
     fetch?: typeof fetch;
     timeoutMs?: number;
+    endpoint?: '/api/workhub-ai/chat' | '/api/workhub-ai/settings' | '/api/workhub-ai/operations';
 }): AssistantHttpPort {
+    if (options.endpoint && !['/api/workhub-ai/chat', '/api/workhub-ai/settings', '/api/workhub-ai/operations'].includes(options.endpoint)) throw new AssistantError('INVALID_INPUT');
     const send = options.fetch ?? globalThis.fetch, timeout = options.timeoutMs ?? ASSISTANT_LIMITS.clientTimeoutMs;
     if (!Number.isFinite(timeout) || timeout < 1 || timeout > 60000)
         throw new AssistantError('INVALID_INPUT');
@@ -27,7 +29,7 @@ export function createAssistantHttp(options: {
                 throw new AssistantError('CANCELLED'); return session; }
             async function run() {
                 try {
-                    const session = await same(), response = await send('/api/workhub-ai/chat', { method: 'POST', credentials: 'same-origin', redirect: 'error', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body });
+                    const session = await same(), response = await send(options.endpoint ?? '/api/workhub-ai/chat', { method: 'POST', credentials: 'same-origin', redirect: 'error', cache: 'no-store', signal: controller.signal, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body });
                     guard();
                     await same();
                     if (!response.body)
@@ -59,7 +61,7 @@ export function createAssistantHttp(options: {
                                 code?: unknown;
                             };
                         } | null)?.error?.code;
-                        if (typeof code === 'string' && ['NOT_READY', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'BUDGET_EXCEEDED'].includes(code))
+                        if (typeof code === 'string' && ['COUNT_FAILED', 'INPUT_TOO_LARGE', 'KEY_UNAVAILABLE', 'KEY_MISSING', 'NOT_READY', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'NOT_FOUND', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'BUDGET_EXCEEDED'].includes(code))
                             throw assistantError({ code });
                         throw failure();
                     }

@@ -101,3 +101,7 @@
   .documents-actions button { flex: 1 1 auto; }
   .documents-filters>label:not(.documents-check) { width: 100%; }
 }
+
+/* 연결 후보의 긴 원본 위치도 작은 화면 안에서 줄바꿈한다. */
+.guided-setup,.guided-setup .guided-question { min-width: 0; }
+.guided-setup .documents-muted { overflow-wrap: anywhere; }

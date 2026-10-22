@@ -38,7 +38,7 @@ export function TimetableAgendaPanel({ server, member, date, revision = 0, title
 }
 export function TimetableAgendaContent({ title, date, state, onRetry, onOpen }: { title: string; date: string; state: AgendaState; onRetry: () => void; onOpen: SharedProps['onOpen'] }) {
   const id = useId()
-  return <section className="ttagenda" aria-labelledby={id + '-title'}><style>{themeStyles + styles}</style><div className="ttagenda-header"><h3 id={id + '-title'}>{title}</h3><span>{date}</span></div>
+  return <section className={`ttagenda ttagenda-${state.status}${state.status === 'ready' && !state.items.length ? ' ttagenda-empty' : ''}`} aria-labelledby={id + '-title'}><style>{themeStyles + styles}</style><div className="ttagenda-header"><h3 id={id + '-title'}>{title}</h3><span>{date}</span></div>
     {state.status !== 'ready' ? <div><p role={state.status === 'error' ? 'alert' : 'status'}>{state.message}</p>{state.status === 'error' && <button type="button" onClick={onRetry}>내 수업 다시 확인</button>}</div> : <>
       {!state.items.length ? <p>이 날짜에 확인된 내 수업이 없습니다.</p> : <ol>{state.items.slice(0, 5).map(item => <li key={item.id}><button type="button" onClick={() => onOpen(item.lessonId, item.startDate)}><time dateTime={item.startsAt}>{item.startTime}–{item.endTime}</time><span><strong>{item.title}</strong><span>{item.groupNames.join(' · ')}{item.location ? ' · ' + item.location : ''}</span></span><small>{item.state === 'cancelled' ? '취소' : item.state === 'performed' ? '진행 완료' : '예정'}</small></button></li>)}</ol>}
       <button type="button" className="ttagenda-all" onClick={() => onOpen('', date)}>{state.items.length > 5 ? `내 수업 ${state.items.length}건 전체 보기` : '시간표 전체 보기'}</button>

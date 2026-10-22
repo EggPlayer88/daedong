@@ -1,3 +1,4 @@
+import type { RequestAbandonResult } from './request-abandon'
 import type { OperationLessonChange, OperationTime, OperationsView } from './operations-contracts'
 import type { OperationReferenceView } from './operations-next-contracts'
 
@@ -28,7 +29,11 @@ export interface SchoolDayCommitReceipt {
   recordedAt: string; changedLessonCount: number; changesHash: string; lostLessonCount: number
 }
 export interface SchoolDayExecutionServer {
+  /** 원키의 처리 또는 영구 닫힘이 확인된 때만 입력 잠금을 해제한다. */
+  abandon?(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<RequestAbandonResult<SchoolDayCommitReceipt>>
   preview(memberId: string, input: SchoolDayExecutionInput, view: OperationsView, references: OperationReferenceView): Promise<SchoolDayExecutionPreview>
   execute(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<SchoolDayCommitReceipt>
   recover(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<SchoolDayCommitReceipt>
+  /** 조회에서 접수증을 찾지 못한 원키·원문만 명시적으로 다시 보낸다. */
+  resend?(memberId: string, command: SchoolDayCommitCommand, requestKey: string): Promise<SchoolDayCommitReceipt>
 }

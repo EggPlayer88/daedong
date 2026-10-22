@@ -72,4 +72,24 @@ await check('조회·미리보기·동의·접수 메타 시각의 밀리초는 
   const c = connection(async (name, args) => envelope(name.endsWith('_get') ? view() : name.endsWith('_publish_preview') ? p : await receipt(args.p_command, args.p_request_key, { recordedAt: '2026-10-16T00:00:00.789Z' }))), s = service(c)
   await s.get('m1', FROM, UNTIL); const preview = await s.previewPublish('m1', publishInput()); assert.equal((await s.execute('m1', m.publishCommand(preview), 'metadata-ms-key')).recordedAt, '2026-10-16T00:00:00.789Z')
 })
+for (const command of [m.publishCommand(publishPreview()), m.exchangeCommand(exchangePreview()), m.actionCommand(request(), 'accept')]) await check(command.kind + ': 미접수 조회 뒤 만료·목록 부재에도 원키만 재전송한다', async () => {
+  const c=connection(async(_,args)=>args.p_recover_only?{...Object.fromEntries(Object.entries(envelope(null)).filter(([key])=>key!=='data')),error:{code:'NOT_FOUND'}}:envelope(await receipt(args.p_command,args.p_request_key))), s=m.createTimetableOperationsServer(c,{now:()=>Date.parse('2027-01-01T00:00:00Z')})
+  await assert.rejects(()=>s.resend('m1',command,'original-key'),e=>e.code==='NOT_READY')
+  await assert.rejects(()=>s.recover('m1',command,'original-key'),e=>e.code==='NOT_FOUND')
+  const altered=clone(command); if(altered.kind==='action')altered.expectedVersion++;else altered.preview.previewHash='b'.repeat(64)
+  await assert.rejects(()=>s.resend('m1',altered,'original-key'),e=>e.code==='IDEMPOTENCY_CONFLICT')
+  await assert.rejects(()=>s.resend('m1',command,'new-key-123'),e=>e.code==='NOT_READY')
+  await s.resend('m1',command,'original-key'); await assert.rejects(()=>s.resend('m1',command,'original-key'),e=>e.code==='NOT_READY')
+  assert.deepEqual(c.calls.map(c=>c.args.p_recover_only),[true,false]);assert.deepEqual(c.calls[0].args.p_command,c.calls[1].args.p_command)
+})
+await check('원키 재전송 허가가 다른 소속으로 넘어가지 않는다',async()=>{
+ const c=connection(async()=>({...Object.fromEntries(Object.entries(envelope(null)).filter(([key])=>key!=='data')),error:{code:'NOT_FOUND'}})),s=service(c),command=m.publishCommand(publishPreview())
+ await assert.rejects(()=>s.recover('m1',command,'original-key'));c.change({departmentIds:['changed']});await assert.rejects(()=>s.resend('m1',command,'original-key'),e=>e.code==='NOT_READY');assert.equal(c.calls.length,1)
+})
+await check('같은 운영 요청의 접수증 ID와 기록 시각은 복구 때 바뀔 수 없다',async()=>{
+ for(const patch of [{entityId:'different-publication'},{recordedAt:'2026-10-15T23:59:59.000Z'}]) {
+  let changed=false;const command=m.publishCommand(publishPreview()),c=connection(async(_,args)=>envelope(await receipt(args.p_command,args.p_request_key,changed?patch:{}))),s=service(c)
+  await s.recover('m1',command,'stable-key');changed=true;await assert.rejects(()=>s.recover('m1',command,'stable-key'),e=>e.code==='INVALID_RESPONSE')
+ }
+})
 console.log(`시간표 확정·교환 서비스 ${count}건 통과`)

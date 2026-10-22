@@ -1,0 +1,11 @@
+{
+  "note": 1000,
+  "correctionReason": 500,
+  "label": 200,
+  "teachers": 100,
+  "pageSize": 20,
+  "maxVersion": 2147483647,
+  "minRequestKeyLength": 8,
+  "clockSkewMs": 60000,
+  "maxLessonSeconds": 14400
+}

@@ -10,3 +10,12 @@
 .collection-server [data-cs-focus]:focus{outline:3px solid #86b8ef;outline-offset:4px;border-radius:4px}
 .collection-server [data-cs-focus]{scroll-margin-block:20px}
 @media(max-width:640px){.cs-files li>div{width:100%}.cs-files li>div button{flex:1}.cs-file-picker input{min-width:0;max-width:100%}}
+.collection-server .cs-workbench{min-width:0;margin-top:20px;border-top:1px solid var(--ui-line,#dfe3e8);padding-top:12px}
+.collection-server .cs-workbench h4{margin:8px 0 12px}
+.collection-server .cs-workbench-filters{display:flex;gap:6px;flex-wrap:wrap}
+.collection-server .cs-workbench-filters button{min-height:44px;font-size:var(--ui-small-size,12px);padding:8px 12px}
+.collection-server .cs-workbench-filters button[aria-pressed=true]{background:var(--ui-accent,#2563eb);color:var(--ui-on-accent,#fff)}
+.collection-server .cs-workbench-search{display:grid;gap:6px;margin-top:12px;max-width:480px}
+.collection-server .cs-workbench-help{font-size:var(--ui-small-size,12px);line-height:1.7}
+.collection-server .cs-workbench-help summary{cursor:pointer;min-height:44px;align-content:center}
+.collection-server .cs-workbench-pinned{border-left:3px solid var(--ui-accent,#2563eb);padding-left:12px}

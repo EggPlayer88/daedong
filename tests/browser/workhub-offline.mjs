@@ -76,9 +76,10 @@ try{
   })
   await test('수합과 학생 일반 CSS·일정 인라인 CSS가 실제로 적용된다',async()=>{
     assert.equal(await page.locator('.home-dashboard').evaluate(node=>getComputedStyle(node).display),'grid')
-    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderTopWidth),'0px')
-    // 홈 요약은 카드 테두리 중첩 없이 평평하게 구분하고, 본문 색은 공통 스킨을 따른다.
-    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderRadius),'0px')
+    // 첫 영역으로 옮긴 수합 요약은 테두리 한 겹만 갖고, 바깥 배치 영역은 카드를 중첩하지 않는다.
+    assert.equal(await page.locator('.home-priority').evaluate(node=>getComputedStyle(node).borderTopWidth),'0px')
+    assert.equal(await page.locator('.home-priority > .wf-home').evaluate(node=>getComputedStyle(node).borderTopWidth),'1px')
+    assert.equal(await page.locator('.wf-home').evaluate(node=>getComputedStyle(node).borderRadius),await page.locator('.home-today').evaluate(node=>getComputedStyle(node).borderRadius))
     await menu('자료 수합');await heading('자료 수합')
     const colors=await page.locator('.wf-panel').evaluate(node=>{const probe=document.createElement('span');probe.style.color='var(--ui-text)';node.append(probe);const result={actual:getComputedStyle(node).color,token:getComputedStyle(node).getPropertyValue('--ui-text').trim(),expected:getComputedStyle(probe).color};probe.remove();return result})
     assert(colors.token,'공통 본문 색 토큰');assert.equal(colors.actual,colors.expected)

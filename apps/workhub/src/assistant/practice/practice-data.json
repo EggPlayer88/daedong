@@ -1,0 +1,19 @@
+{
+  "contract": "assistant.practice.v1",
+  "teacherCount": 36,
+  "requestLimitPerTeacher": 100,
+  "threadExchangeLimit": 50,
+  "syntheticInputTokens": 1000,
+  "syntheticOutputTokens": 500,
+  "schools": [
+    {"id": "practice-ai-school-a", "name": "가상학교 A"},
+    {"id": "practice-ai-school-b", "name": "가상학교 B"}
+  ],
+  "scenarios": [
+    {"id": "normal", "label": "정상 답변과 정밀 검토", "hint": "질문을 보낸 뒤 완료된 기본 답변의 정밀 검토 버튼을 눌러 보세요."},
+    {"id": "budget", "label": "학교 예산 부족", "hint": "요청을 보내면 예산 부족 안내가 나오고 입력이 남습니다. 질문을 비운 뒤 정상 상황으로 바꿀 수 있습니다."},
+    {"id": "lost_answer", "label": "완료 응답 끊김", "hint": "답변은 만들어졌지만 화면에 도착하지 않는 상황입니다. 같은 요청으로 확인하거나 닫기를 누르면 원래 답변을 받습니다."},
+    {"id": "not_started", "label": "시작 전 응답 끊김", "hint": "아직 답변을 만들지 않은 요청입니다. 같은 번호를 확인하거나 새 호출 없이 닫아 보세요."},
+    {"id": "lost_close", "label": "닫기 응답도 끊김", "hint": "시작 전 요청을 닫은 응답이 한 번 사라집니다. 같은 번호로 닫기 결과를 다시 확인하면 잠금이 풀립니다."}
+  ]
+}

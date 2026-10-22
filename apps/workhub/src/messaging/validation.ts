@@ -101,7 +101,7 @@ export function notice(value: unknown, scope: MessagingScope): InboxNotice {
   let source: InboxNotice['source'] = null
   if (v.source !== null) {
     const raw = exact(v.source, ['module', 'id'])
-    if (!['calendar', 'tasks', 'collections', 'messages', 'students', 'knowledge', 'cooperation'].includes(String(raw.module))) return bad()
+    if (!['calendar', 'tasks', 'collections', 'messages', 'students', 'knowledge', 'cooperation', 'timetable'].includes(String(raw.module))) return bad()
     source = { module: raw.module as NonNullable<InboxNotice['source']>['module'], id: identifier(raw.id) }
   }
   return { id: identifier(v.id), schoolId: scope.schoolId, ownerMemberId: scope.memberId, title: text(v.title, 300), body: text(v.body, 4000, true), createdAt: timestamp(v.createdAt), readAt: v.readAt === null ? null : timestamp(v.readAt), version: integer(v.version, 1), source }

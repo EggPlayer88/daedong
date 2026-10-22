@@ -5,8 +5,8 @@ import type { RelationIntentKind, RelationsSnapshot, TeachingRelation } from './
 import { filterAssignments, filterRelationStudents, relationStatus, RELATION_STATUS_LABELS, type RelationStatusFilter } from './relations-list'
 import styles from './relations-list.css?inline'
 
-export function RelationsLists({ snapshot, disabled, editing, stale, onBegin }: {
-  snapshot: RelationsSnapshot; disabled: boolean; editing: boolean; stale: boolean
+export function RelationsLists({ snapshot, disabled, editing, stale, onBegin, focusStudentId }: {
+  focusStudentId?:string; snapshot: RelationsSnapshot; disabled: boolean; editing: boolean; stale: boolean
   onBegin: (kind: RelationIntentKind, relation: TeachingRelation) => void
 }) {
   const id = useId(), teacherHeading = useRef<HTMLHeadingElement>(null), studentHeading = useRef<HTMLHeadingElement>(null)
@@ -14,7 +14,7 @@ export function RelationsLists({ snapshot, disabled, editing, stale, onBegin }: 
   const [teacherStatus, setTeacherStatus] = useState<RelationStatusFilter>('all'), [studentStatus, setStudentStatus] = useState<RelationStatusFilter>('all')
   const [teacherPage, setTeacherPage] = useState(0), [studentPage, setStudentPage] = useState(0)
   const teachers = filterAssignments(snapshot.assignments, snapshot.basisDate, teacherQuery, teacherStatus)
-  const students = filterRelationStudents(snapshot.students, snapshot.basisDate, studentQuery, studentStatus)
+  const students = filterRelationStudents(focusStudentId?snapshot.students.filter(s=>s.studentId===focusStudentId):snapshot.students, snapshot.basisDate, studentQuery, studentStatus)
   const teacherWindow = listWindow(teachers, teacherPage), studentWindow = listWindow(students, studentPage)
   useEffect(() => { if (teacherPage !== teacherWindow.page) setTeacherPage(teacherWindow.page) }, [teacherPage, teacherWindow.page])
   useEffect(() => { if (studentPage !== studentWindow.page) setStudentPage(studentWindow.page) }, [studentPage, studentWindow.page])
@@ -24,7 +24,7 @@ export function RelationsLists({ snapshot, disabled, editing, stale, onBegin }: 
   return <div className="relation-lists">
     <style>{styles}</style>
     <p className="relation-list-help">현재 조회된 수업 관계에서 찾습니다. 학생 상태는 이 수업의 수강 기준이며, 학적 상태는 따로 표시합니다.</p>
-    <details open={!editing || stale}>
+    {!focusStudentId&&<details open={!editing || stale}>
       <summary>교사 담당 {snapshot.assignments.length}건</summary>
       <h4 ref={teacherHeading} tabIndex={-1}>교사 담당 찾기</h4>
       <div className="relation-list-filters">
@@ -43,7 +43,7 @@ export function RelationsLists({ snapshot, disabled, editing, stale, onBegin }: 
       </article>)}</div>
       {!teachers.length && <p>{snapshot.assignments.length ? '검색 조건에 맞는 담당 교사가 없습니다.' : '등록된 담당 관계가 없습니다.'}</p>}
       <ListPagination label="교사 담당 검색 결과 페이지" window={teacherWindow} disabled={disabled} onPageChange={page => { setTeacherPage(page); teacherHeading.current?.focus() }}/>
-    </details>
+    </details>}
     <details open={!editing || stale}>
       <summary>학생 수강 {snapshot.students.length}명</summary>
       <h4 ref={studentHeading} tabIndex={-1}>학생 수강 찾기</h4>
@@ -54,11 +54,11 @@ export function RelationsLists({ snapshot, disabled, editing, stale, onBegin }: 
       </div>
       <p role="status" aria-atomic="true">학생 수강 전체 {snapshot.students.length}명 · 검색 결과 {students.length}명 · {studentWindow.start}–{studentWindow.end}명 표시</p>
       <div className="relation-list-items" aria-label="학생 수강 검색 결과">{studentWindow.items.map(s => <article key={s.studentId}>
-        <h4>{s.name}</h4><span className="relation-list-state">수강: {statusLabel(s.membership)} · 학적: {statusLabel(s.enrollment)}</span>
+        <h4>{s.name}{focusStudentId&&` · 학생 ID ${s.studentId}`}</h4><span className="relation-list-state">수강: {statusLabel(s.membership)} · 학적: {statusLabel(s.enrollment)}</span>
         <p>수강 {s.membership.validFrom} ~ {s.membership.effectiveThrough ?? '시작 전 취소'} · 관계 {s.membership.version}판</p>
         <div className="teaching-actions">
           {snapshot.capabilities.endMemberships && <button type="button" className="secondary" disabled={disabled || editing || !manageable(s.membership)} onClick={() => onBegin('membership_end', s.membership)}>수강 종료 · {s.name}</button>}
-          {snapshot.capabilities.transferStudents && <button type="button" className="secondary" disabled={disabled || editing || !manageable(s.enrollment)} onClick={() => onBegin('student_transfer_out', s.enrollment)}>전출 처리 · {s.name}</button>}
+          {!focusStudentId && snapshot.capabilities.transferStudents && <button type="button" className="secondary" disabled={disabled || editing || !manageable(s.enrollment)} onClick={() => onBegin('student_transfer_out', s.enrollment)}>전출 처리 · {s.name}</button>}
         </div>
       </article>)}</div>
       {!students.length && <p>{snapshot.students.length ? '검색 조건에 맞는 학생이 없습니다.' : '등록된 수강 관계가 없습니다.'}</p>}

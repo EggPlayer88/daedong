@@ -1,0 +1,659 @@
+{
+  "version": 1,
+  "hash": {
+    "algorithm": "sha256",
+    "normalization": "utf8-lf",
+    "description": "UTF-8을 엄격히 해석하고 CRLF만 LF로 정규화한 바이트의 SHA-256. 배포 묶음은 이 LF 바이트로 내보낸다. 브라우저 다운로드나 SQL Editor 복사본의 실제 바이트가 같다는 뜻은 아니므로 별도로 대조한다."
+  },
+  "baseline": {
+    "source": "사용자 전달과 저장소 인계 기록의 T2 설치 완료 상태",
+    "liveDatabaseChecked": false,
+    "readOnlyCheckId": "baseline-t2-07",
+    "replayBaseline": false,
+    "note": "P1·P5·T1 활성 기록은 과거 기록이며 이번 운영 실조회가 아니다. T2-02를 포함해 개별 실행 기록을 확인하기 전에는 재실행하지 않는다."
+  },
+  "execution": {
+    "productionDbApplied": false,
+    "memberLinkingPerformed": false,
+    "automaticActivation": false,
+    "automaticDeployment": false,
+    "claudeReviewRequested": false,
+    "description": "순서·원문 검증과 검토용 묶음 생성만 제공한다. 실행 권한이나 운영 적용 승인을 뜻하지 않는다."
+  },
+  "pendingRoots": [
+    "database/workhub-school-data/p9",
+    "database/workhub-school-data/p10",
+    "database/workhub-timetable/t3",
+    "database/workhub-timetable/t4",
+    "database/workhub-ai-policy/p10",
+    "database/workhub-knowledge-history/k1",
+    "database/workhub-ai-memory/m1"
+  ],
+  "packages": [
+    {
+      "id": "school-p9",
+      "directory": "database/workhub-school-data/p9",
+      "dependsOn": [],
+      "installEffects": [
+        "P9-02는 수업 담당 후보 판정을 보강한다. 학교 승인 전에는 기존 결과를 유지한다."
+      ],
+      "baselineRequires": [
+        "T2"
+      ]
+    },
+    {
+      "id": "school-p10",
+      "directory": "database/workhub-school-data/p10",
+      "dependsOn": [
+        "school-p9"
+      ],
+      "installEffects": [
+        "P10-02는 무단 원자료 정정·실효기간 중복 보호를 설치 즉시 보강한다. 학교 정정 정책은 기본 꺼짐이다."
+      ],
+      "baselineRequires": [
+        "T2"
+      ]
+    },
+    {
+      "id": "timetable-t3",
+      "directory": "database/workhub-timetable/t3",
+      "dependsOn": [
+        "school-p10"
+      ],
+      "installEffects": [
+        "변경 사유와 기존 T2 보호 훅을 추가한다. 시범 정책이 없는 학교의 기존 교환 경로는 유지한다."
+      ],
+      "baselineRequires": [
+        "T2"
+      ]
+    },
+    {
+      "id": "timetable-t4",
+      "directory": "database/workhub-timetable/t4",
+      "dependsOn": [],
+      "installEffects": [
+        "별도 켜기 표가 없다. 기존 T1 활성·관리 권한과 앱 배포가 갖춰지면 가져오기 RPC를 사용할 수 있다."
+      ],
+      "baselineRequires": [
+        "T1-07"
+      ]
+    },
+    {
+      "id": "ai-p10",
+      "directory": "database/workhub-ai-policy/p10",
+      "dependsOn": [],
+      "installEffects": [
+        "P10-02는 기존 P6 직접 prepare/start를 막고 이전 원장을 공통 원장으로 이관한다. 새 학교 정책·키·회원 연결이 없어도 설치 직후 이 영향은 생긴다. 앱·SQL·키·회원 전환을 함께 계획한다."
+      ],
+      "baselineRequires": [
+        "P6-01",
+        "P6-02"
+      ]
+    },
+    {
+      "id": "knowledge-k1",
+      "directory": "database/workhub-knowledge-history/k1",
+      "dependsOn": [],
+      "installEffects": [
+        "기존 knowledge 활성·권한을 따르는 과거판 조회 2개를 추가한다. 별도 활성화 표가 없다."
+      ],
+      "baselineRequires": [
+        "P4"
+      ]
+    },
+    {
+      "id": "memory-m1",
+      "directory": "database/workhub-ai-memory/m1",
+      "dependsOn": [],
+      "installEffects": [
+        "새 기억 저장·수정·선택은 학교 승인 전 꺼짐이다. 기존 AI·회원·비용을 바꾸지 않는다."
+      ],
+      "baselineRequires": [
+        "P6-01",
+        "P6-02"
+      ]
+    }
+  ],
+  "files": [
+    {
+      "id": "school-p9-01",
+      "packageId": "school-p9",
+      "path": "database/workhub-school-data/p9/P9-01_교사연결_모델과함수.sql",
+      "sha256": "061caa3d34bc870146b883a784ef82d90b6d90ed86f2729d010802e0f8f113cd",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "baseline-t2-07"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "school-p9-02",
+      "packageId": "school-p9",
+      "path": "database/workhub-school-data/p9/P9-02_담당교사후보_분리.sql",
+      "sha256": "ea3df01a73a215d3e082ab7b0d07aa1bc9be35e9d1c54fe69e5ca72f0f1c104a",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "school-p9-01"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "school-p9-03",
+      "packageId": "school-p9",
+      "path": "database/workhub-school-data/p9/P9-03_교사연결_승인양식.sql",
+      "sha256": "6158a51a6002976a9a06b9d9067ee2080a53fc0a1bdeb88737c2f46cda1481c9",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "school-p9-04",
+      "packageId": "school-p9",
+      "path": "database/workhub-school-data/p9/P9-04_사후점검.sql",
+      "sha256": "226aa1f807da036b3b759cbac47be853a82b81d2b5b9cc5b98b80ad3ccfa8ad8",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "school-p9-05",
+      "packageId": "school-p9",
+      "path": "database/workhub-school-data/p9/P9-05_통합사후점검.sql",
+      "sha256": "45638ba078d7864268cea01cbd966b76f0fe9d696d5084b431b4b967c2e0b22e",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "school-p10-01",
+      "packageId": "school-p10",
+      "path": "database/workhub-school-data/p10/P10-01_정정_모델과함수.sql",
+      "sha256": "a65bcdf5e58b298dc9de4a63b085e2cf3a4248e88e356bc4f10ce519390c3579",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "school-p9-02"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "school-p10-02",
+      "packageId": "school-p10",
+      "path": "database/workhub-school-data/p10/P10-02_기존쓰기와시간표_보호.sql",
+      "sha256": "0c56b89bc738452e9aaf171e94650df916d62ff02da74de7b77b698e74bacce0",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "school-p10-01"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "school-p10-03",
+      "packageId": "school-p10",
+      "path": "database/workhub-school-data/p10/P10-03_정정기능_승인양식.sql",
+      "sha256": "6e40324e7629a0adcf5388aa0dfe2bb47d67160ceaf3ab63541d2187defcf7b3",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "school-p10-04",
+      "packageId": "school-p10",
+      "path": "database/workhub-school-data/p10/P10-04_사후점검.sql",
+      "sha256": "081526d3b892a48b0ccd58bef41dc9c275052d62090c29bdd749885aed1fd284",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "school-p10-80",
+      "packageId": "school-p10",
+      "path": "database/workhub-school-data/p10/P10-80_정정기능_비파괴중지.sql",
+      "sha256": "d6d2cc2f5ac32a4bcce60cb00f6cd11ac3f1104371dd575fa500be021f327009",
+      "kind": "stop",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "timetable-t3-01",
+      "packageId": "timetable-t3",
+      "path": "database/workhub-timetable/t3/T3-01_운영확장_모델.sql",
+      "sha256": "291beb54a54e56c2b4f6bf07a5067b910beef6bff7de88e79e356d6c3ecdd813",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "school-p10-02"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "timetable-t3-02",
+      "packageId": "timetable-t3",
+      "path": "database/workhub-timetable/t3/T3-02_운영확장_공개함수.sql",
+      "sha256": "8d8cf42f8367a9d1ab2b17e97e4ba35c971c00c62870d2924ac26b76f46d1d8d",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "timetable-t3-01"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "timetable-t3-03",
+      "packageId": "timetable-t3",
+      "path": "database/workhub-timetable/t3/T3-03_기존운영_보존훅.sql",
+      "sha256": "604b7117d485b2d92093d7ed0668d94e7f66184968dbf87ab060ded13cb434c7",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "timetable-t3-02"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "timetable-t3-04",
+      "packageId": "timetable-t3",
+      "path": "database/workhub-timetable/t3/T3-04_사후점검.sql",
+      "sha256": "862c7170af4614a4d41e967492fd6b03433c43642af19b703ff8ddcf624c84f8",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "timetable-t3-05",
+      "packageId": "timetable-t3",
+      "path": "database/workhub-timetable/t3/T3-05_시범승인_양식.sql",
+      "sha256": "60425b1d0ae2c96b64139675b41a1575fa9fe63aaeb00a322af07e915d5391a2",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "timetable-t4-01",
+      "packageId": "timetable-t4",
+      "path": "database/workhub-timetable/t4/T4-01_정식시간표_가져오기.sql",
+      "sha256": "00a917396408560ada2066a483daed6d0684b2c0f7adbba07e7b1c6dd73da137",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "timetable-t3-03"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "timetable-t4-02",
+      "packageId": "timetable-t4",
+      "path": "database/workhub-timetable/t4/T4-02_가져오기_사후점검.sql",
+      "sha256": "c78a68b2b57e033c97cf70fe529c6b7ed5c95d1be28ada94395bc0e215367c19",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "ai-p10-01",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-01_학교AI_모델.sql",
+      "sha256": "6c374f01a8f9011848b599ceb4681db19f45a4cb2473cba5f38c8c48d0aa8a21",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "timetable-t4-01"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "ai-p10-02",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-02_학교AI_공통실행.sql",
+      "sha256": "2a6534926831acf5f9e95a149e229eb9a0270bde834cb9f42ecc6d1e4544dc62",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "ai-p10-01"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "ai-p10-03",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-03_학교AI_관리.sql",
+      "sha256": "2d7aabaf5f8a512de991919fce35990ddbddf09b8912b00b418f4e721b9ee145",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "ai-p10-02"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "ai-p10-04",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-04_사후점검.sql",
+      "sha256": "aebc25f6686746f186587f52421cc7ca405b8de069f9926c60d92d1fb6ed331e",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "ai-p10-05",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-05_정책등록_양식.sql",
+      "sha256": "e943ede8eb5ea772c815d464bfa6b40d821da18989fcb0309697a1da77f8be17",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "ai-p10-06",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-06_기존회원_학교연결_양식.sql",
+      "sha256": "276ad160801455e5521ea40bc8166d830c422c7fdbf3e0895ab63e39012dc272",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "ai-p10-07",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-07_켜기_중지_양식.sql",
+      "sha256": "973359a9297b147db9a617313c8f647a88d16abc2e635b786b5e844f2d29cc2d",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "ai-p10-08",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-08_미상비용_확인_양식.sql",
+      "sha256": "19116b29be76cdfdc454d37def697faf750bd1766ff6e5a0a213b42ca513f84a",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "ai-p10-09",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-09_운영현황_조회.sql",
+      "sha256": "98104798ba4e3ab85fbbe18c7ae8cb75046096f48dc18f85da66cb2ea9105a77",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "ai-p10-03"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "ai-p10-10",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-10_서버진단_조회.sql",
+      "sha256": "2d595e0c3d15c4ae9c75d15cf0524c7f7af861edd2200e82edbd144a97b4d68c",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "ai-p10-09"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "ai-p10-11",
+      "packageId": "ai-p10",
+      "path": "database/workhub-ai-policy/p10/P10-11_운영조회_사후점검.sql",
+      "sha256": "2f5f4f65af6d1434596673513c2d35b36140e7e005263602e8d0c5701b4cf038",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "knowledge-k1-01",
+      "packageId": "knowledge-k1",
+      "path": "database/workhub-knowledge-history/k1/K1-01_학교자료_판별조회.sql",
+      "sha256": "70d29ae7730d32684602fd4a4d6c9d816f5b4a711a5ace1ca0861cb676a6a8f3",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "ai-p10-10"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "knowledge-k1-02",
+      "packageId": "knowledge-k1",
+      "path": "database/workhub-knowledge-history/k1/K1-02_사후점검.sql",
+      "sha256": "167d0afdc7b872ffcb2910badf9e76eed704f826c9de075f8132c8468feb05cc",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "memory-m1-00",
+      "packageId": "memory-m1",
+      "path": "database/workhub-ai-memory/m1/M1-00_사전점검_기존지문.sql",
+      "sha256": "ec2c427869b426ff2d81b5f621341a3f8a59111f7940c1d17610aba9365984ed",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "M1 설치 전과 후에 같은 파일로 기존 자료 보존을 대조하는 읽기 전용 점검."
+    },
+    {
+      "id": "memory-m1-01",
+      "packageId": "memory-m1",
+      "path": "database/workhub-ai-memory/m1/M1-01_개인기억_모델과함수.sql",
+      "sha256": "cd1d668ac54db17bf0e0236831ccb4e7b44d88a5269f0c8f0b43e89dd490f929",
+      "kind": "install",
+      "phase": "pending",
+      "after": [
+        "knowledge-k1-01"
+      ],
+      "notes": "현재 검토용 설치 단계. 실제 DB 적용은 보류한다."
+    },
+    {
+      "id": "memory-m1-02",
+      "packageId": "memory-m1",
+      "path": "database/workhub-ai-memory/m1/M1-02_사후점검.sql",
+      "sha256": "c0c168d25cbeb3fa86e35939011e9524a5a792e0deaaffadbeb07bf717c1fbb2",
+      "kind": "check",
+      "phase": "pending",
+      "after": [],
+      "notes": "해당 설치 단계 뒤 읽기 전용 점검을 실행해 FAIL 여부를 확인한다. 설치·활성화 명령이 아니다."
+    },
+    {
+      "id": "memory-m1-03",
+      "packageId": "memory-m1",
+      "path": "database/workhub-ai-memory/m1/M1-03_개인기억_학교승인_양식.sql",
+      "sha256": "a04c127ef9510e51d66b8ca4b3df82ae4fbd103eaf1facacc39bd8c2783e56ec",
+      "kind": "approval",
+      "phase": "pending",
+      "after": [],
+      "notes": "별도 승인 후에만 작성·실행한다. 이번 자동 설치 목록에 포함하지 않는다."
+    },
+    {
+      "id": "baseline-t2-07",
+      "packageId": "baseline",
+      "path": "database/workhub-timetable/t2/T2-07_통합사후점검.sql",
+      "sha256": "60610fe9c0aefb625176f11645b475b69f1f7fd2ccf1d865dd4b2ee0c32fb3d6",
+      "kind": "check",
+      "phase": "baseline",
+      "after": [],
+      "notes": "과거 인계상 T2 기준이다. 이번에 운영을 조회하지 않았다. 적용 직전 현재 설치 상태와 실행 이력을 확인하며 이미 적용한 SQL을 재실행하지 않는다."
+    },
+    {
+      "id": "deferred-r1s-04",
+      "packageId": "deferred",
+      "path": "database/workhub/r1s/R1S-04_학교활성화_양식.sql",
+      "sha256": "692310682abff7aca9bd1ae45a089dfcb41c60807e19918571a646826cf9de5e",
+      "kind": "approval",
+      "phase": "deferred",
+      "after": [],
+      "notes": "Vercel HWPX 확인 경로·서버 전용 환경값·실제 Storage 왕복 확인 뒤 별도 승인. 독립 검사기 서버 R1-05는 계속 보류한다."
+    },
+    {
+      "id": "deferred-p3-05",
+      "packageId": "deferred",
+      "path": "database/workhub/p3/P3-05_첨부활성화_양식.sql",
+      "sha256": "597b44eab31f30952172004a6cc0d1cc337244717762b7af7283ad658a936140",
+      "kind": "approval",
+      "phase": "deferred",
+      "after": [],
+      "notes": "메신저 첨부 HWPX 확인과 private Storage 왕복을 확인한 뒤 별도 승인한다."
+    },
+    {
+      "id": "deferred-p6-04",
+      "packageId": "deferred",
+      "path": "database/workhub/p6/P6-04_비서활성화_설정_양식.sql",
+      "sha256": "5740a2405ea1daf3b137adbf56ab9c10ca12730f94e0229cb653b3b5da03e01c",
+      "kind": "approval",
+      "phase": "deferred",
+      "after": [],
+      "notes": "기존 비서 모듈 활성화는 AI 공통 정책과 별개다. 정책·키·기존 요청 상태를 확인하고 별도 승인한다."
+    },
+    {
+      "id": "deferred-t2-08",
+      "packageId": "deferred",
+      "path": "database/workhub-timetable/t2/T2-08_시간표운영활성화_양식.sql",
+      "sha256": "e61800c60146b8a22d0fe3ce580332e2171e0a2ddeb135360f6fc35582309321",
+      "kind": "approval",
+      "phase": "deferred",
+      "after": [],
+      "notes": "시범 교사·독립 승인 담당자와 T3 정책을 함께 확인한 뒤 별도 승인. T2-02 실행 여부는 실제 기록을 대조하고 추정 재실행하지 않는다."
+    },
+    {
+      "id": "integration-int05",
+      "packageId": "integration",
+      "path": "database/workhub-deployment/integration/INT-05_전체구축_통합점검.sql",
+      "sha256": "3f71c7bbfcb160a0f93f27a2f64b4432391c553339f1480f4bbeb48a30523fda",
+      "kind": "check",
+      "phase": "pending",
+      "after": [
+        "school-p9-01",
+        "school-p9-02",
+        "school-p10-01",
+        "school-p10-02",
+        "timetable-t3-01",
+        "timetable-t3-02",
+        "timetable-t3-03",
+        "timetable-t4-01",
+        "ai-p10-01",
+        "ai-p10-02",
+        "ai-p10-03",
+        "ai-p10-09",
+        "ai-p10-10",
+        "knowledge-k1-01",
+        "memory-m1-01"
+      ],
+      "notes": "이번 미적용 증분들을 모두 포함한 최종 읽기 전용 점검. 과거 고정 함수 개수 점검의 FAIL을 성공으로 간주하지 않고 이 기준과 모듈 점검을 함께 사용한다."
+    }
+  ],
+  "installOrder": [
+    "school-p9-01",
+    "school-p9-02",
+    "school-p10-01",
+    "school-p10-02",
+    "timetable-t3-01",
+    "timetable-t3-02",
+    "timetable-t3-03",
+    "timetable-t4-01",
+    "ai-p10-01",
+    "ai-p10-02",
+    "ai-p10-03",
+    "ai-p10-09",
+    "ai-p10-10",
+    "knowledge-k1-01",
+    "memory-m1-01"
+  ],
+  "preInstallChecks": [
+    {
+      "beforeInstallId": "school-p9-01",
+      "checkIds": [
+        "baseline-t2-07"
+      ]
+    },
+    {
+      "beforeInstallId": "memory-m1-01",
+      "checkIds": [
+        "memory-m1-00"
+      ]
+    }
+  ],
+  "checkpoints": [
+    {
+      "afterInstallId": "school-p9-02",
+      "checkIds": [
+        "school-p9-04",
+        "school-p9-05"
+      ]
+    },
+    {
+      "afterInstallId": "school-p10-02",
+      "checkIds": [
+        "school-p10-04"
+      ]
+    },
+    {
+      "afterInstallId": "timetable-t3-03",
+      "checkIds": [
+        "timetable-t3-04"
+      ]
+    },
+    {
+      "afterInstallId": "timetable-t4-01",
+      "checkIds": [
+        "timetable-t4-02"
+      ]
+    },
+    {
+      "afterInstallId": "ai-p10-03",
+      "checkIds": [
+        "ai-p10-04"
+      ]
+    },
+    {
+      "afterInstallId": "ai-p10-10",
+      "checkIds": [
+        "ai-p10-04",
+        "ai-p10-11"
+      ]
+    },
+    {
+      "afterInstallId": "knowledge-k1-01",
+      "checkIds": [
+        "knowledge-k1-02"
+      ]
+    },
+    {
+      "afterInstallId": "memory-m1-01",
+      "checkIds": [
+        "memory-m1-02",
+        "memory-m1-00",
+        "integration-int05"
+      ]
+    }
+  ],
+  "finalCheckId": "integration-int05",
+  "deferredActions": [
+    "실제 DB 설치·기능 활성화",
+    "P9-03 기존 업무실 회원 연결과 AI P10-06 평가계획 회원 학교 연결",
+    "서버 비밀·학교 API 키·Vercel/Supabase 외부 설정",
+    "R1S-04·P3-05 파일 검사 활성화와 실제 Storage 왕복",
+    "독립 검사기 서버·자동 정리·운영 예약 작업",
+    "Claude 최종 검토·사용자 병합·일반 교사 공개"
+  ]
+}

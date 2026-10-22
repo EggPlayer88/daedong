@@ -429,6 +429,12 @@ button {
 .docai-main {
   min-width: 0; /* 긴 문장이 그리드를 밀어내지 않게 */
 }
+.docai fieldset { min-width: 0; }
+.docai .composer > input:not([type="file"]) { min-width: 0; }
+@media (max-width: 480px) {
+  .docai .composer { flex-wrap: wrap; }
+  .docai .composer > input:not([type="file"]) { flex-basis: 100%; order: -1; }
+}
 .conv-list {
   border: 1px solid var(--border);
   background: var(--card);
@@ -713,3 +719,17 @@ button {
   font-family: inherit;
   font-size: 14px;
 }
+
+/* 업무실에서는 기존 메뉴를 접고 새 업무 화면에 전체 너비를 제공한다. */
+.app-workhub{background:#f5f6f8;min-height:100vh}
+.app-workhub>.topbar{min-height:52px;height:auto;padding:8px 24px;gap:20px;background:#fff;color:#20252e;border-color:#e3e7ed;flex-wrap:wrap}
+.app-workhub>.topbar .brand{font-size:13px;letter-spacing:-.02em;color:#626d7c}
+.app-workhub>.content{padding:0}
+.app-workhub .me-name{color:#626d7c}.app-workhub .btn-plain{min-height:36px;color:#626d7c;border-color:#e3e7ed}
+.app-workhub .legacy-navigation{position:relative;margin-left:auto}
+.app-workhub .legacy-navigation>summary{cursor:pointer;min-height:36px;display:flex;align-items:center;gap:8px;padding:7px 12px;color:#20252e;font-size:13px;border-radius:8px;background:#f0f2f5;list-style:none}
+.app-workhub .legacy-navigation>summary::after{content:'⌄';font-size:14px}
+.app-workhub .legacy-navigation>.nav{position:absolute;z-index:30;right:0;top:calc(100% + 8px);display:flex;flex-direction:column;gap:3px;width:240px;max-height:70vh;overflow:auto;padding:10px;border:1px solid #e3e7ed;border-radius:12px;background:#fff;box-shadow:0 12px 40px #20252e1c}
+.app-workhub .legacy-navigation .nav-link{color:#626d7c;min-height:42px;padding:10px 12px}.app-workhub .legacy-navigation .nav-link:hover{background:#f0f2f5;color:#20252e}.app-workhub .legacy-navigation .nav-link.active{background:#edf3ff;color:#3264c8}
+.app-workhub .legacy-navigation :focus-visible{outline:3px solid #3264c8;outline-offset:2px}
+@media(max-width:720px){.app-workhub>.topbar{padding:8px 16px;gap:8px 12px}.app-workhub>.topbar .brand{flex:1;font-size:12px}.app-workhub>.topbar .me{margin-left:auto;gap:7px}.app-workhub .me-name,.app-workhub .me .badge{display:none}.app-workhub .legacy-navigation{position:static}.app-workhub .legacy-navigation>.nav{position:absolute;top:auto;left:16px;right:16px;width:auto;margin-top:8px}.app-workhub .legacy-navigation>summary{font-size:12px}}

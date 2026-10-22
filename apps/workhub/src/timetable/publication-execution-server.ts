@@ -1,3 +1,4 @@
+import { createRequestAbandonClient } from './request-abandon'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import { canonical, createScopedRpc, exact, identifier, ServiceError, text, version } from '../services/scoped-rpc'
@@ -79,28 +80,52 @@ export function createPublicationExecutionServer(connection: SupabaseConnection,
   if (options.now !== undefined && typeof options.now !== 'function') throw new ServiceError('INVALID_INPUT')
   const now = () => { const value = options.now ? options.now() : Date.now(); if (!Number.isFinite(value)) throw new ServiceError('INVALID_INPUT'); return value }
   now()
-  const originals = new Map<string, string>(), receipts = new Map<string, string>()
+  const closing = createRequestAbandonClient(connection, 'publication', { ...options, now })
+  const originals = new Map<string, string>(), receipts = new Map<string, string>(), missingReceipts = new Set<string>()
   const scope = (memberId: string) => {
     identifier(memberId)
     const member = connection.info().memberships.find(row => row.id === memberId)
     if (!member) throw new ServiceError('CANCELLED')
     return recoveryScope(member)
   }
-  async function send(memberId: string, value: PublicationCommitCommand, requestedKey: string, recovery: boolean): Promise<PublicationCommitReceipt> {
+  async function send(memberId: string, value: PublicationCommitCommand, requestedKey: string, recovery: boolean, resend = false): Promise<PublicationCommitReceipt> {
     const originalScope = scope(memberId)
-    const command = await parsePublicationCommitCommand(structuredClone(value), now(), recovery)
+    const command = await parsePublicationCommitCommand(structuredClone(value), now(), recovery || resend)
     const key = text(requestedKey, 200, true); if (key.length < 8) throw new ServiceError('INVALID_INPUT')
     const cacheKey = originalScope + ':' + key, content = canonical(command), original = originals.get(cacheKey)
+    closing.assertOpen(cacheKey, publicationCommitReference(command))
     if (original && original !== content) throw new ServiceError('IDEMPOTENCY_CONFLICT')
+    if (resend && (!original || !missingReceipts.has(cacheKey))) throw new ServiceError('NOT_READY')
     const commandHash = await publicationCommandHash(command)
     if (scope(memberId) !== originalScope) throw new ServiceError('CANCELLED')
-    originals.set(cacheKey, content)
+    originals.set(cacheKey, content); missingReceipts.delete(cacheKey)
     // 복구는 동일 RPC의 조회 전용 분기로 보낸다. 목록 재조회·새 확정으로 대체하지 않는다.
-    const receipt = await rpc.call(memberId, 'workhub_timetable_publication_execute', { p_command: publicationCommitReference(command), p_request_key: key, p_recover_only: recovery }, raw => parsePublicationCommitReceipt(raw, command, key, commandHash, now()), !recovery)
+    const receipt = await rpc.call(memberId, 'workhub_timetable_publication_execute', { p_command: publicationCommitReference(command), p_request_key: key, p_recover_only: recovery }, raw => parsePublicationCommitReceipt(raw, command, key, commandHash, now()), !recovery).catch(error => {
+      if (recovery && error instanceof ServiceError && error.code === 'NOT_FOUND') missingReceipts.add(cacheKey)
+      throw error
+    })
     const previous = receipts.get(cacheKey), received = canonical(receipt)
     if (previous && previous !== received) throw new ServiceError(recovery ? 'INVALID_RESPONSE' : 'RESULT_UNKNOWN')
+    try { closing.acceptReceipt(cacheKey, receipt) } catch { throw new ServiceError(recovery ? 'INVALID_RESPONSE' : 'RESULT_UNKNOWN') }
     receipts.set(cacheKey, received)
     return receipt
   }
-  return { execute: (memberId, command, key) => send(memberId, command, key, false), recover: (memberId, command, key) => send(memberId, command, key, true) }
+  return {
+    execute: (memberId, command, key) => send(memberId, command, key, false),
+    recover: (memberId, command, key) => send(memberId, command, key, true),
+    resend: (memberId, command, key) => send(memberId, command, key, false, true),
+    async abandon(memberId, value, requestedKey) {
+      const originalScope = scope(memberId), command = await parsePublicationCommitCommand(structuredClone(value), now(), true)
+      const key = text(requestedKey, 200, true); if (key.length < 8) throw new ServiceError('INVALID_INPUT')
+      const cacheKey = originalScope + ':' + key, content = canonical(command), original = originals.get(cacheKey)
+      if (original && original !== content) throw new ServiceError('IDEMPOTENCY_CONFLICT')
+      const commandHash = await publicationCommandHash(command)
+      if (scope(memberId) !== originalScope) throw new ServiceError('CANCELLED')
+      originals.set(cacheKey, content)
+      const result = await closing.abandon(memberId, publicationCommitReference(command), key, raw => parsePublicationCommitReceipt(raw, command, key, commandHash, now()))
+      if (result.outcome === 'applied') receipts.set(cacheKey, canonical(result.receipt))
+      missingReceipts.delete(cacheKey)
+      return result
+    },
+  }
 }

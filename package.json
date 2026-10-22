@@ -17,6 +17,7 @@
     "build:workhub": "npm run build -w apps/workhub",
     "check:workhub": "npm run check -w apps/workhub",
     "test:workhub:postgres": "node tests/integration/workhub-postgres.mjs",
+    "test:workhub:ai-sql": "node scripts/verify-workhub-ai-policy.mjs",
     "test:workhub:browser": "node tests/browser/run.mjs",
     "check:workhub:integration": "node scripts/check-workhub-integration.mjs",
     "check:workhub:design": "node docs/workhub/database-integrated/validate-design.cjs && node docs/workhub/database-integrated/check-delivery.cjs",
@@ -25,7 +26,12 @@
     "check:workhub:pilot": "node scripts/check-workhub-pilot.mjs",
     "check:workhub:release": "node scripts/check-workhub-release.mjs",
     "test:workhub:release-sql": "bash scripts/verify-workhub-release-sql.sh",
-    "check:workhub:timetable": "node scripts/check-workhub-timetable.mjs"
+    "check:workhub:timetable": "node scripts/check-workhub-timetable.mjs",
+    "check:workhub:school-pilot": "node scripts/check-workhub-school-pilot.mjs",
+    "test:workhub:memory-sql": "node scripts/verify-workhub-ai-memory.mjs",
+    "check:workhub:deployment": "node scripts/check-workhub-sql-package.mjs",
+    "test:workhub:deployment": "node scripts/verify-workhub-deployment.mjs",
+    "prepare:workhub:deployment": "node scripts/export-workhub-deployment.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",

@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 화면과 바깥 SPA 메뉴 사이의 이탈을 합성 RPC로 검사한다. 운영 서버에는 접속하지 않는다.
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
@@ -228,19 +229,19 @@ try {
   }, undefined, { legacyHomeHref: '/legacy' })
 
   await test('일정 미확정 요청과 업무 초안이 함께 있으면 폐기하지 않고 둘을 각각 복구한다', async page => {
-    await menu(page, '학교 일정').click()
+    await clickWorkspaceMenu(page,'학교 일정')
     await page.getByRole('button', { name: '일정 등록', exact: true }).click()
     await page.locator('input[name=title]').fill('한 번만 등록할 보관 일정')
     await page.evaluate(() => qa.lose('calendar'))
     await page.getByRole('dialog', { name: '일정 등록', exact: true }).getByRole('button', { name: '일정 등록', exact: true }).click()
     await page.getByRole('button', { name: '입력창 접고 목록 보기', exact: true }).click()
-    await menu(page, '내 업무').click(); await draftTask(page, '미확정 일정과 별개의 업무 초안')
+    await clickWorkspaceMenu(page,'내 업무'); await draftTask(page, '미확정 일정과 별개의 업무 초안')
     await fail(page); await blockedLink(page)
     assert.equal(await discard(page).count(), 0)
     await reconnect(page)
     assert.equal(await taskTitle(page).inputValue(), '미확정 일정과 별개의 업무 초안')
     await page.getByRole('button', { name: '편집 취소', exact: true }).click()
-    await menu(page, '학교 일정').click()
+    await clickWorkspaceMenu(page,'학교 일정')
     await page.getByRole('button', { name: '보관한 일정 확인', exact: true }).click()
     assert.equal(await page.locator('input[name=title]').inputValue(), '한 번만 등록할 보관 일정')
     const resume = page.getByRole('button', { name: '같은 요청으로 저장 결과 확인', exact: true })

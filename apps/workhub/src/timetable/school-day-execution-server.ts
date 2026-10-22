@@ -1,3 +1,4 @@
+import { createRequestAbandonClient } from './request-abandon'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import { canonical, createScopedRpc, exact, identifier, isoDate, text, version, ServiceError, validateLocalInput } from '../services/scoped-rpc'
@@ -145,26 +146,32 @@ export async function parseSchoolDayCommitReceipt(value: unknown, command: Schoo
   })
 }
 export function createSchoolDayExecutionServer(connection: SupabaseConnection, options: { now?: () => number; timeoutMs?: number } = {}): SchoolDayExecutionServer {
-  const rpc = createScopedRpc(connection, TIMETABLE_SCHOOL_DAY_API, { timeoutMs: options.timeoutMs }), previews = new Map<string, string>(), originals = new Map<string, string>(), receipts = new Map<string, string>()
+  const rpc = createScopedRpc(connection, TIMETABLE_SCHOOL_DAY_API, { timeoutMs: options.timeoutMs }), previews = new Map<string, string>(), originals = new Map<string, string>(), receipts = new Map<string, string>(), missingReceipts = new Set<string>()
   const now = () => { const result = options.now ? options.now() : Date.now(); if (!Number.isFinite(result)) throw new ServiceError('INVALID_INPUT'); return result }
+  const closing = createRequestAbandonClient(connection, 'school_day', { ...options, now })
   const scope = (memberId: string) => { const member = connection.info().memberships.find(row => row.id === identifier(memberId)); if (!member) throw new ServiceError('CANCELLED'); return recoveryScope(member) }
-  async function send(memberId: string, value: SchoolDayCommitCommand, requestedKey: string, recover: boolean) {
+  async function send(memberId: string, value: SchoolDayCommitCommand, requestedKey: string, recover: boolean, resend = false) {
     const key = validateLocalInput(() => { const key = text(requestedKey, 200, true); if (key.length < 8) fail(); return key }), originalScope = scope(memberId)
     let command: SchoolDayCommitCommand
     // 전송 전 검증 실패는 결과 미상이 아니다. 원격 응답 검증의 INVALID_RESPONSE와 구분한다.
     try { command = await validateCommand(value, memberId, now(), true) } catch { throw new ServiceError('INVALID_INPUT') }
-    if (!recover && Date.parse(command.preview.expiresAt) <= now()) throw new ServiceError('CONFLICT')
+    if (!recover && !resend && Date.parse(command.preview.expiresAt) <= now()) throw new ServiceError('CONFLICT')
     const identity = originalScope + ':' + key, compact = schoolDayCompactCommand(command)
+    closing.assertOpen(identity, compact)
     if (originals.has(identity) && originals.get(identity) !== canonical(command)) throw new ServiceError('IDEMPOTENCY_CONFLICT')
-    if (!recover && previews.get(originalScope + ':' + command.preview.previewId) !== canonical(command)) throw new ServiceError('NOT_READY')
+    if (resend && (!originals.has(identity) || !missingReceipts.has(identity))) throw new ServiceError('NOT_READY')
+    if (!recover && !resend && previews.get(originalScope + ':' + command.preview.previewId) !== canonical(command)) throw new ServiceError('NOT_READY')
     if (scope(memberId) !== originalScope) throw new ServiceError('CANCELLED')
-    originals.set(identity, canonical(command))
+    originals.set(identity, canonical(command)); missingReceipts.delete(identity)
     // 복구는 접수증 조회만 허용하며 만료된 미리보기로 새 반영을 하지 않는다.
     return rpc.call(memberId, 'workhub_timetable_school_day_execute', { p_command: compact, p_request_key: key, p_recover_only: recover }, async raw => {
       const receipt = await parseSchoolDayCommitReceipt(raw, command, key, now()), content = canonical(receipt)
       if (receipts.has(identity) && receipts.get(identity) !== content) fail()
-      receipts.set(identity, content); return receipt
-    }, !recover)
+      closing.acceptReceipt(identity, receipt); receipts.set(identity, content); return receipt
+    }, !recover).catch(error => {
+      if (recover && error instanceof ServiceError && error.code === 'NOT_FOUND') missingReceipts.add(identity)
+      throw error
+    })
   }
   return {
     async preview(memberId, raw, view, references) {
@@ -178,5 +185,19 @@ export function createSchoolDayExecutionServer(connection: SupabaseConnection, o
     },
     execute: (memberId, command, key) => send(memberId, command, key, false),
     recover: (memberId, command, key) => send(memberId, command, key, true),
+    resend: (memberId, command, key) => send(memberId, command, key, false, true),
+    async abandon(memberId, value, requestedKey) {
+      const key = validateLocalInput(() => { const key = text(requestedKey, 200, true); if (key.length < 8) fail(); return key }), token = scope(memberId)
+      let command: SchoolDayCommitCommand
+      try { command = await validateCommand(structuredClone(value), memberId, now(), true) } catch { throw new ServiceError('INVALID_INPUT') }
+      const identity = token + ':' + key, content = canonical(command)
+      if (originals.has(identity) && originals.get(identity) !== content) throw new ServiceError('IDEMPOTENCY_CONFLICT')
+      if (scope(memberId) !== token) throw new ServiceError('CANCELLED')
+      originals.set(identity, content)
+      const result = await closing.abandon(memberId, schoolDayCompactCommand(command), key, raw => parseSchoolDayCommitReceipt(raw, command, key, now()))
+      if (result.outcome === 'applied') receipts.set(identity, canonical(result.receipt))
+      missingReceipts.delete(identity)
+      return result
+    },
   }
 }

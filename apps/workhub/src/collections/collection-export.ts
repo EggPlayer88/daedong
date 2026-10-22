@@ -12,6 +12,7 @@ export interface CollectionExportJob { unitId: string; submissionId: string; rev
 export interface CollectionExportPlan {
   requestId: string; title: string; mode: CollectionExportMode; fingerprint: string
   jobs: CollectionExportJob[]; csv: string; totalUnits: number; includedUnits: number; totalBytes: number
+  part?: { index: number; count: number; totalFiles: number; totalFileBytes: number }
 }
 export interface CollectionExportBatch { plan: CollectionExportPlan; blobs: Map<string, Blob>; failed: string[]; zip?: Blob }
 interface ExportOptions { server: CollectionServer; member: Membership; date: string; signal?: AbortSignal; onProgress?: (message: string) => void }
@@ -45,7 +46,11 @@ function cell(value: string | number) {
 const byId = <T extends { id: string }>(values: readonly T[]) => [...values].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 export function collectionExportJobKey(job: CollectionExportJob): string { return JSON.stringify([job.unitId, job.submissionId, job.file.id]) }
 
-export function collectionExportPlan(raw: CollectionDetail, member: Membership, date: string, mode: CollectionExportMode): CollectionExportPlan {
+interface ExportRow { common: (string | number)[]; job?: CollectionExportJob }
+interface ExportData { requestId: string; title: string; mode: CollectionExportMode; fingerprint: string; jobs: CollectionExportJob[]; rows: ExportRow[]; totalUnits: number }
+const csvHeader = ['제출 단위', '다운로드 기준', '포함 여부', '선택한 제출판', '현재 제출 상태', '원본 파일명', '묶음 안 파일명', 'SHA-256']
+function csvRows(rows: (string | number)[][]): string { return '\ufeff' + [csvHeader, ...rows].map(row => row.map(cell).join(',')).join('\r\n') }
+function collect(raw: CollectionDetail, member: Membership, date: string, mode: CollectionExportMode): ExportData {
   if (!member || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date + 'T00:00:00Z')) || new Date(date + 'T00:00:00Z').toISOString().slice(0, 10) !== date || !activeAt(member, date)) throw fail('INACTIVE_MEMBERSHIP')
   if (!raw?.request || raw.request.schoolId !== member.schoolId || raw.request.managerMemberId !== member.id || raw.request.status !== 'published' || !raw.request.fileCollection || !['effective', 'current'].includes(mode)) throw fail('FORBIDDEN')
   const detail = collectionDetail(raw, { schoolId: member.schoolId, memberId: member.id, userId: member.userId }, raw.request.id)
@@ -54,44 +59,76 @@ export function collectionExportPlan(raw: CollectionDetail, member: Membership, 
   const expected = request.units.map(unit => ({ label: unit.label, responsibleMemberId: unit.responsibleMemberId, members: [...new Set([unit.responsibleMemberId, ...unit.contributorMemberIds])] }))
   const actual = detail.units.map(unit => ({ label: unit.label, responsibleMemberId: unit.responsibleMemberId, members: unit.members.map(value => value.id) }))
   if (canonical(expected) !== canonical(actual)) throw fail('INVALID_RESPONSE')
-  const jobs: CollectionExportJob[] = [], rows: (string | number)[][] = [['제출 단위', '다운로드 기준', '포함 여부', '선택한 제출판', '현재 제출 상태', '원본 파일명', '묶음 안 파일명', 'SHA-256']]
-  let includedUnits = 0, totalBytes = 0
+  const jobs: CollectionExportJob[] = [], rows: ExportRow[] = []
   for (const [index, unit] of byId(detail.units).entries()) {
     const summary = summarizeCollectionSubmission(detail, unit, date)
     if (summary.reviewState === 'unavailable') throw fail('INVALID_RESPONSE')
     const selected = mode === 'effective' ? summary.effective : summary.current
     const files = byId(selected?.files ?? [])
-    if (files.length) includedUnits++
     const omitted = selected ? '첨부 파일 없음' : mode === 'effective' ? '완료본 없음' : summary.withdrawals.length ? '철회 후 제출 없음' : '미제출'
     const common = [unit.label, mode === 'effective' ? '완료본' : '최신 제출본', files.length ? '포함' : omitted, selected ? 'v' + selected.revision : '', states[summary.reviewState]]
-    if (!files.length) rows.push([...common, '', '', ''])
+    if (!files.length) rows.push({ common })
     for (const file of files) {
-      if (jobs.length + 2 > FILE_TECHNICAL_LIMITS.zipEntries) throw new FileError('FILE_ZIP_LIMIT')
       const name = String(index + 1).padStart(3, '0') + '_' + unit.label + '_v' + selected!.revision + '_' + file.name
-      rows.push([...common, file.name, storedZipEntryName(name, jobs.length + 1), file.sha256])
-      jobs.push({ unitId: unit.id, submissionId: selected!.id, revision: selected!.revision, unitLabel: unit.label, file: { ...file }, name })
-      totalBytes += file.bytes
-      if (totalBytes > FILE_TECHNICAL_LIMITS.memoryBytes) throw new FileError('FILE_ZIP_LIMIT')
+      const job = { unitId: unit.id, submissionId: selected!.id, revision: selected!.revision, unitLabel: unit.label, file: { ...file }, name }
+      jobs.push(job); rows.push({ common, job })
     }
   }
-  const csv = '\ufeff' + rows.map(row => row.map(cell).join(',')).join('\r\n')
-  totalBytes += new TextEncoder().encode(csv).length
-  if (totalBytes > FILE_TECHNICAL_LIMITS.memoryBytes) throw new FileError('FILE_ZIP_LIMIT')
   const fingerprint = canonical({ detail, mode, member: { id: member.id, userId: member.userId, schoolId: member.schoolId, active: member.active, validFrom: member.validFrom, validThrough: member.validThrough }, date })
-  return freeze({ requestId: request.id, title: request.title, mode, fingerprint, jobs, csv, totalUnits: detail.units.length, includedUnits, totalBytes })
+  return { requestId: request.id, title: request.title, mode, fingerprint, jobs, rows, totalUnits: detail.units.length }
 }
-async function current(options: ExportOptions, requestId: string, mode: CollectionExportMode): Promise<CollectionExportPlan> {
+function planFrom(data: ExportData, jobs: CollectionExportJob[], part?: CollectionExportPlan['part']): CollectionExportPlan {
+  if (jobs.length + 1 > FILE_TECHNICAL_LIMITS.zipEntries) throw new FileError('FILE_ZIP_LIMIT')
+  const indexes = new Map(jobs.map((job, index) => [collectionExportJobKey(job), index + 1]))
+  const rows = data.rows.flatMap(row => {
+    if (!row.job) return [[...row.common, '', '', '']]
+    const index = indexes.get(collectionExportJobKey(row.job))
+    return index === undefined ? [] : [[...row.common, row.job.file.name, storedZipEntryName(row.job.name, index), row.job.file.sha256]]
+  })
+  const csv = csvRows(rows), totalBytes = jobs.reduce((sum, job) => sum + job.file.bytes, 0) + new TextEncoder().encode(csv).length
+  if (!Number.isSafeInteger(totalBytes) || totalBytes > FILE_TECHNICAL_LIMITS.memoryBytes) throw new FileError('FILE_ZIP_LIMIT')
+  return freeze({ requestId: data.requestId, title: data.title, mode: data.mode, fingerprint: data.fingerprint, jobs, csv, totalUnits: data.totalUnits, includedUnits: new Set(jobs.map(job => job.unitId)).size, totalBytes, ...(part ? { part } : {}) })
+}
+export function collectionExportPlan(raw: CollectionDetail, member: Membership, date: string, mode: CollectionExportMode): CollectionExportPlan {
+  const data = collect(raw, member, date, mode)
+  return planFrom(data, data.jobs)
+}
+// 기존 상한은 유지하고 CSV까지 포함한 각 ZIP이 한도 안에 들도록 같은 순서로 나눈다.
+export function collectionExportParts(raw: CollectionDetail, member: Membership, date: string, mode: CollectionExportMode): CollectionExportPlan[] {
+  const data = collect(raw, member, date, mode), groups: CollectionExportJob[][] = []
+  const omitted = data.rows.filter(row => !row.job).map(row => [...row.common, '', '', ''])
+  const baselineBytes = new TextEncoder().encode(csvRows(omitted)).length
+  if (baselineBytes > FILE_TECHNICAL_LIMITS.memoryBytes) throw new FileError('FILE_ZIP_LIMIT')
+  const rowByJob = new Map(data.rows.filter(row => row.job).map(row => [collectionExportJobKey(row.job!), row]))
+  let group: CollectionExportJob[] = [], used = baselineBytes
+  for (const job of data.jobs) {
+    const cost = (index: number) => job.file.bytes + new TextEncoder().encode('\r\n' + [...rowByJob.get(collectionExportJobKey(job))!.common, job.file.name, storedZipEntryName(job.name, index), job.file.sha256].map(cell).join(',')).length
+    if (group.length && (group.length + 2 > FILE_TECHNICAL_LIMITS.zipEntries || used + cost(group.length + 1) > FILE_TECHNICAL_LIMITS.memoryBytes)) { groups.push(group); group = []; used = baselineBytes }
+    const bytes = cost(group.length + 1)
+    if (used + bytes > FILE_TECHNICAL_LIMITS.memoryBytes) throw new FileError('FILE_ZIP_LIMIT')
+    group.push(job); used += bytes
+  }
+  if (group.length || !groups.length) groups.push(group)
+  const totalFileBytes = data.jobs.reduce((sum, job) => sum + job.file.bytes, 0)
+  if (!Number.isSafeInteger(totalFileBytes)) throw new FileError('FILE_ZIP_LIMIT')
+  return groups.map((jobs, index) => planFrom(data, jobs, { index, count: groups.length, totalFiles: data.jobs.length, totalFileBytes }))
+}
+async function current(options: ExportOptions, requestId: string, mode: CollectionExportMode, partIndex?: number): Promise<CollectionExportPlan> {
   guard(options.signal)
   let detail: CollectionDetail
   try { detail = await options.server.detail(options.member.id, requestId) } catch (error) { guard(options.signal); throw safeError(error) }
   guard(options.signal)
   if (detail?.request?.id !== requestId) throw fail('INVALID_RESPONSE')
-  return collectionExportPlan(detail, options.member, options.date, mode)
+  if (partIndex === undefined) return collectionExportPlan(detail, options.member, options.date, mode)
+  if (!Number.isSafeInteger(partIndex) || partIndex < 0) throw fail('INVALID_RESPONSE')
+  const part = collectionExportParts(detail, options.member, options.date, mode)[partIndex]
+  if (!part) throw fail('CONFLICT')
+  return part
 }
 async function unchanged(options: ExportOptions, plan: CollectionExportPlan): Promise<void> {
-  const latest = await current(options, plan.requestId, plan.mode)
+  const latest = await current(options, plan.requestId, plan.mode, plan.part?.index)
   guard(options.signal)
-  if (latest.fingerprint !== plan.fingerprint) throw fail('CONFLICT')
+  if (latest.fingerprint !== plan.fingerprint || canonical(latest.part) !== canonical(plan.part)) throw fail('CONFLICT')
 }
 function safeError(error: unknown): CollectionServerError | FileError {
   return error instanceof CollectionServerError || error instanceof FileError ? error : fail('INVALID_RESPONSE')
@@ -116,7 +153,7 @@ async function download(options: ExportOptions, plan: CollectionExportPlan, job:
   guard(options.signal)
   return blob
 }
-function invalidate(batch?: CollectionExportBatch) {
+export function releaseCollectionExport(batch?: CollectionExportBatch) {
   if (!batch) return
   const issued = issuedBatches.get(batch)
   issued?.blobs.clear(); issuedBatches.delete(batch); batch.blobs.clear(); delete batch.zip
@@ -126,16 +163,17 @@ function issue(plan: CollectionExportPlan, blobs: Map<string, Blob>, failed: str
   issuedBatches.set(batch, { plan, blobs: new Map(blobs), zip })
   return batch
 }
-export async function prepareCollectionExport(options: ExportOptions & { requestId: string; mode: CollectionExportMode; previous?: CollectionExportBatch }): Promise<CollectionExportBatch> {
+export async function prepareCollectionExport(options: ExportOptions & { requestId: string; mode: CollectionExportMode; previous?: CollectionExportBatch; partIndex?: number; expectedFingerprint?: string }): Promise<CollectionExportBatch> {
   const blobs = new Map<string, Blob>()
   try {
     guard(options.signal)
     options.onProgress?.('최신 제출 현황을 확인하고 있습니다.')
-    const plan = await current(options, options.requestId, options.mode)
+    const plan = await current(options, options.requestId, options.mode, options.partIndex)
     guard(options.signal)
+    if (options.expectedFingerprint !== undefined && options.expectedFingerprint !== plan.fingerprint) throw fail('CONFLICT')
     if (options.previous) {
       const previous = issuedBatches.get(options.previous)
-      if (!previous || previous.plan.fingerprint !== plan.fingerprint) throw fail('CONFLICT')
+      if (!previous || previous.plan.fingerprint !== plan.fingerprint || canonical(previous.plan.part) !== canonical(plan.part)) throw fail('CONFLICT')
       for (const [key, blob] of previous.blobs) blobs.set(key, blob)
     }
     const failed: string[] = []
@@ -161,7 +199,7 @@ export async function prepareCollectionExport(options: ExportOptions & { request
     await unchanged(options, plan); guard(options.signal)
     return issue(plan, blobs, [], zip)
   } catch (error) {
-    blobs.clear(); invalidate(options.previous); guard(options.signal); throw safeError(error)
+    blobs.clear(); releaseCollectionExport(options.previous); guard(options.signal); throw safeError(error)
   }
 }
 export async function recheckCollectionExport(options: ExportOptions & { batch: CollectionExportBatch }): Promise<void> {
@@ -176,5 +214,5 @@ export async function recheckCollectionExport(options: ExportOptions & { batch: 
       await download(options, issued.plan, job); guard(options.signal)
     }
     await unchanged(options, issued.plan); guard(options.signal)
-  } catch (error) { invalidate(options.batch); guard(options.signal); throw safeError(error) }
+  } catch (error) { releaseCollectionExport(options.batch); guard(options.signal); throw safeError(error) }
 }

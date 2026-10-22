@@ -15,6 +15,7 @@ import { dirname, join } from 'node:path'
 // ⚠ 마커 프로토콜의 진실의 원천은 planMarker.js 하나다 — 프론트와 **같은 파일**을 쓴다.
 //   (화면이 manifest 를 api/ 에서 읽는 것과 같은 이유: 파서가 둘이면 반드시 갈라진다)
 import { splitPlan, MARK_START, MARK_END } from '../../src/lib/planMarker.js'
+import { executeSchoolAi, SchoolAiError } from '../_ai-policy/gateway.mjs'
 
 // ESM 에는 __dirname 이 없다. import.meta.url 로 파생시킨다.
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -536,9 +537,6 @@ function buildCarryDoc(pre, m = manifest) {
   )
   return L
 }
-
-// 모델은 env 로 교체 가능 (기본: 현재 Sonnet 세대)
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5'
 
 // v2 는 최종 JSON 이 크다 (월별 5행 + 수행 출제계획 최대 4블록).
 // 2000 으로 두면 PLAN_READY JSON 이 중간에 잘린다.
@@ -1816,13 +1814,11 @@ function validateMessages(body) {
 }
 
 /**
- * 프롬프트 캐싱 — 시스템 프롬프트(고정)와 직전까지의 대화를 캐시 구간으로 잡는다.
- * 폼 채우기 대화는 턴이 길고 참고자료가 붙어 히스토리가 커지므로 효과가 크다.
+ * 학교 공통 정책과 동일하게 캐시를 사용하지 않는다. 개인 대화는 원문 그대로 서버에 전달한다.
  */
 function toApiMessages(messages) {
-  return messages.map((m, i) => {
+  return messages.map((m) => {
     const block = { type: 'text', text: m.content }
-    if (i === messages.length - 1) block.cache_control = { type: 'ephemeral' }
     return { role: m.role, content: [block] }
   })
 }
@@ -1830,16 +1826,11 @@ function toApiMessages(messages) {
 // ---------------------------------------------------------------------------
 // 핸들러
 // ---------------------------------------------------------------------------
-export default async function handler(req, res) {
+export function createDocAiHandler(gateway = executeSchoolAi) { return async function handler(req, res) {
+  const requestStartedAt = Date.now()
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'POST 만 지원합니다.' })
-  }
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return res.status(500).json({
-      error: '서버에 ANTHROPIC_API_KEY 가 없습니다. Vercel 환경변수를 확인해 주세요.',
-    })
   }
 
   let user
@@ -1860,83 +1851,40 @@ export default async function handler(req, res) {
 
   const parsed = validateMessages(req.body)
   if (parsed.error) return res.status(400).json({ error: parsed.error })
+  const { requestKey, quality = 'quick', recoverOnly = false, cancelOnly = false } = req.body
+  if (typeof requestKey !== 'string' || !/^[A-Za-z0-9_-]{8,100}$/.test(requestKey) || !['quick','review'].includes(quality) || typeof recoverOnly !== 'boolean' || typeof cancelOnly !== 'boolean' || recoverOnly && cancelOnly) return res.status(400).json({ error: 'INVALID_INPUT', message: '페이지를 새로 열어 요청 번호와 요청 방식을 확인해 주세요.' })
 
   // 교과·학년이 드러났으면 그 한 건만 붙인다 (없으면 지금까지처럼 백지 모드).
-  // ⚠ 고정부 뒤에 **따로 붙인다** — 앞쪽 고정부는 모든 교사에게 같아 캐시가 살고,
-  //   prefill 은 교과·학년별로 같아 그 교사의 다음 턴에서 다시 캐시된다.
+  // 고정부 뒤에 따로 붙여 공통 규칙과 해당 교과의 근거를 구분한다. 학교 공통 정책상 캐시는 끈다.
   const prefill = pickPrefill(parsed.messages)
   const prefillDoc = prefill ? buildPrefillDoc(prefill) : ''
   if (prefill) console.log(`[doc-ai/chat] prefill: ${prefill.file}`)
 
-  let r
   try {
-    r = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        // 양식 수집 대화라 깊은 추론이 필요 없다. thinking 을 끄지 않으면
-        // max_tokens 를 사고 토큰이 잠식해 PLAN_READY JSON 이 잘릴 수 있다.
-        thinking: { type: 'disabled' },
-        output_config: { effort: 'medium' },
+    const result = await gateway({ actorUserId: user.id, feature: 'evaluation', memberId: null, requestKey, quality, recoverOnly, cancelOnly,
+      payload: { messages: parsed.messages },
+      buildProviderBody: ({ model, maxOutputTokens, effort }) => ({
+        model, max_tokens: Math.min(MAX_TOKENS, maxOutputTokens), thinking: { type: 'adaptive' },
+        ...(effort ? { output_config: { effort } } : {}),
         system: prefillDoc
           ? [
-              { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-              { type: 'text', text: prefillDoc, cache_control: { type: 'ephemeral' } },
+              { type: 'text', text: SYSTEM_PROMPT },
+              { type: 'text', text: prefillDoc },
             ]
-          : [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+          : [{ type: 'text', text: SYSTEM_PROMPT }],
         messages: toApiMessages(parsed.messages),
       }),
-    })
+      transformResponse: ({ text, stop_reason, usage }) => {
+        if (stop_reason === 'refusal') return { reply: '요청을 처리할 수 없습니다. 내용을 바꿔 다시 시도해 주세요.', stop_reason, truncated: false, usage }
+        // 완성된 응답을 원장에 보관하므로 같은 번호 복구 때 프롬프트 변경으로 결과가 달라지지 않는다.
+        const { reply, carry } = expandReply(text, prefill)
+        return { reply, stop_reason, truncated: stop_reason === 'max_tokens', usage, ...(carry ? { carry } : {}) }
+      },
+    }, { deadlineAt: requestStartedAt + 50000 })
+    return res.status(200).json(result)
   } catch (e) {
-    return res.status(502).json({ error: `Claude API 에 연결하지 못했습니다: ${e.message}` })
+    const code = e instanceof SchoolAiError ? e.code : 'RESULT_UNKNOWN'
+    return res.status(e instanceof SchoolAiError ? e.status : 503).json({ error: code, requestKey, message: '학교 AI 설정·예산 또는 요청 결과를 확인하지 못했습니다. 입력을 보존하고 같은 요청으로 다시 확인해 주세요.' })
   }
-
-  if (!r.ok) {
-    const detail = await r.text().catch(() => '')
-    console.error('[doc-ai/chat] Anthropic error', r.status, detail.slice(0, 500))
-    // 키/토큰 원문은 클라이언트로 내보내지 않는다.
-    return res.status(502).json({
-      error: `Claude API 오류 (${r.status}). 잠시 후 다시 시도해 주세요.`,
-    })
-  }
-
-  const data = await r.json()
-
-  if (data.stop_reason === 'refusal') {
-    return res.status(200).json({
-      reply: '요청을 처리할 수 없습니다. 내용을 바꿔 다시 시도해 주세요.',
-      stop_reason: 'refusal',
-    })
-  }
-
-  const raw = (data.content || [])
-    .filter((b) => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-
-  // 작년 계승 참조를 **서버에서** 원문으로 펼친다.
-  //   여기서 펼치므로 프론트·확인 카드·generate 는 지금까지와 똑같이 완성된 계획을 본다
-  //   (generate 입력 계약은 그대로다). 모델은 참조만 쓰므로 출력이 교과 크기와 무관해진다.
-  const { reply, carry } = expandReply(raw, prefill)
-  if (carry) {
-    console.log(
-      `[doc-ai/chat] carry: 적용 ${carry.applied.length}건` +
-        (carry.unresolved.length ? ` / 미해결 ${carry.unresolved.length}건: ${carry.unresolved.join(' | ')}` : '')
-    )
-  }
-
-  // max_tokens 로 잘렸으면 프론트가 알아야 한다 (PLAN_READY JSON 이 깨질 수 있음)
-  return res.status(200).json({
-    reply,
-    stop_reason: data.stop_reason,
-    truncated: data.stop_reason === 'max_tokens',
-    usage: data.usage,
-    ...(carry ? { carry } : {}),
-  })
-}
+} }
+export default createDocAiHandler()

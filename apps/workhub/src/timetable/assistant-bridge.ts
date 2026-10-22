@@ -1,4 +1,4 @@
-import { assistantInput, type AssistantInput, type AskResult } from '../assistant/contracts'
+import { freshAssistantInput, type AssistantInput, type AskResult } from '../assistant/contracts'
 import type { TimetableAiContext, TimetableAiProposal } from './assistant'
 import { parseTimetableAiProposal } from './assistant'
 import timetableLimits from './limits.json'
@@ -19,7 +19,7 @@ function scopeAliases(context: TimetableAiContext, resourceId: string) {
   const slotMap = new Map(slots.map((s, i) => [alias('s', i), s.id]))
   return { resource, lessons, slots, teacherMap, lessonMap, slotMap }
 }
-// 기존 P6의 비용 예약·실행권·원키 복구를 그대로 사용한다. 새 모델이나 비용 설정을 만들지 않는다.
+// 학교 공통 AI 비용 예약·실행권·원키 복구를 사용한다. 새 요청은 기본 등급을 명시한다.
 export function timetableAssistantRequest(context: TimetableAiContext, resourceId: string): TimetableAssistantRequest {
   const { resource, lessons, slots, teacherMap, lessonMap, slotMap } = scopeAliases(context, resourceId)
   const lessonAliases = new Map([...lessonMap].map(([alias, id]) => [id, alias])), slotAliases = new Map([...slotMap].map(([alias, id]) => [id, alias]))
@@ -58,7 +58,7 @@ export function timetableAssistantRequest(context: TimetableAiContext, resourceI
     (context.stage === 'adjust' ? 'changes는 {kind:"prefer",lessonId,slotId,weight:1|3|5}만 허용합니다. 필수조건 추가·배치 이동은 제안하지 마세요. 설명만 있으면 changes는 비웁니다.' : 'changes 지원형식: {kind:"block",resourceId,slotId}, {kind:"fix",lessonId,slotId}, {kind:"prefer",lessonId,slotId,weight:1|3|5}.') + ' ID는 target·lessons·slots의 별칭만 씁니다. lessons=[id,명칭,차시,허용목록ID], allowedSlots=[목록ID,시간대ID목록], slots=[id,월1~일7,교시명,시작분,종료분,차시]. fixed=[수업,시간대], unavailable=[대상,요일,시작분,종료분], preferences=[수업,시간대,벌점]은 현재 조건입니다. 고정·불가·개별 허용 목록을 무시하지 마세요. 범위 밖 참여자의 조건은 제공되지 않습니다.',
     JSON.stringify(template), JSON.stringify(scope), `담당자 요청: ${context.prompt}`,
   ].join('\n')
-  try { return { input: assistantInput({ mode: 'school', intent: 'school_advice', prompt, threadId: null, expectedVersion: 0, references: [], studentContext: null }), context: structuredClone(context), resourceId } }
+  try { return { input: freshAssistantInput({ mode: 'school', intent: 'school_advice', prompt, threadId: null, expectedVersion: 0, references: [], studentContext: null }), context: structuredClone(context), resourceId } }
   catch { throw new TimetableAssistantInputError('선택한 대상과 요청이 AI 입력 한도를 넘습니다. 수업 수가 적은 학급·공간으로 범위를 좁히거나 요청을 짧게 적어 주세요.') }
 }
 export function timetableAssistantAnswer(result: AskResult, request: TimetableAssistantRequest, key: string): { text: string; proposal: TimetableAiProposal | null } {
