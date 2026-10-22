@@ -18,7 +18,7 @@ export function TimetableAgendaWorkspace({ connection, ...props }: SharedProps &
 type AgendaState = { status: 'ready'; items: TimetableCalendarItem[] } | { status: 'loading' | 'unavailable' | 'error'; message: string }
 export function TimetableAgendaPanel({ server, member, date, revision = 0, title = '내 수업', onOpen }: Props) {
   const [loaded, setLoaded] = useState<{ key: string; state: AgendaState }>(), [retry, setRetry] = useState(0)
-  const key = JSON.stringify([recoveryScope(member), date, revision, retry]), state = loaded?.key === key ? loaded.state : { status: 'loading' as const, message: '확정된 내 수업을 확인하고 있습니다.' }
+  const key = JSON.stringify([recoveryScope(member), date]), state = loaded?.key === key ? loaded.state : { status: 'loading' as const, message: '확정된 내 수업을 확인하고 있습니다.' }
   useEffect(() => {
     let cancelled = false
     const save = (state: AgendaState) => { if (!cancelled) setLoaded({ key, state }) }
@@ -33,7 +33,7 @@ export function TimetableAgendaPanel({ server, member, date, revision = 0, title
       } catch (failure) { save({ status: failure instanceof ServiceError && failure.code === 'NOT_READY' ? 'unavailable' : 'error', message: failure instanceof ServiceError && failure.code === 'NOT_READY' ? '확정 시간표 연결을 준비 중입니다.' : '내 수업을 확인하지 못했습니다. 수업이 없는 것으로 처리하지 않습니다.' }) }
     })()
     return () => { cancelled = true }
-  }, [server, member.id, key, date])
+  }, [server, member.id, key, date, revision, retry])
   return <TimetableAgendaContent title={title} date={date} state={state} onRetry={() => setRetry(value => value + 1)} onOpen={onOpen} />
 }
 export function TimetableAgendaContent({ title, date, state, onRetry, onOpen }: { title: string; date: string; state: AgendaState; onRetry: () => void; onOpen: SharedProps['onOpen'] }) {

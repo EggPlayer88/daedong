@@ -20,14 +20,14 @@ export function TimetableActionSummaryPanel({ server, member, date, revision = 0
 }) {
   const [state, setState] = useState<{ key: string; value?: InterventionsSummary; failed?: boolean }>()
   const [filter, setFilter] = useState<'all' | InterventionsSummary['items'][number]['kind']>('all'), [expanded, setExpanded] = useState(false)
-  const [retry, setRetry] = useState(0), key = JSON.stringify([member, date, revision, retry])
+  const [retry, setRetry] = useState(0), key = JSON.stringify([member, date])
   useEffect(() => {
     let cancelled = false
     void server.summary(member.id).then(value => { if (!cancelled) setState({ key, value }) }).catch(error => {
       if (!cancelled) setState({ key, failed: !(error instanceof ServiceError && ['NOT_READY', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP'].includes(error.code)) })
     })
     return () => { cancelled = true }
-  }, [server, member.id, key])
+  }, [server, member.id, key, revision, retry])
   if (state?.key !== key) return null
   if (state.failed) return <details className="home-summary-status"><summary>시간표 확인할 일 연결 확인</summary><p>시간표 요청 현황을 읽지 못했습니다.</p><button type="button" className="text-button" onClick={() => setRetry(value => value + 1)}>다시 확인</button></details>
   const value = state.value

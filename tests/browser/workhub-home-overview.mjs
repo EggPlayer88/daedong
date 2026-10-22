@@ -52,9 +52,10 @@ try {
     await state('empty'); await panel().getByText('지금 표시할 추가 업무가 없습니다.', { exact: true }).waitFor()
     assert.equal(await panel().getAttribute('class').then(value => value.includes('home-overview-empty-state')), true)
     assert((await panel().boundingBox()).height < 160, '정상 빈 홈 업무가 큰 카드로 남지 않습니다')
-    await state('loading'); await panel().getByRole('status').waitFor()
-    assert.equal(await panel().getAttribute('class').then(value => value.includes('home-overview-empty-state')), false)
-    assert.equal(await panel().getByText('지금 표시할 추가 업무가 없습니다.', { exact: true }).count(), 0)
+    // 재조회는 마지막 확인 결과를 유지하고 busy로 구분한다. 첫 조회의 빈 결과와 섞지 않는다.
+    await panel().evaluate(node => { window.keptHome = node.querySelector('.home-overview-empty') })
+    await state('loading'); await page.waitForFunction(() => document.querySelector('[aria-label="확인할 학교 업무"]').getAttribute('aria-busy') === 'true')
+    assert.equal(await page.evaluate(() => window.keptHome.isConnected), true)
     await page.evaluate(() => { window.state.mode = 'busy'; window.state.resolve() })
     await panel().getByRole('button', { name: '확인할 업무 8개 모두 보기', exact: true }).waitFor()
   })

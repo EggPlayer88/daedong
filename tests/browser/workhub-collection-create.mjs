@@ -41,6 +41,32 @@ async function saved(count = 1) {
 }
 async function retryFile() { await button('같은 파일 상태 다시 확인').click() }
 try {
+  await test('창 복귀 재조회 중에도 수합 상세·입력 DOM과 스크롤을 보존한다', async () => {
+    await button('수합 초안 저장').click(); await saved(0)
+    const detail = page.getByRole('region', { name: '수합 상세', exact: true })
+    await detail.evaluate(node => { window.keptDetail = node })
+    await page.evaluate(() => { window.readDelay = 700; window.refresh() })
+    await page.waitForTimeout(150)
+    assert.equal(await page.evaluate(() => window.keptDetail.isConnected), true, '재조회 중 상세를 제거하지 않아야 합니다')
+    await button('대상 교사에게 공개').isDisabled().then(value => assert.equal(value, true))
+    await page.waitForFunction(() => !document.querySelector('[aria-label="수합 상세"] button:last-child')?.disabled)
+    await button('양식 추가·초안 수정').click()
+    const title = page.getByLabel('수합 제목', { exact: true })
+    await title.fill('돌아와도 유지할 제목'); await picker().setInputFiles(hwpx('보존.hwpx'))
+    await title.focus()
+    await title.evaluate(node => { node.setSelectionRange(2, 5); window.keptInput = node; window.scrollTo(0, 150); window.keptScroll = window.scrollY })
+    await page.evaluate(() => window.refresh()); await page.waitForTimeout(150)
+    assert.equal(await page.evaluate(() => window.keptInput.isConnected && document.activeElement === window.keptInput), true)
+    assert.equal(await page.evaluate(() => window.scrollY), await page.evaluate(() => window.keptScroll))
+    assert.equal(await button('수합 초안 변경 저장').isDisabled(), true)
+    await page.waitForFunction(() => ![...document.querySelectorAll('button')].find(v => v.textContent === '수합 초안 변경 저장')?.disabled)
+    assert.equal(await title.inputValue(), '돌아와도 유지할 제목')
+    assert.deepEqual(await title.evaluate(node => [node.selectionStart, node.selectionEnd]), [2, 5])
+    assert.equal(await button('보존.hwpx 제거').count(), 1)
+    await page.evaluate(() => { window.failRead = true; window.refresh() })
+    await page.getByText('수합 원본의 접근 권한과 최신 상태를 확인하지 못했습니다. 보관한 입력은 확인 전까지 표시하지 않습니다.', { exact: true }).waitFor()
+    assert.equal(await title.count(), 0, '조회 실패 뒤에는 이전 입력을 표시하면 안 됩니다')
+  })
   await test('파일을 처음에 선택하고 한 번 저장하면 검사된 양식과 비공개 초안이 연결된다', async () => {
     await picker().setInputFiles([hwpx('학급 운영계획.hwpx'), hwpx('안내.hwpx')])
     assert.equal(await page.evaluate(() => window.calls.length + window.fileCalls.length), 0)

@@ -12,9 +12,10 @@ const memory = createEditDrafts(), pending = createPendingRequests(), receipts =
 const policy = { extensions: ['hwpx'], maxFileBytes: w.showcase ? 20971520 : 1024, maxFiles: w.showcase ? 5 : 3 }
 w.calls = []; w.fileCalls = []; w.mode = ''; w.failRead = false; w.request = null; w.applied = 0; w.fileMode = ''; w.ready = true
 const server: any = {
-  async readiness() { return { available: w.ready, reason: w.ready ? 'ready' : 'verification_missing', policy: w.ready ? policy : null } },
-  async list() { return { items: w.request ? [clone(w.request)] : [], nextCursor: null } },
+  async readiness() { if (w.readDelay) await new Promise(r => setTimeout(r, w.readDelay)); return { available: w.ready, reason: w.ready ? 'ready' : 'verification_missing', policy: w.ready ? policy : null } },
+  async list() { if (w.readDelay) await new Promise(r => setTimeout(r, w.readDelay)); return { items: w.request ? [clone(w.request)] : [], nextCursor: null } },
   async detail() {
+    if (w.readDelay) await new Promise(r => setTimeout(r, w.readDelay))
     if (w.failRead) throw new CollectionServerError('QUERY_FAILED', '조회 실패')
     if (w.mode === 'denied') throw new CollectionServerError('FORBIDDEN', '권한 없음')
     if (!w.request) throw new CollectionServerError('NOT_FOUND', '없음')

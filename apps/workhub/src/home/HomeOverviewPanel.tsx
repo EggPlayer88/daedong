@@ -19,14 +19,15 @@ export function HomeOverviewPanel(props: Props) { return <HomeOverviewScope key=
 function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, locked = false }: Props) {
   const service = useMemo(() => createHomeService(connection), [connection])
   const [data, setData] = useState<HomeOverview>()
+  const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
   const [reload, setReload] = useState(0)
   const [expanded, setExpanded] = useState(false)
   const listId = useId()
   useEffect(() => {
     let live = true
-    setData(undefined); setFailed(false); setExpanded(false)
-    void service.load(member.id).then(value => { if (live) setData(value) }).catch(() => { if (live) setFailed(true) })
+    setLoading(true); setFailed(false)
+    void service.load(member.id).then(value => { if (live) setData(value) }).catch(() => { if (live) { setData(undefined); setFailed(true) } }).finally(() => { if (live) setLoading(false) })
     return () => { live = false }
   }, [service, member.id, revision, reload])
 
@@ -35,7 +36,7 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
   // 서버가 준 순서는 유지한다. 첫 목록을 줄이더라도 긴급 항목은 접지 않는다.
   const collapsedItems = data?.items.filter((item, index) => index < 4 || item.priority === 'urgent') ?? []
   const shownItems = data ? (expanded ? data.items : collapsedItems) : []
-  return <section className={`home-overview${empty ? ' home-overview-empty-state' : ''}`} aria-label="확인할 학교 업무">
+  return <section className={`home-overview${empty ? ' home-overview-empty-state' : ''}`} aria-label="확인할 학교 업무" aria-busy={loading}>
     <style>{styles}</style>
     <header className="home-overview-heading"><h2>확인할 일</h2><span className="home-overview-context">내게 온 업무</span></header>
     {failed ? <div className="home-overview-failure" role="alert">
@@ -44,10 +45,10 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
       <button type="button" className="secondary" onClick={() => setReload(value => value + 1)}>추가 업무 다시 확인</button>
     </div> : !data ? <p className="home-overview-empty" role="status">내게 연결된 업무를 확인 중…</p> : <>
       {!empty && <div className="home-overview-counts" aria-label="종류별 전체 업무 건수">{counts.filter(row => row.count !== 0).map(row => <div key={row.kind}>
-        {row.count === null ? <span>{row.label}<strong>확인 중</strong></span> : onOpenList ? <button type="button" disabled={locked} onClick={() => onOpenList(row.kind)} aria-label={`${row.label} ${row.count.toLocaleString()}${row.unit} · ${row.destination} 목록 열기`}><span>{row.label}</span><strong>{row.count.toLocaleString()}{row.unit}<span aria-hidden="true"> ›</span></strong></button> : <span>{row.label}<strong>{row.count.toLocaleString()}{row.unit}</strong></span>}
+        {row.count === null ? <span>{row.label}<strong>확인 중</strong></span> : onOpenList ? <button type="button" disabled={locked || loading} onClick={() => onOpenList(row.kind)} aria-label={`${row.label} ${row.count.toLocaleString()}${row.unit} · ${row.destination} 목록 열기`}><span>{row.label}</span><strong>{row.count.toLocaleString()}{row.unit}<span aria-hidden="true"> ›</span></strong></button> : <span>{row.label}<strong>{row.count.toLocaleString()}{row.unit}</strong></span>}
       </div>)}</div>}
       <ul className="home-overview-items" id={listId}>{shownItems.map(item => <li key={item.id}>
-        <button type="button" disabled={locked} onClick={() => onOpen(item)} className={item.priority === 'urgent' ? 'is-urgent' : undefined}>
+        <button type="button" disabled={locked || loading} onClick={() => onOpen(item)} className={item.priority === 'urgent' ? 'is-urgent' : undefined}>
           <span className="home-overview-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"><path d={iconPaths[item.kind]} /></svg></span>
           <span className="home-overview-content"><span className="home-overview-title">{item.priority === 'urgent' && <strong>확인 필요 · </strong>}{item.title}</span><small>{item.label}{item.dueDate && ` · ${item.dueDate}까지`}</small></span>
           <span className="home-overview-arrow" aria-hidden="true">›</span>
