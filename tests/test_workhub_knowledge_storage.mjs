@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { mock } from 'node:test'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
 // 실제 학교 원문 어댑터를 실행하고 파일·신원·전송 지연만 합성한다. 실제 서비스는 호출하지 않는다.
@@ -15,6 +16,7 @@ const envelope = data => ({ contract: 'knowledge-import.v1', schoolId: 'school',
 const reserved = (uploaded = false) => envelope({ fileId: 'file', fileVersion: 1, bucket: 'workhub-knowledge-files', path: 'school/member/file/original.hwpx', bytes: file.size, sha256: hash, uploaded })
 const access = () => envelope({ available: true, sourceId: 'source', sourceVersion: 3, fileId: 'file', fileVersion: 1, ownerMemberId: 'member', bucket: 'workhub-knowledge-files', path: 'school/member/file/original.hwpx', name: file.name, bytes: file.size, sha256: hash, extractionSha256: extraction.extractionSha256 })
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done }); return { promise, resolve } }
+const realSetTimeout = globalThis.setTimeout, realClearTimeout = globalThis.clearTimeout
 const settle = async () => { await new Promise(resolve => setImmediate(resolve)); await new Promise(resolve => setImmediate(resolve)) }
 async function fails(promise, code) {
   let timer
@@ -120,12 +122,30 @@ await test('업로드 전 파일 읽기 지연은 시간 초과 뒤 Storage 전�
 })
 
 await test('업로드 전 신원 조회 지연은 시간 초과 뒤 전송을 시작하지 않는다', async () => {
-  const h = harness(), gate = deferred()
-  await h.service.prepare('member', file, 'prepare-original-key')
-  h.identityWith(async () => { await gate.promise; return { userId: 'user', approved: true } })
-  await fails(h.service.upload('member', 'file', file), 'RESULT_UNKNOWN')
-  gate.resolve(); await settle()
-  assert.equal(h.uploads.length, 0)
+  // 정상 예약·해시 준비 속도를 시험하지 않는다. 신원 조회에 도달한 뒤 만료 경계를 직접 진행한다.
+  mock.timers.enable({ apis: ['setTimeout'] })
+  let watchdog
+  try {
+    const h = harness(), gate = deferred(), entered = deferred()
+    const run = async () => {
+      await h.service.prepare('member', file, 'prepare-original-key')
+      h.identityWith(async () => { entered.resolve(); await gate.promise; return { userId: 'user', approved: true } })
+      let settled = false
+      const pending = h.service.upload('member', 'file', file)
+      pending.then(() => { settled = true }, () => { settled = true })
+      const rejected = assert.rejects(pending, error => error.code === 'RESULT_UNKNOWN')
+      await entered.promise
+      mock.timers.tick(39); await settle(); assert.equal(settled, false)
+      mock.timers.tick(1); await rejected
+      gate.resolve(); await settle()
+      assert.equal(h.calls.length, 1)
+      assert.equal(h.uploads.length, 0)
+    }
+    await Promise.race([run(), new Promise((_, reject) => { watchdog = realSetTimeout(() => reject(new Error('신원 조회 또는 만료 처리에 도달하지 못했습니다.')), 3000) })])
+  } finally {
+    realClearTimeout(watchdog)
+    mock.timers.reset()
+  }
 })
 
 await test('추출 전 신원 조회가 멎으면 시간 초과 뒤 HTTP 호출을 시작하지 않는다', async () => {
