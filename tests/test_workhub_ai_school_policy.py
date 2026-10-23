@@ -359,5 +359,57 @@ check('quick 요청에 서버가 Sonnet 정책을 주어도 호출 전에 예약
 check('키·예산 준비가 끝나도 기존 비서 모듈과 권한 판정을 건너뛰지 않는다', disabled_readiness)
 check('SQL claim의 사전 계수 상한이 앱과 다르면 거부한다', lambda: error(lambda: p.checked_claim({**claim()['assistant'], 'policy': {**claim()['assistant']['policy'], 'maxInputTokens': 100000}}, claim()['assistant']['input'], KEY), 'INVALID_RESPONSE'))
 
+
+def citation_roundtrip(lost=False):
+    client = Client(); client.fail_finish = lost; counted = []; generated = []
+    source = client.value['assistant']['sources'][0]
+    source.update(body='질문형 양식 생성 확인입니다.\n두 번째 줄도 정상적으로 표시되는지 확인합니다.')
+    source['reference']['version'] = 2
+    # 준비 응답이 고정한 판은 질문의 희망 판이나 파일 이름과 구분한다.
+    source['title'] = '가져온 파일 v1'
+    def count(body, *_):
+        counted.append(copy.deepcopy(body)); return 31
+    def send(body, key, deadline):
+        generated.append(copy.deepcopy(body))
+        evidence = json.loads(body['messages'][-1]['content'])['authorizedEvidence'][0]
+        eq(evidence['reference'], source['reference'])
+        answer = provider(body, key, deadline)
+        answer['response']['content'] = [{'type': 'text', 'text': json.dumps({'segments': [
+            {'text': '출처: 가져온 파일 v1 · 2판\n"'+source['body'].replace('\n', '\\n')+'"', 'sourceKeys': ['source-one']}
+        ], 'taskDraft': None}, ensure_ascii=False)}]
+        return answer
+    first = run(client, send, count)
+    eq(first['data']['state'], 'pending' if lost else 'completed')
+    recovered = run(client, send, count, action='recover')
+    segment = recovered['data']['thread']['exchanges'][0]['segments'][0]
+    eq(segment['text'], '출처: 가져온 파일 v1 · 2판\n"'+source['body']+'"')
+    eq(segment['citations'][0]['reference'], source['reference'])
+    eq(counted, generated); eq(len(generated), 1)
+    started = next(args for name, args in client.calls if name == 'workhub_ai_gateway_start')
+    eq(started['p_provider_body_sha256'], p.digest(generated[0]))
+    finished = next(args['p_result'] for name, args in client.calls if name == 'workhub_ai_gateway_finish')
+    eq(finished['usage'], {'inputTokens': 31, 'outputTokens': 20})
+    eq(finished['response']['segments'][0], segment)
+
+
+def both_tiers_have_reference():
+    raw = claim()
+    for tier in ('quick', 'review'):
+        model = p.ROUTING['models'][tier]
+        reserve = (p.ROUTING['reserveInputTokens'] * model['inputMicroUsdPerMtok'] + p.ROUTING['maxOutputTokens'] * model['outputMicroUsdPerMtok']) // 1000000
+        configuration = {**raw['policy'], 'model': model['id'], 'reservedMicroUsd': reserve}
+        body = p.provider_body(raw['assistant'], configuration)
+        evidence = json.loads(body['messages'][-1]['content'])['authorizedEvidence'][0]
+        eq(evidence['reference'], REF)
+        eq(body['model'], configuration['model'])
+        eq(body['max_tokens'], configuration['maxOutputTokens'])
+        assert 'reference.version' in body['system']
+        assert '실제 줄바꿈' in body['system']
+
+
+check('학교 AI의 판·인용을 계수→생성→정산→복구까지 보존하고 공급자를 한 번만 호출한다', citation_roundtrip)
+check('정산 응답 유실 뒤에도 복원된 인용을 재호출 없이 같은 접수증에서 읽는다', lambda: citation_roundtrip(True))
+check('Haiku·Sonnet 모두 같은 근거 reference와 인용 규칙을 받고 모델·출력 한도를 유지한다', both_tiers_have_reference)
+
 print(f'\n학교 AI 서버 {PASS} 통과 / {FAIL} 실패')
 sys.exit(1 if FAIL else 0)
