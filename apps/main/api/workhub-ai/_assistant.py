@@ -268,7 +268,8 @@ TOOL = {"name": "deliver_workhub_answer", "description": "교사가 검토할 �
 
 def provider_body(claim):
     # 지시문은 로컬 자산만 사용한다. 학교 자료와 사용자 입력은 JSON 데이터로 전달한다.
-    sources = [{"sourceKey": row["key"], "title": row["title"], "locator": row["locator"], "body": row["body"]} for row in claim["sources"]]
+    # 판이 본문에 없어도 답할 수 있도록 인용 카드와 같은 서버 확정 reference를 함께 보낸다.
+    sources = [{"sourceKey": row["key"], "reference": row["reference"], "title": row["title"], "locator": row["locator"], "body": row["body"]} for row in claim["sources"]]
     prompt = json.dumps({"mode": claim["input"]["mode"], "intent": claim["input"]["intent"], "request": claim["input"]["prompt"], "authorizedEvidence": sources}, ensure_ascii=False)
     return {"model": claim["policy"]["model"], "max_tokens": claim["policy"]["maxTokens"], "system": POLICY, "messages": claim["history"] + [{"role": "user", "content": prompt}], "tools": [TOOL], "tool_choice": {"type": "tool", "name": TOOL["name"]}, "stream": False}
 
@@ -313,6 +314,27 @@ def anthropic(body, key, deadline, connection_factory=http.client.HTTPSConnectio
         if connection is not None:
             connection.close()
 
+def restore_cited_linebreaks(content, cited_sources):
+    """이중 이스케이프된 인용문만 확인한 원문과 대조하여 복원한다."""
+    # 코드 설명·경로·일반 답변은 디코딩하지 않는다. 백틱이 섞인 문단도 그대로 둔다.
+    if "\\n" not in content or "`" in content:
+        return content
+    bodies = [source["body"] for source in cited_sources]
+
+    def restore(match):
+        quote = match.group(0)
+        original = quote[1:-1]
+        if "\\n" not in original or any(original in body for body in bodies):
+            return quote
+        restored = original.replace("\\r\\n", "\r\n").replace("\\n", "\n")
+        # 해당 문단이 인용한 자료 안에 인용문 전체가 있어야 한다. 단어가 비슷하다고 고치지 않는다.
+        if any(restored in body for body in bodies):
+            return quote[0] + restored + quote[-1]
+        return quote
+
+    return re.sub(r'"[^"]*"|“[^”]*”|「[^」]*」|『[^』]*』', restore, content)
+
+
 def checked_output(provider_result, claim):
     if not isinstance(provider_result, dict):
         raise CheckError("INVALID_RESPONSE", 502)
@@ -341,6 +363,7 @@ def checked_output(provider_result, claim):
             keys = items(row["sourceKeys"], LIMITS["sources"])
             if len(set(keys)) != len(keys) or any(not isinstance(key, str) or key not in sources for key in keys):
                 raise CheckError("INVALID_RESPONSE", 502)
+            content = restore_cited_linebreaks(content, [sources[key] for key in keys])
             citations = [{key: sources[source_key][key] for key in ("reference", "title", "locator")} for source_key in keys]
             if claim["input"]["intent"] == "student_record_draft" and not any(item["reference"]["kind"] in EVIDENCE_KINDS for item in citations):
                 raise CheckError("INVALID_RESPONSE", 502)

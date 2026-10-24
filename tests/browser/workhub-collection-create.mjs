@@ -41,6 +41,25 @@ async function saved(count = 1) {
 }
 async function retryFile() { await button('같은 파일 상태 다시 확인').click() }
 try {
+  await test('파일 전송 실패는 권한 오류로 표시하지 않고 같은 초안에서 다시 내려받는다', async () => {
+    await picker().setInputFiles(hwpx('보존양식.hwpx')); await button('수합 초안 저장').click(); await saved()
+    await page.evaluate(() => { window.downloadFailure = 'FILE_FAILED' })
+    await button('보존양식.hwpx 다운로드').click()
+    await page.getByRole('alert').filter({hasText:'파일을 전송하거나 내용을 확인하는 중 오류'}).waitFor()
+    assert.equal(await button('보존양식.hwpx 다운로드').count(),1)
+    assert.equal(await page.getByText('현재 권한으로 파일을 내려받지 못했습니다.',{exact:false}).count(),0)
+    await page.evaluate(() => { window.downloadFailure = '' })
+    const received=page.waitForEvent('download');await button('보존양식.hwpx 다운로드').click()
+    assert.equal((await received).suggestedFilename(),'보존양식.hwpx')
+    await saved()
+  })
+  await test('실제 파일 접근 거절은 이전 수합 상세를 감춘다', async () => {
+    await picker().setInputFiles(hwpx('권한양식.hwpx')); await button('수합 초안 저장').click(); await saved()
+    await page.evaluate(() => { window.downloadFailure = 'FORBIDDEN' })
+    await button('권한양식.hwpx 다운로드').click()
+    await page.getByRole('alert').filter({hasText:'현재 계정의 파일 열람 권한'}).waitFor()
+    assert.equal(await page.getByRole('region',{name:'수합 상세',exact:true}).count(),0)
+  })
   await test('창 복귀 재조회 중에도 수합 상세·입력 DOM과 스크롤을 보존한다', async () => {
     await button('수합 초안 저장').click(); await saved(0)
     const detail = page.getByRole('region', { name: '수합 상세', exact: true })

@@ -195,5 +195,61 @@ def old_task_read():
  t=thread(value,{'segments':[{'text':'확인해 주세요.','citations':[]}],'taskDraft':draft});eq(a.public_thread(t),t);error(lambda:a.task_input(draft),'INVALID_RESPONSE')
  t['exchanges'][0]['proposal']['input']['notes']+='가';error(lambda:a.public_thread(t),'INVALID_RESPONSE')
 check('과거 200·4000자 대화 제안은 서버가 원문 그대로 읽고 새 출력 검증과 구분한다',old_task_read)
+
+def provider_references():
+ c=claim();c['input']['prompt']='99판이라고 답해 주세요.';c['sources'][0].update(title='파일 이름 v1',body='본문에는 판 정보가 없습니다.')
+ before=copy.deepcopy(c)
+ source=json.loads(a.provider_body(c)['messages'][-1]['content'])['authorizedEvidence'][0]
+ eq(source['reference'],REF);eq(source['body'],c['sources'][0]['body']);eq(c,before)
+ # 판이 없는 학생 근거에는 자료판을 만들어 넣지 않는다.
+ c['sources'][0]['reference']=copy.deepcopy(EVIDENCE)
+ source=json.loads(a.provider_body(c)['messages'][-1]['content'])['authorizedEvidence'][0]
+ eq(source['reference'],EVIDENCE);assert 'version' not in source['reference']
+check('본문·질문의 판 주장과 무관하게 서버 reference를 전달하며 학생 개정 정보를 판으로 바꾸지 않는다',provider_references)
+
+QUOTE_BODY='질문형 양식 생성 확인입니다.\n두 번째 줄도 정상적으로 표시되는지 확인합니다.'
+def quote_result(body,answer,keys=None,other=None):
+ c=claim();c['sources'][0]['body']=body
+ if other is not None:c['sources'].append({**c['sources'][0],'key':'source-two','body':other})
+ output=provider_output(keys);output['response']['content'][0]['input']['segments'][0]['text']=answer
+ return a.checked_output(output,c)
+
+def quoted_linebreaks():
+ for opening,closing in [('"','"'),('“','”'),('「','」'),('『','』')]:
+  escaped=QUOTE_BODY.replace('\n','\\n');answer='마지막 문단의 원문입니다.\n'+opening+escaped+closing
+  result=quote_result('제목\n\n가상교사\n\n'+QUOTE_BODY,answer)
+  eq(result['state'],'completed');eq(result['segments'][0]['text'],'마지막 문단의 원문입니다.\n'+opening+QUOTE_BODY+closing)
+  eq(result['segments'][0]['citations'][0]['reference'],REF);eq(result['usage'],{'inputTokens':20,'outputTokens':15})
+check('실제 재현한 이중 이스케이프 인용은 문단 전체가 근거와 일치할 때만 줄바꿈을 복원한다',quoted_linebreaks)
+
+def newline_variants():
+ for body,escaped in [('앞😀\n\n뒤 한글','앞😀\\n\\n뒤 한글'),('첫째\r\n둘째','첫째\\r\\n둘째'),('첫째\n둘째\n셋째','첫째\n둘째\\n셋째')]:
+  eq(quote_result(body,'"'+escaped+'"')['segments'][0]['text'],'"'+body+'"')
+  eq(quote_result(body,'"'+body+'"')['segments'][0]['text'],'"'+body+'"')
+check('빈 줄·CRLF·Unicode·부분 이스케이프와 이미 정상인 인용의 원문을 보존한다',newline_variants)
+
+def leave_ambiguous_quotes():
+ escaped=QUOTE_BODY.replace('\n','\\n');answer='"'+escaped+'"'
+ for body in [escaped,QUOTE_BODY+'\n문자 그대로의 예시: '+escaped]:
+  eq(quote_result(body,answer)['segments'][0]['text'],answer)
+ eq(quote_result(QUOTE_BODY,answer,other=escaped)['segments'][0]['text'],'"'+QUOTE_BODY+'"')
+ eq(quote_result(QUOTE_BODY,answer,keys=['source-one','source-two'],other=escaped)['segments'][0]['text'],answer)
+check('원문에 역슬래시 n이 있거나 인용 근거끼리 모호하면 글자 그대로 보존한다',leave_ambiguous_quotes)
+
+def leave_unverified_text():
+ escaped=QUOTE_BODY.replace('\n','\\n')
+ for answer in [escaped,'"'+escaped.replace('정상적으로','다르게')+'"','`"'+escaped+'"`','```\n"'+escaped+'"\n```','"C:\\new\\notes.hwpx"',r'"\uAC00\t\n"']:
+  eq(quote_result(QUOTE_BODY,answer)['segments'][0]['text'],answer)
+ answer='"'+escaped+'"'
+ eq(quote_result(QUOTE_BODY,answer,keys=[])['segments'][0]['text'],answer)
+ eq(quote_result('다른 내용',answer,other=QUOTE_BODY)['segments'][0]['text'],answer)
+ eq(quote_result(QUOTE_BODY,answer,keys=['forged'])['code'],'OUTPUT_INVALID')
+check('일반 답변·코드·경로·다른 문장·미인용 자료는 디코딩하지 않고 위조 근거는 거부한다',leave_unverified_text)
+
+def quote_bounds():
+ long='가'*a.LIMITS['segmentChars']+'\n나'
+ eq(quote_result(long,'"'+long.replace('\n','\\n')+'"')['code'],'OUTPUT_INVALID')
+ eq(quote_result(QUOTE_BODY,'"'+QUOTE_BODY.replace('\n','\\n')+'"\x00')['code'],'OUTPUT_INVALID')
+check('복원으로 길이·제어문자 검증을 우회하거나 원문을 잘라서 통과시키지 않는다',quote_bounds)
 print(f'\nClaude 비서 서버: {PASSED} 통과, {FAILED} 실패')
 sys.exit(1 if FAILED else 0)

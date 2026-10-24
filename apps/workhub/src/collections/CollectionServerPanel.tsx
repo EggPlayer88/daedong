@@ -11,6 +11,7 @@ import { formatFileBytes } from '../files/FileControls'
 import { hwpxCollectionPolicy } from '../files/hwpx-basic-policy'
 import { validateFileMetadata } from '../files/validation'
 import { requestBlobDownload } from '../files/download'
+import { collectionDownloadFailure } from './download-feedback'
 import type { AnswerInput, CollectionDraft, CollectionInput, CollectionRequest } from '../workflows/types'
 import { CollectionServerError, type CollectionServer, type CollectionCommand, type CollectionDetail, type CollectionFileParent, type CollectionList, type CollectionReadiness, type CollectionUpload } from './contracts'
 import { CollectionUnitsEditor } from './CollectionUnitsEditor'
@@ -339,7 +340,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
     if (operation.current || exportBusy) return
     const epoch = life.current; operation.current = true; setBusy('파일을 내려받는 중…'); setError('')
     try { const blob = await server.download(member.id, parent, file); if (stillHere(epoch)) requestBlobDownload(blob, file.name) }
-    catch (failure) { if (stillHere(epoch)) { if (accessDenied(failure)) hideDenied(); setError('현재 권한으로 파일을 내려받지 못했습니다. 잠시 뒤 다시 확인해 주세요.') } }
+    catch (failure) { if (stillHere(epoch)) { if (accessDenied(failure)) hideDenied(); setError(collectionDownloadFailure(failure)) } }
     finally { if (stillHere(epoch)) { operation.current = false; setBusy('') } }
   }
   const allowedMembers = members.filter(value => value.schoolId === member.schoolId && activeAt(value, date))
