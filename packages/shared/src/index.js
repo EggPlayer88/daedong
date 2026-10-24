@@ -7,6 +7,7 @@ export { supabase } from './supabase.js'
 
 export {
   signInWithGoogle,
+  signInWithEmailPassword,
   signOut,
   getSession,
   onAuthStateChange,

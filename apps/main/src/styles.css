@@ -82,6 +82,15 @@ button {
   opacity: 0.6;
   cursor: default;
 }
+.login-card h2 { font-size: 16px; margin: 16px 0 12px; }
+.email-login-form { display: grid; gap: 16px; text-align: left; }
+.email-login-form label { display: grid; gap: 6px; }
+.email-login-form input {
+  width: 100%; min-height: 42px; border: 1px solid var(--border-light);
+  border-radius: 8px; background: var(--bg); color: var(--text); padding: 10px 12px; font: inherit;
+}
+.email-login-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.login-card .email-login-note { margin-top: 14px; }
 
 /* ─── 레이아웃 ─── */
 .topbar {

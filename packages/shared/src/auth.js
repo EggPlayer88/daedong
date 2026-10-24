@@ -24,6 +24,13 @@ export async function signInWithGoogle() {
   return data
 }
 
+/** 이미 생성된 이메일 계정의 로그인만 수행한다. 가입 승인·역할·학교 소속은 바꾸지 않는다. */
+export async function signInWithEmailPassword(email, password) {
+  const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+  if (error) throw error
+  return data
+}
+
 export async function signOut() {
   const { error } = await supabase.auth.signOut()
   if (error) throw error
