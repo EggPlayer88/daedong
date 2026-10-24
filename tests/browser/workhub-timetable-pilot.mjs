@@ -155,10 +155,16 @@ try {
     await backToDay(); await page.getByText('원수업에 연결된 보강', { exact: true }).waitFor()
   })
   await check('담당자 휴업은 수업을 삭제하지 않고 취소와 알림으로 남긴다', async () => {
-    await selectTeacher('pilot-manager-1'); await button('학사 변경').click()
+    await selectTeacher('pilot-manager-1'); await label('연습 날짜').fill('2026-03-09'); await button('학사 변경').click()
+    // 휴업 대상과 종류를 화면에서 명시하고, 저장 완료 뒤 같은 판의 자료를 검증한다.
+    await label('변경 종류').selectOption('close')
+    for (const group of await page.evaluate(() => window.pilotqa.fixture.classes)) {
+      await page.getByRole('checkbox', { name: group.label, exact: true }).check()
+    }
     await label('학사 변경 사유').fill('학교 행사 휴업 연습'); await button('연습 일과에 반영').click()
-    await page.waitForFunction(async () => (await window.pilotqa.snapshot()).closedDays.length > 0)
+    await page.getByRole('status').filter({ hasText: '운영 연습에 반영했습니다.' }).waitFor()
     const state = await snapshot(), today = state.lessons.filter(row => row.date === '2026-03-09')
+    assert.deepEqual(state.closedDays, [{ date: '2026-03-09', classIds: state.fixture.classes.map(row => row.id), reason: '학교 행사 휴업 연습' }])
     assert.equal(today.length, 54); assert.ok(today.every(row => row.status === 'cancelled'))
     assert.ok(state.notifications.some(row => row.kind === 'school_day'))
     await backToDay(); assert.equal(await page.getByText('취소·보강 검토', { exact: true }).count(), 6)
@@ -310,6 +316,8 @@ try {
   writeFileSync(join(output, 'results.json'), JSON.stringify({ scenarios: passed.length, passed, durationMs: Date.now() - startedAt, errors, external, boundary: '실제 React·로컬 저장소. Supabase·운영 Storage·실교사 승인은 호출하지 않음.' }, null, 2))
   console.log(`시간표 운영 연습 브라우저 검사: ${passed.length}개 통과 · 화면: ${output}`)
 } catch (error) {
+  // CI에서만 발생하는 실패도 실제 저장된 날짜·대상·수업 상태로 원인을 대조할 수 있게 남긴다.
+  try { writeFileSync(join(output, 'failure-state.json'), JSON.stringify(await snapshot(), null, 2)) } catch { /* 저장소 조회 자체가 실패한 경우 화면 증거를 계속 남긴다. */ }
   const overflow = await page.evaluate(() => [...document.querySelectorAll('*')].map(element => ({tag: element.tagName, className: element.className, label: element.getAttribute('aria-label'), width: element.getBoundingClientRect().width, right: element.getBoundingClientRect().right})).filter(element => element.right > innerWidth + 1 || element.width > innerWidth + 1))
   writeFileSync(join(output, 'failure.txt'), `${error.stack}\n\n${JSON.stringify(overflow, null, 2)}\n\n${await page.locator('body').innerText()}`)
   await page.screenshot({ path: join(output, 'failure.png'), fullPage: true })

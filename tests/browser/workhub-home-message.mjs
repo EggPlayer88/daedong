@@ -61,8 +61,10 @@ await test('홈 전체 대화 건수는 목록을 열고 읽음·발송 없이 �
  assert.equal(await page.evaluate(()=>window.state.calls.filter(x=>x.name==='workhub_message_get').length),0)
  const back=page.getByRole('button',{name:'홈 업무 요약으로 돌아가기',exact:true});await back.waitFor()
  await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByLabel('메시지',{exact:true}).fill('홈 목록 이동 뒤 입력')
+ // 입력 변경이 메신저에서 부모 셸의 이동 잠금으로 전달된 뒤 판정한다.
+ await back.and(page.locator(':disabled')).waitFor({state:'attached'})
  assert.equal(await back.isDisabled(),true)
- await page.getByRole('button',{name:'입력 접고 목록 보기',exact:true}).click();await page.setViewportSize({width:320,height:760});await back.focus();await page.keyboard.press('Enter');await sourceButton().waitFor()
+ await page.getByRole('button',{name:'입력 접고 목록 보기',exact:true}).click();await back.and(page.locator(':enabled')).waitFor({state:'attached'});await page.setViewportSize({width:320,height:760});await back.focus();await page.keyboard.press('Enter');await sourceButton().waitFor()
  assert.equal(await page.evaluate(()=>window.state.writes.length),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
 })
 await test('홈 선택 재렌더가 다른 대화 선택을 되돌리지 않고 목록으로 돌아갈 수 있다',async()=>{
