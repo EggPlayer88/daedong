@@ -1,0 +1,510 @@
+[
+  [
+    "column",
+    "workhub.messaging_pilot_grants.active",
+    {
+      "api": "",
+      "type": "boolean",
+      "default": "false",
+      "notNull": true,
+      "identity": "",
+      "position": 5,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.approval_ref",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 8,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.approved_by_membership_id",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 7,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.auth_user_id",
+    {
+      "api": "",
+      "type": "uuid",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 2,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.expires_at",
+    {
+      "api": "",
+      "type": "timestamp with time zone",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 6,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.membership_id",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 4,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.revision",
+    {
+      "api": "",
+      "type": "integer",
+      "default": "1",
+      "notNull": true,
+      "identity": "",
+      "position": 9,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.school_id",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 3,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.singleton",
+    {
+      "api": "",
+      "type": "boolean",
+      "default": "true",
+      "notNull": true,
+      "identity": "",
+      "position": 1,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.messaging_pilot_grants.updated_at",
+    {
+      "api": "",
+      "type": "timestamp with time zone",
+      "default": "now()",
+      "notNull": true,
+      "identity": "",
+      "position": 10,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub_private.mp1_installs.batch",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 1,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub_private.mp1_installs.installed_at",
+    {
+      "api": "",
+      "type": "timestamp with time zone",
+      "default": "now()",
+      "notNull": true,
+      "identity": "",
+      "position": 2,
+      "generated": ""
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_approval_ref_check",
+    {
+      "def": "48aeb19318dac4fb3e19cd9d2c4abfe0"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_auth_user_id_fkey",
+    {
+      "def": "5dfa121d9db9eae66de63a0d11788f4f"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_pkey",
+    {
+      "def": "7511e9a8e50c073e1d6eff73afcc0f24"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_revision_check",
+    {
+      "def": "27243795341cf9da4287f90413a06c79"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_school_id_approved_by_membership_id_fkey",
+    {
+      "def": "c3c633b5f15d8a165d631a1e608b6f8e"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_school_id_membership_id_fkey",
+    {
+      "def": "5ecc686c401cd1fa9882643789a10c87"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_singleton_check",
+    {
+      "def": "ae6f6dfbe38290d5bfa8f3e96d1aff91"
+    }
+  ],
+  [
+    "constraint",
+    "workhub_private.mp1_installs.mp1_installs_batch_check",
+    {
+      "def": "e5708b1883eecd32f7bf8d50bbc15947"
+    }
+  ],
+  [
+    "constraint",
+    "workhub_private.mp1_installs.mp1_installs_pkey",
+    {
+      "def": "5eb69cfd4e109f955660d3e01ab61c1a"
+    }
+  ],
+  [
+    "function",
+    "public.workhub_inbox_list(p_member_id text, p_unread_only boolean, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "e756b9f9020c66d07130002578e902ae",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_file_access(p_member_id text, p_thread_id text, p_message_id text, p_file_id text)",
+    {
+      "eff": "authenticated",
+      "body": "be6e985b3f972dcbdf7808b3d24dd56a",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_file_complete(p_member_id text, p_file_id text, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "77a2aaacbb7a05f138a08e30a986ccad",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_file_prepare(p_member_id text, p_file jsonb, p_request_key text, p_replay_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "c3cd859219c058c69ac16e9b807b2268",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_file_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "907222a37cbc705c6f831107af766eac",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_file_status(p_member_id text, p_file_id text)",
+    {
+      "eff": "authenticated",
+      "body": "b1a8409eded30c7c9b0b3ffd713177dc",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_get(p_member_id text, p_thread_id text, p_before_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "4ea48f33326e646e1703d71f22fce76e",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_mutate(p_member_id text, p_command jsonb, p_request_key text, p_replay_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "981b19759a63c67d9ad75631550fb428",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_recipients(p_member_id text, p_query text, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "11fb9249b59a9cf343739fd961a45e21",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_message_threads(p_member_id text, p_query text, p_unread_only boolean, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "90aa1e1c336600c3c2be53135dc3ac64",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_messaging_pilot_access()",
+    {
+      "eff": "authenticated",
+      "body": "9e04d78438f74659a8a9523c7004d733",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_messaging_pilot_context()",
+    {
+      "eff": "authenticated",
+      "body": "c177754d27a2623e2d3688e899874b78",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_messaging_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "dd8a5f697b4f8a830b6a14528fed8259",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.mp1_actor(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "69b65d1bc0db969eca3113e5d6cea079",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.mp1_allowed(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "4098026f8c9f98464ab713e33870050e",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.p3_reachable(p_school text, p_membership text)",
+    {
+      "eff": "",
+      "body": "33dfff16c5ab8d1cd11fee4df9a3638d",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.p3_service_member(p_actor uuid, p_member text)",
+    {
+      "eff": "",
+      "body": "4b5660bbe0165aaa463d6e84c44be78f",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_storage.message_insertable(p_name text)",
+    {
+      "eff": "authenticated",
+      "body": "066cf1d0500c6e85dfd15590d648fb71",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_storage.message_readable(p_name text, p_object uuid)",
+    {
+      "eff": "authenticated",
+      "body": "54c3908bf500d24886df80e3c730cbdf",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "index",
+    "workhub.messaging_pilot_grants.messaging_pilot_grants_pkey",
+    {
+      "ready": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX messaging_pilot_grants_pkey ON workhub.messaging_pilot_grants USING btree (singleton)"
+    }
+  ],
+  [
+    "index",
+    "workhub_private.mp1_installs.mp1_installs_pkey",
+    {
+      "ready": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX mp1_installs_pkey ON workhub_private.mp1_installs USING btree (batch)"
+    }
+  ],
+  [
+    "table",
+    "workhub.messaging_pilot_grants",
+    {
+      "api": "",
+      "rls": true,
+      "kind": "r",
+      "owner": "postgres",
+      "forceRls": false,
+      "persistence": "p"
+    }
+  ],
+  [
+    "table",
+    "workhub_private.mp1_installs",
+    {
+      "api": "",
+      "rls": true,
+      "kind": "r",
+      "owner": "postgres",
+      "forceRls": false,
+      "persistence": "p"
+    }
+  ]
+]

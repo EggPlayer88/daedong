@@ -223,11 +223,11 @@ jobs:
           path: ${{ runner.temp }}/workhub-deployment-results
           if-no-files-found: ignore
           retention-days: 7
-      - name: 수합·생성문서·학교원문 Storage 다운로드 호환·접근 경계 회귀
+      - name: 수합·생성문서·학교원문·시험 교사 메신저 SQL·Storage 접근 경계 회귀
         env:
           WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
           WORKHUB_DEPLOYMENT_TEST_PORT: '55619'
-        run: python database/workhub-storage-download/s3/test/run_s3.py
+        run: python database/workhub-messaging-pilot/mp1/test/run_mp1.py
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub

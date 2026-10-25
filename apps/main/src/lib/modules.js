@@ -12,6 +12,7 @@
 //    다만 "메뉴만 숨기기" 로는 주소를 아는 사람이 들어오므로, 라우트도 함께 막는다.
 
 import { atLeast, can } from '@daedong/shared'
+import { hasMessagingPilot } from './messaging-pilot.js'
 
 /** 공개 범위 — 'all'(로그인한 승인 사용자 전원) | 'admin' | 'superadmin' */
 export const VISIBILITY = ['all', 'admin', 'superadmin']
@@ -34,14 +35,14 @@ export const MODULES = [
 ]
 
 /** 이 사용자가 그 모듈을 볼 수 있는가 (메뉴 노출 + 라우트 등록의 유일한 판정) */
-export function isVisible(profile, mod) {
+export function isVisible(profile, mod, pilotAccess = null) {
   if (!mod) return false
   const scope = mod.visibility || DEFAULT_VISIBILITY
   if (scope === 'admin' && !atLeast(profile, 'admin')) return false
-  if (scope === 'superadmin' && !atLeast(profile, 'superadmin')) return false
+  if (scope === 'superadmin' && !atLeast(profile, 'superadmin') && !(mod.key === 'workhub' && mod.to === '/workhub' && hasMessagingPilot(profile, pilotAccess))) return false
   // 기존 action 판정도 함께 만족해야 한다 (둘 다 있으면 둘 다)
   if (mod.action && !can(profile, mod.action)) return false
   return true
 }
 
-export const visibleModules = (profile) => MODULES.filter((m) => isVisible(profile, m))
+export const visibleModules = (profile, pilotAccess = null) => MODULES.filter((m) => isVisible(profile, m, pilotAccess))
