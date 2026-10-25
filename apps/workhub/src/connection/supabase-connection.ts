@@ -28,7 +28,8 @@ export function rpcFailure(error: RpcError): ContractError {
 }
 
 // 기본 연결은 기존 공용 인스턴스만 사용한다. 별도 회원 생성·프로필 변경은 없다.
-export function createSupabaseConnection(provided?: LegacyServices, options: { messagingPilot?: boolean } = {}) {
+export function createSupabaseConnection(provided?: LegacyServices, options: { messagingPilot?: boolean; participant?: boolean } = {}) {
+  if (options.messagingPilot && options.participant) throw new ContractError('INVALID_INPUT','하나의 참여 경로만 선택해 주세요.')
   let context = emptyContext()
   let generation = 0
   let verifiedUserId: string | null = null
@@ -130,7 +131,7 @@ export function createSupabaseConnection(provided?: LegacyServices, options: { m
     },
     async loadContext(schoolId?: string): Promise<ConnectionContext> {
       const started=generation
-      try { context=contextResponse(await rpcVerified(options.messagingPilot ? 'workhub_messaging_pilot_context' : 'workhub_context'),schoolId);return structuredClone(context) }
+      try { context=contextResponse(await rpcVerified(options.participant ? 'workhub_participant_context' : options.messagingPilot ? 'workhub_messaging_pilot_context' : 'workhub_context'),schoolId);return structuredClone(context) }
       catch(error) { if(started===generation && !(error instanceof ContractError && error.code==='CANCELLED')) context=emptyContext();throw error }
     },
     info: (): ConnectionContext => structuredClone(context),

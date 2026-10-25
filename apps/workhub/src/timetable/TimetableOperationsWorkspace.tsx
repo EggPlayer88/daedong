@@ -47,7 +47,7 @@ const rejected = (error: unknown) => error instanceof ServiceError && ['NOT_READ
 const readinessMessage = { not_installed: '확정·공유·교환 기능의 서버 연결을 준비 중입니다.', not_allowed: '현재 계정에는 시간표 운영 자료를 볼 권한이 없습니다.', basis_missing: '학교의 시간표 운영 기초 자료를 먼저 연결해야 합니다.' }
 const receiptMessage = (receipt: OperationsReceipt) => receipt.kind === 'publish_manifest' ? `전체 기간의 시간표 ${receipt.version}판을 확정했습니다. 변경 수업 ${receipt.changedCount}건을 공유 화면에서 확인할 수 있습니다.` : receipt.kind === 'school_day' ? `학사 변경을 ${receipt.changedLessonCount}개 수업에 반영했습니다. 보강 검토가 필요한 수업은 ${receipt.lostLessonCount}개입니다.` : receipt.kind === 'publish' ? `학교 시간표 ${receipt.version}판을 확정했습니다. 공유 화면에서 적용 기간을 확인할 수 있습니다.` : receipt.status === 'applied' ? '수업 변경을 시간표에 반영했습니다. 최신 수업을 확인해 주세요.' : '수업 변경 요청의 처리 결과를 확인했습니다. 요청 현황에서 다음 단계를 확인해 주세요.'
 
-export function TimetableOperationsWorkspace(props: Props) {
+export function TimetableOperationsWorkspace(props: Props & { aiEnabled?: boolean }) {
   const server = useMemo(() => createTimetableOperationsServer(props.connection), [props.connection])
   const extensions = useMemo(() => createTimetableOperationsExtensions(props.connection), [props.connection])
   const publicationExecution = useMemo(() => createPublicationExecutionServer(props.connection), [props.connection])
@@ -55,7 +55,7 @@ export function TimetableOperationsWorkspace(props: Props) {
   const schoolDayExecution = useMemo(() => createSchoolDayExecutionServer(props.connection), [props.connection])
   const interventions = useMemo(() => createTimetableInterventionsServer(props.connection), [props.connection])
   const assistantServer = useMemo(() => createAssistantServer(props.connection, operatingAssistantHttp, {policyReads:true}), [props.connection])
-  return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={assistantServer} />
+  return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={props.aiEnabled === false ? undefined : assistantServer} />
 }
 export function TimetableOperationsPanel({ server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
   const id = useId(), pendingStore = usePendingRequest(member, 'timetableOperations')

@@ -1,0 +1,1711 @@
+[
+  [
+    "column",
+    "workhub.participant_grants.active",
+    {
+      "api": "",
+      "type": "boolean",
+      "default": "false",
+      "notNull": true,
+      "identity": "",
+      "position": 5,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.app_deploy_ref",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 10,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.approval_ref",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 9,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.approved_by_membership_id",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 8,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.auth_user_id",
+    {
+      "api": "",
+      "type": "uuid",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 3,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.expires_at",
+    {
+      "api": "",
+      "type": "timestamp with time zone",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 6,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.membership_id",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 2,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.revision",
+    {
+      "api": "",
+      "type": "integer",
+      "default": "1",
+      "notNull": true,
+      "identity": "",
+      "position": 7,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.school_id",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 1,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.scopes",
+    {
+      "api": "",
+      "type": "text[]",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 4,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub.participant_grants.updated_at",
+    {
+      "api": "",
+      "type": "timestamp with time zone",
+      "default": "now()",
+      "notNull": true,
+      "identity": "",
+      "position": 11,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub_private.op1_installs.batch",
+    {
+      "api": "",
+      "type": "text",
+      "default": "",
+      "notNull": true,
+      "identity": "",
+      "position": 1,
+      "generated": ""
+    }
+  ],
+  [
+    "column",
+    "workhub_private.op1_installs.installed_at",
+    {
+      "api": "",
+      "type": "timestamp with time zone",
+      "default": "now()",
+      "notNull": true,
+      "identity": "",
+      "position": 2,
+      "generated": ""
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_app_deploy_ref_check",
+    {
+      "def": "c24099e9dd05a1b751d3b87a15ab75b8"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_approval_ref_check",
+    {
+      "def": "48aeb19318dac4fb3e19cd9d2c4abfe0"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_auth_user_id_fkey",
+    {
+      "def": "5dfa121d9db9eae66de63a0d11788f4f"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_auth_user_id_key",
+    {
+      "def": "3939596b6b0eb0c3a60cbfda6e98ad0c"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_pkey",
+    {
+      "def": "b71a3970bcbd7ac82ece22c8ac25676a"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_revision_check",
+    {
+      "def": "27243795341cf9da4287f90413a06c79"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_school_id_approved_by_membership_id_fkey",
+    {
+      "def": "c3c633b5f15d8a165d631a1e608b6f8e"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_school_id_membership_id_fkey",
+    {
+      "def": "5ecc686c401cd1fa9882643789a10c87"
+    }
+  ],
+  [
+    "constraint",
+    "workhub.participant_grants.participant_grants_scopes_check",
+    {
+      "def": "507af58cc40741ff6a1a18eae4d9a41b"
+    }
+  ],
+  [
+    "constraint",
+    "workhub_private.op1_installs.op1_installs_batch_check",
+    {
+      "def": "fdebdcd8f33f3e0a1ed0b7e6837bbe71"
+    }
+  ],
+  [
+    "constraint",
+    "workhub_private.op1_installs.op1_installs_pkey",
+    {
+      "def": "5eb69cfd4e109f955660d3e01ab61c1a"
+    }
+  ],
+  [
+    "function",
+    "public.workhub_calendar_batch_commit(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "0bd130f9dee9f7fab4aae48f321d4f97",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_calendar_batch_prepare(p_member_id text, p_input jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "2833a9d5af41e7d4c998f8fb08df2cf3",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_calendar_get(p_member_id text, p_event_id text)",
+    {
+      "eff": "authenticated",
+      "body": "9baa280a5bdea5c4c5c6f921907a78c2",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_calendar_list(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "047d740711ca093220c8a22ef253bace",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_calendar_save(p_member_id text, p_command jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "33baead7b95b44fe2c27e84c5fc84ded",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_basic_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "e2145fef2161bba77d40265978191400",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_draft_get(p_member_id text, p_request_id text, p_unit_id text)",
+    {
+      "eff": "authenticated",
+      "body": "3fa1528969c8d341adb71c16419ab5b1",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_get(p_member_id text, p_request_id text)",
+    {
+      "eff": "authenticated",
+      "body": "af2e73095f4ae85c370820a2e0289ac2",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_list(p_member_id text, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "874f936d038ebe967b8a599f8bd90465",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_mutate(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "6d33642a8e1a41bc1915e05eca976daf",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_operations_get(p_member_id text, p_request_id text)",
+    {
+      "eff": "authenticated",
+      "body": "cdb2fac7ceade418cd057d4e4aa6375e",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_operations_mutate(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "9824ec5f1251252dab41250f82eab8bb",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_collection_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "745bda79b1e6fcce4434aa14eb581c52",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_cooperation_catalog(p_member_id text, p_task_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "33d87dffb93b580b799f6e9f9c716f02",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_cooperation_get(p_member_id text, p_request_id text)",
+    {
+      "eff": "authenticated",
+      "body": "8e022fae6448c53b234afbad11e0b725",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_cooperation_list(p_member_id text, p_filter jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "262f303613ab26ecc5d25d6955c21c8b",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_cooperation_mutate(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "1d6cd69401286c67bd4e75cab3b44c41",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_file_access(p_member_id text, p_parent jsonb, p_file_id text)",
+    {
+      "eff": "authenticated",
+      "body": "775d9c4fba8c9555f0046d48f86b4371",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_file_complete(p_member_id text, p_file_id text, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "28fa83bce06b88e97f2903edec50cddf",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_file_prepare(p_member_id text, p_parent jsonb, p_file jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "b4a0de6388d9d31d6ff60ed40c8d53cc",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_file_status(p_member_id text, p_file_id text)",
+    {
+      "eff": "authenticated",
+      "body": "b727ff24f6c177ee04d55b301689832e",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_participant_access()",
+    {
+      "eff": "authenticated",
+      "body": "c5dd1ac7c15e0169bf89dbd61103acce",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_participant_administration(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "8fdff73e32a72ef7c1e72e25b711dce0",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_participant_context()",
+    {
+      "eff": "authenticated",
+      "body": "8d3a6fa6eef4f7d356f28a3424f84ace",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_school_transition_list(p_member_id text, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "d06c23f55f869bb79213150305a75b7c",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_school_transition_mutate(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "846d1819f2c0ee1388dd1ccaa303544c",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_school_transition_preview(p_member_id text, p_plan jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "aa568edac02de0f0f77f930f2946abaf",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_task_get(p_member_id text, p_task_id text)",
+    {
+      "eff": "authenticated",
+      "body": "129afdfcd3aca7f37c34b346b414cb04",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_task_list(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "1e2da81290ececc5b5b7ac96c54fc719",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_task_mutate(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "3f32fdcc76b05bf2d98b99e8d1610dc1",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_activity(p_member_id text, p_course_id text, p_import_id text)",
+    {
+      "eff": "authenticated",
+      "body": "446e3ebcacac316c666bbe8e2b55bef8",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_catalog(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "fa6098e7781251753d8a9c484d3758af",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_counseling(p_member_id text, p_course_id text, p_student_id text, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "e24a3fb795550566143fcd3656f67028",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_course(p_member_id text, p_course_id text)",
+    {
+      "eff": "authenticated",
+      "body": "7f1340e15a94df398064a4b01f2eef80",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_mutate(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "2c8ed11557b8114b231239e99757367e",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_relation_commit(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "40b386892aa52c43b563e86ec1ae3851",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_relation_preview(p_member_id text, p_intent jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "9174dd79e3cea3196a9bd5be1c17f4b1",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_relations(p_member_id text, p_course_id text)",
+    {
+      "eff": "authenticated",
+      "body": "648e931abe12f665d963510424aecc54",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_rubric_revision(p_member_id text, p_course_id text, p_rubric_id text, p_revision_id text)",
+    {
+      "eff": "authenticated",
+      "body": "06ddaab69d73848a900c64ae6cbbefcd",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_teaching_student(p_member_id text, p_course_id text, p_student_id text, p_cursor text)",
+    {
+      "eff": "authenticated",
+      "body": "d261907e39325618de081838d13f5e5b",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_execution_get(p_member_id text, p_lesson_id text)",
+    {
+      "eff": "authenticated",
+      "body": "3e30ebd03a6aec9260ae3e295a59780a",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_execution_history(p_member_id text, p_lesson_id text, p_anchor_version integer, p_cursor text, p_page_size integer)",
+    {
+      "eff": "authenticated",
+      "body": "504f3697fed4086ca293cc2c849af0ee",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_execution_record(p_member_id text, p_command jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "4f3cc43e18dca424515c698d8d21e688",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_get(p_member_id text, p_week_start date)",
+    {
+      "eff": "authenticated",
+      "body": "be2c0a7b51c431fd83fba48e4019a15e",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_import_close(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "58d0a9c3d1002be9f7a07804453e7d73",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_import_commit(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "149fbc0114fced7c1f0460ed10c4b38c",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_import_get(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "fd300dad8daa6a79ff6cc8d6ff995f4f",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_import_preview(p_member_id text, p_input jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "10119274844a5c18181bc84d4cbc1672",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_close(p_member_id text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "a3647933e118b015fec5a19a94c2008c",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_execute(p_member_id text, p_command jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "cbb2f91e6d6c2361e528d35910dcd6f6",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_get(p_member_id text, p_from text, p_until text)",
+    {
+      "eff": "authenticated",
+      "body": "d6f9c5787b1d2dcc9266c5af33f6e13c",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_preview(p_member_id text, p_input jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "0f5075e2b207503bba7cf7d0902251a1",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "2e4ef8a7dd861b6add34f188a69b691e",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_resolve(p_member_id text, p_source_id text)",
+    {
+      "eff": "authenticated",
+      "body": "aec462adb25555fef1d43af33cd4bdc8",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_interventions_summary(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "9c71042474e19f1083622b37a641dd72",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_abandon(p_member_id text, p_kind text, p_command jsonb, p_request_key text)",
+    {
+      "eff": "authenticated",
+      "body": "e4516d79f98e5a37fa75a76316da1b9c",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_exchange_preview(p_member_id text, p_input jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "ff3c92ae693518a96838ae9a8690d941",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_execute(p_member_id text, p_command jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "e2166190ca9766cfb8af0b0711167c9d",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_get(p_member_id text, p_from text, p_until text)",
+    {
+      "eff": "authenticated",
+      "body": "c29f03b0f8563396189af837e76383e6",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_publish_manifest(p_member_id text, p_input jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "0bf12bef08918843e7a7f0b880b34ede",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_publish_page(p_member_id text, p_preview_id text, p_manifest_hash text, p_index integer)",
+    {
+      "eff": "authenticated",
+      "body": "03ba2c2e053e8485e97060c937c716d3",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_publish_preview(p_member_id text, p_input jsonb)",
+    {
+      "eff": "authenticated",
+      "body": "e35e284cbeb7ee711285e338f662cb0f",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "6b6104f6ce920b65baf97cd26163d3f4",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_recommend(p_member_id text, p_input jsonb, p_source_as_of text)",
+    {
+      "eff": "authenticated",
+      "body": "ae6eaffeee43ba23a8eb7766e02342a8",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_operations_references(p_member_id text, p_source_as_of text, p_from text, p_until text)",
+    {
+      "eff": "authenticated",
+      "body": "495b9acc8f5166a8cf5ecf3ae1797678",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_preparation_execute(p_member_id text, p_input jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "e0eafd87104497ceefe9081dd752283f",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_preparation_get(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "6646c354d2e701e8d69e4d0403c02f18",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_publication_execute(p_member_id text, p_command jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "367148819d934bed9323dd2bf5bbe42a",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_readiness(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "61196ce96a6a7a432619ef68e99af496",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_save_draft(p_member_id text, p_input jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "415ac674dc6e48b49c8a3b24dd264fc4",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_school_day_execute(p_member_id text, p_command jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "4011eff82346962fb2a0e267d75c8bed",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_school_day_preview(p_member_id text, p_input jsonb, p_source_as_of text, p_from text, p_until text)",
+    {
+      "eff": "authenticated",
+      "body": "ea94bb850283d26f6ba4b0b50b5f21f1",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_setup_execute(p_member_id text, p_command jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "8e3cf009597fae2e10e278f0d172d344",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_setup_get(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "d65ed0c1e092bfef60064d02f55e000a",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_target_get(p_member_id text)",
+    {
+      "eff": "authenticated",
+      "body": "ea65efb30f3673ace112145fbc7f3876",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "public.workhub_timetable_target_set(p_member_id text, p_input jsonb, p_request_key text, p_recover_only boolean)",
+    {
+      "eff": "authenticated",
+      "body": "79eba1b6273cb2d208f371040d80b71f",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.c_basic_member(p_actor uuid, p_member text)",
+    {
+      "eff": "",
+      "body": "c4213f5ed51d1f370b86ca2eb5ee497f",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.mp1_actor(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "7b5f9e91c88df52b969cb96cf25db08d",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.mp1_allowed(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "2dda8f908cfa3f37a44e04e10c81086a",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor(p_member_id text, p_lock boolean, p_scope text)",
+    {
+      "eff": "",
+      "body": "d121f028663dbf3c9df17d58cc2e4de0",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_calendar(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "c8d4b6b47751dae3511d811f899bd6be",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_collections(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "ea371f7bbde25e2c4175a20cf184b81d",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_cooperation(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "4a0f79bd3968f51de38d62292f85757b",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_messages(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "3e6aafb651bcdb081b1c025587eb258f",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_tasks(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "622da81641ea7e1ce271c540fb632fbd",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_teaching(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "7a65100b5447cce91d308c7c37be4133",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_timetable(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "0766af361f6e0051fd38f8278d1bfb17",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_actor_transitions(p_member_id text, p_lock boolean)",
+    {
+      "eff": "",
+      "body": "a2d48a10558aea54688019e310a3892c",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "workhub_private.actor_context",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_allowed(p_school text, p_member text, p_scope text)",
+    {
+      "eff": "",
+      "body": "86f076f3c3c3f468b9653a5f78beadc0",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable(p_school text, p_member text, p_scope text)",
+    {
+      "eff": "",
+      "body": "d0c17c9c1e08a457f2d05468ad9fb4f5",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_calendar(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "ccecfb4eaca642b4ffa80809f0886175",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_collections(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "00435eecc8e0a264bf6bb533960c44eb",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_cooperation(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "c08767ea243fb8d77efe5aca1885d891",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_messages(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "4cc325e978b9a3cd6bf647dec7f00a02",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_tasks(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "6c5bd02c54b310cb9ada1fed250275a2",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_teaching(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "cbdda802d788f6bb0674e5678b5f701f",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_timetable(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "f20d74d8aee6186697fd96bb88e12db7",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_reachable_transitions(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "ffb61c9eea9df8bafd716b486bb2515a",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_set_grant(p jsonb)",
+    {
+      "eff": "",
+      "body": "b3eb47dff8d46b71dc5865fb9f1b3534",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.op1_valid_scopes(p text[])",
+    {
+      "eff": "",
+      "body": "8fe53ba0b255854ed3a748a6ee5ca0f6",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": false
+    }
+  ],
+  [
+    "function",
+    "workhub_private.p2_coop_apply(ctx workhub_private.actor_context, cmd jsonb, p_key text)",
+    {
+      "eff": "",
+      "body": "67645eff025c46569388de9107fb61be",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.p7_recipient_ok(p_ctx workhub_private.actor_context, p_member text)",
+    {
+      "eff": "",
+      "body": "f40be1eb815e8f8305db1243bdcacc72",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.p7_tr_mutate(p_ctx workhub_private.actor_context, p_cmd jsonb, p_key text)",
+    {
+      "eff": "",
+      "body": "390c1fa721426116119dc19c4ba96078",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "jsonb",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.p8_handover_recheck(p_ctx workhub_private.actor_context, t workhub.transition_records)",
+    {
+      "eff": "",
+      "body": "9a70f115a2e087f07d1a70a66564c4ae",
+      "exec": "",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "void",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.t2_approvers(p_school text, p_today date)",
+    {
+      "eff": "",
+      "body": "8cce8a1af621124804f9a296b1ac658e",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "TABLE(membership_id text, account_id text)",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_private.t3_member(p_school text, p_member text)",
+    {
+      "eff": "",
+      "body": "f2c084aabb0e68b3b549cd5873a781cc",
+      "exec": "",
+      "lang": "sql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_storage.object_insertable(p_name text)",
+    {
+      "eff": "authenticated",
+      "body": "a9235bcaaaea1eb5f2439fc74fb18818",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "function",
+    "workhub_storage.object_readable(p_name text)",
+    {
+      "eff": "authenticated",
+      "body": "fd359ac4cb6ab4e41dd41eb2f860c800",
+      "exec": "authenticated",
+      "lang": "plpgsql",
+      "config": "search_path=\"\"",
+      "result": "boolean",
+      "secdef": true
+    }
+  ],
+  [
+    "index",
+    "workhub.participant_grants.participant_grants_auth_user_id_key",
+    {
+      "ready": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX participant_grants_auth_user_id_key ON workhub.participant_grants USING btree (auth_user_id)"
+    }
+  ],
+  [
+    "index",
+    "workhub.participant_grants.participant_grants_pkey",
+    {
+      "ready": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX participant_grants_pkey ON workhub.participant_grants USING btree (school_id, membership_id)"
+    }
+  ],
+  [
+    "index",
+    "workhub_private.op1_installs.op1_installs_pkey",
+    {
+      "ready": true,
+      "valid": true,
+      "definition": "CREATE UNIQUE INDEX op1_installs_pkey ON workhub_private.op1_installs USING btree (batch)"
+    }
+  ],
+  [
+    "table",
+    "workhub.participant_grants",
+    {
+      "api": "",
+      "rls": true,
+      "kind": "r",
+      "owner": "postgres",
+      "forceRls": false,
+      "persistence": "p"
+    }
+  ],
+  [
+    "table",
+    "workhub_private.op1_installs",
+    {
+      "api": "",
+      "rls": true,
+      "kind": "r",
+      "owner": "postgres",
+      "forceRls": false,
+      "persistence": "p"
+    }
+  ],
+  [
+    "trigger",
+    "workhub_private.op1_installs.op1_installs_immutable",
+    {
+      "def": "cef7bec6458c11f297017a84450c4f65",
+      "enabled": "O"
+    }
+  ]
+]

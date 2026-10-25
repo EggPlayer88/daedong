@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase, getSession } from '@daedong/shared'
 import { useAuth } from './AuthContext.jsx'
 import { parseMessagingPilot } from './messaging-pilot.js'
+import { parseWorkhubParticipant } from './workhub-participant.js'
 
 const Context = createContext({ access: null, checking: false })
 export const useMessagingPilot = () => useContext(Context)
@@ -22,6 +23,13 @@ export function MessagingPilotProvider({ children }) {
       try {
         access = await Promise.race([
           (async () => {
+            const participation = await supabase.rpc('workhub_participant_access')
+            const participant = !participation.error ? parseWorkhubParticipant(participation.data, profile, userId) : null
+            if (participant) {
+              const current = await getSession()
+              return current?.user?.id === userId ? participant : null
+            }
+            // OP1 미설치/미허용일 때 이미 승인된 MP1 메신저 경로를 보존한다.
             const { data, error } = await supabase.rpc('workhub_messaging_pilot_access')
             const current = await getSession()
             return !error && current?.user?.id === userId ? parseMessagingPilot(data, profile, userId) : null

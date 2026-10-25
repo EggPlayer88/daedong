@@ -228,6 +228,15 @@ jobs:
           WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
           WORKHUB_DEPLOYMENT_TEST_PORT: '55619'
         run: python database/workhub-messaging-pilot/mp1/test/run_mp1.py
+      - name: 지정 계정 업무 참여 SQL·통합 점검 재생성
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55629'
+        run: |
+          python database/workhub-participation/op1/build.py
+          python database/workhub-participation/op1/build-catalog.py
+          python database/workhub-participation/op1/package.py
+          git diff --exit-code -- database/workhub-participation/op1
       # 신규 앱의 타입 검사와 일반 빌드도 확인한다. 배포나 메뉴 공개는 하지 않는다.
       - run: npm run build
       - run: npm run build:workhub

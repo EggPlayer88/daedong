@@ -1,0 +1,10 @@
+[
+  {"id":"messages","label":"메시지와 알림","requires":[]},
+  {"id":"tasks","label":"내 업무","requires":[]},
+  {"id":"calendar","label":"학교 일정","requires":[]},
+  {"id":"cooperation","label":"협업 요청","requires":["tasks","messages"]},
+  {"id":"collections","label":"자료 수합","requires":[]},
+  {"id":"transitions","label":"업무 인계","requires":["cooperation","collections"]},
+  {"id":"teaching","label":"수업과 평가","requires":[]},
+  {"id":"timetable","label":"시간표 운영","requires":["calendar","messages","teaching"]}
+]
