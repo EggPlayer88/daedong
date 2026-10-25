@@ -14,6 +14,7 @@ const bundle = buildSync({stdin:{contents:`
   let listener=()=>{}, current=null, profile={id:'synthetic',email:'synthetic@example.invalid',name:'시험 교사',role:'teacher',is_active:false,extra_permissions:[]};
   window.scenario={calls:0,googleCalls:0,code:null,delay:0,setProfile(value){profile=value}};
   const scenario=window.scenario;
+  supabase.rpc=async()=>({data:{allowed:false},error:null});
   supabase.auth.getSession=async()=>({data:{session:current},error:null});
   supabase.auth.onAuthStateChange=cb=>{listener=cb;return {data:{subscription:{unsubscribe(){listener=()=>{}}}}}};
   supabase.auth.signInWithOAuth=async()=>{scenario.googleCalls++;return {data:{},error:null}};

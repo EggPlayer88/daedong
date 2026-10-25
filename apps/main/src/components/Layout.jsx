@@ -4,10 +4,12 @@ import { useAuth } from '../lib/AuthContext.jsx'
 // 메뉴와 라우트는 **같은 표**를 본다 (lib/modules.js). 한쪽만 고치면 메뉴에 없는
 // 화면이 주소로는 열리거나, 그 반대가 된다.
 import { visibleModules } from '../lib/modules.js'
+import { useMessagingPilot } from '../lib/MessagingPilotContext.jsx'
 
 export default function Layout() {
   const { profile } = useAuth()
-  const menu = visibleModules(profile)
+  const { access } = useMessagingPilot()
+  const menu = visibleModules(profile, access)
   const { pathname } = useLocation()
   const workhub = pathname === '/workhub'
   const navigation = <nav className="nav" aria-label="기존 업무 메뉴">{menu.map(m => (

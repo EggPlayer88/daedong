@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
@@ -11,6 +11,7 @@ import PendingPage from './pages/PendingPage.jsx'
 import WorkhubPage from './pages/WorkhubPage.jsx'
 import SchoolSetupPage from './pages/SchoolSetupPage.jsx'
 import { visibleModules } from './lib/modules.js'
+import { MessagingPilotProvider, useMessagingPilot } from './lib/MessagingPilotContext.jsx'
 
 // 모듈 key → 화면. 라우트 목록은 lib/modules.js 가 정한다 —
 // **볼 수 없는 모듈은 라우트를 아예 만들지 않는다.** 메뉴만 숨기면 주소를 아는
@@ -29,18 +30,22 @@ const SCREENS = {
 // (깜빡임 방지 겸, OAuth 복귀 직후 로그인 화면이 스쳐 보이는 것을 막는다)
 function Gate() {
   const { isLoggedIn, loading, profile, profileLoading, profileError } = useAuth()
+  const { access: pilotAccess, checking: pilotChecking } = useMessagingPilot()
+  const { pathname } = useLocation()
 
   if (loading) return <div className="boot">불러오는 중…</div>
   if (!isLoggedIn) return <LoginPage />
 
   // 프로필을 아직 못 읽었으면 판정을 미룬다 — 승인된 사용자에게 대기 화면이
   // 스쳐 보이지 않게. (프로필 조회 실패는 아래 대시보드가 사유를 보여준다)
-  if (profileLoading && !profileError) return <div className="boot">불러오는 중…</div>
+  if (!profileError && (profileLoading || !profile)) return <div className="boot">불러오는 중…</div>
 
   // 승인 대기 (D20) — 앱 진입 차단. 라우트 자체를 만들지 않는다
   if (profile && profile.is_active === false) return <PendingPage />
 
-  const mods = visibleModules(profile)
+  // 직접 들어온 시범 주소는 서버 판정 전 대시보드로 보내지 않는다. 기존 교사 화면은 기다리지 않는다.
+  if (pathname === '/workhub' && pilotChecking) return <p role="status">업무실 시험 권한 확인 중…</p>
+  const mods = visibleModules(profile, pilotAccess)
 
   return (
     <Routes>
@@ -62,9 +67,9 @@ function Gate() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <MessagingPilotProvider><BrowserRouter>
         <Gate />
-      </BrowserRouter>
+      </BrowserRouter></MessagingPilotProvider>
     </AuthProvider>
   )
 }

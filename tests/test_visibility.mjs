@@ -109,7 +109,7 @@ ck('없는 주소는 대시보드로 되돌린다 (App 의 * 라우트)', () => 
   const app = readFileSync(join(ROOT, 'apps/main/src/App.jsx'), 'utf-8')
   A(app.includes('<Route path="*" element={<Navigate to="/" replace />} />'), '폴백 라우트 없음')
   // 라우트를 표에서 만든다 — 화면 목록을 손으로 또 적으면 한쪽만 바뀐다
-  A(app.includes('visibleModules(profile)'), '라우트가 공개 범위를 안 본다')
+  A(app.includes('visibleModules(profile, pilotAccess)'), '라우트가 현재 프로필과 서버 시범 허용을 함께 보지 않는다')
   A(!/<Route path="calendar"/.test(app), '캘린더 라우트가 무조건 등록돼 있다')
 })
 // ⚠ <Navigate> 는 effect 로 움직여 서버 렌더에서는 관찰되지 않는다.
@@ -143,7 +143,7 @@ ck('없는 주소도 어떤 화면도 그리지 않는다', () => {
 })
 ck('메뉴와 라우트가 같은 표를 본다', () => {
   const layout = readFileSync(join(ROOT, 'apps/main/src/components/Layout.jsx'), 'utf-8')
-  A(layout.includes('visibleModules(profile)'), '메뉴가 공개 범위를 안 본다')
+  A(layout.includes('visibleModules(profile, access)'), '메뉴가 현재 프로필과 서버 시범 허용을 함께 보지 않는다')
   A(!layout.includes('const MENU = ['), '메뉴 목록이 따로 남아 있다')
 })
 
