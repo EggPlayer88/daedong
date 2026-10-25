@@ -80,7 +80,7 @@ def body():
     y_start = scalar("select starts_on::text from workhub.academic_years where id=%s", (year,))
     term2, t2s, t2e = scalar("select array[id, starts_on::text, ends_on::text] from workhub.terms where school_id=%s and term_no=2", (s1,))
     t2last = (datetime.date.fromisoformat(t2e) - datetime.timedelta(days=1)).isoformat()
-    assert t2s <= DAY() and DAY(40) <= t2last, '시험은 2학기 안의 날짜에서 돈다'
+    assert t2s <= DAY() and DAY(56) <= t2last, '시험은 2학기 안의 날짜에서 돈다'
     run = admin()
     call(run, "update workhub.accounts set display_name = case id when 'acc-21' then '김국어' when 'acc-22' then '이정보' when 'acc-23' then '박과학' when 'acc-24' then '최담임' else display_name end")
     call(run, "update workhub.memberships set valid_from='2026-03-01' where id='m-27'")
@@ -546,9 +546,18 @@ def body():
           ok(pv5) and [b['code'] for b in d(pv5)['blockers']] == ['NO_CHANGES'] and ok(mf5) and d(mf5)['totalChanges'] == 0 and not fails(t207()),
           (pv5 if not ok(pv5) else d(pv5)['blockers'], fails(t207())))
     # ======================================================================= L. 합반과 휴업 기록 여러 건(Codex #73 P1 2차)
-    W2, W3 = DAY(16), DAY(36)   # DAY(15) 은 G 에서 시각을 직접 옮긴 시험용 수업이 있어 뺀다
-    days_ = [datetime.date.fromisoformat(DAY(k_)) for k_ in range(16, 36)]
-    pubd = [x for x in days_ if x.isoformat() < DAY(29)]                        # 이미 공개된 날(휴업은 수업이 있어야 반영됨)
+    # G·I의 실시 기록 시험은 29일 전까지 수업 시각을 과거로 옮긴다.
+    # 수업 ID 순서나 실행 요일에 따라 같은 수업을 재사용하지 않도록 별도 기간을 공개한다.
+    # 29~36일은 뒤의 M 재공개 시험에 남기고, L은 36~56일만 사용한다.
+    W2, W3 = DAY(36), DAY(56)
+    seed_input = dict(pin_, **{'from': DAY(29), 'until': W3})
+    seed_preview = adm.pprev(seed_input); seed_data = d(seed_preview) or {}
+    seed_result = adm.oexec({'kind': 'publish', 'preview': {'previewId': seed_data.get('previewId'),
+        'previewHash': seed_data.get('previewHash'), 'expiresAt': seed_data.get('expiresAt'), 'input': seed_input}})
+    check('L00 합반·휴업용 수업을 앞선 실시 기록과 분리된 기간에 공개',
+          ok(seed_preview) and seed_data.get('blockers') == [] and ok(seed_result) and d(seed_result).get('status') == 'published', seed_result)
+    days_ = [datetime.date.fromisoformat(DAY(k_)) for k_ in range(36, 56)]
+    pubd = days_                                                           # 이미 공개된 날(휴업은 수업이 있어야 반영됨)
     B_day = next(x for x in pubd if x.isoweekday() == 3).isoformat()           # 1-1 만 닫는 수요일(공개된 첫 수요일)
     A_day = [x for x in pubd if x.isoweekday() == 1 and x.isoformat() > B_day][-1].isoformat()   # 두 반을 휴업 기록 두 건으로 따로 닫는 월요일(그 뒤)
     A2 = [x.isoformat() for x in days_ if x.isoweekday() == 1 and x.isoformat() != A_day]   # 휴업 없는 월요일
@@ -560,7 +569,7 @@ def body():
         if not ok(sp_) or S_['blockers']: return sp_
         return adm.sdexec({'kind': 'school_day', 'preview': {'previewId': S_['previewId'], 'previewHash': S_['previewHash'], 'expiresAt': S_['expiresAt']}})
     cs = [close_(A_day, ['1-1']), close_(A_day, ['1-2']), close_(B_day, ['1-1'])]
-    check('L01 준비: 첫 수요일은 1-1 만 휴업, 그 뒤 월요일은 1-1 · 1-2 를 휴업 기록 두 건으로', all(ok(x) and d(x)['status'] == 'applied' for x in cs)
+    check('L01 준비: 첫 수요일은 1-1 만 휴업, 그 뒤 월요일은 1-1 · 1-2 를 휴업 기록 두 건으로', all(ok(x) and d(x).get('status') == 'applied' for x in cs)
           and n('timetable_school_day_changes', "input->>'date' in (%s, %s)", (A_day, B_day)) == 3 and live_on(A_day) == 0 and len(A2) > 0, (A_day, B_day, cs))
     # 다른 학교의 같은 날 휴업 기록(시험 전용 직접 입력): 이 학교 판단에 섞이면 안 됨
     call(run, "insert into workhub.timetable_school_day_changes (school_id, preview_id, input, changed_lessons, lost_lesson_count, membership_id, request_key, recorded_at)"

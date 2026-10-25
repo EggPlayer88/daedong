@@ -62,8 +62,8 @@ def tests():
  q("update workhub.timetable_intervention_policies set allowed_member_ids=array_remove(allowed_member_ids,'m-24')")
  check('승인자 1계정은 비활성',data(rpc('readiness'))['reason']=='approvers_missing')
  q('update workhub.timetable_intervention_policies set allowed_member_ids=%s',(allowed,))
- # T2의 36일 공개 구간과 뒤의 7일 재공개 시험이 합성 수업에 닿지 않도록 분리한다.
- anchor=old.TODAY+datetime.timedelta(days=49);anchor-=datetime.timedelta(days=anchor.weekday())
+ # T2의 56일 공개 구간과 합성 운영 수업을 분리한다(월요일로 당겨도 겹치지 않음).
+ anchor=old.TODAY+datetime.timedelta(days=70);anchor-=datetime.timedelta(days=anchor.weekday())
  f=anchor.isoformat();u=(anchor+datetime.timedelta(days=28)).isoformat()
  template=q("select to_jsonb(l) from workhub.timetable_lessons l where l.school_id=%s and l.teacher_ids=array['m-21'] and l.state='scheduled' order by l.starts_at desc limit 1",(school,))[0][0]
  publication=q('select to_jsonb(p) from workhub.timetable_publications p where id=%s',(template['publication_id'],))[0][0]
