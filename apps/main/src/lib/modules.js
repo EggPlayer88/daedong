@@ -13,6 +13,7 @@
 
 import { atLeast, can } from '@daedong/shared'
 import { hasMessagingPilot } from './messaging-pilot.js'
+import { hasWorkhubParticipant } from './workhub-participant.js'
 
 /** 공개 범위 — 'all'(로그인한 승인 사용자 전원) | 'admin' | 'superadmin' */
 export const VISIBILITY = ['all', 'admin', 'superadmin']
@@ -39,7 +40,7 @@ export function isVisible(profile, mod, pilotAccess = null) {
   if (!mod) return false
   const scope = mod.visibility || DEFAULT_VISIBILITY
   if (scope === 'admin' && !atLeast(profile, 'admin')) return false
-  if (scope === 'superadmin' && !atLeast(profile, 'superadmin') && !(mod.key === 'workhub' && mod.to === '/workhub' && hasMessagingPilot(profile, pilotAccess))) return false
+  if (scope === 'superadmin' && !atLeast(profile, 'superadmin') && !(mod.key === 'workhub' && mod.to === '/workhub' && (hasMessagingPilot(profile, pilotAccess) || hasWorkhubParticipant(profile, pilotAccess)))) return false
   // 기존 action 판정도 함께 만족해야 한다 (둘 다 있으면 둘 다)
   if (mod.action && !can(profile, mod.action)) return false
   return true
