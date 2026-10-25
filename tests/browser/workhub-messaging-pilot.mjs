@@ -18,6 +18,7 @@ const bundle=buildSync({stdin:{contents:`
  const envelope=data=>({contractVersion:1,schoolId:'school',memberId:'member',userId:'teacher',ok:true,data});
  supabase.rpc=async(name,args)=>{
   window.calls.push({name,args});
+  if(name==='workhub_participant_access')return{data:null,error:{code:'PGRST202'}};
   if(name==='workhub_messaging_pilot_access'){
    if(window.scenario==='missing')return{data:null,error:{code:'PGRST202'}};
    if(window.scenario==='delayed')await new Promise(r=>window.resolveAccess=r);
@@ -55,7 +56,7 @@ try{
  console.log('  ✓ 미저장 메시지와 원요청이 남으면 기존 메뉴 이동 차단')
  await page.evaluate(()=>{window.allowed=false;window.dispatchEvent(new Event('focus'))});await heading().waitFor({state:'detached'});assert.equal(await page.getByLabel('메시지',{exact:true}).count(),0)
  console.log('  ✓ 서버 중지 시 전용 화면과 입력 접근 종료')
- for(const scenario of ['denied','missing']){await boot(scenario);await page.waitForURL('http://127.0.0.1:5176/');assert.equal(await heading().count(),0);assert.deepEqual(await page.evaluate(()=>window.calls.map(c=>c.name)),['workhub_messaging_pilot_access']);console.log('  ✓ '+scenario+' 직접 주소 접근 차단·기존 교사 화면 유지')}
+ for(const scenario of ['denied','missing']){await boot(scenario);await page.waitForURL('http://127.0.0.1:5176/');assert.equal(await heading().count(),0);assert.deepEqual(await page.evaluate(()=>window.calls.map(c=>c.name)),['workhub_participant_access','workhub_messaging_pilot_access']);console.log('  ✓ '+scenario+' 직접 주소 접근 차단·기존 교사 화면 유지')}
  await boot('delayed');await page.waitForFunction(()=>Boolean(window.resolveAccess));await page.evaluate(()=>{window.changeUser();window.resolveAccess()});await page.waitForFunction(()=>window.calls.filter(c=>c.name==='workhub_messaging_pilot_access').length>=2);await page.evaluate(()=>window.resolveAccess());await page.waitForURL('http://127.0.0.1:5176/');assert.equal(await heading().count(),0)
  console.log('  ✓ 계정 변경 후 지연된 이전 허용 응답 무시')
  await boot();await heading().waitFor();await page.evaluate(()=>{window.expiresAt=new Date(Date.now()+1500).toISOString();window.dispatchEvent(new Event('focus'))});await heading().waitFor({state:'detached'});console.log('  ✓ 허용 만료 시 타이머로 화면 접근 종료')
