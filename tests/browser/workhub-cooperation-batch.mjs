@@ -105,6 +105,39 @@ await check('실제 제외 대상 변경은 중복으로 숨기지 않고 사용
  assert.equal(await page.evaluate(()=>window.pending.count()),0);
 },'batch');
 await check('일괄 저장 응답 유실은 선택행·원본버전·요청번호를 보존하고 중복 생성하지 않는다',async()=>{await prepareCsv();await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('원본 변경 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('선택한 2개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();await page.evaluate(()=>window.failOnce=true);await page.getByRole('button',{name:'선택한 일정 한 번에 저장',exact:true}).click();await page.getByRole('button',{name:'같은 일괄 요청으로 결과 다시 확인',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),1);assert.equal(await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).isChecked(),true);assert.equal(await page.getByRole('button',{name:'검토 마치기',exact:true}).isDisabled(),true);await page.getByRole('button',{name:'같은 일괄 요청으로 결과 다시 확인',exact:true}).click();await page.getByRole('heading',{name:'2개 일정 저장 확인',exact:true}).waitFor();const c=await page.evaluate(()=>window.calls.filter(c=>c.name==='workhub_calendar_batch_commit'));assert.deepEqual(c[0],c[1]);assert.equal(await page.evaluate(()=>window.events.length),4);assert.equal(await page.evaluate(()=>window.events.find(e=>e.title==='원본 변경 일정').version),3);assert.equal(await page.evaluate(()=>window.pending.count()),0);assert.equal(await page.evaluate(()=>window.saved.length),1)},'batch')
+for(const recover of [false,true])await check(`일괄 ${recover?'응답 복구':'정상 저장'} 뒤 다른 원본은 이전 접수증·비교를 지우고 새 번호로 저장한다`,async()=>{
+ await prepareCsv();
+ await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).check();
+ await page.getByLabel('선택한 1개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();
+ if(recover)await page.evaluate(()=>window.failOnce=true);
+ await page.getByRole('button',{name:'선택한 일정 한 번에 저장',exact:true}).click();
+ if(recover){await page.getByRole('button',{name:'같은 일괄 요청으로 결과 다시 확인',exact:true}).waitFor();await page.getByRole('button',{name:'같은 일괄 요청으로 결과 다시 확인',exact:true}).click()}
+ await page.getByRole('heading',{name:'1개 일정 저장 확인',exact:true}).waitFor();
+ await page.getByRole('button',{name:'다른 원본 가져오기',exact:true}).click();
+ assert.equal(await page.getByLabel('원본 묶음 ID',{exact:true}).isEnabled(),true);
+ assert.equal(await page.getByLabel('원본 표 붙여넣기',{exact:true}).inputValue(),'');
+ assert.equal(await page.getByRole('heading',{name:'1개 일정 저장 확인',exact:true}).count(),0);
+ assert.equal(await page.getByRole('heading',{name:'저장 전 전체 비교',exact:true}).count(),0);
+ assert.equal(await page.getByLabel('일괄 원본 ID 열',{exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'열 연결 확인',exact:true}).isDisabled(),true);
+ assert.equal(await page.getByRole('button',{name:'다른 화면',exact:true}).isEnabled(),true);
+ assert.equal(await page.evaluate(()=>window.pending.count()),0);
+ // 초기화한 탭 메모리를 다시 읽어도 이전 완료 상태가 살아나지 않는다.
+ await page.evaluate(()=>window.remountBatch());
+ await page.getByRole('heading',{name:'일정 일괄 가져오기',exact:true}).waitFor();
+ await prepareCsv('원본 ID,제목,시작일,설명\nA-next,다음 원본 일정,2026-10-21,새 묶음의 설명');
+ await page.getByLabel('다음 원본 일정 저장 대상으로 선택',{exact:true}).check();
+ await page.getByLabel('선택한 1개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();
+ await page.getByRole('button',{name:'선택한 일정 한 번에 저장',exact:true}).click();
+ await page.getByRole('heading',{name:'1개 일정 저장 확인',exact:true}).waitFor();
+ const calls=await page.evaluate(()=>window.calls.filter(c=>c.name==='workhub_calendar_batch_commit'));
+ assert.equal(calls.length,recover?3:2);
+ assert.notEqual(calls.at(-1).args.p_request_key,calls[0].args.p_request_key);
+ assert.notEqual(calls.at(-1).args.p_command.prepareId,calls[0].args.p_command.prepareId);
+ assert.equal(await page.evaluate(()=>window.events.filter(e=>e.title==='새 일정').length),1);
+ assert.equal(await page.evaluate(()=>window.events.filter(e=>e.title==='다음 원본 일정').length),1);
+ assert.equal(await page.evaluate(()=>window.saved.length),2);
+},'batch');
 await check('비교 후 다른 창 변경은 전체 저장을 중지하고 원본 입력을 보존한다',async()=>{await prepareCsv();await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('원본 변경 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('선택한 2개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();await page.evaluate(()=>window.batchConflict=true);await page.getByRole('button',{name:'선택한 일정 한 번에 저장',exact:true}).click();await page.getByRole('alert').filter({hasText:'다른 곳에서 자료가 변경'}).waitFor();assert.equal(await page.evaluate(()=>window.events.length),3);assert.equal(await page.getByLabel('원본 표 붙여넣기',{exact:true}).inputValue(),csv);assert.equal(await page.evaluate(()=>window.pending.count()),0);assert.equal(await page.getByRole('heading',{name:'저장 전 전체 비교',exact:true}).count(),0)},'batch')
 await check('CSV 일부 행 보류와 원본 재선택 실패는 기존 동의를 재사용하지 않는다',async()=>{await prepareCsv(csv+'\n,원본 ID 없는 일정,2026-10-21,내용');await page.getByRole('heading',{name:'입력 보류 1행',exact:true}).waitFor();await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('선택한 1개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();await page.getByLabel('일정 CSV·TSV 파일',{exact:true}).setInputFiles({name:'깨진.csv',mimeType:'text/csv',buffer:Buffer.from([0xff,0xfe,0xfd])});await page.getByRole('alert').filter({hasText:'UTF-8로 읽을 수 없습니다.'}).waitFor();assert.equal(await page.getByRole('heading',{name:'저장 전 전체 비교',exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.name==='workhub_calendar_batch_commit').length),0)},'batch')
 await check('작은 화면의 전체 충돌 비교가 넘치지 않고 원문은 영속 저장되지 않는다',async()=>{await page.setViewportSize({width:320,height:740});await prepareCsv();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})),{local:0,session:0});if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,'calendar-batch-320.png'),fullPage:true})}},'batch')
