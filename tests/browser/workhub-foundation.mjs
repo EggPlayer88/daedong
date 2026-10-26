@@ -38,10 +38,11 @@ try{
   await test('직접 주소·새로고침은 화면 선택과 다른 query/hash를 유지한다',async()=>{
     await page.reload();await screen('내 업무');assert.equal(new URL(page.url()).searchParams.get('keep'),'fixture');assert.equal(new URL(page.url()).hash,'#preview')
   })
-  await test('오늘의 하위 내 업무·업무 수합·나의 수업 메뉴 구조와 현재 위치를 제공한다',async()=>{
-    assert.equal(await nav().locator('.ws-primary-menus').getByRole('button',{name:'내 업무',exact:true}).count(),1)
-    assert.equal(await nav().getByRole('button',{name:'내 업무',exact:true}).getAttribute('aria-current'),'page')
-    assert.match(await page.getByRole('navigation',{name:'현재 위치'}).innerText(),/오늘[\s\S]*내 업무/)
+  await test('업무 범주와 관련 수합·보조 수업 메뉴 구조와 현재 위치를 제공한다',async()=>{
+    assert.equal(await nav().locator('.ws-primary-menus').getByRole('button',{name:'업무',exact:true}).count(),1)
+    assert.equal(await nav().getByRole('button',{name:'업무',exact:true}).getAttribute('aria-current'),'page')
+    assert.equal(await page.getByRole('navigation',{name:'관련 업무 메뉴'}).getByRole('button',{name:'자료 수합',exact:true}).count(),1)
+    assert.match(await page.getByRole('navigation',{name:'현재 위치'}).innerText(),/업무실[\s\S]*내 업무/)
     await nav().getByRole('button',{name:'더보기',exact:true}).click()
     const more=page.getByRole('dialog',{name:'더보기',exact:true})
     assert.equal(await more.locator('.ws-group-work').getByRole('button',{name:'자료 수합',exact:true}).count(),1)
@@ -91,7 +92,18 @@ try{
   await test('본문 건너뛰기와 360px 더보기로 모든 화면을 찾고 가로 넘침이 없다',async()=>{
     await page.getByRole('link',{name:'본문으로 건너뛰기'}).focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'H1')
     await page.setViewportSize({width:360,height:800});assert.equal(await nav().getByRole('button',{name:'수업과 학생',exact:true}).isVisible(),false)
-    for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){await menu(name);await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'));assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name);if(['자료 수합','수업과 학생'].includes(name)){assert.equal(await nav().locator('.ws-menu-button[aria-current="page"]').count(),0);assert.equal(await nav().locator('.ws-more-current').count(),1)}else assert.equal(await nav().getByRole('button',{name,exact:true}).getAttribute('aria-current'),'page');assert.equal(await page.getByRole('heading',{level:1}).textContent(),name);if(output)await page.screenshot({path:join(output,`foundation-mobile-${name}.png`),fullPage:true})}
+    for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){
+      await menu(name);await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name)
+      if(name==='수업과 학생'){
+        assert.equal(await nav().locator('.ws-menu-button[aria-current="page"]').count(),0);assert.equal(await nav().locator('.ws-more-current').count(),1)
+      }else{
+        const category=({'오늘':'홈','내 업무':'업무','자료 수합':'업무'})[name]??name
+        assert.equal(await nav().getByRole('button',{name:category,exact:true}).getAttribute('aria-current'),'page')
+      }
+      assert.equal(await page.getByRole('heading',{level:1}).textContent(),name)
+      if(output)await page.screenshot({path:join(output,`foundation-mobile-${name}.png`),fullPage:true})
+    }
     await page.setViewportSize({width:1440,height:1000});await menu('오늘');await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'));if(output)await page.screenshot({path:join(output,'foundation-desktop-home.png'),fullPage:true})
   })
   await test('모바일 더보기에서 연속으로 다른 메뉴를 골라도 이전 화면의 닫기가 새 클릭을 취소하지 않는다',async()=>{

@@ -25,7 +25,7 @@ async function changeTarget(){await target().selectOption('next');await field('�
 async function editSpace(){await openSetup();await page.getByRole('listitem',{name:'과학실 [room-used]',exact:true}).getByRole('button',{name:'공간 수정',exact:true}).click();await field('공간 이름').fill('보존할 과학실 입력')}
 async function saveSpace(){await button('변경 내용 확인').click();await field('변경 내용을 확인했습니다').check();await button('확인한 내용 저장').click()}
 let count=0
-async function test(name,run,options={}){await page.goto('http://127.0.0.1:5179/target-connected');await page.evaluate(options=>window.testOptions=options,options);await page.addScriptTag({content:bundle.outputFiles[0].text});if(!options.legacy)await target().waitFor();try{await run();count++;console.log('  ✓ '+name)}catch(error){writeFileSync(join(output,'failure.html'),await page.content());await page.screenshot({path:join(output,'failure.png'),fullPage:true});throw error}}
+async function test(name,run,options={}){await page.goto('http://127.0.0.1:5179/target-connected');await page.evaluate(options=>window.testOptions=options,options);await page.addScriptTag({content:bundle.outputFiles[0].text});await button('편성 관리').click();if(!options.legacy)await target().waitFor();try{await run();count++;console.log('  ✓ '+name)}catch(error){writeFileSync(join(output,'failure.html'),await page.content());await page.screenshot({path:join(output,'failure.png'),fullPage:true});throw error}}
 try{
  await test('기준판이 없어도 다음 학기를 선택한 뒤 해당 준비와 공간 자료를 연다',async()=>{
   await page.getByRole('heading',{name:'시간표 기초 자료를 준비하고 있습니다',exact:true}).waitFor();await changeTarget();await page.waitForFunction(()=>window.targetWrites===1&&window.pending.count()===0)
@@ -84,7 +84,7 @@ try{
   assert.equal((await writes()).length,1);assert.equal((await targetWrites()).length,0)
  },{legacy:true})
  await test('준비 대상은 다음 학기여도 공개 운영 조회는 요청 기간을 유지하고 target 설정을 보내지 않는다',async()=>{
-  await changeTarget();await page.waitForFunction(()=>window.pending.count()===0);await button('확정·공유·교환').click();await page.getByRole('heading',{name:'시간표 운영',exact:true}).waitFor();await page.waitForFunction(()=>window.calls.some(row=>row.name==='workhub_timetable_operations_get'))
+  await changeTarget();await page.waitForFunction(()=>window.pending.count()===0);await button('시간표 보기').click();await page.getByRole('heading',{name:'시간표 운영',exact:true}).waitFor();await page.waitForFunction(()=>window.calls.some(row=>row.name==='workhub_timetable_operations_get'))
   const calls=await called('workhub_timetable_operations_get');assert.equal(calls[0].args.p_from,'2026-10-19');assert.equal(calls[0].args.p_input,undefined);assert.equal(calls[0].args.p_term_id,undefined)
   assert.equal(await page.evaluate(()=>window.target.termId),'next');assert.equal((await targetWrites()).length,1)
  })

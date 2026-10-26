@@ -73,7 +73,7 @@ try{
   await go('문서함');await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).click();await page.getByRole('button',{name:/학교 행사 참여 원본 양식/}).click()
   await page.getByLabel('참여 계획 (필수)',{exact:true}).fill('AI 호출 전 작성한 참여 계획');await page.getByLabel('참여 인원 (필수)',{exact:true}).fill('7')
   await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),0)
-  await page.getByRole('navigation',{name:'작업 연결',exact:true}).getByRole('button',{name:'문서함으로 돌아가기',exact:true}).click();await page.getByRole('heading',{name:'학교 행사 참여 원본 양식 · v2',exact:true}).waitFor()
+  await page.getByRole('button',{name:'AI 옆자리 닫기',exact:true}).click();await page.getByRole('heading',{name:'학교 행사 참여 원본 양식 · v2',exact:true}).waitFor()
   assert.equal(await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).getAttribute('aria-pressed'),'true')
   if(await page.getByRole('button',{name:'보관한 양식 입력 계속하기',exact:true}).count())await page.getByRole('button',{name:'보관한 양식 입력 계속하기',exact:true}).click()
   await page.getByLabel('참여 계획 (필수)',{exact:true}).waitFor()

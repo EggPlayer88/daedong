@@ -67,6 +67,7 @@ async function boot(mode = 'panel', state = 'ready') {
   await context.setOffline(false)
   await page.goto(`http://127.0.0.1:5176/readiness-contract-test?mode=${mode}&case=${state}`)
   await page.addScriptTag({ content: bundle.outputFiles[0].text })
+  if (mode === 'connected') await page.locator('.connected-diagnostics > summary').click()
   await button().waitFor()
 }
 async function runAndExpect(expected) { await button().click(); await stage(expected).waitFor() }

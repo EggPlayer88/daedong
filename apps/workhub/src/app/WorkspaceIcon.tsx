@@ -20,6 +20,9 @@ const paths: Record<IconName, ReactNode> = {
   search: <><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></>,
 }
 
+const emoji: Partial<Record<IconName, string>> = { home: '🏠', timetable: '🗓', calendar: '📅', tasks: '📋', collections: '📥', documents: '📁', knowledge: '📚', students: '📖', messages: '💬', cooperation: '🔄', schoolAdmin: '⚙', assistant: '✨', appearance: '🎨', school: '🏡' }
+
 export function WorkspaceIcon({ name }: { name: IconName }) {
+  if (emoji[name]) return <span className="ws-tossface" aria-hidden="true">{emoji[name]}</span>
   return <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>
 }

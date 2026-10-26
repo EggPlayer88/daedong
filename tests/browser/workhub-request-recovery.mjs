@@ -42,7 +42,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
 const errors = [], results = []
 page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message))
 page.on('dialog', dialog => dialog.accept())
-const menu = name => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name, exact: true })
+const menu = name => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name: name === '내 업무' ? '업무' : name, exact: true })
 async function go(name) { await clickWorkspaceMenu(page,name); await page.getByRole('heading', { name: name === '오늘' ? '오늘' : name, level: 1, exact: true }).waitFor() }
 async function test(name, run) { await run(); results.push(name); console.log('  ✓ ' + name) }
 async function boot() {
@@ -65,9 +65,9 @@ try {
   await boot()
   await test('빈 업무 입력창은 이동을 잠그지 않고 실제 입력 후에는 보호한다', async () => {
     await go('내 업무'); await page.getByRole('button', { name: '할 일 등록', exact: true }).click()
-    assert(await menu('학교 일정').isEnabled())
+    assert(await menu('홈').isEnabled())
     await page.getByLabel('해야 할 일', { exact: true }).fill('작성 중')
-    assert(await menu('학교 일정').isDisabled())
+    assert(await menu('홈').isDisabled())
     await page.getByRole('button', { name: '편집 취소', exact: true }).click()
   })
   await test('46번째 신규 업무는 성공 안내에서 해당 쪽의 카드로 바로 이동한다', async () => {
@@ -83,7 +83,7 @@ try {
     await page.getByRole('button', { name: '이전 요청 그대로 다시 확인', exact: true }).waitFor()
     assert.equal(await page.evaluate(() => qa.tasks().filter(t => t.title === '복구할 업무').length), 1)
     await page.getByRole('button', { name: '입력창 접고 목록 보기', exact: true }).click()
-    assert(await menu('학교 일정').isEnabled())
+    assert(await menu('홈').isEnabled())
     await go('학교 일정'); await go('내 업무')
     await page.getByRole('button', { name: '이전 요청 그대로 다시 확인', exact: true }).waitFor()
     assert(await page.getByRole('button', { name: '할 일 등록', exact: true }).isDisabled())

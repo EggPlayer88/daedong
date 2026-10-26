@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 홈을 바쁜 합성 자료로 검사한다. 운영 DB·인증·외부 서버는 사용하지 않는다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -39,7 +40,7 @@ await context.route('**/*', route => {
 async function settle() { await page.waitForFunction(() => !document.querySelector('.loading-state,.task-loading')); await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) }
 async function test(name, action) { await action(); results.push(name); console.log('  ✓ ' + name) }
 async function screenshot(name) { if (output) await page.screenshot({ path: join(output, name + '.png'), fullPage: true }) }
-async function home() { await page.getByRole('navigation', { name: '업무 메뉴', exact: true }).getByRole('button', { name: '오늘', exact: true }).click(); await page.getByRole('heading', { name: '오늘', level: 1, exact: true }).waitFor(); await settle() }
+async function home() { await clickWorkspaceMenu(page, '오늘'); await page.getByRole('heading', { name: '오늘', level: 1, exact: true }).waitFor(); await settle() }
 async function assertFits(label) { const value = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, viewport: innerWidth })); assert(value.width <= value.viewport + 1, label + ': ' + JSON.stringify(value)) }
 async function assertOrder() {
   const value = await page.locator('.home-dashboard').evaluate(element => {
