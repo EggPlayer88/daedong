@@ -1,5 +1,6 @@
 // 생성된 단일 HTML을 Chrome file://로 직접 열어 검사한다. HTTP 서버는 사용하지 않는다.
 import assert from 'node:assert/strict'
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 import { launchBrowser } from './launch-browser.mjs'
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { resolve, join } from 'node:path'
@@ -19,7 +20,7 @@ const output=process.env.WORKHUB_QA_OUTPUT
 if(output)mkdirSync(output,{recursive:true})
 const base=pathToFileURL(path).href
 async function test(name,action){await action();results.push(name);console.log('  ✓ '+name)}
-async function menu(name){const nav=page.getByRole('navigation',{name:'업무 메뉴'}),button=nav.getByRole('button',{name,exact:true});if(!await button.isVisible())await nav.getByRole('button',{name:'더보기',exact:true}).click();await button.click()}
+async function menu(name){await clickWorkspaceMenu(page,name)}
 async function heading(name){await page.getByRole('heading',{name,exact:true,level:1}).waitFor()}
 async function settle(){await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))}
 try{

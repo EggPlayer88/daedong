@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 import { buildSync } from 'esbuild'
 import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
@@ -27,11 +28,7 @@ if (!process.env.WORKHUB_QA_URL) {
   await context.route(`${new URL(url).origin}/**`,route=>route.fulfill({contentType:'text/html',body:`<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body><div id="root"></div><script>${bundle.outputFiles[0].text.replaceAll('</script','<\\/script')}</script></body></html>`}))
 }
 async function ok(name, action) { await action(); results.push(name); console.log('  ✓ ' + name) }
-async function menu(name) {
-  const nav=page.getByRole('navigation',{name:'업무 메뉴'}), button=nav.getByRole('button',{name,exact:true})
-  if(!await button.isVisible())await nav.getByRole('button',{name:'더보기',exact:true}).click()
-  await button.click()
-}
+async function menu(name) { await clickWorkspaceMenu(page,name) }
 const task=title=>page.getByRole('article',{name:title,exact:true})
 async function user(id) {
   const details = page.locator('.developer-panel')

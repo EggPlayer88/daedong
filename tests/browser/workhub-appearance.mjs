@@ -199,10 +199,10 @@ try {
     for (const name of ['학교 일정', '내 업무', '자료 수합', '수업과 학생', '오늘']) {
       await menu(name); await assertFits(`320px ${name}`)
       const navigation=page.getByRole('navigation', { name: '업무 메뉴', exact: true })
-      if(['자료 수합','수업과 학생'].includes(name)){
+      if(name==='수업과 학생'){
         assert.equal(await navigation.locator('[aria-current="page"]').count(),0)
         assert.equal(await navigation.locator('.ws-more-current').count(),1)
-      }else assert.equal(await navigation.locator('[aria-current="page"]').innerText(),name)
+      }else assert.equal(await navigation.locator('[aria-current="page"]').getAttribute('aria-label'),({'오늘':'홈','내 업무':'업무','자료 수합':'업무'})[name]??name)
       assert.equal(await page.getByRole('heading',{name,exact:true,level:1}).count(),1)
     }
     await home(); await openSettings(); await dialog().getByRole('button', { name: '기본 설정으로', exact: true }).click(); await closeSettings()

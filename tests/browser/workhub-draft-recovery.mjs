@@ -99,7 +99,7 @@ async function test(name, run) {
   } finally { await context.close() }
 }
 const titleInput = (page, kind) => kind === 'calendar' ? page.locator('input[name="title"]') : page.getByLabel('해야 할 일', { exact: true })
-const menu = (page, name) => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name, exact: true })
+const menu = (page, name) => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name: name === '오늘' ? '홈' : name, exact: true })
 const flush = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 async function showPage(page, kind) {
   const name = kind === 'calendar' ? '학교 일정' : '내 업무'
