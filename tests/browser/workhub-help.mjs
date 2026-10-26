@@ -82,7 +82,7 @@ try {
     assert.equal(await dialog().getByRole('button', { name: '학교 일정 확인', exact: true }).isDisabled(), true)
     assert.deepEqual(await page.evaluate(() => [window.calls, window.rpcCalls, window.navigations]), [[], [], []])
   })
-  await test('전체 점검은 17항목을 순차 조회하고 준비 응답을 활성화 완료로 바꾸지 않는다', async () => {
+  await test('전체 점검은 19항목을 순차 조회하고 준비 응답을 활성화 완료로 바꾸지 않는다', async () => {
     await page.evaluate(() => { window.codes.school = 'READY_RESPONSE'; window.codes.collections = 'VERIFICATION_MISSING'; window.codes.messaging = 'PARTIAL' })
     await checks(); await dialog().getByRole('button', { name: '전체 연결 점검', exact: true }).click()
     await dialog().getByText('요청한 항목의 조회를 마쳤습니다.', { exact: false }).waitFor()
@@ -103,22 +103,22 @@ try {
     await dialog().getByText('현재 계정과 학교 연결을 확인하기 위해 나머지 점검을 멈췄습니다.', { exact: false }).waitFor()
     assert.deepEqual(await page.evaluate(() => window.calls), ['calendar', 'tasks'])
     const counts = await dialog().locator('.wh-help-check-summary dd').allTextContents()
-    assert.deepEqual(counts.map(Number), code === 'CANCELLED' ? [1, 0, 16] : [1, 1, 15])
+    assert.deepEqual(counts.map(Number), code === 'CANCELLED' ? [1, 0, 18] : [1, 1, 17])
   })
   await test('전체 결과에서 부분 준비와 실패만 추려 보고 필터 변경으로 서버를 호출하지 않는다', async () => {
     await checks()
-    assert.deepEqual((await dialog().locator('.wh-help-check-summary dd').allTextContents()).map(Number), [0, 0, 17])
+    assert.deepEqual((await dialog().locator('.wh-help-check-summary dd').allTextContents()).map(Number), [0, 0, 19])
     await dialog().getByRole('button', { name: '확인 필요', exact: true }).click()
     await dialog().getByText('이 조건에 해당하는 항목이 없습니다.', { exact: false }).waitFor()
     await page.evaluate(() => { window.codes.messaging = 'PARTIAL'; window.codes.timetable = 'NOT_READY'; window.codes.memory = 'DISABLED' })
     await dialog().getByRole('button', { name: '전체 연결 점검', exact: true }).click()
     await dialog().getByText('요청한 항목의 조회를 마쳤습니다.', { exact: false }).waitFor()
-    assert.deepEqual((await dialog().locator('.wh-help-check-summary dd').allTextContents()).map(Number), [14, 3, 0])
+    assert.deepEqual((await dialog().locator('.wh-help-check-summary dd').allTextContents()).map(Number), [16, 3, 0])
     assert.deepEqual(await dialog().locator('[data-check]').evaluateAll(rows => rows.map(row => row.dataset.check)), ['messaging', 'timetable', 'memory'])
     await dialog().getByRole('button', { name: '미확인·취소', exact: true }).click()
     assert.equal(await dialog().locator('[data-check]').count(), 0)
     await dialog().getByRole('button', { name: '전체', exact: true }).click()
-    assert.equal(await dialog().locator('[data-check]').count(), 17)
+    assert.equal(await dialog().locator('[data-check]').count(), 19)
     assert.deepEqual(await page.evaluate(() => window.calls), await page.evaluate(() => window.expectedChecks))
     assert.deepEqual(await page.evaluate(() => [window.rpcCalls, window.navigations]), [[], []])
   })
@@ -134,7 +134,7 @@ try {
     assert.equal(await row('memory').getByRole('button', { name: '개인 AI 기억 관련 메뉴 열기', exact: true }).isDisabled(), true)
     await page.evaluate(() => window.releases.memory())
     await dialog().getByText('이 조건에 해당하는 항목이 없습니다.', { exact: false }).waitFor()
-    assert.deepEqual((await dialog().locator('.wh-help-check-summary dd').allTextContents()).map(Number), [1, 0, 16])
+    assert.deepEqual((await dialog().locator('.wh-help-check-summary dd').allTextContents()).map(Number), [1, 0, 18])
     assert.equal(await dialog().getByRole('button', { name: '확인 필요', exact: true }).evaluate(element => element.getRootNode().activeElement === element), true)
   })
   await test('점검 항목의 메뉴 이동은 기존 페이지를 열고 조회·저장·AI를 자동 실행하지 않는다', async () => {
@@ -200,7 +200,7 @@ try {
     await page.evaluate(() => { window.bad = true }); await checks(); await row('calendar').getByRole('button', { name: '학교 일정 확인', exact: true }).click()
     await row('calendar').getByText('응답 확인 필요', { exact: true }).waitFor(); assert.doesNotMatch(await dialog().innerText(), /secret-student|private@example/)
   })
-  await test('기본 점검기는 실제 앱 어댑터를 통해 허용된 17개 조회만 보낸다', async () => {
+  await test('기본 점검기는 실제 앱 어댑터를 통해 허용된 19개 조회만 보낸다', async () => {
     await dialog().getByRole('button', { name: '닫기', exact: true }).click(); await page.evaluate(() => { window.real = true; window.refresh() }); await trigger().click(); await checks()
     assert.equal(await page.evaluate(() => window.rpcCalls.length), 0); await dialog().getByRole('button', { name: '전체 연결 점검', exact: true }).click(); await dialog().getByText('요청한 항목의 조회를 마쳤습니다.', { exact: false }).waitFor()
     assert.deepEqual(await page.evaluate(() => window.rpcCalls.map(call => call.name)), await page.evaluate(() => window.expectedRpcs))

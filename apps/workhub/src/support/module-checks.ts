@@ -18,12 +18,14 @@ export const checkModules = [
   { id: 'transitions', label: '인계와 학년도', rpc: 'workhub_school_transition_list', page: 'schoolAdmin' },
   { id: 'timetable', label: '시간표 편성', rpc: 'workhub_timetable_readiness', page: 'timetable' },
   { id: 'timetableOperations', label: '시간표 운영', rpc: 'workhub_timetable_operations_readiness', page: 'timetable' },
+  { id: 'timetableInterventions', label: '대강·보강 운영', rpc: 'workhub_timetable_interventions_readiness', page: 'timetable' },
+  { id: 'participation', label: '업무 참여 설정', rpc: 'workhub_participant_administration', page: 'schoolAdmin' },
   { id: 'schoolRoster', label: '교사 소속 연결', rpc: 'workhub_school_roster_get', page: 'schoolAdmin' },
   { id: 'schoolData', label: '학교 자료 정정', rpc: 'workhub_school_data_get', page: 'students' },
   { id: 'memory', label: '개인 AI 기억', rpc: 'workhub_ai_memory_list', page: 'assistant' },
 ] as const satisfies readonly { id: string; label: string; rpc: string; page: PageId }[]
 export type CheckId = typeof checkModules[number]['id']
-export const checkCodes = ['READ_CONFIRMED', 'READY_RESPONSE', 'PARTIAL', 'DATABASE_MISSING', 'STORAGE_MISSING', 'VERIFICATION_MISSING', 'POLICY_MISSING', 'NOT_CONFIGURED', 'DISABLED', 'NOT_READY', 'UNAVAILABLE', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'QUERY_FAILED', 'INVALID_RESPONSE', 'CANCELLED', 'TIMEOUT'] as const
+export const checkCodes = ['READ_CONFIRMED', 'READY_RESPONSE', 'PARTIAL', 'DATABASE_MISSING', 'STORAGE_MISSING', 'VERIFICATION_MISSING', 'POLICY_MISSING', 'NOT_CONFIGURED', 'APPROVERS_MISSING', 'DISABLED', 'NOT_READY', 'UNAVAILABLE', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'QUERY_FAILED', 'INVALID_RESPONSE', 'CANCELLED', 'TIMEOUT'] as const
 export type CheckCode = typeof checkCodes[number]
 export interface ModuleCheck { id: CheckId; code: CheckCode; checkedAt: string }
 export type CheckRunner = (id: CheckId, signal: AbortSignal) => Promise<ModuleCheck>
@@ -36,6 +38,7 @@ const readinessCode = (result: { available: boolean; reason?: string | null }): 
   return code(result.reason?.toUpperCase())
 }
 
+// T4 import_get은 t1_mark로 원본 판 추적값을 기록하므로 이 읽기 전용 목록에서 제외한다.
 // 각 화면의 검증기를 그대로 이용한다. 저장·읽음·파일 획득·AI 호출은 실행하지 않는다.
 async function probe(id: CheckId, connection: SupabaseConnection, memberId: string): Promise<CheckCode> {
   switch (id) {
@@ -56,6 +59,16 @@ async function probe(id: CheckId, connection: SupabaseConnection, memberId: stri
     case 'transitions': return (await (await import('../administration/transitions')).createTransitionService(connection).list(memberId)).dutyApproval === null ? 'PARTIAL' : 'READ_CONFIRMED'
     case 'timetable': return readinessCode(await (await import('../timetable/server')).createTimetableServer(connection).readiness(memberId))
     case 'timetableOperations': return readinessCode(await (await import('../timetable/operations-server')).createTimetableOperationsServer(connection).readiness(memberId))
+    case 'timetableInterventions': return readinessCode(await (await import('../timetable/interventions-server')).createTimetableInterventionsServer(connection).readiness(memberId))
+    case 'participation': {
+      const member = connection.info().memberships.find(item => item.id === memberId)
+      if (!member) return 'CANCELLED'
+      const raw = await connection.rpcVerified('workhub_participant_administration', { p_member_id: memberId })
+      const { participantAdministration } = await import('../participation/contracts')
+      participantAdministration(raw, member)
+      // 만료된 허용도 목록에 남는다. 목록 성공을 참여 허용으로 표시하지 않는다.
+      return 'READ_CONFIRMED'
+    }
     case 'schoolRoster': return readinessCode(await (await import('../setup/school-roster-server')).createSchoolRosterServer(connection).get(memberId))
     case 'schoolData': return readinessCode(await (await import('../teaching/school-data-maintenance-server')).createSchoolDataMaintenanceServer(connection).get(memberId, null))
     // 비활성 상태에서도 목록은 읽을 수 있다. 목록 성공만으로 개인 기억의 쓰기 준비를 표시하지 않는다.
