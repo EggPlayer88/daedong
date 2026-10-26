@@ -25,15 +25,17 @@ test('메뉴의 실제 구현 범위와 공개 제한을 중앙 목록에서 고
 })
 test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공한다', () => {
   const html=body(renderShell({mode:'connected',page:'tasks'}))
-  for(const name of ['오늘','학교 일정','내 업무','메시지와 알림','시간표'])assert(html.includes(`>${name}</span>`))
-  for(const name of ['자료 수합','학교 자료','학교 관리','수업과 학생'])assert(!html.includes(`>${name}</span>`))
+  for(const name of ['홈','시간표','업무','자료'])assert(html.includes(`>${name}</span>`))
+  assert.match(html,/aria-label="메시지와 알림"/);assert.match(html,/aria-label="관련 업무 메뉴"/)
+  for(const name of ['학교 자료','학교 관리','수업과 학생'])assert(!html.includes(`>${name}</span>`))
+  assert.match(html,/>자료 수합<\/button>/)
   assert.equal(workhubModules.find(value=>value.id==='timetable').visibility,'superadmin')
   const assistant=html.match(/<button[^>]*class="[^"]*ws-assistant-trigger[^"]*"[\s\S]*?<\/button>/g)||[]
   assert.equal(assistant.length,1);assert(assistant[0].includes('AI 비서'));assert(!assistant[0].includes('준비 중'))
   assert(!html.includes('<textarea'));assert(!html.includes('대화 전송'))
   assert.match(html,/aria-label="신축 업무 메뉴"/)
   assert.match(html,/class="ws-more-button"[^>]*aria-haspopup="dialog"/)
-  assert.match(html,/ws-child-menu[^>]*aria-current="page"/)
+  assert.match(html,/aria-label="업무" aria-current="page"/)
 })
 test('미리보기의 보조 화면은 더보기와 현재 위치로 연결하고 숨은 링크를 만들지 않는다', () => {
   const html=body(renderShell({page:'students'}))
@@ -46,7 +48,7 @@ test('본문 제목과 main을 중복하지 않고 건너뛰기와 현재 위치
   const html=body(renderShell({page:'tasks'}))
   assert.equal((html.match(/<main>/g)||[]).length,1);assert.equal((html.match(/<h1>/g)||[]).length,1)
   assert.match(html,/>본문으로 건너뛰기<\/a>/);assert.match(html,/aria-label="현재 위치"/)
-  assert.match(html,/<span>오늘<\/span>/);assert.match(html,/<strong aria-current="page">내 업무<\/strong>/)
+  assert.match(html,/<span>홈<\/span>/);assert.match(html,/<strong aria-current="page">내 업무<\/strong>/)
 })
 test('편집 잠금은 모든 이동 버튼에 적용하되 더보기는 탐색 가능하다', () => {
   const html=body(renderShell({locked:true}))

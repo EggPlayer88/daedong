@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -114,7 +115,7 @@ try {
     assert.equal(await page.locator('input[name="title"]').inputValue(), '자정 전에 쓰던 일정 초안')
     assert.equal(await page.locator('input[name="startDate"]').inputValue(), '2026-10-19')
     await page.getByRole('button', { name: '일정 편집 닫기' }).click()
-    await page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name: '내 업무', exact: true }).click()
+    await clickWorkspaceMenu(page, '내 업무')
     await page.getByRole('button', { name: '할 일 등록', exact: true }).click()
     await page.getByLabel('해야 할 일', { exact: true }).fill('자정 전에 쓰던 업무 초안')
     await advanceDay(page, '21')

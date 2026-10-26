@@ -20,6 +20,7 @@ const connection: any = {
     if (name === w.missing) throw { code: 'PGRST202' }
     if (name === 'workhub_school_admin_readiness') return { kind: 'workhub-school-admin', schemaVersion: 1, schoolId: member.schoolId, memberId: member.id, data: { available: true } }
     if (name === 'workhub_timetable_readiness') return wrap('timetable.v1', { available: false, reason: 'basis_missing' })
+    if (name === 'workhub_timetable_interventions_readiness') return wrap('timetable-interventions.v1', { available: false, reason: 'not_installed' })
     if (name === 'workhub_timetable_operations_readiness') return wrap('timetable-operations.v1', { available: false, reason: 'not_installed' })
     const key = preparationRpcKeys[name as keyof typeof preparationRpcKeys]
     if (key) return schoolPreparationEnvelope(name, copy(w.state[key]))

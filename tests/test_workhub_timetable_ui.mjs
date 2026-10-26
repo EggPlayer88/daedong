@@ -2,12 +2,16 @@ import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 const m = await loadBrowserModule(`
 import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';
-import {TimetableWorkspacePanel,timetableClock} from '../apps/workhub/src/timetable/TimetableWorkspace';
+import {TimetableWorkspace,TimetableWorkspacePanel,timetableClock} from '../apps/workhub/src/timetable/TimetableWorkspace';
 import {TimetableBoard} from '../apps/workhub/src/timetable/TimetableBoard';
 export {timetablePracticeSnapshot} from '../apps/workhub/src/timetable/sample';
 export {solveTimetable} from '../packages/timetable/src/solver';
 export {validateBasis,validatePlacements} from '../packages/timetable/src/validate';
 export {timetableClock};
+import {createPendingRequests,PendingRequestsProvider,recoveryScope} from '../apps/workhub/src/app/pending-requests';
+import {createEditDrafts,EditDraftsProvider} from '../apps/workhub/src/app/edit-drafts';
+export function renderEntry(member,kind,route){const store=createPendingRequests(),drafts=createEditDrafts(),scope=recoveryScope(member);if(kind)store.put(scope,kind,{key:'원래-요청',command:{kind:'original'}});if(route)drafts.bind(scope,'timetable-entry').save(route,false);const html=renderToStaticMarkup(React.createElement(EditDraftsProvider,{store:drafts},React.createElement(PendingRequestsProvider,{store},React.createElement(TimetableWorkspace,{connection:{},member,date:'2026-10-26'}))));return {html,pending:kind?store.get(scope,kind):undefined};}
+
 export const render=(kind,props)=>renderToStaticMarkup(React.createElement(kind==='board'?TimetableBoard:TimetableWorkspacePanel,props));
 `)
 const member={id:'member',schoolId:'school',userId:'user',name:'합성교사',role:'teacher',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]}
@@ -22,4 +26,14 @@ check('수업 이동은 키보드 버튼이며 선택 상태와 비활성을 전
 check('학교의 수업·자원 이름은 실행 코드로 렌더하지 않는다',()=>{const unsafe=structuredClone(basis);unsafe.lessons[0].label='<img src=x onerror=alert(1)>';unsafe.resources[0].label='<script>bad</script>';const html=m.render('board',{basis:unsafe,placements:result.placements,onSelect:()=>{}});assert.match(html,/&lt;img/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<img|<script>/)})
 check('아직 배치하지 않은 빈 시간표도 실제 수업을 만들어 표시하지 않는다',()=>{const html=m.render('board',{basis,placements:[],onSelect:()=>{}});assert.doesNotMatch(html,/이동할 수업 선택/);assert.match(html,/편성 초안/)})
 check('자정 경계 시각은 날짜를 추측하지 않고 시각만 표현한다',()=>{assert.equal(m.timetableClock(0),'00:00');assert.equal(m.timetableClock(1439),'23:59');assert.equal(m.timetableClock(1440),'24:00')})
+check('새 진입은 공유 시간표부터 열되 교사가 고른 편성 화면은 기억한다',()=>{
+  const active=html=>html.match(/<button[^>]*aria-pressed="true"[^>]*>[^<]*<\/button>/)?.[0];
+  assert.match(active(m.renderEntry(member).html),/시간표 보기/);
+  assert.match(active(m.renderEntry(member,undefined,'editor').html),/편성 관리/);
+})
+for(const kind of ['timetable','timetableAssistant','timetablePreparation','timetableSetup','timetableSetupBatch','timetableTarget'])check(kind+' 미확정 요청은 새 기본 화면보다 복구 화면을 우선한다',()=>{
+  const {html,pending}=m.renderEntry(member,kind,'operations');
+  assert.match(html,/<button[^>]*aria-pressed="true"[^>]*>편성 관리<\/button>/);
+  assert.deepEqual(pending,{key:'원래-요청',command:{kind:'original'}});
+})
 console.log(`시간표 화면 렌더 검사: ${count}개 통과`)

@@ -39,16 +39,16 @@ try {
   async function fits() { assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)); for (const dialog of await page.locator('dialog[open]').all()) assert(await dialog.evaluate(node => node.scrollWidth <= node.clientWidth + 1)) }
   async function menu(name) { await clickWorkspaceMenu(page,name);await page.getByRole('heading',{name,level:1,exact:true}).waitFor();await settled() }
   await page.getByRole('heading',{name:'오늘',exact:true,level:1}).waitFor();await settled()
-  await scoped('390px 첫 화면은 다섯 개의 하단 메뉴와 검색 하나로 시작한다', async () => {
+  await scoped('390px 미리보기는 지원하는 핵심 메뉴와 검색 하나로 시작한다', async () => {
    assert.equal(await nav().count(),1)
-   assert.deepEqual(await nav().getByRole('button').allTextContents(),['오늘','내 업무','학교 일정','AI 비서','•••더보기'])
+   assert.deepEqual(await nav().getByRole('button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')||n.innerText.replace(/\s/g,''))),['홈','학교 일정','업무','•••더보기'])
    const bounds=await nav().boundingBox();assert(bounds.y>700 && bounds.y+bounds.height<=845)
    assert(await page.locator('.ws-sidebar').evaluate(node=>node.getBoundingClientRect().height<90))
    assert.equal(await page.getByRole('button',{name:'업무 찾기',exact:true}).count(),1)
    assert.equal(await page.getByRole('combobox',{name:/^학교 선택/}).count(),0)
   })
   await scoped('하단 AI 비서에서 연 안내는 준비 상태를 밝히고 닫으면 같은 버튼으로 돌아온다', async () => {
-   const directAi=nav().getByRole('button',{name:'AI 비서',exact:true})
+   const directAi=page.getByRole('button',{name:'AI 비서 열기',exact:true})
    await directAi.click();const assistant=page.getByRole('dialog',{name:'AI 비서',exact:true});await assistant.waitFor()
    assert.equal(await page.locator('dialog[open]').count(),1)
    assert.match(await assistant.innerText(),/현재는 대화를 전송하거나 AI 작업을 실행할 수 없습니다/)
@@ -85,7 +85,7 @@ try {
   await scoped('낮은 화면의 업무 입력을 보존하면서 이동은 잠그고 설정은 허용한다', async () => {
    await page.setViewportSize({width:390,height:480});await menu('내 업무')
    await page.getByRole('button',{name:'할 일 등록',exact:true}).click();await page.getByLabel('해야 할 일',{exact:true}).fill('모바일 입력을 보존하는 가상 초안');await settled()
-   assert(await nav().getByRole('button',{name:'오늘',exact:true}).isDisabled())
+   assert(await nav().getByRole('button',{name:'홈',exact:true}).isDisabled())
    await more().click();assert(await sheet().getByRole('combobox',{name:/^학교 선택/}).isDisabled());assert(await sheet().getByRole('button',{name:'AI 비서 준비 중',exact:true}).isDisabled())
    await sheet().getByRole('button',{name:'화면 설정',exact:true}).click();await page.keyboard.press('Escape')
    const input=page.getByLabel('해야 할 일',{exact:true});assert.equal(await input.inputValue(),'모바일 입력을 보존하는 가상 초안')
@@ -100,9 +100,9 @@ try {
   })
   await scoped('연결 모드 더보기는 시간표를 포함하고 미리보기의 메뉴는 유지한다', async () => {
    await page.setViewportSize({width:390,height:844});await page.goto('http://127.0.0.1:5176/?connected=1'+(shadow?'&shadow=1':''));await page.getByRole('heading',{name:'오늘',level:1,exact:true}).waitFor()
-   const connected=page.getByRole('navigation',{name:'신축 업무 메뉴',exact:true});assert.deepEqual(await connected.getByRole('button').allTextContents(),['오늘','내 업무','학교 일정','AI 비서','•••더보기'])
+   const connected=page.getByRole('navigation',{name:'신축 업무 메뉴',exact:true});assert.deepEqual(await connected.getByRole('button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')||n.innerText.replace(/\s/g,''))),['홈','시간표','업무','자료','•••더보기'])
    await connected.getByRole('button',{name:'더보기',exact:true}).click();assert.equal(await sheet().getByRole('button',{name:'자료 수합',exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'수업과 학생',exact:true}).count(),1)
-   for(const name of ['문서함','협업 요청','학교 관리','AI 비서'])assert.equal(await sheet().getByRole('button',{name,exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'시간표',exact:true}).count(),1)
+   for(const name of ['협업 요청','학교 관리','AI 비서'])assert.equal(await sheet().getByRole('button',{name,exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'시간표',exact:true}).count(),0)
    assert.equal(await sheet().getByRole('button',{name:'화면 설정',exact:true}).count(),1);await fits();await page.keyboard.press('Escape')
   })
   await context.close()

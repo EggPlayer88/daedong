@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 운영 외곽 Layout과 실제 업무실 화면을 합성 회원·학교 자료로 함께 검사한다.
 // 인증 Provider의 읽기 값만 주입하며 실제 인증·DB·외부 호출은 하지 않는다.
 import assert from 'node:assert/strict'
@@ -132,7 +133,7 @@ try {
       assert.equal(await tasks.locator('.task-home-help>summary').evaluate(node=>node.getRootNode().activeElement===node),true)
       await tasks.getByRole('button',{name:'모든 내 업무 보기',exact:true}).click()
       await page.getByRole('heading',{name:'내 업무',level:1,exact:true}).waitFor()
-      await page.getByRole('navigation',{name:'업무 메뉴',exact:true}).getByRole('button',{name:'오늘',exact:true}).click();await settle()
+      await clickWorkspaceMenu(page, '오늘');await settle()
       await page.getByRole('region',{name:'오늘 처리할 수합',exact:true}).getByRole('button',{name:'수합 전체 보기',exact:true}).click()
       await page.getByRole('heading',{name:'자료 수합',level:1,exact:true}).waitFor()
       await assertFits(width+'px 빈 업무 이동')

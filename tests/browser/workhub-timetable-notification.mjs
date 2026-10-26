@@ -1,3 +1,4 @@
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 셸·메시지·시간표 어댑터를 합성 RPC로 왕복한다. 운영 DB 호출은 없다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -19,7 +20,7 @@ const exactCard = () => page.locator('article[data-request-id="request-24"]')
 const makeupSummary = () => page.getByRole('region', { name: '시간표 확인할 일', exact: true })
 const makeupOpen = () => makeupSummary().getByRole('button', { name: /홈에서 선택한 과학 수업 보강/ })
 const intervention = () => page.getByRole('region', { name: '대강·휴강·보강', exact: true })
-async function go(name) { await page.getByRole('navigation', { name: '신축 업무 메뉴', exact: true }).getByRole('button', { name, exact: true }).click() }
+async function go(name) { await clickWorkspaceMenu(page, name) }
 async function boot(options = {}) { await page.setViewportSize({ width: 1280, height: 1000 }); await page.goto('http://127.0.0.1:5187/home'); await page.evaluate(value => window.notificationFixtureOptions = value, options); await page.addScriptTag({ content: bundle }); await page.getByRole('region', { name: '내 수업', exact: true }).getByRole('button', { name: /가온 원본 수업/ }).waitFor(); if (options.t3) { await makeupOpen().waitFor(); return } await go('메시지와 알림'); await page.getByRole('group', { name: '메시지 분류' }).getByRole('button', { name: '업무 알림', exact: true }).click(); await sourceButton().waitFor() }
 async function check(name, run, options = {}) { await boot(options); try { await run() } catch (error) { console.error(await page.getByRole('main').allInnerTexts()); console.error({ errors, external }); console.error(await page.evaluate(() => window.state.calls)); throw error } passed.push(name); console.log('  ✓ ' + name) }
 async function selectedMakeup() {
