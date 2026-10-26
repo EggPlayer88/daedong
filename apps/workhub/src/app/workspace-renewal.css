@@ -130,3 +130,22 @@
 
 .ws-shell[data-text-size=large] .ttboard-lesson strong{font-size:16px}.ws-shell[data-text-size=large] .ttboard-lesson span,.ws-shell[data-text-size=large] .ttboard-week th{font-size:14px}.ws-shell[data-text-size=large] .ttboard-lesson small{font-size:12px}
 @media(max-width:720px){.ws-shell .ws-ai-body .assistant-compose textarea{font-size:max(16px,var(--ui-body-size))}}
+
+/* 옆자리 첫 화면에서 질문과 실행 버튼을 찾을 수 있도록 부가 도구를 아래로 모은다. */
+.ws-shell .ws-ai-context{padding:8px 16px}
+.ws-shell .ws-ai-body{padding:14px 16px}
+.ws-shell .ws-ai-body .assistant-header{flex-wrap:nowrap;align-items:center}
+.ws-shell .ws-ai-body .assistant-header h2{margin:0;font-size:15px}
+.ws-shell .ws-ai-body .assistant-header>button{padding:5px 8px;min-height:32px;font-size:11px}
+.ws-shell .ws-ai-body .assistant-modes{margin:10px 0 6px}
+.ws-shell .ws-ai-body .assistant-scope{margin:4px 0 10px;line-height:1.5}
+.ws-shell .ws-ai-body .assistant-thread-heading{margin:8px 0}
+.ws-shell .ws-ai-body .assistant-compose{margin:8px 0 14px;padding:12px;gap:8px}
+.ws-shell .ws-ai-body .assistant-compose textarea{min-height:96px;line-height:1.6;padding:10px 12px}
+.ws-shell .ws-ai-body .assistant-intent-row{gap:8px}
+.ws-shell .ws-ai-body .assistant-intent-row label{font-size:12px;white-space:nowrap}
+.ws-shell .ws-ai-body .assistant-intent-row select{font-size:13px;min-height:38px;padding:6px 10px}
+.ws-shell .ws-ai-body .assistant-compose .assistant-actions{margin-top:0}
+.ws-shell .ws-ai-body .assistant-budget-disclosure>summary{min-height:40px;padding:8px 0;cursor:pointer}
+.ws-shell .ws-ai-body .assistant-pending{margin:8px 0}
+.ws-participant .ws-header-actions:empty{display:none}

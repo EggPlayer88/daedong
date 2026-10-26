@@ -1,5 +1,5 @@
 import '../assets/fonts/tossface/tossface.css'
-import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useId, useRef, useState, type ReactNode, type CSSProperties } from 'react'
 import { enabledModules, moduleGroupLabels, type ModuleGroup, type PageId, type WorkhubModule, type WorkspaceMode } from '../modules'
 import shellStyles from './workspace-shell.css?inline'
 import themeStyles from '../appearance/theme.css?inline'
@@ -32,9 +32,11 @@ export interface WorkspaceShellProps {
   onOpenAssistant?: () => void
   assistantOpen?: boolean
   sidePanel?: ReactNode
+  navigationModules?: readonly WorkhubModule[]
+  participant?: boolean
 }
 
-export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName, contextControls, quickActions, locked = false, notice, storageLabel, children, tools, onOpenAssistant, assistantOpen, sidePanel }: WorkspaceShellProps) {
+export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName, contextControls, quickActions, locked = false, notice, storageLabel, children, tools, onOpenAssistant, assistantOpen, sidePanel, navigationModules, participant = false }: WorkspaceShellProps) {
   const content = useRef<HTMLDivElement>(null)
   const previousPage = useRef(page)
   const moreButton = useRef<HTMLButtonElement>(null)
@@ -51,10 +53,12 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
   const contentId = useId()
   const lockId = useId()
   const appearance = useAppearancePreferences()
-  const modules = enabledModules(mode)
+  // 참여 화면은 기존 접근 검사가 구성한 표시 목록만 받는다. 이 목록으로 권한을 부여하지 않는다.
+  const modules = navigationModules === undefined ? enabledModules(mode) : navigationModules.filter(item => enabledModules(mode).some(available => available.id === item.id))
+  const assistantAvailable = !participant && (mode === 'preview' || modules.some(item => item.id === 'assistant'))
   const current = modules.find(module => module.id === page)
   // 이용 가능 목록은 그대로 두고 자주 쓰는 화면만 바깥에 배치한다.
-  const { primary, related, additional } = availableNavigation(modules, page)
+  const { primary, related, additional } = availableNavigation(modules, page, participant)
   const secondaryPage = !primary.some(group => group.active) && additional.some(module => module.id === page)
   const name = typeof memberName === 'string' && memberName.trim() ? memberName : '선생님'
   const school = typeof schoolName === 'string' && schoolName.trim() ? schoolName : '학교 업무실'
@@ -105,6 +109,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
     if (restore && moreButton.current?.getClientRects().length) moreButton.current.focus()
   }
   function openUtility(panel: 'appearance' | 'assistant', source: HTMLElement | null = moreButton.current) {
+    if (panel === 'assistant' && !assistantAvailable) return
     // 먼저 현재 top-layer를 닫아 설정·비서와 포커스 함정이 겹치지 않게 한다.
     if (panel === 'assistant' && onOpenAssistant) { closeMobile(false); onOpenAssistant(); return }
     if (panel === 'assistant' && mode === 'connected') { navigate('assistant'); return }
@@ -133,7 +138,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
     return items.length ? <div className={`ws-menu-group ws-group-${groupId}`} key={groupId}><p className="ws-group-label">{moduleGroupLabels[groupId]}</p>{items.map(menuButton)}</div> : null
   }
 
-  return <div className={`ws-shell ws-mode-${mode}`} data-workspace-mode={mode} data-theme={appearance.preferences.theme} data-density={appearance.preferences.density} data-text-size={appearance.preferences.textSize}>
+  return <div className={`ws-shell ws-mode-${mode}${participant ? ' ws-participant' : ''}`} style={{ '--ws-nav-count': primary.length + 1 } as CSSProperties} data-workspace-mode={mode} data-theme={appearance.preferences.theme} data-density={appearance.preferences.density} data-text-size={appearance.preferences.textSize}>
     <a className="ws-skip-link" href={`#${contentId}`} onClick={event => { event.preventDefault(); focusContent() }}>본문으로 건너뛰기</a>
     {mode === 'preview' && <div className="ws-mode-banner"><strong>로컬 개발 미리보기</strong><span>{storageLabel ?? '합성 자료 · 실제 서비스 연결 없음'}</span></div>}
     <div className="ws-frame">
@@ -141,9 +146,9 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
         <div className="ws-brand"><span className="ws-brand-mark"><WorkspaceIcon name="school" /></span><div><strong>학교 업무실</strong><span>업무혁신시스템</span></div></div>
         <div className="ws-school"><span className="ws-school-dot" aria-hidden="true" /><strong>{school}</strong>{mode === 'preview' && <span className="ws-mode-tag">가상</span>}</div>
         {!mobile && contextControls && <div className="ws-school-context">{contextControls}</div>}
-        <nav className="ws-navigation" aria-label={mode === 'connected' ? '신축 업무 메뉴' : '업무 메뉴'}>
+        <nav className="ws-navigation" aria-label={participant ? '허용된 업무' : mode === 'connected' ? '신축 업무 메뉴' : '업무 메뉴'}>
           <div className="ws-primary-menus">{primary.map(group => <button key={group.home} type="button" className="ws-menu-button" aria-label={group.label} aria-current={group.active ? 'page' : undefined} disabled={locked} aria-describedby={locked ? lockId : undefined} onClick={() => navigate(group.home)}><span className="ws-menu-icon"><WorkspaceIcon name={group.home} /></span><span>{group.label}</span></button>)}</div>
-          <button ref={assistantButton} type="button" aria-label="AI 비서" className="ws-menu-button ws-assistant-trigger" disabled={locked && !onOpenAssistant} aria-describedby={locked && !onOpenAssistant ? lockId : undefined} aria-current={page === 'assistant' ? 'page' : undefined} aria-expanded={onOpenAssistant ? assistantOpen : undefined} aria-haspopup={mode === 'preview' || onOpenAssistant ? 'dialog' : undefined} onClick={() => openUtility('assistant', assistantButton.current)}><span className="ws-menu-icon"><WorkspaceIcon name="assistant" /></span><span>AI 비서</span><small>옆에서 함께</small></button>
+          {assistantAvailable && <button ref={assistantButton} type="button" aria-label="AI 비서" className="ws-menu-button ws-assistant-trigger" disabled={locked && !onOpenAssistant} aria-describedby={locked && !onOpenAssistant ? lockId : undefined} aria-current={page === 'assistant' ? 'page' : undefined} aria-expanded={onOpenAssistant ? assistantOpen : undefined} aria-haspopup={mode === 'preview' || onOpenAssistant ? 'dialog' : undefined} onClick={() => openUtility('assistant', assistantButton.current)}><span className="ws-menu-icon"><WorkspaceIcon name="assistant" /></span><span>AI 비서</span><small>옆에서 함께</small></button>}
           <button ref={moreButton} className={`ws-more-button${secondaryPage ? ' ws-more-current' : ''}`} type="button" aria-expanded={expanded} aria-controls={moreId} aria-haspopup="dialog" onClick={() => setMobilePanel('more')}><span aria-hidden="true">•••</span><span>더보기</span></button>
           <dialog ref={mobileSheet} id={moreId} className="ws-mobile-sheet" aria-labelledby={`${moreId}-title`} onKeyDown={event => {
             if (event.key !== 'Tab' || event.nativeEvent.isComposing) return
@@ -158,7 +163,7 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
               <div className="ws-sheet-body">
                 {additional.length > 0 && <div className="ws-sheet-menus">{group('today')}{group('school')}{group('work')}{group('teaching')}</div>}
                 {locked && <p className="ws-sheet-lock">작성 중인 내용을 저장하거나 편집을 마친 뒤 이동할 수 있습니다.</p>}
-                <div className="ws-sheet-utilities"><button type="button" className="ws-utility-button" aria-haspopup={mode === 'preview' || onOpenAssistant ? 'dialog' : undefined} disabled={locked && !onOpenAssistant} onClick={() => openUtility('assistant')}><WorkspaceIcon name="assistant" /><span>AI 비서</span>{mode === 'preview' && <small>준비 중</small>}</button><button type="button" className="ws-utility-button" aria-haspopup="dialog" onClick={() => openUtility('appearance')}><WorkspaceIcon name="appearance" /><span>화면 설정</span></button></div>
+                <div className="ws-sheet-utilities">{assistantAvailable && <button type="button" className="ws-utility-button" aria-haspopup={mode === 'preview' || onOpenAssistant ? 'dialog' : undefined} disabled={locked && !onOpenAssistant} onClick={() => openUtility('assistant')}><WorkspaceIcon name="assistant" /><span>AI 비서</span>{mode === 'preview' && <small>준비 중</small>}</button>}<button type="button" className="ws-utility-button" aria-haspopup="dialog" onClick={() => openUtility('appearance')}><WorkspaceIcon name="appearance" /><span>화면 설정</span></button></div>
                 {mobile && contextControls && <div className="ws-sheet-context">{contextControls}</div>}
               </div></>}
           </dialog>
@@ -167,14 +172,14 @@ export function WorkspaceShell({ page, onNavigate, mode, schoolName, memberName,
         <div className="ws-member"><span className="ws-avatar" aria-hidden="true">{Array.from(name)[0]}</span><div><strong>{name}</strong><span>{mode === 'preview' ? '미리보기 계정' : '나의 학교 업무실'}</span></div></div>
       </aside>
       <div className="ws-workspace">
-        <header className="ws-context"><nav aria-label="현재 위치" className="ws-breadcrumb"><span>업무실</span><span aria-hidden="true">/</span><strong aria-current="page">{current?.title ?? '화면 확인'}</strong></nav><div className="ws-header-actions">{quickActions}{modules.some(item => item.id === 'messages') && <button type="button" className="ws-header-messages" aria-label="메시지와 알림" aria-current={page === 'messages' ? 'page' : undefined} disabled={locked} onClick={() => navigate('messages')}><WorkspaceIcon name="messages" /></button>}{(onOpenAssistant || mode === 'preview') && <button className="ws-mobile-ai" type="button" aria-label="AI 비서 열기" aria-haspopup="dialog" aria-expanded={assistantOpen} onClick={event => openUtility('assistant', event.currentTarget)}><WorkspaceIcon name="assistant" /></button>}</div></header>
+        <header className="ws-context"><nav aria-label="현재 위치" className="ws-breadcrumb"><span>업무실</span><span aria-hidden="true">/</span><strong aria-current="page">{current?.title ?? '화면 확인'}</strong></nav><div className="ws-header-actions">{quickActions}{modules.some(item => item.id === 'messages') && <button type="button" className="ws-header-messages" aria-label="메시지와 알림" aria-current={page === 'messages' ? 'page' : undefined} disabled={locked} onClick={() => navigate('messages')}><WorkspaceIcon name="messages" /></button>}{assistantAvailable && (onOpenAssistant || mode === 'preview') && <button className="ws-mobile-ai" type="button" aria-label="AI 비서 열기" aria-haspopup="dialog" aria-expanded={assistantOpen} onClick={event => openUtility('assistant', event.currentTarget)}><WorkspaceIcon name="assistant" /></button>}</div></header>
         {related.length > 1 && <nav className="ws-related" aria-label="관련 업무 메뉴">{related.map(module => <button type="button" key={module.id} aria-current={page === module.id ? 'page' : undefined} disabled={locked} onClick={() => navigate(module.id)}>{module.title}</button>)}</nav>}
         <div className="ws-stage"><div className="ws-stage-main">
         {notice && <div className="ws-notice">{notice}</div>}
         {locked && <p className="ws-locked" role="status" id={lockId}>작성한 내용을 저장하거나 편집을 마친 뒤 이동해 주세요. 처리 중인 요청이 있다면 먼저 결과를 확인해 주세요.</p>}
         <div id={contentId} ref={content} className="ws-content" tabIndex={-1}>{current ? children : <main className="ws-unavailable"><h1>이 화면은 아직 연결되지 않았습니다</h1><p>메뉴에서 현재 이용할 수 있는 화면을 선택해 주세요.</p></main>}</div>
         {tools && <div className="ws-tools">{tools}</div>}
-        {mode === 'connected' && <details className="ws-connection-info"><summary>학교·연결 정보</summary><p>관리자 시범 사용 · {storageLabel ?? '현재 학교 서버에 저장'}</p></details>}
+        {mode === 'connected' && <details className="ws-connection-info"><summary>학교·연결 정보</summary><p>{participant ? '허용된 업무 참여' : '관리자 시범 사용'} · {storageLabel ?? '현재 학교 서버에 저장'}</p></details>}
         <details className="ws-font-license"><summary>글꼴 라이선스</summary><pre>{fontLicense}{'\n\n'}{tossfaceLicense}</pre></details>
         </div>{sidePanel}</div>
       </div>

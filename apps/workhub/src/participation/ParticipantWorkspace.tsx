@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import type { Membership } from '../contracts'
-import type { PageId } from '../modules'
+import { enabledModules, type PageId } from '../modules'
+import '../typography.css'
+import { WorkspaceShell } from '../app/WorkspaceShell'
 import { createSupabaseConnection, type SupabaseConnection } from '../connection/supabase-connection'
 import { activeAt } from '../domain'
 import { createEditDrafts, EditDraftsProvider } from '../app/edit-drafts'
@@ -29,7 +31,7 @@ const TimetableAgenda=lazy(()=>import('../timetable/TimetableAgendaPanel').then(
 export interface ParticipantAccess { userId:string;schoolId:string;memberId:string;scopes:string[];expiresAt:string;revision:number }
 export const participantPage = (scope:string):PageId => ({teaching:'students',transitions:'schoolAdmin'}[scope] ?? scope) as PageId
 
-// 전체 관리자 셸과 별개로 승인된 업무만 구성한다. 서버도 모든 RPC에서 같은 범위를 검사한다.
+// 공통 화면 틀을 재사용하되 승인된 업무만 구성한다. 서버도 모든 RPC에서 같은 범위를 검사한다.
 export function ParticipantWorkspace({access,connection:provided}:{access:ParticipantAccess;connection?:SupabaseConnection}) {
  const [connection]=useState(()=>provided??createSupabaseConnection(undefined,{participant:true}))
  const [drafts]=useState(()=>createEditDrafts(true)),[pending]=useState(createPendingRequests)
@@ -39,6 +41,7 @@ export function ParticipantWorkspace({access,connection:provided}:{access:Partic
  // 소속/범위가 바뀐 렌더에서 이전 학교 내용을 한 프레임도 전달하지 않는다.
  const context=loaded?.key===accessKey?loaded:undefined
  const pages=scopeDefinitions.filter(s=>access.scopes.includes(s.id))
+ const displayModules=pages.flatMap(scope=>enabledModules('connected').filter(module=>module.id===participantPage(scope.id)).map(module=>({...module,title:scope.label})))
  const navigation=useWorkspaceNavigation({allowedPages:pages.map(s=>participantPage(s.id)),defaultPage:participantPage(pages[0]?.id??'messages'),scopeKey:`${access.userId}:${access.memberId}`,locked:locked||(!context&&(draftCount>0||pendingCount>0)),exitLocked:draftCount>0||pendingCount>0})
  const page=navigation.page as PageId
  const [opened,setOpened]=useState<{page:PageId;id:string;key:string;lessonDate?:string}>()
@@ -67,9 +70,7 @@ export function ParticipantWorkspace({access,connection:provided}:{access:Partic
  },[connection,drafts,pending,accessKey,attempt])
  function open(next:PageId,id?:string,lessonDate?:string){if(!pages.some(s=>participantPage(s.id)===next)||!navigation.requestNavigate(next))return false;setOpened(id?{page:next,id,key:crypto.randomUUID(),lessonDate}:undefined);return true}
  const props=context?{connection,member:context.member,date:context.date,onNavigationLockChange:setLocked}:null
- const content=<section className="participant-workspace"><header><h1>{context?.name??'업무실'} · 업무 참여</h1><p>허용된 업무를 이용합니다. 학교 관리와 승인 권한은 각각의 담당 배정을 따릅니다.</p></header>
- <nav aria-label="허용된 업무">{pages.map(s=><button key={s.id} disabled={locked} aria-current={page===participantPage(s.id)?'page':undefined} onClick={()=>open(participantPage(s.id))}>{s.label}</button>)}</nav>
- {navigation.announcement&&<p role="status">{navigation.announcement}</p>}
+ const content=<WorkspaceShell participant mode="connected" page={page} onNavigate={next=>{open(next)}} schoolName={context?.name??'업무실'} memberName={context?.member.name??'선생님'} navigationModules={displayModules} locked={locked} notice={navigation.announcement&&<p role="status">{navigation.announcement}</p>}><main className="main-content participant-workspace"><header className="page-header"><div><p className="eyebrow">{context?.name??'업무실'} · 업무 참여</p><h1>{pages.find(scope=>participantPage(scope.id)===page)?.label??'업무실'}</h1></div></header>
  {error?<div role="alert"><p>{error}</p><button onClick={()=>setAttempt(n=>n+1)}>학교 소속 다시 확인</button></div>:props&&context?<ModuleBoundary moduleName={pages.find(s=>participantPage(s.id)===page)?.label??'업무'} resetKey={`${access.userId}:${access.memberId}:${page}`}><Suspense fallback={<p role="status">업무 화면을 준비하고 있습니다…</p>}>
  {page==='messages'?<Messages {...props} canOpenSource={s=>['cooperation','timetable','collections','tasks','calendar'].includes(s.module)&&access.scopes.includes(s.module)} onOpenSource={s=>{if(!open(s.module as PageId,s.id))throw new Error(navigationBlockedMessage)}}/>:null}
  {page==='tasks'?<TaskPanel adapter={taskAdapter} member={context.member} date={context.date} onNavigationLockChange={setLocked} openRequest={opened?.page===page?{key:opened.key,taskId:opened.id}:undefined}/>:null}
@@ -77,10 +78,10 @@ export function ParticipantWorkspace({access,connection:provided}:{access:Partic
  renderLessonAgenda={access.scopes.includes('timetable')?date=><ModuleBoundary moduleName="내 수업" resetKey={`${context.member.id}:${date}`}><Suspense fallback={<p role="status">내 수업을 확인하고 있습니다…</p>}><TimetableAgenda connection={connection} member={context.member} date={date} revision={attempt} onOpen={(id,day)=>{open('timetable',id,day)}}/></Suspense></ModuleBoundary>:undefined}/>:null}
  {page==='cooperation'?<Cooperation {...props} onOpenTask={id=>open('tasks',id)} openRequest={opened?.page===page?{key:opened.key,id:opened.id}:undefined}/>:null}
  {page==='schoolAdmin'?<Transitions {...props}/>:null}
- {page==='timetable'?<Timetable {...props} aiEnabled={false} initialNotificationId={opened?.page===page&&!opened.lessonDate?opened.id:undefined} initialLessonId={opened?.page===page&&opened.lessonDate?opened.id:undefined} initialDate={opened?.page===page?opened.lessonDate:undefined}/>:null}
+ {page==='timetable'?<Timetable embeddedHeader {...props} aiEnabled={false} initialNotificationId={opened?.page===page&&!opened.lessonDate?opened.id:undefined} initialLessonId={opened?.page===page&&opened.lessonDate?opened.id:undefined} initialDate={opened?.page===page?opened.lessonDate:undefined}/>:null}
  {page==='students'?<Teaching {...props}/>:null}
  {page==='collections'?<Collections server={collectionServer} operations={collectionOperations} member={context.member} members={context.members} date={context.date} onNavigationLockChange={setLocked} openRequest={opened?.page===page?{key:opened.key,id:opened.id}:undefined}/>:null}
  </Suspense></ModuleBoundary>:<p role="status">학교 소속을 확인하고 있습니다…</p>}
- </section>
- return <div ref={host}>{root?createPortal(<EditDraftsProvider store={drafts}><PendingRequestsProvider store={pending}><style>{theme.replaceAll(':root',':host').replace(/(^|[}\s,])body(?=\s*[{,])/g,'$1.participant-workspace')}{`:host{display:block}.participant-workspace{padding:20px}.participant-workspace>nav{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.participant-workspace>nav [aria-current]{background:var(--accent);color:white}`}</style>{content}</PendingRequestsProvider></EditDraftsProvider>,root):<p role="status">업무 참여 화면을 준비하고 있습니다…</p>}</div>
+ </main></WorkspaceShell>
+ return <div ref={host}>{root?createPortal(<EditDraftsProvider store={drafts}><PendingRequestsProvider store={pending}><style>{theme.replaceAll(':root',':host').replace(/(^|[}\s,])body(?=\s*[{,])/g,'$1.participant-workspace')}{`:host{display:block}.participant-workspace{min-width:0}.ws-participant .participant-workspace>.page-header{margin-bottom:20px}.ws-participant .ws-context{min-height:64px}@media(max-width:720px){.ws-shell.ws-participant .ws-navigation{grid-template-columns:repeat(var(--ws-nav-count),minmax(0,1fr))}.ws-participant .ws-context{min-height:36px}}`}</style>{content}</PendingRequestsProvider></EditDraftsProvider>,root):<p role="status">업무 참여 화면을 준비하고 있습니다…</p>}</div>
 }
