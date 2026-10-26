@@ -1,3 +1,4 @@
+import composerStyles from '../app/composer-layout.css?inline'
 import { TASK_INPUT_LIMITS } from './validation'
 import type { FormEvent, RefObject } from 'react'
 import type { PersonalTask, TaskInput } from './contracts'
@@ -22,9 +23,10 @@ export function TaskEditor({
   id, original, input, locked, saving, errorId, titleRef,
   onTitleChange, onDueDateChange, onNotesChange, onSubmit, onCancel,
 }: Props) {
-  return <form className="task-editor" onSubmit={onSubmit} aria-describedby={errorId} aria-label={original ? '내 업무 수정' : '내 업무 등록'}>
-    <h3>{original ? '업무 내용 수정' : '새 할 일'}</h3>
-    <fieldset disabled={locked}>
+  return <form className="task-editor wh-composer" onSubmit={onSubmit} aria-describedby={errorId} aria-label={original ? '내 업무 수정' : '내 업무 등록'}>
+    <style>{composerStyles}</style>
+    <header className="wh-compose-heading"><span className="wh-compose-eyebrow">내 업무</span><h3>{original ? '업무 내용 수정' : '새 할 일'}</h3><p>해야 할 일을 적고, 기한이 있으면 함께 정해 주세요.</p></header>
+    <fieldset className="wh-compose-body" disabled={locked}>
       <legend className="task-sr-only">업무 입력</legend>
       <div className="task-form-row">
         <label className="task-title-field" htmlFor={`${id}-title`}>해야 할 일
@@ -36,14 +38,14 @@ export function TaskEditor({
         </label>
       </div>
       <label htmlFor={`${id}-notes`}>나만 보는 메모
-        <textarea id={`${id}-notes`} aria-describedby={`${id}-notes-hint`} name="task-notes" aria-label="나만 보는 메모" rows={3} value={input.notes} onChange={event => onNotesChange(event.target.value)} />
+        <textarea id={`${id}-notes`} aria-describedby={`${id}-notes-hint`} name="task-notes" aria-label="나만 보는 메모" rows={3} placeholder="참고할 내용이 있을 때만 적어 주세요." value={input.notes} onChange={event => onNotesChange(event.target.value)} />
         <small id={`${id}-notes-hint`}>선택 · {Array.from(input.notes).length.toLocaleString()}/{TASK_INPUT_LIMITS.notesChars.toLocaleString()}자</small>
       </label>
     </fieldset>
-    <div className="task-actions">
+    <footer className="wh-compose-footer"><p>내 업무 목록에 저장됩니다.</p><div className="task-actions">
       <button type="submit" className="task-primary" disabled={locked}>{saving ? '저장 중…' : original ? '수정 저장' : '내 업무에 추가'}</button>
       <button type="button" className="task-secondary" disabled={locked} onClick={onCancel}>편집 취소</button>
       {original && <small>확인한 원본 v{original.version}</small>}
-    </div>
+    </div></footer>
   </form>
 }

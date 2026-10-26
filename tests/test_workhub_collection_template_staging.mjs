@@ -36,7 +36,9 @@ test('선택 취소는 기존 파일 선택 배열을 변경하지 않는다', (
 })
 test('화면은 처음부터 양식 선택과 비공개 안내를 보여주고 추가 설정은 접는다', () => {
   const html = render().replace(/<style>[\s\S]*?<\/style>/g, '')
-  for (const text of ['1. 무엇을 받을까요?', '2. 나눠 줄 양식', '3. 누가 제출하나요?', '저장해도 교사에게 공개되지 않습니다.', '양식 파일 선택']) assert(html.includes(text))
+  for (const text of ['수합 내용', '제출 대상', '나눠 줄 양식', '저장해도 교사에게 공개되지 않습니다.', '양식 파일 선택']) assert(html.includes(text))
+  assert(html.indexOf('<h4>수합 내용') < html.indexOf('<h4>제출 대상'))
+  assert(html.indexOf('<h4>제출 대상') < html.indexOf('<h4>나눠 줄 양식'))
   assert.match(html, /type="file"[^>]*multiple=""/)
   assert.doesNotMatch(html, /먼저 초안을 저장한 뒤|<details[^>]*open/)
 })

@@ -351,3 +351,10 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-timetable-preparation-hours.mjs`: 실제 XLSX·React 14건. 미반영 입력·파일 재검사·늦은 응답·범위/권한 변경·검색/선택·모바일.
 - `workhub-timetable-preparation-hours-connected.mjs`: 실제 준비 화면과 전송 어댑터 9건. 로컬 반영/서버 저장 분리, 판 충돌, 미반영 파일 보관, 기존 요청 복구, 정확한 수업 이동·교사 합계.
 - 두 브라우저 파일은 전체 러너에 등록했다. RPC 응답은 합성이며 실제 Supabase/Excel 편집 성공을 의미하지 않는다.
+
+## 메신저·수합·내 업무 입력 화면
+
+- `workhub-workflow-ui.mjs`: 실제 React와 합성 전송을 사용하는 5개 시나리오. 메시지 확인 전 미전송, 크기 변경 시 입력 보존, 내 업무 저장 명령, 검색 후 수합 대상 보존, 초안·공개 분리, 저장된 선택 설정 재표시, 320px·큰 글씨·어두운 화면을 확인한다.
+- `node tests/browser/run.mjs workhub-workflow-ui`로 실행하며 전체 브라우저 러너에도 포함된다.
+- 기존 `workhub-messaging*`, `workhub-collection-*`, `workhub-tasks`, `workhub-task-navigation`, `workhub-cross-module`의 요청 복구·권한·첨부 회귀를 함께 실행한다.
+- 운영 DB·실제 회원·유료 AI는 호출하지 않는다. [화면·검증 기록](../docs/workhub/workflow-ui/README.md).

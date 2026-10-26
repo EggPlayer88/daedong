@@ -2,3 +2,36 @@
 
 .messaging-compose[hidden]{display:none}.messaging-attachments{display:grid;gap:.65rem;min-width:0}.messaging-attachments h4{margin:0}.messaging-attachments li{overflow-wrap:anywhere}.messaging-attachments input[type=file]{max-width:100%}
 .messaging-delivery-list,.messaging-recipient-identities{list-style:none;padding:0;margin:0;display:grid;gap:.65rem;overflow-wrap:anywhere}.messaging-delivery-list{max-height:22rem;overflow:auto}.messaging-delivery-list>li{display:grid;gap:.5rem;padding:.7rem;border:1px solid var(--wh-border,#d9dfe6);border-radius:.65rem}.messaging-delivery-list ul{list-style:none;padding:0;margin:0}.messaging-delivery-list button{justify-self:start;max-width:100%;overflow-wrap:anywhere}.messaging-deliveries p,.messaging-recipient-list span,.messaging-selected button{overflow-wrap:anywhere}.messaging-delivery-list small,.messaging-recipient-identities small,.messaging-recipient-list>li>small{display:block;color:var(--wh-muted,#5c6877);font-size:.8rem;overflow-wrap:anywhere}.messaging-recipient-list>li>small{padding:0 .5rem .4rem 2rem}
+
+/* 받는 사람과 본문을 분리하되 확인·복구 과정은 같은 폼 안에 둔다. */
+.messaging-compose-grid{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(0,1.35fr);align-items:start;min-width:0}
+.messaging-compose.wh-composer fieldset{border:0;border-radius:0;margin:0;min-width:0}
+.messaging-compose.wh-composer .messaging-to{padding:22px 24px;border-right:1px solid var(--ui-line,#e5e9ef);gap:12px}
+.messaging-compose.wh-composer .messaging-body-fields{padding:0;gap:8px}
+.messaging-compose-content{display:grid;gap:20px}
+.messaging-compose.wh-composer .messaging-body-fields textarea{min-height:210px}
+.messaging-body-fields>.messaging-muted{text-align:right;font-size:var(--ui-small-size,13px)}
+.messaging-to .messaging-muted{font-size:var(--ui-small-size,13px)}
+.messaging-to .messaging-filters{align-items:flex-end;gap:6px}
+.messaging-to .messaging-filters label{min-width:0;flex-basis:65%}
+.messaging-recipient-list{gap:6px;padding:3px;max-height:250px;scrollbar-width:thin}
+.messaging-recipient-list>li{border:1px solid var(--ui-line,#e5e9ef);border-radius:12px;background:var(--ui-surface,#fff)}
+.messaging-recipient-list>li:has(input:checked){border-color:var(--ui-accent,#2868d9);background:var(--ui-accent-soft,#edf4ff)}
+.messaging-recipient-list label{min-height:44px;padding:10px;cursor:pointer}
+.messaging-person-id{margin:0 10px 4px 32px;color:var(--ui-muted,#637083)}
+.messaging-person-id>summary{font-size:var(--ui-small-size,13px);cursor:pointer;min-height:32px;align-content:center}
+.messaging-person-id small{display:block;overflow-wrap:anywhere;padding-bottom:6px}
+.messaging-selected:empty{display:none}
+.messaging-compose.wh-composer .messaging-selected button{background:var(--ui-accent-soft,#edf4ff);color:var(--ui-accent,#2868d9);border-color:transparent;padding:6px 10px}
+.messaging-compose.wh-composer>.messaging-status{margin:16px 24px 0}
+.messaging-compose.wh-composer>p[role=status]{margin:12px 24px 18px}
+.messaging-compose-content .messaging-attachments{border-top:1px solid var(--ui-line,#e5e9ef);padding-top:16px;gap:8px}
+.messaging-attachments input[type=file]{background:var(--ui-surface-muted,#f7f8fa);border:1px dashed var(--ui-line,#dce2eb);border-radius:12px;padding:10px;font-size:var(--ui-small-size,13px)}
+.messaging-attachments input::file-selector-button{border:0;border-radius:8px;background:var(--ui-accent-soft,#edf4ff);color:var(--ui-accent,#2868d9);padding:9px 12px;margin-right:10px;font:inherit;cursor:pointer}
+.messaging-attachments ul{padding:0;list-style:none;margin:0;display:grid;gap:6px}
+.messaging-attachments li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--ui-line,#e5e9ef)}
+.messaging-attachments li span{min-width:0}.messaging-attachments li button{flex-shrink:0}
+.messaging-attachments p{font-size:var(--ui-small-size,13px);line-height:1.6}
+.messaging-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:900px){.messaging-compose-grid{grid-template-columns:1fr}.messaging-compose.wh-composer .messaging-to{border-right:0;border-bottom:1px solid var(--ui-line,#e5e9ef)}.messaging-compose.wh-composer .messaging-body-fields textarea{min-height:160px}}
+@media(max-width:720px){.messaging-compose.wh-composer .messaging-to{padding:18px 16px}.messaging-to .messaging-filters label{flex-basis:60%}.messaging-compose.wh-composer>.messaging-status{margin:12px 16px 0}}

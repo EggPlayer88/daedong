@@ -1,0 +1,31 @@
+/* 입력 화면의 공통 위계. 저장·복구 상태는 각 모듈이 그대로 관리한다. */
+.wh-composer.wh-composer{box-sizing:border-box;min-width:0;padding:0;gap:0;border:1px solid var(--ui-line,#e5e9ef);border-radius:20px;background:var(--ui-surface,#fff);color:var(--ui-text,#191f28);font-family:"Pretendard Variable",Pretendard,"Malgun Gothic",sans-serif;font-size:var(--ui-body-size,15px);line-height:1.6;overflow:visible}
+.wh-composer *{box-sizing:border-box}
+.ws-shell .wh-composer.wh-composer{padding:0;background:var(--ui-surface);border-radius:20px}
+.wh-composer .wh-compose-heading{padding:22px 24px 18px;border-bottom:1px solid var(--ui-line,#e5e9ef)}
+.wh-composer .wh-compose-heading h3{font-size:1.3em;line-height:1.4;margin:4px 0 6px;letter-spacing:-.025em}
+.wh-composer .wh-compose-heading p{margin:0;color:var(--ui-muted,#637083);font-size:var(--ui-small-size,13px)}
+.wh-composer .wh-compose-eyebrow{font-size:var(--ui-small-size,13px);font-weight:650;color:var(--ui-accent,#2868d9)}
+.wh-composer .wh-compose-body{padding:22px 24px;min-width:0}
+.wh-composer .wh-compose-label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:10px}
+.wh-composer .wh-compose-label h4{margin:0;font-size:1em}
+.wh-composer .wh-compose-label span{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083);font-weight:400;font-variant-numeric:tabular-nums}
+.wh-composer.wh-composer :is(label,legend){font-size:var(--ui-body-size,15px);line-height:1.6}
+.wh-composer.wh-composer :is(input:not([type=checkbox]):not([type=file]),select,textarea){border:1px solid var(--ui-line,#dce2eb);border-radius:12px;background:var(--ui-surface,#fff);color:var(--ui-text,#191f28);padding:11px 12px;min-height:44px;font-size:var(--ui-body-size,15px);line-height:1.6}
+.wh-composer.wh-composer input[type=checkbox]{accent-color:var(--ui-accent,#2868d9)}
+.wh-composer.wh-composer small{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083)}
+.wh-composer.wh-composer button{min-height:44px;border-radius:12px;font-size:var(--ui-small-size,13px);line-height:1.5}
+.wh-composer .wh-compose-footer{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;margin:0;padding:16px 24px;border-top:1px solid var(--ui-line,#e5e9ef);background:var(--ui-surface-muted,#f7f8fa);border-radius:0 0 20px 20px}
+.wh-composer .wh-compose-footer>p{margin:0;max-width:50ch;font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083)}
+.wh-composer .wh-compose-footer :is(.messaging-actions,.cs-actions,.task-actions){margin:0;gap:8px}
+.wh-composer .wh-compose-footer :is(.messaging-primary,.cs-primary,.task-primary){background:var(--ui-accent,#2868d9);color:var(--ui-on-accent,#fff);border-color:transparent;font-weight:650}
+.wh-composer :is(input,select,textarea,button,summary):focus-visible{outline:3px solid var(--ui-focus,#2868d9);outline-offset:3px}
+.wh-composer :is(p,span,small,button){overflow-wrap:anywhere}
+@media(max-width:720px){
+ .wh-composer .wh-compose-heading{padding:18px 16px 16px}
+ .wh-composer .wh-compose-body{padding:18px 16px}
+ .wh-composer .wh-compose-footer{padding:16px;align-items:stretch;flex-direction:column}
+ .wh-composer .wh-compose-footer :is(.messaging-actions,.cs-actions,.task-actions){width:100%}
+ .wh-composer .wh-compose-footer button{flex:1 1 auto}
+ .wh-composer.wh-composer :is(input:not([type=checkbox]),select,textarea){font-size:max(16px,var(--ui-body-size,15px))}
+}
