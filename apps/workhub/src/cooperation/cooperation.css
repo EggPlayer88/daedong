@@ -1,1 +1,38 @@
 .cooperation-workspace{max-width:76rem;margin:auto;min-width:0;color:var(--text,#202936)}.cooperation-header,.cooperation-actions,.cooperation-filters{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center}.cooperation-header{justify-content:space-between}.cooperation-workspace p{line-height:1.65}.cooperation-workspace h2,.cooperation-workspace h3{margin:.7rem 0}.cooperation-workspace label{display:grid;gap:.4rem;min-width:0}.cooperation-workspace input,.cooperation-workspace select,.cooperation-workspace textarea{box-sizing:border-box;width:100%;max-width:100%;min-width:0;font:inherit;padding:.6rem;border:1px solid var(--border,#ccd3dd);border-radius:.5rem;color:inherit;background:var(--surface,#fff)}.cooperation-workspace button{font:inherit;white-space:normal;border:1px solid var(--border,#ccd3dd);border-radius:.55rem;padding:.6rem .85rem;background:var(--surface,#fff);color:var(--accent,#265a9b);cursor:pointer}.cooperation-workspace button:disabled{opacity:.55;cursor:default}.cooperation-workspace :focus-visible{outline:3px solid var(--accent,#3273b8);outline-offset:3px}.cooperation-editor,.cooperation-detail,.cooperation-workspace aside,.cooperation-workspace [role=alert]{padding:1rem;margin:1rem 0;border:1px solid var(--border,#d8dfe8);border-radius:.8rem;background:var(--surface,#fff)}.cooperation-editor fieldset{display:grid;gap:1rem;border:0;padding:0;margin:0;min-width:0}.cooperation-workspace .cooperation-check{display:flex;align-items:flex-start;gap:.6rem}.cooperation-check input{width:auto;flex:none;margin-top:.3rem}.cooperation-list{padding:0;list-style:none;display:grid;gap:.5rem}.cooperation-list button{width:100%;text-align:left;display:grid;gap:.4rem}.cooperation-list button[aria-pressed=true]{border-color:var(--accent,#3273b8)}.cooperation-list span{font-size:.9rem;color:var(--muted,#596678)}.cooperation-pre{white-space:pre-wrap;overflow-wrap:anywhere}.cooperation-filters label{flex:1 1 10rem}.cooperation-workspace details{margin-top:1rem}.cooperation-workspace summary{cursor:pointer;padding:.6rem 0}.cooperation-workspace li{overflow-wrap:anywhere}.cooperation-workspace .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media(max-width:420px){.cooperation-header{align-items:flex-start}.cooperation-editor,.cooperation-detail,.cooperation-workspace aside{padding:.8rem}.cooperation-actions button{flex:1 1 auto}}
+/* 목록·상세·작성은 같은 색과 입력 위계를 따른다. 상태 판단은 기존 계약에 맡긴다. */
+.cooperation-workspace{color:var(--ui-text,#191f28);font-family:"Pretendard Variable",Pretendard,"Malgun Gothic",sans-serif;font-size:var(--ui-body-size,15px)}
+.cooperation-workspace :is(button,input,select,textarea){background:var(--ui-surface,#fff);color:var(--ui-text,#191f28);border-color:var(--ui-line,#e5e9ef);min-height:44px;border-radius:12px}
+.cooperation-workspace button.cooperation-primary{background:var(--ui-accent,#2868d9);color:var(--ui-on-accent,#fff);border-color:transparent;font-weight:650}
+.cooperation-workspace .cooperation-header p{margin:6px 0 0;color:var(--ui-muted,#637083)}
+.cooperation-workspace :is(.cooperation-detail,aside,[role=alert]){background:var(--ui-surface,#fff);border-color:var(--ui-line,#e5e9ef);border-radius:18px}
+.cooperation-workspace .cooperation-filters{padding:16px 0;gap:12px;align-items:end}
+.cooperation-workspace .cooperation-filters label{flex:1 1 130px;font-size:var(--ui-small-size,13px)}
+.cooperation-workspace .cooperation-filters label:last-of-type{flex:2 1 200px}
+.cooperation-browser{display:grid;grid-template-columns:minmax(240px,.85fr) minmax(0,1.6fr);gap:20px;align-items:start}
+.cooperation-inbox,.cooperation-detail-pane{min-width:0}
+.cooperation-inbox-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.cooperation-inbox-heading h3{font-size:1em}
+.cooperation-inbox-heading>span{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083)}
+.cooperation-list{margin:8px 0 12px}
+.cooperation-list button{padding:16px;gap:6px;line-height:1.6}
+.cooperation-list span{color:var(--ui-muted,#637083);font-size:var(--ui-small-size,13px)}
+.cooperation-list button[aria-pressed=true]{background:var(--ui-accent-soft,#edf3ff);border-color:var(--ui-accent,#2868d9);box-shadow:inset 3px 0 var(--ui-accent,#2868d9)}
+.cooperation-workspace .cooperation-detail{margin:0;padding:24px}
+.cooperation-detail-heading h3{font-size:1.3em;line-height:1.45;letter-spacing:-.025em}
+.cooperation-detail-heading p{color:var(--ui-muted,#637083);font-size:var(--ui-small-size,13px)}
+.cooperation-state{display:inline-flex;padding:4px 10px;border-radius:8px;background:var(--ui-surface-muted,#f3f5f8);color:var(--ui-muted,#637083);font-size:var(--ui-small-size,13px);font-weight:650}
+.cooperation-state:is([data-state=requested],[data-state=completion_requested]){background:var(--ui-accent-soft,#edf3ff);color:var(--ui-accent,#2868d9)}
+.cooperation-next{border-top:1px solid var(--ui-line,#e5e9ef);margin-top:24px;padding-top:16px}
+.cooperation-next p{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083)}
+.cooperation-empty{padding:48px 24px;border:1px dashed var(--ui-line,#dce2eb);border-radius:18px;text-align:center;color:var(--ui-muted,#637083)}
+.cooperation-empty h3{font-size:1.05em;color:var(--ui-text,#191f28)}
+.cooperation-workspace .cooperation-compose-body{display:grid;gap:18px}
+.cooperation-compose-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px}
+.cooperation-workspace .cooperation-editor>fieldset{gap:0}
+.cooperation-workspace .cooperation-options{margin:0;border-top:1px solid var(--ui-line,#e5e9ef);padding-top:6px}
+.cooperation-options summary{font-weight:650}
+.cooperation-options p{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083)}
+.cooperation-editor .wh-compose-footer .cooperation-check{flex:1 1 260px;font-size:var(--ui-small-size,13px)}
+.cooperation-workspace input[type=checkbox]{min-height:0;accent-color:var(--ui-accent,#2868d9)}
+@media(max-width:850px){.cooperation-browser{grid-template-columns:minmax(0,1fr)}.cooperation-workspace .cooperation-detail{padding:20px}}
+@media(max-width:520px){.cooperation-compose-row{grid-template-columns:minmax(0,1fr)}.cooperation-workspace .cooperation-filters label{flex-basis:100%}.cooperation-editor .wh-compose-footer .cooperation-check{flex-basis:auto}.cooperation-editor .wh-compose-footer .cooperation-actions{width:100%}.cooperation-workspace .cooperation-detail{padding:16px}}

@@ -16,7 +16,8 @@ test('동시에 렌더한 새 일정과 수정 일정은 각 제목으로 이름
   assert.equal(dialogs.length, 2); assert.notEqual(dialogs[0], dialogs[1])
   assert(html.includes(`<h2 id="${dialogs[0]}">일정 등록</h2>`))
   assert(html.includes(`<h2 id="${dialogs[1]}">일정 수정</h2>`))
-  for (const id of dialogs) assert(html.includes(`<form aria-labelledby="${id}">`))
+  const formLabels = [...html.matchAll(/<form\b[^>]*aria-labelledby="([^"]+)"[^>]*>/g)].map(match => match[1])
+  assert.deepEqual(formLabels, dialogs)
 })
 test('대상 안내와 미리보기의 이름 연결도 같은 화면의 다른 편집기와 충돌하지 않는다', () => {
   const ids = [...html.matchAll(/\sid="([^"]+)"/g)].map(match => match[1])

@@ -1,0 +1,22 @@
+/* 핵심 일정과 공유 범위를 함께 확인한다. 저장 결과·충돌 안내는 접지 않는다. */
+.calendar-composer-dialog.calendar-composer-dialog{max-width:1040px;background:var(--ui-surface,#fff);color:var(--ui-text,#191f28)}
+.calendar-composer.wh-composer{border:0}
+.calendar-composer .dialog-body{padding:22px 24px}
+.calendar-composer .calendar-compose-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:24px}
+.calendar-composer :is(.calendar-compose-core,.calendar-compose-scope){min-width:0;display:grid;align-content:start;gap:16px}
+.calendar-composer :is(.calendar-compose-core,.calendar-compose-scope)>h3{font-size:1.05em;margin:0 0 2px;letter-spacing:-.02em}
+.calendar-composer .calendar-compose-scope{align-self:start;padding:20px;border:1px solid var(--ui-line,#e5e9ef);border-radius:16px;background:var(--ui-surface-muted,#f7f8fa)}
+.calendar-composer .calendar-scope-summary{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#637083);margin:0}
+.calendar-composer .calendar-target-options{border-top:1px solid var(--ui-line,#e5e9ef);padding-top:6px;min-width:0}
+.calendar-composer .calendar-target-options>summary{font-weight:650;cursor:pointer;padding:10px 0}
+.calendar-composer .audience-section{border:0;padding-top:8px}
+.calendar-composer .audience-section h3{font-size:var(--ui-small-size,13px)}
+.calendar-composer .audience-preview{background:var(--ui-surface-muted,#f7f8fa);border-color:var(--ui-line,#e5e9ef);padding:14px 0 0;margin-top:0;border-width:1px 0 0;border-radius:0}
+.calendar-composer .audience-preview dl{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.calendar-composer .audience-preview dl>div{display:block;margin:0;min-width:0}
+.calendar-composer .audience-preview dd{font-size:1.15em;color:var(--ui-text,#191f28);margin-top:6px}
+.calendar-composer .audience-preview :is(dt,dd span,.hint){color:var(--ui-muted,#637083);font-size:var(--ui-small-size,13px)}
+.calendar-composer .audience-preview dd span{display:block;margin-left:0}
+.calendar-composer .member-target{grid-template-columns:minmax(0,1fr) auto auto}
+@media(max-width:850px){.calendar-composer .calendar-compose-grid{grid-template-columns:minmax(0,1fr)}.calendar-composer .audience-preview dl{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:520px){.calendar-composer .dialog-body{padding:18px 16px}.calendar-composer .calendar-compose-scope{align-self:start;padding:14px}.calendar-composer .dialog-footer{position:static}.calendar-composer .dialog-footer>.hint{max-width:100%}}
