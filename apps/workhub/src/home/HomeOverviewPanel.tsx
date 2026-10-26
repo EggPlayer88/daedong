@@ -1,3 +1,4 @@
+import { WorkspaceIcon } from '../app/WorkspaceIcon'
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
@@ -7,13 +8,7 @@ import { recoveryScope } from '../app/pending-requests'
 import { homeCountRows, homeOverviewEmpty } from './counts'
 
 interface Props { connection: SupabaseConnection; member: Membership; revision: number; onOpen: (item: HomeAction) => void; onOpenList?: (kind: HomeKind) => void; locked?: boolean }
-const iconPaths: Record<HomeKind, string> = {
-  collection: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5',
-  supplement: 'M6 3h9l4 4v14H6z M14 3v5h5 M12 11v5 M12 18h.01',
-  message: 'M4 4h16v12H9l-5 4z M8 8h8 M8 12h5',
-  student_followup: 'M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0 M5 21v-3a7 7 0 0 1 14 0v3',
-  cooperation: 'M7 7h13l-4-4 M20 7l-4 4 M17 17H4l4-4 M4 17l4 4',
-}
+const iconNames = { collection: 'collections', supplement: 'collections', message: 'messages', student_followup: 'students', cooperation: 'cooperation' } as const
 
 export function HomeOverviewPanel(props: Props) { return <HomeOverviewScope key={recoveryScope(props.member)} {...props} /> }
 function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, locked = false }: Props) {
@@ -49,7 +44,7 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
       </div>)}</div>}
       <ul className="home-overview-items" id={listId}>{shownItems.map(item => <li key={item.id}>
         <button type="button" disabled={locked || loading} onClick={() => onOpen(item)} className={item.priority === 'urgent' ? 'is-urgent' : undefined}>
-          <span className="home-overview-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round"><path d={iconPaths[item.kind]} /></svg></span>
+          <span className="home-overview-icon" aria-hidden="true"><WorkspaceIcon name={iconNames[item.kind]} /></span>
           <span className="home-overview-content"><span className="home-overview-title">{item.priority === 'urgent' && <strong>확인 필요 · </strong>}{item.title}</span><small>{item.label}{item.dueDate && ` · ${item.dueDate}까지`}</small></span>
           <span className="home-overview-arrow" aria-hidden="true">›</span>
         </button>
