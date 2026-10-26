@@ -23,7 +23,6 @@ const normalResponses={
   timetable:envelope('timetable.v1',{available:true}),
   timetableOperations:envelope('timetable-operations.v1',{available:true}),
   timetableInterventions:envelope('timetable-interventions.v1',{available:true,reason:null}),
-  timetableImport:envelope('timetable-import.v1',{schoolId:'school',schoolLevel:'middle',termId:'term',termLabel:'1학기',firstDay:'2027-03-01',lastDay:'2027-08-12',sourceRevision:1,sourceFingerprint:'a'.repeat(64),canEdit:false,canConfirm:false,resources:[],courses:[],unsupportedFeatures:[],savedDraft:null}),
   participation:{contract:'workhub.participant-admin.v1',schoolId:'school',memberId:'member',grants:[],timetableApprovers:0,interventionsReady:false},
   schoolRoster:envelope('school-roster.v1',{available:true,reason:null,version:1,asOfDate:'2026-10-16',candidates:[],teachers:[]}),
   schoolData:envelope('school-data-maintenance.v1',{available:true,reason:null,courses:[],course:null,students:[],teachers:[]}),
@@ -33,7 +32,7 @@ function fixture(respond=()=>[]){const state={context:{memberships:[structuredCl
 const signal=()=>new AbortController().signal
 let passed=0
 async function test(name,run){await run();passed++;console.log('  ✓ '+name)}
-await test('구축된 20개 기능을 모두 명시적인 조회 RPC 하나로만 확인한다',async()=>{for(const item of checkModules){const f=fixture(()=>{throw new ContractError('FORBIDDEN','private@example.invalid')});const result=await f.run(item.id,signal());assert(['FORBIDDEN','CANCELLED'].includes(result.code),item.id+':'+result.code);assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc]);assert.equal(JSON.stringify(result).includes('private'),false);assert(!/mutate|prepare|download|read_thread|inspect|complete/.test(item.rpc))}})
+await test('구축된 19개 기능을 모두 명시적인 조회 RPC 하나로만 확인한다',async()=>{for(const item of checkModules){const f=fixture(()=>{throw new ContractError('FORBIDDEN','private@example.invalid')});const result=await f.run(item.id,signal());assert(['FORBIDDEN','CANCELLED'].includes(result.code),item.id+':'+result.code);assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc]);assert.equal(JSON.stringify(result).includes('private'),false);assert(!/mutate|prepare|download|read_thread|inspect|complete/.test(item.rpc))}})
 await test('빈 일정과 업무 목록을 조회 성공으로 확인하되 저장 완료라고 하지 않는다',async()=>{const f=fixture();for(const id of ['calendar','tasks'])assert.equal((await f.run(id,signal())).code,'READ_CONFIRMED')})
 await test('학교 준비 응답과 미설치·미설정·권한 제한을 구분한다',async()=>{for(const [data,code] of [[{available:true},'READY_RESPONSE'],[{available:false,reason:'not_installed'},'DATABASE_MISSING'],[{available:false,reason:'not_configured'},'NOT_CONFIGURED'],[{available:false,reason:'forbidden'},'FORBIDDEN']])assert.equal((await fixture(()=>school(data)).run('school',signal())).code,code)})
 await test('메시지 준비와 첨부 준비를 합쳐 완성이라고 표시하지 않는다',async()=>{const data={available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'};assert.equal((await fixture(()=>messaging(data)).run('messaging',signal())).code,'PARTIAL');data.attachments='hwpx_basic_v1';assert.equal((await fixture(()=>messaging(data)).run('messaging',signal())).code,'READY_RESPONSE')})
@@ -49,8 +48,9 @@ await test('점검별 결과를 독립적으로 재시도하고 저장 요청을
 await test('지원 JSON에서 추가 필드와 개인정보를 제거한다',()=>{const result={id:'home',code:'READ_CONFIRMED',checkedAt:'2026-10-16T00:00:00.000Z',memberId:'private-member',title:'private-title',raw:{email:'private@example.invalid'}};assert.deepEqual(JSON.parse(exportModuleChecks([result])),{format:'workhub-module-check.v1',scope:'read_only',checks:[{id:'home',code:'READ_CONFIRMED',checkedAt:result.checkedAt}]})})
 await test('알 수 없는 기능·코드·날짜·중복 결과는 지원 파일에서 거부한다',()=>{const result={id:'home',code:'READ_CONFIRMED',checkedAt:'2026-10-16T00:00:00.000Z'};for(const change of [{id:'private'},{code:'private'},{checkedAt:'2026-02-31T00:00:00.000Z'},{checkedAt:'private'}])assert.throws(()=>exportModuleChecks([{...result,...change}]));assert.throws(()=>exportModuleChecks([result,result]))})
 await test('AI 생성·비용·파일 검사는 호출하지 않고 각 항목은 기존 메뉴로만 연결한다',()=>{
-  assert.equal(checkModules.length,20)
+  assert.equal(checkModules.length,19)
   assert.equal(new Set(checkModules.map(item=>item.id)).size,checkModules.length)
+  assert(!checkModules.some(item=>item.rpc==='workhub_timetable_import_get'),'T4 원본 판 추적 기록은 읽기 전용 점검에서 호출하지 않는다')
   for(const item of checkModules){
     assert(workhubModules.some(module=>module.id===item.page),item.id)
     assert.doesNotMatch(item.rpc,/mutate|prepare|commit|close|inspect|cleanup|generate|assistant|select_memory|delete/)
@@ -152,7 +152,7 @@ await test('개인 기억 쓰기 준비는 개별 기억의 선택이나 AI 호�
   assert.deepEqual(Object.keys(result).sort(),['checkedAt','code','id'])
 })
 await test('새 점검도 다른 학교·소속 응답과 준비 중 오류를 성공으로 받지 않는다',async()=>{
-  for(const id of ['timetable','timetableOperations','timetableInterventions','timetableImport','schoolRoster','schoolData','memory']){
+  for(const id of ['timetable','timetableOperations','timetableInterventions','schoolRoster','schoolData','memory']){
     for(const field of ['schoolId','memberId']){
       const raw=structuredClone(normalResponses[id]);raw[field]='other'
       assert.equal((await fixture(()=>raw).run(id,signal())).code,'INVALID_RESPONSE',id+':'+field)
@@ -168,7 +168,7 @@ await test('전체 점검을 내보낼 때 조회 원문·교사·수업·기억
     assert.deepEqual(f.state.calls.map(call=>call.name),[item.rpc])
   }
   const raw=exportModuleChecks(results),data=JSON.parse(raw)
-  assert.equal(data.checks.length,20)
+  assert.equal(data.checks.length,19)
   assert.equal(data.scope,'read_only')
   for(const check of data.checks)assert.deepEqual(Object.keys(check).sort(),['checkedAt','code','id'])
   assert.doesNotMatch(raw,/private|비공개|schoolId|memberId|canWrite|candidates|courses|teachers/)
@@ -191,12 +191,5 @@ await test('참여 허용이 만료되거나 승인 담당이 없어도 목록 �
     const wrong={...raw,[field]:'other'}
     assert.equal((await fixture(()=>wrong).run('participation',signal())).code,'INVALID_RESPONSE')
   }
-})
-await test('확정 시간표 원본 조회는 빈 수업·편집 불가 상태도 가져오기 성공으로 오인하지 않는다',async()=>{
-  const f=fixture(()=>structuredClone(normalResponses.timetableImport))
-  assert.equal((await f.run('timetableImport',signal())).code,'READ_CONFIRMED')
-  assert.deepEqual(f.state.calls.map(x=>x.name),['workhub_timetable_import_get'])
-  const raw=structuredClone(normalResponses.timetableImport);raw.data.schoolId='other'
-  assert.equal((await fixture(()=>raw).run('timetableImport',signal())).code,'INVALID_RESPONSE')
 })
 console.log(`${passed}건 통과`)

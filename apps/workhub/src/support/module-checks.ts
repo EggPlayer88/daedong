@@ -19,7 +19,6 @@ export const checkModules = [
   { id: 'timetable', label: '시간표 편성', rpc: 'workhub_timetable_readiness', page: 'timetable' },
   { id: 'timetableOperations', label: '시간표 운영', rpc: 'workhub_timetable_operations_readiness', page: 'timetable' },
   { id: 'timetableInterventions', label: '대강·보강 운영', rpc: 'workhub_timetable_interventions_readiness', page: 'timetable' },
-  { id: 'timetableImport', label: '확정 시간표 가져오기', rpc: 'workhub_timetable_import_get', page: 'timetable' },
   { id: 'participation', label: '업무 참여 설정', rpc: 'workhub_participant_administration', page: 'schoolAdmin' },
   { id: 'schoolRoster', label: '교사 소속 연결', rpc: 'workhub_school_roster_get', page: 'schoolAdmin' },
   { id: 'schoolData', label: '학교 자료 정정', rpc: 'workhub_school_data_get', page: 'students' },
@@ -39,6 +38,7 @@ const readinessCode = (result: { available: boolean; reason?: string | null }): 
   return code(result.reason?.toUpperCase())
 }
 
+// T4 import_get은 t1_mark로 원본 판 추적값을 기록하므로 이 읽기 전용 목록에서 제외한다.
 // 각 화면의 검증기를 그대로 이용한다. 저장·읽음·파일 획득·AI 호출은 실행하지 않는다.
 async function probe(id: CheckId, connection: SupabaseConnection, memberId: string): Promise<CheckCode> {
   switch (id) {
@@ -60,8 +60,6 @@ async function probe(id: CheckId, connection: SupabaseConnection, memberId: stri
     case 'timetable': return readinessCode(await (await import('../timetable/server')).createTimetableServer(connection).readiness(memberId))
     case 'timetableOperations': return readinessCode(await (await import('../timetable/operations-server')).createTimetableOperationsServer(connection).readiness(memberId))
     case 'timetableInterventions': return readinessCode(await (await import('../timetable/interventions-server')).createTimetableInterventionsServer(connection).readiness(memberId))
-    // 원본 조회와 실제 가져오기·공개 성공을 구분한다.
-    case 'timetableImport': await (await import('../timetable/import-server')).createTimetableImportServer(connection).get(memberId); return 'READ_CONFIRMED'
     case 'participation': {
       const member = connection.info().memberships.find(item => item.id === memberId)
       if (!member) return 'CANCELLED'
