@@ -11,8 +11,11 @@ export interface CollectionUnitsEditorProps {
 
 /** 입력값은 부모가 보관한다. 등록 방식 변경이나 명부 갱신으로 기존 대상을 지우지 않는다. */
 export function CollectionUnitsEditor({ units, members, reviewerMemberId = '', disabled = false, onChange }: CollectionUnitsEditorProps) {
-  const id = useId(), [message, setMessage] = useState('')
+  const id = useId(), [message, setMessage] = useState(''), [search, setSearch] = useState('')
   const validation = validateCollectionUnitInputs(units, members), options = collectionUnitMemberOptions(members)
+  // 검색은 표시만 바꾸며 선택한 제출 대상과 원본 명부는 보존한다.
+  const query = search.normalize('NFC').trim().toLocaleLowerCase('ko')
+  const visibleOptions = options.filter(person => person.label.normalize('NFC').toLocaleLowerCase('ko').includes(query))
   const editable = isCollectionUnitInputs(units), values = editable ? units : []
   const locked = disabled || !editable || validation.issues.some(issue => issue.field === 'members')
   const name = (memberId: string) => options.find(member => member.id === memberId)?.label ?? '현재 명부에 없는 교사'
@@ -21,7 +24,7 @@ export function CollectionUnitsEditor({ units, members, reviewerMemberId = '', d
   const globalIssues = validation.issues.filter(issue => issue.unitIndex === null)
   return <fieldset className="cs-unit-editor" disabled={locked} aria-describedby={`${id}-help`}><style>{styles}</style><legend>제출 대상</legend>
     <p id={`${id}-help`}>제출할 교사를 선택하세요. 함께 한 부를 낼 때는 공동 제출 단위를 추가하세요.</p>
-    <fieldset className="cs-personal-units"><legend>교사마다 한 부</legend><div className="cs-unit-options">{options.map(person => {
+    <fieldset className="cs-personal-units"><legend>교사마다 한 부</legend><label className="cs-unit-search" htmlFor={`${id}-search`}>교사 찾기<input id={`${id}-search`} type="search" placeholder="이름·소속으로 찾기" value={search} onChange={event => setSearch(event.target.value)} /></label><div className="cs-unit-options">{visibleOptions.map(person => {
       const assigned = values.filter(unit => unit.responsibleMemberId === person.id)
       const personal = assigned.length === 1 && assigned[0].label === person.label && !assigned[0].contributorMemberIds.length
       const chosenReviewer = person.id === reviewerMemberId
@@ -29,7 +32,7 @@ export function CollectionUnitsEditor({ units, members, reviewerMemberId = '', d
         if (event.target.checked) attempt(() => appendPersonalCollectionUnit(values, members, person.id, reviewerMemberId))
         else if (personal) change(values.filter(unit => unit !== assigned[0]))
       }} /><span>{person.label}{chosenReviewer && <small>현재 검토자</small>}{assigned.length > 0 && !personal && <small>아래 제출 단위에서 조정</small>}</span></label>
-    })}</div>{!options.length && <p>선택할 수 있는 교사가 없습니다. 현재 학교의 명부를 확인해 주세요.</p>}</fieldset>
+    })}</div>{!options.length ? <p>선택할 수 있는 교사가 없습니다. 현재 학교의 명부를 확인해 주세요.</p> : !visibleOptions.length && <p role="status">검색 결과가 없습니다. 선택한 제출 대상은 아래에 유지됩니다.</p>}</fieldset>
     <div className="cs-unit-add"><span>현재 {values.length}부 · 최대 {collectionUnitLimit}부</span><button type="button" disabled={locked || values.length >= collectionUnitLimit} onClick={() => attempt(() => appendSharedCollectionUnit(values))}>공동 제출 단위 추가</button></div>
     {globalIssues.length > 0 && <ul className="cs-unit-errors" role="alert">{globalIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>}
     {values.map((unit, index) => {

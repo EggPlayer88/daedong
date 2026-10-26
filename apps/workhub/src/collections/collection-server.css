@@ -42,3 +42,31 @@
 .cs-compose-footer{padding:16px 28px 22px;background:var(--ui-canvas,#f8fafc);border-top:1px solid var(--border,#d8dfe8)}
 .cs-compose-footer p{margin:0;color:var(--muted,#697386);font-size:.88em}.cs-compose-footer .cs-actions{margin-top:10px}
 @media(max-width:640px){.cs-composer-heading{padding:20px 16px 16px}.collection-server .cs-composer>fieldset{padding:0 16px}.cs-compose-section{padding:18px 0}.cs-basics{grid-template-columns:1fr;gap:12px}.cs-compose-footer{padding:16px}.cs-template-picker input{max-width:100%}}
+
+/* 핵심 입력은 내용 → 대상 → 양식 순서로 읽고, 선택 설정만 아래에 모은다. */
+.ws-shell .main-content:has(>.page-header)>.collection-server>.cs-heading>div :is(h2,p){position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.ws-shell .main-content:has(>.page-header)>.collection-server>.cs-heading .cs-actions{margin-top:0}
+.collection-server .cs-composer.wh-composer>fieldset{padding:0 24px}
+.cs-composer.wh-composer .cs-compose-section{padding:18px 0}
+.cs-composer.wh-composer .cs-compose-section h4{display:flex;justify-content:space-between;gap:8px;margin:0 0 12px}
+.cs-compose-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:24px}
+.cs-compose-columns>.cs-compose-section{border-bottom:0}
+.cs-composer.wh-composer .cs-optional{border-top:1px solid var(--ui-line,#e5e9ef);border-bottom:0;padding:2px 0}
+.cs-composer.wh-composer .cs-optional summary{font-size:var(--ui-small-size,13px);font-weight:600;color:var(--ui-text,#191f28);min-height:48px;align-content:center}
+.cs-composer.wh-composer .cs-template-picker{padding:20px 16px;min-height:116px;align-content:center;gap:8px;background:var(--ui-surface-muted,#f7f8fa);border-color:var(--ui-line,#dce2eb)}
+.cs-composer.wh-composer .cs-unit-editor{margin:0;gap:10px}
+.cs-composer.wh-composer .cs-unit-editor>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.cs-composer.wh-composer .cs-unit-editor>p{font-size:var(--ui-small-size,13px)}
+.cs-composer.wh-composer .cs-personal-units{gap:8px}
+.cs-composer.wh-composer .cs-unit-options{max-height:240px;overflow:auto;padding:3px;scrollbar-width:thin}
+.cs-composer.wh-composer .cs-unit-options label{flex:1 1 130px;min-height:44px;padding:8px 10px;cursor:pointer;border-radius:10px}
+.cs-composer.wh-composer .cs-unit-options label:has(input:checked){background:var(--ui-accent-soft,#edf4ff);border-color:var(--ui-accent,#2868d9)}
+.cs-composer.wh-composer .cs-unit-add{gap:8px;flex-wrap:wrap}.cs-composer.wh-composer .cs-unit-add>span{font-size:var(--ui-small-size,13px)}
+.cs-composer.wh-composer .cs-unit-settings summary{padding:10px 12px;font-size:var(--ui-small-size,13px)}
+.cs-composer.wh-composer .cs-unit-settings summary>span{font-size:var(--ui-small-size,13px);margin-top:3px}
+.cs-composer.wh-composer .cs-compose-footer{margin-top:14px}
+.cs-answer.wh-composer>.cs-submission-guide,.cs-answer.wh-composer>.cs-warning{margin:16px 24px 0}
+.cs-answer.wh-composer .cs-answer-note{padding:0 24px;margin:12px 0 18px;font-size:var(--ui-small-size,13px)}
+.cs-answer.wh-composer .cs-file-picker input[type=file]{border-style:dashed;background:var(--ui-surface-muted,#f7f8fa)}
+@media(max-width:900px){.cs-compose-columns{grid-template-columns:1fr;gap:0}.cs-compose-columns>.cs-compose-section:first-child{border-bottom:1px solid var(--ui-line,#e5e9ef)}}
+@media(max-width:720px){.collection-server .cs-composer.wh-composer>fieldset{padding:0 16px}.cs-answer.wh-composer>.cs-submission-guide,.cs-answer.wh-composer>.cs-warning{margin:12px 16px 0}.cs-answer.wh-composer .cs-answer-note{padding-inline:16px}}
