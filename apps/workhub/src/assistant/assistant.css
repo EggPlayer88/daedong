@@ -33,3 +33,10 @@
 /* 기억 관리의 세부 입력은 펼쳤을 때만 보이며 기존 질문 입력과 분리한다. */
 .assistant-memory{margin:18px 0;min-width:0}.assistant-memory-toggle{width:100%;text-align:left}.assistant-memory-content{padding:16px;border:1px solid var(--ui-line,#e3e7ed);border-radius:12px;margin-top:8px;min-width:0}.assistant-memory-list{list-style:none;padding:0;max-height:480px;overflow:auto}.assistant-memory-list>li{padding:14px 0;border-bottom:1px solid var(--ui-line,#e3e7ed);overflow-wrap:anywhere}.assistant-memory-list summary{min-height:40px;cursor:pointer;padding:8px 0}.assistant-memory-editor{display:grid;gap:10px;margin-top:16px}.assistant-memory-check{display:flex;gap:10px;align-items:flex-start;margin:12px 0}.assistant-workspace .assistant-memory-check input[type=checkbox],.assistant-memory-check input[type=checkbox]{width:18px;min-height:18px;height:18px;flex:0 0 18px;padding:0;margin:3px 0}.assistant-memory .assistant-actions button{white-space:normal;overflow-wrap:anywhere}.assistant-memory label{display:block}.assistant-memory label.assistant-memory-check{display:flex}.assistant-memory .assistant-context{margin:12px 0}.assistant-memory-content>*{min-width:0}.assistant-memory h3,.assistant-memory h4{margin:12px 0}
 @media(max-width:540px){.assistant-memory-content{padding:12px}.assistant-memory .assistant-actions>button{flex-basis:100%}.assistant-memory-list{max-height:400px}}
+
+/* 입력을 먼저 배치하며 키보드 이동 순서도 화면 순서와 일치시킨다. */
+.assistant-workspace>.assistant-thread-heading{margin:12px 0 8px}
+.assistant-workspace>.assistant-compose{margin:10px 0 20px}
+.assistant-intent-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px}
+.assistant-compose .assistant-intent-row select{max-width:none;margin:0;padding:8px 12px}
+.assistant-workspace .assistant-conversation[hidden]{display:none}

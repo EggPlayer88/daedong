@@ -1,0 +1,12 @@
+/* 조회 범위·날짜·실제 시각은 유지하고 칸마다 반복되던 정보만 줄인다. */
+.ttboard-display-tools{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:8px 0 12px}
+.ttboard-display-tools .ttboard-range{margin:0}
+.timetable-operations .ttboard-display-tools button{font-size:12px;padding:6px 10px;min-height:36px}
+.ttboard-display-tools button[aria-pressed=true]{color:var(--ui-accent,var(--accent));border-color:currentColor}
+.ttboard-week[data-compact=true] td,.ws-shell .ttboard-week[data-compact=true] td{height:68px;min-height:0;padding:5px}
+.timetable-operations .ttboard-week[data-compact=true] button.ttboard-lesson,.ws-shell .timetable-operations .ttboard-week[data-compact=true] button.ttboard-lesson{min-height:56px;padding:9px 8px;margin:0 0 3px}
+.ttboard-week[data-compact=true] .ttboard-lesson strong{line-height:1.35;margin:0 0 5px}
+.ttboard-week .ttboard-cross-day{color:var(--ui-warning,var(--text));font-weight:650}
+.ttboard-week[data-compact=true] th:first-child{width:88px;white-space:nowrap}
+.ws-shell[data-text-size=large] .ttboard-week[data-compact=true] th:first-child{width:110px}
+@media(max-width:650px){.ttboard-display-tools{gap:8px}.ttboard-display-tools .ttboard-range{font-size:12px}}

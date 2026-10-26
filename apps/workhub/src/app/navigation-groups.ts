@@ -8,12 +8,19 @@ export const navigationGroups: { label: string; home: PageId; pages: PageId[] }[
   { label: '자료', home: 'documents', pages: ['documents', 'knowledge'] },
 ]
 
-export function availableNavigation(modules: readonly WorkhubModule[], page: PageId) {
-  const primary = navigationGroups.flatMap(group => {
+const participantGroups: typeof navigationGroups = [
+  { label: '메시지', home: 'messages', pages: ['messages'] },
+  { label: '시간표', home: 'timetable', pages: ['timetable', 'students'] },
+  { label: '업무', home: 'tasks', pages: ['tasks', 'collections', 'cooperation', 'schoolAdmin'] },
+  { label: '일정', home: 'calendar', pages: ['calendar'] },
+]
+
+export function availableNavigation(modules: readonly WorkhubModule[], page: PageId, participant = false) {
+  const primary = (participant ? participantGroups : navigationGroups).flatMap(group => {
     const module = modules.find(item => item.id === group.home)
     return module ? [{ ...group, module, active: group.pages.includes(page) }] : []
   })
-  if (!primary.some(group => group.home === 'timetable') && modules.some(item => item.id === 'calendar')) {
+  if (!participant && !primary.some(group => group.home === 'timetable') && modules.some(item => item.id === 'calendar')) {
     const home = primary.find(group => group.home === 'home')
     if (home) { home.pages = ['home']; home.active = page === 'home' }
     primary.splice(1, 0, { label: '학교 일정', home: 'calendar', pages: ['calendar'], module: modules.find(item => item.id === 'calendar')!, active: page === 'calendar' })

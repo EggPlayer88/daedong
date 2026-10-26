@@ -7,6 +7,7 @@ import { timetableDateOffset, timetableLocalDate, timetableWeekStart } from './o
 import { filterBoardTargets } from './board-targets'
 import styles from './operations-board.css?inline'
 import usabilityStyles from './published-board-usability.css?inline'
+import densityStyles from './published-board-density.css?inline'
 import limits from './operations-next-limits.json'
 import type { InterventionsView } from './interventions-contracts'
 import { matchedInterventionLesson, verifiedInterventionChanges, type InterventionOpenIntent } from './operations-links'
@@ -29,6 +30,7 @@ export function PublishedTimetableBoard({ view, memberId, date, initialDate, loc
   const id = useId(), [teacher, setTeacher] = useState(initialFilter?.teacher ?? memberId), [group, setGroup] = useState(initialFilter?.group ?? ''), [selectedDate, setSelectedDate] = useState(initialDate ?? date)
   const [mode, setMode] = useState<'week' | 'day'>(() => initialMode ?? (typeof window !== 'undefined' && window.matchMedia('(max-width: 650px)').matches ? 'day' : 'week')), [selectedId, setSelectedId] = useState(initialLessonId ?? ''), [limit, setLimit] = useState(30)
   const [teacherQuery, setTeacherQuery] = useState(''), [groupQuery, setGroupQuery] = useState('')
+  const [detailed, setDetailed] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null), detailRef = useRef<HTMLElement>(null), selectionButton = useRef<HTMLButtonElement | null>(null), focusSelection = useRef(false)
   const weekStart = timetableWeekStart(selectedDate), weekDays = Array.from({ length: 7 }, (_, index) => timetableDateOffset(weekStart, index))
   const teachers = useMemo(() => [...new Map(view.lessons.flatMap(lesson => lesson.teachers.map(teacher => [teacher.id, teacher.name] as const)))].sort((a, b) => a[1].localeCompare(b[1], 'ko', { numeric: true }) || a[0].localeCompare(b[0])), [view])
@@ -84,13 +86,20 @@ export function PublishedTimetableBoard({ view, memberId, date, initialDate, loc
     onRangeChange(timetableWeekStart(next), next)
   }
   function item(lesson: OperationLesson) {
-    return <button type="button" key={lesson.id} disabled={selectionLocked} className={'ttboard-lesson ' + (lesson.state === 'cancelled' ? 'ttboard-cancelled' : '')} aria-pressed={selectedId === lesson.id} aria-controls={selectedId === lesson.id ? id + '-detail' : undefined} onClick={event => { selectionButton.current = event.currentTarget; if (selectedId === lesson.id) { focusSelection.current = false; detailRef.current?.focus() } else { focusSelection.current = true; setSelectedId(lesson.id) } }}>
-      <strong>{lesson.label}</strong><span>{lesson.groupNames.join(' · ')}</span><span>{lesson.teachers.map(item => item.name).join(' · ')}</span>
-      <small>{positions.get(lesson.id)!.date} {positions.get(lesson.id)!.start}–{positions.get(lesson.id)!.endDate !== positions.get(lesson.id)!.date ? positions.get(lesson.id)!.endDate + ' ' : ''}{positions.get(lesson.id)!.end}</small>
+    const position = positions.get(lesson.id)!, compact = mode === 'week' && !detailed
+    const names = lesson.teachers.map(item => item.name).join(' · ')
+    const time = `${position.date} ${position.start}–${position.endDate !== position.date ? position.endDate + ' ' : ''}${position.end}`
+    // 주간표의 날짜·시각은 행과 열에 한 번만 표시하되 접근성 이름과 상세에는 전부 남긴다.
+    const label = [lesson.label, lesson.groupNames.join(' · '), names, time, lesson.state !== 'scheduled' ? lesson.state === 'performed' ? '진행 완료' : '취소' : ''].filter(Boolean).join(' ')
+    return <button type="button" key={lesson.id} aria-label={label} title={label} disabled={selectionLocked} className={'ttboard-lesson ' + (lesson.state === 'cancelled' ? 'ttboard-cancelled' : '')} aria-pressed={selectedId === lesson.id} aria-controls={selectedId === lesson.id ? id + '-detail' : undefined} onClick={event => { selectionButton.current = event.currentTarget; if (selectedId === lesson.id) { focusSelection.current = false; detailRef.current?.focus() } else { focusSelection.current = true; setSelectedId(lesson.id) } }}>
+      <strong>{lesson.label}</strong><span>{lesson.groupNames.join(' · ')}</span>
+      {(!compact || !teacher || lesson.teachers.length > 1) && <span className="ttboard-lesson-teachers">{names}</span>}
+      {!compact && <small>{time}</small>}
+      {compact && position.endDate !== position.date && <small className="ttboard-cross-day">{position.endDate} 종료</small>}
       {lesson.state !== 'scheduled' && <span className="ttboard-status">{lesson.state === 'performed' ? '진행 완료' : '취소'}</span>}
     </button>
   }
-  return <section className="ttboard" aria-labelledby={id + '-title'}><style>{styles}{usabilityStyles}</style>
+  return <section className="ttboard" aria-labelledby={id + '-title'}><style>{styles}{usabilityStyles}{densityStyles}</style>
     <div className="ttboard-heading"><div><h3 ref={headingRef} tabIndex={-1} id={id + '-title'}>학교가 확정한 수업</h3><p className="ttops-muted">{group ? groupLabels.get(group) ?? '선택한 학급' : teacher === memberId ? '내 시간표' : teacher ? teacherLabels.get(teacher) ?? '선택한 교사' : '허용된 전체 수업'}</p></div><div className="ttboard-mode" aria-label="시간표 보기 방식"><button type="button" className="secondary" aria-pressed={mode === 'week'} onClick={() => chooseMode('week')}>주간표</button><button type="button" className="secondary" aria-pressed={mode === 'day'} onClick={() => chooseMode('day')}>하루 목록</button></div></div>
     <div className="ttboard-shortcuts">{(teacher !== memberId || group || teacherQuery || groupQuery) && <button type="button" className="secondary" disabled={selectionLocked} onClick={returnToMine}>내 시간표로 돌아가기</button>}</div>
     <div className="ttboard-toolbar"><details className="ttboard-filters"><summary>교사·학급·날짜 선택</summary><div className="ttboard-targets">
@@ -104,13 +113,13 @@ export function PublishedTimetableBoard({ view, memberId, date, initialDate, loc
     {!validReferences && <p className="ttops-muted">학급별 조회는 학급 식별 정보 연결 후 사용할 수 있습니다. 같은 이름의 학급을 임의로 합치지 않습니다.</p>}
     <p className="ttops-muted">{view.timeZone} 기준 실제 시각입니다. 검색만으로 선택한 시간표가 바뀌지 않습니다.</p></details>
     <div className="ttboard-navigation"><button type="button" className="secondary" disabled={locked} onClick={() => changeDate(timetableDateOffset(selectedDate, mode === 'week' ? -7 : -1))}>이전 {mode === 'week' ? '주' : '날'}</button><strong>{mode === 'week' ? weekStart + ' ~ ' + weekDays[6] : selectedDate}</strong><button type="button" className="secondary" disabled={locked} onClick={() => changeDate(timetableDateOffset(selectedDate, mode === 'week' ? 7 : 1))}>다음 {mode === 'week' ? '주' : '날'}</button><button type="button" className="secondary" disabled={locked} onClick={() => changeDate(date)}>오늘</button></div></div>
-    <p className="ttboard-range">불러온 기간 {view.from} ~ {timetableDateOffset(view.until, -1)} · 이 기간에 공유된 수업을 보여 줍니다.</p>
+    <div className="ttboard-display-tools"><p className="ttboard-range">불러온 기간 {view.from} ~ {timetableDateOffset(view.until, -1)}</p>{mode === 'week' && <button type="button" className="secondary" aria-pressed={detailed} onClick={() => setDetailed(value => !value)}>수업 정보 자세히</button>}</div>
     {unresolvedGroup && <p role="status">선택한 학급의 연결을 다시 확인해야 합니다. 수업이 없는 것으로 판단하지 않습니다.</p>}
     {unresolvedTeacher && <p role="status">선택한 교사는 현재 불러온 수업에서 확인되지 않습니다. 배정이나 공강 여부를 판단하지 않습니다. 교사를 다시 선택하거나 내 시간표로 돌아가 주세요.</p>}
     {!unresolvedTarget && mode === 'week' && partialWeek && <p className="ttboard-selection-note" role="status">이 주의 일부 날짜는 아직 불러오지 않았습니다. 조회 범위 밖의 빈칸은 공강을 뜻하지 않습니다.</p>}
     {!unresolvedTarget && mode === 'week' && crowdedWeek && <p role="status">이 주에 수업 {inWeek.length.toLocaleString('ko-KR')}건이 있습니다. 교사나 학급을 선택하면 한눈에 볼 수 있습니다. 일부 수업만 표시하지 않습니다.</p>}
     <div className="ttboard-canvas"><div className="ttboard-schedule">
-    {!unresolvedTarget && !crowdedWeek && mode === 'week' && <div className="ttboard-week" role="region" aria-label="주간 시간표" tabIndex={0}><table><caption>{teacher === memberId ? '내 ' : ''}주간 시간표 · 실제 시작·종료 시각</caption><thead><tr><th scope="col">시간</th>{weekDays.map((day, index) => <th key={day} scope="col" className={day === date ? 'ttboard-today' : ''}>{weekdays[index]}<span>{day.slice(5)}</span></th>)}</tr></thead><tbody>{intervals.map(interval => <tr key={interval}><th scope="row">{interval}</th>{weekDays.map(day => <td key={day}>{day < view.from || day >= view.until ? <small>조회 범위 밖</small> : (cells.get(day + '|' + interval) ?? []).map(item)}</td>)}</tr>)}</tbody></table>{!inWeek.length && <p className="ttops-empty">{partialWeek ? '불러온 기간에서 이 주의 수업을 찾지 못했습니다.' : '이 주에 확인할 수 있는 수업이 없습니다.'}</p>}</div>}
+    {!unresolvedTarget && !crowdedWeek && mode === 'week' && <div className="ttboard-week" data-compact={!detailed} role="region" aria-label="주간 시간표" tabIndex={0}><table><caption>{teacher === memberId ? '내 ' : ''}주간 시간표 · 실제 시작·종료 시각</caption><thead><tr><th scope="col">시간</th>{weekDays.map((day, index) => <th key={day} scope="col" className={day === date ? 'ttboard-today' : ''}>{weekdays[index]}<span>{day.slice(5)}</span></th>)}</tr></thead><tbody>{intervals.map(interval => <tr key={interval}><th scope="row">{interval}</th>{weekDays.map(day => <td key={day}>{day < view.from || day >= view.until ? <small>조회 범위 밖</small> : (cells.get(day + '|' + interval) ?? []).map(item)}</td>)}</tr>)}</tbody></table>{!inWeek.length && <p className="ttops-empty">{partialWeek ? '불러온 기간에서 이 주의 수업을 찾지 못했습니다.' : '이 주에 확인할 수 있는 수업이 없습니다.'}</p>}</div>}
     {!unresolvedTarget && mode === 'day' && <div className="ttboard-days"><h4>{selectedDate}{outsideDay ? ' · 조회 범위 밖' : ` 수업 ${dayLessons.length}건`}</h4>{outsideDay ? <p className="ttboard-selection-note" role="status">이 날짜는 아직 불러오지 않았습니다. 수업이 없는 것으로 판단하지 않습니다.</p> : dayLessons.length ? <ol>{dayLessons.slice(0, limit).map(lesson => <li key={lesson.id}>{item(lesson)}</li>)}</ol> : <p className="ttops-empty">이 날짜에 확인할 수 있는 수업이 없습니다.</p>}{dayLessons.length > limit && <button type="button" className="secondary" onClick={() => setLimit(value => value + 30)}>수업 더 보기</button>}</div>}
     {selectedId && !selected && <p className="ttboard-selection-note" role="status">연결한 수업을 현재 조회에서 찾지 못했습니다. 날짜와 조회 기간을 확인해 주세요. 수업이 취소되거나 삭제됐다고 판단하지 않습니다.</p>}
     </div>{selected && <aside className="ttboard-inspector" aria-label="수업 상세와 작업">
