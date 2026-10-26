@@ -358,3 +358,10 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `node tests/browser/run.mjs workhub-workflow-ui`로 실행하며 전체 브라우저 러너에도 포함된다.
 - 기존 `workhub-messaging*`, `workhub-collection-*`, `workhub-tasks`, `workhub-task-navigation`, `workhub-cross-module`의 요청 복구·권한·첨부 회귀를 함께 실행한다.
 - 운영 DB·실제 회원·유료 AI는 호출하지 않는다. [화면·검증 기록](../docs/workhub/workflow-ui/README.md).
+
+## 일정·협업·인계 화면
+
+- `workhub-coordination-ui.mjs`: 실제 React와 합성 전송을 사용한 7개 시나리오. 일정 공유 범위·대상 보존, 일괄 입력 단계, 협업 목록/상세·선택 업무 연결·재확인, 인계 미리보기/제외 자료·입력 변경, 같은 요청 복구, 320px·큰 글씨·다크 모드를 확인한다.
+- `node tests/browser/run.mjs workhub-coordination-ui`로 실행하며 전체 러너에 포함한다.
+- 기존 `workhub-calendar-*`, `workhub-cooperation-*`, `workhub-school-transitions`, `workhub-request-recovery`의 전송·권한·충돌·다중 페이지 검증을 함께 실행한다.
+- 서버 계약과 DB를 바꾸지 않는다. [화면·검증 기록](../docs/workhub/coordination-ui/README.md).

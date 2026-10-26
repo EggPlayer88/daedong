@@ -44,11 +44,10 @@ async function waitFor(fn, description = '상태 변경', milliseconds = 15000) 
   while (Date.now() < until) { try { const result = fn(); if (result) return result } catch {} await delay(40) }
   assert.fail(description + ' 대기 시간 초과')
 }
-// 두 순차 작업은 각각 계산 한도와 작업자의 종료 여유를 사용할 수 있다.
-// 대기 중 Python CLI를 반복 기동하지 않고 원자 저장된 접수증을 읽는다. 성공 판정은 마지막에 CLI로 다시 확인한다.
-async function waitForTwoJobs(store, child, requests) {
-  assert.equal(requests.length, 2)
-  const milliseconds = requests.reduce((total, request) => total + (request.options.maxSeconds + jobPolicy.hardTimeoutGraceSeconds) * 1000, 10000)
+// 각 순차 작업은 계산 한도와 작업자의 종료 여유를 사용할 수 있다.
+// 대기 중 Python CLI를 반복 기동하지 않고 원자 저장된 접수증을 읽는다. 최종 상태는 마지막에 CLI로 다시 확인한다.
+async function waitForJobStates(store, child, expected) {
+  const milliseconds = expected.reduce((total, item) => total + (item.request.options.maxSeconds + jobPolicy.hardTimeoutGraceSeconds) * 1000, 10000)
   const until = Date.now() + milliseconds, terminalFailures = new Set(['failed', 'cancelled', 'timed_out', 'interrupted'])
   let states = []
   const diagnostics = () => {
@@ -59,23 +58,27 @@ async function waitForTwoJobs(store, child, requests) {
   }
   const stopped = () => child.exitCode !== null || child.signalCode !== null
   while (Date.now() < until) {
-    states = requests.map(request => {
+    states = expected.map(({request}) => {
       try { const row = json(join(store, 'jobs', request.requestId, 'status.json')); return { requestId: request.requestId, state: row.state, code: row.code, updatedAt: row.updatedAt } }
       catch (error) {
         if (error.code === 'ENOENT') return { requestId: request.requestId, state: 'not_received' }
         assert.fail(`접수증 읽기 실패: ${request.requestId} / ${error.code ?? error.name} / ${diagnostics()}`)
       }
     })
-    if (states.some(row => terminalFailures.has(row.state))) assert.fail(`순차 작업이 성공하지 못했습니다: ${diagnostics()}`)
+    if (states.some((row, index) => (terminalFailures.has(row.state) || row.state === 'succeeded') && row.state !== expected[index].state)) assert.fail(`순차 작업이 예상과 다르게 종료했습니다: ${diagnostics()}`)
     if (stopped()) assert.fail(`지속 작업자가 먼저 종료했습니다: ${diagnostics()}`)
-    if (states.every(row => row.state === 'succeeded')) {
-      for (const request of requests) assert.equal(status(store, request.requestId)?.state, 'succeeded', `CLI 완료 재확인 실패: ${diagnostics()}`)
+    if (states.every((row, index) => row.state === expected[index].state)) {
+      for (const {request, state} of expected) assert.equal(status(store, request.requestId)?.state, state, `CLI 완료 재확인 실패: ${diagnostics()}`)
       assert.equal(stopped(), false, `완료 확인 중 지속 작업자가 종료했습니다: ${diagnostics()}`)
       return
     }
     await delay(jobPolicy.pollIntervalMilliseconds)
   }
-  assert.fail(`두 순차 작업 완료 대기 시간 초과: ${diagnostics()}`)
+  assert.fail(`순차 작업 완료 대기 시간 초과: ${diagnostics()}`)
+}
+async function waitForTwoJobs(store, child, requests) {
+  assert.equal(requests.length, 2)
+  return waitForJobStates(store, child, requests.map(request => ({request, state: 'succeeded'})))
 }
 function newStore() { const path = join(temporary, randomUUID()); call(['init', '--store', path]); return path }
 const basis = () => ({ schemaVersion: 1, id: 'basis', revision: 1, schoolId: 'school', termId: 'term', sourceFingerprint: 'a'.repeat(64), schoolLevel: 'middle', unsupportedFeatures: [], resources: [{ id: 'teacher', kind: 'teacher', label: '교사', capacity: 1 }, { id: 'class', kind: 'class', label: '학급', capacity: 1 }], slots: [{ id: 'm1', day: 1, label: '월1', startMinute: 540, endMinute: 585, periods: 1 }, { id: 'm2', day: 1, label: '월2', startMinute: 595, endMinute: 640, periods: 1 }], lessons: [{ id: 'l1', courseId: 'course', label: '국어', periods: 1, resourceIds: ['teacher', 'class'], allowedSlotIds: ['m1', 'm2'] }], courseLoads: [{ courseId: 'course', periods: 1 }], fixed: [], unavailable: [], preferences: [] })
@@ -279,7 +282,7 @@ try {
     const store = newStore(), bad = await request(), good = await request(); const path = browserSubmit(store, bad, true, new Date(Date.now() - 1000).toISOString())
     bad.basis.resources[0].label = '\u0085'; save(join(path, 'request.json'), bad); browserSubmit(store, good)
     const child = worker(store)
-    await waitFor(() => status(store, bad.requestId)?.state === 'failed' && status(store, good.requestId)?.state === 'succeeded')
+    await waitForJobStates(store, child, [{request: bad, state: 'failed'}, {request: good, state: 'succeeded'}])
     assert.equal(status(store, bad.requestId).code, 'INVALID_REQUEST'); assert.equal(existsSync(join(path, 'result.json')), false)
     child.kill(); await child.finished
     assert.deepEqual(call(['cleanup', '--store', store, '--request-id', bad.requestId]).requestIds, [bad.requestId])
