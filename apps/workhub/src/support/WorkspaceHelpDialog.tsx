@@ -19,6 +19,7 @@ const statusText: Record<CheckCode, { title: string; detail: string }> = {
   VERIFICATION_MISSING: { title: '파일 확인 기능 준비 필요', detail: '관리자가 파일 확인 기능의 연결 상태를 확인해야 합니다.' },
   POLICY_MISSING: { title: '학교 이용 설정 필요', detail: '관리자가 이 기능의 학교 이용 설정을 확인해야 합니다.' },
   NOT_CONFIGURED: { title: '설정 준비 중', detail: '이 기능에 필요한 설정을 아직 확인하지 못했습니다.' },
+  APPROVERS_MISSING: { title: '승인 담당자 확인 필요', detail: '유효한 시간표 승인 담당자가 부족합니다. 담당자의 소속·역할·허용 기간을 확인해 주세요.' },
   DISABLED: { title: '이용 중지 상태', detail: '학교에서 이 기능을 중지한 상태입니다.' },
   NOT_READY: { title: '기능 준비 중', detail: '설치와 이용 설정의 준비 상태를 확인해야 합니다.' },
   UNAVAILABLE: { title: '현재 이용할 수 없음', detail: '서버의 기능 준비 상태를 확인해야 합니다.' },
