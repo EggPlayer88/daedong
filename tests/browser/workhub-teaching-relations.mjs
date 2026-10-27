@@ -1,3 +1,4 @@
+import { openTeachingTools } from './teaching-tools.mjs'
 // 실제 DB 대신 합성 RPC 응답을 사용한다. 실제 React 화면·어댑터·복구 경로를 확인한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -34,7 +35,7 @@ function App(){const[revision,setRevision]=useState(0),[locked,setLocked]=useSta
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),passed=[],errors=[],external=[]
 page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5179/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:12px"><div id="root"></div></body></html>'})})
 const button=name=>page.getByRole('button',{name,exact:true})
-async function start(){await page.goto('http://127.0.0.1:5179/teaching-relations');await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByLabel('수업 선택',{exact:true}).selectOption('course-a');await button('담당·수강 관계 관리').waitFor()}
+async function start(){await page.goto('http://127.0.0.1:5179/teaching-relations');await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByLabel('수업 선택',{exact:true}).selectOption('course-a');await openTeachingTools(page,'roster');await button('담당·수강 관계 관리').waitFor()}
 async function open(){await button('담당·수강 관계 관리').click();await page.getByText('기준일 2026-10-16 · 도덕 · 수업 8판',{exact:true}).waitFor()}
 async function fill(kind='담당 교체 · 현재 교사'){await button(kind).click();if(kind.startsWith('담당 교체'))await page.getByLabel('새 담당 교사',{exact:true}).selectOption('member-b');await page.getByLabel('변경 사유',{exact:true}).fill('학교 배정에 따라 변경');await button('변경 영향 미리보기').click();await page.getByRole('region',{name:'관계 변경 영향 미리보기',exact:true}).waitFor()}
 async function confirm(){await page.getByLabel('대상·기간·전체 영향과 기존 기록 보존을 확인했습니다.',{exact:true}).check();await button('확인한 관계 변경 적용').click()}

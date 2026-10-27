@@ -75,7 +75,8 @@ try{
  await check('세 가지 스킨·320px·글자 200%에서 긴 수업명·학생명을 줄바꿈하고 대비·이동을 유지한다',async page=>{
   await page.setViewportSize({width:320,height:740})
   await page.evaluate(()=>{window.state.course.label='A'.repeat(120);window.state.students[0].name='B'.repeat(120);window.refresh()})
-  await page.getByText('A'.repeat(120)+' · 수강 학생 1명',{exact:true}).waitFor()
+  await page.locator('.teaching-course-context').getByRole('heading',{name:'A'.repeat(120),exact:true}).waitFor()
+  assert.match(await page.locator('.teaching-course-context').innerText(),/수강 학생 1명/)
   await preview(page)
   assert.equal(await panel(page).locator('.record-export-confirm').evaluate(el=>getComputedStyle(el).flexDirection),'row')
   for(const theme of ['light','warm','dark'])for(const size of [14,28]){

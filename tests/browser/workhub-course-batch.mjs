@@ -1,3 +1,4 @@
+import { openTeachingTools } from './teaching-tools.mjs'
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
 import {fileURLToPath} from 'node:url'
@@ -13,7 +14,7 @@ const button=name=>page.getByRole('button',{name,exact:true})
 const field=name=>page.getByLabel(name,{exact:true})
 const writeCalls=()=>page.evaluate(()=>window.qa.calls.filter(c=>c.name==='workhub_teaching_mutate'))
 let passed=0
-async function start(){await page.goto('http://127.0.0.1:5182/course-batch');await page.addScriptTag({content:bundle});await button('수업 여러 개 등록').click();await field('수업 CSV 내용').waitFor()}
+async function start(){await page.goto('http://127.0.0.1:5182/course-batch');await page.addScriptTag({content:bundle});await openTeachingTools(page,'course');await button('수업 여러 개 등록').click();await field('수업 CSV 내용').waitFor()}
 async function fill(raw=csv()){await field('수업 CSV 내용').fill(raw);await field('학기 연결 · 1학기').selectOption('term-a');await field('교과 연결 · 국어').selectOption('subject-b');await field('담당 교사 연결 · 담당1').selectOption('teacher-b');await button('목록 비교하기').click()}
 async function confirm(){await field('선택한 수업의 학기·교과·담당·기간을 확인했습니다.').check()}
 async function saved(n){await page.waitForFunction(n=>document.body.innerText.includes(`저장 확인 ${n}개 ·`),n);await page.waitForFunction(()=>!Array.from(document.querySelectorAll('button')).find(b=>b.textContent==='자료 새로 확인').disabled)}
@@ -84,8 +85,8 @@ await check('같은 계정에서 연결이 바뀌면 이전 늦은 응답을 무
 await check('학교·계정이 바뀌면 이전 완료 응답이나 CSV가 새 계정 화면에 나타나지 않는다',async()=>{
   await fill(csv(['이전 학교 수업']));await confirm();await page.evaluate(()=>window.qa.hold=true)
   await button('선택한 수업 1개 저장').click();await page.waitForFunction(()=>typeof window.qa.release==='function')
-  await page.evaluate(()=>window.qa.switchAccount());await button('수업 여러 개 등록').waitFor();await page.evaluate(()=>window.qa.release())
-  await button('수업 여러 개 등록').click()
+  await page.evaluate(()=>window.qa.switchAccount());await openTeachingTools(page,'course');await button('수업 여러 개 등록').waitFor();await page.evaluate(()=>window.qa.release())
+  await openTeachingTools(page,'course');await button('수업 여러 개 등록').click()
   assert.equal(await field('수업 CSV 내용').inputValue(),'')
   assert.equal(await page.getByText('이전 학교 수업',{exact:true}).count(),0)
   assert.ok((await page.locator('body').innerText()).includes('저장 확인 0개 ·'))
