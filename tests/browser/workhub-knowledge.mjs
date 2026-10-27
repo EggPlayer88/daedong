@@ -1,16 +1,11 @@
+import {readFileSync} from 'node:fs'
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
 import {fileURLToPath} from 'node:url'
 import {mkdirSync,writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {launchBrowser} from './launch-browser.mjs'
-const bundle=buildSync({stdin:{contents:`import React,{useState} from 'react';import{createRoot}from'react-dom/client';import{KnowledgeWorkspace}from'./apps/workhub/src/knowledge/KnowledgeWorkspace';import{EditDraftsProvider,createEditDrafts}from'./apps/workhub/src/app/edit-drafts';import{PendingRequestsProvider,createPendingRequests}from'./apps/workhub/src/app/pending-requests';
-let member={id:'m',schoolId:'s',userId:'u',name:'교사',role:'teacher',active:true,validFrom:'2026-01-01',validThrough:'2026-12-31',departmentIds:[],gradeIds:[],subjectIds:[]};
-const source={id:'doc',schoolId:'s',authorMemberId:'m',title:'학교 규정',kind:'regulation',body:'제3조 원문',locator:'제3조 2항',effectiveFrom:'2026-03-01',effectiveThrough:'2027-02-28',version:1,status:'published',updatedAt:'2026-10-16T00:00:00Z'};
-window.calls=[];window.mode='ok';window.failRead=false;window.canManage=true;window.pending=createPendingRequests();window.drafts=createEditDrafts();
-const envelope=data=>({contract:'knowledge.v1',schoolId:'s',memberId:'m',data});
-const connection={info:()=>({memberships:[member],schools:[{id:'s'}],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:'u',approved:true}),rpcVerified:async(name,args)=>{window.calls.push({name,args:structuredClone(args)});if(window.mode==='fail'||window.failRead&&name.endsWith('_list'))throw Error('secret');if(name.endsWith('_list'))return envelope({items:[source],nextCursor:null,canManage:window.canManage});return envelope({id:args.p_command.id??'new',version:args.p_command.expectedVersion?args.p_command.expectedVersion+1:1,requestKey:args.p_request_key,recordedAt:'2026-10-16T00:00:00Z'})}};
-function Harness(){const[revision,refresh]=useState(0);window.refresh=()=>refresh(x=>x+1);window.changeMember=()=>{member={...member,role:'school_admin'};refresh(x=>x+1)};return <EditDraftsProvider store={window.drafts}><PendingRequestsProvider store={window.pending}><KnowledgeWorkspace connection={connection} member={member} date="2026-10-16" revision={revision}/></PendingRequestsProvider></EditDraftsProvider>};window.mount=(clear=false)=>{if(clear)window.drafts=createEditDrafts();window.root=createRoot(document.getElementById('root'));window.root.render(<Harness/>)};window.mount();`,loader:'tsx',resolveDir:fileURLToPath(new URL('../../',import.meta.url))},bundle:true,format:'iife',write:false,jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':'{}','process.env.NODE_ENV':'"development"'},logLevel:'silent'})
+const bundle=buildSync({stdin:{contents:readFileSync(new URL('./workhub-knowledge-fixture.tsx',import.meta.url),'utf8'),loader:'tsx',resolveDir:fileURLToPath(new URL('./',import.meta.url))},bundle:true,format:'iife',write:false,jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':'{}','process.env.NODE_ENV':'"development"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),passed=[],errors=[]
 page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(10000)
 await context.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta name="viewport" content="width=device-width,initial-scale=1"><div id="root"></div></html>'}))
