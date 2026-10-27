@@ -95,34 +95,34 @@ function MemoryScope(props:AiMemoryPanelProps){
   finally{if(epoch===life.current){flight.current=false;setBusy(false)}}
  }
  return <section className="assistant-memory" aria-label="나의 AI 기억">
-  <button type="button" className="assistant-memory-toggle" aria-expanded={open} disabled={unavailable||busy||Boolean(pending)||Boolean(editor)||Boolean(deleting)} onClick={()=>setOpen(value=>!value)}>나의 AI 기억{listing?' · '+listing.items.length+'개':''}</button>
-  {open&&<div className="assistant-memory-content">
+  <button type="button" className="assistant-memory-toggle" aria-expanded={open} aria-controls={uid+'-content'} disabled={unavailable||busy||Boolean(pending)||Boolean(editor)||Boolean(deleting)} onClick={()=>setOpen(value=>!value)}>나의 AI 기억{listing?' · '+listing.items.length+'개':''}</button>
+  {open&&<div className="assistant-memory-content" id={uid+'-content'}>
    <p className="assistant-hint">현재 학교에서 나만 사용하는 선호·반복 업무 메모입니다. 직접 확인해 저장하며 대화에서 자동 수집하지 않습니다.</p>
    <p className="assistant-hint">선택한 기억은 이번 질문에 복사됩니다. 목록에서 삭제·중지해도 작성 중인 질문과 이미 보낸 대화는 지워지지 않습니다.</p>
    {!enabled&&<p role="status">현재 학교 소속을 확인해 주세요.</p>}
    {loading&&<p role="status">저장한 기억을 확인하고 있습니다.</p>}
    {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
    {listing&&!listing.canWrite&&<p role="status">새 기억 저장과 질문에 사용하기는 준비 중입니다. 기존 기억 조회와 삭제·요청 복구는 가능합니다.</p>}
-   {!editor&&<div className="assistant-actions">
+   {!editor&&<div className="assistant-actions assistant-memory-toolbar">
     <button type="button" disabled={browsingBlocked} onClick={()=>setRefresh(value=>value+1)}>기억 목록 새로고침</button>
-    <button type="button" disabled={browsingBlocked||!listing?.canWrite||currentRows.length>=MEMORY_LIMITS.maxEntries} onClick={()=>{setEditor(emptyEditor());setError('');setNotice('');setSelected([])}}>새 기억 추가</button>
+    <button type="button" className="assistant-primary" disabled={browsingBlocked||!listing?.canWrite||currentRows.length>=MEMORY_LIMITS.maxEntries} onClick={()=>{setEditor(emptyEditor());setError('');setNotice('');setSelected([])}}>새 기억 추가</button>
    </div>}
    {listing&&!editor&&<>
     <label htmlFor={uid+'-search'}>기억 찾기<input id={uid+'-search'} type="search" value={filter} disabled={controls} onChange={event=>setFilter(event.target.value)}/></label>
-    <p className="assistant-hint">{currentRows.length} / {MEMORY_LIMITS.maxEntries}개 · {listing.today} 기준</p>
+    <p className="assistant-hint assistant-memory-count">{filter ? `검색 결과 ${matches.length}개 · ` : ''}{currentRows.length} / {MEMORY_LIMITS.maxEntries}개 · {listing.today} 기준</p>
     {!currentRows.length&&<p>저장한 기억이 없습니다. 자주 쓰는 표현 방식이나 반복 업무 순서부터 추가해 보세요.</p>}
     {currentRows.length>0&&!matches.length&&<p>검색 조건에 맞는 기억이 없습니다.</p>}
-    <ul className="assistant-memory-list">{matches.map(row=><li key={row.id}>
+    <ul className="assistant-memory-list">{matches.map(row=><li key={row.id} data-selected={selected.some(ref=>ref.id===row.id&&ref.version===row.version) || undefined}>
      <label className="assistant-memory-check"><input type="checkbox" aria-label={'기억 선택: '+row.title} checked={selected.some(ref=>ref.id===row.id&&ref.version===row.version)} disabled={browsingBlocked||!listing.canWrite||!memoryUsable(row,listing.today)||!selected.some(ref=>ref.id===row.id)&&selected.length>=MEMORY_LIMITS.maxSelected} onChange={event=>{setSelected(value=>event.target.checked?[...value.filter(ref=>ref.id!==row.id),{id:row.id,version:row.version}]:value.filter(ref=>ref.id!==row.id));setUseConfirmed('')}}/><strong>{row.title}</strong></label>
-     <p className="assistant-hint">{row.category==='preference'?'업무 선호':'반복 업무'} · {!row.enabled?'일시중지':row.expiresOn&&row.expiresOn<listing.today?'기한 지남':'사용 가능'} · {row.expiresOn?'사용기한 '+row.expiresOn:'기한 미지정'} · v{row.version}</p>
+     <div className="assistant-memory-meta"><span className="assistant-memory-state" data-usable={memoryUsable(row,listing.today)}>{!row.enabled?'일시중지':row.expiresOn&&row.expiresOn<listing.today?'기한 지남':'사용 가능'}</span><span>{row.category==='preference'?'업무 선호':'반복 업무'} · v{row.version}</span></div><p className="assistant-hint">{row.expiresOn?'사용기한 '+row.expiresOn:'기한 미지정'}</p>
      <details><summary>기억 내용 보기</summary><p className="assistant-text">{row.body}</p></details>
-     <div className="assistant-actions"><button type="button" disabled={browsingBlocked||!listing.canWrite} onClick={()=>{setEditor(edit(row));setConfirmed('');setError('');setSelected([])}}>수정 · 중지 설정: {row.title}</button><button type="button" disabled={browsingBlocked} onClick={()=>{setDeleting(row);setDeleteConfirmed(false);setError('')}}>삭제: {row.title}</button></div>
+     <div className="assistant-actions"><button type="button" aria-label={'수정 · 중지 설정: '+row.title} disabled={browsingBlocked||!listing.canWrite} onClick={()=>{setEditor(edit(row));setConfirmed('');setError('');setSelected([])}}>수정 · 중지</button><button type="button" className="assistant-quiet" aria-label={'삭제: '+row.title} disabled={browsingBlocked} onClick={()=>{setDeleting(row);setDeleteConfirmed(false);setError('')}}>삭제</button></div>
     </li>)}</ul>
-    {selected.length>0&&<div className="assistant-context"><h4>이번 질문에 넣을 기억 {selected.length}개</h4>
+    {selected.length>0&&<div className="assistant-context assistant-memory-selection"><h4>이번 질문에 넣을 기억 {selected.length}개</h4>
      {selectedRows.map(row=><div key={row.id}><strong>{row.title}</strong><p className="assistant-text">{row.body}</p></div>)}
      {!validSelection&&<p role="alert">선택한 기억이 바뀌었거나 중지·만료되었습니다. 목록에서 다시 확인해 주세요.</p>}
      <label className="assistant-memory-check"><input type="checkbox" checked={useConfirmed===selectionKey} disabled={browsingBlocked||!validSelection||!props.canUse} onChange={event=>setUseConfirmed(event.target.checked?selectionKey:'')}/>이 내용을 이번 질문에 넣겠습니다</label>
-     <button type="button" disabled={browsingBlocked||!props.canUse||!listing.canWrite||!validSelection||useConfirmed!==selectionKey} onClick={()=>void useSelected()}>선택한 기억을 질문에 넣기</button>
+     <button type="button" className="assistant-primary" disabled={browsingBlocked||!props.canUse||!listing.canWrite||!validSelection||useConfirmed!==selectionKey} onClick={()=>void useSelected()}>선택한 기억을 질문에 넣기</button>
      <button type="button" disabled={browsingBlocked} onClick={()=>{setSelected([]);setUseConfirmed('')}}>기억 선택 비우기</button>
      {!props.canUse&&<p className="assistant-hint">일반 업무 안내·개인 비서·문서 초안에서 사용할 수 있습니다. 현재 요청의 처리를 먼저 마무리해 주세요.</p>}
     </div>}
@@ -134,12 +134,12 @@ function MemoryScope(props:AiMemoryPanelProps){
     <label htmlFor={uid+'-title'}>기억 제목<input id={uid+'-title'} value={editor.title} maxLength={MEMORY_LIMITS.titleCharacters} disabled={controls} onChange={event=>change({title:event.target.value})}/></label>
     <label htmlFor={uid+'-body'}>기억 내용</label><textarea id={uid+'-body'} rows={4} value={editor.body} disabled={controls} onChange={event=>change({body:event.target.value})}/>
     <span className="assistant-hint">{Array.from(editor.body).length} / {MEMORY_LIMITS.bodyCharacters}자</span>
-    <label htmlFor={uid+'-category'}>기억 종류<select id={uid+'-category'} value={editor.category} disabled={controls} onChange={event=>change({category:event.target.value as MemoryEntry['category']})}><option value="preference">업무 선호</option><option value="routine">반복 업무</option></select></label>
-    <label htmlFor={uid+'-expires'}>사용기한 · 선택 사항<input id={uid+'-expires'} type="date" value={editor.expiresOn} disabled={controls} onChange={event=>change({expiresOn:event.target.value})}/></label>
+    <div className="assistant-memory-fields"><label htmlFor={uid+'-category'}>기억 종류<select id={uid+'-category'} value={editor.category} disabled={controls} onChange={event=>change({category:event.target.value as MemoryEntry['category']})}><option value="preference">업무 선호</option><option value="routine">반복 업무</option></select></label>
+    <label htmlFor={uid+'-expires'}>사용기한 · 선택 사항<input id={uid+'-expires'} type="date" value={editor.expiresOn} disabled={controls} onChange={event=>change({expiresOn:event.target.value})}/></label></div>
     <p className="assistant-hint">기한이 지나면 질문에 새로 넣을 수 없습니다. 목록에서 확인·삭제할 수 있으며 자동 삭제하지 않습니다. 비우면 직접 중지·삭제할 때까지 보관합니다.</p>
     <label className="assistant-memory-check"><input type="checkbox" checked={editor.enabled} disabled={controls} onChange={event=>change({enabled:event.target.checked})}/>질문에 사용할 수 있도록 켜기</label>
     <label className="assistant-memory-check"><input type="checkbox" checked={confirmed===formKey} disabled={!canSave} onChange={event=>setConfirmed(event.target.checked?formKey:'')}/>내용과 보관 범위를 확인했습니다</label>
-    <div className="assistant-actions"><button type="button" disabled={!canSave||confirmed!==formKey} onClick={save}>확인한 기억 저장</button><button type="button" disabled={controls} onClick={()=>dirty?setDiscard(true):clearEditor()}>기억 편집 닫기</button></div>
+    <div className="assistant-actions"><button type="button" className="assistant-primary" disabled={!canSave||confirmed!==formKey} onClick={save}>확인한 기억 저장</button><button type="button" disabled={controls} onClick={()=>dirty?setDiscard(true):clearEditor()}>기억 편집 닫기</button></div>
     {discard&&<div className="assistant-context"><p>이번 편집 내용을 버리고 닫습니다. 서버에 저장한 기억은 그대로입니다.</p><button type="button" disabled={controls} onClick={clearEditor}>편집 버리고 닫기</button><button type="button" disabled={controls} onClick={()=>setDiscard(false)}>계속 편집</button></div>}
    </section>}
    {deleting&&<section className="assistant-context" aria-label="기억 삭제 확인"><h3>{deleting.title} 삭제</h3><p>기억 목록에서 제목과 본문을 지웁니다. 이미 작성 중인 질문·보낸 대화·내려받은 파일은 별도로 남습니다.</p><label className="assistant-memory-check"><input type="checkbox" disabled={controls} checked={deleteConfirmed} onChange={event=>setDeleteConfirmed(event.target.checked)}/>기억 목록에서 삭제할 내용을 확인했습니다</label><button type="button" disabled={controls||!deleteConfirmed} onClick={()=>void execute(memoryCommand({kind:'delete',id:deleting.id,expectedVersion:deleting.version,confirmed:true}),crypto.randomUUID(),'mutate')}>확인한 기억 삭제</button><button type="button" disabled={controls} onClick={()=>setDeleting(null)}>삭제 취소</button></section>}
