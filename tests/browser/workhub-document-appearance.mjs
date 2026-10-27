@@ -50,8 +50,9 @@ function luminance(rgb) { const c=rgb.match(/[\d.]+/g).slice(0,3).map(Number).ma
 function contrast(a,b) { const x=luminance(a),y=luminance(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05) }
 async function palette() { return page.locator('.main-content').evaluate(root=>{
   const shell=root.closest('.ws-shell'), token=name=>{const probe=document.createElement('i');probe.style.color='var('+name+')';shell.append(probe);const value=getComputedStyle(probe).color;probe.remove();return value}
-  const nodes=selector=>[...root.querySelectorAll(selector)].filter(n=>n.getClientRects().length).map(n=>({text:getComputedStyle(n).color,background:getComputedStyle(n).backgroundColor}))
-  return{surface:token('--ui-surface'),text:token('--ui-text'),accent:token('--ui-accent'),onAccent:token('--ui-on-accent'),muted:token('--ui-muted'),warning:token('--ui-warning'),warningSoft:token('--ui-warning-soft'),panels:nodes('.documents-panel,.documents-editor'),primary:nodes('.documents-primary:not(:disabled)'),notes:nodes('.documents-muted'),alerts:nodes('.documents-status[role="alert"]')}
+  const backdrop=n=>{for(let el=n;el;el=el.parentElement){const color=getComputedStyle(el).backgroundColor;if(color!=='rgba(0, 0, 0, 0)'&&color!=='transparent')return color}return token('--ui-surface')}
+  const nodes=selector=>[...root.querySelectorAll(selector)].filter(n=>n.getClientRects().length).map(n=>({text:getComputedStyle(n).color,background:backdrop(n),mutedPanel:Boolean(n.closest('.guided-setup'))}))
+  return{surface:token('--ui-surface'),surfaceMuted:token('--ui-surface-muted'),text:token('--ui-text'),accent:token('--ui-accent'),onAccent:token('--ui-on-accent'),muted:token('--ui-muted'),warning:token('--ui-warning'),warningSoft:token('--ui-warning-soft'),panels:nodes('.documents-panel,.documents-editor'),primary:nodes('.documents-primary:not(:disabled)'),notes:nodes('.documents-muted'),alerts:nodes('.documents-status[role="alert"]')}
 }) }
 async function shot(name) { if(output)await page.screenshot({path:join(output,name+'.png'),fullPage:true}) }
 async function test(name,run) { await run();results.push({name,passed:true});console.log('  ✓ '+name) }
@@ -60,9 +61,9 @@ try {
     await test(mode+' · '+theme+' 스킨의 실제 문서 화면과 대비',async()=>{
       await page.setViewportSize({width:1280,height:900});await start(mode,theme)
       const p=await palette();assert.ok(p.panels.length>0)
-      for(const panel of p.panels){assert.equal(panel.background,p.surface,mode+' 패널 배경');assert.equal(panel.text,p.text,mode+' 패널 글자');assert.ok(contrast(panel.text,panel.background)>=4.5)}
+      for(const panel of p.panels){assert.equal(panel.background,panel.mutedPanel?p.surfaceMuted:p.surface,mode+' 패널 배경');assert.equal(panel.text,p.text,mode+' 패널 글자');assert.ok(contrast(panel.text,panel.background)>=4.5)}
       for(const primary of p.primary){assert.equal(primary.background,p.accent);assert.equal(primary.text,p.onAccent);assert.ok(contrast(primary.text,primary.background)>=4.5)}
-      for(const note of p.notes)assert.equal(note.text,p.muted)
+      for(const note of p.notes){assert.equal(note.text,note.mutedPanel?p.text:p.muted);assert.ok(contrast(note.text,note.background)>=4.5)}
       assert.ok(contrast(p.muted,p.surface)>=4.5)
       await shot('document-skin-'+mode+'-'+theme)
     })

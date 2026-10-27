@@ -1,0 +1,117 @@
+{
+  "browser": "chrome",
+  "results": [
+    {
+      "name": "workhub-ui-polish",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7539
+    },
+    {
+      "name": "workhub-workflow-ui",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 9403
+    },
+    {
+      "name": "workhub-document-library-ui",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 11329
+    },
+    {
+      "name": "workhub-document-collection-flow",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 21566
+    },
+    {
+      "name": "workhub-guided-setup",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 16756
+    },
+    {
+      "name": "workhub-document-open",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7786
+    },
+    {
+      "name": "workhub-document-review",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 13856
+    },
+    {
+      "name": "workhub-knowledge-assistant",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7151
+    },
+    {
+      "name": "workhub-guided-ai",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 15582
+    },
+    {
+      "name": "workhub-knowledge",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 5442
+    },
+    {
+      "name": "workhub-knowledge-import",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7526
+    },
+    {
+      "name": "workhub-pilot-connected",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 20282
+    },
+    {
+      "name": "workhub-documents",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7436
+    },
+    {
+      "name": "workhub-document-appearance",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 11813
+    }
+  ]
+}

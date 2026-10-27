@@ -48,6 +48,6 @@ function App(){
   const api=useMemo(()=>connection(current),[current,epoch])
   qa.refresh=()=>setRevision(v=>v+1);qa.replaceConnection=()=>setEpoch(v=>v+1);qa.remount=()=>setMount(v=>v+1)
   qa.switchAccount=()=>setCurrent({...member,id:'member-b',schoolId:'school-b',userId:'user-b',name:'다른 합성 계정'})
-  return <><button disabled={locked} data-connection-epoch={epoch}>다른 화면</button><EditDraftsProvider store={memory}><PendingRequestsProvider store={pending}><TeachingWorkspace key={mount} connection={api} member={current} revision={revision} date="2026-10-21" onNavigationLockChange={setLocked}/></PendingRequestsProvider></EditDraftsProvider></>
+  return <><button disabled={locked} data-connection-epoch={epoch} data-school-id={current.schoolId} data-member-id={current.id}>다른 화면</button><EditDraftsProvider store={memory}><PendingRequestsProvider store={pending}><TeachingWorkspace key={mount} connection={api} member={current} revision={revision} date="2026-10-21" onNavigationLockChange={setLocked}/></PendingRequestsProvider></EditDraftsProvider></>
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)
