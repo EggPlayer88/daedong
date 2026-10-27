@@ -40,3 +40,72 @@
 .assistant-intent-row{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:12px}
 .assistant-compose .assistant-intent-row select{max-width:none;margin:0;padding:8px 12px}
 .assistant-workspace .assistant-conversation[hidden]{display:none}
+
+/* 대화는 먼저, 보조 도구는 옆에 둔다. 좁은 옆자리도 DOM·키보드 순서는 동일하다. */
+.assistant-workspace{container:assistant / inline-size;max-width:1080px;width:100%;line-height:1.6}
+.assistant-workspace :is(h2,h3,h4){overflow-wrap:anywhere}
+.assistant-workspace button{line-height:1.5;max-width:100%;overflow-wrap:anywhere}
+.assistant-workspace :is(input,textarea,select){min-width:0}
+.assistant-workspace [hidden]{display:none!important}
+.assistant-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:20px;align-items:start}
+.assistant-layout>*{min-width:0}.assistant-main{display:grid;gap:20px;min-width:0}
+.assistant-main>.assistant-compose,.assistant-main>.assistant-task-editor{margin:0;padding:22px}
+.assistant-compose textarea{min-height:116px}
+.assistant-workspace .assistant-quiet{background:transparent;color:var(--ui-muted,#626d7c);border-color:transparent}
+.assistant-workspace [role=alert],.assistant-workspace [role=status]{overflow-wrap:anywhere}
+.assistant-pending{background:var(--ui-warning-soft,#fff9eb)}.assistant-pending>button{margin:4px 6px 4px 0}.assistant-pending p{margin:8px 0}
+.assistant-conversation{min-width:0;padding:0;background:transparent;border:0;border-radius:0}
+.assistant-exchange{padding:22px;background:var(--ui-surface,#fff);border:1px solid var(--ui-line,#e3e7ed);border-radius:18px;margin-bottom:18px;min-width:0}
+.assistant-exchange:last-child{margin-bottom:0;padding-bottom:22px}
+.assistant-question{background:var(--ui-surface-muted,#f0f2f5);border-radius:12px;padding:14px 16px;margin-bottom:22px}
+.assistant-question h4{margin:0}.assistant-question .assistant-text{margin:6px 0 0}
+.assistant-answer-heading{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.assistant-answer-heading h4{margin:0;color:var(--ui-text,#202832);font-weight:700}
+.assistant-execution{font-size:var(--ui-small-size,13px);color:var(--ui-accent,#3264c8);background:var(--ui-accent-soft,#edf2ff);border-radius:7px;padding:3px 8px;margin:0}
+.assistant-answer-segment>.assistant-text{margin:0 0 14px}.assistant-answer-segment+.assistant-answer-segment{margin-top:20px}
+.assistant-citations{background:var(--ui-surface-muted,#f0f2f5);border:1px solid var(--ui-line,#e3e7ed);border-radius:12px;margin:12px 0}
+.assistant-citations>summary{padding:11px 14px;color:var(--ui-accent,#3264c8);font-size:var(--ui-small-size,13px);font-weight:650}
+.assistant-citations>ul{list-style:none;padding:0 14px;margin:0}.assistant-citations>ul>li{padding:14px 0;margin:0;border-top:1px solid var(--ui-line,#e3e7ed)}
+.assistant-source-heading{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.assistant-source-heading strong{font-size:var(--ui-body-size,15px)}
+.assistant-source-heading .assistant-source-version{margin:0;font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-source-locator{white-space:pre-wrap;line-height:1.7;margin:8px 0 12px;font-size:var(--ui-small-size,13px)}
+.assistant-source-actions{display:flex;align-items:start;gap:10px;flex-wrap:wrap}.assistant-source-actions>button{font-size:var(--ui-small-size,13px)}
+.assistant-source-id{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c);max-width:100%}.assistant-source-id p{margin:6px 0;overflow-wrap:anywhere}
+.assistant-no-source{margin:6px 0 16px;padding-left:10px;border-left:2px solid var(--ui-line,#e3e7ed)}
+.assistant-review{border-top:1px solid var(--ui-line,#e3e7ed);padding-top:16px;margin-top:20px}.assistant-review .assistant-hint{flex:1;min-width:min(190px,100%)}
+.assistant-tools{padding:16px;border:1px solid var(--ui-line,#e3e7ed);border-radius:16px;background:var(--ui-surface,#fff);min-width:0}
+.assistant-tools>h3{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c);margin:0 0 8px}
+.assistant-tools>.assistant-budget-disclosure,.assistant-tools>.assistant-history{border-bottom:1px solid var(--ui-line,#e3e7ed);padding-bottom:8px;margin:0 0 8px;min-width:0}
+.assistant-budget-disclosure>summary,.assistant-history>summary{min-height:44px;padding:10px 0;cursor:pointer;font-size:var(--ui-small-size,13px);font-weight:600;color:var(--ui-text,#202832)}
+.assistant-history ul{list-style:none;padding:0;margin:0}.assistant-history li{margin:6px 0}.assistant-history button{width:100%;text-align:left;overflow-wrap:anywhere}
+.assistant-history button[aria-current=true]{color:var(--ui-accent,#3264c8);border-color:var(--ui-accent,#3264c8);background:var(--ui-accent-soft,#edf2ff)}
+.assistant-memory{margin:8px 0 0}.assistant-memory-content{padding:8px 0;border:0;margin:0}.assistant-memory-toolbar{gap:8px}.assistant-memory-toolbar>button{font-size:var(--ui-small-size,13px);flex:1}
+.assistant-memory label{font-size:var(--ui-small-size,13px);font-weight:600}.assistant-memory label:not(.assistant-memory-check)>input,.assistant-memory label>select{margin-top:6px}
+.assistant-memory-count{margin:8px 0}.assistant-memory-list{margin:12px 0;scroll-padding:8px}
+.assistant-memory-list>li{padding:14px;margin-bottom:10px;border:1px solid var(--ui-line,#e3e7ed);border-radius:12px;background:var(--ui-surface,#fff)}
+.assistant-memory-list>li[data-selected=true]{border-color:var(--ui-accent,#3264c8);background:var(--ui-accent-soft,#edf2ff)}
+.assistant-memory-list summary{min-height:44px;padding:10px 0;font-size:var(--ui-small-size,13px)}.assistant-memory-list .assistant-hint{margin:6px 0}
+.assistant-memory-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--ui-muted,#626d7c);font-size:var(--ui-small-size,13px)}
+.assistant-memory-state{border-radius:6px;background:var(--ui-surface-muted,#f0f2f5);padding:2px 7px;font-weight:600}
+.assistant-memory-state[data-usable=true]{background:var(--ui-accent-soft,#edf2ff);color:var(--ui-accent,#3264c8)}
+.assistant-memory-list .assistant-memory-check{margin:0 0 10px;font-size:var(--ui-body-size,15px)}
+.assistant-memory .assistant-actions button{font-size:var(--ui-small-size,13px)}.assistant-memory .assistant-context{padding:14px}
+.assistant-memory h3,.assistant-memory h4{font-size:var(--ui-body-size,15px)}.assistant-memory-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+.assistant-memory-selection>button{width:100%;margin-top:8px}.assistant-memory-selection .assistant-text{font-size:var(--ui-small-size,13px)}
+/* 설정도 동일한 테마·글자 크기 토큰을 사용한다. 금액·사용 규칙은 표시만 한다. */
+.assistant-budget{padding:18px;border-color:var(--ui-line,#e3e7ed);border-radius:14px;background:var(--ui-surface-muted,#f0f2f5);overflow-wrap:anywhere}
+.assistant-budget>p{margin:8px 0}.assistant-budget>p:last-child{margin-bottom:0}.assistant-budget dl{gap:16px;margin:18px 0}
+.assistant-budget dl>div{min-width:min(100%,110px)}.assistant-budget dt{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-budget dd{margin:4px 0 0;font-size:18px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.school-ai-settings{max-width:1000px}.school-ai-settings>.assistant-header{margin-bottom:20px}.school-ai-settings>.assistant-budget{padding:24px}.school-ai-settings>.assistant-budget dd{font-size:26px;letter-spacing:-.04em}
+.school-ai-availability{display:inline-block;font-size:var(--ui-small-size,13px);border-radius:7px;padding:3px 9px;color:var(--ui-warning,#865d19);background:var(--ui-warning-soft,#fff9eb)}
+.school-ai-availability[data-ready=true]{color:var(--ui-accent,#3264c8);background:var(--ui-accent-soft,#edf2ff)}
+.school-ai-models{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px}.school-ai-models>div{display:grid;gap:4px;padding:18px;border:1px solid var(--ui-line,#e3e7ed);border-radius:14px;background:var(--ui-surface,#fff)}
+.school-ai-models span,.school-ai-models small{color:var(--ui-muted,#626d7c);font-size:var(--ui-small-size,13px)}.school-ai-models strong{font-size:20px}
+.school-ai-key-card{padding:20px;border:1px solid var(--ui-line,#e3e7ed);border-radius:16px;background:var(--ui-surface,#fff);margin-top:20px;min-width:0}.school-ai-key-card h3{margin:0 0 4px;font-size:18px}
+.school-ai-key-card .school-ai-key-form{border:0;border-top:1px solid var(--ui-line,#e3e7ed);border-radius:0;margin-top:18px;padding:20px 0 0;background:transparent}.school-ai-settings .assistant-actions button{min-width:0}
+/* 색이 있는 배경에서도 판·예산·기억 상태는 작은 글자 대비를 확보한다. */
+.assistant-source-heading .assistant-source-version,.assistant-source-id,.assistant-budget :is(dt,.assistant-hint),.assistant-memory-state{color:var(--ui-text,#202832)}
+.assistant-memory-list>li[data-selected=true] :is(.assistant-memory-meta,.assistant-hint){color:var(--ui-text,#202832)}
+@container assistant (min-width:850px){.assistant-layout{grid-template-columns:minmax(0,1fr) 300px;gap:24px}}
+@container assistant (max-width:540px){.assistant-main>.assistant-compose,.assistant-main>.assistant-task-editor,.assistant-exchange{padding:16px}.assistant-exchange:last-child{padding-bottom:16px}.assistant-tools{padding:14px}.assistant-intent-row{gap:8px}.assistant-question{padding:12px}.school-ai-models{grid-template-columns:minmax(0,1fr)}.school-ai-settings>.assistant-budget{padding:18px}.school-ai-key-card{padding:16px}}
