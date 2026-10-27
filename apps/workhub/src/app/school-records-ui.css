@@ -1,0 +1,94 @@
+/* 학교·수업·학생 기록 화면에만 적용한다. 권한과 입력 상태는 각 패널이 관리한다. */
+.school-records-ui{--records-gap:1rem;color:var(--ui-text,#243044);line-height:1.65}
+.school-records-ui.school-setup{--setup-ink:var(--ui-text,#243044);--setup-muted:var(--ui-muted,#627083);--setup-blue:var(--ui-accent,#365f95);--setup-line:var(--ui-line,#dfe5ee)}
+.school-records-ui :is(.setup-field,.setup-row legend){color:var(--ui-text,#243044)}
+.school-records-ui :is(.setup-field input,.setup-field select,textarea,.school-admin-toolbar select,.setup-button){color:var(--ui-text,#243044);background:var(--ui-surface,#fff);border-color:var(--ui-line,#dfe5ee)}
+.school-records-ui :is(.setup-summary,.setup-review,.setup-confirm){color:var(--ui-text,#243044);background:var(--ui-surface,#fff);border-color:var(--ui-line,#dfe5ee)}
+.school-records-ui :is(.setup-badge,.setup-notice){color:var(--ui-accent,#365f95);background:var(--ui-accent-soft,#edf3fc);border-color:var(--ui-line,#dfe5ee)}
+.school-records-ui :is(.setup-scope,.setup-import-summary,.setup-empty){color:var(--ui-text,#243044);background:var(--ui-surface-muted,#f6f8fb);border-color:var(--ui-line,#dfe5ee)}
+.school-records-ui :is(.setup-scope span,.setup-confirm p,.setup-text-button){color:var(--ui-muted,#627083)}
+.school-records-ui .setup-primary{background:var(--ui-accent,#365f95);color:var(--ui-on-accent,#fff);border-color:var(--ui-accent,#365f95)}
+.school-records-ui .setup-primary:hover:not(:disabled){background:var(--ui-accent,#365f95);filter:brightness(.95)}
+.school-records-ui .setup-button:hover:not(:disabled){background:var(--ui-accent-soft,#edf3fc);border-color:var(--ui-accent,#365f95)}
+.school-records-ui :is(.setup-error,.setup-field [aria-invalid=true]){color:var(--ui-danger,#a33e36);background:var(--ui-danger-soft,#fff0ed);border-color:var(--ui-danger,#a33e36)}
+.school-records-ui :is(.setup-issue-link,.setup-field-error){color:var(--ui-danger,#a33e36)}
+.school-records-ui *{box-sizing:border-box}
+.school-records-ui :is(h1,h2,h3,h4,p,label,li,dt,dd,legend){min-width:0;overflow-wrap:anywhere}
+.school-records-ui :is(input,select,textarea){max-width:100%}
+.school-records-ui .school-records-muted,.school-records-ui .school-records-kicker{color:var(--ui-muted,#627083);font-size:.85rem}
+.school-records-ui .school-records-kicker{display:block;margin-bottom:.25rem;font-weight:600;overflow-wrap:anywhere}
+.school-records-ui :is(.setup-section,.teaching-card,.teaching-course-picker,.teaching-roster,.teaching-content){background:var(--ui-surface,#fff);border:1px solid var(--ui-line,#dfe5ee);border-radius:16px;box-shadow:none}
+.school-records-ui :is(.setup-section,.teaching-card){padding:1.15rem;margin:1rem 0}
+.school-records-ui :is(.teaching-heading,.setup-header){margin-bottom:1rem;padding-bottom:.6rem}
+.school-records-ui :is(.teaching-heading,.setup-header) p{margin:.3rem 0}
+.school-records-ui :is(.school-admin-toolbar,.teaching-toolbar){gap:.75rem}
+.school-records-ui .school-admin-tabs{gap:.5rem;border:0;margin:1rem 0}
+.school-records-ui .school-admin-tabs button{border:1px solid var(--ui-line,#dfe5ee);border-radius:10px;color:var(--ui-muted,#627083);background:var(--ui-surface,#fff)}
+.school-records-ui .school-admin-tabs button[aria-current]{color:var(--ui-accent,#365f95);background:var(--ui-accent-soft,#edf3fc);border-color:var(--ui-accent,#365f95)}
+.school-records-ui .setup-summary{gap:.75rem}
+.school-records-ui .setup-summary>div{background:var(--ui-surface-muted,#f6f8fb);border-radius:10px;padding:.7rem .9rem}
+.school-records-ui .school-configuration-counts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.65rem;margin:1rem 0}
+.school-records-ui .school-configuration-counts button{display:flex;flex-direction:column;align-items:flex-start;gap:.25rem;padding:.85rem 1rem;min-height:88px;border:1px solid var(--ui-line,#dfe5ee);border-radius:12px;background:var(--ui-surface-muted,#f6f8fb);color:inherit;font:inherit;cursor:pointer}
+.school-records-ui .school-configuration-counts button[aria-pressed=true]{background:var(--ui-accent-soft,#edf3fc);border-color:var(--ui-accent,#365f95);color:var(--ui-accent,#365f95)}
+.school-records-ui .school-configuration-counts strong{font-size:1.5rem;line-height:1.2}.school-records-ui .school-configuration-counts small{font-size:.8rem;margin-left:.25rem}
+.school-records-ui .school-configuration-list-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.school-records-ui .school-configuration-list-heading h3{margin:0}
+.school-records-ui .school-configuration-list-heading label{flex:0 1 20rem}
+.school-records-ui .school-configuration-items{list-style:none;padding:0;margin:.5rem 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem}
+.school-records-ui .school-configuration-items li{display:flex;flex-direction:column;gap:.2rem;padding:.75rem .9rem;border:1px solid var(--ui-line,#dfe5ee);border-radius:10px;min-width:0}
+.school-records-ui .school-configuration-items span{color:var(--ui-muted,#627083);font-size:.85rem}
+.school-records-ui .school-configuration-jumps{display:flex;gap:.5rem;flex-wrap:wrap;padding:.8rem;background:var(--ui-surface-muted,#f6f8fb);border-radius:12px;margin:1rem 0}
+.school-records-ui .school-configuration-jumps button{font-size:.85rem}
+.school-records-ui [data-configuration-section]{scroll-margin-top:1.5rem}
+.school-records-ui .school-configuration-editor .setup-row{border:1px solid var(--ui-line,#dfe5ee);border-radius:12px;padding:1rem;background:var(--ui-surface-muted,#f6f8fb)}
+.school-records-ui .school-configuration-editor .setup-row legend{font-weight:650;padding:0 .4rem}
+.school-records-ui .school-configuration-editor .setup-remove{color:var(--ui-muted,#627083);border-color:var(--ui-line,#dfe5ee);background:var(--ui-surface,#fff)}
+.school-records-ui .school-admin-list li{padding:.85rem .2rem;border-color:var(--ui-line,#dfe5ee)}
+.school-records-ui .school-admin-list span{color:var(--ui-muted,#627083)}
+.school-records-ui .school-admin-changes li{background:var(--ui-surface-muted,#f6f8fb);border-color:var(--ui-line,#dfe5ee)}
+.school-records-ui .setup-field input[readonly]{background:var(--ui-surface-muted,#f6f8fb)}
+.school-records-ui .teaching-course-picker{padding:1rem 1.15rem;margin-bottom:1rem}
+.school-records-ui .teaching-course-search{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:1rem;align-items:end}
+.school-records-ui .teaching-course-search label{margin:0}
+.school-records-ui .school-records-tools{border:1px solid var(--ui-line,#dfe5ee);border-radius:12px;background:var(--ui-surface-muted,#f6f8fb);padding:0 .9rem;margin:.75rem 0}
+.school-records-ui .school-records-tools summary{font-weight:600;min-height:48px;display:flex;align-items:center;gap:.75rem;cursor:pointer;list-style:none}
+.school-records-ui .school-records-tools summary::-webkit-details-marker{display:none}
+.school-records-ui .school-records-tools summary::after{content:'+';margin-left:auto;flex:0 0 auto;color:var(--ui-muted,#627083)}
+.school-records-ui .school-records-tools[open]>summary::after{content:'−'}
+.school-records-ui .school-records-tools .teaching-actions{margin:.25rem 0 .9rem}
+.school-records-ui .teaching-course-context,.school-records-ui .teaching-student-context{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin:1rem 0 .5rem}
+.school-records-ui :is(.teaching-course-context,.teaching-student-context)>div{min-width:0;max-width:100%}
+.school-records-ui .teaching-course-context h3,.school-records-ui .teaching-student-context h3{margin:0}
+.school-records-ui .teaching-course-context p{margin:.35rem 0;color:var(--ui-muted,#627083);font-size:.85rem}
+.school-records-ui .teaching-course-context .teaching-actions{margin:0}
+.school-records-ui .teaching-layout{gap:1rem;grid-template-columns:minmax(200px,250px) minmax(0,1fr);margin-top:1rem;align-items:start}
+.school-records-ui .teaching-roster,.school-records-ui .teaching-content{padding:1rem}
+.school-records-ui .teaching-roster h3{font-size:1rem;margin:0}
+.school-records-ui .teaching-roster button{border-color:transparent;background:var(--ui-surface-muted,#f6f8fb);padding:.65rem .8rem}
+.school-records-ui .teaching-roster button[aria-current=true]{border-color:var(--ui-accent,#365f95);background:var(--ui-accent-soft,#edf3fc)}
+.school-records-ui .teaching-student-context{margin-top:0;padding-bottom:.8rem;border-bottom:1px solid var(--ui-line,#dfe5ee)}
+.school-records-ui .teaching-tabs{gap:.35rem;padding:.3rem;background:var(--ui-surface-muted,#f6f8fb);border-radius:12px}
+.school-records-ui .teaching-tabs button{flex:1;background:transparent;border-color:transparent}
+.school-records-ui .teaching-tabs button[aria-pressed=true]{background:var(--ui-surface,#fff);color:var(--ui-accent,#365f95);border-color:var(--ui-line,#dfe5ee);font-weight:650}
+.school-records-ui .teaching-record-card{border-radius:12px;padding:1rem}
+.school-records-ui .teaching-record-meta{font-size:.85rem;color:var(--ui-muted,#627083);margin:0 0 .6rem}
+.school-records-ui .teaching-record-card .teaching-actions{margin:.75rem 0 0;padding-top:.75rem;border-top:1px solid var(--ui-line,#dfe5ee)}
+.school-records-ui .teaching-editor .teaching-actions{padding-top:.75rem;border-top:1px solid var(--ui-line,#dfe5ee)}
+.school-records-ui .teaching-course-editor-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.25rem 1rem}
+.school-records-ui .teaching-course-editor-fields>label:first-child{grid-column:1/-1}
+.school-records-ui .teaching-teacher-picker{padding:.9rem;margin:1rem 0;border:1px solid var(--ui-line,#dfe5ee);border-radius:12px}
+.school-records-ui .teaching-teacher-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.4rem .75rem}
+.school-records-ui .teaching-teacher-options label{margin:0;padding:.6rem;background:var(--ui-surface-muted,#f6f8fb);border-radius:9px}
+.school-records-ui .teaching-maintenance-tools{display:flex;gap:.6rem;flex-wrap:wrap;padding:.75rem 0}
+.school-records-ui .teaching-maintenance-students{list-style:none;padding:0}
+.school-records-ui .teaching-maintenance-students>li{padding:1rem 0;border-bottom:1px solid var(--ui-line,#dfe5ee)}
+.school-records-ui .teaching-maintenance-students>li>div{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem}
+.school-records-ui .teaching-maintenance-preview{background:var(--ui-surface-muted,#f6f8fb);border:1px solid var(--ui-line,#dfe5ee);border-radius:12px;padding:1rem;margin-top:1rem}
+.school-records-ui .teaching-maintenance-preview table{table-layout:fixed;overflow-wrap:anywhere}.school-records-ui .teaching-maintenance-preview :is(th,td){white-space:normal;vertical-align:top}
+.school-records-ui .teaching-maintenance-panel label:has(>input[type=checkbox]){display:flex;flex-direction:row;align-items:flex-start;gap:.6rem}
+.school-records-ui .teaching-maintenance-panel input[type=checkbox]{width:20px;min-height:20px;flex:0 0 auto}
+.school-records-ui .teaching-maintenance-edit>.teaching-actions{padding-top:.7rem}
+.school-records-ui :is(.school-configuration-counts button,summary,[data-configuration-section]):focus-visible{outline:3px solid var(--ui-focus,#365f95);outline-offset:3px}
+@media(max-width:760px){.school-records-ui .teaching-layout,.school-records-ui .teaching-course-search{grid-template-columns:minmax(0,1fr)}.school-records-ui .teaching-student-context{align-items:flex-start}.school-records-ui .school-configuration-counts{grid-template-columns:repeat(2,minmax(0,1fr))}.school-records-ui .teaching-course-picker{padding:1rem}.school-records-ui .teaching-content{padding:.85rem}}
+@media(max-width:480px){.school-records-ui .school-configuration-items,.school-records-ui .teaching-course-editor-fields,.school-records-ui .teaching-teacher-options{grid-template-columns:minmax(0,1fr)}.school-records-ui .school-configuration-list-heading label{flex:1 1 100%}.school-records-ui .teaching-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.school-records-ui .teaching-roster ul{grid-template-columns:minmax(0,1fr)}.school-records-ui .school-configuration-counts button{padding:.75rem}.school-records-ui .teaching-maintenance-tools button{flex:1 1 100%}}
+@media(prefers-reduced-motion:reduce){.school-records-ui *{scroll-behavior:auto}}

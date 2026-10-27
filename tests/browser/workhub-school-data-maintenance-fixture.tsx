@@ -22,7 +22,7 @@ const connection: any = {
     if (name === 'workhub_school_data_get') {
       if (w.failGet) throw Error('조회 실패')
       const snapshot = w.notReady ? { available: false, reason: 'not_configured', courses: [], course: null, students: [], teachers: [] } :
-        { available: true, reason: null, courses: [{ id: w.course.id, version: w.course.version, label: w.course.fields.label, state: w.course.state }], course: copy(w.course), students: [copy(w.student)], teachers: copy(w.teachers) }
+        { available: true, reason: null, courses: [{ id: w.course.id, version: w.course.version, label: w.course.fields.label, state: w.course.state }], course: copy(w.course), students: [copy(w.student), ...copy(w.extraStudents ?? [])], teachers: copy(w.teachers) }
       if (w.holdGet) await new Promise(resolve => w.releaseGet = resolve)
       return envelope(snapshot)
     }

@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { CLASS_KINDS, SCHOOL_TYPES, SETUP_LIMITS, setupGradeLimit, newSetupRowId, type SetupDraft } from './contract'
 import { SCHOOL_ADMIN_LIMITS, type SchoolSubject } from './school-admin-contract'
 import { ListPagination } from '../app/ListPagination'
@@ -7,7 +7,8 @@ import { SchoolConfigurationBatchPanel, type SchoolConfigurationBatchPanelProps 
 export interface SchoolConfigurationEditorProps { value: SetupDraft; subjects: SchoolSubject[]; createYear: boolean; disabled: boolean; onChange: (value: SetupDraft,subjects:SchoolSubject[])=>void; batch?:Omit<SchoolConfigurationBatchPanelProps,'value'|'disabled'> }
 // 행 식별자를 편집 과정 전체에서 보존한다. 이름 변경을 삭제·재생성으로 처리하지 않는다.
 export function SchoolConfigurationEditor({value,subjects,createYear,disabled,onChange,batch}:SchoolConfigurationEditorProps) {
-  const uid=useId(), [pages,setPages]=useState<Record<string,number>>({})
+  const uid=useId(), [pages,setPages]=useState<Record<string,number>>({}), panel=useRef<HTMLFieldSetElement>(null)
+  function jump(group:string) { const heading=panel.current?.querySelector<HTMLElement>(`[data-configuration-section="${group}"]`);heading?.focus();heading?.scrollIntoView({block:'start'}) }
   const change=(key:string,next:string)=>onChange({...value,[key]:next},subjects)
   const input=(label:string,key:string,val:string,edit:(text:string)=>void,type='text',maxLength?:number,readOnly=false)=><label className="setup-field" key={key} htmlFor={`${uid}-${key}`}><span>{label}</span><input aria-label={label} id={`${uid}-${key}`} value={val} onChange={event=>edit(event.target.value)} type={type} maxLength={maxLength} readOnly={readOnly}/></label>
   const select=(label:string,key:string,val:string,edit:(text:string)=>void,options:readonly {value:string;label:string}[])=><label className="setup-field" key={key} htmlFor={`${uid}-${key}`}><span>{label}</span><select aria-label={label} id={`${uid}-${key}`} value={val} onChange={event=>edit(event.target.value)}><option value="">선택해 주세요</option>{options.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -28,9 +29,10 @@ export function SchoolConfigurationEditor({value,subjects,createYear,disabled,on
     const count=group==='subjects'?subjects.length:value[group].length
     setPages(current=>({...current,[group]:Math.floor(count/LIST_PAGE_SIZE)}))
   }
-  return <fieldset className="setup-fields" disabled={disabled}><legend className="setup-sr-only">학교 운영 구성 입력</legend>
+  return <fieldset ref={panel} className="setup-fields school-configuration-editor" disabled={disabled}><legend className="setup-sr-only">학교 운영 구성 입력</legend>
+    <nav className="school-configuration-jumps" aria-label="구성 입력 바로가기">{([{key:'school',label:'학교·학년도',count:null},{key:'terms',label:'학기',count:value.terms.length},{key:'classes',label:'학급',count:value.classes.length},{key:'subjects',label:'교과',count:subjects.length},{key:'departments',label:'부서',count:value.departments.length}] as const).map(item=><button type="button" className="setup-button" key={item.key} onClick={()=>jump(item.key)}>{item.label}{item.count!==null&&<span> {item.count}</span>} 입력으로 이동</button>)}</nav>
     {batch&&<SchoolConfigurationBatchPanel {...batch} value={{configuration:value,subjects}} disabled={disabled}/>}
-    <section className="setup-section"><h3>학교와 학년도</h3><div className="setup-grid">
+    <section className="setup-section"><h3 tabIndex={-1} data-configuration-section="school">학교와 학년도</h3><div className="setup-grid">
       {input('학교명','schoolName',value.schoolName,v=>change('schoolName',v),'text',SETUP_LIMITS.schoolName)}
       {input('학교 코드','schoolCode',value.schoolCode,v=>change('schoolCode',v),'text',SETUP_LIMITS.schoolCode,true)}
       {select('학교급','schoolType',value.schoolType,v=>change('schoolType',v),SCHOOL_TYPES)}
@@ -39,11 +41,11 @@ export function SchoolConfigurationEditor({value,subjects,createYear,disabled,on
       {input('학년도 시작일','startsOn',value.startsOn,v=>change('startsOn',v),'date')}
       {input('학년도 마지막 날 (포함)','lastDay',value.lastDay,v=>change('lastDay',v),'date')}
     </div><p>공식 날짜를 확인해 입력해 주세요. 마지막 날을 포함합니다. 특수·기타 학교의 학년 수는 실제 운영 체계를 따릅니다.</p>{createYear&&<p>학년도 숫자와 시작일의 연도를 맞춰 주세요. 마지막 날은 다음 해여도 됩니다.</p>}</section>
-    {(['terms','departments','classes','subjects'] as const).map(group=>{
+    {(['terms','classes','subjects','departments'] as const).map(group=>{
       const labels={terms:'학기',departments:'부서',classes:'학급',subjects:'교과'},label=labels[group]
       const all=(group==='subjects'?subjects:value[group]) as unknown as Record<string,string>[], page=listWindow(all,pages[group]??0)
       const max=group==='subjects'?SCHOOL_ADMIN_LIMITS.subjects:SETUP_LIMITS[group]
-      return <section className="setup-section" key={group}><header><h3>{label} · {all.length}개</h3><button type="button" className="setup-button" disabled={all.length>=max} onClick={()=>add(group)}>{label} 추가</button></header>
+      return <section className="setup-section" key={group}><header><h3 tabIndex={-1} data-configuration-section={group}>{label} · {all.length}개</h3><button type="button" className="setup-button" disabled={all.length>=max} onClick={()=>add(group)}>{label} 추가</button></header>
         {!all.length&&<p className="setup-empty">등록된 {label} 항목이 없습니다.</p>}
         <div className="setup-row-list">{page.items.map(row=><fieldset className="setup-row" key={row.id}><legend>{row.name||`새 ${label}`}</legend><div className="setup-grid">
           {group==='terms'&&input('학기 번호',`${row.id}-termNo`,row.termNo,v=>updateRow(group,row.id,'termNo',v),'text',1)}

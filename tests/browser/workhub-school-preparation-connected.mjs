@@ -1,3 +1,4 @@
+import { openTeachingTools } from './teaching-tools.mjs'
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -106,7 +107,7 @@ try {
   })
   await test('수업·학생 안내가 실제 수업 목록과 담당 등록 화면에 연결됨', async () => {
     await destination('수업·학생 입력하기')
-    await button('수업·담당 등록').waitFor()
+    await openTeachingTools(page,'course');await button('수업·담당 등록').waitFor()
     const select = page.getByRole('combobox', { name: '수업 선택', exact: true })
     await select.waitFor(); assert.equal(await select.locator('option[value="course-one"]').count(), 1)
     assert.equal(new URL(page.url()).searchParams.get('view'), 'students')

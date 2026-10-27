@@ -1,3 +1,4 @@
+import { openTeachingTools } from './teaching-tools.mjs'
 // 합성 서버 응답을 실제 React·P5/P8/P10 전송 어댑터에 넣어 명부 보존 왕복을 검증한다.
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
@@ -9,7 +10,7 @@ page.setDefaultTimeout(15000);page.on('pageerror',e=>errors.push(e.message))
 await page.route('**/*',route=>route.fulfill({contentType:'text/html',body:'<html lang="ko"><meta name="viewport" content="width=device-width,initial-scale=1"><div id="root"></div></html>'}))
 const button=name=>page.getByRole('button',{name,exact:true}),label=name=>page.getByLabel(name,{exact:true}),confirm=()=>label('명부 차이와 수강 기간을 확인했으며 기존 학생과 기록을 유지합니다.')
 let passed=0
-async function boot(){await page.goto('http://127.0.0.1:5191/roster-correction');await page.addScriptTag({content:bundle});await page.waitForFunction(()=>document.querySelector('select[aria-label="수업 선택"]')?.options.length===2);await label('수업 선택').selectOption('course-a');await button('수강 명부 가져오기').waitFor();await button('수강 명부 가져오기').click()}
+async function boot(){await page.goto('http://127.0.0.1:5191/roster-correction');await page.addScriptTag({content:bundle});await page.waitForFunction(()=>document.querySelector('select[aria-label="수업 선택"]')?.options.length===2);await label('수업 선택').selectOption('course-a');await openTeachingTools(page,'roster');await button('수강 명부 가져오기').waitFor();await button('수강 명부 가져오기').click()}
 async function upload(patch={name:'정정할 이름'}){const raw=await page.evaluate(patch=>window.csv([{...window.students[0],...patch}]),patch);await label('CSV 파일').setInputFiles({name:'보존명부.csv',mimeType:'text/csv',buffer:Buffer.from(raw)});await page.getByText('파일을 읽었습니다. 현재 수업 명부와 비교한 뒤 저장해 주세요.',{exact:true}).waitFor()}
 async function openName(){await upload();await button('학생 정보 정정 · 001001').click();await button('학생 이름·관리 번호 정정').click();await label('학생 이름').fill('정정할 이름')}
 async function preview(){await label('변경 근거').fill('공식 명부 대조 후 이름 오류 정정');await button('영향 확인').click();await page.getByRole('region',{name:'정정 영향 미리보기',exact:true}).waitFor()}
