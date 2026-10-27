@@ -85,7 +85,10 @@ await check('같은 계정에서 연결이 바뀌면 이전 늦은 응답을 무
 await check('학교·계정이 바뀌면 이전 완료 응답이나 CSV가 새 계정 화면에 나타나지 않는다',async()=>{
   await fill(csv(['이전 학교 수업']));await confirm();await page.evaluate(()=>window.qa.hold=true)
   await button('선택한 수업 1개 저장').click();await page.waitForFunction(()=>typeof window.qa.release==='function')
-  await page.evaluate(()=>window.qa.switchAccount());await openTeachingTools(page,'course');await button('수업 여러 개 등록').waitFor();await page.evaluate(()=>window.qa.release())
+  await page.evaluate(()=>window.qa.switchAccount())
+  // 이전 계정의 열린 메뉴를 새 화면으로 오인하지 않도록 React의 계정 전환 반영을 기다린다.
+  await page.locator('[data-school-id="school-b"][data-member-id="member-b"]').waitFor()
+  await openTeachingTools(page,'course');await button('수업 여러 개 등록').waitFor();await page.evaluate(()=>window.qa.release())
   await openTeachingTools(page,'course');await button('수업 여러 개 등록').click()
   assert.equal(await field('수업 CSV 내용').inputValue(),'')
   assert.equal(await page.getByText('이전 학교 수업',{exact:true}).count(),0)
