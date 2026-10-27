@@ -1,0 +1,90 @@
+/* 문서 작업의 배치만 바꾼다. 상태·권한·저장 동작은 각 화면이 판단한다. */
+.document-library-ui { --library-gap: 1rem; min-width: 0; }
+.document-library-ui.documents-workspace { font-size: var(--ui-body-size,1rem); }
+.document-library-ui :where(h2,h3,h4,p) { margin-block: 0; }
+.document-library-ui :where(h2) { font-size: 1.5rem; letter-spacing: -.035em; }
+.document-library-ui :where(h3) { font-size: 1.12rem; letter-spacing: -.025em; }
+.document-library-ui :where(h4) { font-size: var(--ui-body-size,1rem); }
+.document-library-ui .documents-header, .document-library-ui.knowledge > header { align-items: center; gap: 1rem; }
+.document-library-ui .documents-header > div:first-child, .document-library-ui.knowledge > header > div:first-child { display: grid; gap: .35rem; }
+.document-library-ui :where(.documents-panel,.documents-editor,.documents-status) { gap: .9rem; padding: 1.2rem; border-radius: 1rem; }
+.document-library-ui .documents-tabs { gap: .3rem; padding: .3rem; background: var(--ui-surface-muted,#f4f6fa); border-radius: .85rem; width: fit-content; max-width: 100%; }
+.document-library-ui .documents-tabs button { border-color: transparent; background: transparent; font-weight: 600; }
+.document-library-ui .documents-tabs button[aria-pressed=true] { background: var(--ui-surface,#fff); color: var(--ui-accent,#4b6db1); box-shadow: 0 1px 4px #101b3210; }
+.document-library-ui :where(button,input,textarea,select) { font: inherit; }
+.document-library-ui button { border-radius: .7rem; }
+.document-library-ui .documents-filters { align-items: end; background: var(--ui-surface-muted,#f4f6fa); border-radius: .85rem; padding: .85rem; }
+.document-library-ui .documents-filters > label:first-child { flex: 1 1 16rem; }
+.document-library-ui .documents-filters .documents-check { min-height: 44px; align-items: center; margin: 0; }
+.document-library-ui .documents-grid { grid-template-columns: minmax(13rem,.7fr) minmax(0,2fr); gap: 1rem; align-items: start; }
+.document-library-ui .documents-list { display: grid; gap: .5rem; }
+.document-library-ui .documents-list li { margin: 0; }
+.document-library-ui .documents-list button { padding: .9rem; gap: .4rem; text-align: left; line-height: 1.5; }
+.document-library-ui .documents-list button[aria-current=true] { background: var(--ui-accent-soft,#eef3ff); border-color: var(--ui-accent,#4b6db1); }
+.document-library-ui .documents-list button:disabled { opacity: .65; }
+.document-library-ui .library-list-heading { display: flex; gap: .5rem; flex-wrap: wrap; align-items: baseline; justify-content: space-between; }
+.document-library-ui .library-list-heading span { font-size: .86rem; color: var(--ui-muted,#626e82); }
+.document-library-ui .library-document-meta { display: grid; grid-template-columns: minmax(4rem,auto) minmax(0,1fr); gap: .4rem 1rem; padding: .85rem; margin: 0; border-radius: .7rem; background: var(--ui-surface-muted,#f4f6fa); }
+.document-library-ui .library-document-meta dt { color: var(--ui-text,#172b4d); }
+.document-library-ui .library-document-meta dd { margin: 0; overflow-wrap: anywhere; }
+.document-library-ui .library-document-body { min-height: 8rem; line-height: 1.85; padding-block: .75rem; }
+.document-library-ui .library-detail-actions { padding-bottom: .9rem; border-bottom: 1px solid var(--ui-line,#dce3ee); }
+.document-library-ui .library-detail-actions button:first-child { color: var(--ui-accent,#4b6db1); background: var(--ui-accent-soft,#eef3ff); }
+.document-library-ui .library-metadata { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .8rem 1rem; }
+.document-library-ui .library-metadata > :first-child { grid-column: 1/-1; }
+.document-library-ui .documents-editor > fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.document-library-ui .documents-editor > fieldset > legend { color: var(--ui-muted,#626e82); padding: 0 0 .7rem; }
+.document-library-ui .documents-editor textarea { min-height: 9rem; line-height: 1.7; }
+.document-library-ui .library-upload { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .7rem 1rem; }
+.document-library-ui .library-upload > h3, .document-library-ui .library-upload > p { grid-column: 1/-1; }
+.document-library-ui .library-step-guide { display: grid; gap: .8rem; background: var(--ui-accent-soft,#eef3ff); padding: 1rem; border-radius: .85rem; }
+.document-library-ui .library-steps { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .5rem; }
+.document-library-ui .library-steps button { display: flex; align-items: center; gap: .5rem; text-align: left; padding: .65rem; border-color: transparent; font-size: var(--ui-body-size,.9rem); }
+.document-library-ui .library-steps button[aria-current=step] { border-color: var(--ui-accent,#4b6db1); color: var(--ui-accent,#4b6db1); font-weight: 700; }
+.document-library-ui .library-steps span { display: grid; place-items: center; flex: 0 0 1.6rem; height: 1.6rem; border-radius: 50%; background: var(--ui-surface-muted,#f4f6fa); }
+.document-library-ui [data-document-step] { scroll-margin-top: 1rem; }
+.document-library-ui [data-document-step]:focus-visible { outline: 3px solid var(--ui-accent,#4b6db1); outline-offset: 3px; }
+.document-library-ui .guided-question { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .65rem 1rem; border-radius: .8rem; padding: 1rem; min-width: 0; }
+.document-library-ui .guided-question > :where(p,details), .document-library-ui .guided-question > label:first-of-type { grid-column: 1/-1; }
+.document-library-ui .guided-question legend { font-weight: 700; }
+.document-library-ui .guided-setup { background: var(--ui-surface-muted,#f4f6fa); }
+.document-library-ui .guided-setup .documents-muted { color: var(--ui-text,#172b4d); }
+.document-library-ui .guided-setup > ul { margin: 0; padding-left: 1.25rem; }
+.document-library-ui details > summary { cursor: pointer; padding-block: .65rem; font-weight: 600; }
+.document-library-ui details[open] > summary { margin-bottom: .5rem; }
+.document-library-ui [role=alert] { border-left: 3px solid var(--ui-warning,#9a4f0f); padding: .85rem; background: var(--ui-warning-soft,#fff4e5); color: var(--ui-warning,#9a4f0f); }
+.document-library-ui.knowledge { max-width: none; gap: 1rem; }
+.document-library-ui.knowledge { --surface: var(--ui-surface,#fff); --border: var(--ui-line,#dce3ee); --muted: var(--ui-muted,#626e82); color: var(--ui-text,#172b4d); font-size: var(--ui-body-size,1rem); overflow-wrap: anywhere; }
+.document-library-ui.knowledge :where(input:not([type=checkbox]),select,textarea) { min-width: 0; min-height: 44px; border: 1px solid var(--border); border-radius: .7rem; background: var(--surface); color: inherit; padding: .7rem .8rem; }
+.document-library-ui.knowledge textarea { min-height: 12rem; line-height: 1.7; }
+.document-library-ui.knowledge input[type=checkbox] { width: auto; }
+.document-library-ui.knowledge button { min-height: 44px; max-width: 100%; border: 1px solid var(--border); background: var(--surface); color: inherit; padding: .65rem .9rem; overflow-wrap: anywhere; cursor: pointer; }
+.document-library-ui.knowledge :focus-visible { outline: 3px solid var(--ui-accent,#4b6db1); outline-offset: 3px; }
+.document-library-ui .knowledge-actions { justify-content: flex-start; gap: .6rem; }
+.document-library-ui.knowledge > form[role=search] { display: flex; align-items: end; gap: .75rem; padding: .85rem; background: var(--ui-surface-muted,#f4f6fa); }
+.document-library-ui.knowledge > form[role=search] label { flex: 1; }
+.document-library-ui.knowledge > form:not([role=search]) { padding: 1.25rem; border-radius: 1rem; }
+.document-library-ui.knowledge .library-source-fields { grid-template-columns: repeat(2,minmax(0,1fr)); gap: .85rem 1rem; }
+.document-library-ui .library-source-fields > :where(:first-child,.library-wide,p) { grid-column: 1/-1; }
+.document-library-ui .knowledge-list { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; align-items: start; }
+.document-library-ui .knowledge-list article { padding: 1.2rem; border-radius: 1rem; display: grid; gap: .85rem; }
+.document-library-ui .knowledge-list article header > div { display: grid; gap: .4rem; }
+.document-library-ui .library-source-meta { display: grid; gap: .3rem; font-size: .88rem; color: var(--ui-muted,#626e82); }
+.document-library-ui .knowledge-body { padding: .85rem; border-radius: .65rem; background: var(--ui-surface-muted,#f4f6fa); line-height: 1.8; }
+.document-library-ui .knowledge-list article > details { border-block: 1px solid var(--ui-line,#dce3ee); }
+.document-library-ui.knowledge .knowledge-primary { background: var(--ui-accent,#4b6db1); color: var(--ui-on-accent,#fff); border-color: var(--ui-accent,#4b6db1); }
+.document-library-ui.knowledge button:disabled { opacity: .55; cursor: not-allowed; }
+.document-library-ui.knowledge > nav { display: flex; justify-content: center; align-items: center; gap: 1rem; }
+.document-library-ui .library-import-progress { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; list-style: decimal inside; color: var(--ui-muted,#626e82); padding: 1rem; margin: 0; border-radius: .8rem; background: var(--ui-surface-muted,#f4f6fa); }
+.document-library-ui .library-import-progress [aria-current=step] { color: var(--ui-accent,#4b6db1); font-weight: 700; }
+@media(max-width:1100px) { .document-library-ui .library-steps { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:760px) {
+ .document-library-ui .documents-grid, .document-library-ui .knowledge-list { grid-template-columns: minmax(0,1fr); }
+ .document-library-ui :where(.library-metadata,.library-upload,.guided-question), .document-library-ui.knowledge .library-source-fields { grid-template-columns: minmax(0,1fr); }
+ .document-library-ui :where(.documents-panel,.documents-editor,.documents-status), .document-library-ui .knowledge-list article { padding: .9rem; }
+ .document-library-ui .documents-tabs { width: 100%; }
+ .document-library-ui .documents-tabs button { flex: 1 1 8rem; }
+ .document-library-ui .documents-filters > *, .document-library-ui.knowledge > form[role=search] > * { min-width: 0; }
+ .document-library-ui.knowledge > form[role=search] { flex-wrap: wrap; }
+ .document-library-ui.knowledge > form[role=search] label { flex-basis: 100%; }
+}

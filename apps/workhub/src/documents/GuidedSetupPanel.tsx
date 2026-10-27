@@ -71,14 +71,14 @@ export function GuidedSetupPanel(props:Props){
  return <section className="guided-setup documents-panel" aria-label="수합 방식과 질문 제안">
   <h4>수합 방식과 질문 제안</h4><strong>{modes[report.mode]}</strong>
   <ul className="documents-muted">{report.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul>
-  <p className="documents-muted">원본 검사에 따른 안내입니다. 담당자가 방식을 정하며, 제안만으로 파일이나 질문을 저장하지 않습니다.</p>
+  <p className="documents-muted">담당자가 방식을 정하며, 제안은 자동 저장되지 않습니다. 필요한 질문을 선택해 추가해 주세요.</p>
   <div className="documents-actions"><button type="button" disabled={locked} aria-pressed={method==='guided'} onClick={()=>setMethod('guided')}>질문형으로 준비</button><button type="button" disabled={locked} aria-pressed={method==='file'} onClick={()=>setMethod('file')}>파일형으로 진행</button></div>
   {props.disabled&&!busy&&<p className="documents-muted">작성 중인 질문·답변을 저장하고 처리 결과를 확인한 뒤 제안을 사용할 수 있습니다.</p>}
   {method==='file'&&<div><p>파일형 수합에서는 교사가 원본을 내려받아 작성하고 다시 제출합니다. 수합 화면에서 양식 파일과 대상을 등록해 주세요.</p>{props.onOpenFileCollections&&<button type="button" disabled={locked} onClick={props.onOpenFileCollections}>파일형 수합 화면 열기</button>}</div>}
   {method==='guided'&&<>
    <p className="documents-muted">빈 문단 {report.unlinkedBlankCount}개 중 후보 {rows.length}개를 표시합니다. 나머지 위치는 아래 원본 목록에서 직접 연결할 수 있습니다.</p>
    {aiReason&&<p className="documents-status">AI 검토: {aiReason}</p>}
-   <p className="documents-muted">앞 문단이 이 칸의 항목 이름인지 확인해 주세요. 위치가 비슷해도 다른 질문일 수 있습니다.</p>
+   {rows.length>0&&<p className="documents-muted">앞 문단이 이 칸의 항목 이름인지 확인해 주세요. 위치가 비슷해도 다른 질문일 수 있습니다.</p>}
    {rows.map((row,index)=>{const anchor=inspection.anchors.find(a=>a.id===row.anchorId)!;return <fieldset className="guided-question" key={row.anchorId} disabled={locked}>
     <legend>연결 후보 {index+1}</legend>
     <label className="documents-check"><input aria-label={`제안 선택 ${index+1}`} type="checkbox" checked={chosen.includes(row.anchorId)} onChange={e=>{setChosen(value=>e.target.checked?[...value,row.anchorId]:value.filter(v=>v!==row.anchorId));setConfirmed('');setSendConfirmed('')}}/>이 후보 선택</label>
@@ -89,13 +89,13 @@ export function GuidedSetupPanel(props:Props){
     <label className="documents-check"><input type="checkbox" checked={row.required} onChange={e=>change(row.anchorId,{required:e.target.checked})}/>필수 답변</label><label>최대 글자 수<input aria-label={`제안 최대 글자 수 ${index+1}`} type="number" min={1} max={GUIDED_LIMITS.maxAnswerCharacters} value={row.maxLength} onChange={e=>change(row.anchorId,{maxLength:Number(e.target.value)})}/></label>
     {row.kind==='select'&&<label>선택 항목 · 한 줄에 하나<textarea aria-label={`제안 선택 항목 ${index+1}`} value={row.options.join('\n')} onChange={e=>change(row.anchorId,{options:e.target.value.split('\n')})}/></label>}</details>
    </fieldset>})}
-   {!rows.length&&<p>자동으로 연결할 제안이 없습니다. 원본 위치를 보고 직접 질문을 연결할 수 있습니다.</p>}
+   {!rows.length&&<p>새로 연결할 빈 문단 후보가 없습니다. 아래 질문 연결 영역에서 기존 질문과 원본 위치를 확인해 주세요.</p>}
    <div className="documents-actions"><button type="button" disabled={locked} onClick={reset}>원본 기준 후보 다시 보기</button></div>
-   {props.onRequestAi&&<details><summary>선택한 후보를 AI와 검토</summary><p>선택한 위치와 위에 표시된 질문·앞 문단 참고만 비서에 전달합니다. 비서 화면에서 실행을 눌러야 학교 예산으로 요청합니다.</p>{changed&&<p>수정한 제안은 먼저 반영하거나 원본 기준 후보로 되돌린 뒤 AI에 요청해 주세요.</p>}
+   {rows.length>0&&<>{props.onRequestAi&&<details><summary>선택한 후보를 AI와 검토</summary><p>선택한 위치와 위에 표시된 질문·앞 문단 참고만 비서에 전달합니다. 비서 화면에서 실행을 눌러야 학교 예산으로 요청합니다.</p>{changed&&<p>수정한 제안은 먼저 반영하거나 원본 기준 후보로 되돌린 뒤 AI에 요청해 주세요.</p>}
     <label className="documents-check"><input type="checkbox" disabled={locked||changed||!selectedRows.length} checked={sendConfirmed===fingerprint} onChange={e=>setSendConfirmed(e.target.checked?fingerprint:'')}/>AI에 보낼 항목과 문맥을 확인했습니다</label>
     <button type="button" disabled={locked||changed||!selectedRows.length||sendConfirmed!==fingerprint} onClick={()=>void checked('ai')}>선택한 질문 제안 받기</button></details>}
    <label className="documents-check"><input type="checkbox" disabled={locked||!selectedRows.length} checked={confirmed===fingerprint} onChange={e=>setConfirmed(e.target.checked?fingerprint:'')}/>선택한 질문과 원본 위치를 확인했습니다</label>
-   <button type="button" disabled={locked||!selectedRows.length||confirmed!==fingerprint} onClick={()=>void checked('apply')}>선택한 연결 제안 반영</button>
+   <button type="button" disabled={locked||!selectedRows.length||confirmed!==fingerprint} onClick={()=>void checked('apply')}>선택한 연결 제안 반영</button></>}
   </>}
   {busy&&<p role="status">원래 양식과 작성 권한을 다시 확인하는 중…</p>}{error&&<><p role="alert">{error}</p>{props.suggestion&&<button type="button" disabled={locked||changed} onClick={()=>setHandled('')}>돌아온 제안 다시 확인</button>}</>}{notice&&<p role="status">{notice}</p>}
  </section>
