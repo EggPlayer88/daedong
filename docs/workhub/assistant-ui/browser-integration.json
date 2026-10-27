@@ -1,0 +1,37 @@
+{
+  "browser": "chrome",
+  "results": [
+    {
+      "name": "workhub-ui-renewal",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 9544
+    },
+    {
+      "name": "workhub-cross-module",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 16580
+    },
+    {
+      "name": "doc-ai-school-policy",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 6301
+    },
+    {
+      "name": "workhub-guided-ai",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 16890
+    }
+  ]
+}

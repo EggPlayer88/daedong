@@ -96,7 +96,7 @@ try {
       await send.waitFor()
       const box = await send.boundingBox()
       assert(box.y >= 0 && box.y + box.height <= viewport.height, `요청 버튼이 첫 화면을 벗어남: ${JSON.stringify(box)}`)
-      assert(await ai().locator('.assistant-compose').evaluate(el => Boolean(el.compareDocumentPosition(el.parentElement.querySelector('.assistant-budget-disclosure')) & Node.DOCUMENT_POSITION_FOLLOWING)))
+      assert(await ai().locator('.assistant-compose').evaluate(el => Boolean(el.compareDocumentPosition(el.closest('.assistant-workspace').querySelector('.assistant-budget-disclosure')) & Node.DOCUMENT_POSITION_FOLLOWING)))
       await ai().getByLabel('질문 또는 부탁할 일', { exact: true }).fill('자동으로 보내지 않는 보관 질문')
       await screenshot(viewport.width > 720 ? '03-ai-desktop' : '04-ai-mobile')
       await fits()

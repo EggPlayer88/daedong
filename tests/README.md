@@ -365,3 +365,11 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `node tests/browser/run.mjs workhub-coordination-ui`로 실행하며 전체 러너에 포함한다.
 - 기존 `workhub-calendar-*`, `workhub-cooperation-*`, `workhub-school-transitions`, `workhub-request-recovery`의 전송·권한·충돌·다중 페이지 검증을 함께 실행한다.
 - 서버 계약과 DB를 바꾸지 않는다. [화면·검증 기록](../docs/workhub/coordination-ui/README.md).
+
+
+## AI 답변·근거·개인 기억·관리자 설정 화면
+
+- `workhub-assistant-ui.mjs`: 실제 React·기존 합성 fixture를 이용한 25개 시나리오. 넓은 화면/AI 옆자리 순서, 인용 판·줄바꿈·원문 ID, 명시 Sonnet 검토, 기억 선택/편집 확인, 키 입력 접기와 원요청 복구, 권한별 키 UI, 예약 주의·진단을 확인한다.
+- 320px·두 배 글씨·키보드·실제 세 스킨의 주요 텍스트 대비를 검사하고 외부 호출을 차단한다.
+- `node tests/browser/workhub-assistant-ui.mjs`로 실행하며 전체 브라우저 러너에 등록했다. 기존 AI·기억·운영·질문형·평가계획서·교차 모듈 회귀를 함께 검사한다.
+- [화면·검증 기록](../docs/workhub/assistant-ui/README.md).

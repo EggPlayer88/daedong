@@ -1,0 +1,61 @@
+{
+  "browser": "chrome",
+  "results": [
+    {
+      "name": "workhub-ui-polish",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7037
+    },
+    {
+      "name": "workhub-ai-memory",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 8233
+    },
+    {
+      "name": "workhub-assistant-practice",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 5922
+    },
+    {
+      "name": "workhub-ai-operations",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 6911
+    },
+    {
+      "name": "workhub-ai-school-policy",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 6783
+    },
+    {
+      "name": "workhub-knowledge-assistant",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 6289
+    },
+    {
+      "name": "workhub-assistant",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 12197
+    }
+  ]
+}
