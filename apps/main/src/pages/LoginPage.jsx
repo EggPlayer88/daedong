@@ -58,6 +58,7 @@ export default function LoginPage() {
   return (
     <div className="login">
       <div className="login-card">
+        <p className="site-kicker">학교 업무를 한곳에서</p>
         <h1>대동여중 업무혁신시스템</h1>
         {emailMode ? <>
           <h2>이메일 계정 로그인</h2>
@@ -78,6 +79,7 @@ export default function LoginPage() {
         {error && (
           <p className="error" role="alert">{error}</p>
         )}
+        <p className="site-login-footnote">처음 로그인한 계정은 관리자 승인 후 이용할 수 있습니다.</p>
       </div>
     </div>
   )

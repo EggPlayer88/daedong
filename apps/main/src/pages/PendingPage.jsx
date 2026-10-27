@@ -13,7 +13,7 @@ export default function PendingPage() {
   return (
     <div className="login">
       <div className="login-card pending">
-        <div className="pending-icon">⏳</div>
+        <div className="pending-icon" aria-hidden="true">⏳</div>
         <h1>승인 대기중입니다</h1>
         <p className="muted">
           관리자 승인 후 이용할 수 있습니다.

@@ -1,17 +1,17 @@
 :root {
-  --bg: #0c0f1a;
-  --card: #141929;
-  --card-hover: #1a2038;
-  --border: #232940;
-  --border-light: #2d3555;
-  --accent: #4f8cff;
-  --text: #e8ecf4;
-  --text-mid: #8b95ad;
-  --text-dim: #5a6480;
-  --green: #34d399;
-  --yellow: #fbbf24;
-  --red: #f87171;
-  --purple: #a78bfa;
+  --bg: #f5f6f8;
+  --card: #ffffff;
+  --card-hover: #f0f3f8;
+  --border: #e1e6ee;
+  --border-light: #cbd3df;
+  --accent: #325fc2;
+  --text: #202832;
+  --text-mid: #596575;
+  --text-dim: #626d7c;
+  --green: #157153;
+  --yellow: #875514;
+  --red: #b83240;
+  --purple: #7050a8;
 }
 
 * {
@@ -22,7 +22,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, sans-serif;
+  font-family: 'Pretendard Variable', 'Pretendard', 'Noto Sans KR', -apple-system, sans-serif;
   font-size: 14px;
 }
 
@@ -727,6 +727,133 @@ button {
   color: var(--text);
   font-family: inherit;
   font-size: 14px;
+}
+
+/* 기존 업무도 업무실과 같은 밝은 바탕·읽기 크기·초점 표시를 사용한다.
+   업무실 내부는 Shadow DOM과 자체 스킨을 사용하므로 이 규칙이 들어가지 않는다. */
+body { line-height: 1.6; -webkit-font-smoothing: antialiased; }
+.app { min-height: 100vh; }
+.app:not(.app-workhub) > .topbar { height: auto; min-height: 68px; flex-wrap: wrap; padding: 12px 24px; gap: 12px 20px; }
+.topbar > *, .me, .nav { min-width: 0; }
+.brand, .me-name { overflow-wrap: anywhere; }
+.me-name { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.app:not(.app-workhub) .nav { flex-wrap: wrap; gap: 4px; }
+.app:not(.app-workhub) .nav-link { display: flex; align-items: center; min-height: 44px; font-weight: 550; }
+.app:not(.app-workhub) .me { flex-wrap: wrap; margin-left: auto; }
+.app:not(.app-workhub) > .content { max-width: 1440px; margin: auto; padding: 36px 32px 64px; }
+.site-page { max-width: 1160px; margin: auto; overflow-wrap: anywhere; }
+.site-page-heading { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-bottom: 24px; }
+.page .site-page-heading h2 { font-size: clamp(23px, 2.5vw, 30px); line-height: 1.35; letter-spacing: -.035em; margin: 0; }
+.site-page-heading p { margin: 10px 0 0; font-size: 15px; }
+.site-page h3 { font-size: 18px; line-height: 1.5; margin: 0 0 16px; letter-spacing: -.02em; }
+.site-page h3 .small { display: inline-block; font-weight: 400; }
+.site-page .small { font-size: 13px; }
+.site-page .card { padding: 24px; border-radius: 18px; }
+.site-page .plan-sec { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 24px; margin-top: 24px; }
+.site-page :is(input, select, textarea, button) { font: inherit; }
+.site-page :is(input:not([type=radio]):not([type=checkbox]), select, textarea) { max-width: 100%; }
+.site-page :is(.btn-google, .btn-plain, .btn-danger, .example-link), .login :is(button, input), .topbar .btn-plain { min-height: 44px; }
+.site-page .btn-google { background: var(--accent); border-color: var(--accent); }
+.site-page .btn-danger { padding: 8px; border-radius: 8px; }
+.site-page .btn-danger:hover:not(:disabled) { background: #fff1f2; }
+.site-page button:disabled { cursor: not-allowed; }
+.site-page :is(.error, .notice) { padding: 12px 16px; border-radius: 12px; border: 1px solid currentColor; font-size: 14px; overflow-wrap: anywhere; }
+.site-page .error { background: #fff5f5; }
+.site-page .notice { background: #fff9eb; }
+.site-section-links { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+.site-section-links a { display: inline-flex; gap: 16px; align-items: center; justify-content: space-between; min-height: 44px; padding: 9px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; color: var(--text-mid); text-decoration: none; font-size: 14px; }
+.site-section-links a:hover { background: var(--card-hover); color: var(--accent); }
+.site-shortcuts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 28px; }
+.site-shortcuts a { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px; min-height: 84px; color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 18px; font-size: 17px; font-weight: 650; text-decoration: none; }
+.site-shortcuts a:hover { color: var(--accent); border-color: var(--accent); background: #f7faff; }
+.site-shortcuts a > span:last-child { color: var(--accent); }
+.site-account { max-width: 100%; }
+.site-account .kv { padding: 12px 0; border-top: 1px solid var(--border); }
+.site-account .v { min-width: 0; overflow-wrap: anywhere; }
+.site-account .kv:last-child { padding-bottom: 0; }
+.site-table-help { margin: 0 0 10px; color: var(--text-mid); font-size: 13px; }
+.site-table-block .scroll-x { border-radius: 10px; }
+.site-page .table { max-width: none; margin-bottom: 0; font-size: 14px; }
+.site-page .table :is(th, td) { padding: 14px 12px; vertical-align: top; overflow-wrap: anywhere; }
+.site-page .table thead { background: var(--bg); }
+.site-page .table th { font-size: 13px; color: var(--text-mid); }
+.site-page .table tbody tr:last-child > * { border-bottom: 0; }
+.site-page .table .btn-plain { text-align: left; white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
+.site-status { display: inline-block; padding: 3px 9px; border-radius: 7px; background: var(--bg); white-space: nowrap; font-size: 13px; }
+.site-page .submission-table { min-width: 720px; table-layout: fixed; }
+.submission-table th:nth-child(1) { width: 13%; }
+.submission-table th:nth-child(2) { width: 31%; }
+.submission-table th:nth-child(3) { width: 20%; }
+.submission-table th:nth-child(4) { width: 16%; }
+.submission-table th:nth-child(5), .submission-table th:nth-child(6) { width: 10%; }
+.admin-users .table { min-width: 720px; table-layout: fixed; }
+.site-page.submissions .submit-form { max-width: none; }
+.submit-form > .btn-google { max-width: 220px; margin-top: 8px; }
+.site-page .submit-form input[type=file] { padding: 14px; border: 1px dashed var(--border-light); border-radius: 12px; background: var(--bg); }
+.site-page .submit-form input::file-selector-button { border: 1px solid var(--border-light); background: var(--card); color: var(--text); border-radius: 8px; padding: 8px 10px; margin-right: 10px; font: inherit; }
+.site-page .row-field label { font-size: 14px; color: var(--text); }
+.docai-body { grid-template-columns: minmax(0, 1fr) 260px; gap: 22px; }
+.docai-quality { margin: 0 0 16px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+.docai-current-title { margin: 0 0 16px; font-size: 14px; }
+.docai-current-title span { display: block; color: var(--text-mid); font-size: 13px; margin-bottom: 4px; }
+.docai-quality legend { padding: 0 6px; font-weight: 650; }
+.docai-quality label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding-right: 14px; }
+.docai-quality p { margin: 6px 0 0; }
+.docai-welcome { padding: 18px; border-radius: 14px; background: var(--card-hover); }
+.docai-welcome p { margin: 0 0 12px; }
+.docai .chat { max-height: 52vh; min-height: 180px; padding: 20px; gap: 16px; overscroll-behavior: contain; }
+.docai .chat[hidden] { display: none; }
+.docai .msg { font-size: 15px; line-height: 1.8; max-width: 94%; overflow-wrap: anywhere; }
+.docai .composer { flex-wrap: wrap; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+.docai .composer input:not([type=file]) { flex-basis: 50%; background: var(--bg); }
+.docai .examples { gap: 10px; }
+.docai .example-link { display: inline-flex; align-items: center; font-size: 13px; }
+.conv-list { min-width: 0; padding: 16px; border-radius: 16px; }
+.conv-head { flex-wrap: wrap; }
+.conv-head h3 { font-size: 16px; margin: 0; }
+.conv-list ul { max-height: 58vh; overflow: auto; overscroll-behavior: contain; }
+.conv-list .conv-item { gap: 6px; margin-top: 6px; align-items: flex-start; }
+.conv-list .conv-open { padding: 10px 6px; }
+.conv-title { white-space: normal; overflow-wrap: anywhere; text-align: left; line-height: 1.5; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.conv-list .conv-open .small { font-size: 12px; }
+.conv-list .conv-del { margin-top: 4px; }
+.login { background: var(--bg); }
+.login-card { max-width: 440px; padding: 36px; border-radius: 24px; text-align: left; box-shadow: 0 12px 48px #20283206; }
+.login-card h1 { font-size: 26px; line-height: 1.4; letter-spacing: -.035em; overflow-wrap: anywhere; }
+.login-card p { font-size: 14px; line-height: 1.7; }
+.login-card .site-kicker { color: var(--accent); font-weight: 650; margin-bottom: 12px; }
+.login-card .site-login-footnote { color: var(--text-mid); font-size: 13px; padding-top: 20px; margin: 24px 0 0; border-top: 1px solid var(--border); }
+.login-card .error { margin: 18px 0 0; padding: 12px; border: 1px solid #e9b9bf; border-radius: 10px; background: #fff5f5; }
+.pending-icon { font-family: Tossface, 'Segoe UI Emoji', sans-serif; }
+.pending-account { overflow-wrap: anywhere; }
+.site-skip-link { position: fixed; top: 8px; left: 8px; z-index: 1000; padding: 12px 18px; color: var(--text); background: var(--card); border: 2px solid var(--accent); border-radius: 10px; clip-path: inset(50%); pointer-events: none; }
+.site-skip-link:focus { clip-path: none; pointer-events: auto; }
+.app :focus-visible, .login :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.site-page :is(h2, h3, [id], input) { scroll-margin-top: 24px; }
+@media (max-width: 960px) {
+  .app:not(.app-workhub) > .topbar .brand { flex: 1; }
+  .app:not(.app-workhub) > .topbar .nav { order: 3; flex-basis: 100%; }
+}
+@media (max-width: 720px) {
+  .app:not(.app-workhub) > .topbar { padding: 12px 16px; gap: 10px; }
+  .app:not(.app-workhub) > .topbar .me-name { display: none; }
+  .app:not(.app-workhub) .nav-link { padding: 8px 10px; font-size: 13px; }
+  .app:not(.app-workhub) > .content { padding: 24px 16px 40px; }
+  .site-page .card, .site-page .plan-sec { padding: 18px; }
+  .site-shortcuts { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .site-shortcuts a { min-height: 68px; padding: 16px 18px; font-size: 16px; }
+  .docai-body { grid-template-columns: minmax(0, 1fr); }
+  .docai .conv-list ul { max-height: 320px; }
+  .docai .msg { max-width: 100%; }
+  .docai .composer input:not([type=file]) { flex-basis: 100%; order: -1; }
+  .docai .composer .btn-google { margin-left: auto; }
+  .site-page .kv { flex-wrap: wrap; gap: 4px 16px; }
+  .site-page .row-field.two { grid-template-columns: minmax(0, 1fr); }
+  .login { padding: 16px; }
+  .login-card { padding: 28px 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app *, .login * { scroll-behavior: auto; }
 }
 
 /* 업무실에서는 기존 메뉴를 접고 새 업무 화면에 전체 너비를 제공한다. */

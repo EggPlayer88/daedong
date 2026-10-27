@@ -3,6 +3,7 @@ import { useAuth } from '../lib/AuthContext.jsx'
 import { splitPlan } from '../lib/planMarker.js'
 import PlanCard from '../components/PlanCard.jsx'
 import ConversationList from '../components/ConversationList.jsx'
+import { PageHeading, SectionLinks } from '../components/PageFrame.jsx'
 import { REF_PREFIX, buildTitle, deriveMeta } from '../lib/docAiMeta.js'
 // 서버가 JSON 이 아닌 오류 페이지를 돌려줄 때를 한 자리에서 처리한다 (lib/api.js 주석 참조)
 import { postJson } from '../lib/api.js'
@@ -413,8 +414,9 @@ function DocAiScope({ session }) {
   )
 
   return (
-    <div className="page docai">
-      <h2>문서 작성 AI — {manifest.doc_title}</h2>
+    <div className="page docai site-page">
+      <PageHeading title={`문서 작성 AI — ${manifest.doc_title}`} description="대화로 내용을 정하고, 완성된 평가계획서를 확인하세요." />
+      <SectionLinks items={[{ id: 'docai-compose', label: '메시지 작성' }, { id: 'docai-history', label: '저장된 대화' }, ...(plan ? [{ id: 'docai-result', label: '생성 전 내용 확인' }] : [])]} />
       <p className="muted small">
         대화로 내용을 확정하면 통일된 양식의 한글 파일(.hwpx)을 만들어 드립니다.
         대화는 자동 저장되며 <b>본인만</b> 볼 수 있습니다 — 나중에 이어서 작성할 수 있습니다.
@@ -436,20 +438,11 @@ function DocAiScope({ session }) {
       </p>
 
       <div className="docai-body">
-      <ConversationList
-        rows={convs}
-        currentId={convId}
-        busy={locked}
-        error={convError}
-        onOpen={openConversation}
-        onNew={startNew}
-        onDelete={removeConversation}
-      />
-
       <div className="docai-main">
-      <fieldset disabled={locked} style={{marginBottom:12}}><legend>AI 요청 방식</legend><label><input type="radio" name="docai-quality" value="quick" checked={quality==='quick'} onChange={()=>setQuality('quick')}/> 기본 작성 · Haiku</label>{' '}<label><input type="radio" name="docai-quality" value="review" checked={quality==='review'} onChange={()=>setQuality('review')}/> 정밀 검토 · Sonnet</label><p className="muted small">학교의 월 공통 AI 예산을 사용합니다. 정밀 검토는 필요할 때 직접 선택하세요.</p></fieldset>
-      {!messages.length&&<section><p>교과·학년과 필요한 내용을 입력하거나 안내 대화를 시작하세요. 버튼을 누르기 전에는 AI를 호출하지 않습니다.</p><button type="button" disabled={locked||!token} onClick={()=>void sendHistory([{role:'user',content:OPENING}])}>안내 대화 시작</button></section>}
-      <div className="chat">
+      {convs.find(item => item.id === convId)?.title && <p className="docai-current-title"><span>이어서 작성 중</span><strong>{convs.find(item => item.id === convId).title}</strong></p>}
+      <fieldset disabled={locked} className="docai-quality"><legend>AI 요청 방식</legend><label><input type="radio" name="docai-quality" value="quick" checked={quality==='quick'} onChange={()=>setQuality('quick')}/> 기본 작성 · Haiku</label>{' '}<label><input type="radio" name="docai-quality" value="review" checked={quality==='review'} onChange={()=>setQuality('review')}/> 정밀 검토 · Sonnet</label><p className="muted small">학교의 월 공통 AI 예산을 사용합니다. 정밀 검토는 필요할 때 직접 선택하세요.</p></fieldset>
+      {!messages.length&&<section className="docai-welcome"><p>교과·학년과 필요한 내용을 입력하거나 안내 대화를 시작하세요. 버튼을 누르기 전에는 AI를 호출하지 않습니다.</p><button type="button" className="btn-plain" disabled={locked||!token} onClick={()=>void sendHistory([{role:'user',content:OPENING}])}>안내 대화 시작</button></section>}
+      <div className="chat" role="region" aria-label="평가계획 작성 대화" tabIndex={0} hidden={!visible.some(message => message.content) && !busy}>
         {visible.map((m, i) => {
           if (!m.content) return null
           // 참고자료는 본문이 길어 채팅에 그대로 펼치지 않고 요약 칩으로 보여준다
@@ -474,10 +467,10 @@ function DocAiScope({ session }) {
         <div ref={bottomRef} />
       </div>
 
-      {error && <p className="error">{error}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
       {pendingRequest&&<section role="status" aria-label="AI 요청 결과 확인"><p>이 요청의 결과를 확인하는 동안 새 요청은 보내지 않습니다. 입력과 요청 번호는 현재 탭에 보관됩니다.</p><p style={{overflowWrap:'anywhere'}}>요청 번호: {pendingRequest.requestKey}</p><button type="button" disabled={busy} onClick={()=>void sendHistory(pendingRequest.messages,{attempt:pendingRequest,recoverOnly:true})}>{pendingRequest.closing?'닫기 결과 다시 확인':'같은 요청 결과 확인'}</button>{canResend&&!pendingRequest.closing&&<button type="button" disabled={busy} onClick={()=>void sendHistory(pendingRequest.messages,{attempt:pendingRequest})}>원래 요청 다시 접수</button>}{!pendingRequest.closing&&<details><summary>이 요청을 더 진행하지 않으려면</summary><p>아직 AI가 시작하지 않은 요청만 닫습니다. 이미 처리 중이면 결과 확인을 계속해야 합니다.</p><button type="button" disabled={busy} onClick={()=>void sendHistory(pendingRequest.messages,{attempt:pendingRequest,cancelOnly:true})}>새 호출 없이 요청 닫기</button></details>}</section>}
       {repairNeeded&&!pendingRequest&&<button type="button" disabled={busy} onClick={()=>{setRepairNeeded(false);void sendHistory([...messages,{role:'user',content:'방금 JSON 형식이 깨졌습니다. ===PLAN_READY=== 블록만 다시 정확히 출력해 주세요.'}])}}>형식 재작성 요청 · AI 추가 사용</button>}
-      {notice && <p className="notice">{notice}</p>}
+      {notice && <p className="notice" role="status">{notice}</p>}
       {notices.length > 0 && (
         <div className="card warn-card">
           <b>문서에 담기지 못한 내용이 있습니다</b>
@@ -493,6 +486,7 @@ function DocAiScope({ session }) {
       )}
 
       {plan && (
+        <section id="docai-result" tabIndex={-1} aria-label="생성 전 내용 확인">
         <PlanCard
           manifest={manifest}
           plan={plan}
@@ -504,9 +498,10 @@ function DocAiScope({ session }) {
           onGenerate={generate}
           onEdit={() => setPlan(null)}
         />
+        </section>
       )}
 
-      <form className="composer" onSubmit={onSubmit}>
+      <form className="composer" onSubmit={onSubmit} aria-label="평가계획 메시지 작성">
         <input
           ref={fileRef}
           type="file"
@@ -527,6 +522,8 @@ function DocAiScope({ session }) {
           📎 참고자료
         </button>
         <input
+          id="docai-compose"
+          aria-label="평가계획 메시지"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={busy ? '응답을 기다리는 중…' : '메시지를 입력하세요'}
@@ -537,6 +534,16 @@ function DocAiScope({ session }) {
         </button>
       </form>
       </div>
+      <ConversationList
+        rows={convs}
+        currentId={convId}
+        busy={locked}
+        error={convError}
+        onOpen={openConversation}
+        onNew={startNew}
+        onDelete={removeConversation}
+      />
+
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, can } from '@daedong/shared'
 import { useAuth } from '../lib/AuthContext.jsx'
 import { RoleBadge } from '../components/Layout.jsx'
+import { PageHeading, SectionLinks, ScrollTable } from '../components/PageFrame.jsx'
 
 // Phase 0 뼈대 + D20 가입 승인.
 // (users_select 는 승인자에게 전체 open 이지만, 이 화면은 admin+ 전용)
@@ -81,8 +82,8 @@ export default function AdminUsersPage() {
 
   if (!allowed) {
     return (
-      <div className="page">
-        <h2>사용자 관리</h2>
+      <div className="page site-page">
+        <PageHeading title="사용자 관리" />
         <p className="error">이 화면은 관리자 이상만 볼 수 있습니다.</p>
       </div>
     )
@@ -92,16 +93,17 @@ export default function AdminUsersPage() {
   const active = rows.filter((u) => u.is_active !== false)
 
   return (
-    <div className="page">
-      <h2>사용자 관리</h2>
+    <div className="page site-page admin-users">
+      <PageHeading title="사용자 관리" description="가입 대기 계정을 확인하고, 현재 이용 중인 회원을 살펴보세요." />
 
-      {error && <p className="error">불러오지 못했습니다: {error.message}</p>}
-      {loading && <p className="muted">불러오는 중…</p>}
+      {error && <p className="error" role="alert">불러오지 못했습니다: {error.message}</p>}
+      {loading && <p className="muted" role="status">불러오는 중…</p>}
 
       {!loading && (
         <>
-          <section className="plan-sec" style={{ marginTop: 0, borderTop: 'none', paddingTop: 0 }}>
-            <h3 className="sec-title">
+          <SectionLinks items={[{ id: 'users-pending', label: `가입 대기 ${pending.length}명` }, { id: 'users-active', label: `활성 사용자 ${active.length}명` }]} />
+          <section className="plan-sec">
+            <h3 className="sec-title" id="users-pending" tabIndex={-1}>
               가입 대기 {pending.length > 0 && <span className="count">{pending.length}</span>}
             </h3>
             {pending.length === 0 ? (
@@ -111,7 +113,7 @@ export default function AdminUsersPage() {
                 <p className="muted small">
                   승인해야 사이트를 이용할 수 있습니다. 모르는 계정이면 승인하지 마세요.
                 </p>
-                <table className="table">
+                <ScrollTable label="가입 대기 계정"><table className="table">
                   <thead>
                     <tr>
                       <th>이름</th>
@@ -138,16 +140,16 @@ export default function AdminUsersPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></ScrollTable>
               </>
             )}
           </section>
 
           <section className="plan-sec">
-            <h3 className="sec-title">
+            <h3 className="sec-title" id="users-active" tabIndex={-1}>
               사용자 <span className="count">{active.length}</span>
             </h3>
-            <table className="table">
+            <ScrollTable label="활성 사용자 목록"><table className="table">
               <thead>
                 <tr>
                   <th>이름</th>
@@ -183,12 +185,10 @@ export default function AdminUsersPage() {
                   </tr>
                 )}
               </tbody>
-            </table>
+            </table></ScrollTable>
           </section>
 
-          <p className="muted small">
-            Phase 0 뼈대 — 역할·부서 변경, 비활성 처리(퇴직·전출) UI 는 이후 단계에서 추가합니다.
-          </p>
+          <p className="muted small">가입 승인은 사이트 이용을 허용하는 단계입니다. 학교 소속과 업무 배정은 별도로 관리합니다.</p>
         </>
       )}
     </div>
