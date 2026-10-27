@@ -1,0 +1,136 @@
+import assert from 'node:assert/strict'
+import { buildSync } from 'esbuild'
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { launchBrowser } from './launch-browser.mjs'
+
+const bundles = Object.fromEntries(Object.entries({ preparation: 'workhub-timetable-workflow-ui-fixture.tsx', design: 'workhub-timetable-flow-fixture.tsx', exchange: 'workhub-timetable-exchanges-fixture.tsx' }).map(([key, file]) => [key, buildSync({ entryPoints: [fileURLToPath(new URL(file, import.meta.url))], bundle: true, format: 'iife', write: false, jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.url': '"http://127.0.0.1:5179/worker-client.ts"', 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' }).outputFiles[0].text]))
+const font = readFileSync(new URL('../../apps/workhub/src/assets/fonts/PretendardVariable.woff2', import.meta.url)).toString('base64')
+const html = `<!doctype html><html lang="ko"><meta name="viewport" content="width=device-width,initial-scale=1"><style>@font-face{font-family:Pretendard;src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:45 920}body{font-family:Pretendard,sans-serif;margin:0;padding:24px;background:var(--ui-surface-muted,#f6f7f9)}*{box-sizing:border-box}#root{max-width:1280px;margin:auto}</style><div id="root"></div></html>`
+const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1440, height: 1000 } }), page = await context.newPage(), errors = [], external = [], passed = []
+page.setDefaultTimeout(12000)
+page.on('pageerror', error => errors.push(error.message))
+page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:5179/')) external.push(request.url()) })
+await context.route('**/*', route => route.fulfill({ contentType: 'text/html', body: html }))
+const button = name => page.getByRole('button', { name, exact: true })
+const writes = () => page.evaluate(() => window.calls.filter(call => /_execute|_save_draft/.test(call.name)).length)
+async function start(kind) {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto('http://127.0.0.1:5179/' + kind); await page.addScriptTag({ content: bundles[kind] }); await page.evaluate(() => document.fonts.ready)
+  if (kind === 'design') { await button('편성 관리').click(); await button('시간표 만들기').click() }
+  if (kind === 'exchange') { await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor(); await page.getByRole('button', { name: /^교환·변경 요청/ }).click(); await page.getByLabel('변경할 내 수업', { exact: true }).waitFor() }
+  if (kind === 'preparation') await page.getByLabel('준비 자료 이름', { exact: true }).waitFor()
+}
+async function check(name, kind, run) { await start(kind); await run(); passed.push(name); console.log('  ✓ ' + name) }
+async function capture(name, locator) {
+  if (!process.env.WORKHUB_QA_OUTPUT) return
+  mkdirSync(process.env.WORKHUB_QA_OUTPUT, { recursive: true })
+  if (locator) await locator.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, name + '.png') })
+  else await page.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, name + '.png'), fullPage: true })
+}
+try {
+  await check('누락 입력 바로가기는 해당 수업만 찾고 미완성 시간대와 저장 잠금을 보존한다', 'preparation', async () => {
+    await page.getByLabel('교시 이름', { exact: true }).fill('작성 중인 1교시')
+    await button('시수 확인 1개 보기').focus(); await page.keyboard.press('Enter')
+    assert.equal(await page.getByLabel('입력 점검 분류', { exact: true }).inputValue(), 'hours')
+    assert.equal(await page.evaluate(() => document.activeElement.textContent), '확인할 수업 찾아가기')
+    assert.equal(await page.locator('.timetable-progress-courses > li').count(), 1)
+    await button('국어 [course-a] 입력으로 이동').click()
+    await page.getByLabel('주간 기준 시수', { exact: true }).waitFor()
+    assert.equal(await page.getByLabel('교시 이름', { exact: true }).inputValue(), '작성 중인 1교시')
+    assert.equal(await button('준비 초안 서버에 저장').isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: '확인한 편성 기준판 만들기', exact: true, includeHidden: true }).isDisabled(), true)
+    assert.equal(await writes(), 0)
+    await capture('preparation-input-review', page.locator('.timetable-preparation-flow'))
+  })
+  await check('조건 도움을 접어도 입력은 보존하고 조건 추가 전 계산·저장을 막는다', 'design', async () => {
+    await button('조건 입력 시작하기').click()
+    await page.getByLabel('조건 종류', { exact: true }).selectOption('preferences')
+    await page.getByLabel('조건 수업', { exact: true }).selectOption('practice-lesson-a1')
+    await page.getByLabel('조건 시간', { exact: true }).selectOption('practice-1-1')
+    const help = page.getByText('필수·선호 조건은 어떻게 다른가요?', { exact: true })
+    await help.click(); await help.click()
+    assert.equal(await page.getByLabel('조건 수업', { exact: true }).inputValue(), 'practice-lesson-a1')
+    await page.getByText('입력 중인 조건이 아직 추가되지 않았습니다.', { exact: false }).waitFor()
+    assert.equal(await writes(), 0)
+    await button('조건 추가').click()
+    await page.getByRole('heading', { name: '가능하면 피할 시간 · 1건', exact: true }).waitFor()
+    assert.equal(await page.locator('.tt-condition-group').count(), 3)
+    assert.equal(await page.locator('.tt-condition-group[data-kind="preferences"] .timetable-list-row').count(), 1)
+    await capture('condition-input', page.locator('.timetable-card').filter({ has: page.getByRole('heading', { name: '2. 필수 조건과 선호 조건', exact: true }) }))
+  })
+  await check('실제 계산 후 품질 요약·상세 분석을 구분하고 공개 없이 초안 저장까지 연결한다', 'design', async () => {
+    await button('배치·비교').click(); await button('배치 만들기').click()
+    await page.getByText('전체 필수 조건 검사 통과 · 교사·학생 집단·공간·시수 확인', { exact: true }).waitFor()
+    await page.getByRole('heading', { name: '배치 검토 요약', exact: true }).waitFor()
+    const notes = page.getByText('점수와 비교 기준 읽는 법', { exact: true })
+    await notes.click(); await page.getByText('선호 벌점은 낮을수록 좋습니다.', { exact: false }).waitFor(); await notes.click()
+    assert.equal(await writes(), 0)
+    await capture('result-review', page.locator('.timetable-card').filter({ has: page.getByRole('heading', { name: '3. 배치 만들기와 조정', exact: true }) }))
+    await button('초안 저장·공개 검토').click()
+    await page.getByLabel('초안 이름', { exact: true }).fill('UI 정리 검증용 초안')
+    await button('새 초안으로 서버에 저장').click()
+    await button('저장한 초안으로 확정 검토 열기').waitFor()
+    assert.equal(await page.evaluate(() => window.saved), 1)
+    assert.equal(await page.evaluate(() => window.calls.filter(call => call.name.includes('operations_execute')).length), 0)
+  })
+  await check('새 요청·승인 바로가기는 작성 중인 교환 입력과 원래 선택을 보존한다', 'exchange', async () => {
+    await button('새 요청 작성').click()
+    assert.equal(await page.evaluate(() => document.activeElement.textContent), '새 변경 요청')
+    await page.getByLabel('변경할 내 수업', { exact: true }).selectOption('one')
+    await page.getByLabel('교환할 상대 수업', { exact: true }).selectOption('two')
+    await page.getByLabel('변경 요청 사유', { exact: true }).fill('합성 교사 연수')
+    await button('동의·승인 확인').focus(); await page.keyboard.press('Enter')
+    assert.equal(await page.evaluate(() => document.activeElement.textContent), '관련 변경 요청')
+    await button('새 요청 작성').click()
+    assert.equal(await page.getByLabel('교환할 상대 수업', { exact: true }).inputValue(), 'two')
+    assert.equal(await page.getByLabel('변경 요청 사유', { exact: true }).inputValue(), '합성 교사 연수')
+    assert.equal(await writes(), 0)
+    await button('변경 전후 미리보기').click()
+    const preview = page.getByRole('region', { name: '수업 변경 미리보기', exact: true })
+    await preview.waitFor()
+    assert.equal(await button('내 동의와 변경 요청 보내기').isDisabled(), true)
+    await capture('exchange-request', page.locator('.tt-exchange-compose'))
+  })
+  await check('승인 카드는 변경 전후를 열고 명시 확인 전에는 요청을 보내지 않는다', 'exchange', async () => {
+    await page.evaluate(() => window.addRequest('approval'))
+    await button('내 승인 1건 보기').click()
+    assert.equal(await page.getByLabel('요청 상태로 보기', { exact: true }).inputValue(), 'approval')
+    await button('승인하고 시간표에 반영').click()
+    const response = page.getByRole('region', { name: '변경 요청 응답 확인', exact: true })
+    await response.waitFor()
+    assert.equal(await page.locator('.timetable-exchange-details').getAttribute('open'), '')
+    assert.equal(await button('확인한 응답 보내기').isDisabled(), true)
+    assert.equal(await writes(), 0)
+    await capture('exchange-approval', page.locator('.timetable-exchanges'))
+    await page.getByLabel('현재 수업과 변경 내용을 확인했습니다', { exact: true }).check()
+    await button('확인한 응답 보내기').click()
+    await page.waitForFunction(() => window.view.requests[0].state === 'applied' && window.pending.count() === 0)
+    await button('검색·필터 초기화').click()
+    await page.getByText('시간표 반영 완료', { exact: true }).waitFor()
+    assert.equal(await page.evaluate(() => window.actualWrites), 1)
+  })
+  await check('본인 요청은 승인 버튼을 만들지 않고 읽기 이동은 요청을 변경하지 않는다', 'exchange', async () => {
+    await page.evaluate(() => window.addRequest('own'))
+    await button('내 요청 1건 보기').click()
+    await page.getByText('본인이 요청한 변경은 다른 승인 담당자가 확인해야 합니다.', { exact: true }).waitFor()
+    assert.equal(await button('승인하고 시간표에 반영').count(), 0)
+    assert.equal(await writes(), 0)
+  })
+  await check('320px·200% 글자·어두운 스킨에서도 교환 확인과 명시 승인 버튼에 접근한다', 'exchange', async () => {
+    await page.evaluate(() => window.addRequest('approval'))
+    await page.setViewportSize({ width: 320, height: 760 })
+    await page.addStyleTag({ content: 'html{font-size:32px;--ui-surface:#171c28;--ui-surface-muted:#101521;--ui-text:#e9edf5;--ui-muted:#b7c3d6;--ui-line:#45506a;--ui-accent:#a4baff;--ui-accent-soft:#253658;--ui-on-accent:#102145}body{padding:8px}' })
+    await button('내 승인 1건 보기').focus(); await page.keyboard.press('Enter')
+    await button('승인하고 시간표에 반영').click()
+    await page.getByLabel('현재 수업과 변경 내용을 확인했습니다', { exact: true }).check()
+    assert.equal(await button('확인한 응답 보내기').isEnabled(), true)
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
+    assert.equal(await writes(), 0)
+    await capture('exchange-mobile-dark')
+  })
+  assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  if (process.env.WORKHUB_QA_OUTPUT) writeFileSync(join(process.env.WORKHUB_QA_OUTPUT, 'timetable-workflow-ui-results.json'), JSON.stringify({ passed, errors, external }, null, 2))
+  console.log(`시간표 작업 화면 브라우저: ${passed.length}개 통과`)
+} catch (error) { console.error(await page.locator('body').innerText()); throw error } finally { await browser.close() }

@@ -11,6 +11,7 @@ const browser = await launchBrowser(), context = await browser.newContext({ view
 page.setDefaultTimeout(10000); page.on('pageerror', e => errors.push(e.message)); page.on('request', r => { if (!r.url().startsWith('http://127.0.0.1:5187/')) external.push(r.url()) })
 await context.route('**/*', route => route.fulfill({ contentType: 'text/html', body: html }))
 const inbox = () => page.getByRole('region', { name: '관련 변경 요청', exact: true })
+const overview = () => page.getByRole('region', { name: '변경 요청 빠른 이동', exact: true })
 const confirm = () => page.getByRole('region', { name: '변경 요청 응답 확인', exact: true })
 async function start() {
   await page.setViewportSize({ width: 1280, height: 900 }); await page.goto('http://127.0.0.1:5187/exchange-inbox'); await page.addScriptTag({ content: bundle }); await page.evaluate(() => document.fonts.ready)
@@ -34,7 +35,7 @@ try {
     assert.match(await inbox().innerText(), new RegExp(`${range.from} ~ ${range.last}`))
     await page.getByLabel('변경 요청 사유', { exact: true }).fill('작성 중인 입력')
     for (const [label, reason] of [['내 동의 1건 보기', '교내 연수 A'], ['내 승인 1건 보기', '출장 B'], ['내 요청 1건 보기', '내 요청 C']]) {
-      await inbox().getByRole('button', { name: label, exact: true }).click(); assert.equal(await cards().count(), 1); assert.match(await cards().innerText(), new RegExp(reason))
+      await overview().getByRole('button', { name: label, exact: true }).click(); assert.equal(await cards().count(), 1); assert.match(await cards().innerText(), new RegExp(reason))
     }
     assert.equal(await page.getByLabel('변경 요청 사유', { exact: true }).inputValue(), '작성 중인 입력'); assert.equal(await page.evaluate(() => window.actualWrites), 0)
   })
@@ -65,8 +66,8 @@ try {
     assert.equal(await cards().count(), 1); assert.match(await cards().innerText(), /완료 D/); assert.equal(await page.evaluate(() => window.actualWrites), 0)
   })
   await check('시간이 지나면 할 일 건수를 줄이고 확인 중인 만료 요청은 비활성으로 보존한다', async () => {
-    await inbox().getByRole('button', { name: '내 동의 1건 보기', exact: true }).click(); await inbox().getByRole('button', { name: '변경안에 동의', exact: true }).click(); await confirm().getByRole('checkbox').check()
-    await page.evaluate(() => { const later = Date.now() + 600001; Date.now = () => later }); await inbox().getByRole('button', { name: '내 동의 0건 보기', exact: true }).waitFor(); await inbox().getByRole('button', { name: '내 승인 0건 보기', exact: true }).waitFor()
+    await overview().getByRole('button', { name: '내 동의 1건 보기', exact: true }).click(); await inbox().getByRole('button', { name: '변경안에 동의', exact: true }).click(); await confirm().getByRole('checkbox').check()
+    await page.evaluate(() => { const later = Date.now() + 600001; Date.now = () => later }); await overview().getByRole('button', { name: '내 동의 0건 보기', exact: true }).waitFor(); await overview().getByRole('button', { name: '내 승인 0건 보기', exact: true }).waitFor()
     assert.equal(await confirm().getByRole('button', { name: '확인한 응답 보내기', exact: true }).isDisabled(), true); await inbox().getByText('응답 기한이 지났습니다. 요청 상태를 새로 확인해 주세요.', { exact: true }).waitFor(); assert.equal(await page.evaluate(() => window.actualWrites), 0)
   })
   await check('다음 페이지에서 고른 요청도 검색을 지운 뒤 숨기지 않는다', async () => {
