@@ -54,7 +54,8 @@ test('편집 잠금은 모든 이동 버튼에 적용하되 더보기는 탐색 
   const html=body(renderShell({locked:true}))
   const buttons=html.match(/<button[^>]*class="ws-menu-button[^>]*>/g)||[]
   assert.equal(buttons.length,4);assert(buttons.every(value=>value.includes('disabled=""')&&value.includes('aria-describedby=')))
-  assert.match(html,/role="status"[^>]*>작성한 내용을 저장/)
+  const lockNotice=html.match(/<p[^>]*class="ws-locked"[^>]*role="status"[^>]*>([\s\S]*?)<\/p>/)?.[1].replace(/<[^>]+>/g,'')
+  assert.equal(lockNotice,'이동하기 전에 현재 작업을 확인해 주세요작성한 내용을 저장하거나 편집을 마친 뒤 이동해 주세요. 처리 중인 요청이 있다면 먼저 결과를 확인해 주세요.')
   assert(!html.match(/class="ws-more-button"[^>]*disabled/))
 })
 test('미리보기 저장 안내와 이름은 안전한 텍스트로 표시한다', () => {
