@@ -3,15 +3,17 @@ import { AuthProvider, useAuth } from './lib/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
 import LoginPage from './pages/LoginPage.jsx'
 import DashboardPage from './pages/DashboardPage.jsx'
-import CalendarPage from './pages/CalendarPage.jsx'
-import SubmissionsPage from './pages/SubmissionsPage.jsx'
-import DocAiPage from './pages/DocAiPage.jsx'
-import AdminUsersPage from './pages/AdminUsersPage.jsx'
+import { deferredPage } from './components/DeferredPage.jsx'
 import PendingPage from './pages/PendingPage.jsx'
 import WorkhubPage from './pages/WorkhubPage.jsx'
 import SchoolSetupPage from './pages/SchoolSetupPage.jsx'
 import { visibleModules } from './lib/modules.js'
 import { MessagingPilotProvider, useMessagingPilot } from './lib/MessagingPilotContext.jsx'
+
+const CalendarPage = deferredPage(() => import('./pages/CalendarPage.jsx'), '학사일정')
+const SubmissionsPage = deferredPage(() => import('./pages/SubmissionsPage.jsx'), '평가계획 제출')
+const DocAiPage = deferredPage(() => import('./pages/DocAiPage.jsx'), '문서 작성 AI')
+const AdminUsersPage = deferredPage(() => import('./pages/AdminUsersPage.jsx'), '사용자 관리')
 
 // 모듈 key → 화면. 라우트 목록은 lib/modules.js 가 정한다 —
 // **볼 수 없는 모듈은 라우트를 아예 만들지 않는다.** 메뉴만 숨기면 주소를 아는
