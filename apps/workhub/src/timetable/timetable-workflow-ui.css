@@ -65,7 +65,7 @@
 .timetable-workflow-ui .timetable-exchange-details { border-top:1px solid var(--border); padding-top:.25rem; }
 .timetable-workflow-ui .timetable-exchange-confirm { border-color:var(--accent); background:var(--accent-soft); }
 .timetable-workflow-ui .timetable-exchange-confirm h5 { font-size:1rem; }
-.timetable-workflow-ui.timetable-exchanges .timetable-exchange-check { display:flex; align-items:flex-start; gap:.6rem; font-weight:500; }
+.timetable-workflow-ui.timetable-exchanges .timetable-exchange-check { display:flex; flex-direction:row; align-items:flex-start; gap:.6rem; font-weight:500; }
 .timetable-workflow-ui.timetable-exchanges .timetable-exchange-check input { width:20px; min-height:20px; height:20px; flex:0 0 auto; margin-top:.2rem; }
 .timetable-workflow-ui .tt-exchange-compose > fieldset { background:var(--surface-soft); border:1px solid var(--border); border-radius:12px; padding:1rem; margin:.8rem 0; }
 .timetable-workflow-ui .tt-exchange-compose legend { font-size:.85rem; color:var(--muted); padding:0 .4rem; }
