@@ -90,6 +90,7 @@ try {
     await button('변경 전후 미리보기').click()
     const preview = page.getByRole('region', { name: '수업 변경 미리보기', exact: true })
     await preview.waitFor()
+    assert.equal(await preview.locator('.timetable-exchange-check').evaluate(node => getComputedStyle(node).flexDirection), 'row')
     assert.equal(await button('내 동의와 변경 요청 보내기').isDisabled(), true)
     await capture('exchange-request', page.locator('.tt-exchange-compose'))
   })
