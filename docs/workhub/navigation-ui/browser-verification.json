@@ -1,0 +1,207 @@
+{
+  "baseCommit": "7e34dbefa7c05f2b69b3295188916fbf542970ee",
+  "environment": "실제 React · 로컬 Chrome · 합성 응답",
+  "browserFiles": [
+    {
+      "name": "workhub-messaging-pilot",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 6896
+    },
+    {
+      "name": "workhub-global-search",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 9786
+    },
+    {
+      "name": "workhub-messaging-deliveries",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7085
+    },
+    {
+      "name": "workhub-timetable-notification",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 11587
+    },
+    {
+      "name": "workhub-draft-recovery",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 41548
+    },
+    {
+      "name": "workhub-readiness",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7886
+    },
+    {
+      "name": "workhub-module-loading",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 3982
+    },
+    {
+      "name": "workhub-request-recovery",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 5175
+    },
+    {
+      "name": "workhub-home-search",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7204
+    },
+    {
+      "name": "workhub-messaging",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 11577
+    },
+    {
+      "name": "workhub-messaging-file-recovery",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 7002
+    },
+    {
+      "name": "workhub-mobile-navigation",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 8408
+    },
+    {
+      "name": "workhub-ui-renewal",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 8192
+    },
+    {
+      "name": "workhub-ui-polish",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 8050
+    },
+    {
+      "name": "workhub-navigation-ui",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 21078
+    },
+    {
+      "name": "workhub-connection-exit",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 15247
+    },
+    {
+      "name": "workhub-navigation",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 3338
+    },
+    {
+      "name": "workhub-shell-layout",
+      "passed": true,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "durationMs": 9249
+    }
+  ],
+  "newUiCases": [
+    "더보기는 현재 위치를 표시하고 기존 메뉴 선택·키보드 복귀를 유지한다",
+    "허용된 참여 메뉴는 더보기·검색에서도 같은 범위이며 AI와 관리자 메뉴가 생기지 않는다",
+    "검색 결과는 종류·원본 판·설명을 보존하고 선택한 원본만 연다",
+    "일부 조회 실패는 빈 결과로 숨기지 않고 해당 범위만 재조회한다",
+    "검색 창이 열린 뒤 입력 잠금이 생겨도 검색어는 보존하고 원본 이동을 막는다",
+    "모바일 메뉴와 검색은 두 배 글씨에서도 잘리지 않고 현재 위치와 닫기 버튼에 접근한다",
+    "알림 목록·원본 이동은 쓰기를 하지 않고 읽음 버튼만 해당 알림의 판을 보낸다",
+    "빈 알림은 필터를 확인하는 방법을 보이고 자동 전송·읽음 처리가 없다",
+    "보관 입력은 폐기 확인을 취소하면 유지되고 새 요청이 생기면 폐기 버튼을 감춘다",
+    "연결 점검은 버튼을 눌러야 실행되며 상태·다음 행동과 미확인 범위를 보인다",
+    "모듈 오류는 재시도와 입력 손실 안내를 계속 표시하고 새로고침하지 않는다",
+    "light 스킨의 search 주요 상태·본문 대비",
+    "light 스킨의 notices 주요 상태·본문 대비",
+    "light 스킨의 recovery 주요 상태·본문 대비",
+    "light 스킨의 readiness 주요 상태·본문 대비",
+    "warm 스킨의 search 주요 상태·본문 대비",
+    "warm 스킨의 notices 주요 상태·본문 대비",
+    "warm 스킨의 recovery 주요 상태·본문 대비",
+    "warm 스킨의 readiness 주요 상태·본문 대비",
+    "dark 스킨의 search 주요 상태·본문 대비",
+    "dark 스킨의 notices 주요 상태·본문 대비",
+    "dark 스킨의 recovery 주요 상태·본문 대비",
+    "dark 스킨의 readiness 주요 상태·본문 대비"
+  ],
+  "newUiPageErrors": [],
+  "newUiExternalRequests": [],
+  "screens": [
+    {
+      "path": "screens/01-navigation-menu.png",
+      "sha256": "1b55d9d64afe4c2f42473a7d2ddd2b51ebaae5e892106ad6e440f1e8146dae71"
+    },
+    {
+      "path": "screens/02-navigation-search.png",
+      "sha256": "2ddc5723d7e8725086469579f2ea989d3d2ba7ae1d76d506b30ec832695cc9cb"
+    },
+    {
+      "path": "screens/03-navigation-mobile-menu.png",
+      "sha256": "6ddfe3090ae3333c571ac0a895d820dde911361a0d5049fd48b0c3ee6e5ce10b"
+    },
+    {
+      "path": "screens/04-navigation-notifications.png",
+      "sha256": "01e45887809173b9714ccd59edb6f47f8ecfc0f9500d7a191f6dd7fde02310ed"
+    },
+    {
+      "path": "screens/05-navigation-recovery.png",
+      "sha256": "a568e6f2be1ef0ceef9525f9c31ca31f90639d9c92b00869d19d321b6ebb7bda"
+    },
+    {
+      "path": "screens/06-navigation-readiness.png",
+      "sha256": "cce714789b16ef09e0e623b76009a58f8746fc496273fd16864f730864500019"
+    },
+    {
+      "path": "screens/07-navigation-large-text.png",
+      "sha256": "57b5f9c2f65cee9502c53a310a1080639985e8814325e6c045ca3fa12b9964ca"
+    }
+  ]
+}

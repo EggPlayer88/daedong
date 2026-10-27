@@ -1,0 +1,26 @@
+/* 메뉴 공개와 이동 규칙은 유지하고 현재 위치를 일관되게 표시한다. */
+.ws-shell .ws-breadcrumb{flex-wrap:wrap;line-height:1.6;min-width:0}
+.ws-shell .ws-breadcrumb-group{color:var(--ui-muted)}
+.ws-shell .ws-header-messages[aria-current=page]{background:var(--ui-accent-soft);color:var(--ui-accent);border-color:var(--ui-accent)}
+.ws-shell .ws-related{align-items:center;flex-wrap:wrap;gap:6px}
+.ws-shell .ws-related-label{font-size:var(--ui-small-size);color:var(--ui-muted);margin-right:6px;white-space:nowrap}
+.ws-shell .ws-related button{min-height:40px;white-space:normal;overflow-wrap:anywhere}
+.ws-shell .ws-locked{display:grid;gap:5px;border-left:3px solid var(--ui-warning);line-height:1.7}
+.ws-shell .ws-locked strong{color:var(--ui-warning)}
+.ws-shell .ws-sheet-location{display:flex;align-items:baseline;flex-wrap:wrap;gap:8px;padding:12px 14px;margin:0 0 20px;border-radius:12px;background:var(--ui-surface-muted);color:var(--ui-text);font-size:var(--ui-small-size)}
+.ws-shell .ws-sheet-location strong{font-size:var(--ui-body-size)}
+.ws-shell .ws-sheet-menus .ws-menu-button{gap:10px;border-radius:10px;min-height:48px;white-space:normal;overflow-wrap:anywhere}
+.ws-shell .ws-sheet-menus .ws-menu-button>span:nth-child(2){flex:1;text-align:left;min-width:0}
+.ws-shell .ws-menu-current{margin-left:auto;color:var(--ui-accent);font-size:var(--ui-small-size);font-weight:650;white-space:nowrap}
+.ws-shell .ws-sheet-lock{border:1px solid var(--ui-line);border-left:3px solid var(--ui-warning);padding:12px 14px;border-radius:8px;background:var(--ui-warning-soft);color:var(--ui-warning);line-height:1.7}
+.ws-shell .ws-unavailable{max-width:720px;margin:24px auto;padding:clamp(20px,4vw,36px);border:1px solid var(--ui-line);border-radius:18px;background:var(--ui-surface);line-height:1.8}
+.ws-shell .ws-unavailable h1{font-size:clamp(22px,3vw,28px);line-height:1.5;margin:8px 0 12px}
+.ws-shell .ws-state-kicker{margin:0 0 8px;color:var(--ui-muted);font-size:var(--ui-small-size);font-weight:600}
+@media(max-width:720px){
+ .ws-shell .ws-sheet-location{margin-bottom:14px}
+ .ws-shell .ws-related{padding:8px 12px;gap:4px}
+ .ws-shell .ws-related-label{width:100%;margin:0 0 2px}
+ .ws-shell .ws-related button{min-height:44px;padding:8px 11px}
+ .ws-shell .ws-sheet-menus .ws-menu-button{min-height:48px}
+ .ws-shell .ws-locked{margin:12px 0;padding:13px}
+}

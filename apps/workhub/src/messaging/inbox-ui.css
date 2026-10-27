@@ -1,0 +1,23 @@
+/* 읽음은 버튼으로만 처리한다. 시각적 구분은 읽음 상태와 출처를 함께 보여 준다. */
+.ws-shell .messaging-inbox-guidance{line-height:1.7;color:var(--ui-muted);margin:0 0 16px}
+.ws-shell .messaging-inbox{display:grid;gap:12px}
+.ws-shell .messaging-inbox .messaging-notice{display:grid;gap:10px;padding:18px;border:1px solid var(--ui-line);border-radius:14px;background:var(--ui-surface);min-width:0}
+.ws-shell .messaging-inbox .messaging-notice[data-read=false]{border-left:3px solid var(--ui-accent)}
+.ws-shell .messaging-notice-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px;color:var(--ui-muted);font-size:var(--ui-small-size);line-height:1.6}
+.ws-shell .messaging-notice-meta time{margin-left:auto;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ws-shell .messaging-notice-state{display:inline-flex;padding:3px 9px;border-radius:7px;background:var(--ui-surface-muted);color:var(--ui-text);font-size:var(--ui-small-size);font-weight:600}
+.ws-shell .messaging-notice[data-read=false] .messaging-notice-state{background:var(--ui-accent-soft);color:var(--ui-accent)}
+.ws-shell .messaging-inbox .messaging-notice h3{font-size:calc(var(--ui-body-size) + 1px);line-height:1.6;overflow-wrap:anywhere}
+.ws-shell .messaging-notice .messaging-body{line-height:1.8;overflow-wrap:anywhere}
+.ws-shell .messaging-notice .messaging-actions{margin-top:4px;gap:8px}
+.ws-shell .messaging-notice .messaging-actions button{min-height:44px;white-space:normal;line-height:1.5}
+.ws-shell .messaging-notice .messaging-notice-open{color:var(--ui-accent);border-color:var(--ui-line);background:var(--ui-accent-soft)}
+.ws-shell .messaging-workspace .messaging-empty{display:grid;gap:8px;padding:24px 18px;border:1px dashed var(--ui-line);border-radius:12px;background:var(--ui-surface-muted);color:var(--ui-text);line-height:1.8;overflow-wrap:anywhere}
+.ws-shell .messaging-workspace .messaging-empty strong{font-weight:650}
+.ws-shell .messaging-workspace .messaging-empty p{font-size:var(--ui-small-size);color:var(--ui-text)}
+@media(max-width:600px){
+ .ws-shell .messaging-inbox .messaging-notice{padding:15px}
+ .ws-shell .messaging-notice-meta time{width:100%;margin:0}
+ .ws-shell .messaging-notice .messaging-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,160px),1fr))}
+ .ws-shell .messaging-notice .messaging-actions button{width:100%}
+}
