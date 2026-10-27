@@ -14,6 +14,7 @@ import { PreparationEditingTools } from './PreparationEditingTools'
 import { hasPreparationEditingInput, initialPreparationEditing, type PreparationEditingState } from './preparation-editing'
 import limits from '../../../../packages/timetable/_assets/browser-policy.json'
 import './timetable-preparation-flow.css'
+import workflowStyles from './timetable-workflow-ui.css?inline'
 
 type Session = PreparationSession
 type PreparationSection = 'slots' | 'courses' | 'review'
@@ -141,7 +142,7 @@ export function TimetablePreparationPanel(props: Props) {
     } finally { if (epoch === life.current) { operation.current = false; setBusy(false) } }
   }
   function discard() { if (hoursLocked || locked || setupLocked || setupRecovery.request) return; patch(source ? sessionFor(source, stale) : undefined); setNewSlot({ day: '1', label: '', start: '', end: '', periods: '1' }); setEditing(initialPreparationEditing()); setClearConfirmed(false); setError(''); setNotice(stale ? '현재 공식 자료로 준비를 다시 시작했습니다. 이전 서버 초안은 새로 저장하기 전까지 유지됩니다.' : '저장하지 않은 준비 입력을 정리했습니다. 학교 서버 자료는 삭제하지 않았습니다.') }
-  return <details ref={node => { if (node && props.initialOpen && !props.initialSetupOpen && node.dataset.focused !== 'true') { node.dataset.focused = 'true'; node.querySelector('summary')?.focus(); node.scrollIntoView({ block: 'nearest' }) } }} className="timetable-card timetable-preparation-flow" open={opened} onToggle={event => { if (!locked && !setupLocked && !hoursLocked) setOpened(event.currentTarget.open) }}><summary onClick={event => { if (locked || setupLocked || hoursLocked) event.preventDefault() }}>학교 편성 자료 준비</summary>
+  return <details ref={node => { if (node && props.initialOpen && !props.initialSetupOpen && node.dataset.focused !== 'true') { node.dataset.focused = 'true'; node.querySelector('summary')?.focus(); node.scrollIntoView({ block: 'nearest' }) } }} className="timetable-card timetable-preparation-flow timetable-workflow-ui" open={opened} onToggle={event => { if (!locked && !setupLocked && !hoursLocked) setOpened(event.currentTarget.open) }}><summary onClick={event => { if (locked || setupLocked || hoursLocked) event.preventDefault() }}>학교 편성 자료 준비</summary><style>{workflowStyles}</style>
     <p className="timetable-preparation-intro">공간 연결을 확인하고, 일과와 수업을 준비한 뒤 기준판을 만드세요.</p>
     {termAligned && source && session && !loading && !loadError && <><div className="timetable-preparation-source"><strong>{source.termLabel}</strong><span>{source.firstDay} ~ {source.lastDay}</span><small>공식 자료 {source.sourceRevision}판</small></div>
     <nav className="timetable-preparation-steps" aria-label="편성 준비 입력 이동">
