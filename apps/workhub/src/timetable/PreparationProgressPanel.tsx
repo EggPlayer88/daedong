@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { PreparationDraft, PreparationSource } from './preparation'
 import { filterPreparationProgress, preparationProgress, type PreparationProgressFilter } from './preparation-progress'
 import './preparation-progress.css'
@@ -7,6 +7,14 @@ interface Props { source: PreparationSource; draft: PreparationDraft; onSelectCo
 const filters: { key: PreparationProgressFilter; label: string }[] = [{ key: 'all', label: '전체 수업' }, { key: 'hours', label: '시수 확인' }, { key: 'activities', label: '활동 구성 확인' }, { key: 'slots', label: '허용 시간대 확인' }, { key: 'resources', label: '교사·학생 연결 확인' }, { key: 'ready', label: '기본 입력 채움' }]
 const kinds = { teacher: '교사', class: '학급', student_group: '수강 집단', room: '공간', equipment: '장비' }
 export function PreparationProgressPanel({ source, draft, onSelectCourse, disabled = false }: Props) {
+  const [findOpen, setFindOpen] = useState(false)
+  const finder = useRef<HTMLDetailsElement>(null)
+  function findMissing(next: PreparationProgressFilter) {
+    setFilter(next); setQuery(''); setPage(0); setFindOpen(true)
+    // 같은 열린 영역을 다시 고를 때도 키보드의 위치를 목록으로 옮긴다.
+    finder.current?.querySelector('summary')?.focus()
+    finder.current?.scrollIntoView({ block: 'nearest' })
+  }
   const review = useMemo(() => preparationProgress(source, draft), [source, draft])
   const [filter, setFilter] = useState<PreparationProgressFilter>('all'), [query, setQuery] = useState(''), [page, setPage] = useState(0)
   const [resourceQuery, setResourceQuery] = useState(''), [resourceKind, setResourceKind] = useState('all'), [resourcePage, setResourcePage] = useState(0)
@@ -14,10 +22,10 @@ export function PreparationProgressPanel({ source, draft, onSelectCourse, disabl
   const needle = resourceQuery.trim().toLocaleLowerCase('ko-KR'), resources = review.resources.filter(row => (resourceKind === 'all' || row.kind === resourceKind) && (!needle || `${row.label} ${row.id}`.toLocaleLowerCase('ko-KR').includes(needle))), resourcePages = Math.max(1, Math.ceil(resources.length / 20)), currentResourcePage = Math.min(resourcePage, resourcePages - 1)
   return <section className="timetable-preparation-progress" aria-label="시수·활동 입력 점검"><h3>시수·활동 입력 점검</h3>
     {!review.available ? <p role="alert">공식 준비 자료를 읽을 수 없어 입력 현황을 계산하지 못했습니다. 자료를 다시 확인해 주세요.</p> : <>
-      <p className="timetable-progress-summary">전체 {review.counts.all}개 수업 중 기본 입력 채움 {review.counts.ready}개 · 확인 필요 {review.counts.all - review.counts.ready}개</p>
+      <dl className="tt-preparation-metrics" aria-label="준비 입력 현황"><div><dt>전체 수업</dt><dd>{review.counts.all}개</dd></div><div><dt>기본 입력 채움</dt><dd>{review.counts.ready}개</dd></div><div><dt>확인 필요</dt><dd>{review.counts.all - review.counts.ready}개</dd></div></dl>
       <p className="timetable-muted">현재 입력의 누락 점검입니다. 모든 항목을 채워도 시간 충돌·학교 조건·서버 검사를 통과해야 기준판을 만들 수 있습니다.</p>
       {review.structuralProblem && <p role="alert">초안의 형식이나 공식 자료와 맞지 않는 항목이 있습니다. 원래 입력은 유지됩니다.{review.unexpectedPlans > 0 && ` 공식 목록에 없는 수업 계획 ${review.unexpectedPlans}개를 확인해 주세요.`}</p>}
-      <details><summary>확인할 수업 찾아가기</summary><div className="timetable-progress-controls"><label>입력 점검 분류<select aria-label="입력 점검 분류" value={filter} onChange={event => { setFilter(event.target.value as PreparationProgressFilter); setPage(0) }}>{filters.map(item => <option key={item.key} value={item.key}>{item.label} ({review.counts[item.key]})</option>)}</select></label><label>점검할 수업 검색<input type="search" value={query} onChange={event => { setQuery(event.target.value); setPage(0) }} placeholder="수업·교사·학급 이름 또는 ID" /></label></div>
+      <div className="tt-preparation-shortcuts" aria-label="누락 입력 바로 확인">{([{ key: 'hours', label: '시수 확인' }, { key: 'activities', label: '활동 구성 확인' }, { key: 'slots', label: '허용 시간대 확인' }, { key: 'resources', label: '교사·학생 연결 확인' }] as const).filter(item => review.counts[item.key] > 0).map(item => <button type="button" className="secondary" key={item.key} onClick={() => findMissing(item.key)}>{item.label} {review.counts[item.key]}개 보기</button>)}</div><details ref={finder} open={findOpen} onToggle={event => setFindOpen(event.currentTarget.open)}><summary>확인할 수업 찾아가기</summary><div className="timetable-progress-controls"><label>입력 점검 분류<select aria-label="입력 점검 분류" value={filter} onChange={event => { setFilter(event.target.value as PreparationProgressFilter); setPage(0) }}>{filters.map(item => <option key={item.key} value={item.key}>{item.label} ({review.counts[item.key]})</option>)}</select></label><label>점검할 수업 검색<input type="search" value={query} onChange={event => { setQuery(event.target.value); setPage(0) }} placeholder="수업·교사·학급 이름 또는 ID" /></label></div>
         <p role="status">조건에 맞는 수업 {rows.length}개 · {currentPage + 1}/{pages}쪽</p>
         {!rows.length && <p>이 조건에 해당하는 수업이 없습니다.</p>}
         <ul className="timetable-progress-courses">{rows.slice(currentPage * 20, (currentPage + 1) * 20).map(row => <li key={row.courseId}><strong>{row.label || '이름 없는 수업'} [{row.courseId}]</strong><span>주당 {row.weeklyPeriods ?? '미입력'}차시 · 활동 {row.activityCount}개 / {row.activityPeriods ?? '확인 필요'}차시</span><small className="timetable-muted">{row.resourceLabels.join(' · ') || '교사·학생 연결 없음'}</small><p>{row.ready ? '기본 입력 채움' : row.notes.join(' · ')}</p><button type="button" className="secondary" disabled={disabled} onClick={() => onSelectCourse(row.courseId)}>{row.label || '이름 없는 수업'} [{row.courseId}] 입력으로 이동</button></li>)}</ul>
