@@ -30,9 +30,9 @@ export default function ConversationList({
 }) {
   const list = Array.isArray(rows) ? rows : []
   return (
-    <aside className="conv-list">
+    <aside className="conv-list" aria-labelledby="docai-history">
       <div className="conv-head">
-        <b>내 대화</b>
+        <h3 id="docai-history" tabIndex={-1}>내 대화</h3>
         <button type="button" className="btn-plain" onClick={onNew} disabled={busy}>
           + 새 대화
         </button>
@@ -54,7 +54,7 @@ export default function ConversationList({
               className="conv-open"
               onClick={() => onOpen(c.id)}
               disabled={busy || c.id === currentId}
-              title={c.id === currentId ? '지금 보고 있는 대화입니다' : '이어서 작성'}
+              title={`${c.title || '새 평가계획'} · ${c.id === currentId ? '지금 보고 있는 대화입니다' : '이어서 작성'}`}
             >
               <span className="conv-title">{c.title || '새 평가계획'}</span>
               <span className="muted small">
@@ -72,6 +72,7 @@ export default function ConversationList({
               onClick={() => onDelete(c)}
               disabled={busy}
               title="이 대화 삭제"
+              aria-label={`${c.title || '새 평가계획'} 대화 삭제`}
             >
               삭제
             </button>

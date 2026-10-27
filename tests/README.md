@@ -379,3 +379,10 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `workhub-navigation-ui.mjs`: 실제 React·합성 응답 23건. 메뉴 범위/현재 위치, 검색 원본 ID·판/부분 실패/이동 잠금, 알림 원본 이동·읽음 분리, 복구·연결 안내를 검사한다.
 - 320px·두 배 글씨·세 스킨의 글자 대비·키보드 복귀와 외부 요청 0건을 확인한다. 기존 메시지/파일·검색·복구·모바일 회귀 17파일과 함께 실행한다.
 - 전체 브라우저 러너에 등록. `node tests/browser/run.mjs workhub-navigation-ui`로 실행한다. [화면·검증 기록](../docs/workhub/navigation-ui/README.md).
+
+
+## 기존 업무와 업무실 전체 화면 마감
+
+- `site-ui-finish.mjs`: 실제 기존 React 화면에 합성 회원·제출·대화를 넣은 16건. 허용 메뉴 일치, 화면 안 이동의 입력·파일 보존, 실패 안내, 키보드·초점, 320px·2배 확대, 긴 자료·표 스크롤·대화 제목·읽기 대비를 검증한다.
+- 전체 브라우저 러너에 등록. `node tests/browser/run.mjs site-ui-finish`로 실행한다.
+- 기존 `email-login`, `doc-ai-school-policy`, `workhub-shell-layout`, 교차 모듈·검색·알림·시간표·문서·모바일 회귀와 함께 확인한다. [화면·검증 기록](../docs/workhub/site-ui-finish/README.md).

@@ -17,6 +17,7 @@ import {
 } from '../lib/submissions.js'
 // 교과 목록의 진실의 원천은 prefill 색인이다 — 학교가 실제로 내는 과목이 거기 있다
 import catalogRaw from '../../api/doc-ai/_assets/prefill-catalog.json'
+import { PageHeading, SectionLinks, ScrollTable } from '../components/PageFrame.jsx'
 
 const YEAR = 2026
 const SEMESTER = 2
@@ -50,10 +51,10 @@ export function SubmissionRow({ row, busy, orphan, cancelLabel = '제출 취소'
   const cls = deleted ? 'row-deleted' : row.status === 'replaced' ? 'muted' : ''
   return (
     <tr className={cls}>
-      <td>
+      <td data-label="교과·학년">
         {row.subject} {row.grade}학년
       </td>
-      <td>
+      <td data-label="파일" className="submission-file">
         {deleted ? (
           // 실물이 없으므로 누를 수 없다 — 이름만 이력으로 남긴다
           <span title="파일이 삭제되었습니다">{row.file_name}</span>
@@ -63,10 +64,10 @@ export function SubmissionRow({ row, busy, orphan, cancelLabel = '제출 취소'
           </button>
         )}
       </td>
-      <td>{row.note || '—'}</td>
-      <td>{fmt(row.submitted_at)}</td>
-      <td>{statusLabel(row.status)}</td>
-      <td>
+      <td data-label="메모">{row.note || '—'}</td>
+      <td data-label="제출 시각">{fmt(row.submitted_at)}</td>
+      <td data-label="상태"><span className="site-status">{statusLabel(row.status)}</span></td>
+      <td data-label="관리">
         {row.status === 'submitted' && (
           <button type="button" className="btn-danger" onClick={() => onCancel(row)} disabled={busy}>
             {cancelLabel}
@@ -202,14 +203,16 @@ export default function SubmissionsPage() {
   const matrix = useMemo(() => buildMatrix(all, CATALOG), [all])
 
   return (
-    <div className="page submissions">
-      <h2>평가계획 제출</h2>
+    <div className="page submissions site-page">
+      <PageHeading title="평가계획 제출" description="완성한 파일을 올리고, 내 제출 상태를 확인하세요." />
+      <SectionLinks items={[{ id: 'submission-editor', label: '파일 제출' }, { id: 'submission-mine', label: `내 제출 ${mine.length}건` }, ...(isAdmin ? [{ id: 'submission-overview', label: '전체 제출 현황' }, { id: 'submission-all', label: '전체 제출 이력' }] : [])]} />
       <p className="muted small">
         완성한 평가계획서(.hwpx)를 올려 주세요. 같은 교과·학년을 다시 올리면 이전 제출은
         <b> 이전 제출</b>로 표시되고 최신본이 수합 대상이 됩니다.
       </p>
 
-      <form className="card submit-form" onSubmit={onSubmit}>
+      <form className="card submit-form" onSubmit={onSubmit} aria-labelledby="submission-editor">
+        <h3 id="submission-editor" tabIndex={-1}>파일 제출</h3>
         <div className="row-field">
           <label htmlFor="subm-file">파일 (.hwpx, 최대 {MAX_BYTES / 1024 / 1024}MB)</label>
           <input
@@ -268,8 +271,8 @@ export default function SubmissionsPage() {
           />
         </div>
 
-        {error && <p className="error">{error}</p>}
-        {notice && <p className="notice">{notice}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
+        {notice && <p className="notice" role="status">{notice}</p>}
 
         <button className="btn-google" type="submit" disabled={busy || !file || !subject || !grade}>
           {busy ? '올리는 중…' : '제출'}
@@ -277,12 +280,12 @@ export default function SubmissionsPage() {
       </form>
 
       <section className="plan-sec">
-        <h4>내 제출 ({mine.length}건)</h4>
+        <h3 id="submission-mine" tabIndex={-1}>내 제출 ({mine.length}건)</h3>
         {mine.length === 0 ? (
           <p className="muted small">아직 제출한 파일이 없습니다.</p>
         ) : (
-          <div className="scroll-x">
-            <table className="table">
+          <ScrollTable label="내 제출 목록">
+            <table className="table submission-table">
               <thead>
                 <tr>
                   <th>교과·학년</th>
@@ -307,18 +310,18 @@ export default function SubmissionsPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollTable>
         )}
       </section>
 
       {isAdmin && (
         <>
           <section className="plan-sec">
-            <h4>
+            <h3 id="submission-overview" tabIndex={-1}>
               제출 현황 — {matrix.done}/{matrix.expected}
               <span className="muted small"> (학년 × 교과, 최신 제출 기준)</span>
-            </h4>
-            <div className="scroll-x">
+            </h3>
+            <ScrollTable label="학년별 교과 제출 현황">
               <table className="table matrix">
                 <thead>
                   <tr>
@@ -341,23 +344,23 @@ export default function SubmissionsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
             {matrix.extra.length > 0 && (
               <p className="muted small">
                 목록에 없는 교과 제출 {matrix.extra.length}건:{' '}
                 {matrix.extra.map((r) => `${r.subject} ${r.grade}학년`).join(', ')}
               </p>
             )}
-            <p className="muted small">전체 zip 내려받기는 준비 중입니다.</p>
+            <p className="muted small">파일은 아래 전체 제출 이력에서 개별로 내려받을 수 있습니다.</p>
           </section>
 
           <section className="plan-sec">
-            <h4>
+            <h3 id="submission-all" tabIndex={-1}>
               전체 제출 ({all.filter(isLive).length}건)
               <span className="muted small"> · 취소·이전 제출도 이력으로 함께 보입니다</span>
-            </h4>
-            <div className="scroll-x">
-              <table className="table">
+            </h3>
+            <ScrollTable label="전체 제출 이력">
+              <table className="table submission-table">
                 <thead>
                   <tr>
                     <th>교과·학년</th>
@@ -383,7 +386,7 @@ export default function SubmissionsPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </ScrollTable>
           </section>
         </>
       )}
