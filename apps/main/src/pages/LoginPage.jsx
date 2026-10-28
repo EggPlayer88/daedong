@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { signInWithGoogle, signInWithEmailPassword } from '@daedong/shared'
+import { isSchoolSandbox } from '../../../workhub/src/sandbox/clock'
 
 function emailLoginError(error) {
   if (error?.code === 'email_not_confirmed') return '이메일 인증이 완료되지 않았습니다. 계정 생성 상태를 관리자에게 확인해 주세요.'
@@ -13,8 +14,9 @@ export default function LoginPage() {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const passwordInput = useRef(null), inFlight = useRef(false), alive = useRef(true)
-  // 별도 안내 주소에서만 입력창을 보여 준다. 이 값은 접근 권한이 아니며 기존 승인 게이트를 따른다.
-  const emailMode = new URLSearchParams(useLocation().search).get('login') === 'email'
+  // 복제 환경은 전용 계정을 쓴다. 운영의 Google 기본 화면과 기존 승인 검사는 유지한다.
+  const emailRequested = new URLSearchParams(useLocation().search).get('login') === 'email'
+  const emailMode = emailRequested || isSchoolSandbox()
   useEffect(() => { alive.current = true; return () => { alive.current = false } }, [])
 
   async function handleEmailLogin(event) {
