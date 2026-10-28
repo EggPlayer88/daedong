@@ -36,3 +36,6 @@
 .cooperation-workspace input[type=checkbox]{min-height:0;accent-color:var(--ui-accent,#2868d9)}
 @media(max-width:850px){.cooperation-browser{grid-template-columns:minmax(0,1fr)}.cooperation-workspace .cooperation-detail{padding:20px}}
 @media(max-width:520px){.cooperation-compose-row{grid-template-columns:minmax(0,1fr)}.cooperation-workspace .cooperation-filters label{flex-basis:100%}.cooperation-editor .wh-compose-footer .cooperation-check{flex-basis:auto}.cooperation-editor .wh-compose-footer .cooperation-actions{width:100%}.cooperation-workspace .cooperation-detail{padding:16px}}
+
+/* 공통 입력창이 세로 배치로 바뀌면 가로폭용 flex-basis가 빈 높이를 만들지 않게 한다. */
+@media(max-width:720px){.cooperation-editor .wh-compose-footer .cooperation-check{flex:0 1 auto}}
