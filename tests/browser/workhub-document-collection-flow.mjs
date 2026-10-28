@@ -48,6 +48,27 @@ async function saveAndSubmit(){await page.getByRole('button',{name:'제출 초�
 async function login(id){await page.evaluate(id=>window.flow.login(id),id);await page.locator('.ws-primary-menus').getByRole('button',{name:'홈',exact:true}).waitFor()}
 async function test(name,run){await page.setViewportSize({width:1280,height:1000});await page.goto('http://127.0.0.1:5188/document-collection');await page.addStyleTag({content:fontCss});await page.evaluate(seed=>window.flowSeed=seed,seed);await page.addScriptTag({content:bundle.outputFiles[0].text});await page.locator('.ws-primary-menus').getByRole('button',{name:'홈',exact:true}).waitFor();try{await run();assert.deepEqual(errors,[]);assert.deepEqual(external,[])}catch(error){console.error((await page.getByRole('main').allInnerTexts()).join('\n').slice(-10000));console.error(await page.evaluate(()=>({calls:window.flow.calls.slice(-10),applied:window.flow.applied})));await page.screenshot({path:join(output,'failure.png'),fullPage:true});throw error}passed.push(name);console.log('  ✓ '+name)}
 try{
+ await test('문서 저장·생성 대기 안내는 복구 안내와 구분하고 응답 유실 후 원래 키로 복구한다',async()=>{
+  await openQuestions();await page.evaluate(()=>{window.flow.holdGuided=true;window.flow.unknownGuided=true})
+  await page.getByRole('button',{name:'답변 임시 저장',exact:true}).click();await page.waitForFunction(()=>typeof window.flow.releaseGuided==='function')
+  const status=page.getByRole('region',{name:'질문형 문서 처리 결과 확인',exact:true})
+  await status.getByRole('status').filter({hasText:'문서 요청을 처리하고 있습니다'}).waitFor()
+  assert.equal(await status.getByRole('button',{name:'처리 결과 확인 중…',exact:true}).isDisabled(),true)
+  assert.equal(await page.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).count(),0)
+  assert.doesNotMatch(await page.locator('.library-step-guide').innerText(),/이전 요청/)
+  await page.evaluate(()=>window.flow.releaseGuided())
+  await status.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).and(page.locator(':enabled')).waitFor()
+  assert.match(await page.locator('.library-step-guide').innerText(),/이전 요청의 결과/)
+  for(const q of seed.mapping.questions)assert.equal(await page.getByLabel(q.label+' (필수)',{exact:true}).inputValue(),seed.documents[0].answers[q.id])
+  await status.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).click();await status.waitFor({state:'hidden'})
+  const writes=(await matches()).calls.filter(c=>c.name==='workhub_template_mutate');assert.equal(writes.length,2);assert.deepEqual(writes[0].args,writes[1].args)
+  assert.equal((await matches()).applied.filter(c=>c.kind==='save_answers').length,1)
+  await page.evaluate(()=>window.flow.holdRender=true);await page.getByRole('button',{name:'저장한 답변으로 HWPX 생성',exact:true}).click();await page.waitForFunction(()=>typeof window.flow.releaseRender==='function')
+  await status.getByRole('status').filter({hasText:'문서 요청을 처리하고 있습니다'}).waitFor()
+  assert.equal(await status.getByRole('button',{name:'처리 결과 확인 중…',exact:true}).isDisabled(),true)
+  await page.evaluate(()=>window.flow.releaseRender());await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).waitFor();assert.equal(await status.count(),0)
+  assert.equal((await matches()).uploads.length,0);assert.equal((await matches()).snapshot.submissions.length,0)
+ })
  await test('가상 교사 2명의 실제 생성 HWPX를 명시 확인·검사·초안 저장·최종 제출하고 담당자가 전체 ZIP으로 원본을 받는다',async()=>{
   const names=[]
   for(let i=0;i<2;i++){
@@ -64,7 +85,9 @@ try{
  })
  await test('답변 저장·제출 초안·최종 제출 응답 유실은 재진입 후 원래 키와 내용으로 복구하고 중복 제출하지 않는다',async()=>{
   await openQuestions();await page.evaluate(()=>window.flow.unknownGuided=true);await page.getByRole('button',{name:'답변 임시 저장',exact:true}).click();await page.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).waitFor();await page.getByRole('button',{name:'입력 보관하고 접기',exact:true}).click();await go('오늘');await go('문서함');await page.getByRole('button',{name:'보관한 양식 입력 계속하기',exact:true}).click();await page.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).click();await page.getByRole('button',{name:'저장한 답변으로 HWPX 생성',exact:true}).and(page.locator(':enabled')).waitFor();await page.getByRole('button',{name:'저장한 답변으로 HWPX 생성',exact:true}).click();await page.getByRole('region',{name:'생성한 HWPX 확인',exact:true}).waitFor();await downloadGenerated();await handoff();await attach()
-  await page.evaluate(()=>window.flow.unknownKind='save_draft');await page.getByRole('button',{name:'제출 초안 저장',exact:true}).click();await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).waitFor();await page.getByRole('button',{name:'입력 보관하고 다른 메뉴 이용',exact:true}).click();await go('오늘');await go('문서 수합');await page.getByRole('button',{name:'보관한 입력과 요청 다시 열기',exact:true}).click();await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click();await page.getByRole('button',{name:'저장한 파일 최종 제출',exact:true}).and(page.locator(':enabled')).waitFor()
+  await page.evaluate(()=>{window.flow.unknownKind='save_draft';window.flow.holdCollection=true});await page.getByRole('button',{name:'제출 초안 저장',exact:true}).click();await page.waitForFunction(()=>typeof window.flow.releaseCollection==='function')
+  const waiting=page.getByRole('region',{name:'수합 저장 결과 확인',exact:true});await waiting.getByRole('status').filter({hasText:'수합 요청을 처리하고 있습니다'}).waitFor();assert.equal(await waiting.getByRole('button',{name:'처리 결과 확인 중…',exact:true}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).count(),0)
+  await page.evaluate(()=>window.flow.releaseCollection());await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).and(page.locator(':enabled')).waitFor();await page.getByRole('button',{name:'입력 보관하고 다른 메뉴 이용',exact:true}).click();await go('오늘');await go('문서 수합');await page.getByRole('button',{name:'보관한 입력과 요청 다시 열기',exact:true}).click();await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click();await page.getByRole('button',{name:'저장한 파일 최종 제출',exact:true}).and(page.locator(':enabled')).waitFor()
   await page.evaluate(()=>window.flow.unknownKind='submit');await page.getByRole('button',{name:'저장한 파일 최종 제출',exact:true}).click();await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).waitFor();await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click();await page.getByText(/최종 제출을 접수했습니다/).waitFor()
   const value=await matches();assert.equal(value.snapshot.submissions.length,1);assert.equal(value.snapshot.drafts.length,1);assert.equal(value.uploads.length,1)
   for(const kind of ['save_draft','submit']){const calls=value.calls.filter(c=>c.name==='workhub_collection_mutate'&&c.args.p_command.kind===kind);assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1]);assert.equal(value.applied.filter(c=>c.kind===kind).length,1)}

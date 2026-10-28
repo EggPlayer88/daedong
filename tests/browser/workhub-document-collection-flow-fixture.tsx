@@ -20,7 +20,7 @@ identity=identityFor(active)
 const bytes=(base64:string)=>Uint8Array.from(atob(base64),c=>c.charCodeAt(0)),hash=async(blob:Blob)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),x=>x.toString(16).padStart(2,'0')).join('')
 const storage=new Map<string,Blob>(),fileRecords=new Map<string,any>(),receipts=new Map<string,any>(),responses=new Map<string,any>(),artifacts=new Map<string,any>()
 const policy={extensions:['hwpx'],maxFileBytes:1048576,maxFiles:3}
-const flow=w.flow={calls:[],http:[],uploads:[],downloads:[],applied:[],unknownKind:'',unknownGuided:false,holdDownload:false,releaseDownload:null,changedAccess:false,getError:'',holdGet:false,releaseGet:null}
+const flow=w.flow={calls:[],http:[],uploads:[],downloads:[],applied:[],unknownKind:'',unknownGuided:false,holdCollection:false,releaseCollection:null,holdGuided:false,releaseGuided:null,holdRender:false,releaseRender:null,holdDownload:false,releaseDownload:null,changedAccess:false,getError:'',holdGet:false,releaseGet:null}
 const repository:any={check(refs:any[]){for(const ref of refs){const f=fileRecords.get(ref.id);if(!f||!f.ready||JSON.stringify(f.file)!==JSON.stringify(ref))throw new ContractError('INVALID_INPUT','합성 보관소의 확인된 원본만 사용합니다')}},retainSaved(){}}
 const workflows=createWorkflowStore({members:data.memberships,date:day,files:repository})
 const request=workflows.createCollection(manager.id,{title:'학급 운영 자료 최종 수합',instructions:'파일을 직접 확인한 뒤 책임 교사가 최종 제출합니다.',dueDate:'2099-12-01',reviewMode:'none',reviewerMemberId:'',textLabel:'',textRequired:false,numberLabel:'',numberRequired:false,units:teachers.map((m,i)=>({label:seed.documents[i].classLabel+' · '+m.name,responsibleMemberId:m.id,contributorMemberIds:[]})),fileCollection:{policy,required:true,templates:[]}},'setup-collection')
@@ -43,6 +43,7 @@ flow.storage={async upload(bucket:string,path:string,file:File){flow.uploads.pus
 flow.handleHttp=async(path:string,p:any)=>{
  const m=actor(p.memberId);flow.http.push(copy({path,p}))
  if(path==='/api/workhub-documents/guided'){
+  if(flow.holdRender){flow.holdRender=false;await new Promise(resolve=>flow.releaseRender=resolve)}
   scopedTemplate(m);const r=responses.get(m.id);if(!r||r.version!==p.responseVersion||template.version!==p.templateVersion)return {status:409,body:{error:{code:'CONFLICT'}}}
   const prior=receipts.get('render:'+m.id+':'+p.requestKey);if(prior)return {body:env(m,'guided.v1',prior)}
   const generated=seed.documents[teachers.findIndex(t=>t.id===m.id)];if(JSON.stringify(r.answers)!==JSON.stringify(generated.answers))throw Error('시험 입력과 실제 Python 생성물의 답변이 다릅니다')
@@ -68,6 +69,7 @@ const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>c
  if(name==='workhub_template_list')return env(m,'guided.v1',{items:m.schoolId===template.schoolId?[template]:[],nextCursor:null,canCreate:false})
  if(name==='workhub_template_get'){scopedTemplate(m);if(flow.holdGet){flow.holdGet=false;await new Promise(resolve=>flow.releaseGet=resolve)}if(flow.getError)return deny(m,'guided.v1',flow.getError);if(args.p_template_id!==template.id)return deny(m,'guided.v1');return env(m,'guided.v1',{template,response:responses.get(m.id)??null})}
  if(name==='workhub_template_mutate'||name==='workhub_template_request_get'){
+  if(flow.holdGuided){flow.holdGuided=false;await new Promise(resolve=>flow.releaseGuided=resolve)}
   scopedTemplate(m);const key='guided:'+m.id+':'+args.p_request_key,c=args.p_command
   if(receipts.has(key))return env(m,'guided.v1',receipts.get(key))
   if(name.endsWith('request_get'))return deny(m,'guided.v1')
@@ -90,6 +92,7 @@ const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>c
   return env(m,'collection-operations.v1',{requestId:d.request.id,version:1,phase:'open',dueDate:d.request.dueDate,canManage,totals:{total:all.length,missing:all.length-completed,submitted:0,accepted:completed,changesRequested:0},units:canManage?all.map(u=>({id:u.id,label:u.label,responsibleMemberId:u.responsibleMemberId,version:u.version,state:u.effectiveSubmissionId?'accepted':'missing'})):[]})
  }
  if(name==='workhub_collection_mutate'){
+  if(flow.holdCollection){flow.holdCollection=false;await new Promise(resolve=>flow.releaseCollection=resolve)}
   const key='collection:'+m.id+':'+args.p_request_key,c=args.p_command,old=receipts.get(key)
   if(old){if(old.command!==JSON.stringify(c))throw new ContractError('IDEMPOTENCY_CONFLICT','명령이 달라졌습니다');return collection(m,old.receipt)}
   let result:any;if(c.kind==='save_draft')result=workflows.saveDraft(m.id,c.unitId,c.input,c.expectedVersion,args.p_request_key);else if(c.kind==='submit')result=workflows.submit(m.id,c.unitId,c.expectedDraftVersion,c.expectedVersion,args.p_request_key,c.reason);else throw Error('예상하지 않은 수합 명령')

@@ -40,6 +40,24 @@ async function prepareHandover(){await page.getByRole('button',{name:'업무 인
 async function prepareAction(action,reason){await page.getByRole('button',{name:action==='accept'?'인수 확인':action==='reject'?'반려':'관리자 확인',exact:true}).click();await page.getByLabel('확인·반려·취소 사유').fill(reason);await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check()}
 async function setIncoming({legacy=false,resourceKind='collection',...extra}={}){await page.evaluate(values=>{Object.assign(window,values);window.deferList=true;window.releaseList=undefined;window.refresh()},{legacy,resourceKind,...extra});await page.waitForFunction(()=>typeof window.releaseList==='function');await page.getByRole('button',{name:'인계 서버 다시 확인'}).waitFor();await page.evaluate(()=>{window.deferList=false;window.releaseList()});await page.getByRole('button',{name:'인계 상태 새로 확인'}).waitFor()}
 try{
+for(const kind of ['apply','accept'])await test(`인계 ${kind} 처리 중 안내와 응답 유실 복구를 구분하고 같은 요청으로 한 번만 반영한다`,async()=>{
+ if(kind==='apply'){await prepareHandover();await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check()}else await prepareAction('accept','시험 자료 확인')
+ await page.evaluate(()=>window.mode='deferred');await page.getByRole('button',{name:'확인한 변경 요청',exact:true}).click();await page.waitForFunction(()=>typeof window.release==='function')
+ const panel=page.getByRole('complementary',{name:'보관한 인계 요청',exact:true})
+ await panel.getByRole('status').filter({hasText:'인계 요청을 처리하고 있습니다'}).waitFor()
+ assert.equal(await panel.getByRole('button',{name:'처리 결과 확인 중…',exact:true}).isDisabled(),true)
+ assert.equal(await page.getByRole('button',{name:'원래 인계 요청 결과 확인',exact:true}).count(),0)
+ assert.equal(await page.getByRole('button',{name:'확인한 변경 요청',exact:true}).isDisabled(),true)
+ assert.equal(await page.evaluate(()=>window.pending.count()),1)
+ await page.evaluate(()=>{window.mode='lost_after_save';window.release()})
+ await panel.getByRole('button',{name:'원래 인계 요청 결과 확인',exact:true}).and(page.locator(':enabled')).waitFor()
+ assert.match(await panel.innerText(),/이전 요청의 결과를 먼저 확인/)
+ assert.equal(await page.evaluate(()=>window.applied),1)
+ await page.evaluate(()=>window.mode='ok');await panel.getByRole('button',{name:'원래 인계 요청 결과 확인',exact:true}).click()
+ await panel.waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>window.pending.count()),0)
+ const calls=await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')))
+ assert.equal(calls.length,2);assert.deepEqual(calls[0].args,calls[1].args);assert.equal(await page.evaluate(()=>window.applied),1)
+})
 await test('받은 인계는 수신 교사의 사유와 확인 후 인수한다',async()=>{await page.getByRole('button',{name:'인수 확인',exact:true}).click();assert.equal(await page.getByRole('button',{name:'확인한 변경 요청'}).isDisabled(),true);await page.getByLabel('확인·반려·취소 사유').fill('자료 확인');await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check();await page.getByRole('button',{name:'확인한 변경 요청'}).click();await page.getByText('확인한 변경을 서버에 반영했습니다.').waitFor();assert.equal(await page.evaluate(()=>window.calls.find(x=>x.name.endsWith('_mutate')).args.p_command.kind),'accept')})
 await test('인계는 미리보기와 제외 자료를 보여 주고 자동 수락하지 않는다',async()=>{await prepareHandover();assert.match(await page.locator('body').innerText(),/개인 상담과 학생 자료/);assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')).length),0);await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check();await page.getByRole('button',{name:'확인한 변경 요청'}).click();await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.').waitFor()})
 await test('인계 내용이 바뀌면 이전 미리보기와 확인을 무효화한다',async()=>{await prepareHandover();await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check();await page.getByLabel('인계 내용',{exact:true}).fill('변경된 인계');assert.equal(await page.getByRole('region',{name:'인계 변경 미리보기'}).count(),0);assert.equal(await page.getByRole('button',{name:'확인한 변경 요청'}).isDisabled(),true)})

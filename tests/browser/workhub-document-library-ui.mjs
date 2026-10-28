@@ -60,5 +60,11 @@ try{
  await check('학교 자료의 긴 제목·본문과 날짜 입력도 작은 화면에서 보존한다','knowledge',async()=>{
   await button('자료 초안 등록').click();await field('제목').fill('학교 자료'.repeat(20));await field('확인한 원문').fill('보존할 본문');await smallDark();assert.equal(await field('확인한 원문').inputValue(),'보존할 본문');assert.equal(await writes(),0);await capture('knowledge-mobile-dark',page.getByRole('form',{name:'학교 자료 작성'}))
  })
+ await check('640px·200% CSS 확대에서도 답변과 단계 이동을 보존하고 저장을 자동 실행하지 않는다','guided-manager',async()=>{
+  await field('참여 인원 (필수)').fill('18');await page.setViewportSize({width:640,height:1000});await page.addStyleTag({content:'html{zoom:2}body{padding:8px}'})
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
+  await button('질문 연결').focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement?.dataset.documentStep),'mapping')
+  assert.equal(await field('참여 인원 (필수)').inputValue(),'18');assert.equal(await writes(),0);await capture('guided-css-zoom-200',page.getByRole('region',{name:'선택한 질문형 양식',exact:true}))
+ })
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);if(process.env.WORKHUB_QA_OUTPUT)writeFileSync(join(process.env.WORKHUB_QA_OUTPUT,'document-library-ui-results.json'),JSON.stringify({passed,errors,external},null,2));console.log(`문서함·학교 자료·질문형 양식 화면 ${passed.length}개 통과`)
 }finally{await browser.close()}
