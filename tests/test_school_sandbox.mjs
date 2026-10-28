@@ -6,6 +6,7 @@ import {pathToFileURL} from 'node:url'
 import {build} from 'esbuild'
 import {assertSandbox,SANDBOX_REF} from '../scripts/school-sandbox/environment.mjs'
 import {patchDefinition,replacements} from '../scripts/school-sandbox/overrides.mjs'
+import {publicationRanges} from '../scripts/school-sandbox/calendar.mjs'
 const folder=mkdtempSync(join(tmpdir(),'school-sandbox-'))
 const check=(name,fn)=>{fn();console.log('  ✓ '+name)}
 try{
@@ -27,6 +28,7 @@ try{
  check('무한 속도·잘못된 학년도·역순 이력은 거절',()=>{for(const broken of [{...state,speed:NaN},{...state,endAt:'invalid'},{...state,revision:2},{...state,segments:[{...state.segments[0],virtualAt:new Date(end+1).toISOString()}]}])assert.throws(()=>test.acceptSandboxClock(broken))})
  check('계정 변경 시 시계 상태를 폐기',()=>{test.clearSandboxClock();assert.throws(()=>test.businessTime(real))})
  const roster=JSON.parse(readFileSync('sandbox/school-year/roster.json','utf8'))
+ check('연간 공개 범위는 빈 날짜 없이 윤년 마지막 날까지 포함',()=>{for(const [first,last] of [['2027-03-01','2027-08-15'],['2027-08-16','2028-02-29']]){const ranges=publicationRanges(first,last);assert.equal(ranges[0].from,first);assert.equal(Date.parse(ranges.at(-1).until)-Date.parse(last),86400000);for(let i=1;i<ranges.length;i++)assert.equal(ranges[i-1].until,ranges[i].from);assert.equal(ranges.reduce((n,r)=>n+(Date.parse(r.until)-Date.parse(r.from))/86400000,0),(Date.parse(last)-Date.parse(first))/86400000+1)}})
  check('원본의 22명·9학급·학급당 32시간 보존',()=>{assert.equal(roster.teachers.length,22);assert.equal(roster.classes.length,9);for(let i=0;i<9;i++)assert.equal(roster.allocations.reduce((n,a)=>n+a.hours[i],0),32)})
  check('관리자 1·시간표 담당 1·일반 교사 20명',()=>{assert.equal(roster.teachers.filter(t=>t.role==='administrator_teacher').length,1);assert.equal(roster.teachers.filter(t=>t.role==='timetable_manager_teacher').length,1);assert.equal(roster.teachers.filter(t=>t.role==='teacher').length,20)})
  const originals=JSON.parse(readFileSync('sandbox/school-year/override-originals.json','utf8'))

@@ -271,7 +271,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   return <EditDraftsProvider store={editDrafts}><PendingRequestsProvider store={pendingRequests}><StyleBoundary>
     <style>{timetableNavigationStyles}</style>
-    <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
+    <div className="connection-notice">{isSchoolSandbox() ? '가상 학교 연간 시험 · 임시 계정별 교사·담당자 권한으로 이용합니다. 운영 자료와 연결되지 않습니다.' : '신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.'}</div>
     {connectionUnavailable ? <main id="main-content" className="connected-empty">
       {loading ? <>
         <h1>학교 연결 확인 중</h1>

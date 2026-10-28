@@ -44,6 +44,7 @@ try {
  await assertMarker(c)
  const exists=await c.query("select to_regclass('sandbox_private.clock_state') t")
  if(!exists.rows[0].t) await c.query(readFileSync(new URL('../../sandbox/school-year/SB-01_시험시계_누적예산.sql',import.meta.url),'utf8'))
+ await c.query(readFileSync(new URL('../../sandbox/school-year/SB-02_API경유_누적예산_보강.sql',import.meta.url),'utf8'))
  await c.query('begin')
  const originals=JSON.parse(readFileSync(new URL('../../sandbox/school-year/override-originals.json',import.meta.url),'utf8'))
  for(const [name] of Object.entries(replacements)){

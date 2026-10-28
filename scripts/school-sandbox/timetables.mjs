@@ -5,6 +5,7 @@ import {spawnSync} from 'node:child_process'
 import {build} from 'esbuild'
 import {loadSecrets,connectSandbox,assertMarker} from './environment.mjs'
 import {rpc} from './rpc.mjs'
+import {publicationRanges} from './calendar.mjs'
 
 // 공개 함수와 원래 앱 검증기를 거쳐 두 학기의 가명 시간표를 확정한다.
 const secretPath=process.argv[2],root=dirname(secretPath),school=JSON.parse(readFileSync(join(root,'school.json')))
@@ -14,7 +15,6 @@ const tools=await import(pathToFileURL(resolve(bundle)).href),c=await connectSan
 const stateFile=join(root,'timetables.json'),state=existsSync(stateFile)?JSON.parse(readFileSync(stateFile)):{}
 const save=()=>writeFileSync(stateFile,JSON.stringify(state,null,2))
 const call=async(name,args={})=>(await rpc(c,school.adminId,name,{p_member_id:school.adminMemberId,...args})).data
-const plusDay=day=>new Date(Date.parse(day+'T00:00:00Z')+86400000).toISOString().slice(0,10)
 try {
  await assertMarker(c)
  for(const term of school.terms){
@@ -54,23 +54,21 @@ try {
   }
   record.publications??=[]
   // 한 번에 2주씩 실제 서버가 검증·공개한다. 결과가 끊긴 명령은 원키로 복구한다.
-  for(let from=term.firstDay;from<=record.lastDay;){
-   const end=new Date(Date.parse(from+'T00:00:00Z')+13*86400000).toISOString().slice(0,10),until=end<record.lastDay?end:record.lastDay
-   if(!record.publications.some(p=>p.from===from)){
-    const input={draftId:record.draft.draftId,draftVersion:record.draft.version,from,until},key=`sandbox-publish-${term.termNo}-${from}`
+  for(const {from,until} of publicationRanges(term.firstDay,record.lastDay)){
+   if(!record.publications.some(p=>p.from===from&&p.until===until)){
+    const input={draftId:record.draft.draftId,draftVersion:record.draft.version,from,until},key=`sandbox-publish-v2-${term.termNo}-${from}`
     let command=record.pending?.key===key?record.pending.command:null,receipt
     if(command)receipt=await call('workhub_timetable_operations_execute',{p_command:command,p_request_key:key,p_recover_only:true})
     else {
      const raw=await call('workhub_timetable_operations_publish_preview',{p_input:input})
      const preview=tools.parsePublishPreview(raw,input,'Asia/Seoul',Date.now())
+     if(!preview.changes.length&&preview.blockers.every(b=>b.code==='NO_CHANGES')){record.publications.push({from,until,unchanged:true});save();continue}
      if(preview.blockers.length)throw new Error('공개 차단 '+JSON.stringify(preview.blockers))
-     if(!preview.changes.length)throw new Error('기존 공개 자료와 실행 기록 확인 필요')
      command=tools.publishCommand(preview);record.pending={key,command};save()
      receipt=await call('workhub_timetable_operations_execute',{p_command:command,p_request_key:key,p_recover_only:false})
     }
     record.publications.push({from,until,receipt});delete record.pending;save();console.log('날짜별 공개',term.termNo,from,until)
    }
-   from=plusDay(until)
   }
  }
  const target=await call('workhub_timetable_target_get')

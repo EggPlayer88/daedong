@@ -2,6 +2,8 @@
 
 운영 사이트와 별도 Supabase·Vercel 프로젝트로 만든 사용자 승인 시험 환경이다. 이 브랜치를 운영 main에 병합할 필요는 없다. 복제 Vercel의 Production 브랜치는 `feat/accelerated-school-sandbox`로 지정한다. 가속 시계는 시험 플래그와 시험 DB 주소가 동시에 일치할 때만 작동한다.
 
+복제 주소는 https://daedong-year-sandbox.vercel.app 이다. 22개 계정의 비밀번호와 전달 자료는 Git에서 제외한 `private-sandbox/연간시험_전달자료/`에만 보관한다. 공개 가입과 Google 로그인은 꺼져 있으며 전용 이메일 계정으로 로그인한다.
+
 ## 자료와 계정
 
 - 원본: 다운로드 폴더의 `2026학년도 2학기(08.13.)교사별시수표_컴시간용2학기(담임 창체 포함) (1).xls`.
@@ -28,6 +30,8 @@
 
 전용 Claude 워크스페이스/키만 사용한다. 운영 키는 복사하지 않는다. Haiku의 짧은 질문 위주로 시험하며 Sonnet은 소수의 명시 검토에만 사용한다. 기존 자동 정밀 검토 금지는 유지한다. 이 한도는 **사이트가 호출하는 API**에 적용한다. Claude가 브라우저를 조작하는 데 사용하는 별도 구독/에이전트 비용과 Vercel 호스팅 비용은 포함하지 않는다.
 
+전용 공급자 워크스페이스도 월 $9로 제한했다. 공급자 월 한도가 다음 달에 다시 생겨도 위 DB 누적 상한은 초기화하지 않는다. 시험 키는 30일 만료이며 원래 서버의 암호화 저장 경로로 연결했다. 키를 Claude에게 전달할 필요는 없다.
+
 ## 재현 순서
 
 전용 연결 파일은 Git 밖에 보관한다. `environment.mjs`가 프로젝트 ID·DB 사용자·TLS CA·시험 표식을 검사하며 운영 프로젝트는 거절한다.
@@ -36,12 +40,14 @@
 2. `node scripts/school-sandbox/install.mjs <비공개파일> foundation`.
 3. `node scripts/school-sandbox/accounts.mjs <비공개파일>` — Auth 임시 계정과 R0 첫 학교.
 4. `node scripts/school-sandbox/install.mjs <비공개파일> modules` — 확정 원문 해시를 대조한 증분 63개 전체.
-5. `node scripts/school-sandbox/overrides.mjs <비공개파일>` — 복제에서만 시계/시험 명단 차이 적용. 원문/적용 해시를 보관한다.
+5. `node scripts/school-sandbox/overrides.mjs <비공개파일>` — 복제에서만 시계/시험 명단 차이 적용. SB-01과 SB-02를 순서대로 적용하고 원문/적용 해시를 보관한다.
 6. `node scripts/school-sandbox/seed.mjs <비공개파일>` — 가명 학교 자료.
 7. `node scripts/school-sandbox/activate.mjs <비공개파일> local-build` — 기본 모듈. 파일/AI 서버 활성화와 구분한다.
 8. `TIMETABLE_PYTHON`에 OR-Tools 9.15.6755 인터프리터를 지정하고 `timetables.mjs <비공개파일>` 실행. 원래 준비/확정/공개 RPC와 앱 parser로 검증한다.
 9. `verify.mjs`, `verify-concurrency.mjs` — AI 키 등록·첫 유료 실행 전에만 수행한다. 실제 Auth/PostgREST, 역할, 시계, 누적 한도와 동시 접수를 확인한다.
-10. 별도 Vercel 배포와 서버 확인 후 파일 모듈·개인 기억·AI를 연결한다. 실행 결과는 전달 기록에 남긴다.
+10. 별도 Vercel 배포 뒤 `connect-servers.mjs <비공개파일>` — 파일 모듈·개인 기억·전용 AI 키를 원래 서버 API로 연결한다. AI 키 생성과 외부 설정은 사용자 승인 범위에서만 진행한다.
+11. `verify-live-files.mjs`, `verify-calendar.mjs`, `verify-connected.mjs` — 각각 같은 비공개 파일을 인자로 넣는다. 실제 메시지·HWPX, 연간 전체 날짜, AI 연결·누적 한도를 확인한다. `verify-connected`의 비용 경계 시험은 롤백하며 실제 차감액을 되돌리지 않는다.
+12. `package-handoff.mjs <비공개파일>` — 계정표·전달문·시험 HWPX를 Git 제외 폴더에 만든다. API·DB·암호화 키는 전달 폴더에 넣지 않는다.
 
 ## 보존과 종료
 
@@ -49,4 +55,12 @@
 
 ## 검증 기록
 
-2026-10-29: `npm test` 5,219건 통과. 시험 시계/원본 학교 시수/운영 주소 차단 15건 포함. 실제 시험 DB에서 22명 로그인·PostgREST·권한·1시간 가속·원키 복구·9달러 한도 검증 통과. 두 계정 동시 접수는 한 건만 통과하고 다른 건은 `BUDGET_EXCEEDED`. 두 학기 시간표는 각각 288개 배치를 독립 검증한 뒤 공개했다. 외부 배포·파일 서버·실제 AI 연결 상태는 최종 전달 기록을 따로 확인한다.
+2026-10-29: 전체 `npm test` 5,220건과 비밀값 없는 진단 시험 5건 통과(합계 5,225). 타입 검사도 통과했다. 실제 시험 DB에서 22명 로그인·PostgREST·권한·1시간 가속·원키 복구·9달러 한도 검증 통과. 두 계정 동시 접수는 한 건만 통과하고 다른 건은 `BUDGET_EXCEEDED`였다.
+
+- 두 학기 각각 288개 배치를 검증하고 총 15,093개 날짜별 수업을 마지막 날까지 대조했다. 공개 API의 `until`이 제외 경계인 점을 반영해 2028-02-29 수업 누락을 보완했다.
+- 실제 관리자→일반 교사 메시지·읽음·HWPX 서버 검사·다운로드 원본 SHA-256 일치를 확인했다(80,609바이트).
+- 실제 배포된 Vercel에서 관리자와 일반 교사의 Haiku 답변 2건이 완료됐다. 앱 정책으로 정산한 사용액은 $0.000380, 미완료 요청은 0이다. 보수적으로 선차감한 누적 상한 사용액은 $0.08이며 남은 호출 허용량은 $8.92다. 공급자 청구서 실측과는 구분한다.
+- 첫 AI 연결 때 PostgREST의 safeupdate가 WHERE 없는 한 행 예산 UPDATE를 거절했다. SB-02는 기존 함수 지문을 확인하고 `WHERE singleton`만 추가한다. 한도·권한·선차감 정책은 그대로이며 실제 서버 재시험이 통과했다.
+- 가상 시계는 2027-03-01 00:00(한국 시간)에 일시정지해 두었다. 1년 운영 자체는 아직 수행하지 않았으며 Claude에게 맡길 시험이다.
+
+시험 진단 로그는 복제 플래그와 DB 주소가 모두 맞을 때 오류 종류·파일명·함수명·줄 번호만 남긴다. 예외 메시지·질문·키·지역 변수는 남기지 않으며 일반 배포에서는 동작하지 않는다.
