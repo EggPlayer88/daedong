@@ -47,7 +47,7 @@ try{
   await test('자동 재시도·자동 새로고침 없이 실패한 화면만 격리한다',async()=>{
     await failure().waitFor();for(let i=0;i<4;i++)await page.getByRole('button',{name:'부모 화면 갱신'}).click()
     assert.equal(await page.evaluate(()=>window.loads.primary),1);assert.equal(documentRequests,1)
-    assert.equal(await page.getByLabel('healthy 입력',{exact:true}).isEnabled(),true)
+    assert.equal(await page.getByLabel('healthy 입력',{exact:true}).isEnabled(),true);assert.equal(await page.getByText('화면 파일 연결 확인',{exact:true}).count(),0)
   })
   await test('실패 화면을 다시 열어도 다른 정상 모듈의 입력을 재마운트하지 않는다',async()=>{
     await failure().waitFor();await page.getByLabel('healthy 입력',{exact:true}).fill('다른 화면의 작성 중 입력')
@@ -92,6 +92,7 @@ try{
   })
   await test('실제 dynamic import 실패 캐시는 재시도로 복구된다고 표시하지 않으며 자동 새로고침하지 않는다',async()=>{
     await failure().waitFor();await page.evaluate(()=>{window.mode='native';window.scope='native';window.refresh()});await page.waitForFunction(()=>window.loads.native===1);await failure().waitFor()
+    await page.getByText('화면 파일 연결 확인',{exact:true}).waitFor();assert.doesNotMatch(await page.locator('body').innerText(),/retryable-screen\.js/);
     assert.equal(nativeRequests,1);await retry().click();await page.waitForFunction(()=>window.loads.native===2)
     await page.getByText(/화면 파일의 다운로드 실패는 브라우저에 남아 있을 수 있습니다/).waitFor()
     assert.equal(nativeRequests,1);assert.equal(documentRequests,1);assert.equal(await page.getByText('실제 모듈 파일 복구',{exact:true}).count(),0)
