@@ -1,5 +1,7 @@
 # 문서함·학교 자료·질문형 양식 화면 정리
 
+> 2026-10-28 마감: #85–#97은 main에 병합·운영 배포됐다. 현재 상태와 보류 범위는 [UI·UX 운영 마감 기록](../ui-ux-closeout/README.md)을 따른다. 아래 검증 내역은 각 작업 당시의 기록이다.
+
 기준 main: `5f8844b8aa12df03c50c752c97d291f068dabcfe` (#90 병합). 작업 브랜치: `feat/workhub-document-library-ui`.
 
 ## 교사가 보는 변화
