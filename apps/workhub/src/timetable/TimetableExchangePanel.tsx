@@ -1,3 +1,4 @@
+import { businessTime } from '../sandbox/clock'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
@@ -36,8 +37,8 @@ function formatTime(time: OperationTime, timeZone: string) {
   const formatter = new Intl.DateTimeFormat('ko-KR', { timeZone, month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
   return formatter.format(new Date(time.startsAt)) + ' – ' + formatter.format(new Date(time.endsAt))
 }
-const futureLesson = (lesson: OperationsView['lessons'][number], now = Date.now()) => lesson.state === 'scheduled' && Date.parse(lesson.time.startsAt) > now
-const moveTargets = (lesson: OperationsView['lessons'][number], now = Date.now()) => lesson.allowedTargets.filter(target => timeKey(target) !== timeKey(lesson.time) && Date.parse(target.startsAt) > now && Date.parse(target.endsAt) - Date.parse(target.startsAt) === Date.parse(lesson.time.endsAt) - Date.parse(lesson.time.startsAt))
+const futureLesson = (lesson: OperationsView['lessons'][number], now = Date.now()) => lesson.state === 'scheduled' && Date.parse(lesson.time.startsAt) > businessTime(now)
+const moveTargets = (lesson: OperationsView['lessons'][number], now = Date.now()) => lesson.allowedTargets.filter(target => timeKey(target) !== timeKey(lesson.time) && Date.parse(target.startsAt) > businessTime(now) && Date.parse(target.endsAt) - Date.parse(target.startsAt) === Date.parse(lesson.time.endsAt) - Date.parse(lesson.time.startsAt))
 const swapCandidates = (source: OperationsView['lessons'][number] | undefined, view: OperationsView, now = Date.now()) => source ? view.lessons.filter(other => other.id !== source.id && futureLesson(other, now) && moveTargets(source, now).some(target => timeKey(target) === timeKey(other.time)) && moveTargets(other, now).some(target => timeKey(target) === timeKey(source.time))) : []
 function inputFor(draft: ExchangeDraft, view: OperationsView): ExchangeInput | null {
   const lesson = view.lessons.find(item => item.id === draft.lessonId && item.canRequest && futureLesson(item))
@@ -51,7 +52,7 @@ function inputFor(draft: ExchangeDraft, view: OperationsView): ExchangeInput | n
 }
 function ExchangeRequestDetails({ request, timeZone, selected }: { request: ExchangeRequestView; timeZone: string; selected: boolean }) {
   const participantLabels = operationTeacherLabels(request.participants)
-  const [expanded, setExpanded] = useState(() => visibleExchangeActions(request).length > 0 && Date.parse(request.expiresAt) > Date.now())
+  const [expanded, setExpanded] = useState(() => visibleExchangeActions(request).length > 0 && Date.parse(request.expiresAt) > businessTime())
   useEffect(() => { if (selected) setExpanded(true) }, [selected])
   return <details className="timetable-exchange-details" open={expanded} onToggle={event => setExpanded(event.currentTarget.open)}><summary>변경 전후와 교사별 응답 보기</summary>
     <OperationChangeList changes={request.changes} timeZone={timeZone} />
@@ -198,12 +199,12 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
     finally { if (epoch === life.current) { operation.current = false; setBusy(false) } }
   }
   function chooseAction(request: ExchangeRequestView, action: RequestAction) {
-    if (unavailable || !request.actions.includes(action) || Date.parse(request.expiresAt) <= Date.now() || action === 'approve' && request.requesterIsViewer) return
+    if (unavailable || !request.actions.includes(action) || Date.parse(request.expiresAt) <= businessTime() || action === 'approve' && request.requesterIsViewer) return
     setSelected({ requestId: request.id, expectedVersion: request.version, proposalHash: request.proposalHash, action }); setActionConfirmed(false); setClock(Date.now()); setError(''); setNotice('')
   }
   async function performAction() {
     if (!selected || !selectedRequest || !selectedCurrent || !responseBeforeExpiry || !actionConfirmed || unavailable || operation.current) return
-    if (Date.parse(selectedRequest.expiresAt) <= Date.now()) return
+    if (Date.parse(selectedRequest.expiresAt) <= businessTime()) return
     const command: OperationCommand = { kind: 'action', ...selected }, epoch = life.current
     operation.current = true; setBusy(true); setError(''); setNotice('')
     try {

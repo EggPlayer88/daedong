@@ -1,3 +1,4 @@
+import { isSchoolSandbox } from '../sandbox/clock'
 import { retryableLazy as lazy } from './retryable-lazy'
 import {guidedSetupOrigin,guidedSetupSuggestion,type GuidedSetupAiOrigin,type GuidedSetupAiSuggestion} from '../documents/guided-setup-ai'
 import { assistantDocumentDraft, documentAssistantRequest, studentAssistantRequest } from './pilot-handoff'
@@ -141,7 +142,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
           try {
             const identity = await connection.getIdentity()
             if (!alive || version !== generation.current) continue
-            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
+            if (!identity?.approved || identity.userId !== expectedUserId || (identity.profile?.role !== 'superadmin' && !isSchoolSandbox())) { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
             const next = await connection.loadContext()
             if (!alive || version !== generation.current) continue
             const mine = next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate))

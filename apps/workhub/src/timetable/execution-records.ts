@@ -1,3 +1,4 @@
+import { businessTime, businessIso } from '../sandbox/clock'
 import type { RequestAbandonResult } from './request-abandon'
 import { canonical, exact, identifier, text, ServiceError } from '../services/scoped-rpc'
 import policy from './execution-records-policy.json'
@@ -65,7 +66,7 @@ export function parseExecutionRecordsView(raw: unknown, lessonId: string, now = 
     if (source.id !== lessonId || Date.parse(asOf) > now + policy.clockSkewMs) fail()
     const allowedOutcomes = unique(list(raw.allowedOutcomes, outcomes.length).map(v => oneOf(v, outcomes))), current = raw.current === null ? null : record(raw.current)
     // 시각이 지났다는 이유로 완료를 추정하지 않는다. 미래 수업 쓰기는 서버와 앱 양쪽에서 막는다.
-    if (source.endsAt > asOf && allowedOutcomes.length || current && (current.lessonId !== lessonId || current.lessonVersion > source.version || current.recordedAt > asOf)) fail()
+    if (source.endsAt > businessIso(asOf) && allowedOutcomes.length || current && (current.lessonId !== lessonId || current.lessonVersion > source.version || current.recordedAt > asOf)) fail()
     const page = history(raw.history, raw.nextCursor, lessonId, current?.version ?? 0, source.version, asOf)
     if (current && canonical(current) !== canonical(page.history[0])) fail()
     return { asOf, timeZone, lesson: source, allowedOutcomes, current, ...page }

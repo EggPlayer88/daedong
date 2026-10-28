@@ -29,3 +29,8 @@ npm-debug.log*
 
 # 테스트용 파이썬 환경 (tests/README.md 참조)
 tests/.venv/
+
+# 복제 시험 환경의 비밀번호·원본 교사명·연결 정보는 로컬에만 보관한다.
+.tmp-accelerated-sandbox/
+.tmp-sandbox-libs/
+private-sandbox/

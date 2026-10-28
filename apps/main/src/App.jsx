@@ -1,3 +1,4 @@
+import SchoolSandbox from './components/SchoolSandbox.jsx'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
@@ -70,7 +71,7 @@ export default function App() {
   return (
     <AuthProvider>
       <MessagingPilotProvider><BrowserRouter>
-        <Gate />
+        <SchoolSandbox><Gate /></SchoolSandbox>
       </BrowserRouter></MessagingPilotProvider>
     </AuthProvider>
   )

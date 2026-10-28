@@ -1,3 +1,4 @@
+import { businessTime, businessIso } from '../sandbox/clock'
 import type { ExchangeRequestView, RequestAction } from './operations-contracts'
 
 export const exchangeFilters = {
@@ -12,7 +13,7 @@ export function visibleExchangeActions(request: ExchangeRequestView): RequestAct
   return request.actions.filter(action => !(action === 'approve' && request.requesterIsViewer))
 }
 export function exchangeAttention(request: ExchangeRequestView, now: number) {
-  const actions = Date.parse(request.expiresAt) > now ? visibleExchangeActions(request) : []
+  const actions = Date.parse(request.expiresAt) > businessTime(now) ? visibleExchangeActions(request) : []
   return { consent: actions.some(action => action === 'accept' || action === 'reject'), approval: actions.some(action => action === 'approve' || action === 'rejectApproval') }
 }
 const normalize = (value: string) => value.normalize('NFKC').toLocaleLowerCase('ko-KR').trim()
@@ -30,7 +31,7 @@ export function selectExchangeRequests(requests: ExchangeRequestView[], filter: 
   })
 }
 export function exchangeNextStep(request: ExchangeRequestView, now: number) {
-  if (activeExchange(request) && Date.parse(request.expiresAt) <= now) return '응답 기한이 지났습니다. 요청 상태를 새로 확인해 주세요.'
+  if (activeExchange(request) && Date.parse(request.expiresAt) <= businessTime(now)) return '응답 기한이 지났습니다. 요청 상태를 새로 확인해 주세요.'
   const attention = exchangeAttention(request, now)
   if (attention.consent) return '내가 변경안을 확인하고 동의 여부를 응답할 차례입니다.'
   if (attention.approval) return '담당자가 변경안을 최종 확인할 차례입니다.'
@@ -54,7 +55,7 @@ export function exchangeConsentSummary(request: ExchangeRequestView) {
 export type ExchangeProgressState = 'complete' | 'current' | 'waiting' | 'stopped'
 export function exchangeProgress(request: ExchangeRequestView, now: number): { label: string; state: ExchangeProgressState }[] {
   const applied = request.state === 'applied'
-  const stopped = !applied && (!activeExchange(request) || Date.parse(request.expiresAt) <= now)
+  const stopped = !applied && (!activeExchange(request) || Date.parse(request.expiresAt) <= businessTime(now))
   const consentComplete = request.participants.length > 0 && request.participants.every(person => person.response === 'accepted')
   return [
     { label: '요청 접수', state: 'complete' },
