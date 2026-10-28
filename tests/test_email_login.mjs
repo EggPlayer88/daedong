@@ -23,6 +23,16 @@ assert(!email.includes('가입하기'))
 console.log('  ✓ 별도 주소에서만 이메일 로그인 입력창 제공, 가입·승인과 구분')
 assert(!render('/?login=other').includes('type="password"'))
 console.log('  ✓ 다른 주소 값은 기존 로그인 화면으로 처리')
+for (const [url, expected] of [['https://vfnemvoszjglfblsrzoh.supabase.co',true],['https://example.invalid',false]]) {
+  const sandbox = await loadBrowserModule(`
+    import {renderToStaticMarkup} from 'react-dom/server';
+    import {MemoryRouter} from 'react-router-dom';
+    import LoginPage from '../apps/main/src/pages/LoginPage.jsx';
+    export const render = () => renderToStaticMarkup(<MemoryRouter initialEntries={['/workhub']}><LoginPage /></MemoryRouter>);
+  `, { env: {MODE:'test',VITE_SCHOOL_SANDBOX:'vfnemvoszjglfblsrzoh',VITE_SUPABASE_URL:url,VITE_SUPABASE_ANON_KEY:'synthetic'} })
+  assert.equal(sandbox.render().includes('type="password"'),expected)
+  console.log('  ✓ ' + (expected?'복제 사이트는 로그아웃 뒤에도 전용 계정 로그인':'시험 플래그만 있는 다른 DB는 Google 기본 유지'))
+}
 let request
 const response = { user:{id:'synthetic-user'}, session:{user:{id:'synthetic-user'}} }
 client.auth.signInWithPassword = async value => {request=value;return {data:response,error:null}}

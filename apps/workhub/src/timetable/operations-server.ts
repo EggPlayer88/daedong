@@ -1,3 +1,4 @@
+import { businessTime, businessIso } from '../sandbox/clock'
 import { createRequestAbandonClient } from './request-abandon'
 import { recoveryScope } from '../app/pending-requests'
 import type { SupabaseConnection } from '../connection/supabase-connection'
@@ -131,7 +132,7 @@ export function parsePublishPreview(v: unknown, command: PublishInput, zone: str
     const existingChanges = oneOf(v.preserved.existingChanges, ['retained', 'blocked'])
     if (existingChanges === 'blocked' && !p.blockers.length) fail()
     for (const c of p.changes) for (const l of [c.before, c.after]) if (l) {
-      if (localDate(l.time.startsAt, zone) < command.from || localDate(new Date(Date.parse(l.time.endsAt) - 1).toISOString(), zone) >= command.until || Date.parse(l.time.startsAt) <= now) fail()
+      if (localDate(l.time.startsAt, zone) < command.from || localDate(new Date(Date.parse(l.time.endsAt) - 1).toISOString(), zone) >= command.until || Date.parse(l.time.startsAt) <= businessTime(now)) fail()
     }
     const excludedDays = rows(v.excludedDays, limits.publishDays).map(value => {
       exact(value, ['date', 'reason']); const date = isoDate(value.date)
@@ -153,7 +154,7 @@ export function parseExchangePreview(v: unknown, command: ExchangeInput, source:
     ]
     for (const e of expected) {
       const c = p.changes.find(row => row.after.id === e.id), original = source.lessons.find(l => l.id === e.id)
-      if (!c?.before || !original || !equal(c.before, original) || c.before.version !== e.version || !equal(c.after.time, e.target) || Date.parse(c.before.time.startsAt) <= now || Date.parse(c.after.time.startsAt) <= now) fail()
+      if (!c?.before || !original || !equal(c.before, original) || c.before.version !== e.version || !equal(c.after.time, e.target) || Date.parse(c.before.time.startsAt) <= businessTime(now) || Date.parse(c.after.time.startsAt) <= businessTime(now)) fail()
     }
     return p
   })
@@ -162,13 +163,13 @@ function requestView(v: unknown, memberId: string, asOf: string): ExchangeReques
   exact(v, ['id', 'version', 'proposalHash', 'state', 'kind', 'requester', 'requesterIsViewer', 'createdAt', 'expiresAt', 'reason', 'changes', 'participants', 'actions'])
   const changed = changes(v.changes), kind = oneOf(v.kind, ['move', 'swap']), state = oneOf(v.state, states), createdAt = timestamp(v.createdAt), expiresAt = timestamp(v.expiresAt)
   checkExchangeChanges(changed, kind)
-  if (createdAt > asOf || createdAt >= expiresAt || activeStates.includes(state) && expiresAt <= asOf || state === 'expired' && expiresAt > asOf) fail()
+  if (createdAt > asOf || businessIso(createdAt) >= expiresAt || activeStates.includes(state) && expiresAt <= businessIso(asOf) || state === 'expired' && expiresAt > businessIso(asOf)) fail()
   const requester = teacher(v.requester), requesterIsViewer = bool(v.requesterIsViewer)
   if (requester.id === memberId && !requesterIsViewer || !changed.some(c => c.before!.teachers.some(t => t.id === requester.id))) fail()
   const participants = rows(v.participants, limits.teachers).map(value => {
     exact(value, ['id', 'name', 'response', 'respondedAt'])
     const result = { id: identifier(value.id), name: text(value.name, limits.title, true), response: oneOf(value.response, ['pending', 'accepted', 'rejected']), respondedAt: value.respondedAt === null ? null : timestamp(value.respondedAt) }
-    if ((result.response === 'pending') !== (result.respondedAt === null) || result.respondedAt && (result.respondedAt < createdAt || result.respondedAt > asOf || result.respondedAt >= expiresAt)) fail()
+    if ((result.response === 'pending') !== (result.respondedAt === null) || result.respondedAt && (result.respondedAt < createdAt || result.respondedAt > asOf || businessIso(result.respondedAt) >= expiresAt)) fail()
     return result
   })
   unique(participants.map(t => t.id)); sameTeachers(participants.map(({ id, name }) => ({ id, name })), relatedTeachers(changed))
@@ -294,12 +295,12 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
   const canExchange = (memberId: string, command: ExchangeInput) => {
     const view = current(memberId), source = view.lessons.find(l => l.id === command.lessonId)
     if (!view.canRequest || !source?.canRequest) throw new ServiceError('FORBIDDEN')
-    if (source.version !== command.expectedVersion || source.state !== 'scheduled' || Date.parse(source.time.startsAt) <= now()) throw new ServiceError('CONFLICT')
+    if (source.version !== command.expectedVersion || source.state !== 'scheduled' || Date.parse(source.time.startsAt) <= businessTime(now())) throw new ServiceError('CONFLICT')
     if (command.kind === 'move') {
-      if (!source.allowedTargets.some(t => equal(t, command.target)) || equal(source.time, command.target) || Date.parse(command.target.startsAt) <= now()) throw new ServiceError('INVALID_INPUT')
+      if (!source.allowedTargets.some(t => equal(t, command.target)) || equal(source.time, command.target) || Date.parse(command.target.startsAt) <= businessTime(now())) throw new ServiceError('INVALID_INPUT')
     } else {
       const other = view.lessons.find(l => l.id === command.otherLessonId)
-      if (!other || other.version !== command.otherExpectedVersion || other.state !== 'scheduled' || Date.parse(other.time.startsAt) <= now()) throw new ServiceError('CONFLICT')
+      if (!other || other.version !== command.otherExpectedVersion || other.state !== 'scheduled' || Date.parse(other.time.startsAt) <= businessTime(now())) throw new ServiceError('CONFLICT')
       if (!source.allowedTargets.some(t => equal(t, other.time)) || !other.allowedTargets.some(t => equal(t, source.time)) || equal(source.time, other.time)) throw new ServiceError('INVALID_INPUT')
     }
     return view
@@ -364,8 +365,8 @@ export function createTimetableOperationsServer(connection: SupabaseConnection, 
       } else {
         const row = current(memberId).requests.find(r => r.id === command.requestId)
         if (!row || row.version !== command.expectedVersion || row.proposalHash !== command.proposalHash) throw new ServiceError('CONFLICT')
-        if (!row.actions.includes(command.action) || Date.parse(row.expiresAt) <= now()) throw new ServiceError('FORBIDDEN')
-        if (['approve', 'accept'].includes(command.action) && row.changes.some(c => Date.parse(c.before!.time.startsAt) <= now() || Date.parse(c.after.time.startsAt) <= now())) throw new ServiceError('CONFLICT')
+        if (!row.actions.includes(command.action) || Date.parse(row.expiresAt) <= businessTime(now())) throw new ServiceError('FORBIDDEN')
+        if (['approve', 'accept'].includes(command.action) && row.changes.some(c => Date.parse(c.before!.time.startsAt) <= businessTime(now()) || Date.parse(c.after.time.startsAt) <= businessTime(now()))) throw new ServiceError('CONFLICT')
         if (command.action === 'approve') expectedChanges = row.changes.map(c => ({ id: c.after.id, version: c.after.version }))
         expectedStatus = command.action === 'approve' ? 'applied' : command.action === 'withdraw' ? 'withdrawn' : command.action === 'reject' || command.action === 'rejectApproval' ? 'rejected' :
           row.participants.every(p => p.id === memberId || p.response === 'accepted') ? 'awaiting_approval' : 'awaiting_consent'

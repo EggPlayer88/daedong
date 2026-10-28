@@ -1,3 +1,4 @@
+import { businessTime, businessIso } from '../sandbox/clock'
 import { canonical, exact, identifier, isoDate, ServiceError, text, validateLocalInput, version } from '../services/scoped-rpc'
 import type { OperationLesson, OperationLessonChange, OperationTeacher, RequestAction, RequestState } from './operations-contracts'
 import type { InterventionInput, InterventionCommand, InterventionPreview, InterventionReceipt, InterventionRequest, InterventionsView, InterventionCloseResult, InterventionSource, InterventionsReadiness, InterventionsSummary } from './interventions-contracts'
@@ -21,7 +22,7 @@ const activeStates = ['awaiting_consent', 'awaiting_approval']
 export type InterventionRequestFilter = 'all' | 'mine' | 'pending' | 'finished'
 /** 표시 시점에 만료됐더라도 서버 원문을 바꾸거나 임의로 완료 처리하지 않는다. */
 export function interventionDisplayState(row: InterventionRequest, now = Date.now()): RequestState {
-  return activeStates.includes(row.state) && Date.parse(row.expiresAt) <= now ? 'expired' : row.state
+  return activeStates.includes(row.state) && Date.parse(row.expiresAt) <= businessTime(now) ? 'expired' : row.state
 }
 export function interventionNeedsMyAction(row: InterventionRequest, now = Date.now()): boolean {
   return activeStates.includes(interventionDisplayState(row, now)) && row.actions.some(action => ['accept', 'reject', 'approve', 'rejectApproval'].includes(action))
@@ -60,9 +61,9 @@ export function interventionInputProblem(input: InterventionInput, source: Inter
     if (!source.teachers.some(row => row.id === input.substituteTeacherId)) return '현재 학교의 대강 교사를 선택해 주세요.'
     if (lesson.teachers.length === 1 && lesson.teachers[0].id === input.substituteTeacherId) return '현재 담당 교사와 다른 대강 교사를 선택해 주세요.'
   }
-  if (input.kind !== 'makeup') return Date.parse(lesson.time.startsAt) <= now ? '이미 시작한 수업은 변경할 수 없습니다.' : null
+  if (input.kind !== 'makeup') return Date.parse(lesson.time.startsAt) <= businessTime(now) ? '이미 시작한 수업은 변경할 수 없습니다.' : null
   const start = Date.parse(input.target.startsAt), end = Date.parse(input.target.endsAt)
-  if (start <= now) return '보강 시작 시각을 현재 시각 이후로 선택해 주세요.'
+  if (start <= businessTime(now)) return '보강 시작 시각을 현재 시각 이후로 선택해 주세요.'
   if (end - start !== Date.parse(lesson.time.endsAt) - Date.parse(lesson.time.startsAt)) return '보강 길이를 원수업과 같게 맞춰 주세요.'
   const day = (at: number) => new Intl.DateTimeFormat('en-CA', { timeZone: source.timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
   return day(start) !== day(end - 1000) ? '보강은 학교 시간대의 같은 날 안에 끝나도록 입력해 주세요.' : null
@@ -158,7 +159,7 @@ export function parseInterventionPreview(raw: unknown, input: InterventionInput,
     exact(raw, ['previewId', 'previewHash', 'createdAt', 'expiresAt', 'input', 'complete', 'changes', 'participants', 'blockers', 'hours'])
     if (!same(interventionInput(raw.input), input) || raw.complete !== true) fail()
     const createdAt = interventionTimestamp(raw.createdAt), expiresAt = interventionTimestamp(raw.expiresAt)
-    if (Date.parse(createdAt) > now + limits.clockSkewMs || Date.parse(expiresAt) <= now || createdAt >= expiresAt || Date.parse(expiresAt) - Date.parse(createdAt) > limits.previewLifetimeMs) fail()
+    if (Date.parse(createdAt) > now + limits.clockSkewMs || Date.parse(expiresAt) <= now || businessIso(createdAt) >= expiresAt || Date.parse(expiresAt) - Date.parse(createdAt) > limits.previewLifetimeMs) fail()
     const changed = changes(raw.changes), participants = teachers(raw.participants)
     checkMeaning(input, changed, source); sameParticipants(participants, changed)
     const blockers = rows(raw.blockers, limits.blockers).map(value => {
@@ -183,13 +184,13 @@ function request(raw: unknown, memberId: string, asOf: string): InterventionRequ
   if (raw.kind !== input.kind || raw.reason !== input.reason || !changed.length) fail()
   checkMeaning(input, changed)
   const createdAt = interventionTimestamp(raw.createdAt), expiresAt = interventionTimestamp(raw.expiresAt)
-  if (createdAt > asOf || createdAt >= expiresAt || activeStates.includes(state) && expiresAt <= asOf || state === 'expired' && expiresAt > asOf) fail()
+  if (createdAt > asOf || businessIso(createdAt) >= expiresAt || activeStates.includes(state) && expiresAt <= businessIso(asOf) || state === 'expired' && expiresAt > businessIso(asOf)) fail()
   const requester = teacher(raw.requester), requesterIsViewer = bool(raw.requesterIsViewer)
   if (requesterIsViewer !== (requester.id === memberId)) fail()
   const participants = rows(raw.participants, limits.teachers).map(value => {
     exact(value, ['id', 'name', 'response', 'respondedAt'])
     const row = { ...teacher({ id: value.id, name: value.name }), response: choice(value.response, ['pending', 'accepted', 'rejected']), respondedAt: value.respondedAt === null ? null : interventionTimestamp(value.respondedAt) }
-    if ((row.response === 'pending') !== (row.respondedAt === null) || row.respondedAt && (row.respondedAt < createdAt || row.respondedAt > asOf || row.respondedAt >= expiresAt)) fail()
+    if ((row.response === 'pending') !== (row.respondedAt === null) || row.respondedAt && (row.respondedAt < createdAt || row.respondedAt > asOf || businessIso(row.respondedAt) >= expiresAt)) fail()
     return row
   })
   unique(participants.map(row => row.id)); sameParticipants(participants.map(({ id, name }) => ({ id, name })), changed)

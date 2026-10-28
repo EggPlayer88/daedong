@@ -1,3 +1,4 @@
+import { isSchoolSandbox } from '../../../workhub/src/sandbox/clock'
 // 모듈 공개 범위 — 메뉴와 라우트가 **같은 표**를 본다.
 //
 // 왜 필요한가: 교사들이 평가계획서를 실사용하는 중에 개발 중 모듈이 눈에 띄면
@@ -40,7 +41,7 @@ export function isVisible(profile, mod, pilotAccess = null) {
   if (!mod) return false
   const scope = mod.visibility || DEFAULT_VISIBILITY
   if (scope === 'admin' && !atLeast(profile, 'admin')) return false
-  if (scope === 'superadmin' && !atLeast(profile, 'superadmin') && !(mod.key === 'workhub' && mod.to === '/workhub' && (hasMessagingPilot(profile, pilotAccess) || hasWorkhubParticipant(profile, pilotAccess)))) return false
+  if (scope === 'superadmin' && !atLeast(profile, 'superadmin') && !(mod.key === 'workhub' && mod.to === '/workhub' && (hasMessagingPilot(profile, pilotAccess) || hasWorkhubParticipant(profile, pilotAccess) || (isSchoolSandbox() && profile?.is_active === true && profile?.role === 'teacher')))) return false
   // 기존 action 판정도 함께 만족해야 한다 (둘 다 있으면 둘 다)
   if (mod.action && !can(profile, mod.action)) return false
   return true

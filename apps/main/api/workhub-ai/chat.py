@@ -6,6 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _assistant import CheckError, LIMITS, parse_json
 from _school_policy import execute
+from _sandbox_diagnostic import report
 
 class handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
@@ -40,7 +41,9 @@ class handler(BaseHTTPRequestHandler):
             payload = parse_json(raw, "INVALID_INPUT", 400)
             result = execute(payload, self.headers.get("Authorization"))
         except CheckError as error:
+            report(error)
             return self._send(error.status, {"error": {"code": error.code}})
-        except Exception:
+        except Exception as error:
+            report(error)
             return self._send(503, {"error": {"code": "RESULT_UNKNOWN"}})
         return self._send(200, result)

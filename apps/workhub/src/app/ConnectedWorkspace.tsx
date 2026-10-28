@@ -1,3 +1,4 @@
+import { isSchoolSandbox } from '../sandbox/clock'
 import { retryableLazy as lazy } from './retryable-lazy'
 import {guidedSetupOrigin,guidedSetupSuggestion,type GuidedSetupAiOrigin,type GuidedSetupAiSuggestion} from '../documents/guided-setup-ai'
 import { assistantDocumentDraft, documentAssistantRequest, studentAssistantRequest } from './pilot-handoff'
@@ -141,7 +142,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
           try {
             const identity = await connection.getIdentity()
             if (!alive || version !== generation.current) continue
-            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
+            if (!identity?.approved || identity.userId !== expectedUserId || (identity.profile?.role !== 'superadmin' && !isSchoolSandbox())) { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
             const next = await connection.loadContext()
             if (!alive || version !== generation.current) continue
             const mine = next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate))
@@ -270,7 +271,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   return <EditDraftsProvider store={editDrafts}><PendingRequestsProvider store={pendingRequests}><StyleBoundary>
     <style>{timetableNavigationStyles}</style>
-    <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
+    <div className="connection-notice">{isSchoolSandbox() ? '가상 학교 연간 시험 · 임시 계정별 교사·담당자 권한으로 이용합니다. 운영 자료와 연결되지 않습니다.' : '신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.'}</div>
     {connectionUnavailable ? <main id="main-content" className="connected-empty">
       {loading ? <>
         <h1>학교 연결 확인 중</h1>

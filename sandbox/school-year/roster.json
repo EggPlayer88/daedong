@@ -1,0 +1,784 @@
+{
+  "contract": "school-sandbox.roster.v1",
+  "source": {
+    "file": "2026학년도 2학기(08.13.)교사별시수표_컴시간용2학기(담임 창체 포함) (1).xls",
+    "sha256": "927bcae7b5d3d478fc78e087b5da757a6dc040039d9b114b7c3541b2f5d506a9",
+    "sheet": "교사별시수표",
+    "range": "A1:N37"
+  },
+  "teachers": [
+    {
+      "id": "T01",
+      "name": "시험 교사 01",
+      "role": "timetable_manager_teacher"
+    },
+    {
+      "id": "T02",
+      "name": "시험 교사 02",
+      "role": "teacher"
+    },
+    {
+      "id": "T03",
+      "name": "시험 교사 03",
+      "role": "teacher"
+    },
+    {
+      "id": "T04",
+      "name": "시험 교사 04",
+      "role": "teacher"
+    },
+    {
+      "id": "T05",
+      "name": "시험 교사 05",
+      "role": "teacher"
+    },
+    {
+      "id": "T06",
+      "name": "시험 교사 06",
+      "role": "teacher"
+    },
+    {
+      "id": "T07",
+      "name": "시험 교사 07",
+      "role": "teacher"
+    },
+    {
+      "id": "T08",
+      "name": "시험 교사 08",
+      "role": "teacher"
+    },
+    {
+      "id": "T09",
+      "name": "시험 교사 09",
+      "role": "administrator_teacher"
+    },
+    {
+      "id": "T10",
+      "name": "시험 교사 10",
+      "role": "teacher"
+    },
+    {
+      "id": "T11",
+      "name": "시험 교사 11",
+      "role": "teacher"
+    },
+    {
+      "id": "T12",
+      "name": "시험 교사 12",
+      "role": "teacher"
+    },
+    {
+      "id": "T13",
+      "name": "시험 교사 13",
+      "role": "teacher"
+    },
+    {
+      "id": "T14",
+      "name": "시험 교사 14",
+      "role": "teacher"
+    },
+    {
+      "id": "T15",
+      "name": "시험 교사 15",
+      "role": "teacher"
+    },
+    {
+      "id": "T16",
+      "name": "시험 교사 16",
+      "role": "teacher"
+    },
+    {
+      "id": "T17",
+      "name": "시험 교사 17",
+      "role": "teacher"
+    },
+    {
+      "id": "T18",
+      "name": "시험 교사 18",
+      "role": "teacher"
+    },
+    {
+      "id": "T19",
+      "name": "시험 교사 19",
+      "role": "teacher"
+    },
+    {
+      "id": "T20",
+      "name": "시험 교사 20",
+      "role": "teacher"
+    },
+    {
+      "id": "T21",
+      "name": "시험 교사 21",
+      "role": "teacher"
+    },
+    {
+      "id": "T22",
+      "name": "시험 교사 22",
+      "role": "teacher"
+    }
+  ],
+  "classes": [
+    {
+      "id": "C1",
+      "grade": 1,
+      "number": 1,
+      "label": "1-1"
+    },
+    {
+      "id": "C2",
+      "grade": 1,
+      "number": 2,
+      "label": "1-2"
+    },
+    {
+      "id": "C3",
+      "grade": 1,
+      "number": 3,
+      "label": "1-3"
+    },
+    {
+      "id": "C4",
+      "grade": 2,
+      "number": 1,
+      "label": "2-1"
+    },
+    {
+      "id": "C5",
+      "grade": 2,
+      "number": 2,
+      "label": "2-2"
+    },
+    {
+      "id": "C6",
+      "grade": 2,
+      "number": 3,
+      "label": "2-3"
+    },
+    {
+      "id": "C7",
+      "grade": 3,
+      "number": 1,
+      "label": "3-1"
+    },
+    {
+      "id": "C8",
+      "grade": 3,
+      "number": 2,
+      "label": "3-2"
+    },
+    {
+      "id": "C9",
+      "grade": 3,
+      "number": 3,
+      "label": "3-3"
+    }
+  ],
+  "allocations": [
+    {
+      "sourceRow": 4,
+      "subject": "국어",
+      "shortName": "국어",
+      "teacherId": "T01",
+      "hours": [
+        0,
+        0,
+        4,
+        0,
+        0,
+        0,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "sourceRow": 5,
+      "subject": "국어",
+      "shortName": "국어",
+      "teacherId": "T02",
+      "hours": [
+        4,
+        4,
+        0,
+        3,
+        3,
+        3,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 6,
+      "subject": "국어",
+      "shortName": "국어",
+      "teacherId": "T03",
+      "hours": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 7,
+      "subject": "국어",
+      "shortName": "국어㈜",
+      "teacherId": "T03",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 8,
+      "subject": "사회",
+      "shortName": "사회",
+      "teacherId": "T04",
+      "hours": [
+        2,
+        2,
+        2,
+        0,
+        0,
+        0,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "sourceRow": 9,
+      "subject": "사회",
+      "shortName": "사회㈜",
+      "teacherId": "T04",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 10,
+      "subject": "역사",
+      "shortName": "역사",
+      "teacherId": "T05",
+      "hours": [
+        0,
+        0,
+        0,
+        3,
+        3,
+        3,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "sourceRow": 11,
+      "subject": "도덕",
+      "shortName": "도덕",
+      "teacherId": "T06",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "sourceRow": 12,
+      "subject": "도덕",
+      "shortName": "도덕㈜",
+      "teacherId": "T06",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 13,
+      "subject": "수학",
+      "shortName": "수학",
+      "teacherId": "T07",
+      "hours": [
+        4,
+        4,
+        4,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 14,
+      "subject": "수학",
+      "shortName": "수학㈜",
+      "teacherId": "T07",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 15,
+      "subject": "수학",
+      "shortName": "수학",
+      "teacherId": "T08",
+      "hours": [
+        0,
+        0,
+        0,
+        4,
+        4,
+        4,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "sourceRow": 16,
+      "subject": "수학",
+      "shortName": "수학",
+      "teacherId": "T09",
+      "hours": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "sourceRow": 17,
+      "subject": "리터러시",
+      "shortName": "리터",
+      "teacherId": "T09",
+      "hours": [
+        2,
+        2,
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 18,
+      "subject": "정보",
+      "shortName": "정보",
+      "teacherId": "T10",
+      "hours": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 19,
+      "subject": "기술가정",
+      "shortName": "기가",
+      "teacherId": "T11",
+      "hours": [
+        0,
+        0,
+        0,
+        4,
+        4,
+        4,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "sourceRow": 20,
+      "subject": "과학",
+      "shortName": "과학",
+      "teacherId": "T12",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "sourceRow": 21,
+      "subject": "과학",
+      "shortName": "과학",
+      "teacherId": "T13",
+      "hours": [
+        1,
+        1,
+        1,
+        3,
+        3,
+        3,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 22,
+      "subject": "과학",
+      "shortName": "과학㈜",
+      "teacherId": "T13",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 23,
+      "subject": "체육",
+      "shortName": "체육",
+      "teacherId": "T14",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "sourceRow": 24,
+      "subject": "체육",
+      "shortName": "체육",
+      "teacherId": "T15",
+      "hours": [
+        2,
+        2,
+        2,
+        3,
+        3,
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 25,
+      "subject": "음악",
+      "shortName": "음악",
+      "teacherId": "T16",
+      "hours": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "sourceRow": 26,
+      "subject": "미술",
+      "shortName": "미술",
+      "teacherId": "T17",
+      "hours": [
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 27,
+      "subject": "진로와 직업",
+      "shortName": "진로",
+      "teacherId": "T18",
+      "hours": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 28,
+      "subject": "진로와 직업",
+      "shortName": "진로㈜",
+      "teacherId": "T18",
+      "hours": [
+        1,
+        1,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 29,
+      "subject": "영어",
+      "shortName": "영어",
+      "teacherId": "T19",
+      "hours": [
+        0,
+        2,
+        2,
+        2,
+        2,
+        2,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 30,
+      "subject": "영어",
+      "shortName": "영원",
+      "teacherId": "T19",
+      "hours": [
+        0,
+        1,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 31,
+      "subject": "영어",
+      "shortName": "영어",
+      "teacherId": "T20",
+      "hours": [
+        2,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        3,
+        3
+      ]
+    },
+    {
+      "sourceRow": 32,
+      "subject": "영어",
+      "shortName": "영원",
+      "teacherId": "T20",
+      "hours": [
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "sourceRow": 33,
+      "subject": "보건",
+      "shortName": "보건",
+      "teacherId": "T21",
+      "hours": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "sourceRow": 34,
+      "subject": "한문",
+      "shortName": "한문",
+      "teacherId": "T03",
+      "hours": [
+        0,
+        0,
+        0,
+        1,
+        1,
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "sourceRow": 35,
+      "subject": "동아리 활동",
+      "shortName": "스포츠",
+      "teacherId": "T22",
+      "hours": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    },
+    {
+      "sourceRow": 36,
+      "subject": "창체",
+      "shortName": "창체",
+      "teacherId": "HOMEROOM",
+      "hours": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+      ]
+    }
+  ],
+  "homerooms": [
+    {
+      "classId": "C1",
+      "teacherId": "T01"
+    },
+    {
+      "classId": "C2",
+      "teacherId": "T02"
+    },
+    {
+      "classId": "C3",
+      "teacherId": "T03"
+    },
+    {
+      "classId": "C4",
+      "teacherId": "T04"
+    },
+    {
+      "classId": "C5",
+      "teacherId": "T05"
+    },
+    {
+      "classId": "C6",
+      "teacherId": "T06"
+    },
+    {
+      "classId": "C7",
+      "teacherId": "T07"
+    },
+    {
+      "classId": "C8",
+      "teacherId": "T08"
+    },
+    {
+      "classId": "C9",
+      "teacherId": "T09"
+    }
+  ],
+  "assumptions": [
+    "담임 행은 추가 교사가 아닌 학급별 창체 1시간이다.",
+    "담임과 시간표 담당자 배정은 시험용이며 실제 보직을 뜻하지 않는다.",
+    "자료가 2학기분이므로 두 학기의 배정에 같은 시수를 쓰는 합성 연간 시나리오이다.",
+    "학사 일정·교시·학생은 합성이며 운영 자료로 가져오지 않는다."
+  ]
+}
