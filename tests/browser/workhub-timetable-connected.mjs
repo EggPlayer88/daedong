@@ -58,10 +58,23 @@ await context.route('**/*', route => {
 const agenda = () => page.getByRole('region', { name: '내 수업', exact: true })
 const detail = () => page.getByRole('region', { name: '선택한 수업', exact: true })
 const monday = date => { const value = new Date(date + 'T00:00:00Z'); value.setUTCDate(value.getUTCDate() - (value.getUTCDay() + 6) % 7); return value.toISOString().slice(0, 10) }
-async function boot() { await page.goto('http://127.0.0.1:5187/home'); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await agenda().getByRole('button', { name: /가온 원본 수업/ }).waitFor() }
+async function boot(time = '2026-10-28T00:00:00.000Z') { await page.goto('http://127.0.0.1:5187/home'); await page.clock.setFixedTime(new Date(time)); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await agenda().getByRole('button', { name: /가온 원본 수업/ }).waitFor() }
 async function go(name) { await clickWorkspaceMenu(page,name) }
 async function openLesson() { await agenda().getByRole('button', { name: /원본 수업/ }).click(); await detail().waitFor() }
-async function check(name, run) { await boot(); try { await run() } catch (error) { console.error(await page.locator('.workhub-connected').innerText()); console.error(await page.evaluate(() => window.state.calls)); throw error } passed.push(name); console.log('  ✓ ' + name) }
+async function selectCalendarDate(date) {
+  await page.getByRole('group', { name: '일정 보기 방식', exact: true }).getByRole('button', { name: '월', exact: true }).click()
+  // 선택일은 기준일 이틀 뒤다. 월말·연말에는 실제 다음 달 버튼을 눌러 대상 달을 연다.
+  const basis = await page.evaluate(() => window.state.basisDate)
+  const monthIndex = value => Number(value.slice(0, 4)) * 12 + Number(value.slice(5, 7))
+  const steps = monthIndex(date) - monthIndex(basis)
+  assert.ok(steps === 0 || steps === 1)
+  if (steps) await page.getByRole('button', { name: '다음 달', exact: true }).click()
+  const heading = Number(date.slice(0, 4)) + '년 ' + Number(date.slice(5, 7)) + '월'
+  await page.getByRole('heading', { name: heading, exact: true }).waitFor()
+  await page.locator('[data-calendar-day="' + date + '"]').click()
+}
+
+async function check(name, run, time) { await boot(time); try { await run() } catch (error) { console.error(await page.locator('.workhub-connected').innerText()); console.error(await page.evaluate(() => window.state.calls)); throw error } passed.push(name); console.log('  ✓ ' + name) }
 try {
   await check('실제 홈 수업에서 정확한 날짜·수업을 열고 교환 추천 서버에 같은 수업을 전달한다', async () => {
     const date = await page.evaluate(() => window.state.basisDate)
@@ -83,10 +96,14 @@ try {
     assert.equal(recommendation.args.p_member_id, 'gaon-soyeon')
     assert.equal(await page.evaluate(() => window.state.writes.length), 0)
   })
-  await check('일정에서 선택한 날짜의 수업이 오늘로 바뀌지 않고 변경 미리보기까지 전달된다', async () => {
+  for (const [label, time] of [
+    ['월말', '2026-10-28T00:00:00.000Z'],
+    ['같은 달', '2026-10-12T00:00:00.000Z'],
+    ['연말', '2026-12-28T00:00:00.000Z'],
+    ['윤년 2월말', '2028-02-26T00:00:00.000Z'],
+  ]) await check(label + ' 일정의 선택일을 변경 미리보기까지 그대로 전달한다', async () => {
     const date = await page.evaluate(() => window.state.selectedDate)
-    await go('학교 일정'); await page.getByRole('group', { name: '일정 보기 방식', exact: true }).getByRole('button', { name: '월', exact: true }).click()
-    await page.locator('[data-calendar-day="' + date + '"]').click()
+    await go('학교 일정'); await selectCalendarDate(date)
     await agenda().getByRole('button', { name: new RegExp(date + ' 가온 원본 수업') }).waitFor()
     await openLesson()
     assert.equal(await page.getByLabel('조회 시작일', { exact: true }).inputValue(), date)
@@ -103,7 +120,7 @@ try {
     assert.equal(request.args.p_input.lessonId, 'gaon-soyeon-' + date)
     assert.equal(request.args.p_input.target.startsAt.slice(0, 10), date)
     assert.equal(await page.evaluate(() => window.state.writes.length), 0)
-  })
+  }, time)
   await check('학교를 바꾸면 이전 수업 선택과 늦은 시간표 응답을 새 학교에 노출하지 않는다', async () => {
     await page.evaluate(() => window.state.holdOperations = true)
     await agenda().getByRole('button', { name: /가온 원본 수업/ }).click()
@@ -121,8 +138,7 @@ try {
   await check('학교 일정에서 시간표를 보고 돌아오면 월 보기·날짜·검색·관련 필터를 유지한다', async () => {
     const date = await page.evaluate(() => window.state.selectedDate)
     await go('학교 일정')
-    await page.getByRole('group', { name: '일정 보기 방식', exact: true }).getByRole('button', { name: '월', exact: true }).click()
-    await page.locator('[data-calendar-day="' + date + '"]').click()
+    await selectCalendarDate(date)
     await page.getByLabel('일정 검색', { exact: true }).fill('돌아올 때 유지할 검색어')
     await page.getByLabel('표시할 일정', { exact: true }).selectOption('related')
     await agenda().getByRole('button', { name: new RegExp(date + ' 가온 원본 수업') }).waitFor()
