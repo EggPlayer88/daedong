@@ -18,6 +18,22 @@ async function submit(){await page.getByLabel('변경되는 수업·시간·관�
 async function request(kind){await page.evaluate(kind=>window.addRequest(kind),kind);await page.getByRole('heading',{name:kind==='own'?'내 교사 · 수업 교환':'상대 교사 · 수업 교환',exact:true}).waitFor()}
 async function action(label){await page.getByRole('button',{name:label,exact:true}).click();const panel=page.getByRole('region',{name:'변경 요청 응답 확인',exact:true});await panel.getByLabel('현재 수업과 변경 내용을 확인했습니다',{exact:true}).check();await panel.getByRole('button',{name:'확인한 응답 보내기',exact:true}).click();await page.waitForFunction(()=>window.pending.count()===0&&window.actualWrites>0)}
 try{
+await check('정상 전송 대기와 응답 유실 안내를 구별하고 같은 번호로만 결과를 복구한다',async()=>{
+ await compose('move');await preview();await page.evaluate(()=>{window.holdNextExecute=true;window.failOnce=true});
+ await page.getByLabel('변경되는 수업·시간·관련 교사를 확인했으며 나는 이 변경안에 동의합니다',{exact:true}).check();await page.getByRole('button',{name:'내 동의와 변경 요청 보내기',exact:true}).click();
+ await page.waitForFunction(()=>typeof window.releaseExecute==='function');
+ await page.getByRole('heading',{name:'시간표 요청을 처리하고 있습니다',exact:true}).waitFor();
+ assert.equal(await page.getByRole('heading',{name:'원래 요청의 결과 확인이 필요합니다',exact:true}).count(),0);
+ assert.equal(await page.getByRole('button',{name:'처리 결과 확인 중…',exact:true}).isDisabled(),true);
+ assert.equal(await page.evaluate(()=>window.actualWrites),0);
+ await page.evaluate(()=>window.releaseExecute());
+ await page.getByRole('heading',{name:'원래 요청의 결과 확인이 필요합니다',exact:true}).waitFor();
+ await page.getByRole('button',{name:'원래 요청 결과만 다시 확인',exact:true}).click();
+ await page.getByText('담당자 승인 대기',{exact:true}).waitFor();
+ const calls=await page.evaluate(()=>window.calls.filter(c=>c.name.endsWith('_execute')));
+ assert.equal(calls.length,2);assert.equal(calls[0].args.p_request_key,calls[1].args.p_request_key);assert.equal(calls[1].args.p_recover_only,true);
+ assert.equal(await page.evaluate(()=>window.actualWrites),1);assert.equal(await page.evaluate(()=>window.pending.count()),0);
+});
 await check('재조회가 늦어져도 최신 내 수업과 상호 허용되는 미래 교환 후보만 선택한다',async()=>{
   await page.evaluate(()=>{
     const copy=structuredClone(window.view.lessons[1]);copy.id='wrong';copy.label='시간이 맞지 않는 수업';copy.allowedTargets=[];window.view.lessons.push(copy)
