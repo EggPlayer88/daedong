@@ -46,7 +46,7 @@ window.prepareAudienceReview=async(changed=false)=>{
  window.memory.bind(recoveryScope(member),'calendar-batch').save({raw,sourceKey:input.sourceKey,sourceLabel:input.sourceLabel,visibility:'school',table,mapping:suggestImportMapping(table.headers),omissionsConfirmed:false,preview,held:[],selected:[],confirmedConflicts:[],confirmed:false});
  window.remountBatch();return preview.rows[0].state;
 };
-function App(){const[revision,setRevision]=useState(0),[batchMount,setBatchMount]=useState(0),[locked,setLocked]=useState(false),[closed,setClosed]=useState(false);window.refresh=()=>setRevision(x=>x+1);window.remountBatch=()=>setBatchMount(x=>x+1);return <><button disabled={locked}>다른 화면</button><EditDraftsProvider store={window.memory}><PendingRequestsProvider store={window.pending}>{closed?<p>닫기 완료</p>:location.pathname==='/batch'?<CalendarBatchImport key={batchMount} connection={connection} member={member} members={members} date="2026-10-16" revision={revision} onClose={()=>setClosed(true)} onSaved={r=>window.saved.push(r)} onNavigationLockChange={setLocked}/>:<CooperationWorkspace connection={connection} member={member} date="2026-10-16" revision={revision} onNavigationLockChange={setLocked} onOpenTask={id=>{window.openedTask=id}}/>}</PendingRequestsProvider></EditDraftsProvider></>};createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
+function App(){const[revision,setRevision]=useState(0),[batchMount,setBatchMount]=useState(0),[locked,setLocked]=useState(false),[closed,setClosed]=useState(false);window.refresh=()=>setRevision(x=>x+1);window.remountBatch=()=>window.remountDelay?setTimeout(()=>setBatchMount(x=>x+1),window.remountDelay):setBatchMount(x=>x+1);return <><button disabled={locked}>다른 화면</button><EditDraftsProvider store={window.memory}><PendingRequestsProvider store={window.pending}>{closed?<p>닫기 완료</p>:location.pathname==='/batch'?<CalendarBatchImport key={batchMount} connection={connection} member={member} members={members} date="2026-10-16" revision={revision} onClose={()=>setClosed(true)} onSaved={r=>window.saved.push(r)} onNavigationLockChange={setLocked}/>:<CooperationWorkspace connection={connection} member={member} date="2026-10-16" revision={revision} onNavigationLockChange={setLocked} onOpenTask={id=>{window.openedTask=id}}/>}</PendingRequestsProvider></EditDraftsProvider></>};createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':'{}','process.env.NODE_ENV':'"development"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),passed=[],errors=[],external=[],output=process.env.WORKHUB_QA_OUTPUT
 page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5179/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:12px"><div id="root"></div></body></html>'})})
@@ -119,7 +119,7 @@ await check('실제 제외 대상 변경은 중복으로 숨기지 않고 사용
  assert.equal(await page.evaluate(()=>window.pending.count()),0);
 },'batch');
 await check('일괄 저장 응답 유실은 선택행·원본버전·요청번호를 보존하고 중복 생성하지 않는다',async()=>{await prepareCsv();await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('원본 변경 일정 저장 대상으로 선택',{exact:true}).check();await page.getByLabel('선택한 2개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();await page.evaluate(()=>window.failOnce=true);await page.getByRole('button',{name:'선택한 일정 한 번에 저장',exact:true}).click();await page.getByRole('button',{name:'같은 일괄 요청으로 결과 다시 확인',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),1);assert.equal(await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).isChecked(),true);assert.equal(await page.getByRole('button',{name:'검토 마치기',exact:true}).isDisabled(),true);await page.getByRole('button',{name:'같은 일괄 요청으로 결과 다시 확인',exact:true}).click();await page.getByRole('heading',{name:'2개 일정 저장 확인',exact:true}).waitFor();const c=await page.evaluate(()=>window.calls.filter(c=>c.name==='workhub_calendar_batch_commit'));assert.deepEqual(c[0],c[1]);assert.equal(await page.evaluate(()=>window.events.length),4);assert.equal(await page.evaluate(()=>window.events.find(e=>e.title==='원본 변경 일정').version),3);assert.equal(await page.evaluate(()=>window.pending.count()),0);assert.equal(await page.evaluate(()=>window.saved.length),1)},'batch')
-for(const recover of [false,true])await check(`일괄 ${recover?'응답 복구':'정상 저장'} 뒤 다른 원본은 이전 접수증·비교를 지우고 새 번호로 저장한다`,async()=>{
+for(const remountDelay of [0,300])for(const recover of [false,true])await check(`일괄 ${recover?'응답 복구':'정상 저장'} 뒤 ${remountDelay?'지연':'즉시'} 재진입한 다른 원본은 이전 접수증·비교를 지우고 새 번호로 저장한다`,async()=>{
  await prepareCsv();
  await page.getByLabel('새 일정 저장 대상으로 선택',{exact:true}).check();
  await page.getByLabel('선택한 1개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();
@@ -136,9 +136,18 @@ for(const recover of [false,true])await check(`일괄 ${recover?'응답 복구':
  assert.equal(await page.getByRole('button',{name:'열 연결 확인',exact:true}).isDisabled(),true);
  assert.equal(await page.getByRole('button',{name:'다른 화면',exact:true}).isEnabled(),true);
  assert.equal(await page.evaluate(()=>window.pending.count()),0);
- // 초기화한 탭 메모리를 다시 읽어도 이전 완료 상태가 살아나지 않는다.
- await page.evaluate(()=>window.remountBatch());
+ // 같은 제목은 이전 화면에도 있다. React가 이전 입력 요소를 제거한 뒤 새 화면을 확인한다.
+ const previousInput=await page.getByLabel('원본 묶음 ID',{exact:true}).elementHandle();assert(previousInput)
+ try{
+  await page.evaluate(delay=>{window.remountDelay=delay;window.remountBatch()},remountDelay)
+  await page.waitForFunction(input=>!input.isConnected,previousInput)
+ }finally{await previousInput.dispose()}
  await page.getByRole('heading',{name:'일정 일괄 가져오기',exact:true}).waitFor();
+ // 새로 읽은 탭 메모리에도 이전 완료 상태가 없어야 한다. 입력을 시작하기 전에 확인한다.
+ assert.equal(await page.getByLabel('원본 묶음 ID',{exact:true}).inputValue(),'')
+ assert.equal(await page.getByLabel('원본 표 붙여넣기',{exact:true}).inputValue(),'')
+ assert.equal(await page.getByRole('heading',{name:'1개 일정 저장 확인',exact:true}).count(),0)
+ assert.equal(await page.getByRole('heading',{name:'저장 전 전체 비교',exact:true}).count(),0)
  await prepareCsv('원본 ID,제목,시작일,설명\nA-next,다음 원본 일정,2026-10-21,새 묶음의 설명');
  await page.getByLabel('다음 원본 일정 저장 대상으로 선택',{exact:true}).check();
  await page.getByLabel('선택한 1개 일정의 내용·공개 범위와 보류 행을 확인했습니다.',{exact:true}).check();

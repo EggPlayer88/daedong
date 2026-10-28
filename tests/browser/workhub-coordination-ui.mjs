@@ -57,5 +57,12 @@ try{
  await check('새 학년도는 빈 공식 날짜를 유지하고 320px 큰 글씨에서도 세 화면이 잘리지 않는다',async()=>{
   await page.setViewportSize({width:320,height:800});for(const screen of ['calendar','cooperation','batch','transitions']){await start(screen,'dark','large');if(screen==='calendar'){await button('일정 등록').click();await page.locator('input[name=title]').fill('작은 화면 일정')}else if(screen==='cooperation'){await button('새 협업 요청').click()}else if(screen==='transitions'){await button('새 학년도 준비').click();assert.equal(await page.locator('input[type=date]').count(),6);for(const field of await page.locator('input[type=date]').all())assert.equal(await field.inputValue(),'');assert(await button('확인한 변경 요청').isDisabled())}await fits();for(const control of await page.locator('.wh-composer input:not([type=checkbox]),.wh-composer textarea,.wh-composer select,.wh-composer button').all()){if(!await control.isVisible())continue;const box=await control.boundingBox();assert(box.x>=0&&box.x+box.width<=321,screen+' 조작 요소 가로 범위')}assert.deepEqual(await page.evaluate(()=>window.coordination.writes),[])}await shot('08-year-dark-large')
  })
+ await check('640px·200% CSS 확대에서도 인계 복구 버튼을 키보드로 실행하고 원래 요청을 보존한다',async()=>{
+  await page.setViewportSize({width:640,height:1000});await start('transitions');await page.addStyleTag({content:'html{zoom:2}'})
+  await prepareHandover();await button('변경 대상 미리보기').click();await label('현재 대상과 변경 내용을 확인했습니다').check();await page.evaluate(()=>window.coordination.drop=true);await button('확인한 변경 요청').click()
+  const recover=button('원래 인계 요청 결과 확인');await recover.and(page.locator(':enabled')).waitFor();await fits();await recover.focus();await shot('11-handover-recovery-css-zoom-200')
+  await page.evaluate(()=>window.coordination.drop=false);await page.keyboard.press('Enter');await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.',{exact:true}).waitFor()
+  const writes=await page.evaluate(()=>window.coordination.writes);assert.equal(writes.length,2);assert.deepEqual(writes[0],writes[1]);assert.equal(await page.evaluate(()=>window.coordination.receipts.size),1)
+ })
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);writeFileSync(join(output,'results.json'),JSON.stringify({passed,errors,external},null,2)+'\n');console.log(`일정·협업·인계 UI ${passed.length}건 통과 · ${output}`)
 }catch(error){await page.screenshot({path:join(output,'failure.png'),fullPage:true}).catch(()=>{});throw error}finally{await browser.close()}

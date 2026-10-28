@@ -1,0 +1,55 @@
+{
+  "date": "2026-10-28",
+  "base": "7269bb64b8ef4b45fe8d3f8fdf3577c57a938e3d",
+  "mainCI": {"runId": 40616822275, "status": "completed", "conclusion": "success"},
+  "automated": {
+    "unitPassed": 5204,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "browserPassed": 146,
+    "browserSuites": {
+      "workhub-school-transitions": 53,
+      "workhub-document-collection-flow": 11,
+      "workhub-collection-server": 38,
+      "workhub-document-library-ui": 14,
+      "workhub-coordination-ui": 8,
+      "workhub-cooperation-batch": 22
+    },
+    "browserTransport": "synthetic",
+    "cssZoom200": "passed",
+    "rootFont32px": "passed"
+  },
+  "ciFollowup": {
+    "failedRunId": 40628863419,
+    "failedHead": "d78ef20055196474f47461ecb4299547648c4eb9",
+    "browserFilesPassed": 144,
+    "browserFilesTotal": 145,
+    "failedSuite": "workhub-cooperation-batch",
+    "fix": "wait for previous input detachment before re-entering the form",
+    "reproduction": "delayed remount proves the old heading wait accepts stale DOM; full CI event ordering not reproduced",
+    "remountDelayMs": [0, 300],
+    "localPassed": 22,
+    "requiresNewCISuccess": true
+  },
+  "production": {
+    "scope": "existing administrator and one existing teacher test account",
+    "timetableRestored": true,
+    "collectionHandoverRestored": true,
+    "documentDraftSave": "passed",
+    "documentFinalSubmit": "passed",
+    "teacherDownload": "passed",
+    "managerZip": "passed",
+    "zipHwpxCount": 1,
+    "csvDataRowCount": 1,
+    "fileBytes": 12633,
+    "sourceDownloadZipSha256": "5c6c4dc7dac1617a2d246374b5979d46cc4b0bb27d5937dc0badcd2d1047fcf4",
+    "filesByteEqual": true,
+    "responsiveViewportWidths": [320, 390],
+    "browserActualZoom200": "not_verified",
+    "physicalMobileKeyboard": "not_verified",
+    "newNoticeDeployed": false
+  },
+  "unchanged": ["database", "server contracts", "authentication", "permissions", "visibility", "AI billing", "file generation"],
+  "newSQLRequired": false,
+  "localEvidence": ".tmp-operation-finish/"
+}
