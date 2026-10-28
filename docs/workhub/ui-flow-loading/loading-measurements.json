@@ -1,0 +1,108 @@
+[
+  {
+    "directory": ".tmp-ui-flow-baseline",
+    "conditions": {
+      "runs": 5,
+      "cpuSlowdown": 4,
+      "latencyMs": 60,
+      "downloadBytesPerSecond": 200000,
+      "cache": "새 컨텍스트·no-store",
+      "source": "로컬 빌드·비로그인"
+    },
+    "initialJavaScript": {
+      "bytes": 509353,
+      "gzipBytes": 152090,
+      "files": [
+        {
+          "file": "assets/index-CU9H3i-K.js",
+          "bytes": 509353,
+          "gzipBytes": 152090
+        }
+      ]
+    },
+    "medians": {
+      "domMs": 1084,
+      "fcpMs": 1208
+    },
+    "samples": [
+      {
+        "domMs": 1136,
+        "fcpMs": 1292,
+        "scriptBytes": 152090
+      },
+      {
+        "domMs": 1097,
+        "fcpMs": 1240,
+        "scriptBytes": 152090
+      },
+      {
+        "domMs": 1066,
+        "fcpMs": 1192,
+        "scriptBytes": 152090
+      },
+      {
+        "domMs": 1060,
+        "fcpMs": 1204,
+        "scriptBytes": 152090
+      },
+      {
+        "domMs": 1084,
+        "fcpMs": 1208,
+        "scriptBytes": 152090
+      }
+    ]
+  },
+  {
+    "directory": "apps/main/dist",
+    "conditions": {
+      "runs": 5,
+      "cpuSlowdown": 4,
+      "latencyMs": 60,
+      "downloadBytesPerSecond": 200000,
+      "cache": "새 컨텍스트·no-store",
+      "source": "로컬 빌드·비로그인"
+    },
+    "initialJavaScript": {
+      "bytes": 425885,
+      "gzipBytes": 125052,
+      "files": [
+        {
+          "file": "assets/index-BFNQwF1N.js",
+          "bytes": 425885,
+          "gzipBytes": 125052
+        }
+      ]
+    },
+    "medians": {
+      "domMs": 922,
+      "fcpMs": 1076
+    },
+    "samples": [
+      {
+        "domMs": 958,
+        "fcpMs": 1092,
+        "scriptBytes": 125052
+      },
+      {
+        "domMs": 957,
+        "fcpMs": 1124,
+        "scriptBytes": 125052
+      },
+      {
+        "domMs": 922,
+        "fcpMs": 1076,
+        "scriptBytes": 125052
+      },
+      {
+        "domMs": 921,
+        "fcpMs": 1064,
+        "scriptBytes": 125052
+      },
+      {
+        "domMs": 916,
+        "fcpMs": 1072,
+        "scriptBytes": 125052
+      }
+    ]
+  }
+]

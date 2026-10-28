@@ -20,9 +20,23 @@ export default function Layout() {
     previousPath.current = pathname
     // 업무실 내부 초점은 자체 셸이 맡고, 기존 업무 사이 이동만 제목으로 안내한다.
     if (!workhub) {
-      const target = content.current?.querySelector('h2') ?? content.current
+      const region = content.current
+      const target = region?.querySelector('h2') ?? region
       target?.setAttribute('tabindex', '-1')
       target?.focus()
+      // 지연 로딩 후 제목이 나타나면 이어서 안내한다. 사용자가 다른 곳으로 이동했다면 빼앗지 않는다.
+      if (region?.querySelector('[data-page-loading]')) {
+        const observer = new MutationObserver(() => {
+          const heading = region.querySelector('h2')
+          if (!heading) return
+          observer.disconnect()
+          if (document.activeElement !== region) return
+          heading.setAttribute('tabindex', '-1')
+          heading.focus()
+        })
+        observer.observe(region, { childList: true, subtree: true })
+        return () => observer.disconnect()
+      }
     }
   }, [pathname, workhub])
   const navigation = <nav className="nav" aria-label="기존 업무 메뉴">{menu.map(m => (

@@ -830,6 +830,8 @@ body { line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .site-skip-link:focus { clip-path: none; pointer-events: auto; }
 .app :focus-visible, .login :focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .site-page :is(h2, h3, [id], input) { scroll-margin-top: 24px; }
+.site-page-loading { min-height: 180px; padding-block: 20px; }
+.site-page-loading p { max-width: 660px; line-height: 1.7; overflow-wrap: anywhere; }
 @media (max-width: 960px) {
   .app:not(.app-workhub) > .topbar .brand { flex: 1; }
   .app:not(.app-workhub) > .topbar .nav { order: 3; flex-basis: 100%; }
