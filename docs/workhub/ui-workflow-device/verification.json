@@ -1,0 +1,101 @@
+{
+  "date": "2026-10-28",
+  "basisCommit": "f598e242d81d97a746521c80a28d7a61ac5b4c9d",
+  "implementationCommits": [
+    "a65c506",
+    "3f9cd63"
+  ],
+  "mainCi": {
+    "status": "in_progress",
+    "conclusion": null,
+    "head_sha": "f598e242d81d97a746521c80a28d7a61ac5b4c9d",
+    "html_url": "https://github.com/EggPlayer88/daedong/actions/runs/40608200619"
+  },
+  "production": {
+    "sha": "f598e242d81d97a746521c80a28d7a61ac5b4c9d",
+    "state": "success"
+  },
+  "unit": {
+    "command": "npm test",
+    "passed": 5204,
+    "failedFiles": 0,
+    "skipped": 0,
+    "initialRun": "test_workhub_release_verification.mjs 1개 파일 실패. 기준 변경 없이 단독 64건 통과 후 독립 임시 경로의 전체 재실행 5204건 통과. 최초 실패 원인은 확정하지 않음."
+  },
+  "browser": {
+    "passed": 161,
+    "failed": 0,
+    "suites": [
+      {
+        "suite": "workhub-cooperation-batch",
+        "passed": 20,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-module-loading",
+        "passed": 10,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-timetable-exchanges",
+        "passed": 24,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-timetable-workflow-ui",
+        "passed": 8,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-mobile-navigation",
+        "passed": 16,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-cooperation-handover",
+        "passed": 15,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-school-transitions",
+        "passed": 51,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-document-collection-flow",
+        "passed": 10,
+        "failed": 0
+      },
+      {
+        "suite": "workhub-coordination-ui",
+        "passed": 7,
+        "failed": 0
+      }
+    ],
+    "server": "synthetic",
+    "physicalMobile": false,
+    "nativeBrowserZoom": false,
+    "cssZoomPercent": 200,
+    "widths": [
+      320,
+      390,
+      640
+    ]
+  },
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "live": {
+    "cooperation": "create / accept / request_completion / confirm_completion: completed, version 4",
+    "timetable": "preview checked; consent and submit clicked once; receipt/approval/restore unverified after computer-control stopped",
+    "handover": "not performed this turn",
+    "collectionSubmission": "not performed this turn"
+  },
+  "preserved": [
+    "DB",
+    "authentication",
+    "permissions",
+    "publicity",
+    "AI pricing",
+    "file generation"
+  ]
+}
