@@ -1,0 +1,254 @@
+[
+  {
+    "path": "migrations/001_users_departments.sql",
+    "sha256": "356b0f91775122d98352a4d997d68e3cf143a6c827028c585abb1fde103fc488"
+  },
+  {
+    "path": "migrations/002_schedules_tasks.sql",
+    "sha256": "3dccef010398f05fcf5bf666088356a82c6efaf784348bb6e7e5f8c2231f13e3"
+  },
+  {
+    "path": "migrations/003_signup_approval.sql",
+    "sha256": "be498517ffbb47373d711dbbcc5f0bf064ffd42472019b7338fc05a1281ee507"
+  },
+  {
+    "path": "migrations/004_doc_ai_conversations.sql",
+    "sha256": "4af5e32067ddde7ecfe5c102d612d4c0060da3a740ac49437f7c4906177b6cfd"
+  },
+  {
+    "path": "migrations/005_doc_submissions.sql",
+    "sha256": "ff073f382cf296902669fd7c7e0e5c9df3cc9a17f9fe50863366ddd7f26d6305"
+  },
+  {
+    "path": "migrations/006_calendar.sql",
+    "sha256": "cd4d83da5144ff263e263a4bc349d0fbbae70624218a5a0b241554556cb08b0c"
+  },
+  {
+    "path": "migrations/007_submission_delete.sql",
+    "sha256": "d71971680d222d7b48803af8820aa394721456e16b6a79cef60680d2dfe23bc8"
+  },
+  {
+    "path": "database/workhub/r0/R0-01_B01_기반.sql",
+    "sha256": "16855e4fc0c50a32271c9b9121074b95288203b4ed7620192e2f8e85699d323a"
+  },
+  {
+    "path": "database/workhub/r0/R0-02_B02_일정업무.sql",
+    "sha256": "97f553d38af844c33b95c32be1b65cabd76bff45b7c61e731c8071a522ef9d7f"
+  },
+  {
+    "path": "database/workhub/r1/R1-01_정책_파일_실행.sql",
+    "sha256": "68a60b24b4c3c937caa4ebb49028404848bfc57ad0f6a9e94136a97abb9c04f4"
+  },
+  {
+    "path": "database/workhub/r1/R1-02_수합_원본.sql",
+    "sha256": "5f53ed8bc0662cc424b18ebbded92db6bb794642b143990c025865a9126d3bca"
+  },
+  {
+    "path": "database/workhub/r1/R1-03_공개함수_Storage.sql",
+    "sha256": "15ba21450a43cbcb5661ab585950300621504f09c9cf7bbbfb20155f0a41fed4"
+  },
+  {
+    "path": "database/workhub/r1s/R1S-01_모델_쓰기게이트.sql",
+    "sha256": "4af797e72496321c6d88a9d4edb83de5aa98595b331ee19be8a5ccbae189be44"
+  },
+  {
+    "path": "database/workhub/r1s/R1S-02_공개함수_권한.sql",
+    "sha256": "3239044a7b4f179117ccf02464a73bceeaf72b57e052084d60ebb8486a54ae0c"
+  },
+  {
+    "path": "database/workhub/p1/P1-01_학교관리_모델.sql",
+    "sha256": "bba3ee158c42e3f81c2667591c6de58a34c887e1fa234dde9640d121c5a58f46"
+  },
+  {
+    "path": "database/workhub/p1/P1-02_학교관리_공개함수.sql",
+    "sha256": "a34e86b55b1421f64c4e50b694902a25d357905730a216e53964aead31cb2a5d"
+  },
+  {
+    "path": "database/workhub/p2/P2-01_일정일괄_협업_모델.sql",
+    "sha256": "9360a5eaad0cc210cb696cf0e29ddd786b9267b0463c983a8bbca223ca918068"
+  },
+  {
+    "path": "database/workhub/p2/P2-02_일정일괄_협업_공개함수.sql",
+    "sha256": "99f6de8fb88e5fdab18f2b8e130cd6e3b51fc6494f9c987ceb8d6cddc31be1b3"
+  },
+  {
+    "path": "database/workhub/p3/P3-01_메시지_알림_모델.sql",
+    "sha256": "989790d5347b8ff8cc01c17b8a37279507b985edf3df1c8e10932da6c405a611"
+  },
+  {
+    "path": "database/workhub/p3/P3-02_메시지_공개함수_Storage.sql",
+    "sha256": "4aa9bb7aa6d4c4501ea81a20e1df4a1f8d8b2b00d1776fb14d63164ae3df53c3"
+  },
+  {
+    "path": "database/workhub/p4/P4-01_자료_문서_모델.sql",
+    "sha256": "26c43c7c0fcf165a28cb80ff4fea7fb05724e99f1053e404d2f9510f776602c1"
+  },
+  {
+    "path": "database/workhub/p4/P4-02_자료_문서_공개함수_Storage.sql",
+    "sha256": "acd5dbcb6ee7306129d495a6c5b4be8cddb2fbae926f98c6d94914387775aa71"
+  },
+  {
+    "path": "database/workhub/p5/P5-01_수업학생_모델.sql",
+    "sha256": "4646e2c107772bc100e0e92815dfd55539bfeb566585b9bd1417881b132e6f42"
+  },
+  {
+    "path": "database/workhub/p5/P5-02_수업학생_공개함수.sql",
+    "sha256": "f4ad94566fcee4861f20a3231bb8335de4cf966430ac7df687ca0f7a1b580384"
+  },
+  {
+    "path": "database/workhub/p6/P6-01_비서_모델.sql",
+    "sha256": "1db7c70aa27381327dcb7eb460f82cfa9c45b4c2b2c4b0af8ad627157f73a136"
+  },
+  {
+    "path": "database/workhub/p6/P6-02_비서_공개함수.sql",
+    "sha256": "b411a087917cc0e5d8289258330e3c17d7cabfeba6c317f8bb5a2e05a17a6fad"
+  },
+  {
+    "path": "database/workhub/p7/P7-01_운영_전환_모델.sql",
+    "sha256": "c2636abd8b4c49f451235284d8226caf2af5081a3a46261f94aab20729325595"
+  },
+  {
+    "path": "database/workhub/p7/P7-02_운영_전환_공개함수.sql",
+    "sha256": "c51e7f207b5c19bb4579f0be7681e040ddeba48fe1d1d27b2295c7f765f86998"
+  },
+  {
+    "path": "database/workhub/p7/P7-05_R1_P2_보강_별도승인.sql",
+    "sha256": "228664f7d078c21eabd0131cbbca23c69728ff5a5d5244fbe7c3630912b16f91"
+  },
+  {
+    "path": "database/workhub/p8/P8-01_학년도_시작연도.sql",
+    "sha256": "29aaeacc314645950e1cdc68e5a7fda75584c92745c78680e4bb7389451d5d16"
+  },
+  {
+    "path": "database/workhub/p8/P8-02_협업_알림.sql",
+    "sha256": "8482d2dfcb86de62a751b8d44c6a464c91f74c0b2ccb5151111489acab4d2936"
+  },
+  {
+    "path": "database/workhub/p8/P8-03_업무인계_관리자확인.sql",
+    "sha256": "9ce8fbecd5fbcd4a2af193a0367a390945cf381b0d74034acf2d6606692fd4fe"
+  },
+  {
+    "path": "database/workhub/p8/P8-04_수업_담당수강_변경.sql",
+    "sha256": "47f74a04465b2e249312f16287e011cdf5ed475f5787b66858a757394854ce8c"
+  },
+  {
+    "path": "database/workhub-timetable/t1/T1-01_편성기반_모델.sql",
+    "sha256": "9cd108ef8e8f9a94d361f80688e47916335b9c08ce6afc7f498dd32c2583916a"
+  },
+  {
+    "path": "database/workhub-timetable/t1/T1-02_R0증분_학기기준판_제약.sql",
+    "sha256": "73a2c51d4fb887be473ee19b32a393d6cf4e3a86becec88071c2d99476268029"
+  },
+  {
+    "path": "database/workhub-timetable/t1/T1-03_편성기반_공개함수.sql",
+    "sha256": "0c9346a106682727dbeb3a9353aa206bdfd7427e1b118678b32b683a23af2071"
+  },
+  {
+    "path": "database/workhub-timetable/t1/T1-07_대상학기_선택.sql",
+    "sha256": "83f3b84a43019db48b31e5583101719c23d8ca10859328abb31a828243982c08"
+  },
+  {
+    "path": "database/workhub-timetable/t2/T2-01_운영_모델.sql",
+    "sha256": "fd330fd21d61be8827349bf4efc0ea8b32bc9b41d26226ad8506b1bfe3623a69"
+  },
+  {
+    "path": "database/workhub-timetable/t2/T2-02_알림출처_시간표.sql",
+    "sha256": "76af65d0305c2a361a6a5922886d0397f45f0d60a3b84feb4e247a47ee84927f"
+  },
+  {
+    "path": "database/workhub-timetable/t2/T2-03_조회_공개.sql",
+    "sha256": "c2fee5b16a0fbeb06eea441c9e0d9398d02012d275522a599cf3973414e5e19b"
+  },
+  {
+    "path": "database/workhub-timetable/t2/T2-04_교환_요청.sql",
+    "sha256": "3c64bcf7408fc6baf161a96da559bd489004010dd52f3d843b8cf8202eaa2f69"
+  },
+  {
+    "path": "database/workhub-timetable/t2/T2-05_학사변경.sql",
+    "sha256": "ab3375a276f4fa5f3bf0e9d1a43cc0f35af22669d1ae99d6014a8c52c8fb99f6"
+  },
+  {
+    "path": "database/workhub-timetable/t2/T2-06_실시기록.sql",
+    "sha256": "70beae7417793c452ebcfd40bbf18e639bc28086d23b478465f29e104282bde0"
+  },
+  {
+    "path": "database/workhub-school-data/p9/P9-01_교사연결_모델과함수.sql",
+    "sha256": "c673a859b6953b214708e6872ef2439c18c44e605b25112e3dbd7541c0d85415"
+  },
+  {
+    "path": "database/workhub-school-data/p9/P9-02_담당교사후보_분리.sql",
+    "sha256": "aea26be3b95c2b73aad8d9e40dbf6f61e1cff4cb34033e7256a581774dcea18e"
+  },
+  {
+    "path": "database/workhub-school-data/p10/P10-01_정정_모델과함수.sql",
+    "sha256": "96118b7ad6c09034480e0b10a191fc3be7d3258ab73ea8b8869a0d4170ca3e81"
+  },
+  {
+    "path": "database/workhub-school-data/p10/P10-02_기존쓰기와시간표_보호.sql",
+    "sha256": "fea2536abf2edb2273aa6e715734440a4bfcfb6d69036f6ab4ca7d4f9cf4a25b"
+  },
+  {
+    "path": "database/workhub-timetable/t3/T3-01_운영확장_모델.sql",
+    "sha256": "d2947d90ce88347403554284fddbf40b6cbc627e85dcf4538301cc660d2cca63"
+  },
+  {
+    "path": "database/workhub-timetable/t3/T3-02_운영확장_공개함수.sql",
+    "sha256": "722e8078864d6e7a29d57b147d7508a62044303ddf732dbdb7afd1a9849109d7"
+  },
+  {
+    "path": "database/workhub-timetable/t3/T3-03_기존운영_보존훅.sql",
+    "sha256": "1eddad51e4a5d8e25f2cd34118917b3bf9da215a6f2220550aa978de9c7f2d76"
+  },
+  {
+    "path": "database/workhub-timetable/t4/T4-01_정식시간표_가져오기.sql",
+    "sha256": "7a89708c9c93527e18d11cc0c773509268f68b00af2465318a3f1b960ea16a5b"
+  },
+  {
+    "path": "database/workhub-ai-policy/p10/P10-01_학교AI_모델.sql",
+    "sha256": "b4c7648f3e8102f6041d98cccde4267be32cfab2b79486f46cb827dcb970d1a1"
+  },
+  {
+    "path": "database/workhub-ai-policy/p10/P10-02_학교AI_공통실행.sql",
+    "sha256": "81707c4f943f5cc56e010e5668cb4422e205a569120b9aba34b345b73fa585f9"
+  },
+  {
+    "path": "database/workhub-ai-policy/p10/P10-03_학교AI_관리.sql",
+    "sha256": "e83a9c182ad025d928867c3e2ee001715bd5745aa6f529532403fd41741822e1"
+  },
+  {
+    "path": "database/workhub-ai-policy/p10/P10-09_운영현황_조회.sql",
+    "sha256": "0f1abd36f2e08426db72bbb728c5cd3855018be1ca9d8e5ba3ff4ad9a57f1cd1"
+  },
+  {
+    "path": "database/workhub-ai-policy/p10/P10-10_서버진단_조회.sql",
+    "sha256": "1346d850e715ed4dfefc47015623127b5794d4decc0e73cb1d1bb3c333a3a0b5"
+  },
+  {
+    "path": "database/workhub-knowledge-history/k1/K1-01_학교자료_판별조회.sql",
+    "sha256": "344f20e6bba3d16f33033e42af8ab4363fc1f9f4eda52e505787bdd972ac7c8e"
+  },
+  {
+    "path": "database/workhub-ai-memory/m1/M1-01_개인기억_모델과함수.sql",
+    "sha256": "90ea9609fc5e62aec650a081598d24f08cf652236e760624099fc202811dff6c"
+  },
+  {
+    "path": "database/workhub-storage-download/s1/S1-01_수합_Storage정보조회_호환.sql",
+    "sha256": "6f3e54c3c4f9790a932287ea47b37327b8dbad0c2208e2a68b2ab9e630e8e13e"
+  },
+  {
+    "path": "database/workhub-storage-download/s2/S2-01_생성문서_Storage정보조회_호환.sql",
+    "sha256": "ad2a900cc9f8c2abe5067a1f9708562f69772720841ce4c4c0c0834a31e2b3e3"
+  },
+  {
+    "path": "database/workhub-storage-download/s3/S3-01_학교자료_Storage정보조회_호환.sql",
+    "sha256": "eb9d8dc0bda49bb17a571e2567af5b74e610d7efc833710e019f8ab91bb041b0"
+  },
+  {
+    "path": "database/workhub-messaging-pilot/mp1/MP1-01_메신저시험_모델과함수.sql",
+    "sha256": "83aacee2ccf04ebf37f64ebe5f7e42059e387325fde638108845822d5739b359"
+  },
+  {
+    "path": "database/workhub-participation/op1/OP1-01_업무참여_모델과함수.sql",
+    "sha256": "a935525331506bcaeae187f56f84b9476db29b30c892719e20a3744fda553ab7"
+  }
+]
