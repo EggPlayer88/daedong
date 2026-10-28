@@ -6,17 +6,30 @@
     "unitPassed": 5204,
     "typecheck": "passed",
     "productionBuild": "passed",
-    "browserPassed": 124,
+    "browserPassed": 146,
     "browserSuites": {
       "workhub-school-transitions": 53,
       "workhub-document-collection-flow": 11,
       "workhub-collection-server": 38,
       "workhub-document-library-ui": 14,
-      "workhub-coordination-ui": 8
+      "workhub-coordination-ui": 8,
+      "workhub-cooperation-batch": 22
     },
     "browserTransport": "synthetic",
     "cssZoom200": "passed",
     "rootFont32px": "passed"
+  },
+  "ciFollowup": {
+    "failedRunId": 40628863419,
+    "failedHead": "d78ef20055196474f47461ecb4299547648c4eb9",
+    "browserFilesPassed": 144,
+    "browserFilesTotal": 145,
+    "failedSuite": "workhub-cooperation-batch",
+    "fix": "wait for previous input detachment before re-entering the form",
+    "reproduction": "delayed remount proves the old heading wait accepts stale DOM; full CI event ordering not reproduced",
+    "remountDelayMs": [0, 300],
+    "localPassed": 22,
+    "requiresNewCISuccess": true
   },
   "production": {
     "scope": "existing administrator and one existing teacher test account",
