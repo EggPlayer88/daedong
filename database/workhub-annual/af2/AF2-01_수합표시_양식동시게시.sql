@@ -85,7 +85,12 @@ CREATE FUNCTION public.workhub_collection_presentation(p_member_id text,p_operat
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 DECLARE ctx workhub_private.actor_context; result jsonb;
 BEGIN
- ctx:=workhub_private.member_actor(p_member_id,p_operation='publish');
+ -- 상태 조회만 기존 수합 참여 범위를 따른다. 양식 제작·게시는 기존 관리자 제한을 유지한다.
+ IF p_operation='statuses' AND to_regprocedure('workhub_private.op1_actor(text,boolean,text)') IS NOT NULL THEN
+  ctx:=workhub_private.op1_actor(p_member_id,false,'collections');
+ ELSE
+  ctx:=workhub_private.member_actor(p_member_id,p_operation='publish');
+ END IF;
  IF p_operation='publish' THEN PERFORM workhub_private.lock_member_roles(ctx); END IF;
  BEGIN
   IF NOT workhub_private.p4_installed() THEN RAISE EXCEPTION 'NOT_READY'; END IF;

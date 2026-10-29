@@ -3,7 +3,7 @@ WITH expected(name,hash) AS (VALUES
 ('workhub_private.af2_statuses','0fffe8e5cbc2e328806168e8b932e29f'),
 ('workhub_private.af2_targets','38230a7ad96021a80abc653a25af3cd4'),
 ('workhub_private.af2_publish','52eeb4f5c62d9cdcd93b369f5f85162b'),
-('public.workhub_collection_presentation','3b2ba0c5b502b4d69c2e8a7a09755ba6')
+('public.workhub_collection_presentation','ca6549e8682906a8166d2c40bc275341')
 ), f AS (
  SELECT e.*,p.oid,p.prosecdef,p.proconfig,pg_get_userbyid(p.proowner) owner,md5(replace(p.prosrc,chr(13),'')) actual
  FROM expected e LEFT JOIN pg_proc p ON p.pronamespace::regnamespace::text||'.'||p.proname=e.name

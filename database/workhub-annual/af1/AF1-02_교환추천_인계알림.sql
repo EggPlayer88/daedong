@@ -66,7 +66,21 @@ BEGIN
                          ELSE jsonb_build_array('같은 주 안에서 겹치지 않고 옮기거나 맞바꿀 수 있는 시간을 찾지 못했습니다.') END,
     'candidates', v_cands);
 END $body$);END $af$;
-DO $af$ DECLARE f regprocedure:='workhub_private.p7_tr_mutate(workhub_private.actor_context,jsonb,text)'::regprocedure; b text; d text; BEGIN SELECT replace(prosrc,chr(13),''),replace(pg_get_functiondef(oid),chr(13),'') INTO b,d FROM pg_proc WHERE oid=f; IF md5(b)<>'7920e6628ffce39ceefab33e01d84898' THEN RAISE EXCEPTION 'AF1: p7_tr_mutate 원문 불일치'; END IF; EXECUTE replace(d,b,$body$
+DO $af$ DECLARE f regprocedure:='workhub_private.p7_tr_mutate(workhub_private.actor_context,jsonb,text)'::regprocedure; b text; d text; nb text; v_op1 boolean := false;
+BEGIN
+ -- 이미 적용한 OP1 참여 제한을 새 인계 알림 함수에도 그대로 보존한다.
+ IF to_regclass('workhub_private.op1_installs') IS NOT NULL THEN
+  EXECUTE 'SELECT EXISTS(SELECT 1 FROM workhub_private.op1_installs WHERE batch=''OP1-01'')' INTO v_op1;
+  IF NOT v_op1 THEN RAISE EXCEPTION 'AF1: OP1 설치 기록을 확인하세요'; END IF;
+ END IF;
+ IF v_op1 IS DISTINCT FROM (to_regprocedure('workhub_private.op1_reachable_transitions(text,text)') IS NOT NULL) THEN
+  RAISE EXCEPTION 'AF1: OP1 설치와 인계 참여 함수가 일치하지 않습니다';
+ END IF;
+ SELECT replace(prosrc,chr(13),''),replace(pg_get_functiondef(oid),chr(13),'') INTO b,d FROM pg_proc WHERE oid=f;
+ IF md5(b)<>(CASE WHEN v_op1 THEN '390c1fa721426116119dc19c4ba96078' ELSE '7920e6628ffce39ceefab33e01d84898' END) THEN
+  RAISE EXCEPTION 'AF1: p7_tr_mutate 원문 불일치';
+ END IF;
+ nb := $body$
 DECLARE
   q workhub.operation_requests; t workhub.transition_records; e jsonb; y workhub.academic_years; v_hash text; v_kind text;
   v_bucket bigint := workhub_private.p7_bucket(clock_timestamp()); v_now timestamptz := clock_timestamp(); v_resp jsonb;
@@ -237,7 +251,10 @@ BEGIN
   v_resp := jsonb_build_object('requestKey', p_key, 'recordId', t.id, 'version', t.version, 'state', t.state, 'recordedAt', workhub_private.p2_ts(v_now));
   PERFORM workhub_private.p7_record(p_ctx, 'transitions', p_key, v_hash, t.id, v_resp);
   RETURN v_resp;
-END $body$);END $af$;
+END $body$;
+ IF v_op1 THEN nb:=replace(nb,'workhub_private.p2_member_reachable(','workhub_private.op1_reachable_transitions('); END IF;
+ EXECUTE replace(d,b,nb);
+END $af$;
 DO $af$ DECLARE v text;BEGIN SELECT pg_get_constraintdef(oid) INTO v FROM pg_constraint WHERE conrelid='workhub.notifications'::regclass AND conname='notifications_source_check';IF md5(v)<>'d8bc24335b1b2e7e5b399390d10ca054' THEN RAISE EXCEPTION 'AF1: 알림 출처 제약 불일치';END IF;END $af$;
 ALTER TABLE workhub.notifications DROP CONSTRAINT notifications_source_check;
 ALTER TABLE workhub.notifications ADD CONSTRAINT notifications_source_check CHECK ((((source_module IS NULL) = (source_id IS NULL)) AND ((source_module IS NULL) OR (source_module = ANY (ARRAY['calendar'::text, 'tasks'::text, 'collections'::text, 'messages'::text, 'students'::text, 'knowledge'::text, 'cooperation'::text, 'timetable'::text, 'transitions'::text]))) AND ((source_id IS NULL) OR (source_id ~ '^[a-zA-Z0-9_-]{1,100}$'::text))));
