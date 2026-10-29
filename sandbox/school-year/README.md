@@ -40,7 +40,7 @@
 2. `node scripts/school-sandbox/install.mjs <비공개파일> foundation`.
 3. `node scripts/school-sandbox/accounts.mjs <비공개파일>` — Auth 임시 계정과 R0 첫 학교.
 4. `node scripts/school-sandbox/install.mjs <비공개파일> modules` — 확정 원문 해시를 대조한 증분 63개 전체.
-5. `node scripts/school-sandbox/overrides.mjs <비공개파일>` — 복제에서만 시계/시험 명단 차이 적용. SB-01과 SB-02를 순서대로 적용하고 원문/적용 해시를 보관한다.
+5. `node scripts/school-sandbox/overrides.mjs <비공개파일>` — 복제에서만 시계/시험 명단 차이 적용. SB-01 → SB-02 → SB-03을 순서대로 적용하고 원문/적용 해시를 보관한다.
 6. `node scripts/school-sandbox/seed.mjs <비공개파일>` — 가명 학교 자료.
 7. `node scripts/school-sandbox/activate.mjs <비공개파일> local-build` — 기본 모듈. 파일/AI 서버 활성화와 구분한다.
 8. `TIMETABLE_PYTHON`에 OR-Tools 9.15.6755 인터프리터를 지정하고 `timetables.mjs <비공개파일>` 실행. 원래 준비/확정/공개 RPC와 앱 parser로 검증한다.
@@ -64,3 +64,14 @@
 - 가상 시계는 2027-03-01 00:00(한국 시간)에 일시정지해 두었다. 1년 운영 자체는 아직 수행하지 않았으며 Claude에게 맡길 시험이다.
 
 시험 진단 로그는 복제 플래그와 DB 주소가 모두 맞을 때 오류 종류·파일명·함수명·줄 번호만 남긴다. 예외 메시지·질문·키·지역 변수는 남기지 않으며 일반 배포에서는 동작하지 않는다.
+
+
+## 연간 시험 피드백: SB-03 (2026-10-29)
+
+- Claude 전달본 SB-03은 사용자가 이미 시험 DB에 적용했다. Codex도 읽기 전용 함수 조회에서 `WHERE singleton` 반영을 확인했다. 현재 시험에는 재실행할 필요가 없다.
+- SB-01·SB-02 원문은 그대로 보존했다. 다음 **새 복제 설치**에서 누락되지 않도록 overrides.mjs에 SB-03 순서를 추가했다. 진행 중인 시험에 전체 설치기·seed·초기 검증을 다시 실행하지 않는다.
+- 저장소 SB-03은 전달본의 변경 내용(WHERE 한 곳 추가)은 같고, 안전장치는 강화했다. 정확한 public 함수 시그니처, 줄바꿈을 LF로 정규화한 원문 지문(`9260cd8a170b0c55705977173c7062d7`)을 검사한다. 다른 스키마의 동명 함수를 수정하지 않고, 이미 WHERE가 있어도 다른 변경이 섞이면 중단한다.
+- 원래 함수의 권한·소유자·멱등성·시계 규칙·예산은 바꾸지 않는다. 이미 보강된 함수는 재생성하지 않는다. 적용 파일이 시계 상태나 이력을 초기화하는 쓰기는 없다.
+- sandbox SQL의 WHERE 없는 UPDATE는 SB-01의 예산과 시계 두 곳이었다. 각각 SB-02·SB-03으로 보강한다. DELETE 문은 없다.
+- 검증: `node tests/test_school_sandbox_clock_sql.mjs` — 로컬 PGlite에서 최초 설치/재실행, 날짜 진행/시작/멈춤/동일 번호 복구, 원문 변조·다른 프로젝트 거부, 상태·권한 보존을 확인한다. PGlite에는 Supabase safeupdate 확장이 없으므로 확장 자체의 실행 시험으로 주장하지 않는다. 실제 시험 환경 성공은 Claude 보고와 읽기 전용 반영 확인을 별도로 근거로 삼는다.
+- 후속 브랜치 `npm test`: **5,236/5,236 통과**(SB-03 전용 9건 포함). 첫 전체 실행의 `test_timetable_cpsat.mjs` 실패는 단독 29건 및 전체 재실행에서 재현되지 않았다. 최초 로그만으로 원인을 특정하지 못했으며 검사 기준과 계산기 코드는 변경하지 않았다.
