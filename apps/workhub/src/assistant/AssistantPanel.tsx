@@ -101,7 +101,9 @@ function AssistantScope({ connection, member, date, revision = 0, onNavigationLo
     const enabled = activeAt(member, date), locked = Boolean(session.prompt.trim() || session.proposal || recovery.request || busy || memoryLocked), baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError, editable = baseEditable && !memoryLocked;
     function update(value: Session) { latest.current = value; memory.save(value, Boolean(value.prompt.trim() || value.proposal)); setSession(value); }
     useEffect(() => () => { life.current++; }, [server]);
-    useEffect(() => { onNavigationLockChange?.(locked); return () => onNavigationLockChange?.(false); }, [locked, onNavigationLockChange]);
+    // 단순 질문 초안은 옆자리와 탭 메모리에 남는다. 처리·복구·편집 확정 중에만 메뉴 이동을 막는다.
+    const navigationLocked = Boolean(session.proposal || recovery.request || busy || memoryLocked);
+    useEffect(() => { onNavigationLockChange?.(navigationLocked); return () => onNavigationLockChange?.(false); }, [navigationLocked, onNavigationLockChange]);
     useEffect(() => { if (!locked)
         return; const guard = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; }; window.addEventListener('beforeunload', guard); return () => window.removeEventListener('beforeunload', guard); }, [locked]);
     useEffect(() => { let cancelled = false; setLoading(true); setReadError(''); if (!enabled) {

@@ -281,7 +281,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         <p>운영 연결 전에는 가상 자료로 대체하지 않습니다.</p>
       </> : <>
         <h1>연결된 학교 소속이 없습니다</h1>
-        <p>기존 계정은 보존되어 있습니다. 신축 DB 기반과 기존 회원의 학교 소속 연결이 적용된 뒤 이용할 수 있습니다.</p>
+        <p>현재 날짜에 이용 가능한 학교 소속을 확인하지 못했습니다. 기존 계정과 저장 자료는 보존되어 있습니다. 관리자에게 학교 소속의 연결·승인 상태와 유효기간을 확인해 주세요.</p>
       </>}
       {!loading && <button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button>}
       <ConnectionRecoveryActions hasDraft={draftCount > 0} hasPending={pendingCount > 0}
