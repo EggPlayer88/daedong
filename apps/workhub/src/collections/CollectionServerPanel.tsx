@@ -1,3 +1,4 @@
+import {collectionStateLabel,type CollectionStatuses} from './presentation'
 import type { GeneratedDocument } from '../documents/guided-contracts'
 import { CollectionOperations } from './CollectionOperations'
 import type { CollectionOperationsServer, CollectionOperationsState } from './operations'
@@ -55,6 +56,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
   const panelRef = useRef<HTMLElement>(null), focusTarget = useRef<FocusTarget>(), pickerId = useId()
   const focusNext = (name: string, key?: string) => { focusTarget.current = { name, key } }
   const [readiness, setReadiness] = useState<CollectionReadiness>(), [storedList, setStoredList] = useState<{ cursor?: string; value: CollectionList }>(), [storedDetail, setDetail] = useState<CollectionDetail>()
+  const [statuses,setStatuses] = useState<CollectionStatuses>()
   const [cursor, setCursor] = useState<string>(), [history, setHistory] = useState<(string | undefined)[]>([])
   const [reload, setReload] = useState(0), [loading, setLoading] = useState(true), [restoring, setRestoring] = useState(false)
   const [readError, setReadError] = useState(''), [error, setError] = useState(''), [notice, setNotice] = useState(''), [busy, setBusy] = useState('')
@@ -134,13 +136,15 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
   }, [hasWork, busy, exportBusy])
   useEffect(() => {
     let current = true
-    setLoading(true); setReadError('')
+    setLoading(true); setReadError(''); setStatuses(undefined)
     if (!enabled) { setList(undefined); setReadiness(undefined); setLoading(false); setReadError('현재 이용 가능한 학교 소속이 아닙니다.'); return }
     // 쓰기 준비 상태와 기존 자료의 읽기는 독립적이다. 확인 API가 없어도 R1 읽기는 유지한다.
-    void Promise.allSettled([server.readiness(member.id), server.list(member.id, cursor)]).then(([ready, result]) => {
+    void Promise.allSettled([server.readiness(member.id), server.list(member.id, cursor)]).then(async ([ready, result]) => {
       if (!current) return
       setReadiness(ready.status === 'fulfilled' ? ready.value : undefined)
-      if (result.status === 'fulfilled') setList(result.value)
+      if (result.status === 'fulfilled') {setList(result.value);setLoading(false)
+        if(server.statuses)try{const rows=await server.statuses(member.id,result.value.items.map(r=>r.id));if(current)setStatuses(rows)}catch{if(current)setStatuses(undefined)}
+      }
       else { setList(undefined); if (accessDenied(result.reason)) hideDenied(); setReadError('수합 목록을 확인하지 못했습니다. 빈 목록으로 판단하지 않습니다. 다시 확인해 주세요.') }
     }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
@@ -508,7 +512,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
           {session.answer!.original && selectedUnit!.responsibleMemberId === member.id && <button type="button" className={submissionGuide?.canSubmit ? "cs-primary" : undefined} disabled={blocked || submissionClosed || !submissionGuide?.canSubmit} onClick={() => { void mutate({ kind: 'submit', requestId: session.answer!.requestId, unitId: session.answer!.unitId, draftId: session.answer!.original!.id, expectedDraftVersion: session.answer!.original!.version, expectedVersion: selectedUnit!.version, reason: session.answer!.reason, ...(session.answer!.correctionRequestId ? { correctionRequestId: session.answer!.correctionRequestId } : {}) }) }}>{hadSubmission ? '저장한 파일 다시 제출' : '저장한 파일 최종 제출'}</button>}
         </div></footer><p className="cs-muted cs-answer-note">최종 제출은 책임 교사만 할 수 있습니다. 서버에서 권한과 최신 버전을 다시 확인합니다.</p>
       </form>}
-      {!session.editor && !selectedId && list && <><div className="cs-list" aria-label="수합 목록">{list.items.length ? list.items.map(request => <button type="button" className="cs-list-item" data-cs-focus="list-item" data-cs-key={request.id} key={request.id} disabled={locked} onClick={() => { focusNext('detail'); setSession({ selectedId: request.id }); setError(''); setNotice('') }}><strong>{request.title}</strong><span>{request.dueDate}까지 · {request.status === 'draft' ? '초안' : '공개'}</span></button>) : <p className="cs-empty">현재 볼 수 있는 수합이 없습니다.</p>}</div><nav className="cs-actions" aria-label="수합 목록 페이지"><button type="button" disabled={locked || !history.length} onClick={() => { setCursor(history.at(-1)); setHistory(history.slice(0, -1)) }}>이전 페이지</button><span>{history.length + 1}쪽</span><button type="button" disabled={locked || !list.nextCursor} onClick={() => { setHistory([...history, cursor]); setCursor(list.nextCursor!) }}>다음 페이지</button></nav></>}
+      {!session.editor && !selectedId && list && <><div className="cs-list" aria-label="수합 목록">{list.items.length ? list.items.map(request => <button type="button" className="cs-list-item" data-cs-focus="list-item" data-cs-key={request.id} key={request.id} disabled={locked} onClick={() => { focusNext('detail'); setSession({ selectedId: request.id }); setError(''); setNotice('') }}><strong>{request.title}</strong><span>{request.dueDate}까지 · {collectionStateLabel(request.status,request.dueDate,statuses?.today??date,statuses?.items.find(row=>row.requestId===request.id&&row.version===request.version)?.phase)}</span></button>) : <p className="cs-empty">현재 볼 수 있는 수합이 없습니다.</p>}</div><nav className="cs-actions" aria-label="수합 목록 페이지"><button type="button" disabled={locked || !history.length} onClick={() => { setCursor(history.at(-1)); setHistory(history.slice(0, -1)) }}>이전 페이지</button><span>{history.length + 1}쪽</span><button type="button" disabled={locked || !list.nextCursor} onClick={() => { setHistory([...history, cursor]); setCursor(list.nextCursor!) }}>다음 페이지</button></nav></>}
     </>}
   </section>
 }

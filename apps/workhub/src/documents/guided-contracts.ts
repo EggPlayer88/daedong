@@ -14,10 +14,10 @@ export interface Template { id: string; schoolId: string; ownerMemberId: string;
 export interface Artifact { artifactId: string; templateId: string; templateVersion: number; responseId: string; responseVersion: number; bytes: number; sha256: string }
 export interface GuidedResponse { id: string; templateId: string; templateVersion: number; schoolId: string; ownerMemberId: string; version: number; answers: Record<string,string>; preview: boolean; artifact: Artifact | null }
 export interface TemplateDetail { template: Template; response: GuidedResponse | null }
-export interface CollectionTarget { requestId: string; title: string; version: number }
+export interface CollectionTarget { requestId: string; title: string; version: number; publication?:{state:'draft'|'published';dueDate:string;unitLabels:string[];recipientCount:number} }
 export type GuidedCommand =
  | {kind:'save_mapping';templateId:string;expectedVersion:number;title:string;mapping:Mapping}
- | {kind:'publish';templateId:string;expectedVersion:number;previewArtifactId:string;collectionRequestId:string;collectionVersion:number}
+ | {kind:'publish'|'publish_collection';templateId:string;expectedVersion:number;previewArtifactId:string;collectionRequestId:string;collectionVersion:number}
  | {kind:'save_answers';templateId:string;templateVersion:number;responseId:string|null;expectedVersion:number;answers:Record<string,string>;preview:boolean}
 export interface GuidedReceipt {requestKey:string;templateId:string;templateVersion:number;responseId:string|null;responseVersion:number|null}
 export type GuidedHttpInput={action:'inspect'|'render';memberId:string;templateId:string;templateVersion:number;responseId:string|null;responseVersion:number|null;requestKey:string}
@@ -59,9 +59,15 @@ export function detail(raw:unknown,member:Membership,id?:string):TemplateDetail{
 export function guidedCommand(raw:unknown):GuidedCommand{
  if(!object(raw))throw new ServiceError('INVALID_INPUT')
  if(raw.kind==='save_mapping'){exact(raw,['kind','templateId','expectedVersion','title','mapping']);return{kind:raw.kind,templateId:identifier(raw.templateId),expectedVersion:version(raw.expectedVersion),title:text(raw.title,200,true),mapping:mapping(raw.mapping)}}
- if(raw.kind==='publish'){exact(raw,['kind','templateId','expectedVersion','previewArtifactId','collectionRequestId','collectionVersion']);return{kind:raw.kind,templateId:identifier(raw.templateId),expectedVersion:version(raw.expectedVersion),previewArtifactId:identifier(raw.previewArtifactId),collectionRequestId:identifier(raw.collectionRequestId),collectionVersion:version(raw.collectionVersion)}}
+ if(raw.kind==='publish'||raw.kind==='publish_collection'){exact(raw,['kind','templateId','expectedVersion','previewArtifactId','collectionRequestId','collectionVersion']);return{kind:raw.kind,templateId:identifier(raw.templateId),expectedVersion:version(raw.expectedVersion),previewArtifactId:identifier(raw.previewArtifactId),collectionRequestId:identifier(raw.collectionRequestId),collectionVersion:version(raw.collectionVersion)}}
  exact(raw,['kind','templateId','templateVersion','responseId','expectedVersion','answers','preview']);if(raw.kind!=='save_answers'||typeof raw.preview!=='boolean'||!object(raw.answers)||Object.keys(raw.answers).length>limits.maxQuestions)throw new ServiceError('INVALID_INPUT');const responseId=raw.responseId===null?null:identifier(raw.responseId),expectedVersion=integer(raw.expectedVersion);if((responseId===null)!==(expectedVersion===0))throw new ServiceError('INVALID_INPUT');return{kind:raw.kind,templateId:identifier(raw.templateId),templateVersion:version(raw.templateVersion),responseId,expectedVersion,answers:Object.fromEntries(Object.entries(raw.answers).map(([key,value])=>[identifier(key),text(value,limits.maxAnswerCharacters)])),preview:raw.preview}
 }
 export function guidedReceipt(raw:unknown,key:string,command:GuidedCommand):GuidedReceipt{exact(raw,['requestKey','templateId','templateVersion','responseId','responseVersion']);if(raw.requestKey!==key||raw.templateId!==command.templateId)throw new ServiceError('INVALID_RESPONSE');if(command.kind==='save_answers'){if(raw.templateVersion!==command.templateVersion||raw.responseVersion!==command.expectedVersion+1||command.responseId&&raw.responseId!==command.responseId)throw new ServiceError('INVALID_RESPONSE');identifier(raw.responseId)}else if(raw.templateVersion!==command.expectedVersion+1||raw.responseId!==null||raw.responseVersion!==null)throw new ServiceError('INVALID_RESPONSE');return{requestKey:key,templateId:command.templateId,templateVersion:version(raw.templateVersion),responseId:raw.responseId as string|null,responseVersion:raw.responseVersion as number|null}}
 export const questionMapping=(inspection:Inspection,questions:Question[])=>mapping({profile:limits.profile,templateSha256:inspection.templateSha256,questions},inspection)
 export const mappingChanged=(left:Mapping|null,right:Mapping|null)=>canonical(left)!==canonical(right)
+
+export function publicationTargets(value:unknown):CollectionTarget[]{
+ exact(value,['items']);if(!Array.isArray(value.items)||value.items.length>200)throw new ServiceError('INVALID_RESPONSE')
+ const items=value.items.map(v=>{exact(v,['requestId','title','version','publication']);const p=v.publication;exact(p,['state','dueDate','unitLabels','recipientCount']);if(!['draft','published'].includes(String(p.state))||!Array.isArray(p.unitLabels)||p.unitLabels.length>100)throw new ServiceError('INVALID_RESPONSE');return{requestId:identifier(v.requestId),title:text(v.title,200,true),version:version(v.version),publication:{state:p.state as 'draft'|'published',dueDate:isoDate(p.dueDate),unitLabels:p.unitLabels.map(v=>text(v,200,true)),recipientCount:integer(p.recipientCount,1,10000)}}})
+ if(new Set(items.map(t=>t.requestId)).size!==items.length)throw new ServiceError('INVALID_RESPONSE');return items
+}

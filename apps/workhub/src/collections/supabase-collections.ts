@@ -1,3 +1,4 @@
+import {createCollectionPresentation} from './presentation'
 import { ContractError } from '../contracts'
 import { activeAt } from '../domain'
 import type { SupabaseConnection } from '../connection/supabase-connection'
@@ -108,6 +109,7 @@ export function createSupabaseCollectionServer(connection: SupabaseConnection, o
     return status
   }
   return {
+    statuses: createCollectionPresentation(connection).statuses,
     async readiness(memberId) {
       const scope = scopeFor(memberId)
       return rpc(scope, 'workhub_collection_basic_readiness', {}, raw => {
