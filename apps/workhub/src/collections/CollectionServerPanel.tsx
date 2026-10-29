@@ -61,6 +61,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
   const [comparison, setComparison] = useState<{ detail: CollectionDetail; draft?: CollectionDraft | null }>()
   const [exportBusy, setExportBusy] = useState(false)
   const [savingRequest, setSavingRequest] = useState(false)
+  const [publishReview, setPublishReview] = useState<CollectionRequest>()
   const [operationState, setOperationState] = useState<CollectionOperationsState>()
   const [operationsLocked, setOperationsLocked] = useState(false)
   const operationRequest = operationsRecovery.request?.command as { requestId?: string } | undefined
@@ -71,7 +72,7 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
   const setList = (value?: CollectionList) => setStoredList(value ? { cursor, value } : undefined)
   useEffect(() => { if (operationsLocked && selectedId) memory.save({ ...sessionRef.current, selectedId }, false) }, [operationsLocked, selectedId])
   const enabled = activeAt(member, date)
-  const dirty = Boolean(operationsLocked || operationsRecovery.request || session.editor || session.answer || session.upload || session.review || session.management || session.conflict)
+  const dirty = Boolean(publishReview || operationsLocked || operationsRecovery.request || session.editor || session.answer || session.upload || session.review || session.management || session.conflict)
   const parked = Boolean(session.parked)
   const hasWork = Boolean(pending || dirty)
   const locked = Boolean(busy || loading || restoring || exportBusy || (!parked && hasWork))
@@ -83,8 +84,8 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
   let newCollectionPolicy: FilePolicy | undefined
   if (policy) { try { newCollectionPolicy = hwpxCollectionPolicy(policy) } catch { /* 기존 기록은 표시하고 새 파일 선택만 닫는다. */ } }
   function setSession(value: Session) { sessionRef.current = value; memory.save(value, Boolean(value.editor || value.answer || value.upload || value.review || value.management || value.conflict)); setSessionState(value) }
-  function resetEditing(selected?: string) { setSession({ selectedId: selected }); setError(''); setComparison(undefined) }
-  function hideDenied() { focusTarget.current = undefined; memory.remove(); sessionRef.current = {}; setSessionState({}); setDetail(undefined); setList(undefined); setReadiness(undefined); setComparison(undefined); setReadError('현재 자료의 접근 권한을 확인할 수 없어 이전 화면을 닫았습니다. 연결을 다시 확인해 주세요.') }
+  function resetEditing(selected?: string) { setPublishReview(undefined); setSession({ selectedId: selected }); setError(''); setComparison(undefined) }
+  function hideDenied() { setPublishReview(undefined); focusTarget.current = undefined; memory.remove(); sessionRef.current = {}; setSessionState({}); setDetail(undefined); setList(undefined); setReadiness(undefined); setComparison(undefined); setReadError('현재 자료의 접근 권한을 확인할 수 없어 이전 화면을 닫았습니다. 연결을 다시 확인해 주세요.') }
   const stillHere = (epoch: number) => life.current === epoch
   const openedRequest = useRef<string>()
   useEffect(() => {
@@ -461,8 +462,9 @@ function CollectionScope({ server, operations, incomingFile, onIncomingFileConsu
         {operations && detail.request.status === 'published' && <CollectionOperations key={detail.request.id} server={operations} member={member} requestId={detail.request.id} date={date} disabled={Boolean(busy || pending || session.editor || session.answer || session.upload || session.review || session.management || session.conflict || exportBusy)} revision={reload + revision} onLock={setOperationsLocked} onState={setOperationState} onChanged={() => setReload(value => value + 1)} />}
         {filesView(detail.request.fileCollection?.templates ?? [], { kind: 'template', requestId: detail.request.id, version: detail.request.version })}
         {detail.request.status === 'published' && detail.request.managerMemberId === member.id && detail.request.fileCollection && <CollectionServerExport server={server} member={member} requestId={detail.request.id} date={date} disabled={Boolean(busy || pending || dirty || restoring || !enabled)} onBusyChange={setExportBusy} />}
-        {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" data-cs-focus="edit-button" disabled={locked || !readiness?.available} onClick={() => { focusNext('editor'); setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } }) }}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked || !readiness?.available} onClick={() => { void mutate({ kind: 'publish', requestId: detail.request.id, expectedVersion: detail.request.version }) }}>대상 교사에게 공개</button></div>}
+        {detail.request.status === 'draft' && detail.request.managerMemberId === member.id && <div className="cs-actions"><button type="button" data-cs-focus="edit-button" disabled={locked || !readiness?.available} onClick={() => { focusNext('editor'); setSession({ selectedId: detail.request.id, editor: { original: detail.request, input: structuredClone(inputOf(detail.request)) } }) }}>양식 추가·초안 수정</button><button type="button" className="cs-primary" disabled={locked || !readiness?.available} onClick={() => setPublishReview(structuredClone(detail.request))}>대상 교사에게 공개</button></div>}
         {submissionClosed && <p className="cs-warning" role="status">{operationState?.phase === 'archived' ? '보관 중인' : '마감된'} 수합입니다. 새 제출과 정정 기간 설정은 접수를 재개한 뒤 가능합니다. 남은 보완 요청도 담당자가 접수 상태와 기한을 확인해야 합니다. 기존 제출본은 내려받을 수 있습니다.</p>}
+        {publishReview && <section className="cs-card" aria-label="수합 공개 전 확인"><h4>대상과 양식을 확인해 주세요</h4><p>{publishReview.title} · {publishReview.dueDate}까지 · {publishReview.version}판</p><ul>{publishReview.units.map((unit, index) => <li key={index}>{unit.label}</li>)}</ul><p>양식 {publishReview.fileCollection?.templates.length ?? 0}개</p><ul>{publishReview.fileCollection?.templates.map(file => <li key={file.id}>{file.name}</li>)}</ul>{!same(publishReview, detail.request) && <p role="alert">초안이 변경되었습니다. 확인을 닫고 최신 내용을 다시 확인해 주세요.</p>}<div className="cs-actions"><button type="button" disabled={Boolean(busy || pending)} onClick={() => setPublishReview(undefined)}>공개 취소</button><button type="button" className="cs-primary" disabled={Boolean(busy || pending || loading || restoring || readError || !readiness?.available || !same(publishReview, detail.request))} onClick={() => { const request = publishReview; setPublishReview(undefined); void mutate({kind:'publish',requestId:request.id,expectedVersion:request.version}) }}>대상·양식 확인 후 공개</button></div></section>}
         {detail.request.status === 'published' && <CollectionUnitWorkbench detail={detail} memberId={member.id} date={date} locked={locked} activeUnitId={session.answer?.unitId ?? session.review?.unitId ?? session.management?.unitId}>{unit => {
           const submission = detail.submissions.find(value => value.id === unit.currentSubmissionId), withdrawn = Boolean(submission && unit.withdrawnSubmissionIds.includes(submission.id))
           const review = submission && detail.reviews.find(value => value.submissionId === submission.id), participant = unit.members.some(value => value.id === member.id)

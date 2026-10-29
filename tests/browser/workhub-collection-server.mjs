@@ -194,7 +194,7 @@ try {
   await test('수합 생성·양식 업로드·공개·파일 초안·최종 제출·다운로드가 이어진다', async () => {
     await createInput(); await page.getByRole('button', { name: '수합 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '양식 추가·초안 수정' }).click()
     await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(file('양식.hwpx')); await page.getByRole('button', { name: '양식.hwpx 제거', exact: true }).waitFor()
-    await page.getByRole('button', { name: '수합 초안 변경 저장' }).click(); await page.getByRole('button', { name: '대상 교사에게 공개' }).click(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click()
+    await page.getByRole('button', { name: '수합 초안 변경 저장' }).click(); await page.getByRole('button', { name: '대상 교사에게 공개' }).click(); await page.getByRole('region',{name:'수합 공개 전 확인'}).waitFor(); await page.getByRole('button',{name:'대상·양식 확인 후 공개'}).click(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click()
     await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('작성본.hwpx')); await page.getByRole('button', { name: '작성본.hwpx 제거', exact: true }).waitFor()
     await page.getByRole('button', { name: '제출 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).waitFor(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).click()
     const download = page.waitForEvent('download'); await page.getByRole('button', { name: '작성본.hwpx 다운로드', exact: true }).click(); assert.deepEqual(readFileSync(await (await download).path()), file('작성본.hwpx').buffer)
