@@ -21,3 +21,9 @@ export function businessTime(real = Date.now()): number {
  return Math.min(Date.parse(clock.endAt),Date.parse(segment.virtualAt)+(segment.running?Math.max(0,real-Date.parse(segment.realAt))*clock.speed:0))
 }
 export const businessIso = (real: string) => new Date(businessTime(Date.parse(real))).toISOString()
+
+// 날짜 입력은 서울 기준 가상 날짜를 표시한다. 인증·접수 시각은 변환하지 않는다.
+export function sandboxInputDate(time:number):string {
+ if(!Number.isFinite(time))throw new Error('시험 날짜를 확인하지 못했습니다.')
+ return new Date(time+9*3600000).toISOString().slice(0,10)
+}
