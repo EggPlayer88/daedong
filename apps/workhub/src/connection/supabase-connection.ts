@@ -1,5 +1,5 @@
 import { ContractError, type CalendarEvent, type FailureCode } from '../contracts'
-import type { ConnectionContext, LegacyIdentity, LegacyServices, RpcError } from './contracts'
+import type { ConnectionContext, LegacyIdentity, LegacyProfile, LegacyServices, RpcError } from './contracts'
 import { contextResponse, profileResponse } from './validation'
 import { runReadinessCheck, type ReadinessReport } from './readiness'
 
@@ -34,11 +34,26 @@ export function createSupabaseConnection(provided?: LegacyServices, options: { m
   let generation = 0
   let verifiedUserId: string | null = null
   let verifiedAccess: string | null = null
+  let observedUserId: string | null | undefined
+  let authChanged = false
+  const profileRequests = new Map<string, Promise<LegacyProfile | null>>()
+  const advanceGeneration = () => { generation++; profileRequests.clear() }
+  function readProfile(api: LegacyServices, userId: string, started: number) {
+    // 승인된 범위: 같은 연결·계정·세대의 진행 중 조회만 공유한다. 성공/실패가 끝나면 즉시 제거한다.
+    const key = JSON.stringify([started, userId])
+    const current = profileRequests.get(key)
+    if (current) return current
+    const pending = Promise.resolve().then(() => api.fetchMyProfile(userId)).finally(() => {
+      if (profileRequests.get(key) === pending) profileRequests.delete(key)
+    })
+    profileRequests.set(key, pending)
+    return pending
+  }
   let servicesPromise: Promise<LegacyServices> | undefined
   const services = () => servicesPromise ??= provided ? Promise.resolve(provided) : import('./legacy-client').then(module => module.legacyServices)
   const invalidationListeners = new Set<(reason: ContractError) => void>()
   const invalidate = (reason: ContractError, advance = true) => {
-    if(advance) generation++
+    if(advance) advanceGeneration()
     context=emptyContext()
     for(const listener of invalidationListeners) listener(reason)
   }
@@ -49,12 +64,13 @@ export function createSupabaseConnection(provided?: LegacyServices, options: { m
       const api=await services()
       const session=await api.getSession()
       if(started!==generation) throw new ContractError('CANCELLED','계정이 바뀌어 이전 요청을 취소했습니다.')
+      observedUserId=session?.user.id??null
       if(!session) {
         if(context.schools.length) invalidate(new ContractError('CANCELLED','로그인 연결이 종료되었습니다.'))
         verifiedUserId=null;verifiedAccess=null
         return null
       }
-      const raw=await api.fetchMyProfile(session.user.id)
+      const raw=await readProfile(api,session.user.id,started)
       const current=await api.getSession()
       if(started!==generation || current?.user.id!==session.user.id) throw new ContractError('CANCELLED','계정이 바뀌어 이전 요청을 취소했습니다.')
       const profile=profileResponse(raw,session.user.id)
@@ -100,20 +116,30 @@ export function createSupabaseConnection(provided?: LegacyServices, options: { m
       catch { return { stage: 'unavailable', code: 'UNAVAILABLE', checkedAt: new Date().toISOString(), readySchoolCount: 0 } }
     },
     async signIn() { await (await services()).signInWithGoogle() },
-    async signOut() { invalidate(new ContractError('CANCELLED','로그인 연결이 종료되었습니다.')); await (await services()).signOut() },
+    async signOut() { authChanged=true; observedUserId=null; invalidate(new ContractError('CANCELLED','로그인 연결이 종료되었습니다.')); await (await services()).signOut() },
     subscribeInvalidation(callback: (reason: ContractError) => void) {
       invalidationListeners.add(callback)
       return () => { invalidationListeners.delete(callback) }
     },
     subscribeIdentity(callback: (identity: LegacyIdentity | null, error?: unknown) => void) {
       let disposed = false
+      let firstNotification = true
       let unsubscribe = () => {}
       void services().then(api => {
         if (disposed) return
-        unsubscribe = api.onAuthStateChange(session => {
-          // 동일 UID 토큰 갱신은 진행 중 응답만 취소한다. 승인 재검증 전에는 초안을 지우지 않는다.
-          if((session?.user.id??null)!==verifiedUserId) invalidate(new ContractError('CANCELLED','로그인 상태가 바뀌어 연결을 다시 확인합니다.'))
-          else generation++
+        unsubscribe = api.onAuthStateChange((session, event) => {
+          const userId = session?.user.id ?? null
+          // 첫 세션 안내는 변경이 아니다. 이미 관찰한 계정과 다르거나 변경 사건 뒤라면 예외를 적용하지 않는다.
+          const initial = firstNotification && event === 'INITIAL_SESSION' && !authChanged
+            && (observedUserId === undefined || observedUserId === userId)
+          firstNotification = false
+          if (!initial) {
+            authChanged = true
+            // 동일 UID 토큰 갱신도 이전 응답을 취소하고 승인 상태를 다시 확인한다.
+            if(userId!==verifiedUserId) invalidate(new ContractError('CANCELLED','로그인 상태가 바뀌어 연결을 다시 확인합니다.'))
+            else advanceGeneration()
+          }
+          observedUserId = userId
           const changed = generation
           // 공용 인증 이벤트 처리가 반환된 다음 별도 작업에서 프로필을 읽는다.
           setTimeout(() => {

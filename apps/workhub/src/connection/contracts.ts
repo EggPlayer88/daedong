@@ -16,7 +16,7 @@ export interface RpcError { message?: string; details?: string; code?: string }
 export interface LegacyServices {
   getSession(): Promise<LegacySession | null>
   fetchMyProfile(id: string): Promise<LegacyProfile | null>
-  onAuthStateChange(callback: (session: LegacySession | null) => void): () => void
+  onAuthStateChange(callback: (session: LegacySession | null, event?: string) => void): () => void
   signInWithGoogle(): Promise<unknown>
   signOut(): Promise<unknown>
   rpc(name: string, args?: Record<string, unknown>): PromiseLike<{ data: unknown; error: RpcError | null }>

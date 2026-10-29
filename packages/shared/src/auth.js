@@ -48,8 +48,9 @@ export async function getSession() {
  * 사용: useEffect(() => onAuthStateChange((s) => setSession(s)), [])
  */
 export function onAuthStateChange(callback) {
-  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-    callback(session)
+  const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    // 기존 session 첫 인자는 유지하고, 첫 연결과 실제 변경을 구분할 이벤트를 덧붙인다.
+    callback(session, event)
   })
   return () => data.subscription.unsubscribe()
 }
