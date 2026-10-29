@@ -122,10 +122,28 @@ def main():
   b.setup();h.old.body();check('선행 T2 회귀',all(ok for _,ok in h.old.results))
   for path in ['database/workhub-school-data/p9/P9-01_교사연결_모델과함수.sql','database/workhub-school-data/p9/P9-02_담당교사후보_분리.sql','database/workhub-school-data/p10/P10-01_정정_모델과함수.sql','database/workhub-school-data/p10/P10-02_기존쓰기와시간표_보호.sql']:b.file(ROOT/path)
   for name in ['T3-01_운영확장_모델.sql','T3-02_운영확장_공개함수.sql','T3-03_기존운영_보존훅.sql']:b.file(ROOT/'database/workhub-timetable/t3'/name)
-  before=b.file(ROOT/'database/workhub-annual/af1/AF1-00_사전점검_지문.sql')
+  pre_path=ROOT/'database/workhub-annual/af1/AF1-00_사전점검_지문.sql'
+  before=b.file(pre_path)
+  check('사전 점검 8행과 비교 지문 6개',len(before)==8 and len([r for r in before if r[0].startswith('F') and r[2]=='compare'])==6)
+  check('정상 T3 설치는 사전 점검 ok',next(r for r in before if r[0]=='P1')[2]=='ok')
+  check('AF1 설치 전 상태는 미설치',next(r for r in before if r[0]=='P2')[3]=='미설치')
+  # 잘못된 3인자 서명은 실제 5인자 함수를 찾지 못한다. 수정 전 거짓 FAIL을 고정한다.
+  wrong=pre_path.read_text('utf8').replace('t3_plan(workhub_private.actor_context,jsonb,text,timestamp with time zone,text)','t3_plan(workhub_private.actor_context,jsonb,timestamp with time zone)')
+  check('수정 전 서명은 정상 T3를 FAIL로 오판',next(r for r in q(wrong) if r[0]=='P1')[2]=='FAIL')
   for path in sorted((ROOT/'database/workhub-annual/af1').glob('AF1-0[1-4]*.sql')):b.file(path);check('설치 '+path.name,True)
   after=b.file(ROOT/'database/workhub-annual/af1/AF1-00_사전점검_지문.sql');check('설치 전후 기존 자료 지문 6개 동일',before[:6]==after[:6])
-  rows=b.file(ROOT/'database/workhub-annual/af1/AF1-05_사후점검.sql');check('AF1 사후 점검',all(r[2]=='ok' for r in rows))
+  check('설치 후 사전 점검 상태',next(r for r in after if r[0]=='P1')[2]=='ok' and next(r for r in after if r[0]=='P2')[3]=='workhub_private.af1_installs')
+  post_path=ROOT/'database/workhub-annual/af1/AF1-05_사후점검.sql'
+  rows=b.file(post_path);check('AF1 사후 점검',len(rows)==8 and all(r[2]=='ok' for r in rows))
+  # 고정 search_path를 지운 훼손도 NULL 논리로 빠지지 않고 FAIL이어야 한다.
+  signature='workhub_private.af1_admin_coverage(text,jsonb,jsonb)'
+  q('ALTER FUNCTION '+signature+' RESET search_path')
+  try:
+   check('search_path 누락은 사후 점검 FAIL',next(r for r in b.file(post_path) if r[0]=='AF1-05-02')[2]=='FAIL')
+   legacy=post_path.read_text('utf8').replace("('search_path=\"\"'=ANY(proconfig)) IS DISTINCT FROM TRUE","NOT ('search_path=\"\"'=ANY(proconfig))")
+   check('수정 전 검사는 NULL 설정 훼손을 놓침',next(r for r in q(legacy) if r[0]=='AF1-05-02')[2]=='ok')
+  finally:q('ALTER FUNCTION '+signature+" SET search_path='' ")
+  check('설정 복원 뒤 사후 점검 모두 ok',all(r[2]=='ok' for r in b.file(post_path)))
   tests();print(f'AF1 PASS {b.PASS} FAIL 0',flush=True)
  finally:
   target=Path(os.environ.get('AF1_CAPTURE',str(b.WORK/'af1-captures.json')));target.write_text(json.dumps(CAP,ensure_ascii=False,indent=2),encoding='utf8');print('CAPTURES',target)

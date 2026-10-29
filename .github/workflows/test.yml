@@ -213,6 +213,11 @@ jobs:
           git diff --exit-code -- database/workhub-annual/af2/AF2-02_사후점검.sql
           python database/workhub-annual/af2/test/run_af2.py
           node tests/integration/collection-presentation-capture.mjs "$AF2_CAPTURE"
+      - name: 현재 운영 INT-10·OP1 위 AF1·AF2 동시 설치 회귀
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55659'
+        run: python database/workhub-annual/af2/test/run_current_baseline.py
       - name: 실제 시간표 가져오기 SQL·원자성·앱 응답
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

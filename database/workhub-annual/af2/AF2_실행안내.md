@@ -5,7 +5,7 @@
 ## 순서
 
 1. 검토 후 사용자가 적용 대상을 확인한다. 운영과 가상 학교는 서로 다른 DB이며 각각 별도 승인·점검한다. 진행 중인 시험을 중단하거나 시간을 바꾸지 않는다.
-2. 기존 INT-09와 필요한 AF1-05 결과를 보관한다. AF1을 함께 적용할 때는 AF1 실행안내의 00→01→02→03→04→05→00을 먼저 마친다. AF2 자체의 선행 조건은 R1·P4·P7이다.
+2. AF1 설치 직전에 저장한 INT-10과 AF1-05 결과를 보관한다. AF1 설치 뒤 INT-10을 새 기준으로 재실행하는 순서가 아니다. AF1을 함께 적용할 때는 AF1 실행안내의 00→01→02→03→04→05→00을 먼저 마친다. AF2 자체의 선행 조건은 R1·P4·P7이다.
 3. **AF2-00_사전점검_지문.sql**: 읽기 전용, 6행. P1=ok, P2=미설치, F1~F4=compare. CSV 저장. P1=FAIL 또는 예상과 다른 설치 상태면 중단한다.
 4. **AF2-01_수합표시_양식동시게시.sql**: postgres 역할로 파일 전체 실행. BEGIN~COMMIT 한 번이며 오류면 설치 변경 전체가 취소된다. 중복 실행은 CREATE FUNCTION에서 멈춘다. 임의로 DROP/OR REPLACE를 붙여 넘기지 않는다.
 5. **AF2-02_사후점검.sql**: 읽기 전용 4행 모두 ok. 함수 수·원문·소유자·고정 search_path·API 실행 권한을 확인한다.
@@ -16,7 +16,7 @@
 ## 계약과 유지 범위
 
 - 신규 RPC: `workhub_collection_presentation(text,text,jsonb,text)`, 응답 계약 `collection.presentation.v1`.
-- `statuses`: 기존에 읽을 수 있는 수합 최대 50개만 조회. 서버 학교 날짜, 수합 판, draft/published와 open/closed/archived를 분리해 반환한다.
+- `statuses`: 기존에 읽을 수 있는 수합 최대 50개만 조회. OP1이 있으면 기존 collections 참여 허용·유효기간·본인 소속을 검사한다. targets/publish/recover의 기존 관리자 제한은 유지하며 일반 교사 양식 제작을 허용하지 않는다. 서버 학교 날짜, 수합 판, draft/published와 open/closed/archived를 분리해 반환한다.
 - `targets`: 본인이 소유하고 관리할 수 있는 열린 파일형 수합 중 HWPX 입력란이 있고 양식이 아직 연결되지 않은 최대 200개. 초안/공개·기한·제출 단위 이름·고유 수신 인원을 반환한다.
 - `publish`: `publish_collection` 명령을 새 종류로 받아 기존 수합 게시와 기존 양식 게시 검증을 한 트랜잭션 안에서 호출한다. 판·파일 생성물·소유권 검사가 실패하면 수합, 양식, 수신 대상, 알림, 접수 원장까지 함께 롤백한다.
 - `recover`: 같은 소속·같은 원번호·같은 명령의 접수증만 조회한다. 중지 후에도 기존 접수증을 확인하지만 신규 게시하지 않는다.
@@ -31,3 +31,5 @@
 ## 격리 검증
 
 `test/run_af2.py`는 새 localhost PostgreSQL 17 클러스터만 만들며 운영 DSN을 받지 않는다. 실제 기존 P4 HWPX 검사·생성 코드로 만든 생성물을 게시에 사용한다. 변조·타학교·동시 요청·최종 단계 실패·중지 후 복구·권한을 검증하고 `tests/integration/collection-presentation-capture.mjs`에서 실제 응답을 앱 parser와 대조한다. 사후 점검 원문은 `test/build_check.py`로 생성하고 CI에서 재생성 차이를 검사한다.
+
+현재 운영 조합 회귀는 `test/run_current_baseline.py`로 실행한다. INT-10 기준선, OP1 위 AF1·AF2 동시 설치, 전후 자료·기존 함수·권한 보존, 허용 교사 상태 조회, 중지·만료·다른 소속·허용 범위 없음 거절을 포함한다. 사후 점검과 지문 확인 전에는 앱을 병합하거나 새 기능을 시험하지 않는다.
