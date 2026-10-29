@@ -386,3 +386,9 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - `site-ui-finish.mjs`: 실제 기존 React 화면에 합성 회원·제출·대화를 넣은 16건. 허용 메뉴 일치, 화면 안 이동의 입력·파일 보존, 실패 안내, 키보드·초점, 320px·2배 확대, 긴 자료·표 스크롤·대화 제목·읽기 대비를 검증한다.
 - 전체 브라우저 러너에 등록. `node tests/browser/run.mjs site-ui-finish`로 실행한다.
 - 기존 `email-login`, `doc-ai-school-policy`, `workhub-shell-layout`, 교차 모듈·검색·알림·시간표·문서·모바일 회귀와 함께 확인한다. [화면·검증 기록](../docs/workhub/site-ui-finish/README.md).
+
+### 연간 피드백의 승인된 인증 연결 개선 (2026-10-30)
+
+`node tests/test_workhub_identity.mjs`는 실제 `createSupabaseConnection`에 제어 가능한 세션/프로필 응답을 넣어 첫 INITIAL_SESSION, 동시 조회 공유, 완료/실패 후 비캐시, 계정·세대 분리, 로그아웃·승인/역할 철회, 쓰기 전후 세션·권한 검증을 확인한다. 공용 인증 이벤트의 기존 첫 인자도 검증한다. 운영 서비스나 실제 계정은 사용하지 않는다.
+
+`node tests/browser/run.mjs workhub-connection workhub-draft-recovery workhub-day-refresh workhub-request-recovery workhub-messaging-pilot email-login`은 관련 실제 화면 7개 파일을 검사한다. `workhub-connection`은 느린 프로필과 첫 세션 이벤트가 겹쳐도 기존 연결을 무효화하지 않는지 확인하며, 기존 초안·권한 철회·계정 변경 시험을 유지한다.
