@@ -45,7 +45,7 @@ try{
   await button('선택한 항목 순서대로 저장').waitFor();await waitForTargetLock();assert.equal(await target().inputValue(),originalTarget);assert.equal((await targetWrites()).length,0);assert.equal((await writes()).length,0)
  })
  await test('아직 추가하지 않은 조건 선택도 학기 전환을 잠근다',async()=>{
-  await button('시간표 만들기').click();await button('조건 정리').click();await field('조건 수업').selectOption('practice-lesson-a1')
+  await button('조건 정리').click();await field('조건 수업').selectOption('practice-lesson-a1')
   await waitForTargetLock();assert.equal((await targetWrites()).length,0)
  },{basis:true})
  await test('Claude에 아직 보내지 않은 질문을 보관하고 학기 전환을 잠근다',async()=>{

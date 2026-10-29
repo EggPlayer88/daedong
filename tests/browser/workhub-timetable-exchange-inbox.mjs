@@ -47,13 +47,13 @@ try {
   })
   await check('검색과 필터를 바꿔도 확인 중인 요청·동의 체크·원래 명령을 보존한다', async () => {
     const incoming = cards().filter({ hasText: '교내 연수 A' }), finished = cards().filter({ hasText: '완료 D' })
-    assert.equal(await finished.locator('details').getAttribute('open'), null)
-    await incoming.locator('summary').click(); assert.equal(await incoming.locator('details').getAttribute('open'), null)
+    assert.equal(await finished.locator('details.timetable-exchange-details').getAttribute('open'), null)
+    await incoming.locator('details.timetable-exchange-details > summary').click(); assert.equal(await incoming.locator('details.timetable-exchange-details').getAttribute('open'), null)
     await inbox().getByRole('button', { name: '변경안에 동의', exact: true }).click(); await confirm().getByRole('checkbox').check()
-    assert.notEqual(await incoming.locator('details').getAttribute('open'), null)
+    assert.notEqual(await incoming.locator('details.timetable-exchange-details').getAttribute('open'), null)
     await page.getByLabel('변경 요청 검색', { exact: true }).fill('검색 결과 없음'); await page.getByLabel('요청 상태로 보기', { exact: true }).selectOption('finished')
     assert.equal(await confirm().getByRole('checkbox').isChecked(), true); assert.equal(await cards().count(), 1); await inbox().getByText(/확인 중인 요청은 검색·필터와 관계없이/).waitFor()
-    await confirm().getByRole('button', { name: '확인한 응답 보내기', exact: true }).click(); await page.waitForFunction(() => window.actualWrites === 1 && window.pending.count() === 0)
+    await confirm().getByRole('button', { name: /^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/ }).click(); await page.waitForFunction(() => window.actualWrites === 1 && window.pending.count() === 0)
     const call = await page.evaluate(() => window.calls.find(row => row.name.endsWith('_execute')).args.p_command)
     assert.deepEqual(call, { kind: 'action', requestId: 'incoming', expectedVersion: 1, proposalHash: 'a'.repeat(64), action: 'accept' })
     assert.equal(await page.evaluate(() => JSON.stringify(window.view.lessons) === JSON.stringify(window.originalLessons)), true)
@@ -68,7 +68,7 @@ try {
   await check('시간이 지나면 할 일 건수를 줄이고 확인 중인 만료 요청은 비활성으로 보존한다', async () => {
     await overview().getByRole('button', { name: '내 동의 1건 보기', exact: true }).click(); await inbox().getByRole('button', { name: '변경안에 동의', exact: true }).click(); await confirm().getByRole('checkbox').check()
     await page.evaluate(() => { const later = Date.now() + 600001; Date.now = () => later }); await overview().getByRole('button', { name: '내 동의 0건 보기', exact: true }).waitFor(); await overview().getByRole('button', { name: '내 승인 0건 보기', exact: true }).waitFor()
-    assert.equal(await confirm().getByRole('button', { name: '확인한 응답 보내기', exact: true }).isDisabled(), true); await inbox().getByText('응답 기한이 지났습니다. 요청 상태를 새로 확인해 주세요.', { exact: true }).waitFor(); assert.equal(await page.evaluate(() => window.actualWrites), 0)
+    assert.equal(await confirm().getByRole('button', { name: /^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/ }).isDisabled(), true); await inbox().getByText('응답 기한이 지났습니다. 요청 상태를 새로 확인해 주세요.', { exact: true }).waitFor(); assert.equal(await page.evaluate(() => window.actualWrites), 0)
   })
   await check('다음 페이지에서 고른 요청도 검색을 지운 뒤 숨기지 않는다', async () => {
     await page.evaluate(() => { const incoming = window.view.requests.find(row => row.id === 'incoming'); window.view.requests = Array.from({ length: 25 }, (_, index) => ({ ...structuredClone(incoming), id: 'req-' + String(index).padStart(2, '0'), reason: '요청번호 ' + String(index).padStart(2, '0') })); window.refresh() })
@@ -79,7 +79,7 @@ try {
   })
   await check('결과 미상 복구가 검색 중에도 원래 요청 번호와 명령을 재사용한다', async () => {
     await inbox().getByRole('button', { name: '변경안에 동의', exact: true }).click(); await confirm().getByRole('checkbox').check(); await page.getByLabel('변경 요청 검색', { exact: true }).fill('완료 D'); await page.evaluate(() => window.failOnce = true)
-    await confirm().getByRole('button', { name: '확인한 응답 보내기', exact: true }).click(); await page.getByRole('button', { name: '원래 요청 결과만 다시 확인', exact: true }).click(); await page.waitForFunction(() => window.pending.count() === 0)
+    await confirm().getByRole('button', { name: /^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/ }).click(); await page.getByRole('button', { name: '원래 요청 결과만 다시 확인', exact: true }).click(); await page.waitForFunction(() => window.pending.count() === 0)
     const calls = await page.evaluate(() => window.calls.filter(row => row.name.endsWith('_execute')))
     assert.equal(calls.length, 2); assert.equal(calls[1].args.p_recover_only, true); assert.equal(calls[0].args.p_request_key, calls[1].args.p_request_key); assert.deepEqual(calls[0].args.p_command, calls[1].args.p_command); assert.equal(await page.evaluate(() => window.actualWrites), 1)
   })

@@ -18,7 +18,7 @@ const writes = () => page.evaluate(() => window.calls.filter(call => /_execute|_
 async function start(kind) {
   await page.setViewportSize({ width: 1440, height: 1000 })
   await page.goto('http://127.0.0.1:5179/' + kind); await page.addScriptTag({ content: bundles[kind] }); await page.evaluate(() => document.fonts.ready)
-  if (kind === 'design') { await button('편성 관리').click(); await button('시간표 만들기').click() }
+  if (kind === 'design') { await button('편성 관리').click() }
   if (kind === 'exchange') { await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor(); await page.getByRole('button', { name: /^교환·변경 요청/ }).click(); await page.getByLabel('변경할 내 수업', { exact: true }).waitFor() }
   if (kind === 'preparation') await page.getByLabel('준비 자료 이름', { exact: true }).waitFor()
 }
@@ -42,6 +42,7 @@ try {
     assert.equal(await button('준비 초안 서버에 저장').isDisabled(), true)
     assert.equal(await page.getByRole('button', { name: '확인한 편성 기준판 만들기', exact: true, includeHidden: true }).isDisabled(), true)
     assert.equal(await writes(), 0)
+    assert.equal(await page.locator('.timetable-preparation-steps [aria-current=step]').count(),1)
     await capture('preparation-input-review', page.locator('.timetable-preparation-flow'))
   })
   await check('조건 도움을 접어도 입력은 보존하고 조건 추가 전 계산·저장을 막는다', 'design', async () => {
@@ -102,11 +103,11 @@ try {
     const response = page.getByRole('region', { name: '변경 요청 응답 확인', exact: true })
     await response.waitFor()
     assert.equal(await page.locator('.timetable-exchange-details').getAttribute('open'), '')
-    assert.equal(await button('확인한 응답 보내기').isDisabled(), true)
+    assert.equal(await page.getByRole('region',{name:'변경 요청 응답 확인',exact:true}).getByRole('button',{name:/^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/}).isDisabled(), true)
     assert.equal(await writes(), 0)
     await capture('exchange-approval', page.locator('.timetable-exchanges'))
     await page.getByLabel('현재 수업과 변경 내용을 확인했습니다', { exact: true }).check()
-    await button('확인한 응답 보내기').click()
+    await page.getByRole('region',{name:'변경 요청 응답 확인',exact:true}).getByRole('button',{name:/^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/}).click()
     await page.waitForFunction(() => window.view.requests[0].state === 'applied' && window.pending.count() === 0)
     await button('검색·필터 초기화').click()
     await page.getByText('시간표 반영 완료', { exact: true }).waitFor()
@@ -126,7 +127,7 @@ try {
     await button('내 승인 1건 보기').focus(); await page.keyboard.press('Enter')
     await button('승인하고 시간표에 반영').click()
     await page.getByLabel('현재 수업과 변경 내용을 확인했습니다', { exact: true }).check()
-    assert.equal(await button('확인한 응답 보내기').isEnabled(), true)
+    assert.equal(await page.getByRole('region',{name:'변경 요청 응답 확인',exact:true}).getByRole('button',{name:/^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/}).isEnabled(), true)
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
     assert.equal(await writes(), 0)
     await capture('exchange-mobile-dark')
@@ -136,7 +137,7 @@ try {
     await page.setViewportSize({width:640,height:960});await page.addStyleTag({content:'body{zoom:2;padding:8px}'})
     await button('내 승인 1건 보기').click();await button('승인하고 시간표에 반영').click()
     await page.getByLabel('현재 수업과 변경 내용을 확인했습니다',{exact:true}).check()
-    const submit=button('확인한 응답 보내기');await submit.focus();await submit.scrollIntoViewIfNeeded()
+    const submit=page.getByRole('region',{name:'변경 요청 응답 확인',exact:true}).getByRole('button',{name:/^(승인하고 시간표에 반영|확인한 변경에 동의|확인한 요청 철회|확인한 요청 반려)$/});await submit.focus();await submit.scrollIntoViewIfNeeded()
     const box=await submit.boundingBox();assert(box&&box.x>=0&&box.x+box.width<=641&&box.y>=0&&box.y+box.height<=961)
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
     await capture('exchange-css-zoom-200')

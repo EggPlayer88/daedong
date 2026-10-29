@@ -40,7 +40,7 @@ await context.route('**/*', route => {
   return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0"><div id="root"></div></body></html>' })
 })
 const allScopes = ['messages','tasks','calendar','cooperation','collections','transitions','teaching','timetable']
-const ai = () => page.getByRole('dialog', { name: 'AI 옆자리', exact: true })
+const ai = () => page.getByRole('dialog', { name: 'AI 비서', exact: true })
 const nav = () => page.getByRole('navigation', { name: '허용된 업무', exact: true })
 async function start(scopes) {
   await page.goto('http://127.0.0.1:5187/ui-polish')
@@ -63,9 +63,9 @@ try {
     await page.getByLabel('준비할 학기 선택', { exact: true }).waitFor()
     assert.equal(await page.getByRole('alert').count(), 0)
     assert.equal(await page.getByText('이 주에 공개된 내 수업이 없습니다', { exact: true }).count(), 0)
-    assert.equal(await page.getByRole('button', { name: '시간표 만들기', exact: true }).getAttribute('aria-pressed'), 'true')
+    assert.equal(await page.getByRole('button', { name: '시간표 만들기', exact: true }).count(), 0)
     await screenshot('01-editor')
-    await page.getByRole('button', { name: '공개 시간표 보기', exact: true }).click()
+    await page.getByRole('button', { name: '시간표 보기', exact: true }).click()
     await page.getByRole('region', { name: '주간 시간표', exact: true }).waitFor()
     assert.deepEqual(await page.evaluate(() => window.cross.writes), [])
   })
@@ -92,7 +92,7 @@ try {
     await clickWorkspaceMenu(page, 'AI 비서')
     for (const viewport of [{width:1440,height:900}, {width:390,height:844}]) {
       await page.setViewportSize(viewport)
-      const send = ai().getByRole('button', { name: 'Claude에게 요청', exact: true })
+      const send = ai().getByRole('button', { name: 'AI에게 요청', exact: true })
       await send.waitFor()
       const box = await send.boundingBox()
       assert(box.y >= 0 && box.y + box.height <= viewport.height, `요청 버튼이 첫 화면을 벗어남: ${JSON.stringify(box)}`)
@@ -102,14 +102,14 @@ try {
       await fits()
     }
     assert.deepEqual(await page.evaluate(() => window.cross.aiCalls), [])
-    await ai().getByRole('button', { name: 'AI 옆자리 닫기', exact: true }).click()
+    await ai().getByRole('button', { name: 'AI 비서 닫기', exact: true }).click()
     await page.getByRole('button', { name: 'AI 비서 열기', exact: true }).click()
     assert.equal(await ai().getByLabel('질문 또는 부탁할 일', { exact: true }).inputValue(), '자동으로 보내지 않는 보관 질문')
   })
   await check('시험 교사도 공통 셸을 쓰며 허용된 8개 업무만 탐색하고 AI·학교관리·공개 기능은 추가하지 않는다', async () => {
     await page.setViewportSize({width:1440,height:900}); await start(allScopes)
     assert(await page.locator('.ws-participant').isVisible())
-    assert.deepEqual(await page.locator('.ws-primary-menus button').allTextContents(), ['💬메시지','🗓시간표','📋업무','📅일정'])
+    assert.deepEqual(await page.locator('.ws-primary-menus button').allTextContents(), ['💬메시지','🕘시간표','📋업무','📅일정'])
     assert.equal(await page.getByRole('button', { name: /AI 비서/ }).count(), 0)
     await nav().getByRole('button', {name:'더보기',exact:true}).click()
     const more = page.getByRole('dialog', {name:'더보기',exact:true})

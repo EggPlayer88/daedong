@@ -18,7 +18,7 @@ export function GuidedAnchorPicker({inspection,questions,locked,onAdd}:{inspecti
   <label className="documents-check"><input type="checkbox" checked={onlyBlank} onChange={event=>setOnlyBlank(event.target.checked)}/>빈 문단 후보만 보기</label>
   {onlyBlank&&!anchors.length&&<p className="documents-muted">남은 빈 문단 후보가 없습니다. 전체 위치를 보려면 위 선택을 해제해 주세요.</p>}
   <div className="guided-anchor-list">{anchors.map(anchor=><div className="guided-anchor" key={anchor.id}>
-   <strong>{anchor.cell?`표 셀 ${Number(anchor.cell.row)+1}행 ${Number(anchor.cell.column)+1}열`:'본문 문단'} · {anchor.id}</strong>
+   <strong>{anchor.cell?`표 셀 ${Number(anchor.cell.row)+1}행 ${Number(anchor.cell.column)+1}열`:'본문 문단'} · {anchor.paragraph+1}번째</strong><details className="documents-muted"><summary>원본 위치 상세</summary><code>{anchor.id}</code></details>
    <p className="documents-body">{anchor.sourceText||'(빈 칸)'}</p>
    {linked.has(anchor.id)&&<span className="documents-muted">질문 연결됨</span>}
    <button type="button" disabled={locked||linked.has(anchor.id)||questions.length>=GUIDED_LIMITS.maxQuestions} onClick={()=>onAdd(anchor.id)}>이 위치에 질문 연결</button>
