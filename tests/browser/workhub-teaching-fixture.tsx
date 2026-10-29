@@ -16,7 +16,7 @@ window.rubricHistory=clone(state.rubrics);window.calls=[];window.state=state;win
 const catalog=()=>({...env(),courses:[course],terms:[{id:'term-a',schoolId:'school-a',version:1,label:'2026년 2학기',firstDay:'2026-08-13',lastDay:'2027-02-28'}],subjects:[{id:'subject-a',label:'도덕'}],approvedTeachers:[{id:'member-a',label:'합성 교사'}],canManageCourses:window.canManageCourses!==false});
 const connection={getIdentity:async()=>({userId:member.userId,approved:true,profile:{id:member.userId,name:member.name,email:'synthetic@example.invalid',role:window.identityRole,is_active:true,extra_permissions:[],department_id:null}}),info:()=>({memberships:[member],schools:[{id:'school-a'}],basisDate:'2026-10-16'}),async rpcVerified(name,args){window.calls.push(clone({name,args}));
 if(window.unavailable)return{...env(),ok:false,code:'UNAVAILABLE'};
-if(name==='workhub_teaching_catalog')return clone(catalog());
+if(name==='workhub_teaching_catalog'){if(window.holdCatalog)await new Promise(resolve=>window.releaseCatalog=resolve);return clone(catalog());}
 if(name==='workhub_teaching_course')return clone({...env(),course,students,rubrics:state.rubrics,imports:state.imports});
 if(name==='workhub_teaching_student')return clone({...env(),courseId:course.id,studentId:args.p_student_id,observations:state.observations.filter(o=>o.studentId===args.p_student_id),assessments:state.assessments.filter(o=>o.studentId===args.p_student_id),nextCursor:null});
 if(name==='workhub_teaching_counseling')return clone({...env(),courseId:course.id,studentId:args.p_student_id,records:state.counseling.filter(o=>o.studentId===args.p_student_id),nextCursor:null});

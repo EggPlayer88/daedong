@@ -26,6 +26,16 @@ async function test(name,run,scenario=''){await start(scenario);try{await run()}
 async function ask(text='학교 제출 절차를 확인해 주세요.'){await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill(text);await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click();await settle()}
 async function personal(){await page.getByRole('button',{name:'내 개인 비서',exact:true}).click();await settle();await ask('제출 자료 확인을 할 일로 정리해 주세요.');await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).waitFor()}
 try{
+ await test('질문 초안은 메뉴 이동을 막지 않고 재마운트해도 보존한다',async()=>{
+  await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('다른 업무를 보고 이어 쓸 질문');await settle();
+  assert.equal(await page.evaluate(()=>window.locked),false);
+  assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);return event.defaultPrevented}),true);
+  await page.evaluate(()=>window.setShow(false));await settle();await page.evaluate(()=>window.setShow(true));
+  await page.getByLabel('질문 또는 부탁할 일',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).inputValue(),'다른 업무를 보고 이어 쓸 질문');
+  assert.equal(await page.evaluate(()=>window.calls.length),0);
+  assert.equal(await page.getByRole('button',{name:'새 대화',exact:true}).isDisabled(),true);
+ });
  await test('자료판 2판과 인용 줄바꿈을 실제 CSS로 표시하고 같은 접수증 복구 뒤에도 보존한다',async()=>{
   await page.addStyleTag({content:readFileSync(new URL('../../apps/workhub/src/assistant/assistant.css',import.meta.url),'utf8')})
   const source={reference:{kind:'knowledge',id:'rule-one',version:2},title:'가져온 파일 v1',locator:'HWPX 원문 문단 3개'}
@@ -45,7 +55,7 @@ try{
   const requests=await page.evaluate(()=>window.calls)
   assert.deepEqual(requests[0],requests[1])
  })
- await test('미설정 상태는 입력만 보관하고 AI 호출·가짜 성공을 만들지 않는다',async()=>{await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('준비되면 물어볼 내용');assert.equal(await page.getByRole('button',{name:'Claude에게 요청',exact:true}).isDisabled(),true);assert.equal(await page.evaluate(()=>window.calls.length),0);assert.equal(await page.evaluate(()=>window.locked),true)},'notready')
+ await test('미설정 상태는 입력만 보관하고 AI 호출·가짜 성공을 만들지 않는다',async()=>{await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('준비되면 물어볼 내용');assert.equal(await page.getByRole('button',{name:'Claude에게 요청',exact:true}).isDisabled(),true);assert.equal(await page.evaluate(()=>window.calls.length),0);assert.equal(await page.evaluate(()=>window.locked),false)},'notready')
  await test('명시적으로 요청한 뒤 답변과 실제 출처 판·위치를 읽을 수 있다',async()=>{await ask();await page.getByRole('heading',{name:'Claude 답변',exact:true}).waitFor();assert.equal(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).inputValue(),'');await page.getByText('근거 1개',{exact:true}).click();assert.match(await page.locator('.assistant-answer').innerText(),/학교 안내[\s\S]*판 3[\s\S]*제3항/);assert.equal(await page.evaluate(()=>window.aiCalls),1);assert.equal(await page.evaluate(()=>window.pending.count()),0)})
  await test('처리 결과 미확정 뒤 재마운트해도 같은 질문·요청 번호만 확인한다',async()=>{await page.evaluate(()=>window.pendingOnce=true);await ask('원 요청 보존');await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();const first=await page.evaluate(()=>window.calls[0]);assert.equal(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).isDisabled(),true);assert.equal(await page.getByRole('button',{name:'질문 비우기',exact:true}).isDisabled(),true);await page.evaluate(()=>window.setShow(false));await settle();await page.evaluate(()=>window.setShow(true));await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();assert.equal(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).inputValue(),'원 요청 보존');assert.equal(await page.evaluate(()=>window.calls.length),1);await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).click();await page.getByRole('heading',{name:'Claude 답변',exact:true}).waitFor();assert.deepEqual(await page.evaluate(()=>window.calls[1]),first);assert.equal(await page.evaluate(()=>window.aiCalls),1);assert.equal(await page.evaluate(()=>window.pending.count()),0)})
  await test('내 개인 비서의 할 일 제안은 검토·최종 확인 뒤에만 실제 저장한다',async()=>{await personal();assert.equal(await page.evaluate(()=>window.tasks),0);await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).click();await page.getByLabel('할 일 제목',{exact:true}).fill('교사가 고친 제목');await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).click();assert.equal(await page.evaluate(()=>window.tasks),0);assert.equal(await page.getByLabel('할 일 제목',{exact:true}).isDisabled(),true);await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).click();await page.getByText('개인 할 일에 추가했습니다.',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.tasks),1);assert.equal(await page.evaluate(()=>window.calls[1].input.input.title),'교사가 고친 제목');assert.equal(await page.evaluate(()=>window.updated),1)})
