@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { launchBrowser } from './launch-browser.mjs'
 
 const root = fileURLToPath(new URL('../../',import.meta.url))
+// 공유 node_modules를 사용하는 worktree에서도 앱과 합성 인증은 같은 공용 인스턴스를 사용한다.
 const bundle = buildSync({stdin:{contents:`
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import App from './apps/main/src/App.jsx';
@@ -27,7 +28,7 @@ const bundle = buildSync({stdin:{contents:`
   };
   supabase.from=()=>({select(){return this},eq(){return this},async maybeSingle(){return {data:profile,error:null}}});
   createRoot(document.getElementById('root')).render(<App/>);
-`,resolveDir:root,loader:'jsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://example.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
+`,resolveDir:root,loader:'jsx'},alias:{'@daedong/shared':resolve(root,'packages/shared/src/index.js')},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://example.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser()
 const context=await browser.newContext({viewport:{width:420,height:850}})
 const page=await context.newPage(), errors=[], remote=[]

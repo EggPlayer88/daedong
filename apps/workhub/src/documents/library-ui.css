@@ -88,3 +88,6 @@
  .document-library-ui.knowledge > form[role=search] { flex-wrap: wrap; }
  .document-library-ui.knowledge > form[role=search] label { flex-basis: 100%; }
 }
+
+/* 삭제는 보조 동작으로 구분하되 터치 영역은 유지한다. */
+.document-library-ui .guided-question-delete{width:auto;justify-self:start;min-height:44px;color:var(--ui-danger,#a63131);padding:8px 14px}

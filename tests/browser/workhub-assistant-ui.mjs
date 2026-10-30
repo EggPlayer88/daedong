@@ -28,7 +28,7 @@ async function capture(name,locator=page.locator('#root')){if(!process.env.WORKH
 const fits=async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
 async function answer(){
  await page.evaluate(()=>window.answerSegments=[{text:'현장체험학습 준비는 다음 순서로 진행해 주세요.\n\n1. 학년 협의에서 운영 계획과 담당 역할을 확인합니다.\n2. 학교 운영 계획에 따라 안전교육과 인원 점검을 준비합니다.\n3. 제출 전 최신 양식과 마감일을 담당자에게 확인합니다.',citations:[{reference:{kind:'knowledge',id:'school-guide-2026',version:3},title:'현장체험학습 운영 안내',locator:'운영 안내 2쪽 · 준비 절차\n「담당 교사는 출발 전 안전교육과 인원 점검을 실시한다.」'}]}])
- await field('질문 또는 부탁할 일').fill('현장체험학습을 준비하려고 해요. 확인할 순서를 알려 주세요.');await button('Claude에게 요청').click();await page.getByText('Haiku 기본 답변',{exact:true}).waitFor()
+ await field('질문 또는 부탁할 일').fill('현장체험학습을 준비하려고 해요. 확인할 순서를 알려 주세요.');await button('AI에게 요청').click();await page.getByText('Haiku 기본 답변',{exact:true}).waitFor()
  await page.getByText('근거 1개',{exact:true}).click()
 }
 async function darkSmall(){await page.setViewportSize({width:320,height:820});await page.addStyleTag({content:'html{--ui-surface:#171c28;--ui-surface-muted:#101521;--ui-text:#e9edf5;--ui-muted:#b7c3d6;--ui-line:#45506a;--ui-accent:#a4baff;--ui-accent-soft:#253658;--ui-on-accent:#102145;--ui-body-size:30px;--ui-small-size:26px;--ui-warning:#f0c475;--ui-warning-soft:#30271b}body{padding:8px}'});await fits()}
@@ -54,13 +54,13 @@ try{
   const request=await page.evaluate(()=>window.openedCitations[0]);assert.equal(request.sourceId,'school-guide-2026');assert.equal(request.sourceVersion,3);assert.equal(await page.evaluate(()=>window.calls.length),1)
  })
  await check('정밀 검토 비용 안내는 버튼과 함께 보이고 직접 누른 뒤에만 Sonnet 요청이 생긴다','assistant',async()=>{
-  await answer();const review=page.locator('.assistant-review');assert.match(await review.innerText(),/학교 예산에서 비용/)
+  await answer();assert.equal(await page.locator('.assistant-compose').evaluate(el=>Boolean(document.querySelector('.assistant-conversation')?.compareDocumentPosition(el)&Node.DOCUMENT_POSITION_FOLLOWING)),true);const review=page.locator('.assistant-review');assert.match(await review.innerText(),/학교 예산에서 비용/)
   await page.getByText('학교 AI 예산 · 기본 Haiku',{exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),1)
-  await button('이 답변 정밀 검토').click();await page.getByText('Sonnet 정밀 검토',{exact:true}).waitFor();const requests=await page.evaluate(()=>window.calls);assert.equal(requests.length,2);assert.equal(requests[1].input.reviewOf.requestKey,requests[0].requestKey)
+  await button('이 답변 정밀 검토').click();assert.equal(await page.evaluate(()=>window.calls.length),1);await button('정밀 검토 취소').click();assert.equal(await page.evaluate(()=>window.calls.length),1);await button('이 답변 정밀 검토').click();await page.getByRole('button',{name:'비용 사용 확인하고 정밀 검토',exact:true}).click();await page.getByText('Sonnet 정밀 검토',{exact:true}).waitFor();const requests=await page.evaluate(()=>window.calls);assert.equal(requests.length,2);assert.equal(requests[1].input.reviewOf.requestKey,requests[0].requestKey)
  })
  await check('작은 화면·두 배 글씨에서도 인용·입력·요청 복구가 넘치거나 접혀 숨지 않는다','assistant',async()=>{
   await answer();await darkSmall();await button('인용 원문 보기').focus();assert.equal(await button('인용 원문 보기').evaluate(el=>document.activeElement===el),true)
-  await field('질문 또는 부탁할 일').fill('두 번째 질문');await page.evaluate(()=>window.aiMissing=true);await button('Claude에게 요청').click();await button('새 호출 없이 요청 닫기').waitFor();await fits()
+  await field('질문 또는 부탁할 일').fill('두 번째 질문');await page.evaluate(()=>window.aiMissing=true);await button('AI에게 요청').click();await button('새 호출 없이 요청 닫기').waitFor();await fits()
   assert.equal(await page.getByRole('region',{name:'미확정 요청',exact:true}).isVisible(),true);assert.equal(await field('질문 또는 부탁할 일').inputValue(),'두 번째 질문');await capture('02-assistant-small-dark')
  })
  await check('기억 검색·상태·선택을 정리해도 확인 전 질문 사용이나 저장은 하지 않는다','memory',async()=>{

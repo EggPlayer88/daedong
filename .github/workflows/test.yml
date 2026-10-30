@@ -193,6 +193,31 @@ jobs:
         run: |
           python database/workhub-timetable/t3/test/run_t3.py
           node tests/integration/timetable-interventions-capture.mjs "$T3_CAPTURE"
+      - name: 연간 운영·관리자 연속성·기간 휴업 SQL 회귀
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          AF1_CAPTURE: ${{ runner.temp }}/workhub-af1-captures.json
+          AF1_TEST_PORT: '55639'
+        run: |
+          python database/workhub-annual/af1/test/build_check.py
+          git diff --exit-code -- database/workhub-annual/af1/AF1-05_사후점검.sql
+          python database/workhub-annual/af1/test/run_af1.py
+          node tests/integration/annual-operations-capture.mjs "$AF1_CAPTURE"
+      - name: 수합 상태·양식 동시 게시 SQL·원자성·앱 응답
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          AF2_CAPTURE: ${{ runner.temp }}/workhub-af2-captures.json
+          AF2_TEST_PORT: '55649'
+        run: |
+          python database/workhub-annual/af2/test/build_check.py
+          git diff --exit-code -- database/workhub-annual/af2/AF2-02_사후점검.sql
+          python database/workhub-annual/af2/test/run_af2.py
+          node tests/integration/collection-presentation-capture.mjs "$AF2_CAPTURE"
+      - name: 현재 운영 INT-10·OP1 위 AF1·AF2 동시 설치 회귀
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55659'
+        run: python database/workhub-annual/af2/test/run_current_baseline.py
       - name: 실제 시간표 가져오기 SQL·원자성·앱 응답
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

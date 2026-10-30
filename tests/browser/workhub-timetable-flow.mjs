@@ -10,9 +10,9 @@ const html=`<!doctype html><html lang="ko"><meta name="viewport" content="width=
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage(),passed=[],errors=[],external=[]
 page.setDefaultTimeout(12000);page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:5179/'))external.push(r.url())})
 await context.route('**/*',route=>route.fulfill({contentType:'text/html',body:html}))
-async function start(){await page.goto('http://127.0.0.1:5179/flow');await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByRole('button',{name:'편성 관리',exact:true}).click();await page.getByRole('button',{name:'시간표 만들기',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready)}
+async function start(){await page.goto('http://127.0.0.1:5179/flow');await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByRole('button',{name:'편성 관리',exact:true}).click();await page.getByRole('heading',{name:'1. 기초 자료 확인',exact:true}).waitFor();await page.evaluate(()=>document.fonts.ready)}
 async function check(name,run){await start();await run();passed.push(name);console.log('  ✓ '+name)}
-async function design(){await page.getByRole('button',{name:'시간표 만들기',exact:true}).click()}
+async function design(){await page.getByRole('heading',{name:'1. 기초 자료 확인',exact:true}).waitFor()}
 async function generate(){await design();await page.getByRole('button',{name:'배치·비교',exact:true}).click();await page.getByRole('button',{name:'배치 만들기',exact:true}).click();await page.getByText('전체 필수 조건 검사 통과 · 교사·학생 집단·공간·시수 확인',{exact:true}).waitFor()}
 async function save(){await page.getByRole('button',{name:'초안 저장·공개 검토',exact:true}).click();await page.getByLabel('초안 이름',{exact:true}).fill('확정 검토할 합성 초안');await page.getByRole('button',{name:'새 초안으로 서버에 저장',exact:true}).click()}
 const handoff=()=>page.getByRole('button',{name:'저장한 초안으로 확정 검토 열기',exact:true})

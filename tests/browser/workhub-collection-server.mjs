@@ -18,10 +18,10 @@ const policy={extensions:['hwpx'],maxFileBytes:1024*1024,maxFiles:3},state={requ
 window.mode='normal';window.fileMode='ready';window.calls=[];window.uploadCalls=[];window.applied=0;window.release=()=>{while(gates.length)gates.shift()()};
 const wait=()=>new Promise(resolve=>gates.push(resolve));const now='2026-10-15T08:00:00Z';
 function seed(){state.request={id:'request-1',schoolId:'school',managerMemberId:'member-0',status:'published',version:2,publishedAt:now,title:'서버 수합',instructions:'안내',dueDate:'2026-10-31',reviewMode:'required',reviewerMemberId:'member-1',textLabel:'',textRequired:false,numberLabel:'',numberRequired:false,units:[{label:'담당교사',responsibleMemberId:'member-0',contributorMemberIds:[]}],fileCollection:{policy:{...policy,maxFiles:1},required:true,templates:[]}};state.unit={id:'unit-1',requestId:'request-1',schoolId:'school',label:'담당교사',responsibleMemberId:'member-0',members:[{id:'member-0',userId:'user-0',name:'담당교사'}],version:1,currentSubmissionId:null,effectiveSubmissionId:null,withdrawnSubmissionIds:[],correctionUntil:'',correctionReason:''}}
-if(window.initial==='published'||window.initial==='review'||window.initial==='duplicate')seed();
+if(window.initial==='published'||window.initial==='review'||window.initial==='duplicate'||window.initial==='closed'||window.initial==='archived')seed();
 if(window.initial==='review'){const file={id:'file-seed',name:'제출.pdf',extension:'pdf',bytes:17,sha256:'a'.repeat(64)};uploads.set(file.id,{file,parent:{kind:'draft',requestId:'request-1',unitId:'unit-1',version:0},blob:new Blob(['%PDF-1.7\\nresult']),state:'ready'});state.draft={id:'draft-1',unitId:'unit-1',lastEditorMemberId:'member-0',version:1,text:'',number:null,files:[file]};state.unit.currentSubmissionId='submission-1';state.submissions=[{id:'submission-1',unitId:'unit-1',revision:1,submittedBy:'member-0',receiptAt:now,receiptDate:'2026-10-15',dueSnapshot:'2026-10-31',initiallyLate:false,correctionReason:'',previousSubmissionId:null,reviewMode:'required',requestKey:'seed',text:'',number:null,files:[file]}]}
 if(window.initial==='duplicate')members[1].name='담당교사';
-window.state=state;window.members=members;window.draftCalls=0;window.pendingCount=()=>pending.count();
+window.operationPhase=window.initial;window.state=state;window.members=members;window.draftCalls=0;window.pendingCount=()=>pending.count();
 const server={
 async readiness(){return window.readinessReason?{available:false,reason:window.readinessReason,policy:null}:window.initial==='missing'?{available:false,reason:'database_missing',policy:null}:{available:true,reason:'ready',policy}},
 async list(member,cursor){if(member==='member-2')return{items:[],nextCursor:null};return{items:state.request?[clone(state.request)]:[],nextCursor:null}},
@@ -41,9 +41,9 @@ async prepareUpload(member,parent,file,filePolicy,key){window.uploadCalls.push(c
 async upload(member,intent,file){window.uploadCalls.push({kind:'upload',id:intent.fileId});uploads.get(intent.fileId).blob=file},
 async completeUpload(member,id,key){window.uploadCalls.push({kind:'complete',id,key});if(window.fileMode==='reject')throw new CollectionServerError('FILE_FAILED','private-trace');const entry=uploads.get(id);entry.state=window.fileMode==='pending'?'pending_verification':'ready';if(window.fileMode==='unknown'){window.fileMode='ready';throw new CollectionServerError('RESULT_UNKNOWN','private-trace')}return{fileId:id,state:entry.state,file:entry.state==='ready'?clone(entry.file):null}},
 async fileStatus(member,id){const entry=uploads.get(id);if(window.fileMode==='ready')entry.state='ready';return{fileId:id,state:entry.state,file:entry.state==='ready'?clone(entry.file):null}},
-async download(member,parent,file){window.downloadParent=clone(parent);return uploads.get(file.id).blob}
+async download(member,parent,file){window.downloadParent=clone(parent);if(window.delayDownload)await wait();return uploads.get(file.id).blob}
 };
-function App(){const[visible,setVisible]=useState(true),[actor,setActor]=useState(0),[locked,setLocked]=useState(false),[revision,setRevision]=useState(0);window.refresh=()=>setRevision(value=>value+1);window.setVisible=setVisible;window.setActor=value=>{memory.clear();memory.activate(recoveryScope(members[value]));pending.clear();setActor(value)};return <><output data-lock>{String(locked)}</output><EditDraftsProvider store={memory}><PendingRequestsProvider store={pending}>{visible&&<CollectionServerPanel server={server} member={members[actor]} members={members} date="2026-10-15" revision={revision} onNavigationLockChange={setLocked}/>}</PendingRequestsProvider></EditDraftsProvider></>}
+function App(){const[visible,setVisible]=useState(true),[actor,setActor]=useState(0),[locked,setLocked]=useState(false),[revision,setRevision]=useState(0);window.refresh=()=>setRevision(value=>value+1);window.setVisible=setVisible;window.setActor=value=>{memory.clear();memory.activate(recoveryScope(members[value]));pending.clear();setActor(value)};return <><output data-lock>{String(locked)}</output><EditDraftsProvider store={memory}><PendingRequestsProvider store={pending}>{visible&&<CollectionServerPanel server={server} operations={['closed','archived'].includes(window.initial)?{get:async()=>({requestId:'request-1',version:2,phase:window.operationPhase,dueDate:'2026-10-31',canManage:true,totals:{total:1,missing:1,submitted:0,accepted:0,changesRequested:0},units:[]} )}:undefined} member={members[actor]} members={members} date="2026-10-15" revision={revision} onNavigationLockChange={setLocked}/>}</PendingRequestsProvider></EditDraftsProvider></>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' })
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage()
@@ -65,6 +65,58 @@ async function createInput() { await page.getByRole('button', { name: '새 수�
 async function openRequest() { await page.getByRole('button', { name: /서버 수합/ }).click(); await page.getByRole('region', { name: '수합 상세', exact: true }).waitFor() }
 async function remount() { await page.evaluate(() => window.setVisible(false)); await settle(); await page.evaluate(() => window.setVisible(true)); await page.getByRole('heading', { name: '문서 수합', exact: true }).waitFor(); await settle() }
 try {
+
+  for(const phase of ['closed','archived'])await test('마감·보관 수합은 정정과 제출을 막고 재개 방법을 안내한다: '+phase,async()=>{
+    await openRequest();await page.getByText(/기존 제출본은 내려받을 수 있습니다/).waitFor();
+    assert.equal(await page.getByRole('button',{name:'정정 기간 설정',exact:true}).isDisabled(),true);
+    assert.equal(await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).isDisabled(),true);
+    assert.equal(await page.evaluate(()=>window.calls.length),0);
+    await page.evaluate(()=>{window.operationPhase='open';window.refresh()});
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent==='정정 기간 설정'&&!b.disabled));
+    await page.getByRole('button',{name:'정정 기간 설정',exact:true}).click();
+    await page.getByRole('heading',{name:/정정 기간 설정/}).waitFor();
+  },phase);
+  await test('새 정정은 마감 중 막되 이미 보낸 정정은 원래 번호로 복구한다',async()=>{
+    await page.evaluate(()=>window.operationPhase='open');await openRequest();
+    await page.getByRole('button',{name:'정정 기간 설정',exact:true}).click();
+    await page.getByLabel('정정 허용 사유',{exact:true}).fill('마감 전 보낸 정정');await page.getByLabel('정정 종료일',{exact:true}).fill('2026-10-31');
+    await page.getByLabel('대상과 처리 내용을 확인했습니다',{exact:true}).check();await page.evaluate(()=>window.mode='unknown');
+    await page.getByRole('button',{name:'정정 기간 저장',exact:true}).click();await page.getByText('이전 저장 결과 확인이 필요합니다',{exact:true}).waitFor();
+    const original=await page.evaluate(()=>window.calls[0]);await page.evaluate(()=>{window.operationPhase='closed';window.refresh()});
+    await page.getByText(/기존 제출본은 내려받을 수 있습니다/).waitFor();
+    await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click();
+    await page.waitForFunction(()=>window.pendingCount()===0);assert.deepEqual(await page.evaluate(()=>window.calls[1]),original);
+    assert.equal(await page.evaluate(()=>window.applied),1);
+  },'closed');
+  await test('기한 경과는 마감으로 오인하지 않고 표시한다',async()=>{
+    await page.evaluate(()=>{window.state.request.dueDate='2026-10-14'});await openRequest();
+    await page.getByText(/공개됨 · 기한 지남/).waitFor();
+    assert.equal(await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).isDisabled(),false);
+  },'published');
+  await test('같은 이름 파일 재선택은 두 번째 업로드 없이 교체 방법을 안내한다',async()=>{
+    await page.evaluate(()=>{window.state.request.fileCollection.policy.maxFiles=3});await openRequest();
+    await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).click();
+    const file={name:'시험.hwpx',mimeType:'application/hwp+zip',buffer:Buffer.from('synthetic-hwpx')};
+    await page.getByLabel('제출 파일 선택',{exact:true}).setInputFiles(file);
+    await page.waitForFunction(()=>window.uploadCalls.some(c=>c.kind==='complete'));await settle();
+    const before=await page.evaluate(()=>window.uploadCalls.length);
+    await page.getByLabel('제출 파일 선택',{exact:true}).setInputFiles(file);
+    await page.getByText(/같은 이름의 파일이 이미 첨부되어 있습니다/).waitFor();
+    assert.equal(await page.evaluate(()=>window.uploadCalls.length),before);
+  },'published');
+  await test('미확정 정정 요청 중 파일을 내려받아도 저장 재시도 중으로 표시하지 않는다',async()=>{
+    await openRequest();await page.getByRole('button',{name:'정정 기간 설정',exact:true}).click();
+    await page.getByLabel('정정 허용 사유',{exact:true}).fill('동일 요청 복구 시험');await page.getByLabel('정정 종료일',{exact:true}).fill('2026-10-31');
+    await page.getByLabel('대상과 처리 내용을 확인했습니다',{exact:true}).check();await page.evaluate(()=>window.mode='unknown');
+    await page.getByRole('button',{name:'정정 기간 저장',exact:true}).click();
+    await page.getByText('이전 저장 결과 확인이 필요합니다',{exact:true}).waitFor();
+    const calls=await page.evaluate(()=>window.calls.length);await page.evaluate(()=>window.delayDownload=true);
+    await page.getByRole('button',{name:'제출.pdf 다운로드',exact:true}).first().click();
+    await page.getByText('파일을 내려받는 중…',{exact:true}).waitFor();
+    assert.equal(await page.getByText('수합 요청을 처리하고 있습니다',{exact:true}).count(),0);
+    assert.equal(await page.getByText('이전 저장 결과 확인이 필요합니다',{exact:true}).count(),1);
+    assert.equal(await page.evaluate(()=>window.calls.length),calls);await page.evaluate(()=>window.release());
+  },'review');
   await test('DB가 없으면 준비 안내를 표시하고 수합 없음·저장 성공으로 바꾸지 않는다', async () => {
     await page.getByRole('heading', { name: '문서 수합 연결 준비가 필요합니다' }).waitFor()
     assert.match(await page.locator('body').innerText(), /DB 함수가 아직 준비/)
@@ -142,7 +194,7 @@ try {
   await test('수합 생성·양식 업로드·공개·파일 초안·최종 제출·다운로드가 이어진다', async () => {
     await createInput(); await page.getByRole('button', { name: '수합 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '양식 추가·초안 수정' }).click()
     await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(file('양식.hwpx')); await page.getByRole('button', { name: '양식.hwpx 제거', exact: true }).waitFor()
-    await page.getByRole('button', { name: '수합 초안 변경 저장' }).click(); await page.getByRole('button', { name: '대상 교사에게 공개' }).click(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click()
+    await page.getByRole('button', { name: '수합 초안 변경 저장' }).click(); await page.getByRole('button', { name: '대상 교사에게 공개' }).click(); await page.getByRole('region',{name:'수합 공개 전 확인'}).waitFor(); await page.getByRole('button',{name:'대상·양식 확인 후 공개'}).click(); await page.getByRole('button', { name: '내 제출 파일 작성' }).click()
     await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(file('작성본.hwpx')); await page.getByRole('button', { name: '작성본.hwpx 제거', exact: true }).waitFor()
     await page.getByRole('button', { name: '제출 초안 저장', exact: true }).click(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).waitFor(); await page.getByRole('button', { name: '저장한 파일 최종 제출' }).click()
     const download = page.waitForEvent('download'); await page.getByRole('button', { name: '작성본.hwpx 다운로드', exact: true }).click(); assert.deepEqual(readFileSync(await (await download).path()), file('작성본.hwpx').buffer)

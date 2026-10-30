@@ -95,7 +95,7 @@ export function TimetableAssistantPanel(props: Props) {
     try {
       const ready = await props.server.readiness(props.member.id)
       if (epoch !== life.current) return
-      if (!ready.available) { setNotice('학교의 Claude 비서 연결·이용 설정이 준비되면 사용할 수 있습니다. 지금은 조건을 직접 입력할 수 있습니다.'); return }
+      if (!ready.available) { setNotice('학교의 AI 비서 연결·이용 설정이 준비되면 사용할 수 있습니다. 지금은 조건을 직접 입력할 수 있습니다.'); return }
       const context = await buildTimetableAiContext(props.basis, props.conditions, stage, prompt, stage === 'adjust' ? props.placements : [])
       if (epoch !== life.current || current.current.disabled || canonical([current.current.basis, current.current.conditions, current.current.placements]) !== before) return
       request = timetableAssistantRequest(context, resourceId)

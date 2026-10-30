@@ -1,3 +1,4 @@
+import type {CollectionStatuses} from './presentation'
 import type { FilePolicy, FileReference } from '../files/contracts'
 import type { CollectionInput, CollectionRequest, CollectionUnit, CollectionDraft, Submission, ReviewRecord, Supplement, Withdrawal, AnswerInput } from '../workflows/types'
 
@@ -24,6 +25,7 @@ export type CollectionFileState = 'awaiting_upload' | 'pending_verification' | '
 export interface CollectionUpload { fileId: string; bucket: string; path: string; expiresAt: string; state: CollectionFileState }
 export interface CollectionFileStatus { fileId: string; state: CollectionFileState; file: FileReference | null }
 export interface CollectionServer {
+  statuses?(memberId:string,ids:string[]):Promise<CollectionStatuses>
   readiness(memberId: string): Promise<CollectionReadiness>
   list(memberId: string, cursor?: string): Promise<CollectionList>
   detail(memberId: string, requestId: string): Promise<CollectionDetail>

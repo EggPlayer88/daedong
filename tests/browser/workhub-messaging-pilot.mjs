@@ -33,7 +33,7 @@ const bundle=buildSync({stdin:{contents:`
   return{data:envelope(values[name]),error:null};
  };
  createRoot(document.getElementById('root')).render(<App/>);
-`,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'jsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://example.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
+`,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'jsx'},bundle:true,alias:{'@daedong/shared':fileURLToPath(new URL('../../packages/shared/src/index.js',import.meta.url))},write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://example.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext(),page=await context.newPage(),errors=[],external=[]
 page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(12000)
 await page.route('**/*',route=>{if(new URL(route.request().url()).hostname!=='127.0.0.1'){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<html><meta charset="utf-8"><div id="root"></div></html>'})})

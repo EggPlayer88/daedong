@@ -1,3 +1,4 @@
+import {collectionStateLabel,createCollectionPresentation,type CollectionStatuses} from '../collections/presentation'
 import { WorkspaceIcon } from '../app/WorkspaceIcon'
 import { useEffect, useId, useMemo, useState } from 'react'
 import type { Membership } from '../contracts'
@@ -13,6 +14,8 @@ const iconNames = { collection: 'collections', supplement: 'collections', messag
 export function HomeOverviewPanel(props: Props) { return <HomeOverviewScope key={recoveryScope(props.member)} {...props} /> }
 function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, locked = false }: Props) {
   const service = useMemo(() => createHomeService(connection), [connection])
+  const presentation=useMemo(()=>createCollectionPresentation(connection),[connection])
+  const [statuses,setStatuses]=useState<CollectionStatuses>()
   const [data, setData] = useState<HomeOverview>()
   const [loading, setLoading] = useState(true)
   const [failed, setFailed] = useState(false)
@@ -21,10 +24,10 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
   const listId = useId()
   useEffect(() => {
     let live = true
-    setLoading(true); setFailed(false)
-    void service.load(member.id).then(value => { if (live) setData(value) }).catch(() => { if (live) { setData(undefined); setFailed(true) } }).finally(() => { if (live) setLoading(false) })
+    setLoading(true); setFailed(false); setStatuses(undefined)
+    void service.load(member.id).then(async value => { if (!live)return;setData(value);setLoading(false);const ids=[...new Set(value.items.filter(i=>i.kind==='collection'||i.kind==='supplement').map(i=>i.sourceId))];if(ids.length)try{const result=await presentation.statuses(member.id,ids);if(live)setStatuses(result)}catch{if(live)setStatuses(undefined)} }).catch(() => { if (live) { setData(undefined); setFailed(true) } }).finally(() => { if (live) setLoading(false) })
     return () => { live = false }
-  }, [service, member.id, revision, reload])
+  }, [service, presentation, member.id, revision, reload])
 
   const empty = Boolean(data && homeOverviewEmpty(data))
   const counts = data ? homeCountRows(data) : []
@@ -45,7 +48,7 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
       <ul className="home-overview-items" id={listId}>{shownItems.map(item => <li key={item.id}>
         <button type="button" disabled={locked || loading} onClick={() => onOpen(item)} className={item.priority === 'urgent' ? 'is-urgent' : undefined}>
           <span className="home-overview-icon" aria-hidden="true"><WorkspaceIcon name={iconNames[item.kind]} /></span>
-          <span className="home-overview-content"><span className="home-overview-title">{item.priority === 'urgent' && <strong>확인 필요 · </strong>}{item.title}</span><small>{item.label}{item.dueDate && ` · ${item.dueDate}까지`}</small></span>
+          <span className="home-overview-content"><span className="home-overview-title">{item.priority === 'urgent' && <strong>확인 필요 · </strong>}{item.title}</span><small>{item.label}{(()=>{const row=statuses?.items.find(r=>r.requestId===item.sourceId);return (item.kind==='collection'||item.kind==='supplement')&&row?' · '+collectionStateLabel(row.status,row.dueDate,statuses!.today,row.phase):''})()}{item.dueDate && ` · ${item.dueDate}까지`}</small></span>
           <span className="home-overview-arrow" aria-hidden="true">›</span>
         </button>
       </li>)}</ul>

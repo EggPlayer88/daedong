@@ -40,6 +40,7 @@ const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[
   return result
  }
  if(name==='workhub_template_collection_targets')return envelope({items:[]})
+ if(name==='workhub_collection_presentation'&&args.p_operation==='targets')return {...envelope({items:[]}),contract:'collection.presentation.v1'}
  if(name==='workhub_template_mutate'||name==='workhub_template_request_get'){
   const command=args.p_command,key=args.p_request_key
   if(w.receipts.has(key))return envelope(w.receipts.get(key))

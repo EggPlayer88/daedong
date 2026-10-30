@@ -10,15 +10,15 @@ const bundle=buildSync({stdin:{contents:`
   import {createMemoryAdapter} from './apps/workhub/src/preview/memory-adapter';
   import {fixtureData,relationLabels} from './apps/workhub/src/preview/fixtures';
   import {createWorkflowStore} from './apps/workhub/src/workflows/store';
-  let uid='fixture-soyeon', denied=false, profileError=false, delay=0, callback=()=>{};
+  let uid='fixture-soyeon', denied=false, profileError=false, delay=40, callback=()=>{};
   const memory=createMemoryAdapter(fixtureData,0);
   const tasks=createWorkflowStore({members:fixtureData.memberships,date:fixtureData.basisDate});
   tasks.createTask('gaon-soyeon',{title:'가온 학교의 내 업무',notes:'합성 개인 자료',dueDate:'2026-10-19'},'seed-gaon');
   tasks.createTask('nuri-soyeon',{title:'누리 학교의 내 업무',notes:'다른 학교 합성 자료',dueDate:''},'seed-nuri');
   let taskDelay=0,collectionReason=null;
-  const scenario={contextCalls:0,taskCalls:0,token(){callback({user:{id:uid}})},switchUser(id){uid=id;callback({user:{id:uid}})},deny(){denied=true},profileError(value){profileError=value},delay(value){delay=value},taskDelay(value){taskDelay=value},collectionReason(value){collectionReason=value}};
+  const scenario={contextCalls:0,taskCalls:0,initialEvents:0,invalidations:[],token(){callback({user:{id:uid}})},switchUser(id){uid=id;callback({user:{id:uid}})},deny(){denied=true},profileError(value){profileError=value},delay(value){delay=value},taskDelay(value){taskDelay=value},collectionReason(value){collectionReason=value}};
   window.scenario=scenario;
-  const services={async getSession(){return {user:{id:uid}}},async fetchMyProfile(id){if(delay) await new Promise(r=>setTimeout(r,delay));if(profileError)throw new Error('synthetic query failure');return {id,name:'가상 기존 회원',email:'synthetic@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}},onAuthStateChange(cb){callback=cb;return()=>{callback=()=>{}}},async signInWithGoogle(){},async signOut(){},async rpc(name,args){
+  const services={async getSession(){return {user:{id:uid}}},async fetchMyProfile(id){if(delay) await new Promise(r=>setTimeout(r,delay));if(profileError)throw new Error('synthetic query failure');return {id,name:'가상 기존 회원',email:'synthetic@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}},onAuthStateChange(cb){callback=cb;const timer=setTimeout(()=>{scenario.initialEvents++;cb({user:{id:uid}},'INITIAL_SESSION')},0);return()=>{clearTimeout(timer);callback=()=>{}}},async signInWithGoogle(){},async signOut(){},async rpc(name,args){
     if(name==='workhub_context'){scenario.contextCalls++;return {error:null,data:{...memory.info(),schoolLabels:Object.fromEntries(fixtureData.schools.map(s=>[s.id,relationLabels]))}}}
     if(denied)return {data:null,error:{message:'INACTIVE_MEMBERSHIP'}};
     if(name==='workhub_collection_basic_readiness'){
@@ -40,6 +40,7 @@ const bundle=buildSync({stdin:{contents:`
     return {data:null,error:{message:'UNKNOWN'}};
   }};
   const connection=createSupabaseConnection(services);
+  connection.subscribeInvalidation(reason=>scenario.invalidations.push(reason.code));
   createRoot(document.getElementById('root')).render(<ConnectedWorkspace legacyHomeHref="/" expectedUserId="fixture-soyeon" connection={connection}/>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({VITE_SUPABASE_URL:'http://localhost.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'})
 const browser=await launchBrowser()
@@ -50,6 +51,9 @@ await page.route('**/connection-contract-test',route=>route.fulfill({contentType
 async function boot(){await page.goto('http://127.0.0.1:5176/connection-contract-test');await page.addScriptTag({content:bundle.outputFiles[0].text});await page.getByRole('button',{name:'일정 등록',exact:true}).waitFor();await page.getByRole('button',{name:'일정 등록',exact:true}).click();await page.locator('input[name="title"]').fill('보존해야 하는 미저장 초안')}
 try{
   await boot()
+  assert.deepEqual(await page.evaluate(()=>({initialEvents:window.scenario.initialEvents,invalidations:window.scenario.invalidations})),{initialEvents:1,invalidations:[]})
+  await page.evaluate(()=>window.scenario.delay(0))
+  console.log('  ✓ 첫 INITIAL_SESSION과 느린 프로필이 겹쳐도 초기 학교 연결을 무효화하지 않음')
   assert(await page.locator('.dialog-body').evaluate(node => parseFloat(getComputedStyle(node).paddingTop)) > 0)
   assert.equal(await page.getByLabel('사용할 학교').locator('option').count(),2)
   assert.equal(await page.getByRole('button',{name:'다른 교사 수정 발생'}).count(),0)

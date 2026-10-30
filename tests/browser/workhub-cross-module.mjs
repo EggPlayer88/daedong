@@ -20,7 +20,7 @@ const messageDetail=()=>page.getByRole('region',{name:'선택한 대화',exact:t
 const go=name=>clickWorkspaceMenu(page,name)
 async function noWrites(){assert.deepEqual(await page.evaluate(()=>window.cross.writes),[])}
 async function compose(body){await go('메시지와 알림');await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByLabel('이민준 · 교무부',{exact:true}).check();await page.getByLabel('메시지',{exact:true}).fill(body)}
-async function askMessage(){await go('AI 비서');await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('학교 행사 안내 메시지를 짧게 작성해 주세요.');assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),0);await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click();await page.getByRole('button',{name:'메시지 초안으로 사용',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),1);await page.getByRole('button',{name:'메시지 초안으로 사용',exact:true}).click();await page.getByRole('region',{name:'AI 메시지 초안',exact:true}).waitFor()}
+async function askMessage(){await go('AI 비서');await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('학교 행사 안내 메시지를 짧게 작성해 주세요.');assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),0);await page.getByRole('button',{name:'AI에게 요청',exact:true}).click();await page.getByRole('button',{name:'메시지 초안으로 사용',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),1);await page.getByRole('button',{name:'메시지 초안으로 사용',exact:true}).click();await page.getByRole('region',{name:'AI 메시지 초안',exact:true}).waitFor()}
 async function test(name,run){await page.setViewportSize({width:1280,height:1000});await page.goto('http://127.0.0.1:5187/cross-module');await page.addStyleTag({content:fontCss});await page.addScriptTag({content:bundle.outputFiles[0].text});await homeMessage().waitFor();try{await run();assert.deepEqual(errors,[]);assert.deepEqual(external,[])}catch(error){console.error((await page.getByRole('main').allInnerTexts()).join('\n').slice(-9000));console.error(await page.evaluate(()=>({calls:window.cross.calls.slice(-20),asks:window.cross.aiCalls,writes:window.cross.writes})));await page.screenshot({path:join(output,'failure.png'),fullPage:true});throw error}passed.push(name);console.log('  ✓ '+name)}
 try{
  await test('홈의 정확한 대화→작성 입력 보관→시간표 알림 원본→메시지 복귀를 같은 교사 범위에서 이어간다',async()=>{
@@ -42,7 +42,7 @@ try{
   const workReturn=page.getByRole('navigation',{name:'작업 연결',exact:true})
   await page.setViewportSize({width:320,height:760});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
   await page.screenshot({path:join(output,'cross-work-return-320.png'),fullPage:true})
-  await workReturn.getByRole('button',{name:'AI 비서로 돌아가기',exact:true}).focus();await page.keyboard.press('Enter');await page.getByRole('heading',{name:'Claude 답변',exact:true}).waitFor()
+  await workReturn.getByRole('button',{name:'AI 비서로 돌아가기',exact:true}).focus();await page.keyboard.press('Enter');await page.getByRole('heading',{name:'AI 답변',exact:true}).waitFor()
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);await page.setViewportSize({width:1280,height:1000})
   assert.equal(await page.getByText('검토 후 한 번 보낸 AI 초안',{exact:true}).count(),1);assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),1)
   await page.getByRole('button',{name:'메시지 초안으로 사용',exact:true}).click();await page.getByRole('region',{name:'AI 메시지 초안',exact:true}).waitFor()
@@ -73,13 +73,13 @@ try{
   await go('문서함');await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).click();await page.getByRole('button',{name:/학교 행사 참여 원본 양식/}).click()
   await page.getByLabel('참여 계획 (필수)',{exact:true}).fill('AI 호출 전 작성한 참여 계획');await page.getByLabel('참여 인원 (필수)',{exact:true}).fill('7')
   await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),0)
-  await page.getByRole('button',{name:'AI 옆자리 닫기',exact:true}).click();await page.getByRole('heading',{name:'학교 행사 참여 원본 양식 · v2',exact:true}).waitFor()
+  await page.getByRole('button',{name:'AI 비서 닫기',exact:true}).click();await page.getByRole('heading',{name:'학교 행사 참여 원본 양식 · v2',exact:true}).waitFor()
   assert.equal(await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).getAttribute('aria-pressed'),'true')
   if(await page.getByRole('button',{name:'보관한 양식 입력 계속하기',exact:true}).count())await page.getByRole('button',{name:'보관한 양식 입력 계속하기',exact:true}).click()
   await page.getByLabel('참여 계획 (필수)',{exact:true}).waitFor()
   assert.equal(await page.getByLabel('참여 계획 (필수)',{exact:true}).inputValue(),'AI 호출 전 작성한 참여 계획');assert.equal(await page.getByLabel('참여 인원 (필수)',{exact:true}).inputValue(),'7')
   await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),0)
-  await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).click()
+  await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();await page.getByRole('button',{name:'AI에게 요청',exact:true}).click();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).click()
   await page.getByLabel('제안을 반영할 질문',{exact:true}).waitFor();assert.equal(await page.getByLabel('제안을 반영할 질문',{exact:true}).inputValue(),'');await noWrites()
   assert.equal(await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).getAttribute('aria-pressed'),'true')
   await page.getByLabel('제안을 반영할 질문',{exact:true}).selectOption('q0');assert.match(await page.getByRole('region',{name:'질문별 AI 제안 비교',exact:true}).innerText(),/AI 호출 전 작성한 참여 계획/)
@@ -111,7 +111,7 @@ try{
  await test('확인된 답변 저장 뒤 옛 AI 비교를 재진입 때 다시 띄우지 않고 새 요청의 제안은 정상 수신한다',async()=>{
   await go('문서함');await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).click();await page.getByRole('button',{name:/학교 행사 참여 원본 양식/}).click()
   await page.getByLabel('참여 계획 (필수)',{exact:true}).fill('저장한 뒤 다음 제안에도 보존할 계획')
-  await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).click()
+  await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();await page.getByRole('button',{name:'AI에게 요청',exact:true}).click();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).click()
   await page.getByLabel('제안을 반영할 질문',{exact:true}).waitFor();await page.getByRole('button',{name:'보관한 양식 입력 계속하기',exact:true}).click()
   await page.getByRole('button',{name:'답변 임시 저장',exact:true}).click();await page.getByText(/저장을 확인했습니다/).waitFor()
   assert.equal(await page.getByRole('region',{name:'질문별 AI 제안 비교',exact:true}).count(),0)
@@ -121,7 +121,7 @@ try{
   await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).click();await page.getByLabel('참여 계획 (필수)',{exact:true}).waitFor()
   assert.equal(await page.getByLabel('참여 계획 (필수)',{exact:true}).inputValue(),'저장한 뒤 다음 제안에도 보존할 계획')
   assert.equal(await page.getByRole('region',{name:'질문별 AI 제안 비교',exact:true}).count(),0)
-  await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click()
+  await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).click();await page.getByRole('button',{name:'전달받은 요청 사용',exact:true}).click();await page.getByRole('button',{name:'AI에게 요청',exact:true}).click()
   await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).nth(1).waitFor();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).nth(1).click()
   await page.getByLabel('제안을 반영할 질문',{exact:true}).waitFor();await page.getByRole('region',{name:'질문별 AI 제안 비교',exact:true}).getByText('양식 v2 · 도움을 요청할 때의 답변판 4',{exact:true}).waitFor()
   assert.equal(await page.getByLabel('제안을 반영할 질문',{exact:true}).inputValue(),'')
@@ -131,7 +131,7 @@ try{
  })
  for(const unknown of [false,true])await test('AI 할 일 '+(unknown?'같은 요청 복구 뒤':'확인 저장 뒤')+' 목록에 없는 정확한 원본을 열고 다른 학교에 남기지 않는다',async()=>{
   await go('AI 비서');await page.getByRole('button',{name:'내 개인 비서',exact:true}).click()
-  await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('제출 자료 확인을 내 할 일로 정리해 주세요.');await page.getByRole('button',{name:'Claude에게 요청',exact:true}).click()
+  await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('제출 자료 확인을 내 할 일로 정리해 주세요.');await page.getByRole('button',{name:'AI에게 요청',exact:true}).click()
   await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).click();await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).click();await noWrites()
   assert.equal(await page.getByRole('button',{name:'추가한 할 일 열기',exact:true}).count(),0)
   await page.evaluate(value=>window.cross.unknownTask=value,unknown);await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).click()
@@ -148,7 +148,7 @@ try{
   await page.setViewportSize({width:320,height:760});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
   await page.getByRole('navigation',{name:'작업 연결',exact:true}).getByRole('button',{name:'AI 비서로 돌아가기',exact:true}).click();await page.getByRole('button',{name:'추가한 할 일 열기',exact:true}).waitFor()
   assert.equal(await page.evaluate(()=>window.cross.appliedTasks),1);assert.equal(await page.evaluate(()=>window.cross.aiCalls.length),1)
-  await page.setViewportSize({width:1280,height:1000});await page.getByLabel('사용할 학교').selectOption('nuri-soyeon');await go('AI 비서');await page.getByRole('heading',{name:'Claude 비서',exact:true}).waitFor()
+  await page.setViewportSize({width:1280,height:1000});await page.getByLabel('사용할 학교').selectOption('nuri-soyeon');await go('AI 비서');await page.getByRole('region',{name:'AI 비서',exact:true}).getByRole('heading',{name:'AI 비서',exact:true}).waitFor()
   assert.equal(await page.getByRole('button',{name:'추가한 할 일 열기',exact:true}).count(),0);assert.equal(await page.getByText('확인한 개인 할 일 원본',{exact:true}).count(),0)
   assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})),{local:0,session:0})
  })

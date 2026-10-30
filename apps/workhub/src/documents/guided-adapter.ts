@@ -1,10 +1,11 @@
+import {createCollectionPresentation} from '../collections/presentation'
 import type {LegacySession} from '../connection/contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { recoveryScope } from '../app/pending-requests'
 import { createScopedRpc, exact, identifier, object, ServiceError, text, version } from '../services/scoped-rpc'
 import { createScopedFileOperation } from '../services/scoped-file-operation'
 import fileLimits from '../../../main/api/collections/_assets/hwpx-basic.json'
-import { artifact, detail, GUIDED_BUCKET, GUIDED_CONTRACT, guidedCommand, guidedReceipt, inspection, sha, template, type CollectionTarget, type GuidedCommand, type GuidedHttpInput } from './guided-contracts'
+import { publicationTargets, artifact, detail, GUIDED_BUCKET, GUIDED_CONTRACT, guidedCommand, guidedReceipt, inspection, sha, template, type CollectionTarget, type GuidedCommand, type GuidedHttpInput } from './guided-contracts'
 
 export interface GuidedPort {upload(path:string,file:File):Promise<void>;download(path:string):Promise<Blob>;run(input:GuidedHttpInput,userId:string):Promise<unknown>}
 export function createGuidedHttp(options:{getSession:()=>Promise<LegacySession|null>;fetch?:typeof fetch;route?:'/api/workhub-documents/guided'|'/api/workhub-documents/extract-knowledge'}){
@@ -23,6 +24,7 @@ export const legacyGuidedPort:GuidedPort={
 }
 export const blobSha=async(blob:Blob)=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer())),n=>n.toString(16).padStart(2,'0')).join('')
 export function createGuidedService(connection:SupabaseConnection,port:GuidedPort=legacyGuidedPort,options:{timeoutMs?:number}={}){
+ const extra=createCollectionPresentation(connection).rpc
  const rpc=createScopedRpc(connection,GUIDED_CONTRACT),reservations=new Map<string,{path:string;sha256:string;bytes:number;scope:string}>()
  const bounded=createScopedFileOperation(connection,options)
  const member=(memberId:string)=>{const current=connection.info().memberships.find(m=>m.id===memberId);if(!current)throw new ServiceError('INACTIVE_MEMBERSHIP');return current}
@@ -31,6 +33,7 @@ export function createGuidedService(connection:SupabaseConnection,port:GuidedPor
   list(memberId:string,cursor:string|null=null){return rpc.call(memberId,'workhub_template_list',{p_cursor:cursor===null?null:text(cursor,2000,true)},(value,m)=>{exact(value,['items','nextCursor','canCreate']);if(!Array.isArray(value.items)||value.items.length>50||typeof value.canCreate!=='boolean')throw new ServiceError('INVALID_RESPONSE');const items=value.items.map(v=>template(v,m));if(new Set(items.map(t=>t.id)).size!==items.length)throw new ServiceError('INVALID_RESPONSE');const next=value.nextCursor===null?null:text(value.nextCursor,2000,true);if(cursor&&cursor===next)throw new ServiceError('INVALID_RESPONSE');return{items,nextCursor:next,canCreate:value.canCreate}})},
   get(memberId:string,id:string){return rpc.call(memberId,'workhub_template_get',{p_template_id:identifier(id)},(value,m)=>detail(value,m,id))},
   targets(memberId:string){return rpc.call(memberId,'workhub_template_collection_targets',{},value=>{exact(value,['items']);if(!Array.isArray(value.items)||value.items.length>200)throw new ServiceError('INVALID_RESPONSE');const items:CollectionTarget[]=value.items.map(v=>{exact(v,['requestId','title','version']);return{requestId:identifier(v.requestId),title:text(v.title,200,true),version:version(v.version)}});if(new Set(items.map(t=>t.requestId)).size!==items.length)throw new ServiceError('INVALID_RESPONSE');return items})},
+  publicationTargets(memberId:string){return extra.call(memberId,'workhub_collection_presentation',{p_operation:'targets',p_input:{},p_request_key:null},publicationTargets)},
   async prepare(memberId:string,file:File,title:string,key:string,replayOnly=false){
    if(!/\.hwpx$/i.test(file.name)||/[<>:"/\\|?*\u0000-\u001f]/.test(file.name)||!file.size||file.size>fileLimits.maxFileBytes)throw new ServiceError('INVALID_INPUT')
    return bounded(async guard=>{
@@ -49,8 +52,8 @@ export function createGuidedService(connection:SupabaseConnection,port:GuidedPor
    guard();if(!current?.approved||current.userId!==original.userId||recoveryScope(member(memberId))!==scope)throw new ServiceError('CANCELLED')
   },'RESULT_UNKNOWN',memberId)},
   async inspect(memberId:string,id:string,expectedVersion:number,key:string){const value=await run({action:'inspect',memberId,templateId:identifier(id),templateVersion:version(expectedVersion),responseId:null,responseVersion:null,requestKey:identifier(key)});exact(value,['templateId','templateVersion','inspection']);if(value.templateId!==id||value.templateVersion!==expectedVersion)throw new ServiceError('INVALID_RESPONSE');return inspection(value.inspection)},
-  mutate(memberId:string,command:GuidedCommand,key:string){const checked=guidedCommand(command);return rpc.call(memberId,'workhub_template_mutate',{p_command:checked,p_request_key:key},value=>guidedReceipt(value,key,checked),true)},
-  recover(memberId:string,command:GuidedCommand,key:string){const checked=guidedCommand(command);return rpc.call(memberId,'workhub_template_request_get',{p_command:checked,p_request_key:key},value=>guidedReceipt(value,key,checked))},
+  mutate(memberId:string,command:GuidedCommand,key:string){const checked=guidedCommand(command);if(checked.kind==='publish_collection')return extra.call(memberId,'workhub_collection_presentation',{p_operation:'publish',p_input:checked,p_request_key:key},value=>guidedReceipt(value,key,checked),true);return rpc.call(memberId,'workhub_template_mutate',{p_command:checked,p_request_key:key},value=>guidedReceipt(value,key,checked),true)},
+  recover(memberId:string,command:GuidedCommand,key:string){const checked=guidedCommand(command);if(checked.kind==='publish_collection')return extra.call(memberId,'workhub_collection_presentation',{p_operation:'recover',p_input:checked,p_request_key:key},value=>guidedReceipt(value,key,checked));return rpc.call(memberId,'workhub_template_request_get',{p_command:checked,p_request_key:key},value=>guidedReceipt(value,key,checked))},
   recoverOperation(memberId:string,input:Omit<GuidedHttpInput,'memberId'>){return rpc.call(memberId,'workhub_template_operation_get',{p_operation:input},value=>{if(input.action==='inspect'){exact(value,['templateId','templateVersion','inspection']);if(value.templateId!==input.templateId||value.templateVersion!==input.templateVersion)throw new ServiceError('INVALID_RESPONSE');inspection(value.inspection);return value}const result=artifact(value);if(result.templateId!==input.templateId||result.templateVersion!==input.templateVersion||result.responseId!==input.responseId||result.responseVersion!==input.responseVersion)throw new ServiceError('INVALID_RESPONSE');return result})},
   async render(memberId:string,templateId:string,templateVersion:number,responseId:string,responseVersion:number,key:string){const value=artifact(await run({action:'render',memberId,templateId:identifier(templateId),templateVersion:version(templateVersion),responseId:identifier(responseId),responseVersion:version(responseVersion),requestKey:identifier(key)}));if(value.templateId!==templateId||value.templateVersion!==templateVersion||value.responseId!==responseId||value.responseVersion!==responseVersion)throw new ServiceError('INVALID_RESPONSE');return value},
   async download(memberId:string,artifactId:string){

@@ -108,7 +108,7 @@ export function createTransitionService(connection:SupabaseConnection){
   const cursors=new Set<string>()
   for(let page=0;page<schoolAdminLimits.transitionLookupPages;page++){
    const catalog=await list(memberId,cursor),target=catalog.records.find(item=>item.id===recordId)
-   if(target||catalog.nextCursor===null)return{catalog,target}
+   if(target||catalog.nextCursor===null)return{catalog,target,cursor}
    if(cursors.has(catalog.nextCursor))throw new ServiceError('INVALID_RESPONSE')
    cursors.add(catalog.nextCursor);cursor=catalog.nextCursor
   }
@@ -144,6 +144,7 @@ export function createTransitionService(connection:SupabaseConnection){
  }
  return{
   list,
+  locate:recordContext,
   async preview(memberId:string,input:TransitionPlan){const plan=transitionPlan(input);if(needsAdminReview(plan))await requireApprovalContract(memberId);return rpc.call(memberId,'workhub_school_transition_preview',{p_plan:plan},raw=>{exact(raw,['fingerprint','expiresAt','summary','excluded','affectedCount']);if(typeof raw.fingerprint!=='string'||!/^[a-f0-9]{64}$/.test(raw.fingerprint)||typeof raw.expiresAt!=='string'||!Number.isFinite(Date.parse(raw.expiresAt))||!Number.isSafeInteger(raw.affectedCount)||(raw.affectedCount as number)<0)fail();return{fingerprint:raw.fingerprint as string,expiresAt:raw.expiresAt as string,summary:lines(raw.summary),excluded:lines(raw.excluded),affectedCount:raw.affectedCount as number}})},
   mutate:(memberId:string,input:TransitionCommand,key:string)=>mutate(memberId,input,key),
   // 접수증이 없으면 서버의 현재 권한·상태 검사 후 최초 실행될 수 있다. 읽기 전용 요청은 아니다.

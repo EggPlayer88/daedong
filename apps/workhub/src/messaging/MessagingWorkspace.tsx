@@ -26,6 +26,7 @@ export interface MessagingWorkspaceProps {
   onComposeRequestConsumed?: () => void
   connection: SupabaseConnection; member: Membership; date: string; revision?: number
   onNavigationLockChange?: (locked: boolean) => void
+  onUpdated?: () => void
   onOpenSource?: (source: NotificationSource) => void | Promise<void>
   canOpenSource?: (source: NotificationSource) => boolean
   /** 시험과 상위 모듈 조합에만 사용한다. 기본 연결은 기존 공용 로그인이다. */
@@ -35,7 +36,7 @@ export interface MessagingWorkspaceProps {
 type DraftMemory = { draft: MessageDraft; composing: boolean; pending: MessageAttempt | null; folded?: boolean }
 const errorOf = (error: unknown) => error instanceof MessagingError ? error : new MessagingError('QUERY_FAILED')
 const timeLabel = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
-const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료', cooperation: '협업 요청', timetable: '시간표 변경 요청' }
+const sourceLabels = { calendar: '일정', tasks: '업무', collections: '문서 수합', messages: '메시지', students: '학생', knowledge: '학교 자료', cooperation: '협업 요청', timetable: '시간표 변경 요청', transitions: '업무 인계' }
 function mergePage<T>(before: T[], after: T[], key: (item: T) => string): T[] {
   const result = new Map(before.map(item => [key(item), item]))
   for (const item of after) result.set(key(item), item)
@@ -44,7 +45,7 @@ function mergePage<T>(before: T[], after: T[], key: (item: T) => string): T[] {
 export function MessagingWorkspace(props: MessagingWorkspaceProps) {
   return <MessagingWorkspaceScope key={recoveryScope(props.member)} {...props} />
 }
-function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, member, date, revision = 0, onNavigationLockChange, onOpenSource, canOpenSource, composeRequest, onComposeRequestConsumed, server: provided, fileServer: providedFiles }: MessagingWorkspaceProps) {
+function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, member, date, revision = 0, onNavigationLockChange, onUpdated, onOpenSource, canOpenSource, composeRequest, onComposeRequestConsumed, server: provided, fileServer: providedFiles }: MessagingWorkspaceProps) {
   const server = useMemo(() => provided ?? createSupabaseMessagingServer(connection), [connection, provided])
   const fileServer = useMemo(() => providedFiles ?? createMessageFileServer(connection), [connection, providedFiles])
   const memory = useEditDraft<DraftMemory>(member, 'messaging-composer')
@@ -243,6 +244,7 @@ function MessagingWorkspaceScope({ openRequest, onReturnToSource, connection, me
         setNotice(`메시지를 보냈습니다. ${result.deliveries.length}개 대화에 접수되었습니다. ${timeLabel(result.recordedAt)}`)
       } else setNotice('읽음으로 표시했습니다. 업무 처리나 문서 제출 상태는 바뀌지 않습니다.')
       setRefresh(value => value + 1)
+      onUpdated?.()
     } catch (failure) {
       if (!alive.current || generation !== serverGeneration.current) return
       const problem = errorOf(failure)
