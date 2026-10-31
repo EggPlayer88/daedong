@@ -5,7 +5,7 @@ export function PageHeading({ title, description, children }) {
 
 export function SectionLinks({ items }) {
   return <nav className="site-section-links" aria-label="이 화면에서 바로 이동">{items.map(({ id, label }) => <a key={id} href={`#${id}`} onClick={event => {
-    const target = event.currentTarget.ownerDocument.getElementById(id)
+    const target = event.currentTarget.getRootNode().getElementById(id)
     if (!target) return
     event.preventDefault()
     target.focus({ preventScroll: true })
