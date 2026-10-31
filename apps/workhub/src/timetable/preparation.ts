@@ -1,6 +1,6 @@
 import type { TimetableBasis, TimetableResource, TimetableSlot, TimetableIssue } from '../../../../packages/timetable/src/types'
 import { validateBasis } from '../../../../packages/timetable/src/validate'
-import { canonical, exact, identifier, isoDate, text, version, ServiceError } from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, text, version, ServiceError } from '../services/service-values'
 import limits from '../../../../packages/timetable/_assets/browser-policy.json'
 import { reviewTimetableFoundation } from './foundation'
 

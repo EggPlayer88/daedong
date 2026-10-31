@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import { setupCommand, type SetupCommand, type SetupServer, type SetupSnapshot } from './setup'
 import policy from './setup-policy.json'
 import { TimetableSetupBatchPanel } from './TimetableSetupBatchPanel'

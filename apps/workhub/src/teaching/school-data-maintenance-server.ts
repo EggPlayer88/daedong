@@ -1,5 +1,6 @@
 import type {SupabaseConnection} from '../connection/supabase-connection'
-import {createScopedRpc,ServiceError} from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import {SCHOOL_DATA_CONTRACT,maintenanceSnapshot,maintenanceIntent,maintenancePreview,maintenanceCommand,maintenanceReceipt,maintenanceClose,type SchoolDataMaintenanceServer} from './school-data-maintenance-contracts'
 export function createSchoolDataMaintenanceServer(connection:SupabaseConnection,options:{timeoutMs?:number}={}):SchoolDataMaintenanceServer {
  const rpc=createScopedRpc(connection,SCHOOL_DATA_CONTRACT,options)

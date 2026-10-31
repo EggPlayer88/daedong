@@ -1,6 +1,6 @@
 import limits from '../../../main/api/workhub-ai/_assets/memory-limits.json'
 import type {Membership} from '../contracts'
-import {exact,identifier,isoDate,object,ServiceError,text,validateLocalInput} from '../services/scoped-rpc'
+import { exact, identifier, isoDate, object, ServiceError, text, validateLocalInput } from '../services/service-values'
 
 export const MEMORY_LIMITS=limits
 export const MEMORY_CONTRACT='memory.v1'

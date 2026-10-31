@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import { requestBlobDownload } from '../files/download'
 import { buildCpSatRequest, parseCpSatResponse, type CpSatRequest, type CpSatResponse } from '../../../../packages/timetable/src/cpSat'
 import { validatePlacements } from '../../../../packages/timetable/src/validate'

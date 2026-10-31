@@ -1,4 +1,4 @@
-import { exact, identifier, isoDate, object, ServiceError, text, version } from '../services/scoped-rpc'
+import { exact, identifier, isoDate, object, ServiceError, text, version } from '../services/service-values'
 import type { Membership } from '../contracts'
 export const KNOWLEDGE_CONTRACT='knowledge.v1'
 export const SOURCE_KINDS=['regulation','annual_plan','school_guide','other'] as const

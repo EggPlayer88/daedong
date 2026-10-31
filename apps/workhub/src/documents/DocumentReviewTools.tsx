@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { recoveryScope } from '../app/pending-requests'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import { libraryDocument, documentKindLabels, type LibraryDocument } from './contracts'
 import type { DocumentsService } from './adapter'
 import { assertDocumentPrintable, documentFieldChanges, documentStatusLabels, documentVersionFingerprint, DOCUMENT_PRINT_NOTICE, DocumentPrintError, openDocumentPrintWindow, readSavedDocument, type DocumentFieldChange, type DocumentPrintSession } from './document-review'

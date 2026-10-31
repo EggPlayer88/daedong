@@ -1,5 +1,5 @@
 import type { PreparationSource } from './preparation'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import { parsePilotCsvRows } from './pilot/roster'
 import { timetableImportReference, timetableImportTemplate } from './import-csv'
 import { readTimetableXlsx, writeTimetableXlsx, type WorkbookSheet } from './xlsx'

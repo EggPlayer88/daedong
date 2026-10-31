@@ -7,7 +7,7 @@ import { createPilotRoster, createRegisteredTeacherDirectory, parseRegisteredTea
 import type { PilotRoster, RegisteredTeacherDirectory, RosterReplacementPreview } from './roster-contracts'
 import { exportPilotTimetableCsv, previewTimetableReplacement, validateTimetableReplacementPreview, type TimetableReplacementPreview } from './timetable-replacement'
 import type { PilotCommand, PilotState } from './operations'
-import { downloadPilotText } from './TimetablePilotPanel'
+import { downloadPilotText } from './download'
 
 const message = (e: unknown) => e instanceof Error ? e.message : '자료를 확인하지 못했습니다.'
 /** 복원·다른 탭 읽기로 여러 판이 바뀌어도 중간 기준판을 건너뛰지 않는다. */

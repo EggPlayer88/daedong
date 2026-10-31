@@ -1,7 +1,7 @@
 import type { TimetableBasis, Placement, TimetableIssue } from '../../../../packages/timetable/src/types'
 import { validateBasis, validatePlacements } from '../../../../packages/timetable/src/validate'
 import type { TimetableConditions } from './contracts'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import { timetableConditions } from './server'
 import { TimetableWorkbookError, type WorkbookSheet } from './xlsx'
 import limits from './limits.json'

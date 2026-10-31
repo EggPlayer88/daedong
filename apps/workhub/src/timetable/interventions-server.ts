@@ -1,6 +1,7 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
-import { canonical, createScopedRpc, identifier, object, ServiceError } from '../services/scoped-rpc'
+import { recoveryScope } from '../services/recovery-scope'
+import { canonical, identifier, object, ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { INTERVENTIONS_CONTRACT, type InterventionCommand, type InterventionReceipt, type TimetableInterventionsServer } from './interventions-contracts'
 import { interventionCommand, interventionHash, interventionInput, interventionRange, parseInterventionClose, parseInterventionPreview, parseInterventionReceipt, parseInterventionSource, parseInterventionsReadiness, parseInterventionsSummary, parseInterventionsView } from './interventions-domain'
 

@@ -149,3 +149,11 @@
 .ws-shell .ws-ai-body .assistant-budget-disclosure>summary{min-height:40px;padding:8px 0;cursor:pointer}
 .ws-shell .ws-ai-body .assistant-pending{margin:8px 0}
 .ws-participant .ws-header-actions:empty{display:none}
+
+/* 기간 업무도 같은 메뉴 틀에서 열고 모바일 더보기 안에서 접근한다. */
+.ws-site-seasonal{margin-top:18px;padding-top:12px;border-top:1px solid var(--border)}
+.ws-site-link{text-decoration:none;color:inherit;display:flex;min-height:44px}
+.ws-site-link.active{background:var(--primary-soft,#edf3ff);color:var(--primary,#325fc2);font-weight:700}
+.ws-site-utilities{display:grid;gap:6px;padding:12px 0;border-bottom:1px solid var(--border)}
+.ws-site-seasonal-mobile{display:none}
+@media(max-width:720px){.ws-navigation>.ws-site-seasonal{display:none}.ws-site-seasonal-mobile{display:grid;gap:6px;margin-bottom:16px}}

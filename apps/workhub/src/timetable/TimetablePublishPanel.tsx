@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import type { OperationCommand, OperationReceipt, OperationsView, PublishInput, PublishPreview, TimetableOperationsServer } from './operations-contracts'
 import { dateOffset, OperationChangeList } from './OperationChangeList'
 import type { OperationsExtensions } from './operations-next-contracts'

@@ -1,8 +1,9 @@
 import type { LegacyIdentity } from '../connection/contracts';
 import type { SupabaseConnection } from '../connection/supabase-connection';
-import { recoveryScope } from '../app/pending-requests';
+import { recoveryScope } from '../services/recovery-scope';
 import { activeAt } from '../domain';
-import { canonical, createScopedRpc, exact, identifier, object } from '../services/scoped-rpc';
+import { canonical, exact, identifier, object } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { ASSISTANT_LIMITS, ASSISTANT_ROUTING, assistantLocalInput, assistantEnvelope, assistantInput, assistantThread, askResult, AssistantError, assistantError, confirmTask, readiness, taskReceipt, threadList, type AssistantServer, type AssistantMode } from './contracts';
 import type { AssistantHttpPort } from './http';
 export function createAssistantServer(connection: SupabaseConnection, http: AssistantHttpPort, options: { timeoutMs?: number; policyReads?: boolean } = {}): AssistantServer {

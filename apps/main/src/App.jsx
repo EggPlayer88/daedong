@@ -1,3 +1,4 @@
+import { SeasonalWorkProvider } from './site/SeasonalWorkProvider.jsx'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './lib/AuthContext.jsx'
 import Layout from './components/Layout.jsx'
@@ -10,6 +11,8 @@ import SchoolSetupPage from './pages/SchoolSetupPage.jsx'
 import { visibleModules } from './lib/modules.js'
 import { MessagingPilotProvider, useMessagingPilot } from './lib/MessagingPilotContext.jsx'
 
+const SeasonalSettingsPage = deferredPage(() => import('./site/SeasonalSettingsPage.jsx'), '기간 업무 관리')
+
 const CalendarPage = deferredPage(() => import('./pages/CalendarPage.jsx'), '학사일정')
 const SubmissionsPage = deferredPage(() => import('./pages/SubmissionsPage.jsx'), '평가계획 제출')
 const DocAiPage = deferredPage(() => import('./pages/DocAiPage.jsx'), '문서 작성 AI')
@@ -20,6 +23,8 @@ const AdminUsersPage = deferredPage(() => import('./pages/AdminUsersPage.jsx'), 
 // 사람이 그대로 들어온다. 등록되지 않은 경로는 아래 '*' 가 대시보드로 돌려보낸다.
 const SCREENS = {
   dashboard: <DashboardPage />,
+  account: <DashboardPage accountOnly />,
+  'seasonal-settings': <SeasonalSettingsPage />,
   'doc-ai': <DocAiPage />,
   submissions: <SubmissionsPage />,
   calendar: <CalendarPage />,
@@ -46,8 +51,9 @@ function Gate() {
   if (profile && profile.is_active === false) return <PendingPage />
 
   // 직접 들어온 시범 주소는 서버 판정 전 대시보드로 보내지 않는다. 기존 교사 화면은 기다리지 않는다.
-  if (pathname === '/workhub' && pilotChecking) return <p role="status">업무실 시험 권한 확인 중…</p>
+  if ((pathname === '/' || pathname === '/workhub') && pilotChecking) return <p role="status">업무실 시험 권한 확인 중…</p>
   const mods = visibleModules(profile, pilotAccess)
+  if (pathname === '/' && mods.some(item => item.key === 'workhub')) return <Navigate to="/workhub" replace />
 
   return (
     <Routes>
@@ -69,9 +75,9 @@ function Gate() {
 export default function App() {
   return (
     <AuthProvider>
-      <MessagingPilotProvider><BrowserRouter>
+      <MessagingPilotProvider><SeasonalWorkProvider><BrowserRouter>
         <Gate />
-      </BrowserRouter></MessagingPilotProvider>
+      </BrowserRouter></SeasonalWorkProvider></MessagingPilotProvider>
     </AuthProvider>
   )
 }

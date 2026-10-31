@@ -1,5 +1,6 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { createScopedRpc, exact, identifier, ServiceError, text, version } from '../services/scoped-rpc'
+import { exact, identifier, ServiceError, text, version } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { DOCUMENT_CONTRACT, documentCommand, documentList, documentReceipt, libraryDocument, type DocumentCommand } from './contracts'
 
 export function createDocumentsService(connection: SupabaseConnection) {

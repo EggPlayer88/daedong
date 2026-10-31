@@ -1,7 +1,7 @@
 import type { Membership } from '../contracts'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import { ASSISTANT_LIMITS } from '../assistant/contracts'
-import { canonical, exact, identifier, ServiceError, text, version } from '../services/scoped-rpc'
+import { canonical, exact, identifier, ServiceError, text, version } from '../services/service-values'
 import { answers, detail, mapping, type Mapping, type TemplateDetail } from './guided-contracts'
 import type { DocumentAiRequest } from './contracts'
 

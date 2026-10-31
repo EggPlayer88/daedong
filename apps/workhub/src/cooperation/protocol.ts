@@ -1,6 +1,6 @@
 import { ContractError } from '../contracts'
 import { activeAt } from '../domain'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 
 export type ModuleFailure = 'UNAVAILABLE'|'INVALID_INPUT'|'FORBIDDEN'|'NOT_FOUND'|'CONFLICT'|'IDEMPOTENCY_CONFLICT'|'QUERY_FAILED'|'SAVE_UNCERTAIN'|'CANCELLED'

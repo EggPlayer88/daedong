@@ -1,6 +1,7 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
-import { canonical, createScopedRpc, exact, identifier, object, ServiceError, text } from '../services/scoped-rpc'
+import { recoveryScope } from '../services/recovery-scope'
+import { canonical, exact, identifier, object, ServiceError, text } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import limits from './operations-api-limits.json'
 
 export const TIMETABLE_REQUEST_ABANDON_API = 'timetable-operations.abandon.v1' as const
