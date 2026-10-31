@@ -1,5 +1,5 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import policy from './check-policy.json'
 import type { PageId } from '../modules'
 

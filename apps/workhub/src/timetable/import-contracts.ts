@@ -1,6 +1,6 @@
 import type { Placement } from './contracts'
 import { preparationInput, preparationSource, type PreparationInput, type PreparationSource } from './preparation'
-import { canonical, exact, identifier, isoDate, ServiceError, text, validateLocalInput, version } from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, ServiceError, text, validateLocalInput, version } from '../services/service-values'
 
 export const TIMETABLE_IMPORT_CONTRACT = 'timetable-import.v1'
 export interface TimetableImportInput {

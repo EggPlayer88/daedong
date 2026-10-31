@@ -1,5 +1,5 @@
 import type { Membership } from '../contracts'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import { documentKindLabels, libraryDocument, type LibraryDocument } from './contracts'
 import type { DocumentsService } from './adapter'
 

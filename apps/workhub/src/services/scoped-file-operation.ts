@@ -1,7 +1,7 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from './recovery-scope'
 import { FILE_TECHNICAL_LIMITS } from '../files/contracts'
-import { ServiceError } from './scoped-rpc'
+import { ServiceError } from './service-values'
 
 // 문서 생성과 학교 원문 가져오기가 같은 만료·학교 범위 검사를 사용한다.
 export function createScopedFileOperation(connection: SupabaseConnection, options: { timeoutMs?: number } = {}) {

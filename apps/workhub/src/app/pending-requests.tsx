@@ -1,3 +1,4 @@
+import { recoveryScope } from '../services/recovery-scope'
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { CalendarEvent, Membership, SaveCommand } from '../contracts'
 import type { PersonalTask, TaskCommand } from '../tasks/contracts'
@@ -39,8 +40,7 @@ export function createPendingRequests() {
   }
 }
 export type PendingRequests = ReturnType<typeof createPendingRequests>
-export const recoveryScope = (member: Membership) => JSON.stringify([member.userId, member.schoolId, member.id, member.active, member.validFrom, member.validThrough, member.role,
-  [...(member.departmentIds ?? [])].sort(), [...(member.gradeIds ?? [])].sort(), [...(member.subjectIds ?? [])].sort()])
+export { recoveryScope } from '../services/recovery-scope'
 const PendingContext = createContext<PendingRequests | undefined>(undefined)
 
 export function PendingRequestsProvider({ children, store }: { children: ReactNode; store: PendingRequests }) {

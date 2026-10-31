@@ -1,4 +1,4 @@
-import { exact, isoDate, ServiceError, validateLocalInput } from '../services/scoped-rpc'
+import { exact, isoDate, ServiceError, validateLocalInput } from '../services/service-values'
 import policy from './setup-policy.json'
 
 export const SETUP_CONTRACT = 'timetable.setup.v1'

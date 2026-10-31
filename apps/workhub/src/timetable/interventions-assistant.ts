@@ -1,5 +1,5 @@
 import { freshAssistantInput, ASSISTANT_LIMITS, type AssistantInput, type AskResult } from '../assistant/contracts'
-import { canonical, exact, ServiceError, text } from '../services/scoped-rpc'
+import { canonical, exact, ServiceError, text } from '../services/service-values'
 import type { ExchangeInput, OperationsView } from './operations-contracts'
 import { parseExchangeInput } from './operations-server'
 import type { InterventionInput, InterventionsView } from './interventions-contracts'

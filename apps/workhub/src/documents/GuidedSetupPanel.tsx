@@ -1,7 +1,7 @@
 import {useEffect,useId,useRef,useState} from 'react'
 import type {Membership} from '../contracts'
 import {useEditDraft} from '../app/edit-drafts'
-import {canonical} from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import type {GuidedService} from './guided-adapter'
 import {GUIDED_LIMITS,type Question,type TemplateDetail} from './guided-contracts'
 import {applyGuidedCandidates,createGuidedCandidates,recommendGuidedMode,type GuidedCandidate} from './guided-suggestions'

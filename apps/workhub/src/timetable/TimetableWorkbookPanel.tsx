@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { TimetableBasis, Placement } from '../../../../packages/timetable/src/types'
 import type { TimetableConditions } from './contracts'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import { requestBlobDownload } from '../files/download'
 import { readTimetableXlsx, writeTimetableXlsx, TimetableWorkbookError } from './xlsx'
 import { previewTimetableWorkbook, timetablePrintSheets, timetableWorkbookSheets, type TimetableWorkbookDraft, type TimetableWorkbookPreview } from './workbook'

@@ -1,4 +1,4 @@
-import { canonical, exact, identifier, isoDate, ServiceError, validateLocalInput, version } from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, ServiceError, validateLocalInput, version } from '../services/service-values'
 
 export const SCHOOL_ROSTER_CONTRACT = 'school-roster.v1'
 export interface SchoolRosterCandidate { legacyUserId: string; name: string; memberId: string | null; state: 'unlinked' | 'linked' | 'blocked' }

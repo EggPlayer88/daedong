@@ -1,5 +1,5 @@
 import policy from '../../../main/api/workhub-documents/_assets/guided-suggestions.json'
-import {exact,ServiceError,text,validateLocalInput} from '../services/scoped-rpc'
+import { exact, ServiceError, text, validateLocalInput } from '../services/service-values'
 import {GUIDED_LIMITS,inspection as parseInspection,questionMapping,type Anchor,type Inspection,type Question,type QuestionKind} from './guided-contracts'
 
 export const GUIDED_SUGGESTIONS_POLICY=policy

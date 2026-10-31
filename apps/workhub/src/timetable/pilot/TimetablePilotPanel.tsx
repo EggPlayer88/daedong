@@ -10,10 +10,8 @@ import styles from './pilot.css?inline'
 const kinds = { swap: '수업 교환', move: '수업 이동', substitute: '대강', cancel: '휴강', makeup: '보강' }
 const states = { awaiting_consent: '교사 동의 중', awaiting_approval: '담당자 승인 대기', approved: '반영 완료', rejected: '반려', withdrawn: '철회' }
 const errorText = (error: unknown) => error instanceof Error ? error.message : '처리하지 못했습니다. 입력을 다시 확인해 주세요.'
-export function downloadPilotText(name: string, text: string, type = 'text/csv;charset=utf-8') {
-  const href = URL.createObjectURL(new Blob([type.startsWith('text/csv') && !text.startsWith('\ufeff') ? '\ufeff' : '', text], { type }))
-  const link = document.createElement('a'); link.href = href; link.download = name; link.click(); window.setTimeout(() => URL.revokeObjectURL(href), 1000)
-}
+import { downloadPilotText } from './download'
+export { downloadPilotText } from './download'
 export interface PilotPanelProps {
   scope: string; member?: Membership; connection?: SupabaseConnection
   onNavigationLockChange?: (locked: boolean) => void

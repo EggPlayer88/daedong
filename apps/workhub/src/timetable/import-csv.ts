@@ -1,6 +1,6 @@
 import type { TimetableSlot } from '../../../../packages/timetable/src/types'
 import { validatePlacements } from '../../../../packages/timetable/src/validate'
-import { canonical, identifier, ServiceError, text } from '../services/scoped-rpc'
+import { canonical, identifier, ServiceError, text } from '../services/service-values'
 import { compilePreparation, type PreparationSource } from './preparation'
 import { parsePilotCsvRows } from './pilot/roster'
 import { pilotDigest, type PilotFixture } from './pilot/fixture'

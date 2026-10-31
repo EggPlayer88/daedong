@@ -1,4 +1,4 @@
-import { ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import { preparationDraft, type PreparationDraft, type PreparationSource } from './preparation'
 
 export interface PreparationSession {

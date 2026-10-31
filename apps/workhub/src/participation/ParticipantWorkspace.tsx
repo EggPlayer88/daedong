@@ -29,7 +29,8 @@ const Teaching=lazy(()=>import('../teaching/TeachingWorkspace').then(m=>({defaul
 const Collections=lazy(()=>import('../collections/CollectionServerPanel').then(m=>({default:m.CollectionServerPanel})))
 const TimetableAgenda=lazy(()=>import('../timetable/TimetableAgendaPanel').then(m=>({default:m.TimetableAgendaWorkspace})))
 export interface ParticipantAccess { userId:string;schoolId:string;memberId:string;scopes:string[];expiresAt:string;revision:number }
-export const participantPage = (scope:string):PageId => ({teaching:'students',transitions:'schoolAdmin'}[scope] ?? scope) as PageId
+import { participantPage } from './page'
+export { participantPage } from './page'
 
 // 공통 화면 틀을 재사용하되 승인된 업무만 구성한다. 서버도 모든 RPC에서 같은 범위를 검사한다.
 export function ParticipantWorkspace({access,connection:provided}:{access:ParticipantAccess;connection?:SupabaseConnection}) {

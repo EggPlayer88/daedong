@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import { createTimetableInterventionsServer } from './interventions-server'
 import type { InterventionsSummary, TimetableInterventionsServer } from './interventions-contracts'
 

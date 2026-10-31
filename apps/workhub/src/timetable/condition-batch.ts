@@ -1,6 +1,6 @@
 import { overlaps, timetablePolicy, validateBasis } from '../../../../packages/timetable/src/validate'
 import type { TimetableBasis, TimetableConditions } from './contracts'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import { timetableConditions } from './server'
 import { reviewTimetablePreflight } from './preflight'
 import { conditionTargetLabels, strongerPreferenceWeight } from './condition-policy'

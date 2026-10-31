@@ -1,6 +1,6 @@
 import {ASSISTANT_LIMITS} from './contracts'
 import {memoryEntry,MEMORY_LIMITS,type MemoryEntry} from './memory-contracts'
-import {object,ServiceError,text,validateLocalInput} from '../services/scoped-rpc'
+import { object, ServiceError, text, validateLocalInput } from '../services/service-values'
 
 // 기억을 몰래 주입하지 않는다. 사용자가 확인할 현재 질문의 참고 사본만 만든다.
 export function composeMemoryPrompt(prompt:string,entries:MemoryEntry[]):string{

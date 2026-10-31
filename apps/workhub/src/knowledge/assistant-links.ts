@@ -1,7 +1,7 @@
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
 import { assistantInput, type AssistantContextRequest, type Citation } from '../assistant/contracts'
-import { exact, identifier, isoDate, ServiceError, text, version } from '../services/scoped-rpc'
+import { exact, identifier, isoDate, ServiceError, text, version } from '../services/service-values'
 import { knowledgeSource, sourceEffective, type KnowledgeSource } from './contracts'
 
 export interface KnowledgeAssistantRequest {

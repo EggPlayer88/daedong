@@ -1,4 +1,4 @@
-import {exact,identifier,object} from '../services/scoped-rpc'
+import { exact, identifier, object } from '../services/service-values'
 import {AssistantError,assistantLocalInput} from './contracts'
 
 export const AI_OPERATION_STATES=['prepared','started','completed','rejected','unknown','failed','closed','resolved'] as const

@@ -1,5 +1,6 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { createScopedRpc, identifier, object, ServiceError } from '../services/scoped-rpc'
+import { identifier, object, ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { TIMETABLE_IMPORT_CONTRACT, timetableImportSource, timetableImportInput, timetableImportPreview, timetableImportCommand, timetableImportReceipt, timetableImportClose, type TimetableImportServer } from './import-contracts'
 
 export function createTimetableImportServer(connection: SupabaseConnection, options: { timeoutMs?: number } = {}): TimetableImportServer {

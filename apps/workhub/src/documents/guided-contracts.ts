@@ -1,7 +1,7 @@
 import limits from '../../../main/api/workhub-documents/_assets/guided-limits.json'
 import fileLimits from '../../../main/api/collections/_assets/hwpx-basic.json'
 import type { Membership } from '../contracts'
-import { canonical, exact, identifier, isoDate, object, ServiceError, text, version } from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, object, ServiceError, text, version } from '../services/service-values'
 export const GUIDED_LIMITS = limits
 export const GUIDED_CONTRACT = 'guided.v1'
 export const GUIDED_BUCKET = 'workhub-document-files'

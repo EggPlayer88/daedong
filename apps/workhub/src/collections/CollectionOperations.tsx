@@ -2,7 +2,7 @@ import { useEffect,useRef,useState } from 'react'
 import type {Membership} from '../contracts'
 import {useEditDraft} from '../app/edit-drafts'
 import {recoveryScope,usePendingRequest} from '../app/pending-requests'
-import {ServiceError} from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import {operation,type CollectionOperation,type CollectionOperationsServer,type CollectionOperationsState} from './operations'
 interface Draft{baseVersion:number;kind:CollectionOperation['kind'];reason:string;dueDate:string;selected:string[];confirmed:boolean;pending?:{command:CollectionOperation;key:string}}
 interface Props{server:CollectionOperationsServer;member:Membership;requestId:string;date:string;disabled:boolean;revision:number;onLock:(locked:boolean)=>void;onChanged:()=>void;onState?:(state:CollectionOperationsState)=>void}

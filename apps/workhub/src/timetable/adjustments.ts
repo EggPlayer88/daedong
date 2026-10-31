@@ -1,7 +1,7 @@
 import { validateBasis, validatePlacements, timetablePolicy } from '../../../../packages/timetable/src/validate'
 import type { TimetableIssue } from '../../../../packages/timetable/src/types'
 import type { Placement, TimetableBasis } from './contracts'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import limits from './adjustments-limits.json'
 
 export type AdjustmentCommand = { kind: 'move' | 'assign'; lessonId: string; slotId: string } | { kind: 'swap'; lessonId: string; otherLessonId: string }

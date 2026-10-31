@@ -1,4 +1,4 @@
-import { canonical, exact, identifier, object } from '../services/scoped-rpc'
+import { canonical, exact, identifier, object } from '../services/service-values'
 import { ASSISTANT_ROUTING, AssistantError, assistantLocalInput } from './contracts'
 export const SCHOOL_AI_CONTRACT = 'assistant.school.v1'
 export interface SchoolAiStatus {

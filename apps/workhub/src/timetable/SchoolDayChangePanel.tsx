@@ -5,7 +5,7 @@ import type { OperationReferenceView, OperationsExtensions, SchoolDayChangePrevi
 import type { SchoolDayCommitCommand, SchoolDayCommitReceipt, SchoolDayExecutionInput, SchoolDayExecutionPreview, SchoolDayExecutionServer } from './school-day-execution-contracts'
 import { schoolDayCommitCommand, schoolDayLocalTime, schoolDaySourceLessons } from './school-day-execution-server'
 import { useEditDraft } from '../app/edit-drafts'
-import { ServiceError, canonical } from '../services/scoped-rpc'
+import { ServiceError, canonical } from '../services/service-values'
 import limits from './operations-api-limits.json'
 import { dateOffset, OperationChangeList } from './OperationChangeList'
 import reviewStyles from './operation-review.css?inline'

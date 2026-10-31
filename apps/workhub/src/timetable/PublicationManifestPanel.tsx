@@ -4,7 +4,7 @@ import type { PublishInput } from './operations-contracts'
 import type { PublicationCommitCommand, PublicationCommitReceipt } from './publication-execution-contracts'
 import { parsePublicationManifest, parsePublicationPage } from './operations-next-server'
 import { verifyPublicationChanges } from './publication-execution-server'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import { dateOffset, OperationChangeList } from './OperationChangeList'
 import reviewStyles from './operation-review.css?inline'
 
