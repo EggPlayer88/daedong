@@ -63,6 +63,8 @@ SP1 13건과 모듈 경계 4건은 npm test 5,272건 안에 포함된다. 신규
 ## PR #102 CI 환경 보완
 
 첫 CI(41186404638)는 npm test와 PostgreSQL 독립 연결 경쟁 검사를 통과한 뒤 R0·R1 시험 서버 준비에서 중단됐다.
-실패 원인은 GitHub runner 기본 `psql 18`이 embedded PostgreSQL 17의 `libpq`를 읽어 `PQfullProtocolVersion` 심벌을 찾지 못한 것이다.
-시험에 사용하는 클라이언트를 `/usr/lib/postgresql/17/bin/psql`로 고정하고, 같은 라이브러리 경로에서 버전을 사전 확인하도록 했다.
-운영 앱·운영 SQL·기존 판정 기준은 수정하지 않았다. SQL 시험을 생략하지 않고 동일한 전체 CI를 재실행한다.
+runner 기본 `psql 18`이 embedded PostgreSQL 17의 `libpq`를 읽어 `PQfullProtocolVersion` 심벌을 찾지 못한 것이 원인이다.
+클라이언트를 17로 맞추려 했으나 해당 runner 패키지 목록에 client-17이 없어 사전 준비에서 중단됨을 확인했다(41187247579).
+최종 수정은 `scripts/ci-psql.sh`로 **시스템 클라이언트 실행에서만 LD_LIBRARY_PATH를 제거**하는 것이다. 서버 17의 라이브러리 경로·접속 대상·SQL·기존 판정 기준은 유지한다.
+실제 Bash 실행 회귀 3건으로 라이브러리 격리, 공백 포함 인자 보존, 오류 종료 전달, 미설정 클라이언트 거부를 확인한다.
+운영 앱·운영 SQL은 수정하지 않았으며, SQL 시험을 생략하지 않고 전체 CI를 재실행한다.
