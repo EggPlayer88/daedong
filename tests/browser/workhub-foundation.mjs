@@ -42,7 +42,7 @@ try{
     assert.equal(await nav().locator('.ws-primary-menus').getByRole('button',{name:'업무',exact:true}).count(),1)
     assert.equal(await nav().getByRole('button',{name:'업무',exact:true}).getAttribute('aria-current'),'page')
     assert.equal(await page.getByRole('navigation',{name:'관련 업무 메뉴'}).getByRole('button',{name:'자료 수합',exact:true}).count(),1)
-    assert.match(await page.getByRole('navigation',{name:'현재 위치'}).innerText(),/업무실[\s\S]*내 업무/)
+    assert.match(await page.getByRole('navigation',{name:'현재 위치'}).innerText(),/학교 업무[\s\S]*내 업무/)
     await nav().getByRole('button',{name:'더보기',exact:true}).click()
     const more=page.getByRole('dialog',{name:'더보기',exact:true})
     assert.equal(await more.locator('.ws-group-work').getByRole('button',{name:'자료 수합',exact:true}).count(),1)

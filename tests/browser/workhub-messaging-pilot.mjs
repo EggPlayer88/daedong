@@ -18,6 +18,7 @@ const bundle=buildSync({stdin:{contents:`
  const envelope=data=>({contractVersion:1,schoolId:'school',memberId:'member',userId:'teacher',ok:true,data});
  supabase.rpc=async(name,args)=>{
   window.calls.push({name,args});
+  if(name==='site_seasonal_status')return{data:{contract:'site.seasonal.v1',feature:'assessment-plan',enabled:false,version:1,updatedAt:null,canManage:false},error:null};
   if(name==='workhub_participant_access')return{data:null,error:{code:'PGRST202'}};
   if(name==='workhub_messaging_pilot_access'){
    if(window.scenario==='missing')return{data:null,error:{code:'PGRST202'}};
@@ -40,7 +41,7 @@ await page.route('**/*',route=>{if(new URL(route.request().url()).hostname!=='12
 async function boot(scenario='ready'){await page.goto('http://127.0.0.1:5176/workhub');await page.evaluate(s=>window.scenario=s,scenario);await page.addScriptTag({content:bundle.outputFiles[0].text})}
 const heading=()=>page.getByRole('heading',{name:'업무실 · 메신저 시험',exact:true})
 try{
- await boot();await heading().waitFor();await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByLabel('메시지',{exact:true}).fill('보존할 입력');await page.getByRole('checkbox',{name:'관리자',exact:true}).check()
+ await boot();await heading().waitFor();await page.getByRole('button',{name:'새 메시지',exact:true}).click();await page.getByRole('textbox',{name:'메시지',exact:true}).fill('보존할 입력');await page.getByRole('checkbox',{name:'관리자',exact:true}).check()
  await page.getByRole('button',{name:'받는 사람과 내용 확인'}).click();await page.getByRole('region',{name:'보내기 전 확인'}).waitFor()
  assert.equal(await page.getByRole('link',{name:'사용자 관리',exact:true}).count(),0)
  assert.equal(await page.getByRole('heading',{name:'시간표',exact:true}).count(),0)
@@ -48,15 +49,15 @@ try{
  console.log('  ✓ 일반 교사에게 메신저만 열림·작성·수신자 최종 확인·범위 밖 호출 0')
  await page.getByRole('button',{name:'내용 수정',exact:true}).click();await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
  await page.waitForFunction(()=>window.calls.filter(c=>c.name==='workhub_messaging_pilot_access').length>=2)
- assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'보존할 입력')
+ assert.equal(await page.getByRole('textbox',{name:'메시지',exact:true}).inputValue(),'보존할 입력')
  console.log('  ✓ 창 복귀 시 입력·화면 유지')
- await page.locator('summary').filter({hasText:'기존 업무 메뉴'}).click();await page.getByRole('link',{name:'대시보드',exact:true}).click()
+ await page.getByRole('button',{name:'더보기',exact:true}).click();await page.getByRole('link',{name:'내 계정',exact:true}).click();await page.getByRole('button',{name:'더보기 닫기',exact:true}).click()
  await page.getByText(/작성 중인 내용을 저장하거나|보관한 입력이나 확인할 저장 요청이 남아/).waitFor()
- assert.equal(new URL(page.url()).pathname,'/workhub');assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'보존할 입력')
+ assert.equal(new URL(page.url()).pathname,'/workhub');assert.equal(await page.getByRole('textbox',{name:'메시지',exact:true}).inputValue(),'보존할 입력')
  console.log('  ✓ 미저장 메시지와 원요청이 남으면 기존 메뉴 이동 차단')
- await page.evaluate(()=>{window.allowed=false;window.dispatchEvent(new Event('focus'))});await heading().waitFor({state:'detached'});assert.equal(await page.getByLabel('메시지',{exact:true}).count(),0)
+ await page.evaluate(()=>{window.allowed=false;window.dispatchEvent(new Event('focus'))});await heading().waitFor({state:'detached'});assert.equal(await page.getByRole('textbox',{name:'메시지',exact:true}).count(),0)
  console.log('  ✓ 서버 중지 시 전용 화면과 입력 접근 종료')
- for(const scenario of ['denied','missing']){await boot(scenario);await page.waitForURL('http://127.0.0.1:5176/');assert.equal(await heading().count(),0);assert.deepEqual(await page.evaluate(()=>window.calls.map(c=>c.name)),['workhub_participant_access','workhub_messaging_pilot_access']);console.log('  ✓ '+scenario+' 직접 주소 접근 차단·기존 교사 화면 유지')}
+ for(const scenario of ['denied','missing']){await boot(scenario);await page.waitForURL('http://127.0.0.1:5176/');assert.equal(await heading().count(),0);assert.deepEqual(await page.evaluate(()=>window.calls.filter(c=>c.name!=='site_seasonal_status').map(c=>c.name)),['workhub_participant_access','workhub_messaging_pilot_access']);console.log('  ✓ '+scenario+' 직접 주소 접근 차단·기존 교사 화면 유지')}
  await boot('delayed');await page.waitForFunction(()=>Boolean(window.resolveAccess));await page.evaluate(()=>{window.changeUser();window.resolveAccess()});await page.waitForFunction(()=>window.calls.filter(c=>c.name==='workhub_messaging_pilot_access').length>=2);await page.evaluate(()=>window.resolveAccess());await page.waitForURL('http://127.0.0.1:5176/');assert.equal(await heading().count(),0)
  console.log('  ✓ 계정 변경 후 지연된 이전 허용 응답 무시')
  await boot();await heading().waitFor();await page.evaluate(()=>{window.expiresAt=new Date(Date.now()+1500).toISOString();window.dispatchEvent(new Event('focus'))});await heading().waitFor({state:'detached'});console.log('  ✓ 허용 만료 시 타이머로 화면 접근 종료')

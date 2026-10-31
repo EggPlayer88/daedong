@@ -32,7 +32,7 @@ async function destination(name) {
   await openGuide(); await guide().getByRole('button', { name, exact: true }).click()
 }
 async function enterPractice() {
-  await page.getByRole('navigation', { name: '신축 업무 메뉴', exact: true }).getByRole('button', { name: '시간표', exact: true }).click()
+  await page.getByRole('navigation', { name: '업무 메뉴', exact: true }).getByRole('button', { name: '시간표', exact: true }).click()
   await button('편성 관리').click()
   await button('예시로 편성 연습').click()
   await page.getByText('가상 자료로 편성 연습 중', { exact: true }).waitFor()

@@ -480,7 +480,7 @@ ck('고아 파일이 있는 행에만 재시도 버튼', () => {
 ck('메뉴에 등록돼 있다', () => {
   // 메뉴·라우트는 lib/modules.js 한 표에서 나온다 (공개 범위 게이팅)
   const mods = readFileSync(join(ROOT, 'apps/main/src/lib/modules.js'), 'utf-8')
-  A(mods.includes("to: '/submissions', label: '평가계획 제출'"), '모듈 표에 없음')
+  A(mods.includes("to: '/submissions', label: '평가계획서 제출'"), '모듈 표에 없음')
   const app = readFileSync(join(ROOT, 'apps/main/src/App.jsx'), 'utf-8')
   A(new RegExp(`['"]?submissions['"]?:`).test(app), 'SCREENS 에 화면이 없음')
 })

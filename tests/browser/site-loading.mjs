@@ -8,6 +8,7 @@ import { launchBrowser } from './launch-browser.mjs'
 const root = fileURLToPath(new URL('../../', import.meta.url)), origin = 'http://127.0.0.1:5196', outdir = join(root, '.tmp-site-loading-output')
 const result = await build({ stdin: { contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import App from './apps/main/src/App.jsx'; createRoot(document.getElementById('root')).render(<App/>);`, resolveDir: root, sourcefile: 'entry.jsx', loader: 'jsx' }, jsx: 'automatic', bundle: true, write: false, splitting: true, format: 'esm', outdir, entryNames: 'entry', chunkNames: '[name]-[hash]', loader: { '.css': 'text', '.woff2': 'dataurl' }, define: { 'import.meta.env': JSON.stringify({ MODE: 'test', VITE_SUPABASE_URL: 'https://example.invalid', VITE_SUPABASE_ANON_KEY: 'synthetic' }), 'process.env.NODE_ENV': '"production"' }, plugins: [{ name: 'synthetic-boundaries', setup(builder) {
   builder.onLoad({ filter: /lib[\\/]AuthContext\.jsx$/ }, () => ({ loader: 'jsx', contents: `import {createContext,useContext} from 'react'; export const AuthContext=createContext(null); export const useAuth=()=>useContext(AuthContext); export function AuthProvider({children}){const profile={id:'synthetic-user',name:'시험 교사',email:'teacher@example.invalid',role:'teacher',is_active:window.loadingConfig.active!==false};return <AuthContext.Provider value={{profile,session:{user:{id:profile.id},access_token:'synthetic'},isLoggedIn:true,loading:false,profileLoading:false,profileError:null}}>{children}</AuthContext.Provider>}` }))
+  builder.onLoad({ filter: /site[\\/]SeasonalWorkProvider\.jsx$/ }, () => ({ loader: 'jsx', contents: `export function SeasonalWorkProvider({children}){return children} export const useSeasonalWork=()=>({state:{enabled:true},loading:false});` }))
   builder.onLoad({ filter: /lib[\\/]MessagingPilotContext\.jsx$/ }, () => ({ loader: 'jsx', contents: `export function MessagingPilotProvider({children}){return children} export const useMessagingPilot=()=>({access:null,checking:false});` }))
   builder.onLoad({ filter: /lib[\\/]docAiStore\.js$/ }, () => ({ loader: 'js', contents: `export const listConversations=async()=>({rows:[],error:null});export const loadConversation=async()=>({row:null});export const saveConversation=async()=>({error:null});export const deleteConversation=async()=>({error:null});export const markCompleted=async()=>({error:null});export const newConversationId=()=>crypto.randomUUID();` }))
   builder.onLoad({ filter: /lib[\\/]submissions\.js$/ }, args => {
@@ -36,7 +37,7 @@ async function start(config = {}) {
   })
   await page.goto(origin + (config.path ?? '/'))
 }
-const nav = label => page.getByRole('navigation', { name: '기존 업무 메뉴' }).getByRole('link', { name: label, exact: true })
+const nav = label => page.locator('.ws-navigation').getByRole('link', { name: label, exact: true })
 async function capture(name) { if (output) { mkdirSync(output, { recursive: true }); await page.screenshot({ path: join(output, name + '.png'), fullPage: true }) } }
 async function test(name, config, run) {
   await start(config)
@@ -45,38 +46,38 @@ async function test(name, config, run) {
 }
 try {
   await test('대시보드는 문서·제출·관리·일정 화면 파일을 받지 않는다', {}, async () => {
-    await page.getByRole('heading', { name: '대시보드', exact: true }).waitFor(); assert(!requested.some(path => /DocAiPage|SubmissionsPage|AdminUsersPage|CalendarPage/.test(path)))
+    await page.getByRole('heading', { name: '오늘의 업무', exact: true }).waitFor(); assert(!requested.some(path => /DocAiPage|SubmissionsPage|AdminUsersPage|CalendarPage/.test(path)))
   })
   await test('로딩 중 메뉴가 유지되고 완료 뒤 새 제목으로 초점을 옮긴다', { delay: 'DocAiPage' }, async () => {
-    await nav('문서 작성 AI').click(); await page.locator('[data-page-loading]').waitFor(); assert(await nav('대시보드').isVisible())
-    await page.getByRole('heading', { name: /^문서 작성 AI —/ }).waitFor(); await page.waitForFunction(() => document.activeElement?.textContent?.startsWith('문서 작성 AI —'))
+    await nav('평가계획서 작성').click(); await page.locator('[data-page-loading]').waitFor(); assert(await nav('홈').isVisible())
+    await page.getByRole('heading', { name: /^문서 작성 AI —/ }).waitFor(); await page.waitForFunction(() => (()=>{let el=document.activeElement;while(el?.shadowRoot?.activeElement)el=el.shadowRoot.activeElement;return el?.textContent})()?.startsWith('문서 작성 AI —'))
     assert(!requested.some(path => /SubmissionsPage|AdminUsersPage|CalendarPage/.test(path)))
   })
   await test('늦게 도착한 화면이 사용자가 이동한 초점을 빼앗지 않는다', { delay: 'DocAiPage' }, async () => {
-    await nav('문서 작성 AI').click(); await page.locator('[data-page-loading]').waitFor(); await nav('대시보드').focus(); await page.getByRole('heading', { name: /^문서 작성 AI —/ }).waitFor()
-    assert.equal(await page.evaluate(() => document.activeElement?.textContent), '대시보드')
+    await nav('평가계획서 작성').click(); await page.locator('[data-page-loading]').waitFor(); await nav('홈').focus(); await page.getByRole('heading', { name: /^문서 작성 AI —/ }).waitFor()
+    assert.equal(await page.evaluate(() => (()=>{let el=document.activeElement;while(el?.shadowRoot?.activeElement)el=el.shadowRoot.activeElement;return el?.textContent})()), '홈')
   })
   await test('로딩 중 나가면 늦은 화면이 다시 나타나지 않는다', { delay: 'DocAiPage' }, async () => {
-    await nav('문서 작성 AI').click(); await page.locator('[data-page-loading]').waitFor(); await nav('대시보드').click(); await page.getByRole('heading', { name: '대시보드', exact: true }).waitFor(); await page.waitForTimeout(650)
-    assert.equal(await page.getByRole('heading', { name: /^문서 작성 AI —/ }).count(), 0); assert.equal(await page.evaluate(() => document.activeElement?.textContent), '대시보드')
+    await nav('평가계획서 작성').click(); await page.locator('[data-page-loading]').waitFor(); await nav('홈').click(); await page.getByRole('heading', { name: '오늘의 업무', exact: true }).waitFor(); await page.waitForTimeout(650)
+    assert.equal(await page.getByRole('heading', { name: /^문서 작성 AI —/ }).count(), 0); assert.equal(await page.evaluate(() => (()=>{let el=document.activeElement;while(el?.shadowRoot?.activeElement)el=el.shadowRoot.activeElement;return el?.textContent})()), '오늘의 업무')
   })
   await test('화면 다운로드 실패는 다른 메뉴를 막지 않고 원문 오류를 숨긴다', { fail: 'DocAiPage' }, async () => {
-    await nav('문서 작성 AI').click(); await page.getByRole('alert').waitFor(); assert.doesNotMatch(await page.getByRole('alert').innerText(), /private error|synthetic|https?:|TypeError/)
+    await nav('평가계획서 작성').click(); await page.getByRole('alert').waitFor(); assert.doesNotMatch(await page.getByRole('alert').innerText(), /private error|synthetic|https?:|TypeError/)
     await page.getByRole('button', { name: '이 화면 다시 열기' }).click(); await page.getByRole('alert').getByText(/현재 탭에만 보관한 입력/).waitFor(); await capture('loading-recovery')
-    await nav('평가계획 제출').click(); await page.getByRole('heading', { name: '평가계획 제출', exact: true }).waitFor()
+    await nav('평가계획서 제출').click(); await page.getByRole('heading', { name: '평가계획 제출', exact: true }).waitFor()
   })
   await test('문서 입력은 다른 화면 왕복 후 유지되고 유료 호출하지 않는다', {}, async () => {
-    await nav('문서 작성 AI').click(); const field = page.locator('.composer input:not([type=file])'); await field.fill('요청하지 않는 시험 입력')
-    await nav('대시보드').click(); await nav('문서 작성 AI').click(); assert.equal(await field.inputValue(), '요청하지 않는 시험 입력')
+    await nav('평가계획서 작성').click(); const field = page.locator('.composer input:not([type=file])'); await field.fill('요청하지 않는 시험 입력')
+    await nav('홈').click(); await nav('평가계획서 작성').click(); assert.equal(await field.inputValue(), '요청하지 않는 시험 입력')
   })
   await test('일반 교사 관리자 주소 접근은 기존 대시보드로 돌리고 관리 코드를 받지 않는다', { path: '/admin/users' }, async () => {
-    await page.getByRole('heading', { name: '대시보드', exact: true }).waitFor(); assert(!requested.some(path => /AdminUsersPage/.test(path))); assert.equal(await nav('사용자 관리').count(), 0)
+    await page.getByRole('heading', { name: '오늘의 업무', exact: true }).waitFor(); assert(!requested.some(path => /AdminUsersPage/.test(path))); assert.equal(await nav('사용자 관리').count(), 0)
   })
   await test('승인 대기는 업무 코드를 불러오지 않는다', { active: false, path: '/doc-ai' }, async () => {
     await page.getByText('승인 대기중입니다', { exact: false }).waitFor(); assert(!requested.some(path => /DocAiPage|SubmissionsPage|AdminUsersPage|CalendarPage/.test(path)))
   })
   await test('320px 로딩 안내가 넘치지 않고 메뉴를 사용할 수 있다', { delay: 'DocAiPage' }, async () => {
-    await page.setViewportSize({ width: 320, height: 820 }); await nav('문서 작성 AI').click(); await page.locator('[data-page-loading]').waitFor()
+    await page.setViewportSize({ width: 320, height: 820 }); await page.getByRole('button',{name:'더보기',exact:true}).click(); await nav('평가계획서 작성').click(); await page.locator('[data-page-loading]').waitFor()
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)); await capture('loading-mobile')
   })
   console.log(`화면 지연 로딩 ${passed.length}건 통과 · 외부 요청 0`)

@@ -2,7 +2,7 @@ import { useSeasonalWork } from '../site/SeasonalWorkProvider.jsx'
 import '../../../workhub/src/app/navigation-bridge'
 import { Component, lazy, Suspense } from 'react'
 import { useAuth } from '../lib/AuthContext.jsx'
-import { useHref } from 'react-router-dom'
+import { Link, useHref } from 'react-router-dom'
 import { MODULES } from '../lib/modules.js'
 import { useMessagingPilot } from '../lib/MessagingPilotContext.jsx'
 import { hasMessagingPilot } from '../lib/messaging-pilot.js'
@@ -16,7 +16,7 @@ class WorkhubBoundary extends Component {
   state = { failed: false }
   static getDerivedStateFromError() { return { failed: true } }
   render() {
-    if (this.state.failed) return <section role="alert"><h1>업무 화면을 불러오지 못했습니다</h1><p>다른 업무 메뉴를 계속 이용할 수 있습니다.</p><button onClick={() => window.location.reload()}>다시 불러오기</button></section>
+    if (this.state.failed) return <section role="alert"><h1>업무 화면을 불러오지 못했습니다</h1><p>다른 업무 메뉴를 계속 이용할 수 있습니다.</p><Link to="/account">내 계정과 업무 메뉴 열기</Link><button onClick={() => window.location.reload()}>다시 불러오기</button></section>
     return this.props.children
   }
 }

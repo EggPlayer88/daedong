@@ -1,0 +1,37 @@
+[
+  {
+    "file": "apps/workhub/src/collections/CollectionServerPanel.tsx",
+    "originalBytes": 77003,
+    "entryBytes": 608,
+    "controllerBytes": 40961,
+    "controllerCommandsUnchanged": true
+  },
+  {
+    "file": "apps/workhub/src/documents/GuidedWorkspace.tsx",
+    "originalBytes": 33164,
+    "entryBytes": 533,
+    "controllerBytes": 22679,
+    "controllerCommandsUnchanged": true
+  },
+  {
+    "file": "apps/workhub/src/timetable/TimetableWorkspace.tsx",
+    "originalBytes": 74680,
+    "entryBytes": 8172,
+    "controllerBytes": 39754,
+    "controllerCommandsUnchanged": true
+  },
+  {
+    "file": "apps/workhub/src/messaging/MessagingWorkspace.tsx",
+    "originalBytes": 41294,
+    "entryBytes": 626,
+    "controllerBytes": 24517,
+    "controllerCommandsUnchanged": true
+  },
+  {
+    "file": "apps/workhub/src/assistant/AssistantPanel.tsx",
+    "originalBytes": 39382,
+    "entryBytes": 627,
+    "controllerBytes": 20314,
+    "controllerCommandsUnchanged": true
+  }
+]

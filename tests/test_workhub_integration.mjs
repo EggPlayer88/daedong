@@ -26,7 +26,7 @@ test('신축 메뉴·라우트는 슈퍼관리자만 대상이며 기존 공개 
 test('실제 신축 진입은 세션·프로필 동일 계정과 명시적 승인까지 요구한다', () => {
   const base = { session: { user: { id: 's' } }, profile: { id: 's', role: 'superadmin', is_active: true }, profileLoading: false, profileError: null }
   for (const override of [{ session: null }, { profile: { ...base.profile, id: 'previous' } }, { profile: { ...base.profile, is_active: null } }, ...['teacher', 'department_head', 'admin'].map(role => ({ profile: { ...base.profile, role } })), { profile: { ...base.profile, is_active: false } }, { profileError: new Error('network') }]) {
-    assert(renderGate({ ...base, ...override }).includes('현재 계정으로 신축 시험 화면을 이용할 수 없습니다'))
+    assert(renderGate({ ...base, ...override }).includes('현재 계정으로 학교 업무 화면을 이용할 수 없습니다'))
   }
   assert(renderGate({ ...base, profileLoading: true }).includes('계정 확인 중'))
 })

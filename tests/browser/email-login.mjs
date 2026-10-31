@@ -88,7 +88,7 @@ try {
   await boot('/workhub?login=email')
   await page.evaluate(()=>window.scenario.setProfile({id:'synthetic',email:'synthetic@example.invalid',name:'시험 교사',role:'teacher',is_active:true,extra_permissions:[]}))
   await credentials();await page.getByRole('button',{name:'이메일로 로그인',exact:true}).click()
-  await page.getByRole('heading',{name:'대시보드',exact:true}).waitFor()
+  await page.getByRole('heading',{name:'오늘의 업무',exact:true}).waitFor()
   assert.equal(new URL(page.url()).pathname,'/')
   assert.equal(await page.getByRole('link',{name:'신축 업무실 · 시험',exact:true}).count(),0)
   console.log('  ✓ 승인된 일반 교사도 업무실 직접 주소·메뉴 차단 유지')
