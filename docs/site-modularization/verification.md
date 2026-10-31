@@ -59,3 +59,10 @@ SP1 13건과 모듈 경계 4건은 npm test 5,272건 안에 포함된다. 신규
 ![같은 메뉴 틀 안의 기존 평가계획서 작성 화면](images/assessment-editor.png)
 
 설치 순서는 [SP1 실행 안내](../../database/site-presentation/sp1/README.md), 구조와 후속 개발 지침은 [모듈화 설명](README.md)을 따른다.
+
+## PR #102 CI 환경 보완
+
+첫 CI(41186404638)는 npm test와 PostgreSQL 독립 연결 경쟁 검사를 통과한 뒤 R0·R1 시험 서버 준비에서 중단됐다.
+실패 원인은 GitHub runner 기본 `psql 18`이 embedded PostgreSQL 17의 `libpq`를 읽어 `PQfullProtocolVersion` 심벌을 찾지 못한 것이다.
+시험에 사용하는 클라이언트를 `/usr/lib/postgresql/17/bin/psql`로 고정하고, 같은 라이브러리 경로에서 버전을 사전 확인하도록 했다.
+운영 앱·운영 SQL·기존 판정 기준은 수정하지 않았다. SQL 시험을 생략하지 않고 동일한 전체 CI를 재실행한다.
