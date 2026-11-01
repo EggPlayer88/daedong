@@ -15,7 +15,7 @@ const scripts = [
   'workhub-guided-setup', 'workhub-global-search', 'workhub-document-open', 'workhub-document-review', 'workhub-collection-export-parts', 'workhub-knowledge-assistant',
   'workhub-messaging-deliveries', 'workhub-roster-correction', 'workhub-guided-ai', 'workhub-collection-submission-list',
   'workhub-school-configuration-batch', 'workhub-course-batch', 'workhub-timetable-import-correction',
-  'workhub-timetable-operation-navigation', 'workhub-roster-import', 'workhub-home-student-followup', 'workhub-school-roster', 'workhub-school-data-maintenance', 'workhub-school-preparation', 'workhub-school-preparation-connected', 'workhub-timetable-pilot', 'workhub-timetable-import', 'workhub-timetable-interventions',
+  'workhub-timetable-operation-navigation', 'workhub-timetable-exchange-draft-recovery', 'workhub-roster-import', 'workhub-home-student-followup', 'workhub-school-roster', 'workhub-school-data-maintenance', 'workhub-school-preparation', 'workhub-school-preparation-connected', 'workhub-timetable-pilot', 'workhub-timetable-import', 'workhub-timetable-interventions',
   'workhub-timetable', 'workhub-timetable-worker', 'workhub-timetable-publication', 'workhub-timetable-exchanges',
   'workhub-timetable-foundation', 'workhub-timetable-board', 'workhub-timetable-workbook', 'workhub-timetable-assistant',
   'workhub-timetable-agenda', 'workhub-timetable-connected',

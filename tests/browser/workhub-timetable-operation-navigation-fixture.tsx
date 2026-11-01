@@ -26,7 +26,9 @@ const operations: any = {
   readiness: async () => ({ available: true }),
   get: async (_member: string, from: string, until: string) => {
     w.calls.push({ method: 'operations.get', from, until })
-    return { asOf: now(), timeZone: 'Asia/Seoul', from, until, canPublish: true, canRequest: true, lessons: copy(getLessons(from, until)), requests: w.blocking ? [copy(w.exchange)] : [], publications: [], drafts: [{ id: 'draft', version: 1, title: '새 학기 초안' }] }
+    if (w.holdOperations) await new Promise<void>(resolve => { w.resumeOperations = resolve })
+    if (w.failOperations) throw new ServiceError('FORBIDDEN')
+    return { asOf: now(), timeZone: 'Asia/Seoul', from, until, canPublish: w.canPublish !== false, canRequest: w.canRequest !== false, lessons: copy(getLessons(from, until)), requests: w.blocking ? [copy(w.exchange)] : [], publications: [], drafts: [{ id: 'draft', version: 1, title: '새 학기 초안' }] }
   },
   previewPublish: async (_member: string, input: any) => ({ previewId: 'publication-preview', previewHash: 'a'.repeat(64), createdAt: now(), expiresAt: new Date(Date.now() + 600000).toISOString(), input: copy(input), complete: true, changes: [], participants: [], blockers: [], excludedDays: [], preserved: { outsideRange: true, pastRecords: true, existingChanges: 'retained' } }),
   previewExchange: async () => { throw Error('이 시험은 교환 입력까지만 확인') },
