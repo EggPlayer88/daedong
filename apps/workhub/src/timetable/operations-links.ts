@@ -1,7 +1,7 @@
 import type { OperationLesson, OperationsView } from './operations-contracts'
 import type { InterventionKind, InterventionsView } from './interventions-contracts'
 import { parseInterventionsView } from './interventions-domain'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 
 export interface InterventionOpenIntent {
   kind: 'substitute' | 'cancel' | 'makeup'; lessonId: string; token: string

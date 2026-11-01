@@ -3,7 +3,7 @@ import { TeachingError } from './contracts'
 import { courseResponse, range, rubricValue, studentResponse } from './validation'
 import { scoreStateLabels, validateScores } from './assessment'
 import { csvHash, safeCsv } from './csv'
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import policy from './record-export-policy.json'
 
 export const RECORD_EXPORT_NOTICE = '선택한 수업·학생·기간에서 현재 계정이 조회할 수 있는 관찰·평가의 현재 판입니다. 상담, 활동 원문, 이전 정정판 전체 이력은 포함하지 않습니다. 공식 생활기록부 제출 양식이 아닙니다.'

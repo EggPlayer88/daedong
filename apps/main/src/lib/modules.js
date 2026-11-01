@@ -22,11 +22,13 @@ export const VISIBILITY = ['all', 'admin', 'superadmin']
 export const DEFAULT_VISIBILITY = 'superadmin'
 
 export const MODULES = [
-  { key: 'dashboard', to: '/', label: '대시보드', end: true, visibility: 'all' },
-  { key: 'doc-ai', to: '/doc-ai', label: '문서 작성 AI', visibility: 'all' },
-  { key: 'submissions', to: '/submissions', label: '평가계획 제출', visibility: 'all' },
+  { key: 'account', to: '/account', label: '내 계정', visibility: 'all' },
+  { key: 'seasonal-settings', to: '/admin/seasonal', label: '기간 업무 관리', visibility: 'admin', action: 'users.manage' },
+  { key: 'dashboard', to: '/', label: '홈', end: true, visibility: 'all' },
+  { key: 'doc-ai', to: '/doc-ai', label: '평가계획서 작성', visibility: 'all' },
+  { key: 'submissions', to: '/submissions', label: '평가계획서 제출', visibility: 'all' },
   // 모듈 C-1 — 실운영 전. 당분간 계란님만 보고 다듬는다
-  { key: 'workhub', to: '/workhub', end: true, label: '신축 업무실 · 시험', visibility: 'superadmin' },
+  { key: 'workhub', to: '/workhub', end: true, label: '학교 업무', visibility: 'superadmin' },
   { key: 'workhub-setup', to: '/workhub/setup', label: '학교 설정 준비', visibility: 'superadmin' },
   { key: 'calendar', to: '/calendar', label: '학사일정·캘린더', visibility: 'superadmin' },
   {

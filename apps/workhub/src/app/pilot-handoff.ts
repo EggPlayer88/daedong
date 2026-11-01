@@ -3,7 +3,7 @@ import { answerSegments, assistantInput, type AssistantContextRequest } from '..
 import type { AssistantDraftReady } from '../assistant/AssistantPanel'
 import { documentAiDraft, type DocumentAiDraft, type DocumentAiRequest, type DocumentSource } from '../documents/contracts'
 import type { StudentDraftSource } from '../teaching/TeachingWorkspace'
-import { canonical, exact, identifier, object, ServiceError, text, version } from '../services/scoped-rpc'
+import { canonical, exact, identifier, object, ServiceError, text, version } from '../services/service-values'
 
 // 이동할 때 필요한 근거만 현재 탭에서 전달한다. 원본 식별자는 URL에 넣지 않는다.
 function contextRequest(value: AssistantContextRequest): AssistantContextRequest {

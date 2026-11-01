@@ -1,6 +1,6 @@
 import { ContractError } from '../contracts'
 import { activeAt } from '../domain'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { TeachingError, type TeachingFailure, type TeachingScope } from './contracts'
 import type { TeachingRelationsAdapter, RelationIntent, RelationCommit, RelationsSnapshot } from './relations-contracts'

@@ -33,7 +33,7 @@ test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공
   const assistant=html.match(/<button[^>]*class="[^"]*ws-assistant-trigger[^"]*"[\s\S]*?<\/button>/g)||[]
   assert.equal(assistant.length,1);assert(assistant[0].includes('AI 비서'));assert(!assistant[0].includes('준비 중'))
   assert(!html.includes('<textarea'));assert(!html.includes('대화 전송'))
-  assert.match(html,/aria-label="신축 업무 메뉴"/)
+  assert.match(html,/aria-label="업무 메뉴"/)
   assert.match(html,/class="ws-more-button"[^>]*aria-haspopup="dialog"/)
   assert.match(html,/aria-label="업무" aria-current="page"/)
 })

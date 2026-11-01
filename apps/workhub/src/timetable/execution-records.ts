@@ -1,5 +1,5 @@
 import type { RequestAbandonResult } from './request-abandon'
-import { canonical, exact, identifier, text, ServiceError } from '../services/scoped-rpc'
+import { canonical, exact, identifier, text, ServiceError } from '../services/service-values'
 import policy from './execution-records-policy.json'
 
 export const EXECUTION_RECORDS_CONTRACT = 'timetable.execution-records.v1' as const

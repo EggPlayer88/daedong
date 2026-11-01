@@ -1,5 +1,5 @@
 import type { Membership } from '../contracts'
-import { exact, identifier, text, version, ServiceError } from '../services/scoped-rpc'
+import { exact, identifier, text, version, ServiceError } from '../services/service-values'
 import definitions from './scopes.json'
 
 type Grant={memberId:string;name:string;scopes:string[];active:boolean;effective:boolean;expiresAt:string;revision:number}

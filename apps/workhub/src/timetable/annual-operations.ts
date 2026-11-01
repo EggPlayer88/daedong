@@ -1,4 +1,5 @@
-import {createScopedRpc,exact,identifier,isoDate,ServiceError,text,version,validateLocalInput} from '../services/scoped-rpc'
+import { exact, identifier, isoDate, ServiceError, text, version, validateLocalInput } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import type {SupabaseConnection} from '../connection/supabase-connection'
 import {parseOperationLessonChange} from './operations-server'
 import type {OperationLessonChange} from './operations-contracts'

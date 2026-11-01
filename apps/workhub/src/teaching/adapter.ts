@@ -1,6 +1,6 @@
 import { ContractError } from '../contracts'
 import { activeAt } from '../domain'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { TeachingError, type TeachingAdapter, type TeachingFailure, type TeachingScope, type TeachingCommand } from './contracts'
 import { identifier, text, envelope, catalogResponse, courseResponse, studentResponse, counselingResponse, receiptResponse, activityResponse, rubricRevisionResponse } from './validation'

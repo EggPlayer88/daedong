@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react'
 import type {Membership} from '../contracts'
 import {useEditDraft} from '../app/edit-drafts'
 import {usePendingRequest} from '../app/pending-requests'
-import {ServiceError} from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import {annualCommand,closureLabels,periodInput,type AnnualOperations,type AnnualCommand,type AnnualReview,type PeriodInput,type PeriodPreview} from './annual-operations'
 import {dateOffset,OperationChangeList} from './OperationChangeList'
 interface Props{server:AnnualOperations;member:Membership;canManage:boolean;date:string;timeZone:string;groups:{id:string;name:string}[];disabled:boolean;onLock:(locked:boolean)=>void;onChanged:()=>void}

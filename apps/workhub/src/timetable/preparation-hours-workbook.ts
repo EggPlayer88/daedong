@@ -1,4 +1,4 @@
-import { canonical, exact } from '../services/scoped-rpc'
+import { canonical, exact } from '../services/service-values'
 import { preparationDraft, preparationSource, type PreparationDraft, type PreparationSource } from './preparation'
 import { readTimetableXlsx, writeTimetableXlsx, TimetableWorkbookError, type WorkbookSheet } from './xlsx'
 import limits from '../../../../packages/timetable/_assets/browser-policy.json'

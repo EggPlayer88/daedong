@@ -1,0 +1,1286 @@
+{
+  "baseline": "49b389d179aac86cd628244879df3afabd77cd71",
+  "unitTests": 5272,
+  "fullBrowserRun": {
+    "browser": "chrome",
+    "results": [
+      {
+        "name": "site-modular-shell",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2191
+      },
+      {
+        "name": "workhub-annual-operations",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3050
+      },
+      {
+        "name": "site-loading",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6967
+      },
+      {
+        "name": "site-ui-finish",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9734
+      },
+      {
+        "name": "workhub-ui-renewal",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5561
+      },
+      {
+        "name": "workhub-ui-polish",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6267
+      },
+      {
+        "name": "workhub-workflow-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7072
+      },
+      {
+        "name": "workhub-coordination-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7643
+      },
+      {
+        "name": "workhub-timetable-workflow-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7867
+      },
+      {
+        "name": "workhub-school-records-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7949
+      },
+      {
+        "name": "workhub-document-library-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9273
+      },
+      {
+        "name": "workhub-assistant-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 13856
+      },
+      {
+        "name": "workhub-navigation-ui",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 18257
+      },
+      {
+        "name": "email-login",
+        "passed": false,
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 33158
+      },
+      {
+        "name": "workhub-messaging-pilot",
+        "passed": false,
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 13759
+      },
+      {
+        "name": "workhub-collection-create",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9890
+      },
+      {
+        "name": "workhub-ai-memory",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7279
+      },
+      {
+        "name": "workhub-document-collection-flow",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 17815
+      },
+      {
+        "name": "workhub-cross-module",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 12299
+      },
+      {
+        "name": "workhub-assistant-practice",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5330
+      },
+      {
+        "name": "workhub-ai-operations",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6544
+      },
+      {
+        "name": "workhub-ai-school-policy",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6005
+      },
+      {
+        "name": "doc-ai-school-policy",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4390
+      },
+      {
+        "name": "workhub-guided-setup",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 15486
+      },
+      {
+        "name": "workhub-global-search",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7999
+      },
+      {
+        "name": "workhub-document-open",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6147
+      },
+      {
+        "name": "workhub-document-review",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 10235
+      },
+      {
+        "name": "workhub-collection-export-parts",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6628
+      },
+      {
+        "name": "workhub-knowledge-assistant",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5701
+      },
+      {
+        "name": "workhub-messaging-deliveries",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6048
+      },
+      {
+        "name": "workhub-roster-correction",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6993
+      },
+      {
+        "name": "workhub-guided-ai",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 11903
+      },
+      {
+        "name": "workhub-collection-submission-list",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3776
+      },
+      {
+        "name": "workhub-school-configuration-batch",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5384
+      },
+      {
+        "name": "workhub-course-batch",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5659
+      },
+      {
+        "name": "workhub-timetable-import-correction",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 11982
+      },
+      {
+        "name": "workhub-timetable-operation-navigation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6538
+      },
+      {
+        "name": "workhub-roster-import",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4375
+      },
+      {
+        "name": "workhub-home-student-followup",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9905
+      },
+      {
+        "name": "workhub-school-roster",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4921
+      },
+      {
+        "name": "workhub-school-data-maintenance",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5551
+      },
+      {
+        "name": "workhub-school-preparation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2459
+      },
+      {
+        "name": "workhub-school-preparation-connected",
+        "passed": false,
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 27022
+      },
+      {
+        "name": "workhub-timetable-pilot",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 44603
+      },
+      {
+        "name": "workhub-timetable-import",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6108
+      },
+      {
+        "name": "workhub-timetable-interventions",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 16272
+      },
+      {
+        "name": "workhub-timetable",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 19674
+      },
+      {
+        "name": "workhub-timetable-worker",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2909
+      },
+      {
+        "name": "workhub-timetable-publication",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 25245
+      },
+      {
+        "name": "workhub-timetable-exchanges",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 18950
+      },
+      {
+        "name": "workhub-timetable-foundation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5495
+      },
+      {
+        "name": "workhub-timetable-board",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5213
+      },
+      {
+        "name": "workhub-timetable-workbook",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2031
+      },
+      {
+        "name": "workhub-timetable-assistant",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5831
+      },
+      {
+        "name": "workhub-timetable-agenda",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 1717
+      },
+      {
+        "name": "workhub-timetable-connected",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9534
+      },
+      {
+        "name": "workhub-timetable-preparation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 14395
+      },
+      {
+        "name": "workhub-timetable-setup",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 16563
+      },
+      {
+        "name": "workhub-timetable-setup-batch",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8158
+      },
+      {
+        "name": "workhub-timetable-preparation-hours",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5079
+      },
+      {
+        "name": "workhub-timetable-preparation-hours-connected",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6943
+      },
+      {
+        "name": "workhub-timetable-engine-panel",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 10917
+      },
+      {
+        "name": "workhub-timetable-appearance",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5013
+      },
+      {
+        "name": "workhub-timetable-publication-commit",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 10788
+      },
+      {
+        "name": "workhub-timetable-school-day-commit",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7004
+      },
+      {
+        "name": "workhub-timetable-operation-recovery",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3139
+      },
+      {
+        "name": "workhub-timetable-request-close",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 10645
+      },
+      {
+        "name": "workhub-timetable-preparation-editing",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6141
+      },
+      {
+        "name": "workhub-timetable-adjustments",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7594
+      },
+      {
+        "name": "workhub-timetable-preflight",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 1907
+      },
+      {
+        "name": "workhub-timetable-local-engine",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 36981
+      },
+      {
+        "name": "workhub-timetable-published-export",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4722
+      },
+      {
+        "name": "workhub-timetable-condition-batch",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6993
+      },
+      {
+        "name": "workhub-timetable-target",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5129
+      },
+      {
+        "name": "workhub-timetable-target-connected",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7295
+      },
+      {
+        "name": "workhub-timetable-setup-workbook-day",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2439
+      },
+      {
+        "name": "workhub-timetable-flow",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 20736
+      },
+      {
+        "name": "workhub-timetable-candidate-library",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5471
+      },
+      {
+        "name": "workhub-timetable-condition-review",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3501
+      },
+      {
+        "name": "workhub-timetable-operation-review",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3643
+      },
+      {
+        "name": "workhub-timetable-board-usability",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4223
+      },
+      {
+        "name": "workhub-timetable-editor-usability",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6359
+      },
+      {
+        "name": "workhub-timetable-exchange-inbox",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8298
+      },
+      {
+        "name": "workhub-timetable-exchange-navigation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9151
+      },
+      {
+        "name": "workhub-timetable-execution-records",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5926
+      },
+      {
+        "name": "workhub-timetable-notification",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8540
+      },
+      {
+        "name": "workhub-timetable-execution-connected",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5378
+      },
+      {
+        "name": "workhub-school-setup",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8366
+      },
+      {
+        "name": "workhub-tasks",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4544
+      },
+      {
+        "name": "workhub-connection",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9226
+      },
+      {
+        "name": "workhub-connection-exit",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 13942
+      },
+      {
+        "name": "workhub-draft-recovery",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 35104
+      },
+      {
+        "name": "workhub-day-refresh",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 12652
+      },
+      {
+        "name": "workhub-readiness",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6692
+      },
+      {
+        "name": "workhub-navigation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2706
+      },
+      {
+        "name": "workhub-help",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 12622
+      },
+      {
+        "name": "workhub-module-loading",
+        "passed": false,
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 13411
+      },
+      {
+        "name": "workhub-foundation",
+        "passed": false,
+        "exitCode": 1,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 1254
+      },
+      {
+        "name": "workhub-calendar-views",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4440
+      },
+      {
+        "name": "workhub-calendar-recovery",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2975
+      },
+      {
+        "name": "workhub-calendar-import",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8798
+      },
+      {
+        "name": "workhub-cooperation-batch",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 10960
+      },
+      {
+        "name": "workhub-cooperation-handover",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6547
+      },
+      {
+        "name": "workhub-request-recovery",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4406
+      },
+      {
+        "name": "workhub-home-search",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5859
+      },
+      {
+        "name": "workhub-home-layout",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3886
+      },
+      {
+        "name": "workhub-home-overview",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2092
+      },
+      {
+        "name": "workhub-shell-layout",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8745
+      },
+      {
+        "name": "workhub-home-message",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 10477
+      },
+      {
+        "name": "workhub-task-navigation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 1392
+      },
+      {
+        "name": "workhub-collection-workbench",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3260
+      },
+      {
+        "name": "workhub-collection-entry",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4978
+      },
+      {
+        "name": "workhub-collection-followup",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2861
+      },
+      {
+        "name": "workhub-collection-server",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 20361
+      },
+      {
+        "name": "workhub-collection-hwpx",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5880
+      },
+      {
+        "name": "workhub-collection-usability",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5436
+      },
+      {
+        "name": "workhub-knowledge",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4316
+      },
+      {
+        "name": "workhub-knowledge-import",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6535
+      },
+      {
+        "name": "workhub-pilot-connected",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 18283
+      },
+      {
+        "name": "workhub-assistant",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 12951
+      },
+      {
+        "name": "workhub-documents",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7339
+      },
+      {
+        "name": "workhub-document-appearance",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9887
+      },
+      {
+        "name": "workhub-collection-operations",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3942
+      },
+      {
+        "name": "workhub-school-admin",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5385
+      },
+      {
+        "name": "workhub-school-transitions",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 16546
+      },
+      {
+        "name": "workhub-teaching",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 8334
+      },
+      {
+        "name": "workhub-teaching-relations",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9833
+      },
+      {
+        "name": "workhub-relations-list",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4673
+      },
+      {
+        "name": "workhub-record-export",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 16976
+      },
+      {
+        "name": "workhub-messaging",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9165
+      },
+      {
+        "name": "workhub-messaging-file-recovery",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4682
+      },
+      {
+        "name": "workhub-collection-export",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5291
+      },
+      {
+        "name": "workhub-file-controls",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7709
+      },
+      {
+        "name": "workhub-file-collections",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3786
+      },
+      {
+        "name": "workhub-file-persistence",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3837
+      },
+      {
+        "name": "workhub-student-workspace",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2824
+      },
+      {
+        "name": "workhub-student-entry",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5014
+      },
+      {
+        "name": "workhub-accessibility",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7188
+      },
+      {
+        "name": "workhub-collection-accessibility",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2094
+      },
+      {
+        "name": "workhub-student-accessibility",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3194
+      },
+      {
+        "name": "workhub-task-paging",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2642
+      },
+      {
+        "name": "workhub-collection-paging",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 4303
+      },
+      {
+        "name": "workhub-student-paging",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 11693
+      },
+      {
+        "name": "workhub",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 19359
+      },
+      {
+        "name": "workhub-offline",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6526
+      },
+      {
+        "name": "workhub-appearance",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 11871
+      },
+      {
+        "name": "workhub-mobile-navigation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7211
+      }
+    ]
+  },
+  "finalRelatedRun": {
+    "browser": "chrome",
+    "results": [
+      {
+        "name": "site-modular-shell",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3449
+      },
+      {
+        "name": "site-loading",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6885
+      },
+      {
+        "name": "site-ui-finish",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9912
+      },
+      {
+        "name": "email-login",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 3451
+      },
+      {
+        "name": "workhub-messaging-pilot",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 5246
+      },
+      {
+        "name": "workhub-document-collection-flow",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 17015
+      },
+      {
+        "name": "workhub-school-preparation-connected",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 9687
+      },
+      {
+        "name": "workhub-connection-exit",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 11519
+      },
+      {
+        "name": "workhub-module-loading",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 2948
+      },
+      {
+        "name": "workhub-foundation",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 6109
+      },
+      {
+        "name": "workhub-shell-layout",
+        "passed": true,
+        "exitCode": 0,
+        "signal": null,
+        "timedOut": false,
+        "durationMs": 7526
+      }
+    ]
+  },
+  "initialFailuresResolved": [
+    "email-login",
+    "workhub-messaging-pilot",
+    "workhub-school-preparation-connected",
+    "workhub-module-loading",
+    "workhub-foundation"
+  ],
+  "productionSqlApplied": false
+}

@@ -1,5 +1,6 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { canonical, createScopedRpc, exact, identifier, isoDate, text, version, ServiceError, validateLocalInput } from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, text, version, ServiceError, validateLocalInput } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import type { OperationLessonChange, OperationsView, PublishInput } from './operations-contracts'
 import { parseExchangeInput, parseExchangePreview, parsePublishInput, parseOperationLessonChange } from './operations-server'
 import { TIMETABLE_OPERATIONS_NEXT_API } from './operations-next-contracts'

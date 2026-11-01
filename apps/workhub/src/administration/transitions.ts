@@ -1,7 +1,8 @@
 import schoolAdminLimits from '../setup/assets/school-admin.json'
 import {academicYearStartMatches} from '../setup/academic-year'
 import type {SupabaseConnection} from '../connection/supabase-connection'
-import {createScopedRpc,exact,object,validateLocalInput,identifier,isoDate,text,version,ServiceError} from '../services/scoped-rpc'
+import { exact, object, validateLocalInput, identifier, isoDate, text, version, ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 export type HandoverResource={kind:'duty'|'cooperation'|'collection';id:string;version:number;label:string}
 export type TransitionPlan=
  | {kind:'handover';recipientMemberId:string;recipientVersion:number;resources:HandoverResource[];note:string}

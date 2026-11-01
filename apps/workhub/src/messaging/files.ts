@@ -1,7 +1,7 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { ContractError } from '../contracts'
 import { activeAt } from '../domain'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import type { FilePolicy } from '../files/contracts'
 import { hwpxCollectionPolicy } from '../files/hwpx-basic-policy'
 import { fileOperation, normalizeFilePolicy, readBlobBytes, validateFileMetadata, validateSignature } from '../files/validation'

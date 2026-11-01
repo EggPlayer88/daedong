@@ -1,4 +1,4 @@
-import { canonical, exact, identifier, isoDate, ServiceError, text, validateLocalInput, version } from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, ServiceError, text, validateLocalInput, version } from '../services/service-values'
 import type { OperationLesson, OperationLessonChange, OperationTeacher, RequestAction, RequestState } from './operations-contracts'
 import type { InterventionInput, InterventionCommand, InterventionPreview, InterventionReceipt, InterventionRequest, InterventionsView, InterventionCloseResult, InterventionSource, InterventionsReadiness, InterventionsSummary } from './interventions-contracts'
 import { INTERVENTIONS_LIMITS } from './interventions-contracts'

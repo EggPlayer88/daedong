@@ -1,4 +1,4 @@
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import { setupCommand, setupSnapshot, type SetupCommand, type SetupSnapshot } from './setup'
 import { TimetableWorkbookError, type WorkbookSheet } from './xlsx'
 import policy from './setup-policy.json'

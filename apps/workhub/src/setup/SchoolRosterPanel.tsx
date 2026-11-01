@@ -3,7 +3,7 @@ import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { useEditDraft } from '../app/edit-drafts'
 import { usePendingRequest } from '../app/pending-requests'
-import { ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import { createSchoolRosterServer } from './school-roster-server'
 import type { SchoolRosterServer, SchoolRosterSnapshot as RosterSnapshot, SchoolRosterPreview as RosterPreview, SchoolRosterCommand as RosterCommand, SchoolRosterIntent as RosterIntent } from './school-roster-contracts'
 

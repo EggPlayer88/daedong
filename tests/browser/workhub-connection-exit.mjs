@@ -63,7 +63,7 @@ const bundle = (await build({
     const connection=createSupabaseConnection(services),query=new URL(window.location.href).searchParams;
     const actualGate=query.has('actual-gate'),basename=query.get('basename')||'',legacyHomeHref=query.get('legacy-home')||'/';
     // 시험에서만 메뉴 표의 주소를 바꾸어 루트 경로 하드코딩 회귀를 잡는다.
-    if(query.has('dashboard-path'))MODULES.find(module=>module.key==='dashboard').to=query.get('dashboard-path');
+    if(query.has('dashboard-path'))MODULES.find(module=>module.key==='account').to=query.get('dashboard-path');
     const auth={session:{user:{id:'fixture-soyeon'}},profile:{id:'fixture-soyeon',role:'superadmin',is_active:true},profileLoading:false,profileError:null};
     function Frame(){const location=useLocation();return <><header><Link to="/legacy">기존 메뉴</Link> <Link to="/workhub?view=tasks">신축 업무실</Link><output data-testid="router-location">{location.pathname+location.search}</output></header><Routes><Route path="/workhub" element={actualGate?<AuthContext.Provider value={auth}><WorkhubPage/></AuthContext.Provider>:<ConnectedWorkspace expectedUserId="fixture-soyeon" legacyHomeHref={legacyHomeHref} connection={connection}/>}/><Route path="*" element={<main><h1>기존 학교 메뉴</h1></main>}/></Routes></>}
     createRoot(document.getElementById('root')).render(<BrowserRouter basename={basename}><Frame/></BrowserRouter>);
@@ -108,7 +108,7 @@ const retry = page => page.getByRole('button', { name: '학교 연결 다시 확
 const discard = page => page.getByRole('button', { name: '임시 입력 버리기', exact: true })
 const confirmDiscard = page => page.getByRole('button', { name: '입력 버리고 메뉴 이용', exact: true })
 const taskTitle = page => page.getByLabel('해야 할 일', { exact: true })
-const menu = (page, name) => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name, exact: true })
+const menu = (page, name) => page.getByRole('navigation', { name: '업무 메뉴' }).getByRole('button', { name, exact: true })
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 async function screenshot(page, name) {
   if (!process.env.WORKHUB_QA_OUTPUT) return
@@ -285,8 +285,8 @@ try {
     await page.getByRole('heading', { name: '기존 학교 메뉴', exact: true }).waitFor()
   }, { width: 320, height: 800 })
   for (const { basename, dashboardPath, expectedHref } of [
-    { basename: '', expectedHref: '/' },
-    { basename: '/school', expectedHref: '/school' },
+    { basename: '', expectedHref: '/account' },
+    { basename: '/school', expectedHref: '/school/account' },
     { basename: '/school', dashboardPath: '/legacy-home', expectedHref: '/school/legacy-home' },
   ]) {
     await test('실제 WorkhubPage가 메뉴 표와 Router 기준 경로를 새 탭 주소까지 전달한다: ' + expectedHref, async (page, context) => {

@@ -5,7 +5,7 @@ import type { TimetableOperationsServer } from './operations-contracts'
 import { createTimetableOperationsServer } from './operations-server'
 import { projectTimetableCalendar, timetableDateOffset, type TimetableCalendarItem } from './operations-calendar'
 import { recoveryScope } from '../app/pending-requests'
-import { ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import styles from './operations-agenda.css?inline'
 import themeStyles from './timetable-theme.css?inline'
 

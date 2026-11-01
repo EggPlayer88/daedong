@@ -871,3 +871,9 @@ body { line-height: 1.6; -webkit-font-smoothing: antialiased; }
 .app-workhub .legacy-navigation .nav-link{color:#626d7c;min-height:42px;padding:10px 12px}.app-workhub .legacy-navigation .nav-link:hover{background:#f0f2f5;color:#20252e}.app-workhub .legacy-navigation .nav-link.active{background:#edf3ff;color:#3264c8}
 .app-workhub .legacy-navigation :focus-visible{outline:3px solid #3264c8;outline-offset:2px}
 @media(max-width:720px){.app-workhub>.topbar{padding:8px 16px;gap:8px 12px}.app-workhub>.topbar .brand{flex:1;font-size:12px}.app-workhub>.topbar .me{margin-left:auto;gap:7px}.app-workhub .me-name,.app-workhub .me .badge{display:none}.app-workhub .legacy-navigation{position:static}.app-workhub .legacy-navigation>.nav{position:absolute;top:auto;left:16px;right:16px;width:auto;margin-top:8px}.app-workhub .legacy-navigation>summary{font-size:12px}}
+
+/* 기간 업무 설정은 기존 입력 스타일 안에서만 배치한다. */
+.seasonal-settings .card{max-width:720px}
+.seasonal-switch{display:flex;align-items:center;gap:10px;min-height:48px;font-weight:650}
+.seasonal-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.seasonal-actions .btn-google{width:auto}

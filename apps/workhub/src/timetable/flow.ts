@@ -1,4 +1,4 @@
-import { canonical } from '../services/scoped-rpc'
+import { canonical } from '../services/service-values'
 import type { Placement, SaveDraftInput, TimetableBasis, TimetableConditions } from './contracts'
 
 export type TimetableStep = 'basis' | 'conditions' | 'compose' | 'publish'

@@ -1,7 +1,8 @@
 import { createRequestAbandonClient } from './request-abandon'
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
-import { canonical, createScopedRpc, identifier, object, ServiceError } from '../services/scoped-rpc'
+import { recoveryScope } from '../services/recovery-scope'
+import { canonical, identifier, object, ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { EXECUTION_RECORDS_CONTRACT, executionRecordCommand, executionRecordCommandHash, parseExecutionRecordReceipt, parseExecutionRecordsView, parseExecutionHistoryPage, type ExecutionRecordCommand, type ExecutionRecordsView, type ExecutionRecord, type TimetableExecutionRecordsServer } from './execution-records'
 import policy from './execution-records-policy.json'
 

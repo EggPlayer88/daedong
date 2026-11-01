@@ -1,6 +1,6 @@
 import type {Membership,School} from '../../contracts'
 import type {SupabaseConnection} from '../../connection/supabase-connection'
-import {canonical,identifier,object} from '../../services/scoped-rpc'
+import { canonical, identifier, object } from '../../services/service-values'
 import {getPilotFixture} from '../../timetable/pilot/fixture'
 import {ASSISTANT_ROUTING,AssistantError,assistantInput,assistantThread,type AssistantContextRequest,type AssistantInput,type AssistantCloseResult,type AssistantThread} from '../contracts'
 import {createAssistantServer} from '../server'

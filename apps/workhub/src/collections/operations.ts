@@ -1,6 +1,7 @@
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { createScopedRpc, exact, object, validateLocalInput, identifier, isoDate, text, version, ServiceError } from '../services/scoped-rpc'
+import { exact, object, validateLocalInput, identifier, isoDate, text, version, ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 
 export type CollectionPhase = 'open' | 'closed' | 'archived'
 export interface CollectionOperationsState {

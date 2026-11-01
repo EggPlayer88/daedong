@@ -1,6 +1,6 @@
 import type { TimetableResource } from '../../../../packages/timetable/src/types'
 import limits from '../../../../packages/timetable/_assets/browser-policy.json'
-import { identifier } from '../services/scoped-rpc'
+import { identifier } from '../services/service-values'
 import { preparationDraft, preparationSource, type PreparationDraft, type PreparationSource } from './preparation'
 
 export type PreparationProgressFilter = 'all' | 'hours' | 'activities' | 'slots' | 'resources' | 'ready'

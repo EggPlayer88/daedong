@@ -1,6 +1,7 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
-import { canonical, createScopedRpc, identifier, ServiceError, validateLocalInput } from '../services/scoped-rpc'
+import { recoveryScope } from '../services/recovery-scope'
+import { canonical, identifier, ServiceError, validateLocalInput } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { PREPARATION_CONTRACT, preparationSource, preparationInput, preparationReceipt, type PreparationInput, type PreparationServer, type PreparationSource } from './preparation'
 
 export function createPreparationServer(connection: SupabaseConnection, options: { timeoutMs?: number } = {}): PreparationServer {

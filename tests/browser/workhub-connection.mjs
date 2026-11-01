@@ -114,7 +114,7 @@ try{
   await page.getByRole('button',{name:'할 일 등록',exact:true}).click()
   await page.getByLabel('해야 할 일',{exact:true}).fill('기존 로그인으로 연결한 업무')
   assert.equal(await page.getByLabel('사용할 학교').isDisabled(),true)
-  const lockedNavigation=page.getByRole('navigation',{name:'신축 업무 메뉴'})
+  const lockedNavigation=page.getByRole('navigation',{name:'업무 메뉴'})
   for(const button of await lockedNavigation.locator('.ws-menu-button:not(.ws-assistant-trigger)').all()) assert.equal(await button.isDisabled(),true)
   assert.equal(await lockedNavigation.getByRole('button',{name:'더보기',exact:true}).isEnabled(),true)
   await lockedNavigation.getByRole('button',{name:'더보기',exact:true}).click()

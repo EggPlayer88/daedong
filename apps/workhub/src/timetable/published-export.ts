@@ -2,7 +2,7 @@ import type { OperationLesson, OperationsView, OperationTeacher } from './operat
 import type { OperationReferenceView } from './operations-next-contracts'
 import { parseOperationsView } from './operations-server'
 import { parseOperationReferences } from './operations-next-server'
-import { canonical, isoDate } from '../services/scoped-rpc'
+import { canonical, isoDate } from '../services/service-values'
 import { timetableDateOffset, timetableLocalDate, timetableWeekStart } from './operations-calendar'
 import { writeTimetableXlsx, type WorkbookSheet } from './xlsx'
 import limits from './operations-api-limits.json'

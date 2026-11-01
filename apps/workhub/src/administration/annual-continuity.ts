@@ -1,4 +1,5 @@
-import { createScopedRpc, exact, identifier, isoDate, ServiceError, text, version } from '../services/scoped-rpc'
+import { exact, identifier, isoDate, ServiceError, text, version } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 export interface AnnualReadiness {
   from:string; until:string; today:string; adminGaps:{from:string;until:string}[]

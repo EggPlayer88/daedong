@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
-import { ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 import { targetCommand, targetTermLabel, type TargetCommand, type TargetReceipt, type TargetServer, type TargetSnapshot } from './target'
 import './timetable-target.css'
 

@@ -1,6 +1,6 @@
 import type { Membership } from '../contracts'
 import { ASSISTANT_LIMITS, assistantReference, type StudentContext } from '../assistant/contracts'
-import { exact, identifier, isoDate, object, ServiceError, text, version } from '../services/scoped-rpc'
+import { exact, identifier, isoDate, object, ServiceError, text, version } from '../services/service-values'
 
 export const DOCUMENT_CONTRACT = 'documents.v1'
 export const DOCUMENT_KINDS = ['parent_letter', 'event_plan', 'event_report', 'rubric', 'general', 'student_record'] as const

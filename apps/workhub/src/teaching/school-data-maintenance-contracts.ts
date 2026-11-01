@@ -1,4 +1,4 @@
-import {canonical,exact,identifier,isoDate,ServiceError,validateLocalInput,version} from '../services/scoped-rpc'
+import { canonical, exact, identifier, isoDate, ServiceError, validateLocalInput, version } from '../services/service-values'
 export const SCHOOL_DATA_CONTRACT='school-data-maintenance.v1'
 export const maintenanceKinds=['course_correct','course_cancel','course_archive','course_restore','course_teacher_correct','student_correct','student_void','student_restore','enrollment_correct'] as const
 export type MaintenanceKind=typeof maintenanceKinds[number]

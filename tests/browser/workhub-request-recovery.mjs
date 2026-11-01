@@ -42,7 +42,7 @@ const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } })
 const errors = [], results = []
 page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message))
 page.on('dialog', dialog => dialog.accept())
-const menu = name => page.getByRole('navigation', { name: '신축 업무 메뉴' }).getByRole('button', { name: name === '내 업무' ? '업무' : name, exact: true })
+const menu = name => page.getByRole('navigation', { name: '업무 메뉴' }).getByRole('button', { name: name === '내 업무' ? '업무' : name, exact: true })
 async function go(name) { await clickWorkspaceMenu(page,name); await page.getByRole('heading', { name: name === '오늘' ? '오늘' : name, level: 1, exact: true }).waitFor() }
 async function test(name, run) { await run(); results.push(name); console.log('  ✓ ' + name) }
 async function boot() {

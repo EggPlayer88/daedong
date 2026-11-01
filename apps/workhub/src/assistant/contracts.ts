@@ -4,7 +4,7 @@ export const ASSISTANT_ROUTING = routing;
 import { normalizeTaskInput, TASK_INPUT_LIMITS } from '../tasks/validation';
 export { TASK_INPUT_LIMITS };
 import type { EvidenceReference } from '../teaching/evidence';
-import { canonical, exact, identifier, isoDate, object } from '../services/scoped-rpc';
+import { canonical, exact, identifier, isoDate, object } from '../services/service-values'
 export const ASSISTANT_LIMITS = limits;
 export const ASSISTANT_CONTRACT = 'assistant.v1';
 export type AssistantIntent = 'school_advice' | 'personal_assistant' | 'document_draft' | 'student_record_draft' | 'guided_collection';

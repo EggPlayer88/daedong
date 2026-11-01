@@ -24,17 +24,17 @@ function App(){const[,render]=useState(0);window.refresh=()=>render(n=>n+1);retu
 const bundle=buildSync({stdin:{contents:source,loader:'tsx',resolveDir:fileURLToPath(new URL('../../',import.meta.url))},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},external:['/retryable-screen.js'],logLevel:'silent'}).outputFiles[0].text
 const browser=await launchBrowser(),page=await browser.newPage({viewport:{width:1000,height:900}})
 const results=[],unexpected=[]
-let nativeRequests=0,documentRequests=0
+let nativeRequests=0,documentRequests=0,nativeAvailable=false
 page.setDefaultTimeout(10000)
 page.on('pageerror',error=>{if(!/LOAD_TEST|Failed to fetch dynamically imported module/.test(error.message))unexpected.push(error.message)})
 await page.route('**/*',route=>{
-  if(route.request().url().endsWith('/retryable-screen.js')){nativeRequests++;return nativeRequests===1?route.abort('failed'):route.fulfill({contentType:'application/javascript',body:'export default function Screen(){return window.React.createElement("p",null,"실제 모듈 파일 복구");}'})}
+  if(route.request().url().endsWith('/retryable-screen.js')){nativeRequests++;return !nativeAvailable?route.abort('failed'):route.fulfill({contentType:'application/javascript',body:'export default function Screen(){return window.React.createElement("p",null,"실제 모듈 파일 복구");}'})}
   documentRequests++
   return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><body><div id="root"></div></body></html>'})
 })
 const failure=()=>page.getByRole('heading',{name:'주요 업무 화면을 표시하지 못했습니다',exact:true})
 const retry=()=>page.getByRole('button',{name:'이 화면 다시 열기',exact:true})
-async function start(){nativeRequests=0;documentRequests=0;await page.goto('http://127.0.0.1:5181/loading');await page.addScriptTag({content:bundle});await page.getByRole('heading',{name:'healthy 화면',exact:true}).waitFor()}
+async function start(){nativeRequests=0;documentRequests=0;nativeAvailable=false;await page.goto('http://127.0.0.1:5181/loading');await page.addScriptTag({content:bundle});await page.getByRole('heading',{name:'healthy 화면',exact:true}).waitFor()}
 async function settle(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
 async function test(name,run){await start();await run();results.push(name);console.log('  ✓ '+name)}
 try{
@@ -90,17 +90,19 @@ try{
     assert.equal(await page.evaluate(()=>window.writes),0)
     assert.equal(await page.evaluate(()=>{const event=new Event('beforeunload',{cancelable:true});dispatchEvent(event);return event.defaultPrevented}),true)
   })
-  await test('실제 dynamic import 실패 캐시는 재시도로 복구된다고 표시하지 않으며 자동 새로고침하지 않는다',async()=>{
+  await test('실제 dynamic import의 지속 실패는 복구로 표시하지 않으며 자동 새로고침하지 않는다',async()=>{
     await failure().waitFor();await page.evaluate(()=>{window.mode='native';window.scope='native';window.refresh()});await page.waitForFunction(()=>window.loads.native===1);await failure().waitFor()
     await page.getByText('화면 파일 연결 확인',{exact:true}).waitFor();assert.doesNotMatch(await page.locator('body').innerText(),/retryable-screen\.js/);
     assert.equal(nativeRequests,1);await retry().click();await page.waitForFunction(()=>window.loads.native===2)
     await page.getByText(/화면 파일의 다운로드 실패는 브라우저에 남아 있을 수 있습니다/).waitFor()
-    assert.equal(nativeRequests,1);assert.equal(documentRequests,1);assert.equal(await page.getByText('실제 모듈 파일 복구',{exact:true}).count(),0)
-    // 사용자가 탭을 새로고침한 별도 상황에서만 브라우저 모듈 캐시가 비워진다.
+    assert.ok(nativeRequests>=1&&nativeRequests<=2,'명시 재시도 한 번의 요청 한도를 넘지 않는다');assert.equal(documentRequests,1);assert.equal(await page.getByText('실제 모듈 파일 복구',{exact:true}).count(),0)
+    // Chrome 버전별로 실패한 import 재요청 여부가 다르다. 서버가 계속 실패하는 동안에는 실패 안내를 유지해야 한다.
+    // 실제 파일 복구와 사용자의 명시적 새로고침을 별도로 검증한다.
+    const failedRequests=nativeRequests;nativeAvailable=true;
     await page.reload();await page.addScriptTag({content:bundle});await failure().waitFor();await page.evaluate(()=>{window.mode='native';window.scope='native-after-manual-reload';window.refresh()})
-    await page.getByText('실제 모듈 파일 복구',{exact:true}).waitFor();assert.equal(nativeRequests,2);assert.equal(documentRequests,2)
+    await page.getByText('실제 모듈 파일 복구',{exact:true}).waitFor();assert.equal(nativeRequests,failedRequests+1);assert.equal(documentRequests,2)
   })
   assert.deepEqual(unexpected,[])
   console.log(`모듈 지연 로딩 복구 브라우저 ${results.length}건 통과`)
-  if(process.env.WORKHUB_QA_OUTPUT){mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true});writeFileSync(join(process.env.WORKHUB_QA_OUTPUT,'module-loading.json'),JSON.stringify({results,unexpected,nativeImportBoundary:'동일 URL 실패 캐시는 수동 새로고침 전까지 유지됨. 자동 새로고침 없음.'},null,2))}
+  if(process.env.WORKHUB_QA_OUTPUT){mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true});writeFileSync(join(process.env.WORKHUB_QA_OUTPUT,'module-loading.json'),JSON.stringify({results,unexpected,nativeImportBoundary:'파일 서버 지속 실패를 실제 dynamic import로 확인. 버전별 재요청·캐시 차이는 허용하되 자동 새로고침 없음.'},null,2))}
 }finally{await page.close();await browser.close()}

@@ -49,7 +49,7 @@ page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(12000)
 await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5176/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div><script>'+bundle.outputFiles[0].text.replaceAll('</script','<\\/script')+'</script></body></html>'})})
 const dialog=()=>page.getByRole('dialog',{name:'업무 찾기',exact:true})
 const home=()=>page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor()
-const nav=()=>page.getByRole('navigation',{name:/^(업무 메뉴|신축 업무 메뉴)$/})
+const nav=()=>page.getByRole('navigation',{name:/^(업무 메뉴|업무 메뉴)$/})
 async function menu(name){await clickWorkspaceMenu(page,name)}
 async function search(q=''){await page.getByRole('button',{name:'업무 찾기',exact:true}).click();await dialog().getByLabel('검색어',{exact:true}).fill(q);await dialog().locator('.ws-search-source-loading').first().waitFor({state:'hidden'});}
 async function test(name,fn){await fn();results.push(name);console.log('  ✓ '+name)}

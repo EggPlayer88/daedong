@@ -101,6 +101,11 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/workhub-pg17" --no-save --package-lock=false @embedded-postgres/linux-x64@17.6.0-beta.15
           pip install psycopg2-binary
           command -v psql >/dev/null || { sudo apt-get update && sudo apt-get install -y postgresql-client; }
+          # embedded 서버의 libpq가 다른 주 버전의 시스템 psql에 섞이지 않도록 클라이언트만 격리한다.
+          task_system_psql="$(command -v psql)"
+          printf 'WORKHUB_CI_SYSTEM_PSQL=%s\n' "$task_system_psql" >> "$GITHUB_ENV"
+          task_pg_lib="$RUNNER_TEMP/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/lib"
+          WORKHUB_CI_SYSTEM_PSQL="$task_system_psql" LD_LIBRARY_PATH="$task_pg_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" scripts/ci-psql.sh --version
       - name: R0·R1 원본 전체 및 서버 작업자 SQL 통합 검사
         env:
           R0_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
@@ -108,7 +113,7 @@ jobs:
           R0_PG_PORT: '55447'
           WORKHUB_R2_SQL_REPORT: ${{ runner.temp }}/workhub-r2-sql-results
         run: |
-          export R0_PSQL="$(command -v psql)"
+          export R0_PSQL="$GITHUB_WORKSPACE/scripts/ci-psql.sh"
           npm run test:workhub:r2-sql
       - name: R0·R1 검사 결과 보관
         if: always()
@@ -124,7 +129,7 @@ jobs:
           R0_WORK: ${{ runner.temp }}/workhub-release-r0-verify
           R0_PG_PORT: '55463'
         run: |
-          export R0_PSQL="$(command -v psql)"
+          export R0_PSQL="$GITHUB_WORKSPACE/scripts/ci-psql.sh"
           npm run test:workhub:release-sql
       - name: 1~8단계 통합 검사 결과 보관
         if: always()

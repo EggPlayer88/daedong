@@ -1,4 +1,4 @@
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import type { TargetServer, TargetSnapshot } from './target'
 import type { TimetableServer } from './contracts'
 import type { PreparationServer } from './preparation'

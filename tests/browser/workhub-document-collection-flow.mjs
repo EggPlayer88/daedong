@@ -20,7 +20,7 @@ const bundle=await build({entryPoints:[fileURLToPath(new URL('./workhub-document
  b.onResolve({filter:/^@daedong\/shared$/},()=>({path:'synthetic-shared',namespace:'flow'}))
  b.onLoad({filter:/.*/,namespace:'flow'},()=>({contents:`export const getSession=()=>window.flow.session();export const supabase={storage:{from:bucket=>({upload:(path,file)=>window.flow.storage.upload(bucket,path,file),download:path=>window.flow.storage.download(bucket,path)})}};export const fetchMyProfile=async()=>null;export const onAuthStateChange=()=>()=>{};export const signInWithGoogle=async()=>{throw Error('합성 외부 로그인 금지')};export const signOut=async()=>{};`,loader:'js'}))
  // 제품 서비스의 공개 timeout 옵션만 짧게 주입한다. HTTP·권한 대조·파일 해시 코드는 그대로 실행한다.
- b.onResolve({filter:/^\.\/guided-adapter$/},a=>a.importer.endsWith('GuidedWorkspace.tsx')?{path:'guided-deadline',namespace:'flow-timeout'}:undefined)
+ b.onResolve({filter:/^\.\/guided-adapter$/},a=>a.importer.endsWith('useGuidedEditor.ts')?{path:'guided-deadline',namespace:'flow-timeout'}:undefined)
  b.onLoad({filter:/.*/,namespace:'flow-timeout'},()=>({contents:`export * from ${JSON.stringify(guidedPath)};import{createGuidedService as factory}from ${JSON.stringify(guidedPath)};export const createGuidedService=(c,p)=>factory(c,p,{timeoutMs:1500});`,loader:'ts',resolveDir:root}))
 }}],define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://example.invalid',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"development"'},logLevel:'silent'})
 const output=process.env.WORKHUB_QA_OUTPUT??mkdtempSync(join(tmpdir(),'workhub-document-collection-flow-'));mkdirSync(output,{recursive:true})

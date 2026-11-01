@@ -1,5 +1,5 @@
 import type { OperationLesson, OperationsView } from './operations-contracts'
-import { ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 
 /** 시간표 원본을 읽기 전용으로 표시한다. 일반 일정으로 복사하거나 학생 권한을 만들지 않는다. */
 export interface TimetableCalendarItem {

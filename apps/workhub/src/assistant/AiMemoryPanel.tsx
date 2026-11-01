@@ -4,7 +4,7 @@ import type {SupabaseConnection} from '../connection/supabase-connection'
 import {useEditDraft} from '../app/edit-drafts'
 import {recoveryScope,usePendingRequest} from '../app/pending-requests'
 import {activeAt} from '../domain'
-import {canonical,ServiceError} from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import {MEMORY_LIMITS,memoryCommand,memoryUsable,type MemoryCommand,type MemoryEntry,type MemoryList,type MemoryResult,type MemoryService} from './memory-contracts'
 import {createAiMemoryService} from './memory-server'
 

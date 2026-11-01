@@ -1,5 +1,5 @@
 import type { TimetableSlot } from '../../../../packages/timetable/src/types'
-import { canonical, identifier } from '../services/scoped-rpc'
+import { canonical, identifier } from '../services/service-values'
 import { preparationDraft, type PreparationDraft, type PreparationSource } from './preparation'
 import limits from '../../../../packages/timetable/_assets/browser-policy.json'
 

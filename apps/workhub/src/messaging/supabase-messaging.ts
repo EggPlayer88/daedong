@@ -1,6 +1,6 @@
 import { ContractError } from '../contracts'
 import { activeAt } from '../domain'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { MessagingError, type MessageCommand, type MessagingFailureCode, type MessagingReadiness, type MessagingScope, type MessagingServer, type ThreadSummary } from './contracts'
 import * as validate from './validation'

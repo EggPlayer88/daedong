@@ -21,6 +21,7 @@ import { MemoryRouter, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from '../apps/main/src/components/Layout.jsx'
 import { AuthContext } from '../apps/main/src/lib/AuthContext.jsx'
 import * as mods from '../apps/main/src/lib/modules.js'
+import {SeasonalWorkContext} from '../apps/main/src/site/SeasonalWorkProvider.jsx'
 
 /** 실제 라우터로 그린다 — 주소를 직접 쳤을 때 무엇이 보이는지 확인용 */
 export function renderAt(profile, path) {
@@ -35,7 +36,7 @@ export function renderAt(profile, path) {
   }
   return renderToStaticMarkup(
     <AuthContext.Provider value={{ session: { user: { id: profile?.id } }, profile, loading: false }}>
-      <MemoryRouter initialEntries={[path]}>
+      <SeasonalWorkContext.Provider value={{state:{enabled:true}}}><MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route element={<Layout />}>
             {mods2.map((m) =>
@@ -46,7 +47,7 @@ export function renderAt(profile, path) {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter></SeasonalWorkContext.Provider>
     </AuthContext.Provider>
   )
 }
@@ -54,13 +55,13 @@ export function renderAt(profile, path) {
 export function renderNav(profile) {
   return renderToStaticMarkup(
     <AuthContext.Provider value={{ session: { user: { id: profile?.id } }, profile, loading: false }}>
-      <MemoryRouter initialEntries={['/']}>
+      <SeasonalWorkContext.Provider value={{state:{enabled:true}}}><MemoryRouter initialEntries={['/']}>
         <Routes>
           <Route element={<Layout />}>
             <Route index element={<div>본문</div>} />
           </Route>
         </Routes>
-      </MemoryRouter>
+      </MemoryRouter></SeasonalWorkContext.Provider>
     </AuthContext.Provider>
   )
 }
@@ -79,22 +80,22 @@ const nav = (profile) => renderNav(profile)
 console.log('\n[메뉴 노출 — 역할별]')
 ck('일반 교사: 평가계획서·제출은 보이고 캘린더는 안 보인다', () => {
   const html = nav(USERS.teacher)
-  A(html.includes('문서 작성 AI'), '평가계획서 메뉴가 사라졌다 (실사용 중인 화면이다)')
-  A(html.includes('평가계획 제출'), '제출 메뉴가 사라졌다')
-  A(html.includes('대시보드'), '대시보드가 사라졌다')
+  A(html.includes('평가계획서 작성'), '평가계획서 메뉴가 사라졌다 (실사용 중인 화면이다)')
+  A(html.includes('평가계획서 제출'), '제출 메뉴가 사라졌다')
+  A(html.includes('홈'), '대시보드가 사라졌다')
   A(!html.includes('학사일정'), '개발 중인 캘린더가 교사에게 보인다')
-  A(!html.includes('사용자 관리'), '관리 메뉴가 교사에게 보인다')
+  A(!mods.visibleModules(USERS.teacher).some(item => item.key === 'admin-users'), '관리 메뉴가 교사에게 보인다')
 })
 ck('부장교사도 캘린더는 안 보인다', () => {
   A(!nav(USERS.head).includes('학사일정'), '부장에게 보인다')
 })
 ck('관리자도 캘린더는 안 보인다 (당분간 superadmin 만)', () => {
   const html = nav(USERS.admin)
-  A(html.includes('사용자 관리'), '관리자에게 사용자 관리가 안 보인다')
+  A(mods.visibleModules(USERS.admin).some(item => item.key === 'admin-users'), '관리자에게 사용자 관리가 안 보인다')
   A(!html.includes('학사일정'), 'admin 에게 캘린더가 보인다')
 })
 ck('슈퍼관리자만 캘린더가 보인다', () => {
-  A(nav(USERS.superadmin).includes('학사일정'), 'superadmin 에게도 안 보인다')
+  A(mods.visibleModules(USERS.superadmin).some(item => item.key === 'calendar'), 'superadmin 에게도 안 보인다')
 })
 
 console.log('\n[라우트 — URL 직접 접근 차단]')
@@ -139,10 +140,10 @@ ck('없는 주소도 어떤 화면도 그리지 않는다', () => {
     A(!html.includes(screen), `없는 주소에서 ${screen} 이 그려짐`)
   }
   // 메뉴(레이아웃)는 그대로 나온다 — 이동은 클라이언트에서 일어난다
-  A(html.includes('평가계획 제출'), '레이아웃까지 사라졌다')
+  A(html.includes('평가계획서 제출'), '레이아웃까지 사라졌다')
 })
 ck('메뉴와 라우트가 같은 표를 본다', () => {
-  const layout = readFileSync(join(ROOT, 'apps/main/src/components/Layout.jsx'), 'utf-8')
+  const layout = readFileSync(join(ROOT, 'apps/main/src/site/site-navigation.jsx'), 'utf-8')
   A(layout.includes('visibleModules(profile, access)'), '메뉴가 현재 프로필과 서버 시범 허용을 함께 보지 않는다')
   A(!layout.includes('const MENU = ['), '메뉴 목록이 따로 남아 있다')
 })

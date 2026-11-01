@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
-import { canonical, ServiceError } from '../services/scoped-rpc'
+import { canonical, ServiceError } from '../services/service-values'
 import type { GuidedService } from './guided-adapter'
 import type { TemplateDetail } from './guided-contracts'
 import { applyGuidedAiAnswer, guidedAiSuggestion, verifyGuidedAiSource, type GuidedAiOrigin, type GuidedAiSuggestion } from './guided-ai'

@@ -1,6 +1,7 @@
 import type {Membership} from '../contracts'
 import type {SupabaseConnection} from '../connection/supabase-connection'
-import {createScopedRpc,exact,identifier,isoDate,ServiceError,text} from '../services/scoped-rpc'
+import { exact, identifier, isoDate, ServiceError, text } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 export const HOME_KINDS=['collection','supplement','message','student_followup','cooperation'] as const
 export type HomeKind=typeof HOME_KINDS[number]
 export interface HomeAction{id:string;kind:HomeKind;title:string;dueDate:string|null;sourceId:string;priority:'normal'|'urgent';label:string}

@@ -4,6 +4,7 @@ import {createRoot} from 'react-dom/client'
 import {MemoryRouter,Routes,Route} from 'react-router-dom'
 import {supabase} from '@daedong/shared'
 import {AuthContext} from '../../apps/main/src/lib/AuthContext.jsx'
+import { SeasonalWorkContext } from '../../apps/main/src/site/SeasonalWorkProvider.jsx'
 import Layout from '../../apps/main/src/components/Layout.jsx'
 import Dashboard from '../../apps/main/src/pages/DashboardPage.jsx'
 import Submissions from '../../apps/main/src/pages/SubmissionsPage.jsx'
@@ -24,8 +25,8 @@ supabase.auth.signOut=async()=>({error:null})
 qa.submissions={listMine:async()=>({rows,error:null}),listAll:async()=>({rows,error:null}),submit:async data=>{qa.writes.push({kind:'submit',subject:data.subject,grade:data.grade,note:data.note});return{error:{message:'시험 연결 실패: 입력을 유지합니다.'}}},cancelSubmission:async row=>{qa.writes.push({kind:'cancel',id:row.id});return{error:null}},downloadUrl:async()=>({url:null,error:{message:'시험 다운로드 응답'}}),removeFile:async()=>({error:null})}
 const convs=Array.from({length:long?36:3},(_,i)=>({id:'conv-'+i,title:long?'긴 평가계획 대화 제목 '.repeat(8):`${i+1}학년 수학 평가계획`,subject:'수학',grade:i%3+1,status:'draft',updated_at:now}))
 qa.store={listConversations:async()=>({rows:convs,error:null}),loadConversation:async id=>{qa.loads.push(id);return{row:{id,messages:[{role:'assistant',content:long?('확인할 평가계획 내용과 근거를 정리합니다.\n').repeat(120):'평가계획서를 만들기 전에 다음 내용을 확인해 주세요.\n\n1. 교과와 학년을 확인합니다.\n2. 평가 영역과 방법을 정합니다.\n3. 완성된 내용을 검토한 뒤 한글 파일을 생성합니다.\n\n지난 학기 자료가 있다면 참고자료로 첨부할 수 있습니다.'}]},error:null}},saveConversation:async()=>({error:null}),deleteConversation:async()=>({error:null}),markCompleted:async()=>({error:null}),newConversationId:()=>crypto.randomUUID()}
-const screens={'/':<Dashboard/>,'/submissions':<Submissions/>,'/admin/users':<AdminUsers/>,'/doc-ai':<DocAi/>}
+const screens={'/':<Dashboard accountOnly/>,'/submissions':<Submissions/>,'/admin/users':<AdminUsers/>,'/doc-ai':<DocAi/>}
 const menu=visibleModules(profile);qa.allowed=menu.map(item=>item.to)
-createRoot(document.getElementById('root')).render(<AuthContext.Provider value={{profile,session:{user:{id:profile.id,email:profile.email},access_token:'synthetic-token'},profileError:null}}><MemoryRouter initialEntries={[config.path??'/']}>
+createRoot(document.getElementById('root')).render(<AuthContext.Provider value={{profile,session:{user:{id:profile.id,email:profile.email},access_token:'synthetic-token'},profileError:null}}><SeasonalWorkContext.Provider value={{state:{enabled:true}}}><MemoryRouter initialEntries={[config.path??'/']}>
 {config.view==='login'?<Login/>:config.view==='pending'?<Pending/>:<Routes><Route element={<Layout/>}>{menu.map(item=>item.to==='/'?<Route key={item.key} index element={screens['/']}/>:<Route key={item.key} path={item.to} element={screens[item.to]??<h2>기존 업무 연결</h2>}/>)}</Route></Routes>}
-</MemoryRouter></AuthContext.Provider>)
+</MemoryRouter></SeasonalWorkContext.Provider></AuthContext.Provider>)

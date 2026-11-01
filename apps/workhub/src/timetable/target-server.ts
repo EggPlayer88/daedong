@@ -1,6 +1,7 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { recoveryScope } from '../app/pending-requests'
-import { canonical, createScopedRpc, identifier, object, ServiceError } from '../services/scoped-rpc'
+import { recoveryScope } from '../services/recovery-scope'
+import { canonical, identifier, object, ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { TARGET_CONTRACT, targetCommand, targetReceipt, targetSnapshot, type TargetCommand, type TargetServer, type TargetSnapshot } from './target'
 import policy from './target-policy.json'
 

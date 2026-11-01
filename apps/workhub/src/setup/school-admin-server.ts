@@ -1,5 +1,5 @@
 import { ContractError } from '../contracts'
-import { recoveryScope } from '../app/pending-requests'
+import { recoveryScope } from '../services/recovery-scope'
 import { activeAt } from '../domain'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { SCHOOL_ADMIN_LIMITS, SchoolAdminError, schoolAdminId, schoolAdminInput, schoolAdminYear, schoolAdminCommand, schoolAdminEnvelope, schoolAdminReadiness, schoolAdminSnapshot, schoolAdminReceipt, type SchoolAdminScope, type SchoolAdminServer, type SchoolAdminFailureCode } from './school-admin-contract'

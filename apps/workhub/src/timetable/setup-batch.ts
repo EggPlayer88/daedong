@@ -1,4 +1,4 @@
-import { canonical, exact, identifier, ServiceError, type ServiceCode } from '../services/scoped-rpc'
+import { canonical, exact, identifier, ServiceError, type ServiceCode } from '../services/service-values'
 import { setupCommand, setupReceipt, setupSnapshot, type SetupCommand, type SetupReceipt, type SetupServer, type SetupSnapshot } from './setup'
 import policy from './setup-policy.json'
 

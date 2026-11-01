@@ -1,5 +1,5 @@
 import limits from '../../../main/api/workhub-documents/_assets/knowledge-import-limits.json'
-import {exact,identifier,ServiceError,text,version} from '../services/scoped-rpc'
+import { exact, identifier, ServiceError, text, version } from '../services/service-values'
 import {sha} from '../documents/guided-contracts'
 import {sourceInput,type SourceInput} from './contracts'
 export const KNOWLEDGE_IMPORT_CONTRACT='knowledge-import.v1'

@@ -1,5 +1,6 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { createScopedRpc, identifier, ServiceError, text, validateLocalInput, version } from '../services/scoped-rpc'
+import { identifier, ServiceError, text, validateLocalInput, version } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { KNOWLEDGE_CONTRACT, knowledgeCommand, knowledgeHistory, knowledgeList, knowledgeReceipt, knowledgeRevision, type KnowledgeCommand } from './contracts'
 export function createKnowledgeService(connection:SupabaseConnection){
  const rpc=createScopedRpc(connection,KNOWLEDGE_CONTRACT)

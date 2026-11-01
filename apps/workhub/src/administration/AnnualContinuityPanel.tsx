@@ -2,7 +2,7 @@ import {useEffect,useMemo,useRef,useState} from 'react'
 import type {Membership} from '../contracts'
 import type {SupabaseConnection} from '../connection/supabase-connection'
 import {createAnnualService,type AnnualReadiness} from './annual-continuity'
-import {ServiceError} from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
 export function AnnualContinuityPanel({connection,member}:{connection:SupabaseConnection;member:Membership}){
  const service=useMemo(()=>createAnnualService(connection),[connection])
  const[from,setFrom]=useState(''),[until,setUntil]=useState(''),[result,setResult]=useState<AnnualReadiness>(),[busy,setBusy]=useState(false),[error,setError]=useState('')

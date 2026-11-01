@@ -1,6 +1,6 @@
 import type { TimetableBasis, Placement } from '../../../../packages/timetable/src/types'
 import { validateBasis, validatePlacements } from '../../../../packages/timetable/src/validate'
-import { canonical, exact, identifier, text, ServiceError, object } from '../services/scoped-rpc'
+import { canonical, exact, identifier, text, ServiceError, object } from '../services/service-values'
 import { timetableConditions } from './server'
 import type { TimetableConditions } from './contracts'
 import limits from './limits.json'

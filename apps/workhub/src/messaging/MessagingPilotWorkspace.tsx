@@ -7,11 +7,13 @@ import { MessagingWorkspace } from './MessagingWorkspace'
 import theme from '../style.css?inline'
 import { createEditDrafts, EditDraftsProvider } from '../app/edit-drafts'
 import { createPendingRequests, PendingRequestsProvider, recoveryScope } from '../app/pending-requests'
+import { WorkspaceShell } from '../app/WorkspaceShell'
+import { enabledModules } from '../modules'
 import { useWorkspaceNavigation } from '../app/navigation'
 
 export type MessagingPilotAccess = { userId: string; schoolId: string; memberId: string; expiresAt: string; revision: number }
 
-// 전체 업무실 셸을 만들지 않는다. 다른 모듈은 숨기는 대신 불러오거나 호출하지 않는다.
+// 공통 메뉴 틀에 허용된 메신저만 연결한다. 다른 업무 모듈을 불러오거나 호출하지 않는다.
 export function MessagingPilotWorkspace({ access, connection: provided }: { access: MessagingPilotAccess; connection?: SupabaseConnection }) {
   const [connection] = useState(() => provided ?? createSupabaseConnection(undefined, { messagingPilot: true }))
   const [scope, setScope] = useState<{member: Membership; date: string; schoolName: string} | null>(null)
@@ -46,5 +48,5 @@ export function MessagingPilotWorkspace({ access, connection: provided }: { acce
       : scope ? <MessagingWorkspace key={`${access.userId}:${access.memberId}:${access.revision}`} connection={connection} member={scope.member} date={scope.date} onNavigationLockChange={setLocked} />
         : <p role="status">시험 계정의 학교 소속 확인 중…</p>}
   </section>
-  return <div ref={host}>{root ? createPortal(<EditDraftsProvider store={drafts}><PendingRequestsProvider store={pending}><style>{theme.replaceAll(':root', ':host').replace(/(^|[}\s,])body(?=\s*[{,])/g, '$1.messaging-pilot')}{`:host{display:block}.messaging-pilot{padding:20px;min-height:65vh}.messaging-pilot>header{margin-bottom:20px}`}</style>{content}</PendingRequestsProvider></EditDraftsProvider>, root) : <p role="status">메신저 준비 중…</p>}</div>
+  return <div ref={host}>{root ? createPortal(<EditDraftsProvider store={drafts}><PendingRequestsProvider store={pending}><style>{theme.replaceAll(':root', ':host').replace(/(^|[}\s,])body(?=\s*[{,])/g, '$1.messaging-pilot')}{`:host{display:block}.messaging-pilot{padding:20px;min-height:65vh}.messaging-pilot>header{margin-bottom:20px}`}</style><WorkspaceShell participant mode="connected" page="messages" schoolName={scope?.schoolName ?? '학교 업무'} memberName={scope?.member.name ?? '선생님'} navigationModules={enabledModules('connected').filter(item => item.id === 'messages')} locked={locked} onNavigate={() => { navigation.requestNavigate('messages') }}>{content}</WorkspaceShell></PendingRequestsProvider></EditDraftsProvider>, root) : <p role="status">메신저 준비 중…</p>}</div>
 }

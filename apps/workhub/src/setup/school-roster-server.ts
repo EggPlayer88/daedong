@@ -1,5 +1,6 @@
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { createScopedRpc, ServiceError } from '../services/scoped-rpc'
+import { ServiceError } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import { SCHOOL_ROSTER_CONTRACT, schoolRosterSnapshot, schoolRosterIntent, schoolRosterPreview, schoolRosterCommand, schoolRosterReceipt, schoolRosterCloseResult, type SchoolRosterServer } from './school-roster-contracts'
 
 // 가상 교사·이름 매칭을 이 경로에 넣지 않는다. 서버가 허용한 기존 회원 UID만 연결한다.

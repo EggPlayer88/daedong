@@ -1,5 +1,6 @@
 import type {SupabaseConnection} from '../connection/supabase-connection'
-import {canonical,createScopedRpc,identifier,ServiceError,validateLocalInput} from '../services/scoped-rpc'
+import { canonical, identifier, ServiceError, validateLocalInput } from '../services/service-values'
+import { createScopedRpc } from '../services/scoped-rpc'
 import {MEMORY_CONTRACT,memoryCommand,memoryList,memoryReferences,memorySelection,memoryReceipt,memoryResult,type MemoryCommand,type MemoryService} from './memory-contracts'
 
 export function createAiMemoryService(connection:SupabaseConnection,options:{timeoutMs?:number}={}):MemoryService{
