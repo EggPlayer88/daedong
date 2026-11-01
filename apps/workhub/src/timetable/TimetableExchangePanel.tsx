@@ -36,6 +36,12 @@ function formatTime(time: OperationTime, timeZone: string) {
   const formatter = new Intl.DateTimeFormat('ko-KR', { timeZone, month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
   return formatter.format(new Date(time.startsAt)) + ' – ' + formatter.format(new Date(time.endsAt))
 }
+// 허용 목록에서 빠진 이전 시각도 학교 시간대로 읽을 수 있게 남긴다.
+function previousTimeLabel(key: string, timeZone: string) {
+  const [startsAt, endsAt, extra] = key.split('|')
+  return !extra && Number.isFinite(Date.parse(startsAt)) && Number.isFinite(Date.parse(endsAt))
+    ? formatTime({ startsAt, endsAt }, timeZone) : '시간 정보 확인 필요'
+}
 const futureLesson = (lesson: OperationsView['lessons'][number], now = Date.now()) => lesson.state === 'scheduled' && Date.parse(lesson.time.startsAt) > now
 const moveTargets = (lesson: OperationsView['lessons'][number], now = Date.now()) => lesson.allowedTargets.filter(target => timeKey(target) !== timeKey(lesson.time) && Date.parse(target.startsAt) > now && Date.parse(target.endsAt) - Date.parse(target.startsAt) === Date.parse(lesson.time.endsAt) - Date.parse(lesson.time.startsAt))
 const swapCandidates = (source: OperationsView['lessons'][number] | undefined, view: OperationsView, now = Date.now()) => source ? view.lessons.filter(other => other.id !== source.id && futureLesson(other, now) && moveTargets(source, now).some(target => timeKey(target) === timeKey(other.time)) && moveTargets(other, now).some(target => timeKey(target) === timeKey(source.time))) : []
@@ -216,6 +222,9 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
   }
   const source = view?.lessons.find(lesson => lesson.id === draft.lessonId)
   const myLessons = view?.lessons.filter(lesson => lesson.canRequest && futureLesson(lesson)) ?? []
+  const requestSource = myLessons.find(lesson => lesson.id === draft.lessonId)
+  const targets = requestSource ? moveTargets(requestSource) : []
+  const selectedTarget = targets.find(target => timeKey(target) === draft.targetKey)
   const candidates = view ? swapCandidates(source, view) : []
   const sourceOptions = selectOperationLessons(myLessons, sourceQuery, draft.lessonId, view?.timeZone ?? 'UTC')
   const candidateOptions = selectOperationLessons(candidates, candidateQuery, draft.otherLessonId, view?.timeZone ?? 'UTC')
@@ -274,28 +283,32 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
       </section>
       <section className="timetable-card tt-exchange-compose" aria-labelledby={id + '-compose'}>
         <div className="tt-workflow-title"><div><span className="tt-workflow-kicker">수업 선택 → 변경 비교 → 요청</span><h3 ref={composeHeading} tabIndex={-1} className="tt-workflow-focus" id={id + '-compose'}>새 변경 요청</h3><p>바꿀 내 수업을 고르고 상대 수업이나 빈 시간을 확인하세요.</p></div></div>
-        {!view.canRequest ? <p>현재 계정에는 새 수업 변경 요청 권한이 없습니다. 조회할 수 있는 요청은 아래에서 확인하세요.</p> : !myLessons.length ? <p>이 조회 기간에 변경을 요청할 수 있는 내 수업이 없습니다. 조회 기간이나 승인된 수업 배정을 확인해 주세요.</p> : <>
+        {view.canRequest && !myLessons.length && <p>이 조회 기간에 변경을 요청할 수 있는 내 수업이 없습니다. 조회 기간이나 승인된 수업 배정을 확인해 주세요.</p>}
+        {/* 기간·수업 상태가 달라져도 보내지 않은 입력과 정리 버튼은 보존한다. 전송 가능 여부는 최신 입력 검사로 판단한다. */}
+        {!view.canRequest ? <p>현재 계정에는 새 수업 변경 요청 권한이 없습니다. 조회할 수 있는 요청은 아래에서 확인하세요.</p> : myLessons.length > 0 || dirtyDraft(draft) ? <>
           <fieldset disabled={unavailable}><legend>바꿀 수업과 목적지 선택</legend>
             <div className="ttops-review-search"><label>내 수업 찾기<input type="search" aria-label="내 수업 찾기" value={sourceQuery} placeholder="수업·학급·날짜·식별 번호" onChange={event => setSourceQuery(event.target.value)} /></label>{draft.kind === 'swap' && <label>교환 상대 찾기<input type="search" aria-label="교환 상대 찾기" value={candidateQuery} placeholder="교사·학급·수업·날짜" disabled={!source} onChange={event => setCandidateQuery(event.target.value)} /></label>}</div>
             <div className="timetable-grid">
               <label>요청할 변경 종류<select aria-label="요청할 변경 종류" value={draft.kind} onChange={event => update({ kind: event.target.value as 'move' | 'swap', targetKey: '', otherLessonId: '' })}><option value="swap">다른 수업과 교환</option><option value="move">빈 시간으로 이동</option></select></label>
               <label>변경할 내 수업<select aria-label="변경할 내 수업" value={draft.lessonId} onChange={event => update({ lessonId: event.target.value, targetKey: '', otherLessonId: '' })}><option value="">내 수업을 선택해 주세요</option>{draft.lessonId && !myLessons.some(lesson => lesson.id === draft.lessonId) && <option value={draft.lessonId}>이전 선택 · 현재 수업 재확인 필요 [{draft.lessonId}]</option>}{sourceOptions.rows.map(lesson => <option key={lesson.id} value={lesson.id}>{lessonOption(lesson)}</option>)}</select></label>
-              {draft.kind === 'swap' ? <label>교환할 상대 수업<select aria-label="교환할 상대 수업" value={draft.otherLessonId} onChange={event => update({ otherLessonId: event.target.value })}><option value="">상대 수업을 선택해 주세요</option>{draft.otherLessonId && !selectedCandidate && <option value={draft.otherLessonId}>이전 상대 · 현재 교환 가능 여부 재확인 [{draft.otherLessonId}]</option>}{candidateOptions.rows.map(lesson => <option key={lesson.id} value={lesson.id}>{lessonOption(lesson)}</option>)}</select></label> : <label>이동할 공식 시간<select aria-label="이동할 공식 시간" value={draft.targetKey} onChange={event => update({ targetKey: event.target.value })}><option value="">허용된 시간을 선택해 주세요</option>{source && moveTargets(source).map(target => <option key={timeKey(target)} value={timeKey(target)}>{formatTime(target, view.timeZone)}</option>)}</select></label>}
+              {draft.kind === 'swap' ? <label>교환할 상대 수업<select aria-label="교환할 상대 수업" value={draft.otherLessonId} onChange={event => update({ otherLessonId: event.target.value })}><option value="">상대 수업을 선택해 주세요</option>{draft.otherLessonId && !selectedCandidate && <option value={draft.otherLessonId}>이전 상대 · 현재 교환 가능 여부 재확인 [{draft.otherLessonId}]</option>}{candidateOptions.rows.map(lesson => <option key={lesson.id} value={lesson.id}>{lessonOption(lesson)}</option>)}</select></label> : <label>이동할 공식 시간<select aria-label="이동할 공식 시간" value={draft.targetKey} onChange={event => update({ targetKey: event.target.value })}><option value="">허용된 시간을 선택해 주세요</option>{draft.targetKey && !selectedTarget && <option value={draft.targetKey}>이전 시간 · {previousTimeLabel(draft.targetKey, view.timeZone)} · 현재 허용 여부 재확인</option>}{targets.map(target => <option key={timeKey(target)} value={timeKey(target)}>{formatTime(target, view.timeZone)}</option>)}</select></label>}
             </div>
             {(sourceQuery || candidateQuery && draft.kind === 'swap') && <p className="ttops-review-result" role="status">내 수업 검색 {sourceOptions.matches}건{draft.kind === 'swap' ? ` · 교환 후보 검색 ${candidateOptions.matches}건` : ''}{sourceOptions.pinned || draft.kind === 'swap' && candidateOptions.pinned ? ' · 검색 밖의 선택한 수업도 유지합니다.' : ''} 검색만으로 요청할 수업은 바뀌지 않습니다.</p>}
             {draft.kind === 'swap' && draft.otherLessonId && !selectedCandidate && <p role="status">선택했던 상대 수업의 현재 시간·판·허용 조건을 다시 확인해야 합니다. 사유와 기존 선택은 보관했습니다.</p>}
+            {draft.kind === 'move' && draft.targetKey && !selectedTarget && <p role="status">선택했던 이동 시각을 현재 허용 목록에서 확인할 수 없습니다. 사유와 시각은 보관했으니 조회 기간을 되돌리거나 허용된 시간을 다시 선택해 주세요.</p>}
             {source && <div className="timetable-muted">현재 수업: <OperationLessonLabel lesson={source} timeZone={view.timeZone} /></div>}
             {draft.kind === 'move' && source && !moveTargets(source).length && <p>이 수업에 등록된 다른 허용 시간이 없습니다. 담당자에게 공식 일과를 확인해 주세요.</p>}
             {draft.kind === 'swap' && source && !candidates.length && <p>현재 기간에 시간이 맞는 교환 후보가 없습니다. 조회 기간이나 담당자가 정한 허용 시간을 확인해 주세요.</p>}
             <label>변경 요청 사유<textarea aria-label="변경 요청 사유" rows={3} maxLength={apiLimits.reason} value={draft.reason} onChange={event => update({ reason: event.target.value })} placeholder="관련 교사가 알아야 할 업무상 이유만 적어 주세요." /></label>
-            <div className="timetable-actions"><button type="button" className="secondary" disabled={!extensions || !source || !draft.reason.trim() || unavailable} onClick={() => void recommend()}>가능한 교환안 추천받기</button></div>
+            <div className="timetable-actions"><button type="button" className="secondary" disabled={!extensions || !requestSource || !draft.reason.trim() || unavailable} onClick={() => void recommend()}>가능한 교환안 추천받기</button></div>
             <ComposerOptions className="tt-workflow-help" summary="추천과 요청 사유 안내"><p className="timetable-muted">추천은 현재 수업과 조건을 서버에서 검사한 후보입니다. 추천만으로 요청을 보내거나 시간표를 바꾸지 않습니다.{!extensions && ' 추천 서버 연결은 준비 중입니다.'}</p>
             <p className="timetable-muted">개인 상담이나 자세한 부재 사유는 넣지 마세요. 현재 화면은 한 수업의 이동 또는 두 수업 간 교환을 지원합니다.</p></ComposerOptions>
             <div className="timetable-actions"><button type="button" disabled={!input || unavailable} onClick={() => void inspect()}>{busy ? '확인 중…' : '변경 전후 미리보기'}</button><button type="button" className="secondary" disabled={unavailable || !dirtyDraft(draft)} onClick={clearDraft}>보내지 않은 요청 입력 비우기</button></div>
           </fieldset>
+          {source && !requestSource && <p role="status">선택했던 수업은 현재 변경 요청을 할 수 없는 상태입니다. 입력은 보관했으니 수업 상태와 배정을 확인하거나 보내지 않은 입력을 비워 주세요.</p>}
           {draft.lessonId && !source && <p role="status" className="timetable-error">선택했던 수업이 최신 조회에 없습니다. 내 입력은 유지했으니 수업을 다시 선택해 주세요.</p>}
           {suggestions && <section className="timetable-exchange-preview" aria-label="검사된 교환 후보"><h4>교환 후보 비교</h4>{suggestions.explanations.map((explanation, index) => <p key={index}>{explanation}</p>)}{suggestions.status === 'search_limited' && <p role="status">탐색 한도 안에서 확인한 결과입니다. 다른 교환이 불가능하다는 뜻은 아닙니다.</p>}{!suggestions.candidates.length && <p role="status">검사한 범위에 추천할 후보가 없습니다. 조회 기간이나 공식 허용 시간을 확인하고 직접 상대 수업을 선택할 수 있습니다.</p>}{suggestions.candidates.map((candidate, index) => <article key={candidate.id}><h5>후보 {index + 1}</h5><p>{candidate.explanation}</p><OperationChangeList changes={candidate.preview.changes} timeZone={view.timeZone} /><p>동의 대상: {candidate.preview.participants.map(person => operationTeacherLabels(candidate.preview.participants).get(person.id)).join(' · ')}</p><button type="button" className="secondary" disabled={unavailable || Date.parse(candidate.preview.expiresAt) <= clock} onClick={() => selectRecommendation(candidate.input)}>후보 {index + 1} 선택</button></article>)}</section>}
-        </>}
+        </> : null}
         {shownPreview && <section className="timetable-exchange-preview" aria-label="수업 변경 미리보기"><h4>변경 전후 확인</h4><OperationChangeList changes={shownPreview.changes} timeZone={view.timeZone} />
           <p><strong>동의가 필요한 교사:</strong> {shownPreview.participants.map(participant => operationTeacherLabels(shownPreview.participants).get(participant.id)).join(' · ')}</p>
           {shownPreview.blockers.length > 0 && <ul className="timetable-issues" aria-label="변경 요청을 막는 사유">{shownPreview.blockers.map((blocker, index) => <li key={blocker.code + index}>{blocker.message}</li>)}</ul>}
