@@ -12,8 +12,11 @@ page.on('pageerror', error => errors.push(error.message))
 page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:5240/')) external.push(request.url()) })
 await context.route('**/*', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:16px}*{box-sizing:border-box}</style><div id="root"></div></html>' }))
 const button = name => page.getByRole('button', { name, exact: true }), field = name => page.getByLabel(name, { exact: true })
-async function start() {
-  await page.goto('http://127.0.0.1:5240/operations'); await page.addScriptTag({ content: bundle.outputFiles[0].text })
+async function start({ canPublish = true } = {}) {
+  await page.goto('http://127.0.0.1:5240/operations')
+  // 새 응답 전에 남아 있는 관리자 화면을 일반 교사 결과로 세지 않도록 첫 조회부터 자격을 고정한다.
+  await page.evaluate(value => { window.canPublish = value }, canPublish)
+  await page.addScriptTag({ content: bundle.outputFiles[0].text })
   await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor()
   await page.waitForFunction(() => window.calls.some(row => row.method === 'interventions.get'))
   await button('교환·변경 요청').click()
@@ -24,9 +27,9 @@ async function draft() {
   await field('이동할 공식 시간').selectOption(target); await field('변경 요청 사유').fill('기간을 바꿔도 보존할 시험 입력')
   return target
 }
-async function check(name, run) {
-  try { await start(); await run(); assert.equal(await page.evaluate(() => window.writes), 0); count++; console.log('  ✓ ' + name) }
-  catch (error) { failures.push(name); console.error('  ✗ ' + name + ': ' + error.message.split('\n')[0]) }
+async function check(name, run, initial = {}) {
+  try { await start(initial); await run(); assert.equal(await page.evaluate(() => window.writes), 0); count++; console.log('  ✓ ' + name) }
+  catch (error) { failures.push(name); console.error('  ✗ ' + name + ': ' + (error.stack || error.message)) }
 }
 try {
   await check('수업이 없는 기간에서도 원수업·사유·이동 시각을 보존하며 돌아오면 이어 쓸 수 있다', async () => {
@@ -93,16 +96,22 @@ try {
     await button('보내지 않은 요청 입력 비우기').click(); await page.waitForFunction(() => !window.locked)
     await page.setViewportSize({ width: 1280, height: 900 })
   })
-  await check('일반 교사 재조회 중 확정 관리 탭이 잠깐 나타나지 않는다', async () => {
-    await page.evaluate(() => { window.canPublish = false; window.refresh() }); await field('변경 요청 사유').waitFor()
-    assert.equal(await button('시간표 확정').count(), 0); await button('공유 시간표').click()
-    await page.evaluate(() => { window.holdOperations = true; window.refresh() })
-    await page.getByText('시간표 운영 연결을 확인하고 있습니다…', { exact: true }).waitFor()
-    try { assert.equal(await button('시간표 확정').count(), 0) }
-    finally { await page.evaluate(() => { window.holdOperations = false; window.resumeOperations() }) }
-    await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor()
-    assert.equal(await button('시간표 확정').count(), 0)
-  })
+  for (const delayedRefresh of [false, true]) {
+    await check(delayedRefresh ? '새 렌더가 늦어도 일반 교사 재조회 전·중·후 확정 탭이 나타나지 않는다' : '일반 교사 재조회 중 확정 관리 탭이 잠깐 나타나지 않는다', async () => {
+      assert.equal(await button('시간표 확정').count(), 0); await button('공유 시간표').click()
+      await page.evaluate(delayed => {
+        window.holdOperations = true
+        if (delayed) setTimeout(() => window.refresh(), 250)
+        else window.refresh()
+      }, delayedRefresh)
+      await page.getByText('시간표 운영 연결을 확인하고 있습니다…', { exact: true }).waitFor()
+      // 응답을 보류한 순간의 부재를 즉시 검사한다. 없어질 때까지 기다리면 원래 깜빡임을 놓친다.
+      try { assert.equal(await button('시간표 확정').count(), 0) }
+      finally { await page.evaluate(() => { window.holdOperations = false; window.resumeOperations() }) }
+      await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor()
+      assert.equal(await button('시간표 확정').count(), 0)
+    }, { canPublish: false })
+  }
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
   console.log(`시간표 교환 입력 복구 브라우저 검사: ${count}개 통과 · ${failures.length}개 실패`)
   assert.deepEqual(failures, [])
