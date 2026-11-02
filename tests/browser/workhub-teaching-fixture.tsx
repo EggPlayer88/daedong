@@ -20,9 +20,10 @@ if(name==='workhub_teaching_catalog'){if(window.holdCatalog)await new Promise(re
 if(name==='workhub_teaching_course')return clone({...env(),course,students,rubrics:state.rubrics,imports:state.imports});
 if(name==='workhub_teaching_student')return clone({...env(),courseId:course.id,studentId:args.p_student_id,observations:state.observations.filter(o=>o.studentId===args.p_student_id),assessments:state.assessments.filter(o=>o.studentId===args.p_student_id),nextCursor:null});
 if(name==='workhub_teaching_counseling')return clone({...env(),courseId:course.id,studentId:args.p_student_id,records:state.counseling.filter(o=>o.studentId===args.p_student_id),nextCursor:null});
-if(name==='workhub_teaching_rubric_revision')return {...env(),rubric:clone(window.rubricHistory.find(r=>r.id===args.p_rubric_id&&r.revisionId===args.p_revision_id))};
+if(name==='workhub_teaching_rubric_revision'){if(window.holdRubric)await new Promise(resolve=>window.releaseRubric=resolve);if(window.failRubric)throw Error('합성 기준판 조회 실패');return {...env(),rubric:clone(window.rubricHistory.find(r=>r.id===args.p_rubric_id&&r.revisionId===args.p_revision_id))};}
 if(name==='workhub_teaching_activity')return clone(state.activities.find(i=>i.importId===args.p_import_id));
 if(name!=='workhub_teaching_mutate')throw Error('unexpected RPC '+name);
+if(window.holdMutation)await new Promise(resolve=>window.releaseMutation=resolve);
 const command=args.p_command,key=args.p_request_key;if(receipts.has(key))return{...clone(receipts.get(key)),outcome:'replayed'};
 if(window.conflictOnce){window.conflictOnce=false;const existing=state.observations.find(o=>o.id===command.recordId);existing.version++;existing.text='다른 창에서 저장한 최신 관찰';return{...env(),ok:false,code:'CONFLICT'}};
 let entityId='saved-'+serial++,version=1;
