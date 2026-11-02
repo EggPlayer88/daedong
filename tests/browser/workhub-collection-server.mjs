@@ -66,6 +66,57 @@ async function openRequest() { await page.getByRole('button', { name: /서버 �
 async function remount() { await page.evaluate(() => window.setVisible(false)); await settle(); await page.evaluate(() => window.setVisible(true)); await page.getByRole('heading', { name: '문서 수합', exact: true }).waitFor(); await settle() }
 try {
 
+  await test('마감 후 유효한 보완 대상만 파일 저장과 지정 보완 제출을 하고 유실은 같은 번호로 복구한다',async()=>{
+    await page.evaluate(()=>{window.state.supplements.push({id:'supplement-1',unitId:'unit-1',submissionId:'previous',dueDate:'2026-10-15',fulfilledSubmissionId:null,fulfilledAt:null})})
+    await openRequest();await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).click()
+    await page.getByLabel('제출 파일 선택',{exact:true}).setInputFiles(file('마감보완.hwpx'))
+    await page.getByRole('button',{name:'제출 초안 저장',exact:true}).click()
+    await page.getByText(/초안을 저장했습니다/).waitFor()
+    assert.equal(await page.getByRole('button',{name:'저장한 파일 최종 제출',exact:true}).isDisabled(),true)
+    await page.getByLabel('응답할 보완 요청',{exact:true}).selectOption('supplement-1')
+    await page.evaluate(()=>window.mode='unknown')
+    await page.getByRole('button',{name:'저장한 파일 최종 제출',exact:true}).click()
+    await page.getByText('이전 저장 결과 확인이 필요합니다',{exact:true}).waitFor()
+    const original=await page.evaluate(()=>window.calls.at(-1))
+    assert.equal(original.command.correctionRequestId,'supplement-1')
+    await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click()
+    await page.waitForFunction(()=>window.pendingCount()===0)
+    assert.deepEqual(await page.evaluate(()=>window.calls.at(-1)),original)
+    assert.equal(await page.evaluate(()=>window.state.submissions.length),1)
+    assert.equal(await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).isDisabled(),true)
+    assert.equal(await page.getByRole('button',{name:'제출 철회',exact:true}).isDisabled(),true)
+  },'closed')
+  for(const invalid of ['expired','fulfilled','other-unit','archived'])await test('마감 보완 예외를 허용하지 않는 경우: '+invalid,async()=>{
+    await page.evaluate(kind=>{window.state.supplements.push({id:'supplement-1',unitId:kind==='other-unit'?'other':'unit-1',submissionId:'previous',dueDate:kind==='expired'?'2026-10-14':'2026-10-16',fulfilledSubmissionId:kind==='fulfilled'?'done':null,fulfilledAt:kind==='fulfilled'?'2026-10-15T08:00:00Z':null})},invalid)
+    await openRequest();await page.getByText(/기존 제출본은 내려받을 수 있습니다/).waitFor()
+    assert.equal(await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).isDisabled(),true)
+    assert.equal(await page.evaluate(()=>window.calls.length+window.uploadCalls.length),0)
+  },invalid==='archived'?'archived':'closed')
+  await test('작성 중 보완 요청이 끝나면 입력을 보존하고 새 저장과 업로드를 막는다',async()=>{
+    await page.evaluate(()=>{window.state.supplements.push({id:'supplement-1',unitId:'unit-1',submissionId:'previous',dueDate:'2026-10-16',fulfilledSubmissionId:null,fulfilledAt:null});window.state.request.textLabel='보완 내용'})
+    await openRequest();await page.getByRole('button',{name:'내 제출 파일 작성',exact:true}).click()
+    await page.getByLabel('보완 내용',{exact:true}).fill('보존할 보완 내용')
+    await page.evaluate(()=>{window.state.supplements[0].fulfilledSubmissionId='done';window.state.supplements[0].fulfilledAt='2026-10-15T08:00:00Z';window.refresh()})
+    await page.getByText(/지금은 새 저장·제출을 할 수 없습니다/).waitFor()
+    assert.equal(await page.getByLabel('보완 내용',{exact:true}).inputValue(),'보존할 보완 내용')
+    assert.equal(await page.getByRole('button',{name:'제출 초안 저장',exact:true}).isDisabled(),true)
+    assert.equal(await page.getByLabel('제출 파일 선택',{exact:true}).isDisabled(),true)
+    assert.equal(await page.evaluate(()=>window.calls.length+window.uploadCalls.length),0)
+  },'closed')
+  await test('마감 뒤 검토는 가능하지만 보관으로 바뀌면 의견을 보존하고 새 검토를 막는다',async()=>{
+    await page.evaluate(()=>{const s=window.state;s.unit.currentSubmissionId='submission-1';s.submissions.push({id:'submission-1',unitId:'unit-1',revision:1,submittedBy:'member-0',receiptAt:'2026-10-15T08:00:00Z',receiptDate:'2026-10-15',dueSnapshot:'2026-10-31',initiallyLate:false,correctionReason:'',previousSubmissionId:null,reviewMode:'required',requestKey:'seed',text:'시험',number:null,files:[]});window.setActor(1)})
+    await openRequest();await page.getByRole('button',{name:'제출물 검토',exact:true}).click()
+    await page.getByLabel('검토 의견',{exact:true}).fill('보존할 검토 의견')
+    assert.equal(await page.getByRole('button',{name:'검토 완료',exact:true}).isDisabled(),false)
+    await page.evaluate(()=>{window.operationPhase='archived';window.refresh()})
+    await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(b=>b.textContent.trim()==='검토 완료'&&b.disabled))
+    assert.equal(await page.getByLabel('검토 의견',{exact:true}).inputValue(),'보존할 검토 의견')
+    assert.equal(await page.getByRole('button',{name:'보완 요청',exact:true}).isDisabled(),true)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+    await page.getByRole('button',{name:'검토 작성 취소',exact:true}).click()
+    await page.getByRole('button',{name:'제출물 검토',exact:true}).waitFor()
+    assert.equal(await page.getByRole('button',{name:'제출물 검토',exact:true}).isDisabled(),true)
+  },'closed')
   for(const phase of ['closed','archived'])await test('마감·보관 수합은 정정과 제출을 막고 재개 방법을 안내한다: '+phase,async()=>{
     await openRequest();await page.getByText(/기존 제출본은 내려받을 수 있습니다/).waitFor();
     assert.equal(await page.getByRole('button',{name:'정정 기간 설정',exact:true}).isDisabled(),true);

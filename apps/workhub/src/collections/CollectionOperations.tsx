@@ -37,7 +37,7 @@ function ScopedCollectionOperations({server,member,requestId,date,disabled,revis
  {draft.kind==='remind'&&<><p>선택한 제출 단위의 책임 교사에게 사이트 알림을 보냅니다. 읽음과 제출 완료는 별개입니다.</p>{targets.map(unit=><label key={unit.id}><input type="checkbox" checked={draft.selected.includes(unit.id)} onChange={e=>setDraft({...draft,confirmed:false,selected:e.target.checked?[...draft.selected,unit.id]:draft.selected.filter(id=>id!==unit.id)})}/>{unit.label} · {unit.state==='missing'?'미제출':'보완 필요'}</label>)}</>}
  <p>마감·보관은 제출 자료를 삭제하지 않습니다. 변경된 판 또는 이미 제출된 알림 대상은 서버에서 다시 확인합니다.</p><label><input type="checkbox" checked={draft.confirmed} onChange={e=>setDraft({...draft,confirmed:e.target.checked})}/>변경 내용과 대상을 확인했습니다</label></fieldset>
  <div className="cs-actions"><button disabled={disabled||busy||!!draft.pending||!data?.canManage||!options.includes(draft.kind)||data.version!==draft.baseVersion||!draft.confirmed||!draft.reason.trim()||draft.kind==='remind'&&!draft.selected.length}>확인한 운영 변경 적용</button><button type="button" disabled={busy||!!draft.pending} onClick={()=>setDraft(undefined)}>취소</button></div>
- {draft.pending&&<button type="button" disabled={busy} onClick={()=>void save(draft.pending!.command,draft.pending!.key)}>원래 운영 요청 결과 확인</button>}
+ {draft.pending&&<aside aria-label="수합 운영 처리 상태"><p role="status">{busy?'수합 운영 변경을 처리하고 있습니다':'이전 운영 요청의 결과를 먼저 확인해 주세요'}</p><p>입력과 요청 번호를 보관하고 있습니다. 확인 전에는 새 변경을 보내지 않습니다.</p>{!busy&&<button type="button" onClick={()=>void save(draft.pending!.command,draft.pending!.key)}>원래 운영 요청 결과 확인</button>}</aside>}
  </form>}
  </details>
 }

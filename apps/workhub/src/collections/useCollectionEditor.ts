@@ -128,6 +128,28 @@ export function useCollectionEditor({
   const blocked = inputBlocked || loading || restoring || Boolean(readError)
   const submissionClosed =
     operationState?.requestId === detail?.request.id && operationState?.phase !== 'open'
+  // P7-05와 같은 마감 예외: 해당 단위의 미완료 보완 요청이 학교 오늘까지 유효해야 한다.
+  const submissionArchived = submissionClosed && operationState?.phase === 'archived'
+  function activeSupplements(unitId: string) {
+    return (
+      detail?.supplements.filter(
+        (value) => value.unitId === unitId && !value.fulfilledSubmissionId && value.dueDate >= date,
+      ) ?? []
+    )
+  }
+  function canWriteSubmission(unitId: string) {
+    return !submissionClosed || (!submissionArchived && activeSupplements(unitId).length > 0)
+  }
+  function canSubmitSupplement(unitId: string, supplementId?: string) {
+    return (
+      !submissionClosed ||
+      (!submissionArchived && activeSupplements(unitId).some((value) => value.id === supplementId))
+    )
+  }
+  const answerClosed = Boolean(session.answer && !canWriteSubmission(session.answer.unitId))
+  const answerSubmitClosed = Boolean(
+    session.answer && !canSubmitSupplement(session.answer.unitId, session.answer.correctionRequestId),
+  )
   const selectedUnit = detail?.units.find((unit) => unit.id === session.answer?.unitId)
   const policy = readiness?.policy
   let newCollectionPolicy: FilePolicy | undefined
@@ -432,6 +454,17 @@ export function useCollectionEditor({
       setError('마감된 수합은 접수를 재개한 뒤 정정 기간을 설정할 수 있습니다.')
       return
     }
+    if (
+      !retry && (
+        (command.kind === 'save_draft' && !canWriteSubmission(command.unitId)) ||
+        (command.kind === 'submit' && !canSubmitSupplement(command.unitId, command.correctionRequestId)) ||
+        (command.kind === 'withdraw' && submissionClosed) ||
+        (command.kind === 'review' && submissionArchived)
+      )
+    ) {
+      setError('현재 접수 상태와 보완 요청 기한을 확인해 주세요. 입력과 기존 제출본은 유지됩니다.')
+      return
+    }
     const request = structuredClone(retry ? saved! : { command, key }),
       epoch = life.current
     operation.current = true
@@ -546,7 +579,7 @@ export function useCollectionEditor({
     setReload((value) => value + 1)
   }
   async function openAnswer(unitId: string) {
-    if (locked || !detail) return
+    if (locked || !detail || !canWriteSubmission(unitId)) return
     const epoch = life.current
     operation.current = true
     setBusy('공동 초안을 확인 중…')
@@ -748,7 +781,11 @@ export function useCollectionEditor({
     filePolicy: FilePolicy,
     stagedId?: string,
   ) {
-    if (!file || (blocked && !stagedId)) return
+    if (
+      !file ||
+      (blocked && !stagedId) ||
+      (parent.kind === 'draft' && !canWriteSubmission(parent.unitId))
+    ) return
     let checkedPolicy: FilePolicy
     try {
       checkedPolicy = hwpxCollectionPolicy(filePolicy)
@@ -879,7 +916,7 @@ export function useCollectionEditor({
   function attachGenerated() {
     const answer = sessionRef.current.answer
     if (
-      submissionClosed ||
+      answerClosed ||
       !incomingFile ||
       !answer ||
       incomingFile.requestId !== answer.requestId ||
@@ -1057,6 +1094,10 @@ export function useCollectionEditor({
   }
 
   return {
+    answerClosed,
+    answerSubmitClosed,
+    canWriteSubmission,
+    submissionArchived,
     allowedMembers,
     attachGenerated,
     blocked,

@@ -9,7 +9,7 @@ const member={id:'m',schoolId:'s',userId:'u',name:'교사',role:'teacher',active
 window.calls=[];window.states=[];window.mode='ok';window.version=2;window.phase='open';window.recipient='m1';window.failRead=false;window.pending=createPendingRequests();window.drafts=createEditDrafts();
 const state=()=>({requestId:'r',version:window.version,phase:window.phase,dueDate:'2026-11-01',canManage:true,totals:{total:2,missing:1,submitted:1,accepted:0,changesRequested:0},units:[{id:'unit1',label:'1학년',responsibleMemberId:window.recipient,version:2,state:'missing'},{id:'unit2',label:'2학년',responsibleMemberId:'m2',version:3,state:'submitted'}]});
 const envelope=data=>({contract:'collection-operations.v1',schoolId:'s',memberId:'m',data});
-const connection={info:()=>({memberships:[member],schools:[{id:'s'}],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:'u',approved:true}),rpcVerified:async(name,args)=>{window.calls.push({name,args:structuredClone(args)});if(name.endsWith('_get')){if(window.failRead)throw Error('private');return envelope(state())}if(window.mode==='unknown')throw Error('secret');if(window.mode==='conflict'){window.version=3;return{contract:'collection-operations.v1',schoolId:'s',memberId:'m',error:{code:'CONFLICT'}}}return envelope({requestId:'r',version:args.p_command.expectedVersion+1,requestKey:args.p_request_key,recordedAt:'2026-10-16T01:00:00Z'})}};
+const connection={info:()=>({memberships:[member],schools:[{id:'s'}],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:'u',approved:true}),rpcVerified:async(name,args)=>{window.calls.push({name,args:structuredClone(args)});if(name.endsWith('_get')){if(window.failRead)throw Error('private');return envelope(state())}if(window.mode==='delayed')await new Promise(resolve=>window.releaseMutation=resolve);if(window.mode==='unknown')throw Error('secret');if(window.mode==='conflict'){window.version=3;return{contract:'collection-operations.v1',schoolId:'s',memberId:'m',error:{code:'CONFLICT'}}}return envelope({requestId:'r',version:args.p_command.expectedVersion+1,requestKey:args.p_request_key,recordedAt:'2026-10-16T01:00:00Z'})}};
 const server=createCollectionOperations(connection);function Harness(){const[revision,refresh]=useState(0);window.refresh=()=>refresh(x=>x+1);return <EditDraftsProvider store={window.drafts}><PendingRequestsProvider store={window.pending}><CollectionOperations server={server} member={member} requestId="r" date="2026-10-16" disabled={false} revision={revision} onLock={()=>{}} onChanged={()=>{}} onState={value=>window.states.push(value)}/></PendingRequestsProvider></EditDraftsProvider>};window.mount=(clear=false)=>{if(clear)window.drafts=createEditDrafts();window.root=createRoot(document.getElementById('root'));window.root.render(<Harness/>)};window.mount();`,loader:'tsx',resolveDir:fileURLToPath(new URL('../../',import.meta.url))},bundle:true,format:'iife',write:false,jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':'{}','process.env.NODE_ENV':'"development"'},logLevel:'silent'})
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),passed=[],errors=[]
 page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(10000)
@@ -21,6 +21,33 @@ await test('담당자 집계와 현재 접수 상태를 표시한다',async()=>{
 await test('마감은 사유와 최종 확인 뒤 서버 명령을 보낸다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('모두 검토');assert.equal(await page.getByRole('button',{name:'확인한 운영 변경 적용'}).isDisabled(),true);await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();assert.equal(await page.evaluate(()=>window.calls.find(x=>x.name.endsWith('_mutate')).args.p_command.expectedVersion),2)})
 await test('알림은 미제출·보완 대상만 선택하며 제출자는 포함하지 않는다',async()=>{await page.getByRole('button',{name:'미제출·보완 대상 알림'}).click();assert.equal(await page.getByLabel('2학년').count(),0);await page.getByLabel('1학년 · 미제출').check();await page.getByLabel('변경 사유 또는 알림 내용').fill('제출 확인 부탁');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();assert.deepEqual(await page.evaluate(()=>window.calls.find(x=>x.name.endsWith('_mutate')).args.p_command.recipients),[{unitId:'unit1',memberId:'m1',expectedVersion:2}])})
 await test('통신 유실 후 재마운트에도 입력과 기존 키를 보존한다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('보관할 사유');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.evaluate(()=>{window.mode='unknown'});await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),1);await page.evaluate(()=>{window.root.unmount();window.mount()});await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor();assert.equal(await page.getByLabel('변경 사유 또는 알림 내용').inputValue(),'보관할 사유');await page.evaluate(()=>{window.mode='ok'});await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();const calls=await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')));assert.deepEqual(calls[0].args,calls[1].args)})
+await test('처리 중에는 복구 버튼 대신 상태를 보이고 유실 후 같은 명령만 복구한다',async()=>{
+ await page.getByRole('button',{name:'접수 마감',exact:true}).click()
+ await page.getByLabel('변경 사유 또는 알림 내용').fill('입력과 요청 번호 보존')
+ await page.getByLabel('변경 내용과 대상을 확인했습니다').check()
+ await page.evaluate(()=>{window.mode='delayed'})
+ await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click()
+ await page.getByRole('status').filter({hasText:'수합 운영 변경을 처리하고 있습니다'}).waitFor()
+ assert.equal(await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).count(),0)
+ assert.equal(await page.getByLabel('변경 사유 또는 알림 내용').isDisabled(),true)
+ assert.equal(await page.getByRole('button',{name:'취소',exact:true}).isDisabled(),true)
+ assert.equal(await page.evaluate(()=>window.pending.count()),1)
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')).length),1)
+ if(process.env.WORKHUB_QA_OUTPUT)await page.screenshot({path:join(process.env.WORKHUB_QA_OUTPUT,'processing.png'),fullPage:true})
+ await page.evaluate(()=>{window.mode='unknown';window.releaseMutation()})
+ await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor()
+ assert.equal(await page.getByLabel('변경 사유 또는 알림 내용').inputValue(),'입력과 요청 번호 보존')
+ assert.equal(await page.evaluate(()=>window.pending.count()),1)
+ await page.evaluate(()=>{window.mode='delayed'})
+ await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).click()
+ await page.getByRole('status').filter({hasText:'수합 운영 변경을 처리하고 있습니다'}).waitFor()
+ assert.equal(await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).count(),0)
+ const calls=await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')))
+ assert.equal(calls.length,2);assert.deepEqual(calls[0].args,calls[1].args)
+ await page.evaluate(()=>{window.mode='ok';window.releaseMutation()})
+ await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor()
+ assert.equal(await page.evaluate(()=>window.pending.count()),0)
+})
 await test('충돌 뒤 새 판을 자동 적용하지 않고 대조·재확인을 요구한다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('마감');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.evaluate(()=>{window.mode='conflict'});await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByRole('button',{name:'최신 상태를 기준으로 다시 검토'}).waitFor();assert.equal(await page.getByRole('button',{name:'확인한 운영 변경 적용'}).isDisabled(),true);await page.getByRole('button',{name:'최신 상태를 기준으로 다시 검토'}).click();assert.equal(await page.getByLabel('변경 내용과 대상을 확인했습니다').isChecked(),false)})
 await test('320px 화면에서도 확인 입력이 넘치지 않는다',async()=>{await page.setViewportSize({width:320,height:740});await page.getByRole('button',{name:'기한 변경'}).click();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)})
 
