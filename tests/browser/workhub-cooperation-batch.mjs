@@ -57,6 +57,17 @@ async function applyAction(action,comment=''){await page.getByRole('button',{nam
 const csv='원본 ID,제목,시작일,설명\nA-new,새 일정,2026-10-20,새 설명\nA-dup,변경 없는 일정,2026-10-20,원본 설명\nA-update,원본 변경 일정,2026-10-20,바꾼 원본 설명\nA-conflict,충돌 일정,2026-10-20,새 충돌 원본\nA-held,접근 제한 일정,2026-10-20,내용'
 async function prepareCsv(raw=csv){await page.getByLabel('원본 묶음 ID',{exact:true}).fill('annual-2026');await page.getByLabel('원본 묶음 이름',{exact:true}).fill('연간 계획');await page.getByLabel('원본 표 붙여넣기',{exact:true}).fill(raw);await page.getByRole('button',{name:'열 연결 확인',exact:true}).click();await page.getByRole('button',{name:'서버 원본과 비교',exact:true}).click();await page.getByRole('heading',{name:'저장 전 전체 비교',exact:true}).waitFor()}
 try{
+await check('협업 이력은 한국시간으로 표시하고 원래 접수 시각과 상태를 보존한다',async()=>{
+ await openReceived();
+ await page.getByText('처리 이력 1건',{exact:true}).click();
+ const detail=page.getByRole('article',{name:'선택한 협업 요청',exact:true});
+ await detail.getByText('한국시간 기준',{exact:true}).waitFor();
+ assert.equal(await detail.locator('time').textContent(),'2026-10-16 09:00:00');
+ assert.equal(await detail.locator('time').getAttribute('datetime'),'2026-10-16T00:00:00Z');
+ if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,'cooperation-history-kst.png'),fullPage:true})}
+ assert.equal(await page.evaluate(()=>window.calls.filter(c=>c.name==='workhub_cooperation_mutate').length),0);
+ assert.equal(await page.getByRole('button',{name:'수락',exact:true}).isEnabled(),true);
+});
 await check('같은 검색 조건으로 다시 조회하면 도착한 요청과 열린 상세를 새로 확인한다',async()=>{
  await openReceived();
  await page.evaluate(()=>{const r=window.requests[0];r.status='accepted';r.version=2;window.histories.r1.push({id:'h-new',action:'accept',actorMemberId:'m1',comment:'다른 창 수락',version:2,recordedAt:r.updatedAt});window.requests.push({...r,id:'r-new',title:'다른 창에서 도착한 요청',status:'requested',version:1})});

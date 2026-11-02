@@ -133,6 +133,8 @@ try {
     assert(await ai().getByText('검토 후 한 번 보낸 AI 초안', { exact: true }).isVisible())
     await ai().getByRole('button', { name: 'AI 비서 닫기', exact: true }).click()
     assert.equal(await ai().isVisible(), false)
+    // AI가 닫힌 시점과 원래 시간표의 재조회 완료 시점은 다르다.
+    await page.getByRole('heading',{name:'학교가 확정한 수업',exact:true}).waitFor()
     assert.equal(await page.getByRole('heading',{name:'학교가 확정한 수업',exact:true}).isVisible(),true)
     await go('AI 비서'); assert(await ai().getByText('검토 후 한 번 보낸 AI 초안', { exact: true }).isVisible())
     assert.equal(await page.evaluate(() => window.cross.aiCalls.length), 2)
