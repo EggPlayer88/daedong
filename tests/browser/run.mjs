@@ -10,6 +10,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url))
 const scripts = [
   'site-modular-shell', 'workhub-annual-operations', 'site-loading', 'workhub-home-grid', 'workhub-site-navigation',
   'site-ui-finish', 'workhub-ui-renewal', 'workhub-ui-polish', 'workhub-workflow-ui', 'workhub-coordination-ui', 'workhub-timetable-workflow-ui', 'workhub-school-records-ui', 'workhub-document-library-ui', 'workhub-assistant-ui', 'workhub-navigation-ui', 'email-login', 'workhub-messaging-pilot',
+  'workhub-assistant-connected', 'workhub-assistant-calendar', 'workhub-assistant-workflows',
   'workhub-collection-create', 'workhub-ai-memory',
   'workhub-document-collection-flow', 'workhub-cross-module', 'workhub-assistant-practice', 'workhub-ai-operations', 'workhub-ai-school-policy', 'doc-ai-school-policy',
   'workhub-guided-setup', 'workhub-global-search', 'workhub-document-open', 'workhub-document-review', 'workhub-collection-export-parts', 'workhub-knowledge-assistant',

@@ -241,3 +241,31 @@
  .ws-shell .ws-ai-body .assistant-workspace .assistant-compose{padding:16px}
  .ws-shell .ws-ai-body .assistant-workspace .assistant-compose :is(textarea,input,select){font-size:max(16px,var(--ui-body-size))}
 }
+
+/* 대화에서 찾은 자료도 기존 목록과 같은 버튼으로 연다. 긴 제목은 좁은 옆자리 안에서 줄바꿈한다. */
+.assistant-workspace-result{min-width:0;padding:20px;margin:0 0 20px;border:1px solid var(--ui-line,#e3e7ed);border-radius:18px;background:var(--ui-surface,#fff);overflow-wrap:anywhere}
+.assistant-command-question{margin:0 0 16px;color:var(--ui-muted,#626d7c);white-space:pre-wrap;font-size:var(--ui-small-size,13px)}
+.assistant-workspace-result-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.assistant-workspace-result-heading h3{margin:0;font-size:var(--ui-body-size,16px)}
+.assistant-workspace-result-heading>span{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-resource-list{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.assistant-resource-list>li{min-width:0}
+.assistant-resource-list button{width:100%;min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;text-align:left;padding:14px;border:1px solid var(--ui-line,#e3e7ed);border-radius:12px;background:var(--ui-surface,#fff);color:var(--ui-text,#202832);overflow-wrap:anywhere}
+.assistant-resource-list button:hover:not(:disabled){background:var(--ui-accent-soft,#eff4ff)}
+.assistant-resource-list button>*{min-width:0;grid-column:1}
+.assistant-resource-kind,.assistant-resource-meta{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-resource-description{font-size:var(--ui-small-size,13px);line-height:1.6;white-space:pre-wrap}
+.assistant-resource-list .assistant-resource-open{grid-column:2;grid-row:1/4;align-self:center;color:var(--ui-accent,#476cba);font-size:var(--ui-small-size,13px)}
+.assistant-result-coverage{margin-top:14px;font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-result-coverage summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+.assistant-result-coverage ul{padding-left:20px;line-height:1.7}
+.assistant-command-examples{display:flex;gap:6px;flex-wrap:wrap}
+.assistant-command-examples>button{font-size:var(--ui-small-size,13px);min-height:40px;max-width:100%;padding:7px 10px;border-radius:10px;border:1px solid var(--ui-line,#e3e7ed);background:var(--ui-surface-muted,#f6f7f9);color:var(--ui-muted,#626d7c);text-align:left;overflow-wrap:anywhere}
+.assistant-command-examples>button:disabled{display:none}
+@container assistant (max-width:420px){
+ .assistant-workspace-result{padding:14px}
+ .assistant-resource-list button{grid-template-columns:minmax(0,1fr)}
+ .assistant-resource-list .assistant-resource-open{grid-column:1;grid-row:auto;justify-self:end}
+}
+.assistant-command-help{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-command-help>summary{min-height:40px;display:flex;align-items:center;cursor:pointer}

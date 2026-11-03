@@ -1,0 +1,173 @@
+// 실제 비서 화면·전송 어댑터를 사용하고 외부 DB와 유료 AI 호출은 합성한다.
+import assert from 'node:assert/strict'
+import {buildSync} from 'esbuild'
+import {fileURLToPath} from 'node:url'
+import {mkdirSync,readFileSync,writeFileSync} from 'node:fs'
+import {join} from 'node:path'
+import {launchBrowser} from './launch-browser.mjs'
+
+const bundle=buildSync({entryPoints:[fileURLToPath(new URL('./workhub-assistant-workflows-fixture.tsx',import.meta.url))],bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"development"'},logLevel:'silent'}).outputFiles[0].text
+const font=readFileSync(new URL('../../apps/workhub/src/assets/fonts/PretendardVariable.woff2',import.meta.url)).toString('base64')
+const tossface=readFileSync(new URL('../../apps/workhub/src/assets/fonts/tossface/tossface.css',import.meta.url),'utf8').replace(/url\("\.\/(.*?)"\)/g,(_,file)=>`url("data:font/woff2;base64,${readFileSync(new URL('../../apps/workhub/src/assets/fonts/tossface/'+file,import.meta.url)).toString('base64')}")`)
+const html=`<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>@font-face{font-family:Pretendard;src:url(data:font/woff2;base64,${font}) format('woff2')} ${tossface} .ws-tossface{font-family:Tossface,sans-serif}*{box-sizing:border-box}body{margin:0;padding:24px;font-family:Pretendard,sans-serif;background:#f6f7f9;color:#202832}#root{max-width:1060px;margin:auto}@media(max-width:500px){body{padding:8px}}</style><div id="root"></div></html>`
+const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1280,height:1000}}),page=await context.newPage(),errors=[],external=[],results=[]
+page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message))
+await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5190/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:html})})
+const button=name=>page.getByRole('button',{name,exact:true}),input=()=>page.getByLabel('질문 또는 부탁할 일',{exact:true})
+async function settle(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
+async function start(scenario=''){
+  await page.setViewportSize({width:1280,height:1000});await page.goto('http://127.0.0.1:5190/assistant-workflows')
+  await page.evaluate(value=>window.scenario=value,scenario);await page.addScriptTag({content:bundle})
+  await input().waitFor();await settle()
+}
+async function test(name,fn,scenario=''){
+  await start(scenario)
+  try{await fn()}catch(error){console.error('실패 화면:',await page.locator('#root').innerText());throw error}
+  results.push(name);console.log('  ✓ '+name)
+}
+async function request(text,label='AI에게 요청'){await input().fill(text);await button(label).click();await settle()}
+async function capture(name,locator=page.locator('.assistant-main')){if(!process.env.WORKHUB_QA_OUTPUT)return;mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true});await page.evaluate(()=>document.fonts.ready);await locator.screenshot({path:join(process.env.WORKHUB_QA_OUTPUT,name+'.png')})}
+try{
+  await test('AI 예산이 닫혀 있어도 명시한 메뉴 이동은 유료 호출 없이 처리한다',async()=>{
+    await request('시간표 열어줘','바로 이동')
+    assert.deepEqual(await page.evaluate(()=>window.navigation),['timetable'])
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+    assert.equal(await input().inputValue(),'')
+    await page.getByRole('region',{name:'대화 업무 처리 안내'}).getByText('시간표 열어줘',{exact:true}).waitFor()
+    await input().fill('학교 규정을 설명해 주세요.')
+    assert.equal(await button('AI에게 요청').isDisabled(),true)
+  },'notready')
+  await test('부모 이동 보호가 거부하면 원문을 남기고 AI로 우회하지 않는다',async()=>{
+    await page.evaluate(()=>window.allow=false)
+    await request('시간표 열어줘','바로 이동')
+    assert.equal(await input().inputValue(),'시간표 열어줘')
+    assert.match(await page.getByRole('alert').innerText(),/입력은 유지/)
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+  })
+  await test('권한 범위 검색 결과의 원문 판과 위치를 그대로 열고 조회 한계를 표시한다',async()=>{
+    await request('학교 자료에서 출장 찾아줘','자료 찾기')
+    const result=page.getByRole('region',{name:'대화에서 찾은 자료'})
+    await result.getByRole('button',{name:/출장 안내/}).waitFor()
+    assert.deepEqual(await page.evaluate(()=>window.searches),[{query:'출장',kinds:['knowledge']}])
+    assert.match(await result.innerText(),/일부 결과/)
+    await result.getByText('조회 범위',{exact:true}).click()
+    assert.match(await result.innerText(),/첫 페이지/)
+    await result.getByRole('button',{name:/출장 안내/}).click()
+    assert.deepEqual(await page.evaluate(()=>window.opened[0]),{kind:'knowledge',id:'travel-rule',title:'출장 안내',description:'출장 절차와 제출 자료',meta:'2판 · 게시됨',version:2,locator:'원문 3항'})
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+    await capture('assistant-workspace-search')
+  },'notready')
+  await test('검색 실패는 결과 없음으로 숨기지 않고 같은 입력으로 재시도한다',async()=>{
+    await page.evaluate(()=>window.searchFail=true)
+    await request('학교 자료에서 출장 찾아줘','자료 찾기')
+    assert.equal(await input().inputValue(),'학교 자료에서 출장 찾아줘')
+    assert.match(await page.getByRole('alert').innerText(),/입력은 유지/)
+    assert.equal(await page.getByRole('region',{name:'대화에서 찾은 자료'}).count(),0)
+    await page.evaluate(()=>window.searchFail=false)
+    await button('자료 찾기').click()
+    await page.getByRole('region',{name:'대화에서 찾은 자료'}).waitFor()
+    assert.equal(await page.evaluate(()=>window.searches.length),2)
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+  })
+  await test('학교 전환 뒤 늦은 조회 결과와 이전 학교 입력은 표시하지 않는다',async()=>{
+    await page.evaluate(()=>window.deferSearch=true)
+    await request('학교 자료에서 출장 찾아줘','자료 찾기')
+    await page.waitForFunction(()=>typeof window.releaseSearch==='function')
+    assert.equal(await input().isDisabled(),true)
+    await page.evaluate(()=>{window.previousSignal=window.searchSignal;window.switchAccount()})
+    await settle()
+    assert.equal(await page.evaluate(()=>window.previousSignal.aborted),true)
+    await page.evaluate(()=>window.releaseSearch());await settle()
+    assert.equal(await page.getByRole('region',{name:'대화에서 찾은 자료'}).count(),0)
+    assert.equal(await input().inputValue(),'')
+    assert.equal(await input().isDisabled(),false)
+  })
+  await test('조회 중 재검증으로 취소해도 잠금이 풀리고 새 조회의 결과를 지우지 않는다',async()=>{
+    await page.evaluate(()=>window.deferSearch=true)
+    await request('학교 자료에서 출장 찾아줘','자료 찾기')
+    await page.waitForFunction(()=>typeof window.releaseSearch==='function')
+    await page.evaluate(()=>{window.oldRelease=window.releaseSearch;window.refresh();window.deferSearch=false});await settle()
+    assert.equal(await input().isDisabled(),false)
+    await button('자료 찾기').click()
+    await page.getByRole('region',{name:'대화에서 찾은 자료'}).waitFor()
+    await page.evaluate(()=>window.oldRelease());await settle()
+    assert.equal(await page.getByRole('region',{name:'대화에서 찾은 자료'}).count(),1)
+    assert.equal(await page.evaluate(()=>window.locked),false)
+  })
+  await test('할 일 지시는 기존 Haiku 요청 한 번과 기존 확인 저장으로 처리하고 불명 결과는 같은 키로 복구한다',async()=>{
+    await request('제출 자료 확인을 할 일로 추가해줘')
+    await button('할 일 제안 검토').waitFor()
+    const ask=await page.evaluate(()=>window.calls.find(row=>row.kind==='ask').payload)
+    assert.equal(ask.input.mode,'personal');assert.equal(ask.input.intent,'personal_assistant')
+    assert.equal(ask.input.quality,'quick');assert.equal(ask.input.threadId,null)
+    assert.equal(await page.evaluate(()=>window.tasks),0)
+    await button('할 일 제안 검토').click()
+    await page.getByLabel('할 일 제목',{exact:true}).fill('수정한 제출 자료 확인')
+    await button('추가할 내용 확인').click()
+    await capture('assistant-task-review',page.getByRole('region',{name:'개인 할 일 확인'}))
+    await page.evaluate(()=>window.taskUnknown=true)
+    await button('확인한 할 일 추가').click()
+    await button('같은 요청으로 결과 확인').waitFor()
+    const original=await page.evaluate(()=>window.calls.find(row=>row.kind==='confirm').args)
+    assert.equal(await input().isDisabled(),true)
+    await button('같은 요청으로 결과 확인').click()
+    await page.getByText('개인 할 일에 추가했습니다.',{exact:true}).waitFor()
+    assert.deepEqual(await page.evaluate(()=>window.calls.filter(row=>row.kind==='confirm')[1].args),original)
+    assert.equal(original.p_input.input.title,'수정한 제출 자료 확인')
+    assert.equal(await page.evaluate(()=>window.aiCalls),1)
+    assert.equal(await page.evaluate(()=>window.tasks),1)
+    assert.equal(await page.evaluate(()=>window.pending.count()),0)
+  })
+  await test('일정 초안은 명시한 날짜·시각만 넘기고 저장 완료로 표시하지 않는다',async()=>{
+    await request('내일 오후 3시부터 4시까지 회의 일정 초안 만들어줘','일정 초안 열기')
+    assert.equal(await page.evaluate(()=>window.calendar.length),1)
+    const draft=await page.evaluate(()=>window.calendar[0])
+    assert.equal(draft.date,'2026-11-04');assert.equal(draft.startTime,'15:00');assert.equal(draft.endTime,'16:00');assert.equal(draft.title,'회의')
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+    assert.match(await page.getByRole('region',{name:'대화 업무 처리 안내'}).innerText(),/아직 저장하지 않았습니다/)
+    assert.equal(await input().inputValue(),'')
+  })
+  await test('불완전한 일정은 시간을 지어내거나 유료 호출하지 않고 되묻는다',async()=>{
+    await request('내일 회의 일정 초안 만들어줘','일정 초안 열기')
+    assert.equal(await page.evaluate(()=>window.calendar.length),0)
+    assert.equal(await input().inputValue(),'내일 회의 일정 초안 만들어줘')
+    assert.match(await page.getByRole('status').last().innerText(),/시작·종료 시각/)
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+  })
+  await test('기존 일정 편집이 남아 초안 연결이 거부되면 원래 지시를 유지한다',async()=>{
+    await page.evaluate(()=>window.allow=false)
+    const text='내일 종일 회의 일정 초안 만들어줘'
+    await request(text,'일정 초안 열기')
+    assert.equal(await input().inputValue(),text)
+    assert.equal(await page.getByRole('region',{name:'대화 업무 처리 안내'}).count(),0)
+    assert.equal(await page.evaluate(()=>window.tasks),0)
+  })
+  await test('다른 화면에서 전달한 문서 근거 문장은 메뉴 명령으로 가로채지 않는다',async()=>{
+    await page.evaluate(()=>window.setContext({id:'context-one',request:{mode:'school',intent:'document_draft',prompt:'시간표 열어줘',references:[{kind:'knowledge',id:'travel-rule',version:2}],studentContext:null}}))
+    await button('전달받은 요청 사용').click();await settle()
+    await button('AI에게 요청').click()
+    await page.getByRole('heading',{name:'AI 답변',exact:true}).waitFor()
+    assert.deepEqual(await page.evaluate(()=>window.navigation),[])
+    assert.equal(await page.evaluate(()=>window.calls[0].payload.input.references[0].version),2)
+    assert.equal(await page.evaluate(()=>window.aiCalls),1)
+  })
+  await test('활성 소속이 아니면 무료 명령도 실행하지 않는다',async()=>{
+    await page.evaluate(()=>window.endMembership());await settle()
+    await input().fill('시간표 열어줘')
+    assert.equal(await button('바로 이동').isDisabled(),true)
+    assert.equal(await page.evaluate(()=>window.navigation.length),0)
+  })
+  await test('좁은 화면·확대 글자에서도 검색 카드와 입력이 가로로 넘치지 않는다',async()=>{
+    await request('학교 자료에서 출장 찾아줘','자료 찾기')
+    await page.getByRole('region',{name:'대화에서 찾은 자료'}).waitFor()
+    await page.setViewportSize({width:320,height:840})
+    await page.addStyleTag({content:':root{--ui-body-size:28px;--ui-small-size:24px}'})
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
+    await capture('assistant-workspace-mobile')
+  })
+  assert.deepEqual(errors,[]);assert.deepEqual(external,[])
+  console.log(`대화 업무 연결 브라우저: ${results.length}개 통과`)
+}finally{
+  if(process.env.WORKHUB_QA_OUTPUT){mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true});writeFileSync(join(process.env.WORKHUB_QA_OUTPUT,'results.json'),JSON.stringify({results,errors,external},null,2))}
+  await browser.close()
+}

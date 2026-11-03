@@ -14,11 +14,13 @@ import styles from './assistant.css?inline'
 import type { Citation } from './contracts'
 import { intentLabels } from './workspace-model'
 import type { useAssistantWorkspace } from './useAssistantWorkspace'
+import { WorkspaceCommandResult } from './WorkspaceCommandResult'
 export function AssistantView({ model }: { model: ReturnType<typeof useAssistantWorkspace> }) {
   const {
     addTask,
     applyContext,
     ask,
+    canSubmit,
     baseEditable,
     budgetError,
     busy,
@@ -49,6 +51,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     onOpenTask,
     openKnowledgeCitation,
     openTask,
+    openWorkspaceItem,
     openingCitation,
     operation,
     pending,
@@ -62,6 +65,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     schoolStatus,
     server,
     session,
+    submitLabel,
     setError,
     setMemoryLocked,
     setNotice,
@@ -71,6 +75,12 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     threads,
     uid,
     update,
+    workspaceActions,
+    workspaceActionNotice,
+    workspaceCommand,
+    workspaceEditable,
+    workspaceResult,
+    workspaceSearching,
   } = model
   return (
     <section className="assistant-workspace" aria-labelledby={`${uid}-title`}>
@@ -115,7 +125,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               ? '승인된 이용 한도에 도달했습니다.'
               : '학교 자료 연결과 승인된 AI 이용 설정이 완료되면 사용할 수 있습니다.'}
           </p>
-          <p>작성한 입력은 이 탭에 유지됩니다.</p>
+          <p>{workspaceActions ? '메뉴 이동과 자료 찾기는 계속 사용할 수 있습니다.' : '작성한 입력은 이 탭에 유지됩니다.'}</p>
         </div>
       )}
       {readError && <p role="alert">{readError}</p>}
@@ -138,7 +148,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           type="button"
           className="assistant-quiet"
           disabled={locked || busy}
-          onClick={() => update({ ...latest.current, thread: undefined })}
+          onClick={() => update({ ...latest.current, thread: undefined, contextId: undefined })}
         >
           새 대화
         </button>
@@ -198,10 +208,10 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
       )}
       <div className="assistant-layout">
         <div className="assistant-main">
-          {!readError && !loading && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
+          {!readError && !loading && !workspaceResult && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
             <div className="assistant-welcome">
               <h3>어떤 일을 도와드릴까요?</h3>
-              <p>학교 자료를 찾아보고, 필요한 내용을 함께 정리하세요.</p>
+              <p>{workspaceActions ? '찾고 싶은 자료, 해야 할 일, 이동할 화면을 말씀해 주세요.' : '학교 자료를 찾아보고, 필요한 내용을 함께 정리하세요.'}</p>
               <div className="assistant-starters" aria-label="요청 종류 빠른 선택">
                 {([
                   ['school_advice', 'knowledge', '학교 업무 알아보기', '규정과 절차 확인'],
@@ -409,6 +419,14 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 </article>
               ))}
           </div>
+          {workspaceSearching && <p role="status" className="assistant-workspace-searching">열람 가능한 자료를 찾고 있습니다.</p>}
+          {workspaceActionNotice && enabled && <section className="assistant-workspace-result" aria-label="대화 업무 처리 안내">
+            <p className="assistant-command-question">{workspaceActionNotice.prompt}</p>
+            <p role="status">{workspaceActionNotice.message}</p>
+          </section>}
+          {workspaceResult && enabled && <WorkspaceCommandResult {...workspaceResult}
+            disabled={!workspaceEditable || Boolean(session.prompt.trim())}
+            onOpen={openWorkspaceItem} />}
           <form
             className="assistant-compose"
             onSubmit={(event) => {
@@ -483,11 +501,22 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               rows={4}
               aria-describedby={`${uid}-prompt-hint`}
               aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars}
-              placeholder="예: 선택한 학교 규정에서 제출 절차를 알려 주세요."
+              placeholder={workspaceActions ? '예: 시간표 열어줘 · 학교 자료에서 출장 찾아줘' : '예: 선택한 학교 규정에서 제출 절차를 알려 주세요.'}
               disabled={busy || memoryLocked || Boolean(recovery.request) || Boolean(draft)}
               value={session.prompt}
               onChange={(event) => update({ ...latest.current, prompt: event.target.value })}
             />
+            {workspaceActions && !session.contextId && !session.references.length && !session.studentContext && (
+              <details className="assistant-command-help">
+                <summary>대화로 할 수 있는 일</summary>
+                <div className="assistant-command-examples">
+                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '내일 오후 3시부터 4시까지 회의 일정 초안 만들어줘'].map((text) => (
+                  <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
+                    onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
+                ))}
+                </div>
+              </details>
+            )}
             <span id={`${uid}-prompt-hint`} className="assistant-hint">
               {Array.from(session.prompt).length} / {ASSISTANT_LIMITS.promptChars}자 · 상담·건강
               정보는 입력하지 마세요.
@@ -503,15 +532,16 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 type="submit"
                 className="assistant-primary"
                 disabled={
-                  !editable ||
+                  !canSubmit ||
                   Boolean(draft) ||
                   Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars ||
                   !session.prompt.trim() ||
-                  (session.intent === 'student_record_draft' && !session.studentContext)
+                  (session.intent === 'student_record_draft' && !session.studentContext && !workspaceCommand)
                 }
               >
-                AI에게 요청
+                {submitLabel}
               </button>
+              {workspaceCommand && workspaceCommand.kind !== 'task' && <span className="assistant-hint">AI 사용료 없이 처리</span>}
               <button
                 type="button"
                 className="assistant-quiet"

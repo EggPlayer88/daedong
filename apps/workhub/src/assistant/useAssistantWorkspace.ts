@@ -25,6 +25,9 @@ import { legacySchoolAiHttp } from './legacy-http'
 import { legacyAssistantHttp } from './legacy-http'
 import { knowledgeCitationRequest } from '../knowledge/assistant-links'
 import type { Citation } from './contracts'
+import type { SearchItem } from '../search/contracts'
+import { parseWorkspaceCommand, type WorkspaceCommand } from './workspace-commands'
+import type { AssistantWorkspaceSearchResult } from './workspace-model'
 import {
   AssistantPanelProps,
   Pending,
@@ -45,6 +48,7 @@ export function useAssistantWorkspace({
   onComposeMessage,
   onOpenTask,
   onOpenKnowledgeCitation,
+  workspaceActions,
   server: provided,
   settingsServer: providedSettings,
   memoryServer,
@@ -87,6 +91,15 @@ export function useAssistantWorkspace({
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [readError, setReadError] = useState('')
+  const [workspaceResult, setWorkspaceResult] = useState<{
+    prompt: string
+    query: string
+    result: AssistantWorkspaceSearchResult
+  }>()
+  const [workspaceSearching, setWorkspaceSearching] = useState(false)
+  const [workspaceActionNotice, setWorkspaceActionNotice] = useState<{ prompt: string; message: string }>()
+  const searchFlight = useRef<AbortController>()
+  const searchEpoch = useRef(0)
   const settingsServer = useMemo(
     () => providedSettings ?? createSchoolAiSettingsServer(connection, legacySchoolAiHttp),
     [providedSettings, connection],
@@ -129,6 +142,18 @@ export function useAssistantWorkspace({
     ),
     baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError,
     editable = baseEditable && !memoryLocked
+  const workspaceEditable = Boolean(workspaceActions) && enabled && !busy && !recovery.request &&
+    !memoryLocked && !session.proposal && !openingCitation
+  // 다른 화면이 고정한 원문·학생 근거와 AI 출력은 명령으로 해석하지 않는다.
+  const commandContext = Boolean(workspaceActions) && !session.contextId &&
+    !session.references.length && !session.studentContext
+  const workspaceCommand = commandContext ? parseWorkspaceCommand(session.prompt, date) : null
+  const freeCommand = workspaceCommand && workspaceCommand.kind !== 'task'
+  const canSubmit = freeCommand ? workspaceEditable : editable
+  const submitLabel = workspaceCommand?.kind === 'navigate' ? '바로 이동' :
+    workspaceCommand?.kind === 'search' ? '자료 찾기' :
+    workspaceCommand?.kind === 'calendar' ? '일정 초안 열기' :
+    workspaceCommand?.kind === 'clarify' ? '요청 확인' : 'AI에게 요청'
   function update(value: Session) {
     latest.current = value
     memory.save(value, Boolean(value.prompt.trim() || value.proposal))
@@ -140,6 +165,20 @@ export function useAssistantWorkspace({
     },
     [server],
   )
+  useEffect(() => {
+    setWorkspaceResult(undefined)
+    setWorkspaceActionNotice(undefined)
+    return () => {
+      searchEpoch.current++
+      searchFlight.current?.abort()
+      if (searchFlight.current) {
+        searchFlight.current = undefined
+        operation.current = false
+        setBusy(false)
+        setWorkspaceSearching(false)
+      }
+    }
+  }, [member.id, member.schoolId, date, enabled, revision, server])
   // 단순 질문 초안은 옆자리와 탭 메모리에 남는다. 처리·복구·편집 확정 중에만 메뉴 이동을 막는다.
   const navigationLocked = Boolean(session.proposal || recovery.request || busy || memoryLocked)
   useEffect(() => {
@@ -380,10 +419,97 @@ export function useAssistantWorkspace({
       }
     }
   }
+  async function searchWorkspace(command: Extract<WorkspaceCommand, { kind: 'search' }>) {
+    if (!workspaceActions || !workspaceEditable || operation.current) return
+    operation.current = true
+    setBusy(true)
+    setWorkspaceSearching(true)
+    setWorkspaceResult(undefined)
+    setError('')
+    setNotice('')
+    const epoch = ++searchEpoch.current, lifecycle = life.current,
+      controller = new AbortController(), prompt = latest.current.prompt
+    searchFlight.current?.abort()
+    searchFlight.current = controller
+    try {
+      const result = await workspaceActions.search(command.query, command.kinds, controller.signal)
+      if (controller.signal.aborted || searchEpoch.current !== epoch || life.current !== lifecycle) return
+      setWorkspaceResult({ prompt, query: command.query, result })
+      update({ ...latest.current, prompt: '' })
+    } catch {
+      if (!controller.signal.aborted && searchEpoch.current === epoch && life.current === lifecycle)
+        setError('자료를 찾지 못했습니다. 입력은 유지했습니다. 잠시 뒤 다시 확인해 주세요.')
+    } finally {
+      if (life.current === lifecycle && searchFlight.current === controller) {
+        searchFlight.current = undefined
+        operation.current = false
+        setBusy(false)
+        setWorkspaceSearching(false)
+      }
+    }
+  }
+  function openWorkspaceItem(item: SearchItem) {
+    if (!workspaceActions || !workspaceEditable || operation.current || latest.current.prompt.trim()) return
+    const found = workspaceResult?.result.items.find((row) => row === item)
+    if (!found) return
+    try {
+      if (!workspaceActions.open(found)) throw new Error('이동 보류')
+      setError('')
+    } catch {
+      setError('자료를 열지 못했습니다. 현재 작성 중인 작업을 확인한 뒤 다시 열어 주세요.')
+    }
+  }
   function ask() {
+    if (workspaceCommand && !workspaceEditable) return
+    if (workspaceCommand && workspaceEditable && !operation.current) {
+      if (workspaceCommand.kind === 'clarify') {
+        setNotice(workspaceCommand.message)
+        setError('')
+        return
+      }
+      if (workspaceCommand.kind === 'search') {
+        void searchWorkspace(workspaceCommand)
+        return
+      }
+      if (workspaceCommand.kind === 'navigate' || workspaceCommand.kind === 'calendar') {
+        if (workspaceCommand.kind === 'calendar' && (!workspaceCommand.title || !workspaceCommand.date ||
+          (!workspaceCommand.allDay && (!workspaceCommand.startTime || !workspaceCommand.endTime)))) {
+          setNotice('일정 제목과 날짜, 시작·종료 시각을 함께 알려 주세요. 하루 일정은 “종일”이라고 적어 주세요.')
+          setError('')
+          return
+        }
+        try {
+          // 이동 전에 busy를 세우면 부모의 기존 이동 보호가 자기 요청까지 막으므로 동기로 넘긴다.
+          const accepted = workspaceCommand.kind === 'navigate'
+            ? workspaceActions!.navigate(workspaceCommand.page)
+            : workspaceActions!.calendar(workspaceCommand)
+          if (!accepted) throw new Error('기존 작업 확인 필요')
+          setWorkspaceActionNotice({ prompt: latest.current.prompt,
+            message: workspaceCommand.kind === 'calendar'
+              ? '일정 화면에서 초안을 확인한 뒤 저장해 주세요. 아직 저장하지 않았습니다.'
+              : '요청한 화면을 열었습니다.' })
+          setWorkspaceResult(undefined)
+          update({ ...latest.current, prompt: '' })
+          setError('')
+          setNotice('')
+        } catch {
+          setError('화면을 열지 못했습니다. 입력은 유지했습니다. 현재 작성 중인 작업과 이용 가능한 메뉴를 확인해 주세요.')
+        }
+        return
+      }
+    }
     if (!editable || operation.current) return
     try {
-      const current = latest.current,
+      let current = latest.current
+      if (workspaceCommand?.kind === 'task' && workspaceEditable) {
+        current = {
+          ...current, mode: 'personal', intent: 'personal_assistant',
+          thread: current.mode === 'personal' && current.intent === 'personal_assistant'
+            ? current.thread : undefined,
+        }
+        update(current)
+      }
+      const
         input = freshAssistantInput({
           mode: current.mode,
           intent: current.intent,
@@ -546,6 +672,7 @@ export function useAssistantWorkspace({
     addTask,
     applyContext,
     ask,
+    canSubmit,
     baseEditable,
     budgetError,
     busy,
@@ -576,6 +703,7 @@ export function useAssistantWorkspace({
     onOpenTask,
     openKnowledgeCitation,
     openTask,
+    openWorkspaceItem,
     openingCitation,
     operation,
     pending,
@@ -589,6 +717,7 @@ export function useAssistantWorkspace({
     schoolStatus,
     server,
     session,
+    submitLabel,
     setError,
     setMemoryLocked,
     setNotice,
@@ -598,5 +727,11 @@ export function useAssistantWorkspace({
     threads,
     uid,
     update,
+    workspaceActions,
+    workspaceActionNotice,
+    workspaceCommand,
+    workspaceEditable,
+    workspaceResult,
+    workspaceSearching,
   }
 }
