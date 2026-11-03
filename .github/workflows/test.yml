@@ -222,7 +222,10 @@ jobs:
         env:
           WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
           WORKHUB_DEPLOYMENT_TEST_PORT: '55659'
-        run: python database/workhub-annual/af2/test/run_current_baseline.py
+        run: |
+          python database/workhub-annual/af2/test/run_current_baseline.py
+          python database/workhub-current/int11/build_checks.py
+          npm run check:workhub:current-checks
       - name: 실제 시간표 가져오기 SQL·원자성·앱 응답
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
