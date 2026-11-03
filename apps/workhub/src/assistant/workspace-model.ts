@@ -19,6 +19,21 @@ import {
 } from './contracts'
 import type { SchoolAiSettingsServer } from './school-settings-contracts'
 import { type KnowledgeAssistantRequest } from '../knowledge/assistant-links'
+import type { PageId } from '../modules'
+import type { SearchItem, SearchKind } from '../search/contracts'
+import type { WorkspaceCommand } from './workspace-commands'
+export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
+export interface AssistantWorkspaceSearchResult {
+  items: SearchItem[]
+  coverage: string[]
+  hasMore: boolean
+}
+export interface AssistantWorkspaceActions {
+  navigate: (page: PageId) => boolean
+  search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
+  open: (item: SearchItem) => boolean
+  calendar: (command: CalendarWorkspaceCommand) => boolean
+}
 export interface AssistantDraftReady {
   intent: AssistantIntent
   segments: AnswerSegment[]
@@ -41,6 +56,7 @@ export interface AssistantPanelProps {
   onComposeMessage?: (draft: { requestId: string; body: string }) => void
   onOpenTask?: (taskId: string) => void
   onOpenKnowledgeCitation?: (request: KnowledgeAssistantRequest) => void | Promise<void>
+  workspaceActions?: AssistantWorkspaceActions
   server?: AssistantServer
   settingsServer?: SchoolAiSettingsServer
   memoryServer?: MemoryService

@@ -15,6 +15,9 @@ import { HomeOverviewPanel } from '../home/HomeOverviewPanel'
 import { homeCountLabels } from '../home/counts'
 import type { HomeKind } from '../home/overview'
 import { CalendarPanel } from '../calendar/CalendarPanel'
+import { buildAssistantCalendarDraft, type AssistantCalendarDraftRequest } from '../calendar/assistant-draft'
+import type { AssistantWorkspaceActions } from '../assistant/workspace-model'
+import { searchAssistantWorkspace } from '../assistant/workspace-search'
 import { activeAt } from '../domain'
 import { ContractError } from '../contracts'
 import { createSupabaseConnection, type SupabaseConnection } from '../connection/supabase-connection'
@@ -109,13 +112,14 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [guidedSuggestion, setGuidedSuggestion] = useState<GuidedAiSuggestion>()
   const [knowledgeOpen, setKnowledgeOpen] = useState<{ scope: string; request: KnowledgeOpenRequest; fromPage?: PageId }>()
   const [messageDraft, setMessageDraft] = useState<{scope:string;draft:MessageComposeRequest}>()
+  const [assistantCalendar, setAssistantCalendar] = useState<{scope:string;request:AssistantCalendarDraftRequest;prompt:string}>()
   const [generatedFile, setGeneratedFile] = useState<{scope:string; value:GeneratedDocument}>()
   const [handoffError, setHandoffError] = useState('')
   const [homeListOpen, setHomeListOpen] = useState<{ scope: string; kind: HomeKind; page: PageId }>()
   const [teachingOpen,setTeachingOpen]=useState<{scope:string;courseId:string;token:string;source:'home'|'search'}>()
   const [transitionOpen,setTransitionOpen]=useState<{scope:string;key:string;id:string}>()
   const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId?:string;requestId?:string;notificationId?:string;date?:string;key:string;fromPage:'home'|'calendar'|'messages'|'schoolAdmin';intent?:{kind:'makeup';lessonId:string;token:string};preparationStep?:'target'|'setup'|'preparation'|'import'}>()
-  const clearHandoffs = useCallback(() => {setAssistantOpen(false);setAssistantVisited(false);setAssistantNavigationLocked(false);setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTransitionOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
+  const clearHandoffs = useCallback(() => {setAssistantOpen(false);setAssistantVisited(false);setAssistantNavigationLocked(false);setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setAssistantCalendar(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTransitionOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
 
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
@@ -243,13 +247,42 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!resource.openSearchItem(item)) return false
     setHandoff(undefined);setWorkReturn(undefined);return true
   }
+  const assistantActions: AssistantWorkspaceActions = {
+    navigate(next) {
+      if (!member || connectionUnavailable || navigationLocked || !connectedPages.includes(next)) return false
+      if (!navigate(next)) return false
+      setWorkReturn(next === 'assistant' ? undefined : {scope:currentScope,page:next,fromPage:'assistant'})
+      setAssistantOpen(false)
+      return true
+    },
+    search: (query, kinds, signal) => searchAssistantWorkspace(searchSources, query, kinds, signal),
+    open(item) {
+      if (!openSearchItem(item)) return false
+      setAssistantOpen(false)
+      return true
+    },
+    calendar(command) {
+      if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() || batchOpen || assistantCalendar) return false
+      const prior = editDrafts.bind<{editor?:unknown;importing?:boolean}>(currentScope,'calendar-panel').initial
+      if (prior?.editor || prior?.importing || editDrafts.bind(currentScope,'calendar-editor').initial
+        || editDrafts.bind(currentScope,'calendar-import').initial || editDrafts.bind(currentScope,'calendar-batch').initial) return false
+      try {
+        const draft = buildAssistantCalendarDraft(command,member,context.basisDate)
+        if (!navigate('calendar')) return false
+        setAssistantCalendar({scope:currentScope,request:{id:crypto.randomUUID(),schoolId:member.schoolId,memberId:member.id,draft},prompt:command.prompt})
+        setWorkReturn({scope:currentScope,page:'calendar',fromPage:'assistant'})
+        setAssistantOpen(false)
+        return true
+      } catch { return false }
+    },
+  }
   function sendToAssistant(request: AssistantContextRequest, origin?: GuidedAiOrigin) {
     if (!member) return
     setHandoffError('');setSetupOrigin(undefined);setSetupSuggestion(undefined);setGuidedOrigin(origin);setGuidedSuggestion(undefined);setAssistantContext({scope:currentScope,id:origin?.id ?? crypto.randomUUID(),request});openAssistant()
   }
 
   function openAssistant() { setAssistantVisited(true); setAssistantOpen(true) }
-  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && navigationLocked} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantPanel onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={value => {
+  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && navigationLocked} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantPanel workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={value => {
                const request = {...value,key:crypto.randomUUID()}
                if (!validKnowledgeOpenRequest(request,member)) throw new Error('현재 학교의 인용인지 확인하지 못했습니다.')
                setKnowledgeOpen({scope:currentScope,request});setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'knowledge'})
@@ -332,6 +365,12 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
             page === 'calendar' && batchOpen ? <main id="main-content" className="main-content"><header className="page-header"><h1 tabIndex={-1}>시트에서 일정 가져오기</h1></header><Suspense fallback={<p role="status">일괄 가져오기를 준비하고 있습니다…</p>}><CalendarBatchImport connection={connection} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setBatchNavigationLocked} onClose={() => setBatchOpen(false)} onSaved={() => setRefreshEpoch(value => value + 1)} /></Suspense></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
               page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked} onOpenBatchImport={() => setBatchOpen(true)}
+              assistantDraftRequest={assistantCalendar?.scope === currentScope ? assistantCalendar.request : undefined}
+              onAssistantDraftHandled={(id,accepted) => {
+                if (!assistantCalendar || assistantCalendar.scope !== currentScope || assistantCalendar.request.id !== id) return
+                if (!accepted) setHandoffError(`일정 초안을 열지 못했습니다. 기존 입력은 유지했습니다. 원래 요청: ${assistantCalendar.prompt}`)
+                setAssistantCalendar(undefined)
+              }}
               relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} storageLabel="현재 학교 서버에 저장"
               openRequest={requested?.kind === 'calendar' && requested.id ? { key: requested.key, id: requested.id } : undefined}
               renderLessonAgenda={lessonDate => <ModuleBoundary moduleName="내 수업" resetKey={`${resetKey}:${lessonDate}`}><Suspense fallback={<p role="status">내 수업을 확인하는 중…</p>}><TimetableAgendaWorkspace connection={connection} member={member} date={lessonDate} revision={refreshEpoch} onOpen={(lessonId, date) => {if(resource.navigate('timetable'))setTimetableOpen({scope:currentScope,lessonId,date,key:crypto.randomUUID(),fromPage:page === 'calendar' ? 'calendar' : 'home'})}} /></Suspense></ModuleBoundary>}

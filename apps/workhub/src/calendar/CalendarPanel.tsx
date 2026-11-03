@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import type { CalendarEvent, Membership } from '../contracts'
+import type { CalendarEvent, EventDraft, Membership } from '../contracts'
 import { activeAt, canEdit, homeItems } from '../domain'
-import { dateLabel, EventEditor, visibilityLabels, type Adapter } from './EventEditor'
+import { dateLabel, EventEditor, visibilityLabels, type Adapter, type EventEditorSnapshot } from './EventEditor'
+import { validateAssistantCalendarDraftRequest, type AssistantCalendarDraftRequest } from './assistant-draft'
 import type { RelationOptions } from './contracts'
 import { eventTiming } from './formatting'
 import { addDays, dateRange, dayLabel, daysInRange, filterCalendarEvents, monthGrid, overlaps, rangeLabel, shiftPeriod, upcomingPreview, type CalendarRelation, type CalendarView } from './presentation'
@@ -12,7 +13,7 @@ import { CalendarImport } from './CalendarImport'
 import { PendingRequestsProvider, useRecoveryStore, usePendingRequest, recoveryScope } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 import { WorkspaceIcon } from '../app/WorkspaceIcon'
-interface CalendarSession { editor?: { original?: CalendarEvent }; importing: boolean; importedCount: number }
+interface CalendarSession { editor?: { original?: CalendarEvent; initialDraft?: EventDraft }; importing: boolean; importedCount: number }
 interface CalendarBrowseState { search: string; view: CalendarView; anchor: string; relation: CalendarRelation; allDates: boolean }
 const Icon = ({ name }: { name: 'arrow' | 'plus' }) => <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d={name === 'plus' ? 'M12 5v14M5 12h14' : 'M5 12h14m-5-5 5 5-5 5'} /></svg>
 
@@ -21,10 +22,14 @@ export function CalendarPanel(props: Parameters<typeof CalendarPanelScope>[0]) {
   return <PendingRequestsProvider store={recovery}><CalendarPanelScope key={recoveryScope(props.member)} {...props} /></PendingRequestsProvider>
 }
 
-function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homePriority, homeExtras, homeFollowUp, storageLabel, onNavigationLockChange, openRequest, onOpenBatchImport, renderLessonAgenda }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homePriority?: ReactNode; homeExtras?: ReactNode; homeFollowUp?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest; onOpenBatchImport?: () => void; renderLessonAgenda?: (date: string) => ReactNode }) {
+function CalendarPanelScope({ member, members, schoolName, date, adapter, revision, page, onPageChange, relationOptions, demo = false, homePriority, homeExtras, homeFollowUp, storageLabel, onNavigationLockChange, openRequest, onOpenBatchImport, renderLessonAgenda, assistantDraftRequest, onAssistantDraftHandled }: { member: Membership; members: Membership[]; schoolName: string; date: string; adapter: Adapter; revision: number; page: 'home' | 'calendar'; onPageChange: (page: 'home' | 'calendar') => void; relationOptions?: RelationOptions; demo?: boolean; homePriority?: ReactNode; homeExtras?: ReactNode; homeFollowUp?: ReactNode; storageLabel?: string; onNavigationLockChange?: (locked: boolean) => void; openRequest?: ResourceOpenRequest; onOpenBatchImport?: () => void; renderLessonAgenda?: (date: string) => ReactNode; assistantDraftRequest?: AssistantCalendarDraftRequest; onAssistantDraftHandled?: (id: string, accepted: boolean) => void }) {
   const recovery = usePendingRequest(member, 'calendar')
   const draft = useEditDraft<CalendarSession>(member, 'calendar-panel')
   const browse = useEditDraft<CalendarBrowseState>(member, 'calendar-browse')
+  const editorMemory = useEditDraft<EventEditorSnapshot>(member, 'calendar-editor')
+  const restoredEditor = useRef(editorMemory.initial)
+  const handledMemory = useEditDraft<string[]>(member, 'calendar-assistant-handled')
+  const handledAssistantRequests = useRef(new Set(handledMemory.initial ?? []))
   const [session, setSession] = useState<CalendarSession>(() => draft.initial ?? { importing: false, importedCount: 0 })
   const sessionRef = useRef(session)
   const { editor, importing, importedCount } = session
@@ -39,6 +44,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   function discardEditor() {
     // 거부 안내는 현재 창에 남기되 다음 연결에서 과거 원본을 다시 열지 않는다.
     sessionRef.current = { ...sessionRef.current, editor: undefined }
+    restoredEditor.current = undefined
     draft.remove()
   }
   const setImporting = (value: boolean) => updateSession({ importing: value })
@@ -76,6 +82,25 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   }, [editor, recovery.request])
   const previousPage = useRef(page)
   const openedRequest = useRef('')
+  useEffect(() => {
+    if (!assistantDraftRequest || page !== 'calendar' || handledAssistantRequests.current.has(assistantDraftRequest.id)) return
+    handledAssistantRequests.current.add(assistantDraftRequest.id)
+    handledMemory.save([...handledAssistantRequests.current], false)
+    let accepted = false
+    try {
+      const request = validateAssistantCalendarDraftRequest(assistantDraftRequest, member, date)
+      if (sessionRef.current.editor || sessionRef.current.importing || recovery.request || restoredEditor.current || detail || (openRequest && openedRequest.current !== openRequest.key)) {
+        setMessage('진행 중인 일정 입력을 유지했습니다. 마친 뒤 대화에서 일정 초안을 다시 열어 주세요.')
+      } else {
+        setEditor({ initialDraft: request.draft })
+        setMessage('대화에서 가져온 일정 초안입니다. 날짜·시간과 공유 범위를 확인한 뒤 저장해 주세요.')
+        accepted = true
+      }
+    } catch (failure) {
+      setMessage(failure instanceof Error ? failure.message : '일정 초안을 열지 못했습니다. 대화의 입력은 유지합니다.')
+    }
+    onAssistantDraftHandled?.(assistantDraftRequest.id, accepted)
+  }, [assistantDraftRequest, page, member, date, recovery.request, detail, openRequest, handledMemory, onAssistantDraftHandled])
   // 저장 뒤 목록을 다시 읽으면 이전 일정 버튼이 사라질 수 있어 완료 안내로 잇는다.
   useEffect(() => { if (message) successMessage.current?.focus() }, [message])
   useEffect(() => {
@@ -162,7 +187,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
     </section>}
     {page === 'calendar' && <details className="home-display-help"><summary>일정 도움말</summary><p>{demo ? '합성 기준일' : '한국 시간'} {date} 기준으로 내 업무·학년·교과와 관련된 일정을 표시합니다. 종일 일정은 종료일까지 포함하며, 진행 중인 일정은 오늘에 표시합니다. 전체 일정에서는 현재 소속으로 열람 가능한 다른 일정도 확인할 수 있습니다.</p></details>}
     {demo && <footer className="workspace-footer">{storageLabel ?? '합성 자료 · 개발 저장소'}</footer>}
-  </main>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setImportLocked} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} editingBlocked={Boolean(recovery.request)} onClose={() => setDetail(undefined)} onEdit={event => { if (recovery.request) return; setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setEditorLocked} onDiscard={discardEditor} onSuspend={() => { focusRecovery.current = true; setEditor(undefined) }} onClose={() => setEditor(undefined)} onSaved={event => { setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
+  </main>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setImportLocked} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} editingBlocked={Boolean(recovery.request)} onClose={() => setDetail(undefined)} onEdit={event => { if (recovery.request) return; setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} initialDraft={editor.initialDraft} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setEditorLocked} onDiscard={discardEditor} onSuspend={() => { focusRecovery.current = true; setEditor(undefined) }} onClose={() => { restoredEditor.current = undefined; setEditor(undefined) }} onSaved={event => { restoredEditor.current = undefined; setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
 }
 function EventCard({ event, reason, onOpen, compact = false, summary = false, today = false, shownDate }: { event: CalendarEvent; reason?: string; onOpen: (id: string) => void; compact?: boolean; summary?: boolean; today?: boolean; shownDate?: string }) {
   const timeDescriptionId = useId()
