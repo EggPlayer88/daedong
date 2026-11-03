@@ -18,6 +18,10 @@ import { blank, inputOf, same } from './collection-editor-model'
 import type { useCollectionEditor } from './useCollectionEditor'
 export function CollectionEditorView({ model }: { model: ReturnType<typeof useCollectionEditor> }) {
   const {
+    answerClosed,
+    answerSubmitClosed,
+    canWriteSubmission,
+    submissionArchived,
     allowedMembers,
     attachGenerated,
     blocked,
@@ -164,7 +168,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
           aria-describedby={descriptionId}
           disabled={
             blocked ||
-            (parent.kind === 'draft' && submissionClosed) ||
+            (parent.kind === 'draft' && !canWriteSubmission(parent.unitId)) ||
             files.length >= filePolicy.maxFiles
           }
           accept=".hwpx"
@@ -1039,8 +1043,10 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
               {submissionClosed && (
                 <p className="cs-warning" role="status">
                   {operationState?.phase === 'archived' ? '보관 중인' : '마감된'} 수합입니다. 새
-                  제출과 정정 기간 설정은 접수를 재개한 뒤 가능합니다. 남은 보완 요청도 담당자가
-                  접수 상태와 기한을 확인해야 합니다. 기존 제출본은 내려받을 수 있습니다.
+                  제출과 정정 기간 설정은 접수를 재개한 뒤 가능합니다.
+                  {!submissionArchived &&
+                    ' 다만 보완 요청을 받은 단위는 해당 보완 기한까지 파일을 저장하고, 그 요청을 선택해 다시 제출할 수 있습니다.'}
+                  {' '}기존 제출본은 내려받을 수 있습니다.
                 </p>
               )}
               {publishReview && (
@@ -1163,7 +1169,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                             type="button"
                             data-cs-focus="answer-button"
                             data-cs-key={unit.id}
-                            disabled={locked || !readiness?.available || submissionClosed}
+                            disabled={locked || !readiness?.available || !canWriteSubmission(unit.id)}
                             onClick={() => {
                               void openAnswer(unit.id)
                             }}
@@ -1186,7 +1192,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                                 type="button"
                                 data-cs-focus="manage-button"
                                 data-cs-key={`${unit.id}-withdraw`}
-                                disabled={locked || !readiness?.available}
+                                disabled={locked || !readiness?.available || submissionClosed}
                                 onClick={() => {
                                   focusNext('management')
                                   setSession({
@@ -1249,7 +1255,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                                   aria-label="검토 의견"
                                   maxLength={1000}
                                   value={session.review.note}
-                                  disabled={blocked}
+                                  disabled={blocked || submissionArchived}
                                   onChange={(event) =>
                                     setSession({
                                       ...session,
@@ -1264,7 +1270,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                                   type="date"
                                   min={date}
                                   value={session.review.dueDate}
-                                  disabled={blocked}
+                                  disabled={blocked || submissionArchived}
                                   onChange={(event) =>
                                     setSession({
                                       ...session,
@@ -1276,7 +1282,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                               <div className="cs-actions">
                                 <button
                                   type="button"
-                                  disabled={blocked}
+                                  disabled={blocked || submissionArchived}
                                   onClick={() => {
                                     void mutate({
                                       kind: 'review',
@@ -1296,6 +1302,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                                   type="button"
                                   disabled={
                                     blocked ||
+                                    submissionArchived ||
                                     !session.review.note.trim() ||
                                     !session.review.dueDate ||
                                     session.review.dueDate < date
@@ -1332,7 +1339,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                               type="button"
                               data-cs-focus="review-button"
                               data-cs-key={unit.id}
-                              disabled={locked || !readiness?.available}
+                              disabled={locked || !readiness?.available || submissionArchived}
                               onClick={() => {
                                 focusNext('review')
                                 setSession({
@@ -1473,7 +1480,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
               aria-label="제출 파일 작성"
               onSubmit={(event) => {
                 event.preventDefault()
-                if (!blocked && !submissionClosed)
+                if (!blocked && !answerClosed)
                   void mutate({
                     kind: 'save_draft',
                     requestId: session.answer!.requestId,
@@ -1491,10 +1498,10 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                 <p>파일을 저장한 뒤 최종 제출해 주세요.</p>
               </header>
               {submissionGuide && <CollectionSubmissionGuide guidance={submissionGuide} />}
-              {submissionClosed && (
+              {answerClosed && (
                 <p role="status" className="cs-warning">
-                  접수가 마감되었거나 보관 중입니다. 작성한 입력은 유지되며 새 저장·제출은 담당자가
-                  접수를 재개한 뒤 할 수 있습니다.
+                  지금은 새 저장·제출을 할 수 없습니다. 작성한 입력은 유지됩니다. 접수 상태와
+                  보완 요청 기한을 확인해 주세요.
                 </p>
               )}
               <fieldset className="wh-compose-body" disabled={inputBlocked}>
@@ -1512,7 +1519,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                 {incomingFile?.requestId === session.answer!.requestId && (
                   <button
                     type="button"
-                    disabled={blocked || submissionClosed || !detail!.request.fileCollection}
+                    disabled={blocked || answerClosed || !detail!.request.fileCollection}
                     onClick={attachGenerated}
                   >
                     문서함에서 만든 HWPX 첨부
@@ -1595,7 +1602,10 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                   </label>
                 )}
                 {detail!.supplements.some(
-                  (value) => value.unitId === selectedUnit!.id && !value.fulfilledSubmissionId,
+                  (value) =>
+                    value.unitId === selectedUnit!.id &&
+                    !value.fulfilledSubmissionId &&
+                    (!submissionClosed || value.dueDate >= date),
                 ) && (
                   <label>
                     응답할 보완 요청
@@ -1613,7 +1623,9 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                       {detail!.supplements
                         .filter(
                           (value) =>
-                            value.unitId === selectedUnit!.id && !value.fulfilledSubmissionId,
+                            value.unitId === selectedUnit!.id &&
+                            !value.fulfilledSubmissionId &&
+                            (!submissionClosed || value.dueDate >= date),
                         )
                         .map((value, index) => (
                           <option key={value.id} value={value.id}>
@@ -1630,7 +1642,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                   <button
                     type="submit"
                     className={submissionGuide?.canSubmit ? undefined : 'cs-primary'}
-                    disabled={blocked || submissionClosed}
+                    disabled={blocked || answerClosed}
                   >
                     제출 초안 저장
                   </button>
@@ -1648,7 +1660,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                     <button
                       type="button"
                       className={submissionGuide?.canSubmit ? 'cs-primary' : undefined}
-                      disabled={blocked || submissionClosed || !submissionGuide?.canSubmit}
+                      disabled={blocked || answerSubmitClosed || !submissionGuide?.canSubmit}
                       onClick={() => {
                         void mutate({
                           kind: 'submit',
