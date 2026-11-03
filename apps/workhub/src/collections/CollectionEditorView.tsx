@@ -191,11 +191,9 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
   return (
     <section ref={panelRef} className="collection-server" aria-label="서버 문서 수합">
       <style>{styles + composerStyles}</style>
-      <header className="cs-heading">
+      <header className="cs-heading ws-page-intro">
         <div>
-          <p>학교 업무</p>
           <h2>문서 수합</h2>
-          <span>HWPX 양식을 나누고 작성한 파일을 모읍니다.</span>
         </div>
         {readiness?.available && !parked && (
           <div className="cs-actions">
@@ -558,7 +556,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                   {session.editor!.original ? '수합 초안 수정' : '새 수합 초안'}
                 </h3>
                 <p className="cs-muted">
-                  내용과 양식을 한 번에 저장하세요. 공개는 저장 후 따로 결정합니다.
+                  양식과 대상을 선택해 초안으로 저장하세요. 공개는 다음 단계입니다.
                 </p>
               </div>
               <fieldset disabled={inputBlocked}>

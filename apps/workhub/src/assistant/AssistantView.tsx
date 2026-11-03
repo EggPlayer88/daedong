@@ -1,4 +1,5 @@
 import { AiMemoryPanel } from './AiMemoryPanel'
+import { WorkspaceIcon } from '../app/WorkspaceIcon'
 import { composeMemoryPrompt } from './memory-prompt'
 import {
   ASSISTANT_ROUTING,
@@ -75,17 +76,12 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     <section className="assistant-workspace" aria-labelledby={`${uid}-title`}>
       <style>{styles}</style>
       <header className="assistant-header">
-        <div>
+        <div className="assistant-brand">
+          <span className="assistant-brand-icon"><WorkspaceIcon name="assistant" /></span>
           <h2 id={`${uid}-title`}>AI 비서</h2>
         </div>
-        <button
-          type="button"
-          disabled={busy || loading || memoryLocked}
-          onClick={() => setRefresh((value) => value + 1)}
-        >
-          연결 다시 확인
-        </button>
       </header>
+      <div className="assistant-scope-bar">
       <div className="assistant-modes" role="group" aria-label="비서의 자료 범위">
         <button
           type="button"
@@ -109,6 +105,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           ? '현재 학교에서 열람 가능한 공통 자료만 사용합니다.'
           : '내가 볼 수 있는 학교 자료와 내 업무를 사용합니다. 상담 기록은 자동으로 가져오지 않습니다.'}
       </p>
+      </div>
       {loading && <p role="status">대화 연결을 확인하고 있습니다.</p>}
       {ready && !ready.available && (
         <div role="status" className="assistant-status">
@@ -139,6 +136,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
         </h3>
         <button
           type="button"
+          className="assistant-quiet"
           disabled={locked || busy}
           onClick={() => update({ ...latest.current, thread: undefined })}
         >
@@ -200,6 +198,23 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
       )}
       <div className="assistant-layout">
         <div className="assistant-main">
+          {!readError && !loading && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
+            <div className="assistant-welcome">
+              <h3>어떤 일을 도와드릴까요?</h3>
+              <p>학교 자료를 찾아보고, 필요한 내용을 함께 정리하세요.</p>
+              <div className="assistant-starters" aria-label="요청 종류 빠른 선택">
+                {([
+                  ['school_advice', 'knowledge', '학교 업무 알아보기', '규정과 절차 확인'],
+                  ['document_draft', 'documents', '문서 초안 작성', '생각을 글로 정리'],
+                  ['guided_collection', 'collections', '수합 질문 준비', '질문과 항목 구성'],
+                ] as const).map(([intent, icon, title, description]) => (
+                  <button type="button" key={intent} disabled={!editable || Boolean(draft)} aria-pressed={session.intent === intent} onClick={() => changeIntent(intent)}>
+                    <WorkspaceIcon name={icon} /><strong>{title}</strong><span>{description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div
             className="assistant-conversation"
             hidden={
@@ -270,10 +285,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                             </button>
                           </div>
                         )}
-                        <span className="assistant-hint">
-                          {ASSISTANT_ROUTING.models.review.label}으로 새 요청을 보내며 학교 예산에서
-                          비용을 사용합니다.
-                        </span>
+                        <span className="assistant-hint">{ASSISTANT_ROUTING.models.review.label} · 학교 예산에서 비용 사용</span>
                       </div>
                     )}
                   {exchange.proposal && (
@@ -424,6 +436,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                     </option>
                   ))}
               </select>
+              <span className="assistant-compose-model">{session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span>
             </div>
             {(session.references.length > 0 || session.studentContext) && (
               <div className="assistant-context">
@@ -501,6 +514,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               </button>
               <button
                 type="button"
+                className="assistant-quiet"
                 disabled={busy || memoryLocked || Boolean(recovery.request) || !session.prompt}
                 onClick={() => update({ ...latest.current, prompt: '' })}
               >
@@ -608,7 +622,8 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           )}
         </div>
         <aside className="assistant-tools" aria-label="AI 대화 도구">
-          <h3>대화 도구</h3>
+          <h3>대화와 기억</h3>
+          <button type="button" className="assistant-quiet assistant-reconnect" disabled={busy || loading || memoryLocked} onClick={() => setRefresh((value) => value + 1)}>연결 다시 확인</button>
           <details className="assistant-budget-disclosure">
             <summary>학교 AI 예산 · 기본 {ASSISTANT_ROUTING.models.quick.label}</summary>
             {schoolStatus ? (

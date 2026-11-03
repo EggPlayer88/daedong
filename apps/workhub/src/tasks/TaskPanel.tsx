@@ -346,7 +346,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const compactEmpty = compact && !initialLoading && !loadError && !denied && enabled && !pending && !editor && !conflict && !error && !openError && !notice && restoreState === 'ready' && summary.total === 0
   return <section ref={panel} className={`task-panel${compact ? ' task-compact' : ''}${compactEmpty ? ' task-state-empty' : ''}`} aria-labelledby={`${id}-heading`}>
     <style>{taskStyles}</style>
-    <header className="task-heading"><div><p className="task-eyebrow">{compact ? '나만 보기' : '현재 학교 · 나만 보는 업무'}</p><h2 id={`${id}-heading`}>{compact ? '내 할 일' : '내 업무'}</h2>{!compact && <p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p>}</div><button ref={registrationButton} type="button" className="task-primary" disabled={locked || !!editor || loading || !!loadError} onClick={event => { editorTrigger.current = event.currentTarget; nextFocus.current = 'title'; retiredDraft.current = false; setEditor({}); setInput(blank()); setError(''); setNotice('') }}>할 일 등록</button></header>
+    <header className={`task-heading${compact ? '' : ' ws-page-intro'}`}><div><p className="task-eyebrow">나만 보기</p><h2 id={`${id}-heading`} tabIndex={-1}>{compact ? '내 할 일' : '내 업무'}</h2></div><button ref={registrationButton} type="button" className="task-primary" disabled={locked || !!editor || loading || !!loadError} onClick={event => { editorTrigger.current = event.currentTarget; nextFocus.current = 'title'; retiredDraft.current = false; setEditor({}); setInput(blank()); setError(''); setNotice('') }}>할 일 등록</button></header>
     {denied || !enabled ? <div ref={deniedMessage} tabIndex={-1} className="task-error" role="alert"><p>{denied || failureText.INACTIVE_MEMBERSHIP}</p>{enabled && <button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>연결 다시 확인</button>}</div> : <>
       {notice && <div ref={noticeMessage} className="task-notice" role="status" tabIndex={-1}>{notice}{savedTaskId && !compact && <button type="button" className="task-text-button" disabled={navigationLocked} onClick={showSavedTask}>저장한 업무 보기</button>}</div>}
       {error && <p ref={errorMessage} id={`${id}-error`} className="task-error" role="alert" tabIndex={-1}>{error}</p>}
@@ -372,8 +372,9 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
       {busy === 'opening' && <p role="status" className="task-loading">업무 원본을 확인하는 중…</p>}
       {compact && <div className={compactEmpty ? 'task-empty-actions' : undefined}>
         {onOpenTasks && <button type="button" className="task-text-button task-more" disabled={navigationLocked} onClick={() => onOpenTasks()}>모든 내 업무 보기</button>}
-        <details className="task-home-help"><summary>개인 할 일 이용 안내</summary><p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p>{compactEmpty && <button type="button" className="task-text-button" disabled={!!busy || loading} onClick={event => { event.currentTarget.closest('details')?.querySelector('summary')?.focus(); setReload(value => value + 1) }}>목록 새로고침</button>}</details>
+        {compactEmpty && <button type="button" className="task-text-button" disabled={!!busy || loading} onClick={() => { panel.current?.querySelector<HTMLElement>('h2')?.focus(); setReload(value => value + 1) }}>목록 새로고침</button>}
       </div>}
+      {!compact && <details className="ws-context-help"><summary>개인 할 일 이용 안내</summary><p>개인 할 일과 메모를 정리합니다. 업무를 완료해도 수합 제출이나 학교 일정은 바뀌지 않습니다.</p></details>}
     </>}
   </section>
 }

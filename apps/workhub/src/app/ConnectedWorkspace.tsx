@@ -272,7 +272,6 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   return <EditDraftsProvider store={editDrafts}><PendingRequestsProvider store={pendingRequests}><StyleBoundary>
     <style>{timetableNavigationStyles}</style>
-    <div className="connection-notice">신축 기능 시험 · 기존 Google 로그인과 회원 계정을 그대로 사용합니다. 현재 슈퍼관리자에게만 공개됩니다.</div>
     {connectionUnavailable ? <main id="main-content" className="connected-empty">
       {loading ? <>
         <h1>학교 연결 확인 중</h1>
@@ -290,6 +289,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         announcement={navigation.announcement} onDiscard={discardUnsentInput} legacyHomeHref={legacyHomeHref} />
     </main> :
       <WorkspaceShell onOpenAssistant={openAssistant} assistantOpen={assistantOpen || page === 'assistant'} sidePanel={assistantPanel} mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
+        serviceTools={<details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
         storageLabel={page === 'timetable' ? '학교 서버에서 확인' : page === 'collections' ? '학교 계정으로 연결' : '현재 학교 서버에 저장'} locked={navigationLocked} notice={navigation.announcement}
         quickActions={<><WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={openSearchItem} /><WorkspaceHelp key={resetKey} connection={connection} memberId={member.id} scopeKey={`${expectedUserId}:${resetKey}:${currentScope}`} locked={navigationLocked} onNavigate={navigate}/></>}
         contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
@@ -339,6 +339,6 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
               homeExtras={<ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary>} />}
         </ModuleBoundary>
       </WorkspaceShell>}
-    <details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>
+    {connectionUnavailable && <details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
   </StyleBoundary></PendingRequestsProvider></EditDraftsProvider>
 }

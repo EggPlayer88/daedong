@@ -36,7 +36,7 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
   const shownItems = data ? (expanded ? data.items : collapsedItems) : []
   return <section className={`home-overview${empty ? ' home-overview-empty-state' : ''}`} aria-label="확인할 학교 업무" aria-busy={loading}>
     <style>{styles}</style>
-    <header className="home-overview-heading"><h2>확인할 일</h2><span className="home-overview-context">내게 온 업무</span></header>
+    <header className="home-overview-heading"><h2><span className="home-heading-icon"><WorkspaceIcon name="collections" /></span>확인할 일</h2><span className="home-overview-context">내게 온 업무</span></header>
     {failed ? <div className="home-overview-failure" role="alert">
       <p>수합·메시지·학생 후속 업무를 불러오지 못했습니다</p>
       <p>일정과 내 업무는 각각 확인할 수 있습니다. 다른 항목을 0건으로 판단하지 않습니다.</p>
@@ -56,12 +56,6 @@ function HomeOverviewScope({ connection, member, revision, onOpen, onOpenList, l
       {empty && <p className="home-overview-empty">지금 표시할 추가 업무가 없습니다.</p>}
       {!empty && !data.items.length && counts.some(row => row.count !== null && row.count > 0) && <p className="home-overview-note">위 업무 건수를 눌러 해당 목록에서 확인해 주세요.</p>}
       {data.unavailable.length > 0 && <p className="home-overview-note">일부 연결 항목은 확인 중입니다. 확인되지 않은 항목은 건수에 포함하지 않았습니다.</p>}
-      <details className="home-overview-help"><summary>업무 표시 기준</summary>
-        <p>건수는 종류별 전체 원본 수입니다. 우선 확인할 항목은 최대 8개까지 표시하며, 건수를 누르면 해당 메뉴의 목록을 엽니다. 목록에는 다른 상태의 항목도 함께 있을 수 있습니다.</p>
-        <p>미제출·보완 수합은 같은 수합이 겹칠 수 있어 합산하지 않습니다. 학생 기록 확인은 학생 수가 아닌 수업 수, 안 읽음은 메시지 수가 아닌 대화 수입니다.</p>
-        <p>원본에서 제출·검토·처리를 마치면 반영됩니다. 홈에서 읽었다고 완료되지 않습니다.</p>
-        <p>서버 확인 {new Date(data.asOf).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit' })}</p>
-      </details>
     </>}
   </section>
 }

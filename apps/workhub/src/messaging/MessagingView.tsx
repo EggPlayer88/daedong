@@ -103,12 +103,12 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
   return (
     <section className="messaging-workspace" aria-labelledby={`${id}-heading`}>
       <style>{messagingStyles + composerStyles + inboxStyles}</style>
-      <header className="messaging-header">
+      <header className="messaging-header ws-page-intro">
         <div>
           <h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>
             메시지와 알림
           </h2>
-          <p>학교 선생님과 대화하고, 내 업무 알림을 확인합니다.</p>
+
         </div>
         <button
           type="button"

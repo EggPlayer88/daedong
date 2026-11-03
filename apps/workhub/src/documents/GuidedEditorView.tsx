@@ -98,13 +98,10 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
       aria-label="질문형 수합 양식"
     >
       <style>{libraryStyles}</style>
-      <header className="documents-header">
+      <header className="documents-header ws-page-intro">
         <div>
           <h2>질문으로 채우는 HWPX</h2>
-          <p className="documents-muted">
-            담당자가 실제 칸을 지정하면 선생님은 필요한 내용만 답합니다. 복잡한 문서는 파일형 수합을
-            이용해 주세요.
-          </p>
+          <p className="documents-muted">질문에 답하면 양식의 빈칸을 채웁니다.</p>
         </div>
         <button type="button" disabled={loading || busy} onClick={() => void load()}>
           양식 새로고침
@@ -122,7 +119,7 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
       )}
       {loadError && (
         <p className="documents-status" role="alert">
-          {loadError} 준비되지 않은 기능을 성공한 것으로 표시하지 않습니다.
+          {loadError}
         </p>
       )}
       {restoring && (
@@ -282,7 +279,7 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
             </section>
             <section className="documents-panel" aria-label="선택한 질문형 양식">
               {!template ? (
-                <p className="documents-muted">양식을 선택하면 질문과 답변을 확인할 수 있습니다.</p>
+                <div className="ws-selection-empty"><span aria-hidden="true">📝</span><h3>사용할 양식을 선택하세요</h3><p className="documents-muted">답변을 작성하고 HWPX로 내려받을 수 있어요.</p></div>
               ) : (
                 <>
                   <h3>

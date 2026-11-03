@@ -9,7 +9,7 @@ import {launchBrowser} from './launch-browser.mjs'
 const fixtures={assistant:'workhub-ai-school-policy',settings:'workhub-ai-school-policy',memory:'workhub-ai-memory',operations:'workhub-ai-operations'}
 const bundles=Object.fromEntries(Object.entries(fixtures).map(([name,file])=>[name,buildSync({entryPoints:[fileURLToPath(new URL(`./${file}-fixture.tsx`,import.meta.url))],bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"development"'},logLevel:'silent'}).outputFiles[0].text]))
 const font=readFileSync(new URL('../../apps/workhub/src/assets/fonts/PretendardVariable.woff2',import.meta.url)).toString('base64')
-const shellStyles=['workspace-shell.css','workspace-renewal.css'].map(file=>readFileSync(new URL('../../apps/workhub/src/app/'+file,import.meta.url),'utf8')).join('\n')
+const shellStyles=['workspace-shell.css','workspace-renewal.css','site-experience.css'].map(file=>readFileSync(new URL('../../apps/workhub/src/app/'+file,import.meta.url),'utf8')).join('\n')
 const html=`<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>@font-face{font-family:Pretendard;src:url(data:font/woff2;base64,${font}) format('woff2');font-weight:45 920}body{font-family:Pretendard,sans-serif;background:var(--ui-surface-muted,#f6f7f9);color:var(--ui-text,#202832);margin:0;padding:28px}#root{max-width:1120px;margin:auto}*{box-sizing:border-box}</style><div id="root"></div></html>`
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[],external=[],results=[]
 page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message))
@@ -24,7 +24,16 @@ async function start(view){
  else await button('내 개인 비서').waitFor({state:'visible'})
 }
 async function check(name,view,run){await start(view);try{await run()}catch(error){await capture('failure');console.error(await page.locator('#root').innerText());throw error}results.push(name);console.log('  ✓ '+name)}
-async function capture(name,locator=page.locator('#root')){if(!process.env.WORKHUB_QA_OUTPUT)return;mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true});await locator.screenshot({path:join(process.env.WORKHUB_QA_OUTPUT,name+'.png')})}
+async function capture(name,locator=page.locator('#root')){
+ if(!process.env.WORKHUB_QA_OUTPUT)return
+ mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true})
+ const style=await page.addStyleTag({content:shellStyles})
+ const root=page.locator('#root'),previous=await root.evaluate(el=>({className:el.className,theme:el.getAttribute('data-theme')}))
+ await root.evaluate((el,dark)=>{el.classList.add('ws-shell');el.setAttribute('data-theme',dark?'dark':'light')},name.includes('dark'))
+ await locator.screenshot({path:join(process.env.WORKHUB_QA_OUTPUT,name+'.png')})
+ await root.evaluate((el,previous)=>{el.className=previous.className;if(previous.theme===null)el.removeAttribute('data-theme');else el.setAttribute('data-theme',previous.theme)},previous)
+ await style.evaluate(el=>el.remove())
+}
 const fits=async()=>assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
 async function answer(){
  await page.evaluate(()=>window.answerSegments=[{text:'현장체험학습 준비는 다음 순서로 진행해 주세요.\n\n1. 학년 협의에서 운영 계획과 담당 역할을 확인합니다.\n2. 학교 운영 계획에 따라 안전교육과 인원 점검을 준비합니다.\n3. 제출 전 최신 양식과 마감일을 담당자에게 확인합니다.',citations:[{reference:{kind:'knowledge',id:'school-guide-2026',version:3},title:'현장체험학습 운영 안내',locator:'운영 안내 2쪽 · 준비 절차\n「담당 교사는 출발 전 안전교육과 인원 점검을 실시한다.」'}]}])
@@ -34,10 +43,10 @@ async function answer(){
 async function darkSmall(){await page.setViewportSize({width:320,height:820});await page.addStyleTag({content:'html{--ui-surface:#171c28;--ui-surface-muted:#101521;--ui-text:#e9edf5;--ui-muted:#b7c3d6;--ui-line:#45506a;--ui-accent:#a4baff;--ui-accent-soft:#253658;--ui-on-accent:#102145;--ui-body-size:30px;--ui-small-size:26px;--ui-warning:#f0c475;--ui-warning-soft:#30271b}body{padding:8px}'});await fits()}
 function contrast(a,b){const luminance=color=>{const values=color.match(/[\d.]+/g).slice(0,3).map(Number).map(x=>{x/=255;return x<=.04045?x/12.92:((x+.055)/1.055)**2.4});return .2126*values[0]+.7152*values[1]+.0722*values[2]};const x=luminance(a),y=luminance(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05)}
 try{
- await check('넓은 화면은 도구를 옆에 두고 좁은 화면은 질문 다음에 배치하며 자동 호출하지 않는다','assistant',async()=>{
+ await check('넓고 좁은 화면 모두 대화·입력 뒤에 도구를 두며 자동 호출하지 않는다','assistant',async()=>{
   const compose=page.locator('.assistant-compose'),tools=page.getByRole('complementary',{name:'AI 대화 도구'})
-  const a=await compose.boundingBox(),b=await tools.boundingBox();assert(b.x>a.x+a.width);assert(Math.abs(a.y-b.y)<2)
-  await field('질문 또는 부탁할 일').fill('잠시 보관할 질문')
+  await capture('00-assistant-start');const a=await compose.boundingBox(),b=await tools.boundingBox();assert(b.y>=a.y+a.height);assert.equal(await page.getByRole('group',{name:'비서의 자료 범위'}).isVisible(),true)
+  await field('질문 또는 부탁할 일').fill('잠시 보관할 질문');await page.getByRole('button',{name:'문서 초안 작성 생각을 글로 정리',exact:true}).click();assert.equal(await field('요청 종류').inputValue(),'document_draft');assert.equal(await field('질문 또는 부탁할 일').inputValue(),'잠시 보관할 질문');assert.equal(await page.getByRole('button',{name:'학교 업무 안내',exact:true}).getAttribute('aria-pressed'),'true')
   await page.setViewportSize({width:390,height:844});await fits();const narrow=await tools.boundingBox();assert(narrow.y>(await compose.boundingBox()).y);assert.equal(await field('질문 또는 부탁할 일').inputValue(),'잠시 보관할 질문')
   await page.getByText('학교 AI 예산 · 기본 Haiku',{exact:true}).click();await page.getByText('이전 대화 0개',{exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0)
  })

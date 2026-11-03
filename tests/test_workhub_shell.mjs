@@ -25,7 +25,7 @@ test('메뉴의 실제 구현 범위와 공개 제한을 중앙 목록에서 고
 })
 test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공한다', () => {
   const html=body(renderShell({mode:'connected',page:'tasks'}))
-  for(const name of ['홈','시간표','업무','자료'])assert(html.includes(`>${name}</span>`))
+  for(const name of ['홈','일정','시간표','내 업무','수업·학생','문서·자료'])assert(html.includes(`>${name}</span>`))
   assert.match(html,/aria-label="메시지와 알림"/);assert.match(html,/aria-label="관련 업무 메뉴"/)
   for(const name of ['학교 자료','학교 관리','수업과 학생'])assert(!html.includes(`>${name}</span>`))
   assert.match(html,/>자료 수합<\/button>/)
@@ -35,13 +35,13 @@ test('연결 화면은 새 서버 모듈과 명시적 AI 준비 안내를 제공
   assert(!html.includes('<textarea'));assert(!html.includes('대화 전송'))
   assert.match(html,/aria-label="업무 메뉴"/)
   assert.match(html,/class="ws-more-button"[^>]*aria-haspopup="dialog"/)
-  assert.match(html,/aria-label="업무" aria-current="page"/)
+  assert.match(html,/aria-label="내 업무" aria-current="page"/)
 })
-test('미리보기의 보조 화면은 더보기와 현재 위치로 연결하고 숨은 링크를 만들지 않는다', () => {
+test('미리보기는 허용된 수업 화면을 주 메뉴에 표시하고 닫힌 더보기 내용을 만들지 않는다', () => {
   const html=body(renderShell({page:'students'}))
   assert.match(html,/aria-label="업무 메뉴"/);assert.match(html,/aria-expanded="false" aria-controls="([^"]+)"/)
   const target=html.match(/aria-expanded="false" aria-controls="([^"]+)"/)[1]
-  assert(html.includes(`id="${target}"`));assert.match(html,/ws-more-current/);assert(!html.includes('>수업과 학생</span>'))
+  assert(html.includes(`id="${target}"`));assert.doesNotMatch(html,/ws-more-current/);assert.match(html,/aria-label="수업·학생" aria-current="page"/);assert(!html.includes('>수업과 학생</span>'))
   assert.match(html,/<strong aria-current="page">수업과 학생<\/strong>/)
 })
 test('본문 제목과 main을 중복하지 않고 건너뛰기와 현재 위치를 제공한다', () => {
@@ -53,7 +53,7 @@ test('본문 제목과 main을 중복하지 않고 건너뛰기와 현재 위치
 test('편집 잠금은 모든 이동 버튼에 적용하되 더보기는 탐색 가능하다', () => {
   const html=body(renderShell({locked:true}))
   const buttons=html.match(/<button[^>]*class="ws-menu-button[^>]*>/g)||[]
-  assert.equal(buttons.length,4);assert(buttons.every(value=>value.includes('disabled=""')&&value.includes('aria-describedby=')))
+  assert.equal(buttons.length,5);assert(buttons.every(value=>value.includes('disabled=""')&&value.includes('aria-describedby=')))
   const lockNotice=html.match(/<p[^>]*class="ws-locked"[^>]*role="status"[^>]*>([\s\S]*?)<\/p>/)?.[1].replace(/<[^>]+>/g,'')
   assert.equal(lockNotice,'이동하기 전에 현재 작업을 확인해 주세요작성한 내용을 저장하거나 편집을 마친 뒤 이동해 주세요. 처리 중인 요청이 있다면 먼저 결과를 확인해 주세요.')
   assert(!html.match(/class="ws-more-button"[^>]*disabled/))
@@ -83,9 +83,9 @@ test('참여 셸은 전달된 표시 목록만 쓰며 기본 관리자 메뉴와
   const allowed = enabledModules('connected').filter(module=>['messages','tasks','calendar'].includes(module.id))
   const html = body(renderShell({mode:'connected',participant:true,page:'messages',navigationModules:allowed}))
   assert.match(html,/aria-label="허용된 업무"/)
-  for(const name of ['메시지','업무','일정'])assert(html.includes(`>${name}</span>`))
-  for(const name of ['홈','시간표','자료','AI 비서'])assert(!html.includes(`>${name}</span>`))
-  assert.match(html,/허용된 업무 참여/)
+  for(const name of ['메시지','내 업무','일정'])assert(html.includes(`>${name}</span>`))
+  for(const name of ['홈','시간표','수업·학생','문서·자료','AI 비서'])assert(!html.includes(`>${name}</span>`))
+  assert.match(html,/>서비스 정보<\/button>/);assert.doesNotMatch(html,/class="ws-connection-info"|class="ws-font-license"/)
   const unavailable = body(renderShell({mode:'connected',participant:true,page:'schoolAdmin',navigationModules:allowed}))
   assert.match(unavailable,/이 화면은 아직 연결되지 않았습니다/)
   assert(!unavailable.includes('기능 본문'))

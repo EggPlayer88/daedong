@@ -91,3 +91,12 @@
 
 /* 삭제는 보조 동작으로 구분하되 터치 영역은 유지한다. */
 .document-library-ui .guided-question-delete{width:auto;justify-self:start;min-height:44px;color:var(--ui-danger,#a63131);padding:8px 14px}
+
+/* 읽기·수정은 바로, 복사와 보관은 필요한 때만 펼친다. */
+.document-library-ui .library-more-actions{margin-left:auto;max-width:100%;min-width:0}
+.document-library-ui .library-more-actions>summary{min-height:44px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:var(--ui-small-size,.875rem);color:var(--ui-muted,#626e7e);padding:8px 12px;border-radius:10px;list-style:none}
+.document-library-ui .library-more-actions>summary::after{content:'⌄';font-size:16px}
+.document-library-ui .library-more-actions[open]{flex-basis:100%;margin-left:0}
+.document-library-ui .library-more-actions[open]>summary::after{content:'⌃'}
+.document-library-ui .library-more-actions>summary:focus-visible{outline:3px solid var(--ui-focus,#315ed3);outline-offset:2px}
+.document-library-ui .library-more-actions>.documents-actions{padding:8px 0}

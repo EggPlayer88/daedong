@@ -38,7 +38,9 @@ async function connected(options = {}) {
   }
   const connection = createSupabaseConnection(services)
   await connection.loadContext('school')
-  const server = createSupabaseCollectionServer(connection, { timeoutMs: 100, ...options })
+  // 성공 경로의 파일 해시 계산은 병렬 브라우저 검사 중에도 충분히 기다린다.
+  // 실제 지연·단절 검사는 아래 사례에서 15ms를 명시해 별도로 검증한다.
+  const server = createSupabaseCollectionServer(connection, { timeoutMs: 1000, ...options })
   return { connection, server, calls, respond(fn) { rpc = fn }, user(value) { userId = value }, active(value) { active = value }, sessionFailure(value) { sessionFailure = value } }
 }
 
