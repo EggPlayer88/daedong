@@ -1,4 +1,5 @@
 // 실제 화면을 일반 DOM과 연결 화면과 같은 ShadowRoot에서 키보드로 검증한다.
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { launchBrowser } from './launch-browser.mjs'
@@ -36,7 +37,7 @@ try {
     const title = page.getByLabel('해야 할 일', { exact: true })
     const add = page.getByRole('button', { name: '할 일 등록', exact: true })
     async function focusIs(locator) { await locator.waitFor(); await page.waitForFunction(node => node.getRootNode().activeElement === node || document.activeElement === node, await locator.elementHandle()) }
-    async function menu(name) { const button = nav.getByRole('button', { name, exact: true }); if (!await button.isVisible()) await nav.getByRole('button', { name: '더보기', exact: true }).click(); await button.click() }
+    async function menu(name) { await clickWorkspaceMenu(page, name) }
     async function settled() { await page.waitForFunction(() => !window.qaRoot.querySelector('.task-loading,.loading-state')); await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))) }
     const scoped = (name, run) => test(`${mode} · ${name}`, run)
     await settled()

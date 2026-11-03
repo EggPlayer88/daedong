@@ -27,7 +27,7 @@ const origin='http://127.0.0.1:5176'
 const output=process.env.WORKHUB_QA_OUTPUT
 if(output)mkdirSync(output,{recursive:true})
 await context.route(`${origin}/**`,route=>route.fulfill({contentType:'text/html',body:`<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><body><div id="root"></div><script>${bundle.outputFiles[0].text.replaceAll('</script','<\\/script')}</script></body></html>`}))
-const nav=()=>page.getByRole('navigation',{name:'업무 메뉴'})
+const nav=()=>page.getByRole('navigation',{name:'업무 메뉴',exact:true})
 async function menu(name){await clickWorkspaceMenu(page,name)}
 async function screen(name){await page.getByRole('heading',{name,exact:true,level:1}).waitFor()}
 async function home(){await page.getByRole('heading',{name:'내 할 일',exact:true}).waitFor();await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))}
@@ -38,15 +38,16 @@ try{
   await test('직접 주소·새로고침은 화면 선택과 다른 query/hash를 유지한다',async()=>{
     await page.reload();await screen('내 업무');assert.equal(new URL(page.url()).searchParams.get('keep'),'fixture');assert.equal(new URL(page.url()).hash,'#preview')
   })
-  await test('업무 범주와 관련 수합·보조 수업 메뉴 구조와 현재 위치를 제공한다',async()=>{
-    assert.equal(await nav().locator('.ws-primary-menus').getByRole('button',{name:'업무',exact:true}).count(),1)
-    assert.equal(await nav().getByRole('button',{name:'업무',exact:true}).getAttribute('aria-current'),'page')
+  await test('내 업무와 수업·학생의 주 메뉴, 관련 수합과 현재 위치를 제공한다',async()=>{
+    assert.equal(await nav().locator('.ws-primary-menus').getByRole('button',{name:'내 업무',exact:true}).count(),1)
+    assert.equal(await nav().getByRole('button',{name:'내 업무',exact:true}).getAttribute('aria-current'),'page')
     assert.equal(await page.getByRole('navigation',{name:'관련 업무 메뉴'}).getByRole('button',{name:'자료 수합',exact:true}).count(),1)
-    assert.match(await page.getByRole('navigation',{name:'현재 위치'}).innerText(),/학교 업무[\s\S]*내 업무/)
+    assert.match(await page.getByRole('navigation',{name:'현재 위치'}).innerText(),/내 업무/)
     await nav().getByRole('button',{name:'더보기',exact:true}).click()
     const more=page.getByRole('dialog',{name:'더보기',exact:true})
     assert.equal(await more.locator('.ws-group-work').getByRole('button',{name:'자료 수합',exact:true}).count(),1)
-    assert.equal(await more.locator('.ws-group-teaching').getByRole('button',{name:'수업과 학생',exact:true}).count(),1)
+    assert.equal(await nav().locator('.ws-primary-menus').getByRole('button',{name:'수업·학생',exact:true}).count(),1)
+    assert.equal(await more.getByRole('button',{name:'수업과 학생',exact:true}).count(),0)
     for(const title of ['시간표','AI 상담','문서함'])assert.equal(await nav().getByRole('button',{name:title,exact:true}).count(),0)
     await page.keyboard.press('Escape')
   })
@@ -91,14 +92,14 @@ try{
   })
   await test('본문 건너뛰기와 360px 더보기로 모든 화면을 찾고 가로 넘침이 없다',async()=>{
     await page.getByRole('link',{name:'본문으로 건너뛰기'}).focus();await page.keyboard.press('Enter');assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'H1')
-    await page.setViewportSize({width:360,height:800});assert.equal(await nav().getByRole('button',{name:'수업과 학생',exact:true}).isVisible(),false)
+    await page.setViewportSize({width:360,height:800});assert.equal(await nav().getByRole('button',{name:'수업·학생',exact:true}).isVisible(),false)
     for(const name of ['오늘','학교 일정','내 업무','자료 수합','수업과 학생']){
       await menu(name);await page.waitForFunction(()=>!document.querySelector('.loading-state,.task-loading'))
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,name)
       if(name==='수업과 학생'){
-        assert.equal(await nav().locator('.ws-menu-button[aria-current="page"]').count(),0);assert.equal(await nav().locator('.ws-more-current').count(),1)
+        assert.equal(await nav().locator('.ws-menu-button[aria-current="page"]:visible').count(),0);assert.equal(await nav().locator('.ws-more-current').count(),1)
       }else{
-        const category=({'오늘':'홈','내 업무':'업무','자료 수합':'업무'})[name]??name
+        const category=({'오늘':'홈','학교 일정':'일정','내 업무':'내 업무','자료 수합':'내 업무'})[name]??name
         assert.equal(await nav().getByRole('button',{name:category,exact:true}).getAttribute('aria-current'),'page')
       }
       assert.equal(await page.getByRole('heading',{level:1}).textContent(),name)

@@ -1,10 +1,10 @@
 // 화면 크기와 메뉴 배치에 맞춰 실제 사용자가 누르는 탐색 경로를 따른다.
 export async function clickWorkspaceMenu(page, name) {
-  const navigation = page.getByRole('navigation', { name: /^(업무 메뉴|신축 업무 메뉴)$/ })
-  const primary = { '오늘': '홈', '내 업무': '업무', '문서함': '자료' }[name] ?? name
+  const navigation = page.getByRole('navigation', { name: /^(업무 메뉴|신축 업무 메뉴|허용된 업무)$/ })
+  await navigation.waitFor({ state: 'visible' })
+  const primary = { '오늘': '홈', '업무': '내 업무', '학교 일정': '일정', '문서함': '문서·자료', '자료': '문서·자료', '수업과 학생': '수업·학생' }[name] ?? name
   const direct = navigation.getByRole('button', { name: primary, exact: true })
-  // 재로그인 직후 옛 DOM의 개수를 보고 더보기로 우회하지 않고 실제 핵심 버튼을 기다린다.
-  if (primary !== name || name === '시간표') { await direct.click(); return }
+  // 모바일에서 접힌 핵심 메뉴도 전체 메뉴를 통해 같은 원본 화면으로 이동한다.
   if (await direct.count() && await direct.first().isVisible()) {
     await direct.first().click()
     return

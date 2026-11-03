@@ -200,9 +200,13 @@ try {
       await menu(name); await assertFits(`320px ${name}`)
       const navigation=page.getByRole('navigation', { name: '업무 메뉴', exact: true })
       if(name==='수업과 학생'){
-        assert.equal(await navigation.locator('[aria-current="page"]').count(),0)
+        assert.equal(await navigation.locator('[aria-current="page"]:visible').count(),0)
         assert.equal(await navigation.locator('.ws-more-current').count(),1)
-      }else assert.equal(await navigation.locator('[aria-current="page"]').getAttribute('aria-label'),({'오늘':'홈','내 업무':'업무','자료 수합':'업무'})[name]??name)
+        await navigation.getByRole('button',{name:'더보기',exact:true}).click()
+        const more=page.getByRole('dialog',{name:'더보기',exact:true})
+        assert.equal(await more.getByRole('button',{name,exact:true}).getAttribute('aria-current'),'page')
+        await page.keyboard.press('Escape');await more.waitFor({state:'hidden'})
+      }else assert.equal(await navigation.locator('[aria-current="page"]:visible').getAttribute('aria-label'),({'오늘':'홈','학교 일정':'일정','내 업무':'내 업무','자료 수합':'내 업무'})[name]??name)
       assert.equal(await page.getByRole('heading',{name,exact:true,level:1}).count(),1)
     }
     await home(); await openSettings(); await dialog().getByRole('button', { name: '기본 설정으로', exact: true }).click(); await closeSettings()

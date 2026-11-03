@@ -46,8 +46,8 @@ async function fits() { assert(await page.evaluate(() => document.documentElemen
 async function check(name, action) { await action(); results.push(name); console.log('  ✓ ' + name) }
 try {
   await start()
-  await check('홈은 핵심 메뉴 4개와 긴급 업무·수업·일정을 같은 첫 화면에 제공한다', async () => {
-    assert.deepEqual(await page.locator('.ws-primary-menus button').allTextContents(), ['🏠홈', '🕘시간표', '📋업무', '📁자료'])
+  await check('홈은 핵심 메뉴 6개와 긴급 업무·수업·일정을 같은 첫 화면에 제공한다', async () => {
+    assert.deepEqual(await page.locator('.ws-primary-menus button').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-label'))), ['홈','일정','시간표','내 업무','수업·학생','문서·자료'])
     assert(await page.locator('.home-priority').isVisible()); assert(await page.locator('.home-timetable-section').isVisible())
     assert((await page.locator('.home-timetable-section').boundingBox()).y < 500)
     assert.match(await page.locator('.home-priority').innerText(), /확인 필요/)

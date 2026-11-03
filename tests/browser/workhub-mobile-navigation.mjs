@@ -13,7 +13,7 @@ const source = `
  import{WorkspaceShell}from'./apps/workhub/src/app/WorkspaceShell';
  import theme from './apps/workhub/src/style.css?inline';import preview from './apps/workhub/src/preview/preview.css?inline';
  import workflows from './apps/workhub/src/workflows/workflows.css?inline';import students from './apps/workhub/src/students/students.css?inline';
- function Connected(){const[page,setPage]=useState('home');return <WorkspaceShell page={page} onNavigate={setPage} mode="connected" schoolName="가상 연결 학교" memberName="가상 교사" contextControls={<label>학교 선택<select defaultValue="one"><option value="one">가상 연결 학교</option></select></label>} quickActions={<button className="ws-search-trigger">업무 찾기</button>}><main><h1>{page==='home'?'오늘':page==='tasks'?'내 업무':'학교 일정'}</h1></main></WorkspaceShell>}
+ function Connected(){const[page,setPage]=useState('home');return <WorkspaceShell page={page} onNavigate={setPage} mode="connected" schoolName="가상 연결 학교" memberName="가상 교사" contextControls={<label>학교 선택<select defaultValue="one"><option value="one">가상 연결 학교</option></select></label>} quickActions={<button className="ws-search-trigger">업무 찾기</button>}><main><h1>{{home:'오늘',tasks:'내 업무',calendar:'학교 일정',timetable:'시간표',documents:'문서함'}[page]??page}</h1></main></WorkspaceShell>}
  const params=new URL(location.href).searchParams, host=document.getElementById('root');
  const root=params.has('shadow')?host.attachShadow({mode:'open'}):host;window.qaRoot=root;
  createRoot(root).render(<><style>{theme}{preview}{workflows}{students}</style>{params.has('connected')?<Connected/>:<PreviewApp persistence={createDemoPersistence(localStorage)}/>}</>);
@@ -41,7 +41,7 @@ try {
   await page.getByRole('heading',{name:'오늘',exact:true,level:1}).waitFor();await settled()
   await scoped('390px 미리보기는 지원하는 핵심 메뉴와 검색 하나로 시작한다', async () => {
    assert.equal(await nav().count(),1)
-   assert.deepEqual(await nav().getByRole('button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')||n.innerText.replace(/\s/g,''))),['홈','학교 일정','업무','•••더보기'])
+   assert.deepEqual(await nav().getByRole('button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')||n.innerText.replace(/\s/g,''))),['홈','일정','내 업무','•••더보기'])
    const bounds=await nav().boundingBox();assert(bounds.y>700 && bounds.y+bounds.height<=845)
    assert(await page.locator('.ws-sidebar').evaluate(node=>node.getBoundingClientRect().height<90))
    assert.equal(await page.getByRole('button',{name:'업무 찾기',exact:true}).count(),1)
@@ -100,10 +100,12 @@ try {
   })
   await scoped('연결 모드 더보기는 시간표를 포함하고 미리보기의 메뉴는 유지한다', async () => {
    await page.setViewportSize({width:390,height:844});await page.goto('http://127.0.0.1:5176/?connected=1'+(shadow?'&shadow=1':''));await page.getByRole('heading',{name:'오늘',level:1,exact:true}).waitFor()
-   const connected=page.getByRole('navigation',{name:'업무 메뉴',exact:true});assert.deepEqual(await connected.getByRole('button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')||n.innerText.replace(/\s/g,''))),['홈','시간표','업무','자료','•••더보기'])
+   const connected=page.getByRole('navigation',{name:'업무 메뉴',exact:true});assert.deepEqual(await connected.getByRole('button').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')||n.innerText.replace(/\s/g,''))),['홈','일정','시간표','내 업무','•••더보기'])
    await connected.getByRole('button',{name:'더보기',exact:true}).click();assert.equal(await sheet().getByRole('button',{name:'자료 수합',exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'수업과 학생',exact:true}).count(),1)
-   for(const name of ['협업 요청','학교 관리','AI 비서'])assert.equal(await sheet().getByRole('button',{name,exact:true}).count(),1);assert.equal(await sheet().getByRole('button',{name:'시간표',exact:true}).count(),0)
-   assert.equal(await sheet().getByRole('button',{name:'화면 설정',exact:true}).count(),1);await fits();await page.keyboard.press('Escape')
+   for(const name of ['협업 요청','학교 관리','AI 비서','시간표','문서함'])assert.equal(await sheet().getByRole('button',{name,exact:true}).count(),1)
+   assert.equal(await sheet().getByRole('button',{name:'화면 설정',exact:true}).count(),1);await fits()
+   await sheet().getByRole('button',{name:'시간표',exact:true}).click();await page.locator('.ws-content[data-page="timetable"]').waitFor();assert.equal(await sheet().count(),0)
+   await focusIs(page.getByRole('heading',{level:1,exact:true,name:'시간표'}))
   })
   await context.close()
  }

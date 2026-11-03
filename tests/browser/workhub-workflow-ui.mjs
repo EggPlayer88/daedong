@@ -130,6 +130,18 @@ try{
         if(!await control.isVisible())continue
         const box=await control.boundingBox();assert(box.x>=0&&box.x+box.width<=321,screen+' 조작 요소 가로 범위')
       }
+      if(screen==='collection'){
+        for(const width of [768,960,1440]){
+          await page.setViewportSize({width,height:900});await fits()
+          const actions=await page.locator('.collection-server>.cs-heading>.cs-actions').boundingBox()
+          const title=await page.locator('.main-content>.page-header h1').boundingBox()
+          const composer=await page.locator('.cs-composer').boundingBox()
+          assert(actions.x>title.x+title.width,'큰 글씨에서도 수합 제목과 작업 버튼이 겹치지 않는다')
+          assert(actions.x+actions.width<=width,'상단 작업 버튼이 화면 안에 남는다')
+          assert(composer.y>=actions.y+actions.height,'상단 작업 버튼이 수합 입력란과 겹치지 않는다')
+        }
+        await page.setViewportSize({width:320,height:800})
+      }
     }
     await shot('07-collection-dark-large')
   })

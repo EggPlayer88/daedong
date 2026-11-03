@@ -1,0 +1,13 @@
+/* 평가계획서·계정·기간 업무도 같은 사이트의 표면과 글자 규칙을 따른다. */
+.ws-shell .site-legacy-surface{--bg:var(--ui-bg);--card:var(--ui-surface);--card-hover:var(--ui-surface-muted);--border:var(--ui-line);--border-light:var(--ui-line);--accent:var(--ui-accent);--text:var(--ui-text);--text-mid:var(--ui-muted);--text-dim:var(--ui-muted);--green:var(--ui-success);--yellow:var(--ui-warning);--red:var(--ui-danger);padding:30px clamp(20px,3vw,44px) 40px;color:var(--ui-text);font-family:inherit;font-size:var(--ui-body-size);min-width:0}
+.ws-shell .site-legacy-surface .site-page{max-width:1300px;margin:0 auto}
+.ws-shell .site-legacy-surface :is(h1,h2){font-weight:750;letter-spacing:-.04em;line-height:1.4}
+.ws-shell .site-legacy-surface .site-page>h2{font-size:28px;margin-bottom:24px}
+.ws-shell .site-legacy-surface .card{border:1px solid var(--ui-line);border-radius:var(--ui-radius);box-shadow:var(--ui-card-shadow);padding:24px;background:var(--ui-surface)}
+.ws-shell .site-legacy-surface :is(button,input,select,textarea){font:inherit;min-height:44px;border-radius:var(--ui-control-radius)}
+.ws-shell .site-legacy-surface :is(.btn-plain,.btn-google){padding:10px 16px;font-weight:600}
+.ws-shell .site-legacy-surface :is(.muted,.small){color:var(--ui-muted);line-height:1.8}
+.ws-shell .site-legacy-surface :is(th,td){padding:12px 14px;line-height:1.6;border-color:var(--ui-line)}
+.ws-shell .site-legacy-surface th{background:var(--ui-surface-muted);font-size:var(--ui-small-size);font-weight:650}
+.ws-shell .site-legacy-surface :is(button,a,input,select,textarea,summary):focus-visible{outline:3px solid var(--ui-focus);outline-offset:3px}
+@media(max-width:720px){.ws-shell .site-legacy-surface{padding:24px 16px 32px}.ws-shell .site-legacy-surface .site-page>h2{font-size:25px}.ws-shell .site-legacy-surface .card{padding:18px}.ws-shell .site-legacy-surface :is(input,textarea,select){font-size:max(16px,var(--ui-body-size))}}

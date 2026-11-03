@@ -24,6 +24,9 @@ try{
  await check('문서 주요 작업이 본문 앞에 있고 조회만으로 수정·확정하지 않는다','documents',async()=>{
   await page.getByText('불러온 문서 1개',{exact:true}).waitFor();const detail=page.getByRole('region',{name:'선택한 문서',exact:true});assert.equal(await detail.evaluate(el=>Boolean(el.querySelector('.library-detail-actions').compareDocumentPosition(el.querySelector('.library-document-body'))&Node.DOCUMENT_POSITION_FOLLOWING)),true);assert.equal(await writes(),0);await capture('document-library')
  })
+ await check('복사·보관은 문서 작업 더보기에서 명시적으로 열고 복사는 저장 전 초안으로만 이어진다','documents',async()=>{
+  const detail=page.getByRole('region',{name:'선택한 문서',exact:true});assert.equal(await button('이 문서부터 새로 작성').isVisible(),false);assert.equal(await button('보관함으로 이동').isVisible(),false);await detail.getByText('문서 작업 더보기',{exact:true}).click();assert.equal(await button('보관함으로 이동').isVisible(),true);assert.equal(await writes(),0);await button('이 문서부터 새로 작성').click();await field('문서 본문').waitFor();assert.equal(await field('문서 본문').inputValue(),'원래 행사 계획');assert.equal(await writes(),0);assert.equal(await button('보관함으로 이동').isDisabled(),true)
+ })
  await check('문서 작성 메타데이터와 본문은 검색 뒤에도 유지하고 AI 호출을 만들지 않는다','documents',async()=>{
   await button('이 문서 수정').click();await field('문서 제목').fill('10월 학년 공동 행사 계획');await field('문서 본문').fill('1. 운영 목적\n학생이 함께 준비하는 학년 행사\n\n2. 역할과 일정\n담당 교사와 운영 일정을 확인합니다.');await field('문서 검색').fill('행사');await button('검색').click();await page.getByText('불러온 문서 1개',{exact:true}).waitFor();assert.equal(await field('문서 제목').inputValue(),'10월 학년 공동 행사 계획');assert.match(await field('문서 본문').inputValue(),/운영 목적/);assert.equal(await writes(),0);assert.equal(await page.evaluate(()=>window.aiRequests.length),0);await capture('document-editor',page.getByRole('form',{name:'문서 초안 작성'}))
  })
@@ -31,7 +34,7 @@ try{
   await field('질문 내용').fill('참석할 학생 수');await step('답변 작성','answers');await step('질문 연결','mapping');assert.equal(await field('질문 내용').inputValue(),'참석할 학생 수');assert.equal(await field('참여 인원 (필수)').isDisabled(),true);assert.equal(await writes(),0);assert.equal(await page.evaluate(()=>window.operations.length),0);await capture('guided-mapping',page.getByRole('region',{name:'선택한 질문형 양식',exact:true}))
  })
  await check('빈 후보가 없으면 무의미한 선택·반영 확인을 숨기고 기존 질문은 계속 편집한다','guided-manager',async()=>{
-  await button('질문형으로 준비').click();await page.getByText(/새로 연결할 빈 문단 후보가 없습니다/).waitFor();assert.equal(await field('선택한 질문과 원본 위치를 확인했습니다').count(),0);assert.equal(await button('선택한 연결 제안 반영').count(),0);await field('질문 내용').fill('직접 확인할 질문');assert.equal(await field('질문 내용').inputValue(),'직접 확인할 질문');assert.equal(await writes(),0)
+  await button('질문형으로 준비').click();await page.getByText(/자동 연결 후보가 없습니다/).waitFor();assert.equal(await field('선택한 질문과 원본 위치를 확인했습니다').count(),0);assert.equal(await button('선택한 연결 제안 반영').count(),0);await field('질문 내용').fill('직접 확인할 질문');assert.equal(await field('질문 내용').inputValue(),'직접 확인할 질문');assert.equal(await writes(),0)
  })
  await check('아직 없는 파일 단계는 안내만 하고 파일 생성이나 AI 요청을 실행하지 않는다','guided-manager',async()=>{
   const nav=page.getByRole('navigation',{name:'질문형 양식 작업 단계'});assert.equal(await nav.getByRole('button',{name:'파일 확인',exact:true}).isDisabled(),true);assert.equal(await nav.getByRole('button',{name:'수합에 게시',exact:true}).isDisabled(),true);await step('답변 작성','answers');assert.equal(await writes(),0);assert.equal(await page.evaluate(()=>window.operations.length),0);await capture('guided-answers',page.getByRole('region',{name:'선택한 질문형 양식',exact:true}))

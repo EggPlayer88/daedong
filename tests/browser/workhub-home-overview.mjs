@@ -59,14 +59,13 @@ try {
     await page.evaluate(() => { window.state.mode = 'busy'; window.state.resolve() })
     await panel().getByRole('button', { name: '확인할 업무 8개 모두 보기', exact: true }).waitFor()
   })
-  await test('확인된 빈 학교 업무는 모바일에서도 작은 요약과 표시 기준을 유지한다', async () => {
+  await test('확인된 빈 학교 업무는 모바일에서도 간결하게 표시하고 불필요한 기준 안내를 노출하지 않는다', async () => {
     await state('empty'); await panel().getByText('지금 표시할 추가 업무가 없습니다.', { exact: true }).waitFor()
     for (const width of [584, 390, 320]) {
       await page.setViewportSize({ width, height: 760 })
-      assert((await panel().boundingBox()).height <= 110, width + 'px 빈 학교 업무가 작은 요약으로 표시됩니다')
-      await panel().locator('.home-overview-help>summary').click()
-      await panel().getByText('원본에서 제출·검토·처리를 마치면 반영됩니다. 홈에서 읽었다고 완료되지 않습니다.', { exact: true }).waitFor()
-      await panel().locator('.home-overview-help>summary').click()
+      assert((await panel().boundingBox()).height <= 180, width + 'px 빈 학교 업무는 한두 줄 요약으로 표시됩니다')
+      assert.equal(await panel().locator('.home-overview-help').count(), 0)
+      assert.equal(await panel().getByText('업무 표시 기준', { exact: true }).count(), 0)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
     }
     await state('busy'); await panel().getByRole('button', { name: '확인할 업무 8개 모두 보기', exact: true }).waitFor()
