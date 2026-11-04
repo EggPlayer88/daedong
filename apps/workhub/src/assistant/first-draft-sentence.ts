@@ -10,7 +10,7 @@ const hint = (message: string): DraftResult => ({ kind: 'clarify', message })
 const personHint = '교사 이름을 적어 주세요. 여러 명은 쉼표로 구분한 뒤 후보에서 직접 선택할 수 있습니다.'
 const dateHint = '제출 기한을 하나의 날짜로 다시 적어 주세요. 예: 내일, 다음 주 금요일.'
 const singleRequest = '한 번에 초안 한 건을 요청해 주세요. 전송·저장·공개는 기존 작성 화면에서 확인합니다.'
-const action = /^(?<lead>[\s\S]*?)(?<kind>메시지|(?:자료\s*)?수합)\s*초안(?:을|를|으로)?\s*(?:만들어|작성해|써|준비해)\s*(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
+const action = /^(?<lead>[\s\S]*?)(?<kind>메시지|(?:자료\s*)?수합)\s*초안(?:을|를|으로)?\s*(?:(?:하나|한\s*건)\s*)?(?:만들어|작성해|써|준비해)\s*(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
 const collect = /^([\s\S]+?)\s*수합해\s*(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
 const labelled = /^(메시지|(?:자료\s*)?수합)\s*초안\s*[:：]([\s\S]*)$/
 const outsideCommand = /[;；]|(?:보내고|전송하고|공개하고|게시하고|저장하고|만들고|작성하고|하지\s*말고|말고|대신|제외하고|하지\s*마)|(?:다음|이어서|그리고)\s+.{1,40}(?:해줘|주세요)|(?:일정|메시지|수합)\s*초안\s*[:：]/
@@ -102,11 +102,14 @@ export function parseFirstDraftSentence(text: string, prompt: string, basisDate:
   if (kind === 'collectionDraft') {
     const guide = /(?:^|\s|[,，])안내(?:문)?\s*(?:는|로|[:：])?\s*\x01(\d+)\x02\s*$/.exec(rest)
     if (guide) { quotedInstructions = literals[Number(guide[1])]; rest = rest.slice(0, guide.index).trim().replace(/[,，]$/, '').trim() }
-    const deadlines = [...rest.matchAll(new RegExp('(?<![\\p{L}\\p{N}])(?:' + draftDateWords.source + ')\\s*까지(?=$|[\\s,，])', 'gu'))]
+    const date = '(?:' + draftDateWords.source + ')'
+    const markedDate = '(?:제출\\s*기한|기한|마감(?:일)?)\\s*(?:은|는|[:：])?\\s*(' + date + ')(?:\\s*까지|(?:으?로)(?:\\s*하고)?)?'
+    const deadline = new RegExp('(?<![\\p{L}\\p{N}])(?:' + markedDate + '|(' + date + ')\\s*까지)(?=$|[\\s,，])', 'gu')
+    const deadlines = [...rest.matchAll(deadline)]
     if (deadlines.length) {
-      fields.deadline = deadlines.map(d => d[0]).join(' ')
+      fields.deadline = deadlines.map(d => d[1] ?? d[2]).join(' ')
       for (const d of deadlines.reverse()) {
-        const before = rest.slice(0, d.index).replace(/(?:제출\s*기한|기한|마감일?)\s*(?:은|는|[:：])?\s*$/, '')
+        const before = rest.slice(0, d.index)
         rest = before + ' ' + rest.slice(d.index + d[0].length).replace(/^\s*[,，]\s*/, '')
       }
       rest = rest.trim()
@@ -119,7 +122,7 @@ export function parseFirstDraftSentence(text: string, prompt: string, basisDate:
     }
     if (rest.includes('까지')) return hint(dateHint)
   }
-  const person = /^(.+?)(에게서|한테서|에게|한테|께)(?:는)?(?=[\s,，]|$)[\s,，]*/.exec(rest)
+  const person = /^(.+?)(에게서|한테서|에게|한테|께|(?:을|를)?\s*대상으로)(?:는)?(?=[\s,，]|$)[\s,，]*/.exec(rest)
   if (person) {
     if (kind === 'messageDraft' && person[2].endsWith('서')) return hint(personHint)
     const objectFirst = /^(.*?[을를])\s+(.+)$/.exec(person[1])
@@ -132,7 +135,7 @@ export function parseFirstDraftSentence(text: string, prompt: string, basisDate:
   const legacyContent = /이?라는\s*(?:내용|제목)으로$/.test(rest)
   if (lead && !person && fields.deadline === undefined && !short && !quotedInstructions &&
       (legacyContent || (kind === 'messageDraft' && !literals.length && !/달라는$/.test(rest)))) return null
-  if (/(?:에게|한테|께)(?=[\s,，]|$)/.test(rest)) return hint(personHint)
+  if (/(?:에게|한테|께|대상으로)(?=[\s,，]|$)/.test(rest)) return hint(personHint)
   // 따옴표 밖의 조사만 제거하고 원문 안의 '으로' 등은 그대로 복원한다.
   rest = rest.replace(/(\x02)\s*(?:라는\s*내용의|내용으로|제목으로|으로|로)\s*$/, '$1')
   if (kind === 'messageDraft') {
