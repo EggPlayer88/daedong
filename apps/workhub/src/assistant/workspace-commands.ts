@@ -1,9 +1,11 @@
+import { parseTaskChangeCommand, type TaskChangeCommand } from './task-change-command'
 import type { PageId } from '../modules'
 import type { SearchKind } from '../search/contracts'
 import { SEARCH_LIMITS } from '../search/limits'
 import limits from '../../../main/api/workhub-ai/_assets/assistant-limits.json'
 
 export type WorkspaceCommand =
+  | TaskChangeCommand
   | { kind: 'navigate'; page: PageId }
   | { kind: 'search'; query: string; kinds: SearchKind[] }
   | { kind: 'task'; prompt: string }
@@ -41,7 +43,7 @@ const askEnd = '(?:줘|주세요|주십시오|주시겠어요|줄래|줄래요|�
 const moveEnd = `(?:열어|보여|이동해|가|띄워)\\s*${askEnd}`
 const findEnd = `(?:찾아|검색해|조회해)\\s*${askEnd}`
 const makeEnd = `(?:만들어|작성해|추가해|등록해|잡아)\\s*${askEnd}`
-const clarification = (message: string): WorkspaceCommand => ({ kind: 'clarify', message })
+const clarification = (message: string): Extract<WorkspaceCommand, { kind: 'clarify' }> => ({ kind: 'clarify', message })
 
 function validDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -64,6 +66,9 @@ function intactText(value: string): boolean {
   }
   return true
 }
+export function validWorkspaceText(value: string): boolean {
+  return Array.from(value).length <= limits.promptChars && intactText(value)
+}
 function queryCommand(raw: string, kinds: SearchKind[]): WorkspaceCommand {
   let query = raw.trim()
   if (/^(["'“‘]).+(["'”’])$/.test(query)) query = query.slice(1, -1).trim()
@@ -72,7 +77,7 @@ function queryCommand(raw: string, kinds: SearchKind[]): WorkspaceCommand {
   return { kind: 'search', query, kinds: [...kinds] }
 }
 
-function calendarCommand(prompt: string, raw: string, basisDate: string): WorkspaceCommand {
+export function parseCalendarFields(prompt: string, raw: string, basisDate: string): Extract<WorkspaceCommand, { kind: 'calendar' | 'clarify' }> {
   if (!validDate(basisDate)) return clarification('학교 기준 날짜를 다시 확인한 뒤 일정 초안을 만들어 주세요.')
   if (/(?:매일|매주|매월|반복|마다|다음\s*달|다음\s*학기|주말|오늘밤|내일모레|글피|자정|정오)/.test(raw))
     return clarification('일정의 날짜와 시작·종료 시각을 적어 주세요. 반복 일정은 일정 화면에서 확인해 주세요.')
@@ -141,7 +146,7 @@ function calendarCommand(prompt: string, raw: string, basisDate: string): Worksp
 // 권한 검사와 저장은 각 원래 화면/서버가 맡고, 여기서는 요청 번호나 저장 성공을 만들지 않는다.
 export function parseWorkspaceCommand(prompt: string, basisDate: string): WorkspaceCommand | null {
   if (typeof prompt !== 'string') return clarification('요청 내용을 확인해 주세요.')
-  if (Array.from(prompt).length > limits.promptChars || !intactText(prompt))
+  if (!validWorkspaceText(prompt))
     return clarification('요청 길이와 문자를 확인해 주세요. 한 번에 한 가지 업무를 적어 주세요.')
   let text = prompt.trim().replace(/\s+/g, ' ').replace(/[.!?。！？]+$/, '').trim()
   if (!text) return null
@@ -149,7 +154,7 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   if (/^(?:["'“‘`]|예시\s*[:：]|예를\s*들어)/.test(text) || /(?:라고|라는|말하면|입력하면|명령어|사용법|어떻게|가능한지|않|지\s*마|지\s*말|아니라)/.test(text))
     return null
   text = text.replace(/^(?:비서야|AI야|부탁인데)\s*[,，]?\s*/, '')
-  if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해)\s*(?:주고|줘서)|(?:열고|찾고|등록하고|추가하고|만들고|이동하고)|[;；]/.test(text))
+  if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해|수정해|완료해|변경해|바꿔|전송해|잡아)\s*(?:주고|줘서)|(?:열고|찾고|등록하고|추가하고|만들고|이동하고|수정하고|완료하고|변경하고|바꾸고|전송하고|잡고)|[;；]/.test(text))
     return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
   for (const [page, aliases] of menus) {
     for (const alias of aliases) {
@@ -169,6 +174,8 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   }
   const anySearch = text.match(new RegExp(`^(?:검색|찾기)\\s*[:：]\\s*(.+)$`))
   if (anySearch) return queryCommand(anySearch[1], searchScopes.find(([label]) => label === '전체')![1])
+  const taskChange = parseTaskChangeCommand(text, basisDate)
+  if (taskChange) return taskChange
   const task = text.match(new RegExp(`^(.*?)\\s*(?:개인\\s*)?할\\s*일(?:로|에)?\\s*${makeEnd}$`))
     ?? text.match(new RegExp(`^할\\s*일\\s*(?:추가|등록|작성)\\s*[:：]\\s*(.+)$`))
   if (task) {
@@ -177,7 +184,10 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   }
   const calendar = text.match(new RegExp(`^(.*?)\\s*일정(?:\\s*초안)?(?:을|를)?\\s*${makeEnd}$`))
     ?? text.match(new RegExp(`^일정\\s*초안\\s*[:：]\\s*(.+)$`))
-  if (calendar) return calendarCommand(prompt, calendar[1], basisDate)
+  if (calendar) return parseCalendarFields(prompt, calendar[1], basisDate)
+  // '잡아줘'만으로는 일정인지 확실하지 않으므로 회의·연수처럼 일정 이름이 명시된 경우만 연다.
+  const meeting = text.match(new RegExp(`^(.*?(?:회의|연수|면담|모임|상담))(?:을|를)?\\s+잡아\\s*${askEnd}$`))
+  if (meeting) return parseCalendarFields(prompt, meeting[1], basisDate)
   if (/(?:삭제|수정|취소|승인|공개|전송|제출|확정)(?:해|해줘|해 주세요|해주세?요|해 주십시오)$/.test(text))
     return clarification('해당 업무 화면에서 대상과 내용을 확인한 뒤 처리해 주세요. 메뉴 이동이나 새 할 일·일정 초안은 여기서 도와드릴 수 있어요.')
   return null

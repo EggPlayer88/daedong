@@ -22,6 +22,7 @@ import { type KnowledgeAssistantRequest } from '../knowledge/assistant-links'
 import type { PageId } from '../modules'
 import type { SearchItem, SearchKind } from '../search/contracts'
 import type { WorkspaceCommand } from './workspace-commands'
+import type { TaskChangeCommand } from './task-change-command'
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
 export interface AssistantWorkspaceSearchResult {
   items: SearchItem[]
@@ -33,6 +34,7 @@ export interface AssistantWorkspaceActions {
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean
   calendar: (command: CalendarWorkspaceCommand) => boolean
+  changeTask?: (command: TaskChangeCommand, selected: SearchItem) => boolean
 }
 export interface AssistantDraftReady {
   intent: AssistantIntent
@@ -74,6 +76,7 @@ export type Session = {
   mode: AssistantMode
   intent: AssistantIntent
   prompt: string
+  calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string }
   references: AssistantContextRequest['references']
   studentContext: StudentContext | null
   thread?: AssistantThread

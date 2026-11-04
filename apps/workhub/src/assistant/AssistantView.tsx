@@ -15,12 +15,16 @@ import type { Citation } from './contracts'
 import { intentLabels } from './workspace-model'
 import type { useAssistantWorkspace } from './useAssistantWorkspace'
 import { WorkspaceCommandResult } from './WorkspaceCommandResult'
+import { CalendarFollowupCard } from './CalendarFollowupCard'
 export function AssistantView({ model }: { model: ReturnType<typeof useAssistantWorkspace> }) {
   const {
     addTask,
     applyContext,
     ask,
     canSubmit,
+    calendarFollowup,
+    cancelCalendar,
+    dismissTaskMatches,
     baseEditable,
     budgetError,
     busy,
@@ -208,7 +212,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
       )}
       <div className="assistant-layout">
         <div className="assistant-main">
-          {!readError && !loading && !workspaceResult && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
+          {!readError && !loading && !workspaceResult && !calendarFollowup && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
             <div className="assistant-welcome">
               <h3>어떤 일을 도와드릴까요?</h3>
               <p>{workspaceActions ? '찾고 싶은 자료, 해야 할 일, 이동할 화면을 말씀해 주세요.' : '학교 자료를 찾아보고, 필요한 내용을 함께 정리하세요.'}</p>
@@ -426,7 +430,8 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           </section>}
           {workspaceResult && enabled && <WorkspaceCommandResult {...workspaceResult}
             disabled={!workspaceEditable || Boolean(session.prompt.trim())}
-            onOpen={openWorkspaceItem} />}
+            onDismiss={dismissTaskMatches} onOpen={openWorkspaceItem} />}
+          {calendarFollowup && <CalendarFollowupCard command={calendarFollowup} disabled={!workspaceEditable} onCancel={cancelCalendar} />}
           <form
             className="assistant-compose"
             onSubmit={(event) => {
@@ -438,7 +443,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <label htmlFor={`${uid}-intent`}>요청 종류</label>
               <select
                 id={`${uid}-intent`}
-                disabled={!editable || Boolean(draft)}
+                disabled={!editable || Boolean(draft) || Boolean(calendarFollowup)}
                 value={session.intent}
                 onChange={(event) => changeIntent(event.target.value as AssistantIntent)}
               >
@@ -454,7 +459,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                     </option>
                   ))}
               </select>
-              <span className="assistant-compose-model">{session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span>
+              <span className="assistant-compose-model">{calendarFollowup ? '일정' : session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span>
             </div>
             {(session.references.length > 0 || session.studentContext) && (
               <div className="assistant-context">
@@ -501,16 +506,16 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               rows={4}
               aria-describedby={`${uid}-prompt-hint`}
               aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars}
-              placeholder={workspaceActions ? '예: 시간표 열어줘 · 학교 자료에서 출장 찾아줘' : '예: 선택한 학교 규정에서 제출 절차를 알려 주세요.'}
+              placeholder={calendarFollowup ? '빠진 정보만 답해 주세요.' : workspaceActions ? '예: 시간표 열어줘 · 학교 자료에서 출장 찾아줘' : '예: 선택한 학교 규정에서 제출 절차를 알려 주세요.'}
               disabled={busy || memoryLocked || Boolean(recovery.request) || Boolean(draft)}
               value={session.prompt}
               onChange={(event) => update({ ...latest.current, prompt: event.target.value })}
             />
-            {workspaceActions && !session.contextId && !session.references.length && !session.studentContext && (
+            {workspaceActions && !calendarFollowup && !session.contextId && !session.references.length && !session.studentContext && (
               <details className="assistant-command-help">
                 <summary>대화로 할 수 있는 일</summary>
                 <div className="assistant-command-examples">
-                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '내일 오후 3시부터 4시까지 회의 일정 초안 만들어줘'].map((text) => (
+                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘'].map((text) => (
                   <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
                 ))}
@@ -699,9 +704,10 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             date={date}
             revision={revision}
             service={memoryServer}
-            blocked={busy || Boolean(recovery.request) || Boolean(draft) || openingCitation}
+            blocked={busy || Boolean(recovery.request) || Boolean(draft) || Boolean(calendarFollowup) || openingCitation}
             canUse={
               baseEditable &&
+              !calendarFollowup &&
               !draft &&
               ['school_advice', 'personal_assistant', 'document_draft'].includes(session.intent)
             }
@@ -710,6 +716,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               const current = latest.current
               if (
                 !baseEditable ||
+                calendarFollowup ||
                 current.proposal ||
                 operation.current ||
                 !['school_advice', 'personal_assistant', 'document_draft'].includes(current.intent)

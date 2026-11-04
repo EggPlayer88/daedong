@@ -4,7 +4,7 @@ import type { CalendarEvent, Membership, SaveCommand } from '../contracts'
 import type { PersonalTask, TaskCommand } from '../tasks/contracts'
 import type { CollectionCommand } from '../collections/contracts'
 
-export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask }
+export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask; fromAssistant?: true }
 export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
 export type CollectionRecovery = { command: CollectionCommand; key: string }
 export type ModuleRecovery = { command: unknown; key: string }

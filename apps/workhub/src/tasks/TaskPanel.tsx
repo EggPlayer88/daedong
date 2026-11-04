@@ -11,9 +11,11 @@ import { usePendingRequest, recoveryScope, type TaskRecovery } from '../app/pend
 import { useEditDraft } from '../app/edit-drafts'
 import { TaskEditor } from './TaskEditor'
 import { TaskCard } from './TaskCard'
+import { changedTaskMessage, reviewAssistantTaskChange, verifyTaskChangeReceipt, type AssistantTaskChangeRequest, type TaskChangeReview } from './assistant-change'
+import { TaskChangeConfirmation } from './TaskChangeConfirmation'
 
-export interface TaskOpenRequest { key: string; taskId?: string; dueFilter?: TaskDueFilter }
-export interface TaskPanelProps { adapter: TaskAdapter; member: Membership; date: string; compact?: boolean; onOpenTasks?: (filter?: TaskDueFilter) => void; openRequest?: TaskOpenRequest; revision?: number; onNavigationLockChange?: (locked: boolean) => void }
+export interface TaskOpenRequest { key: string; taskId?: string; dueFilter?: TaskDueFilter; change?: AssistantTaskChangeRequest }
+export interface TaskPanelProps { adapter: TaskAdapter; member: Membership; date: string; compact?: boolean; onOpenTasks?: (filter?: TaskDueFilter) => void; openRequest?: TaskOpenRequest; onAssistantTaskHandled?: (key: string) => void; revision?: number; onNavigationLockChange?: (locked: boolean) => void }
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const blank = (): TaskInput => ({ title: '', notes: '', dueDate: '' })
 const inputOf = (task: PersonalTask): TaskInput => ({ title: task.title, notes: task.notes, dueDate: task.dueDate })
@@ -40,7 +42,7 @@ export function TaskPanel(props: TaskPanelProps) {
   return <TaskPanelScope key={recoveryScope(member)} {...props} />
 }
 
-function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, openRequest, revision = 0, onNavigationLockChange }: TaskPanelProps) {
+function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, openRequest, onAssistantTaskHandled, revision = 0, onNavigationLockChange }: TaskPanelProps) {
   const id = useId()
   const recovery = usePendingRequest(member, 'task')
   const [recovered] = useState(() => recovery.request)
@@ -57,8 +59,8 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const initialLoading = loading && !hasLoaded
   const [loadError, setLoadError] = useState('')
   const [reload, setReload] = useState(0)
-  const [editor, setEditor] = useState<{ original?: PersonalTask } | undefined>(() => recovered && recovered.command.kind !== 'status' ? { original: recovered.original } : savedDraft?.editor)
-  const [input, setInput] = useState<TaskInput>(() => recovered && recovered.command.kind !== 'status' ? structuredClone(recovered.command.input) : savedDraft ? structuredClone(savedDraft.input) : blank())
+  const [editor, setEditor] = useState<{ original?: PersonalTask } | undefined>(() => recovered && !recovered.fromAssistant && recovered.command.kind !== 'status' ? { original: recovered.original } : savedDraft?.editor)
+  const [input, setInput] = useState<TaskInput>(() => recovered && !recovered.fromAssistant && recovered.command.kind !== 'status' ? structuredClone(recovered.command.input) : savedDraft ? structuredClone(savedDraft.input) : blank())
   const [filter, setFilter] = useState<'open' | 'all' | TaskStatus>('open')
   const [dueFilter, setDueFilter] = useState('all')
   const [search, setSearch] = useState('')
@@ -71,6 +73,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const [pendingFolded, setPendingFolded] = useState(Boolean(recovered))
   const [savedTaskId, setSavedTaskId] = useState<string>()
   const [conflict, setConflict] = useState<Conflict | undefined>(savedDraft?.conflict)
+  const [changeReview, setChangeReview] = useState<TaskChangeReview>()
   const [selectedTask, setSelectedTask] = useState<PersonalTask>()
   const [unavailableTaskId, setUnavailableTaskId] = useState<string>()
   const [openError, setOpenError] = useState('')
@@ -94,9 +97,9 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   const pendingRef = useRef<Pending | undefined>(recovered)
   const scope = { memberId: member.id, schoolId: member.schoolId }
   const enabled = activeAt(member, date)
-  const locked = !!busy || !!pending || !!conflict || !!denied || !enabled || restoreState !== 'ready'
+  const locked = !!busy || !!pending || !!conflict || !!changeReview || !!denied || !enabled || restoreState !== 'ready'
   const dirty = !!editor && JSON.stringify(input) !== JSON.stringify(editor.original ? inputOf(editor.original) : blank())
-  const navigationLocked = (!pendingFolded && (dirty || !!pending)) || !!busy || !!conflict
+  const navigationLocked = (!pendingFolded && (dirty || !!pending)) || !!busy || !!conflict || !!changeReview
   useBrowserLayoutEffect(() => {
     if (retiredDraft.current) return
     editMemory.save(editor || conflict ? { editor, input, conflict } : undefined, dirty || Boolean(conflict))
@@ -152,7 +155,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     restoreDiscarded.current = true; retiredDraft.current = true; editMemory.remove()
     listGeneration.current++; operationGeneration.current++
     pendingRef.current = undefined; inFlight.current = false; recovery.remove()
-    setTasks([]); setSelectedTask(undefined); setUnavailableTaskId(undefined); focusTask.current = undefined; setOpenError('')
+    setTasks([]); setChangeReview(undefined); setSelectedTask(undefined); setUnavailableTaskId(undefined); focusTask.current = undefined; setOpenError('')
     setEditor(undefined); setInput(blank()); setPending(undefined); setConflict(undefined)
     setError(''); setNotice(''); setBusy(''); setLoading(false); setDenied(message)
     nextFocus.current = 'denied'; editorTrigger.current = null
@@ -177,8 +180,14 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
   // 요청 번호가 바뀔 때만 이동 요청을 처리한다. 읽기 요청은 편집기를 자동으로 열지 않는다.
   useEffect(() => {
     if (compact || !openRequest?.key || !enabled) return
-    if (inFlight.current || editor || pending || conflict || denied) return
-    const { taskId, dueFilter: requestedFilter } = openRequest
+    if (inFlight.current || editor || pending || conflict || changeReview || denied || restoreState !== 'ready') {
+      if (openRequest.change) {
+        setError('작성 중인 업무나 이전 요청을 먼저 확인해 주세요. 기존 입력은 유지했습니다.')
+        onAssistantTaskHandled?.(openRequest.key)
+      }
+      return
+    }
+    const { taskId, dueFilter: requestedFilter, change } = openRequest
     setSearch(''); setFilter(taskId ? 'all' : 'open'); setListPage(0)
     setDueFilter(!taskId && requestedFilter && TASK_DUE_FILTERS.includes(requestedFilter) ? requestedFilter : 'all')
     setSelectedTask(undefined); focusTask.current = undefined; setOpenError(''); setNotice('')
@@ -189,13 +198,25 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     void adapter.get(member.id, taskId).then(raw => {
       if (!current()) return
       const original = taskResponse(raw, scope, taskId)
-      focusTask.current = original.id
       setUnavailableTaskId(undefined); setSelectedTask(original); merge(original)
-      setNotice('요청한 업무의 최신 원본을 확인했습니다. 내용을 검토한 뒤 수정하거나 상태를 바꿔 주세요.')
+      if (change) {
+        try {
+          const review = reviewAssistantTaskChange(change, original, member, date)
+          setChangeReview(review); setError('')
+        } catch (failure) {
+          setError(failure instanceof Error ? failure.message : changedTaskMessage)
+          nextFocus.current = 'error'
+        }
+        onAssistantTaskHandled?.(openRequest.key)
+      } else {
+        focusTask.current = original.id
+        setNotice('요청한 업무의 최신 원본을 확인했습니다. 내용을 검토한 뒤 수정하거나 상태를 바꿔 주세요.')
+      }
     }).catch(failure => {
       if (!current()) return
       const code = errorCode(failure)
-      if (code === 'FORBIDDEN' || code === 'INACTIVE_MEMBERSHIP') { purge(failureText[code]); return }
+      if (code === 'FORBIDDEN' || code === 'INACTIVE_MEMBERSHIP') { if (change) onAssistantTaskHandled?.(openRequest.key); purge(failureText[code]); return }
+      if (change && code === 'NOT_FOUND') onAssistantTaskHandled?.(openRequest.key)
       setSelectedTask(undefined); focusTask.current = undefined
       if (code === 'NOT_FOUND') { setUnavailableTaskId(taskId); setTasks(currentTasks => currentTasks.filter(task => task.id !== taskId)) }
       setOpenError(code === 'NOT_FOUND' ? '찾은 업무가 없거나 현재 소속으로 확인할 수 없습니다. 최신 목록에서 다시 찾아 주세요.' : '요청한 업무의 원본을 확인하지 못했습니다. 다시 확인해 주세요.')
@@ -203,7 +224,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     return () => {
       if (operation === operationGeneration.current) { operationGeneration.current++; inFlight.current = false; setBusy('') }
     }
-  }, [adapter, member.id, enabled, compact, openRequest?.key, openAttempt])
+  }, [adapter, member.id, enabled, date, compact, openRequest?.key, openAttempt])
   // 빠른 원본 응답이 필터 초기화보다 먼저 반영될 수 있다. 카드가 나타난 commit에서 요청을 마친다.
   useBrowserLayoutEffect(() => {
     if (loading || loadError || !focusTask.current) return
@@ -223,9 +244,10 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
       return previous ? current.map(task => task.id === result.id ? result : task) : [...current, result]
     })
   }
-  async function perform(command: TaskCommand, requestKey: string = crypto.randomUUID()) {
+  async function perform(command: TaskCommand, requestKey: string = crypto.randomUUID(), source?: TaskChangeReview) {
     if (inFlight.current || denied || !enabled || restoreState !== 'ready') return
-    const request: Pending = { command: structuredClone(command), key: requestKey, original: editor?.original ?? pending?.original }
+    const fromAssistant = Boolean(source || pendingRef.current?.fromAssistant)
+    const request: Pending = { command: structuredClone(command), key: requestKey, original: source?.original ?? editor?.original ?? pending?.original, ...(fromAssistant ? { fromAssistant: true } : {}) }
     const operation = ++operationGeneration.current
     const current = () => alive.current && operation === operationGeneration.current
     inFlight.current = true; pendingRef.current = request; recovery.put(request)
@@ -237,6 +259,7 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
           : await adapter.setStatus(member.id, command.taskId, command.status, command.expectedVersion, requestKey)
       if (!current()) return
       const result = taskResponse(raw, scope, command.kind === 'create' ? undefined : command.taskId)
+      if (fromAssistant) verifyTaskChangeReceipt(command, request.original, result)
       listGeneration.current++; merge(result)
       pendingRef.current = undefined; recovery.remove(requestKey); setPending(undefined); setError(''); setSavedTaskId(result.id)
       if (command.kind !== 'status') { retiredDraft.current = true; editMemory.remove(); setEditor(undefined); setInput(blank()) }
@@ -249,6 +272,12 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
       if (!current()) return
       const code = errorCode(failure)
       if (code === 'FORBIDDEN' || code === 'INACTIVE_MEMBERSHIP') { purge(failureText[code]); return }
+      if (code === 'CONFLICT' && fromAssistant) {
+        // 대화에서 고른 판만 수정한다. 새 판에 이전 전체 입력을 다시 적용하지 않는다.
+        pendingRef.current = undefined; recovery.remove(requestKey); setPending(undefined)
+        setReload(value => value + 1); setError(changedTaskMessage); nextFocus.current = 'error'
+        return
+      }
       if (code === 'CONFLICT' && command.kind !== 'create') {
         // 이전 편집을 저장·취소한 뒤 생긴 상태 변경 충돌도 새 보관 대상으로 취급한다.
         retiredDraft.current = false
@@ -264,6 +293,17 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     } finally {
       if (current()) { inFlight.current = false; setBusy('') }
     }
+  }
+  function confirmAssistantChange() {
+    if (!changeReview || inFlight.current || pendingRef.current || !enabled || denied || loading || loadError) return
+    const review = changeReview
+    setChangeReview(undefined)
+    if (date !== review.basisDate) { setError('기준일이 바뀌었습니다. 대화에서 현재 날짜로 다시 선택해 주세요.'); nextFocus.current = 'error'; return }
+    const listed = tasks.find(task => task.id === review.original.id)
+    if (listed && listed.version > review.original.version) {
+      setError(changedTaskMessage); nextFocus.current = 'error'; return
+    }
+    void perform(review.command, review.key, review)
   }
   function submit(event: FormEvent) {
     event.preventDefault()
@@ -350,9 +390,12 @@ function TaskPanelScope({ adapter, member, date, compact = false, onOpenTasks, o
     {denied || !enabled ? <div ref={deniedMessage} tabIndex={-1} className="task-error" role="alert"><p>{denied || failureText.INACTIVE_MEMBERSHIP}</p>{enabled && <button type="button" className="task-secondary" onClick={() => setReload(value => value + 1)}>연결 다시 확인</button>}</div> : <>
       {notice && <div ref={noticeMessage} className="task-notice" role="status" tabIndex={-1}>{notice}{savedTaskId && !compact && <button type="button" className="task-text-button" disabled={navigationLocked} onClick={showSavedTask}>저장한 업무 보기</button>}</div>}
       {error && <p ref={errorMessage} id={`${id}-error`} className="task-error" role="alert" tabIndex={-1}>{error}</p>}
-      {openError && <div className="task-error" role="alert"><p>{openError}</p><button type="button" className="task-secondary" disabled={locked || !!editor} onClick={() => setOpenAttempt(value => value + 1)}>업무 원본 다시 확인</button></div>}
+      {openError && <div className="task-error" role="alert"><p>{openError}</p>{openRequest && <button type="button" className="task-secondary" disabled={locked || !!editor} onClick={() => setOpenAttempt(value => value + 1)}>업무 원본 다시 확인</button>}
+        {openRequest?.change && <button type="button" className="task-secondary" disabled={locked} onClick={() => { onAssistantTaskHandled?.(openRequest.key); setOpenError(''); setNotice('변경을 취소했습니다.') }}>변경 취소</button>}</div>}
       {pending && <section ref={recoveryMessage} tabIndex={-1} className="task-retry" aria-label="저장 결과 확인 필요"><h3>먼저 이전 요청의 결과를 확인해 주세요</h3><p>같은 내용과 요청 번호로 다시 확인합니다. 입력창을 접어 목록과 다른 화면을 볼 수 있습니다. 결과 확인 전에는 새 업무 저장을 잠시 멈춥니다. 새로고침하면 복구 정보가 사라집니다.</p><button type="button" className="task-primary" disabled={!!busy} onClick={() => { void perform(pending.command, pending.key) }}>이전 요청 그대로 다시 확인</button><button type="button" className="task-secondary" disabled={!!busy} onClick={() => { setPendingFolded(!pendingFolded); nextFocus.current = 'recovery' }}>{pendingFolded ? '보관한 입력 보기' : '입력창 접고 목록 보기'}</button></section>}
       {restoreState !== 'ready' && <section className="task-retry" aria-label="보관한 업무 입력 확인"><p role={restoreState === 'checking' ? 'status' : 'alert'}>{restoreState === 'checking' ? '현재 업무의 수정 권한을 다시 확인하는 중…' : '업무 원본을 다시 확인하지 못했습니다. 보관한 입력을 표시하지 않고 유지합니다.'}</p>{restoreState === 'retry' && <button type="button" className="task-primary" onClick={() => setRestoreAttempt(value => value + 1)}>보관한 업무 원본 다시 확인</button>}<button type="button" className="task-secondary" onClick={() => { restoreDiscarded.current = true; retiredDraft.current = true; editMemory.remove(); setEditor(undefined); setInput(blank()); setConflict(undefined); setRestoreState('ready') }}>보관한 입력 폐기</button></section>}
+      {changeReview && <TaskChangeConfirmation review={changeReview} disabled={!!busy || !!pending || loading || !!loadError}
+        onConfirm={confirmAssistantChange} onCancel={() => { setChangeReview(undefined); setNotice('변경을 취소했습니다.'); nextFocus.current = 'notice' }} />}
       {restoreState === 'ready' && conflict && <section className="task-conflict" aria-label="업무 변경 내용 비교"><h3>최신 업무와 내 변경을 비교해 주세요</h3>{conflict.current ? <><div className="task-comparison"><div><h4>최신 업무 · v{conflict.current.version}</h4><TaskContents task={conflict.current} /></div><div><h4>내가 적용하려던 변경</h4>{conflict.command.kind === 'update' ? <TaskContents task={{ ...conflict.current, ...conflict.command.input }} /> : <p>상태를 <strong>{labels[conflict.command.status]}</strong>로 변경</p>}</div></div><div className="task-actions"><button type="button" className="task-primary" disabled={!!busy} onClick={() => { const current = conflict.current; if (current) void perform({ ...conflict.command, expectedVersion: current.version }) }}>최신 내용 확인 · 내 변경 다시 적용</button><button type="button" className="task-secondary" disabled={!!busy} onClick={useLatest}>최신 내용 사용</button></div></> : <><p>최신 원본을 확인하기 전에는 덮어쓰지 않습니다. 내 입력은 아래에 남아 있습니다.</p><button type="button" className="task-secondary" disabled={!!busy} onClick={() => { void loadConflict() }}>최신 업무 불러오기</button></>}</section>}
       {restoreState === 'ready' && editor && !pendingFolded && <TaskEditor id={id} original={editor.original} input={input} locked={locked} saving={busy === 'saving'}
         errorId={error ? `${id}-error` : undefined} titleRef={titleInput}

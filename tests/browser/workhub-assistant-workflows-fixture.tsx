@@ -8,7 +8,7 @@ import {createPendingRequests, PendingRequestsProvider} from '../../apps/workhub
 
 const w = window as any
 let member:any = {id:'member-one',userId:'user-one',schoolId:'school-one',name:'시험 교사',role:'teacher',active:true,validFrom:'2026-03-01',validThrough:'2027-02-28',departmentIds:[],gradeIds:[],subjectIds:[]}
-w.calls=[];w.navigation=[];w.searches=[];w.opened=[];w.calendar=[];w.tasks=0;w.aiCalls=0
+w.calls=[];w.navigation=[];w.searches=[];w.opened=[];w.calendar=[];w.changedTasks=[];w.tasks=0;w.aiCalls=0
 w.ready=w.scenario!=='notready';w.allow=true;w.searchFail=false;w.deferSearch=false;w.taskUnknown=false
 w.pending=createPendingRequests();w.memory=createEditDrafts()
 const receipts=new Map(),taskReceipts=new Map()
@@ -51,6 +51,7 @@ const server=createAssistantServer(connection,{send:async(payload:any)=>{
 const result=()=>({items:[{kind:'knowledge',id:'travel-rule',title:'출장 안내',description:'출장 절차와 제출 자료',meta:'2판 · 게시됨',version:2,locator:'원문 3항'}],coverage:['현재 학교에서 조회 가능한 학교 자료 첫 페이지'],hasMore:true})
 function App(){
   const[revision,setRevision]=useState(0),[show,setShow]=useState(true),[context,setContext]=useState<any>()
+  const[date,setDate]=useState('2026-11-03'); w.advanceDate=()=>setDate('2026-11-04')
   w.refresh=()=>setRevision(x=>x+1);w.setShow=setShow;w.setContext=setContext
   w.switchAccount=()=>{member={...member,id:'member-two',userId:'user-two',schoolId:'school-two'};setRevision(x=>x+1)}
   w.endMembership=()=>{member={...member,active:false};setRevision(x=>x+1)}
@@ -60,13 +61,20 @@ function App(){
       w.searches.push({query,kinds});w.searchSignal=signal
       if(w.searchFail)throw new Error('합성 조회 실패')
       if(w.deferSearch)return await new Promise<any>(resolve=>w.releaseSearch=()=>resolve(result()))
+      if (kinds.length === 1 && kinds[0] === 'task') {
+        return {items:['회람 확인','회람 확인'].map((title,index)=>({
+          kind:'task',id:'personal-'+index,title,description:'소속 교사 본인의 개인 업무',version:index+1,
+          meta:'할 일 · 2026-11-0'+(index+4)+'까지 · 나만 보는 업무',date:'2026-11-0'+(index+4),
+        })).filter(task=>task.title.includes(query)),coverage:['현재 소속의 개인 업무'],hasMore:false}
+      }
       return result()
     },
+    changeTask:(command:any,item:any)=>{w.changedTasks.push(structuredClone({command,item}));return w.allow},
     open:(item:any)=>{w.opened.push(structuredClone(item));return w.allow},
     calendar:(command:any)=>{w.calendar.push(structuredClone(command));return w.allow},
   }
   return <EditDraftsProvider store={w.memory}><PendingRequestsProvider store={w.pending}>
-    {show&&<AssistantPanel connection={connection} member={member} date="2026-11-03" revision={revision} server={server}
+    {show&&<AssistantPanel connection={connection} member={member} date={date} revision={revision} server={server}
       settingsServer={{status:async()=>{throw new AssistantError('NOT_READY')}} as any}
       contextRequest={context} workspaceActions={actions} onNavigationLockChange={locked=>w.locked=locked}/>} 
   </PendingRequestsProvider></EditDraftsProvider>
