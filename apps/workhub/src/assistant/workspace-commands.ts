@@ -150,7 +150,7 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   if (typeof prompt !== 'string') return clarification('요청 내용을 확인해 주세요.')
   if (!validWorkspaceText(prompt))
     return clarification('요청 길이와 문자를 확인해 주세요. 한 번에 한 가지 업무를 적어 주세요.')
-  const draft = parseDraftCommand(prompt)
+  const draft = parseDraftCommand(prompt, basisDate)
   if (draft) return draft
   let text = prompt.trim().replace(/\s+/g, ' ').replace(/[.!?。！？]+$/, '').trim()
   if (!text) return null
