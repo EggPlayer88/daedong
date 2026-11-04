@@ -1,4 +1,5 @@
 import React from 'react'
+import { createDialogueTaskFixture } from './workhub-dialogue-task-fixture'
 import { createRoot } from 'react-dom/client'
 import { ConnectedWorkspace } from '../../apps/workhub/src/app/ConnectedWorkspace'
 import { createSupabaseConnection } from '../../apps/workhub/src/connection/supabase-connection'
@@ -15,11 +16,13 @@ const doc=(n:number)=>({id:`doc-${n}`,schoolId:teacher.schoolId,ownerMemberId:te
 const source={id:'source-one',schoolId:teacher.schoolId,authorMemberId:teacher.id,version:2,status:'retired',title:'지난 학년도 학사 지침',body:'과거 원문 2판의 확정 내용',kind:'school_guide',locator:'학사 지침 3쪽',effectiveFrom:'2025-03-01',effectiveThrough:'2026-02-28',updatedAt:'2026-10-19T00:00:00Z'}
 const course={id:'course-one',schoolId:teacher.schoolId,version:1,label:'가상 1학년 국어',termId:'term-one',subjectId:'korean',assignmentId:'assignment-one',validFrom:'2026-08-13',validThrough:'2027-02-28',canRecord:true,canCounsel:false,canManageRoster:true}
 const teaching={contractVersion:'teaching.v1',schoolId:teacher.schoolId,memberId:teacher.id,ownerUserId:teacher.userId}
-w.qa={calls:[],failNext:false,defer:false,releases:[],deny(){denied=true;authChanged()},teachers:members}
+const qaTasks = createDialogueTaskFixture(teacher)
+w.qa={qaTasks,calls:[],failNext:false,defer:false,releases:[],deny(){denied=true;authChanged()},teachers:members}
 const services:any={getSession:async()=>({user:{id:teacher.userId}}),fetchMyProfile:async()=>({id:teacher.userId,name:teacher.name,email:'virtual@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:!denied}),onAuthStateChange(cb:any){authChanged=()=>cb({user:{id:teacher.userId}});return()=>{}},async signOut(){},async signInWithGoogle(){},async rpc(name:string,args:any){
  w.qa.calls.push(clone({name,args})); const ok=(data:any)=>({data,error:null})
  if(name==='workhub_context')return ok(clone(context))
- if(name==='workhub_calendar_list'||name==='workhub_task_list')return ok([])
+ if(name==='workhub_calendar_list')return ok([])
+ if(['workhub_task_list', 'workhub_task_get', 'workhub_task_mutate'].includes(name)) return qaTasks.rpc(name, args)
  if(name==='workhub_collection_list')return ok({contractVersion:1,schoolId:teacher.schoolId,memberId:teacher.id,error:{code:'NOT_READY'}})
  if(name==='workhub_document_list'){
    if(args.p_cursor&&w.qa.failNext){w.qa.failNext=false;return{data:null,error:{message:'QUERY_FAILED'}}}
