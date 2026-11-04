@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { parseDraftReply, type DraftFollowup, type DraftPeople, type DraftPerson } from './draft-followup'
+import { isDeadlineReplyWhileNaming, parseDraftReply, type DraftFollowup, type DraftPeople, type DraftPerson } from './draft-followup'
 import { validCollectionComposeText } from '../collections/compose-text'
 import { validWorkspaceText } from './workspace-commands'
 import type { DirectDraftCommand } from './draft-commands'
@@ -69,7 +69,10 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
     if (result.kind === 'cancel') { cancelDraftFollowup(); return }
     clearMatches()
     const command = followup.command
-    if (!followup.pendingNames?.length && !(command.kind === 'messageDraft' ? command.body : command.title)) {
+    const needsContent = command.kind === 'messageDraft' ? !command.body : !command.title
+    const deadlineBeforeTitle = command.kind === 'collectionDraft' && !command.title &&
+      isDeadlineReplyWhileNaming(current.prompt, result)
+    if (!followup.pendingNames?.length && needsContent && !deadlineBeforeTitle) {
       const content = current.prompt.trim()
       if (!content || !validWorkspaceText(content) ||
           (command.kind === 'collectionDraft' && !validCollectionComposeText(content, command.instructions))) {
