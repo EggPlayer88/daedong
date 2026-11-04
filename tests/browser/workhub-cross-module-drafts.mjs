@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
+import { checkDraftFollowup } from './workhub-cross-module-draft-followup.mjs'
 
 // 실제 연결 셸에서 교사가 입력한 초안을 전달한다. 합성 RPC·Storage·AI 호출은 각각 기록한다.
 export async function checkExplicitDrafts({ page, go, test, output }) {
@@ -25,6 +26,8 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     }))
     assert.deepEqual(result, { asks: [], writes: [], storage: [], files: [], persisted: [0, 0] })
   }
+
+  await checkDraftFollowup({ page, go, test, request, noSideEffects, output })
 
   await test('명시한 메시지 본문을 한 번만 편집기에 옮기고 받는 사람은 교사가 선택한다', async () => {
     await page.evaluate(() => { window.cross.budgetExhausted = true })
