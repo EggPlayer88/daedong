@@ -34,6 +34,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     cancelDraftFollowup,
     openDraftForm,
     dismissDraftPeople,
+    retryDraftName,
     dismissTaskMatches,
     baseEditable,
     budgetError,
@@ -98,7 +99,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
   } = model
   const continuing = Boolean(calendarFollowup || draftFollowup)
   const canContinueDraft = !continuing && workspaceActions?.findDraftPeople && (
-    workspaceCommand?.kind === 'messageDraft' || workspaceCommand?.kind === 'collectionDraft')
+    workspaceCommand?.kind === 'messageDraft' || workspaceCommand?.kind === 'collectionDraft') && !workspaceCommand.firstTurn
   return (
     <section className="assistant-workspace" aria-labelledby={`${uid}-title`}>
       <style>{styles}</style>
@@ -448,7 +449,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           {draftFollowup && <DraftFollowupCard draft={draftFollowup} result={draftPeople}
             disabled={!workspaceEditable || draftSearching} searching={draftSearching}
             pendingInput={Boolean(session.prompt.trim())} onSelect={selectDraftPerson}
-            onRemove={removeDraftPerson} onDismiss={dismissDraftPeople} onCancel={cancelDraftFollowup}
+            onRemove={removeDraftPerson} onDismiss={dismissDraftPeople} onRetry={retryDraftName} canRetry={!session.prompt.trim() || draftFollowup.pendingNames?.[0] === session.prompt} onCancel={cancelDraftFollowup}
             onOpen={openDraftForm} />}
           <form
             className="assistant-compose"
@@ -533,7 +534,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <details className="assistant-command-help">
                 <summary>대화로 할 수 있는 일</summary>
                 <div className="assistant-command-examples">
-                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '메시지 초안: 내일 회의 자료를 확인해 주세요', '수합 초안: 현장체험학습 계획서'].map((text) => (
+                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].map((text) => (
                   <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
                 ))}

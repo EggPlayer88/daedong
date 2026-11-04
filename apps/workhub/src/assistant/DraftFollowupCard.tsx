@@ -9,6 +9,8 @@ interface Props {
   onSelect: (person: DraftPerson) => void
   onRemove: (id: string) => void
   onDismiss: () => void
+  onRetry: () => void
+  canRetry: boolean
   onOpen: () => void
   onCancel: () => void
 }
@@ -18,14 +20,18 @@ function personLabel(person: DraftPerson) {
 }
 
 export function DraftFollowupCard({
-  draft, result, disabled, searching, pendingInput, onSelect, onRemove, onDismiss, onOpen, onCancel,
+  draft, result, disabled, searching, pendingInput, onSelect, onRemove, onDismiss, onRetry, canRetry, onOpen, onCancel,
 }: Props) {
   const { command, selected, dueDate } = draft
   const message = command.kind === 'messageDraft'
   const role = message ? '받는 사람' : '제출 대상'
   const heading = message ? '작성 중인 메시지' : '작성 중인 수합'
-  const nextQuestion = result || searching ? '' : !message && !dueDate ? '제출 기한은 언제인가요?' :
-    selected.length ? '더 추가할 교사가 있나요? 준비되면 작성 화면에서 확인하세요.' :
+  const missingContent = command.kind === 'messageDraft' ? !command.body : !command.title
+  const pendingName = draft.pendingNames?.[0]
+  const nextQuestion = result || searching ? '' : pendingName ? `확인할 교사 이름은 “${pendingName}”입니다.` :
+    missingContent ? (message ? '메시지 본문을 적어 주세요.' : '수합 제목을 적어 주세요.') :
+    !message && !dueDate ? '제출 기한은 언제인가요?' :
+    selected.length ? '작성 화면에서 선택한 내용과 대상을 확인해 주세요.' :
     message ? '누구에게 보낼까요? 교사 이름을 적어 주세요.' : '누가 제출하나요? 교사 이름을 적어 주세요.'
 
   return <section className="assistant-workspace-result" aria-label={heading}>
@@ -34,6 +40,7 @@ export function DraftFollowupCard({
       ? <p className="assistant-text">{command.body}</p>
       : <><strong>{command.title}</strong>{command.instructions && <p className="assistant-text">{command.instructions}</p>}
           <p>제출 기한 · {dueDate ? <time dateTime={dueDate}>{dueDate}</time> : '미입력'}</p></>}
+    {!dueDate && command.firstTurn?.dateIssue && <p>{command.firstTurn.dateIssue}</p>}
     <p>{role} · {selected.length}명</p>
     {selected.length > 0 && <ul className="assistant-draft-people" aria-label={role + ' 선택 목록'}>
       {selected.map(person => <li key={person.memberId}><span>{personLabel(person)}</span>
@@ -52,11 +59,15 @@ export function DraftFollowupCard({
         })}
       </ul> : <p role="status">일치하는 교사가 없습니다. 다른 이름으로 찾아보세요.</p>}
       {result.hasMore && <p className="assistant-hint">일부 결과를 표시했습니다. 이름을 더 자세히 적어 주세요.</p>}
-      <button type="button" className="assistant-quiet" disabled={disabled} onClick={onDismiss}>검색 닫기</button>
+      <button type="button" className="assistant-quiet" disabled={disabled} onClick={onDismiss}>{pendingName ? '이 이름 건너뛰기' : '검색 닫기'}</button>
     </section>}
+    {!result && !searching && pendingName && <div className="assistant-actions">
+      <button type="button" className="assistant-quiet" disabled={disabled || !canRetry} onClick={onRetry}>이 이름 다시 찾기</button>
+      <button type="button" className="assistant-quiet" disabled={disabled} onClick={onDismiss}>이 이름 건너뛰기</button>
+    </div>}
     {nextQuestion && <p role="status">{nextQuestion}</p>}
     <div className="assistant-actions">
-      <button type="button" className="assistant-primary" disabled={disabled || pendingInput || Boolean(result) || searching}
+      <button type="button" className="assistant-primary" disabled={disabled || pendingInput || Boolean(result) || searching || Boolean(pendingName) || missingContent}
         onClick={onOpen}>작성 화면에서 확인</button>
       <button type="button" className="assistant-quiet" disabled={disabled} onClick={onCancel}>이어 입력 취소</button>
     </div>

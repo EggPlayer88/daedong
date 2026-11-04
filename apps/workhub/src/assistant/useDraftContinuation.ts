@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { parseDraftReply, type DraftFollowup, type DraftPeople, type DraftPerson } from './draft-followup'
+import { validCollectionComposeText } from '../collections/compose-text'
+import { validWorkspaceText } from './workspace-commands'
 import type { DirectDraftCommand } from './draft-commands'
 import type { AssistantWorkspaceActions, Session } from './workspace-model'
 
@@ -47,8 +49,9 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
     if (!editable || !current || current.draftDialogue || !actions?.findDraftPeople ||
         current.prompt.trim() !== command.prompt.trim()) return
     clearMatches()
-    update({ ...current, prompt: '', draftDialogue: { command, selected: [], scope, basisDate } })
-    feedback('')
+    const first = command.firstTurn
+    const next: DraftFollowup = { command, selected: [], scope, basisDate, dueDate: first?.dueDate, pendingNames: first?.names }
+    showNextCandidate(current, next)
   }
   function cancelDraftFollowup() {
     const current = latest.current
@@ -60,21 +63,47 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
   async function reply() {
     const current = latest.current
     if (!editable || !current || !followup || !actions?.findDraftPeople || flight.current) return
-    const result = parseDraftReply(followup, current.prompt)
+    const requestedName = followup.pendingNames?.[0]
+    const result = requestedName && requestedName === current.prompt
+      ? { kind: 'fields' as const, query: requestedName, dueDate: undefined } : parseDraftReply(followup, current.prompt)
     if (result.kind === 'cancel') { cancelDraftFollowup(); return }
     clearMatches()
+    const command = followup.command
+    if (!followup.pendingNames?.length && !(command.kind === 'messageDraft' ? command.body : command.title)) {
+      const content = current.prompt.trim()
+      if (!content || !validWorkspaceText(content) ||
+          (command.kind === 'collectionDraft' && !validCollectionComposeText(content, command.instructions))) {
+        feedback(command.kind === 'messageDraft' ? '메시지에 넣을 본문을 적어 주세요.' : '수합 제목을 한 줄로 적어 주세요.')
+        return
+      }
+      const filled = command.kind === 'messageDraft' ? { ...command, body: content } : { ...command, title: content }
+      update({ ...current, prompt: '', draftDialogue: { ...followup, command: filled } })
+      feedback('')
+      return
+    }
     if (result.kind === 'clarify') { feedback(result.message); return }
     const next: DraftFollowup = result.dueDate ? { ...followup, dueDate: result.dueDate } : followup
-    update({ ...current, draftDialogue: next, prompt: result.query ? current.prompt : '' })
+    const query = result.query ?? next.pendingNames?.[0]
+    const prompt = result.query ? current.prompt : query ?? ''
+    update({ ...current, draftDialogue: next, prompt })
     feedback('')
-    if (!result.query) return
+    if (query) await search(next, query, prompt)
+  }
+  function showNextCandidate(current: Session, next: DraftFollowup) {
+    const query = next.pendingNames?.[0] ?? ''
+    update({ ...current, draftDialogue: next, prompt: query })
+    feedback('')
+    if (query) void search(next, query, query)
+  }
+  async function search(next: DraftFollowup, query: string, prompt: string) {
+    if (!actions?.findDraftPeople) return
     const controller = new AbortController()
     flight.current = controller
     setSearching(true)
     try {
-      const people = await actions.findDraftPeople(next.command.kind, result.query, controller.signal)
-      if (!controller.signal.aborted && latest.current?.prompt === current.prompt)
-        setMatches({ prompt: current.prompt, people, revision })
+      const people = await actions.findDraftPeople(next.command.kind, query, controller.signal)
+      if (!controller.signal.aborted && latest.current?.draftDialogue === next && latest.current.prompt === prompt)
+        setMatches({ prompt, people, revision })
     } catch {
       if (!controller.signal.aborted) feedback('교사 목록을 확인하지 못했습니다. 입력을 유지했으니 다시 검색해 주세요.')
     } finally {
@@ -93,23 +122,29 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
     if (followup.selected.length >= match.limit) {
       feedback(`교사는 최대 ${match.limit}명까지 선택할 수 있습니다.`); return
     }
-    update({ ...current, prompt: '', draftDialogue: { ...followup, selected: [...followup.selected, person] } })
     clearMatches()
-    feedback('')
+    showNextCandidate(current, { ...followup, selected: [...followup.selected, person], pendingNames: followup.pendingNames?.slice(1) })
   }
   function removeDraftPerson(id: string) {
     if (!editable || !latest.current || !followup || flight.current) return
     update({ ...latest.current, draftDialogue: { ...followup, selected: followup.selected.filter(person => person.memberId !== id) } })
     feedback('')
   }
+  function retryDraftName() {
+    const current = latest.current, name = followup?.pendingNames?.[0]
+    if (!editable || !current || !followup || !name || flight.current ||
+        (current.prompt.trim() && current.prompt !== name)) return
+    clearMatches()
+    showNextCandidate(current, followup)
+  }
   function dismissDraftPeople() {
     if (!editable || !latest.current || !followup) return
     clearMatches()
-    update({ ...latest.current, prompt: '' })
-    feedback('')
+    showNextCandidate(latest.current, { ...followup, pendingNames: followup.pendingNames?.slice(1) })
   }
   function openDraftForm() {
-    if (!editable || !latest.current || !followup || latest.current.prompt.trim() || flight.current || visibleMatches) return
+    if (!editable || !latest.current || !followup || latest.current.prompt.trim() || flight.current || visibleMatches || followup.pendingNames?.length) return
+    if (!(followup.command.kind === 'messageDraft' ? followup.command.body : followup.command.title)) return
     if (!actions?.prepareDraft?.(followup.command, followup)) {
       feedback('작성 화면을 열 수 없습니다. 작성 중인 입력이나 확인할 요청을 마친 뒤 다시 시도해 주세요. 초안은 유지했습니다.')
       return
@@ -117,5 +152,5 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
     opened(followup.command)
   }
   return { draftFollowup: followup, draftPeople: visibleMatches?.people, draftSearching: searching,
-    startDraftFollowup, selectDraftPerson, removeDraftPerson, cancelDraftFollowup, dismissDraftPeople, openDraftForm, reply }
+    startDraftFollowup, selectDraftPerson, removeDraftPerson, cancelDraftFollowup, dismissDraftPeople, retryDraftName, openDraftForm, reply }
 }
