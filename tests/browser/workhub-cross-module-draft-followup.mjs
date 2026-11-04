@@ -106,13 +106,14 @@ export async function checkDraftFollowup({ page, test, request, noSideEffects, o
     await request(collectionPrompt, '기한·대상 이어서 입력')
     await reply('이한결 선생님')
     const [other,selected]=['gaon-peer-a-111111','gaon-peer-b-111111']
+    const label = id => '이한결 · 연구부 · 소속 번호 ' + id
     for (const id of [other,selected]) {
-      await results().getByRole('button',{name:'이한결 · 소속 번호 '+id+' 선택',exact:true}).waitFor()
+      await results().getByRole('button',{name:label(id)+' 선택',exact:true}).waitFor()
     }
     assert.match(await collectionCard().innerText(),/제출 대상 · 0명/)
-    await results().getByRole('button',{name:'이한결 · 소속 번호 '+selected+' 선택',exact:true}).click()
+    await results().getByRole('button',{name:label(selected)+' 선택',exact:true}).click()
     const chosen=collectionCard().getByRole('list',{name:'제출 대상 선택 목록',exact:true})
-    await chosen.getByRole('button',{name:'이한결 · 소속 번호 '+selected+' 선택 해제',exact:true}).waitFor()
+    await chosen.getByRole('button',{name:label(selected)+' 선택 해제',exact:true}).waitFor()
     assert.equal((await chosen.innerText()).includes(other),false)
     await reply('내일')
     await button('작성 화면에서 확인').click()
