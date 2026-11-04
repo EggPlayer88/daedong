@@ -1,4 +1,5 @@
 import type { Membership } from '../contracts'
+import { activeAt } from '../domain'
 import { collectionUnitLimit } from '../workflows/entry-guide'
 import type { UnitInput } from '../workflows/types'
 
@@ -36,6 +37,16 @@ function roster(members: unknown) {
 
 export function collectionUnitMemberOptions(members: unknown): CollectionUnitMemberOption[] { return roster(members).options }
 
+export function currentCollectionMembers(members: Membership[], schoolId: string, date: string): Membership[] {
+  return members.filter(person => person.schoolId === schoolId && activeAt(person, date))
+}
+
+export function collectionDraftTargetOptions(members: Membership[], member: Membership, date: string): CollectionUnitMemberOption[] {
+  if (!activeAt(member, date)) return []
+  const current = roster(currentCollectionMembers(members, member.schoolId, date))
+  return current.invalid ? [] : current.options
+}
+
 /** 화면에서 저장을 막는 입력 검사다. 학교 권한·검토자 자기검토의 최종 판정은 서버가 한다. */
 export function validateCollectionUnitInputs(units: unknown, members: unknown): CollectionUnitValidation {
   const issues: CollectionUnitIssue[] = [], current = roster(members)
@@ -64,12 +75,29 @@ function uniqueLabel(proposed: string, units: UnitInput[]): string {
   return label
 }
 
+function personalUnit(person: CollectionUnitMemberOption, units: UnitInput[]): UnitInput {
+  return { label: uniqueLabel(person.label, units), responsibleMemberId: person.id, contributorMemberIds: [] }
+}
+
+/** 선택한 명단을 현재 명부로 다시 확인한다. 누락된 교사가 있으면 일부에게만 보낼 초안을 만들지 않는다. */
+export function personalUnitsForDraft(ids: readonly string[], options: CollectionUnitMemberOption[]): UnitInput[] | null {
+  if (ids.length > collectionUnitLimit || new Set(ids).size !== ids.length) return null
+  const current = new Map(options.map(option => [option.id, option]))
+  const units: UnitInput[] = []
+  for (const id of ids) {
+    const person = current.get(id)
+    if (!person) return null
+    units.push(personalUnit(person, units))
+  }
+  return units
+}
+
 /** 기존 단위의 이름·책임자·공동 작성자를 변경하지 않고 한 부만 추가한다. */
 export function appendPersonalCollectionUnit(units: UnitInput[], members: Membership[], memberId: string, reviewerMemberId = ''): UnitInput[] {
   if (!isCollectionUnitInputs(units) || roster(members).invalid || units.length >= collectionUnitLimit) throw new Error('현재 명부와 제출 단위 개수를 확인해 주세요.')
   const person = collectionUnitMemberOptions(members).find(member => member.id === memberId)
   if (!person || person.id === reviewerMemberId || units.some(unit => unit.responsibleMemberId === person.id)) throw new Error('현재 추가할 수 있는 교사를 선택해 주세요.')
-  return [...structuredClone(units), { label: uniqueLabel(person.label, units), responsibleMemberId: person.id, contributorMemberIds: [] }]
+  return [...structuredClone(units), personalUnit(person, units)]
 }
 
 export function appendSharedCollectionUnit(units: UnitInput[]): UnitInput[] {

@@ -13,6 +13,10 @@ const offset=(day:string,n:number)=>new Date(Date.parse(day+'T00:00:00Z')+n*8640
 const data=copy(fixtureData)
 data.basisDate=offset(now().slice(0,10),3)
 data.memberships.forEach(m=>{m.validFrom='2020-01-01';m.validThrough='2099-12-31'})
+const sampleTeacher=data.memberships.find(person=>person.id==='gaon-seojin')!
+for(const id of ['gaon-peer-a-111111','gaon-peer-b-111111']){
+ data.memberships.push({...copy(sampleTeacher),id,userId:'fixture-'+id,name:'이한결'})
+}
 const calendar=createMemoryAdapter(data,0),tasks=createWorkflowStore({members:data.memberships,date:data.basisDate})
 const ctx={...calendar.info(),schoolLabels:Object.fromEntries(data.schools.map(s=>[s.id,relationLabels])),relationLabels}
 const identity={userId:'fixture-soyeon',approved:true,profile:{id:'fixture-soyeon',name:'합성 교사',email:'test@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}}
@@ -64,7 +68,13 @@ const connection:any={getIdentity:async()=>({...copy(identity),approved:!w.cross
  }
  if(name==='workhub_messaging_readiness')return messaging(member,{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'})
  if(name==='workhub_message_threads')return messaging(member,{items:[thread(member,'other-thread')],nextCursor:null})
- if(name==='workhub_message_recipients')return messaging(member,{items:[recipient(member)],nextCursor:null})
+ if(name==='workhub_message_recipients'){
+  const search=(args.p_query??'').trim()
+  if(w.cross.denyRecipientSearch && search)throw new ContractError('FORBIDDEN','합성 명부 조회 거절')
+  const people=[recipient(member)]
+  if(w.cross.namesake && member.schoolId===primary.schoolId)people.push({...recipient(member),memberId:'gaon-minjun-alt',department:'연구부',version:w.cross.namesakeVersion??1})
+  return messaging(member,{items:people.filter(person=>(person.name+' '+person.department).includes(search)),nextCursor:null})
+ }
  if(name==='workhub_message_get'){
   const result=messaging(member,{thread:thread(member,args.p_thread_id),items:[message(member,args.p_thread_id)],nextCursor:null})
   if(w.cross.holdMessage&&args.p_thread_id==='home-thread'){await new Promise(resolve=>w.cross.releaseMessage=resolve);w.cross.heldSettled=true}

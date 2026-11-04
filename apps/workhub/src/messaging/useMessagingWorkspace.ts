@@ -24,6 +24,7 @@ import {
 } from './composer'
 import { restoreSentDelivery, sentDeliveryRecord, type SentDeliveryRecord } from './deliveries'
 import { command as checkedCommand } from './validation'
+import { currentDraftRecipients, parseDraftRecipients } from './draft-recipients'
 import { createMessageFileServer } from './files'
 import { requestBlobDownload } from '../files/download'
 import {
@@ -144,8 +145,13 @@ export function useMessagingWorkspace({
   const offeredDraft = composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id &&
     (!composeRequest.basisDate || composeRequest.basisDate === date) ? composeRequest : undefined
   const handledDraft = useRef<string>()
-  const canUseAiDraft = !!offeredDraft && usable && !checking && !readyError && !locked && !dirty &&
+  const chosenRecipients = parseDraftRecipients(offeredDraft?.recipients, member)
+  const canUseAiDraft = !!offeredDraft && chosenRecipients !== null &&
+    (!chosenRecipients.length || !!offeredDraft.basisDate) && usable && !checking && !readyError && !locked && !dirty &&
     !recovery.request && !fileRecovery.request
+  const offerInFlight = useRef(false)
+  const currentOffer = useRef<string>()
+  currentOffer.current = offeredDraft && usable && !checking && !readyError ? offeredDraft.id : undefined
   useEffect(() => {
     alive.current = true
     serverGeneration.current++
@@ -425,23 +431,43 @@ export function useMessagingWorkspace({
     setConflict(false)
     setTimeout(() => composerInput.current?.focus(), 0)
   }
-  function useAiDraft() {
+  async function useAiDraft() {
     if (
-      !canUseAiDraft || !offeredDraft || (offeredDraft.basisDate && handledDraft.current === offeredDraft.id) ||
+      !canUseAiDraft || !offeredDraft || !chosenRecipients || offerInFlight.current ||
+      (offeredDraft.basisDate && handledDraft.current === offeredDraft.id) ||
       typeof offeredDraft.body !== 'string' || !offeredDraft.body.trim() ||
       Array.from(offeredDraft.body).length > 50000
-    )
-      return
-    handledDraft.current = offeredDraft.id
-    setDraft({ ...blankMessageDraft(), body: offeredDraft.body })
-    setComposing(true)
-    setFolded(false)
+    ) return
+    const generation = serverGeneration.current
+    const current = () => alive.current && generation === serverGeneration.current &&
+      currentOffer.current === offeredDraft.id
+    offerInFlight.current = true
+    setBusy(true)
     setError('')
-    setNotice(offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
-      : 'AI 초안을 불러왔습니다. 받는 사람과 내용을 확인한 뒤 전송해 주세요.')
-    setDiscardConfirm(false)
-    setConflict(false)
-    onComposeRequestConsumed?.(offeredDraft.id)
+    try {
+      const overLimit = chosenRecipients.length > (readiness?.limits?.recipients ?? 0)
+      const matches = !chosenRecipients.length || (!overLimit &&
+        await currentDraftRecipients(server, member.id, chosenRecipients, current))
+      if (!current()) return
+      const recipients = matches ? chosenRecipients : []
+      handledDraft.current = offeredDraft.id
+      setDraft({ ...blankMessageDraft(), body: offeredDraft.body, recipients,
+        mode: recipients.length > 1 ? 'individual' : 'direct' })
+      setComposing(true)
+      setFolded(false)
+      setNotice(overLimit ? '현재 수신자 한도를 넘었습니다. 본문은 유지했으니 받는 사람을 다시 선택해 주세요.'
+        : !matches ? '받는 사람 정보가 바뀌었습니다. 본문은 유지했으니 받는 사람을 다시 선택해 주세요.'
+        : offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
+        : 'AI 초안을 불러왔습니다. 받는 사람과 내용을 확인한 뒤 전송해 주세요.')
+      setDiscardConfirm(false)
+      setConflict(false)
+      onComposeRequestConsumed?.(offeredDraft.id)
+    } catch (failure) {
+      if (current()) report(failure, setError)
+    } finally {
+      offerInFlight.current = false
+      if (alive.current) setBusy(false)
+    }
   }
   function closeComposer() {
     if (locked) return
@@ -634,6 +660,8 @@ export function useMessagingWorkspace({
     closeComposer,
     closeThread,
     canUseAiDraft,
+    chosenRecipients,
+    checkingDraftRecipients: offerInFlight.current,
     composeRequest: offeredDraft,
     dismissAiDraft: () => { if (offeredDraft) onComposeRequestConsumed?.(offeredDraft.id) },
     composerInput,

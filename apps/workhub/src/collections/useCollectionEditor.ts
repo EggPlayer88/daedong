@@ -24,7 +24,10 @@ import {
   type CollectionList,
   type CollectionReadiness,
 } from './contracts'
-import { collectionUnitMemberOptions, validateCollectionUnitInputs } from './unit-inputs'
+import {
+  collectionDraftTargetOptions, collectionUnitMemberOptions, currentCollectionMembers,
+  personalUnitsForDraft, validateCollectionUnitInputs,
+} from './unit-inputs'
 import { formatCollectionRecordedTime } from './submission-summary'
 import { collectionSubmissionGuidance } from './submission-guidance'
 import { stageTemplates } from './template-staging'
@@ -202,15 +205,22 @@ export function useCollectionEditor({
     if (!canStartEditor || !newCollectionPolicy || operation.current || sessionRef.current !== session) return
     if (fromCompose && (!offeredCompose || handledComposeIds.current.has(offeredCompose.id))) return
     const input = blank()
+    let targetsChanged = false
     if (fromCompose && offeredCompose) {
       input.title = offeredCompose.title
       input.instructions = offeredCompose.instructions
+      input.dueDate = offeredCompose.dueDate ?? ''
+      const units = personalUnitsForDraft(offeredCompose.targetMemberIds ?? [], collectionDraftTargetOptions(members, member, date))
+      targetsChanged = units === null
+      input.units = units ?? []
     }
     input.fileCollection = { policy: newCollectionPolicy, required: true, templates: [] }
     focusNext('editor')
     setSession({ editor: { input, staged: [] } })
     setError('')
-    setNotice(fromCompose ? '수합 초안을 열었습니다. 기한과 제출 대상을 확인한 뒤 저장해 주세요.' : '')
+    setNotice(targetsChanged
+      ? '수합 초안을 열었습니다. 교사 명부가 달라져 제출 대상을 옮기지 못했습니다. 현재 명부에서 다시 선택해 주세요.'
+      : fromCompose ? '수합 초안을 열었습니다. 기한과 제출 대상을 확인한 뒤 저장해 주세요.' : '')
     if (fromCompose && offeredCompose) finishCompose(offeredCompose.id)
   }
   function resetEditing(selected?: string) {
@@ -1002,9 +1012,7 @@ export function useCollectionEditor({
       }
     }
   }
-  const allowedMembers = members.filter(
-    (value) => value.schoolId === member.schoolId && activeAt(value, date),
-  )
+  const allowedMembers = currentCollectionMembers(members, member.schoolId, date)
   const unitValidation = session.editor
     ? validateCollectionUnitInputs(session.editor.input.units, allowedMembers)
     : undefined

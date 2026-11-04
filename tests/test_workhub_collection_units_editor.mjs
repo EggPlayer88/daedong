@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
-const { validateCollectionUnitInputs, collectionUnitMemberOptions, appendPersonalCollectionUnit, appendSharedCollectionUnit, render } = await loadBrowserModule(`
+const { validateCollectionUnitInputs, collectionUnitMemberOptions, collectionDraftTargetOptions, personalUnitsForDraft, appendPersonalCollectionUnit, appendSharedCollectionUnit, render } = await loadBrowserModule(`
   import {renderToStaticMarkup} from 'react-dom/server'
   import {CollectionUnitsEditor} from '../apps/workhub/src/collections/CollectionUnitsEditor'
   export * from '../apps/workhub/src/collections/unit-inputs'
@@ -20,6 +20,17 @@ test('명부 순서가 바뀌어도 동명이인은 ID 순서로 구별한다', 
   const roster = [member('b', '김교사'), member('a', '김교사'), member('c', '박교사')]
   const first = collectionUnitMemberOptions(roster), second = collectionUnitMemberOptions([...roster].reverse())
   assert.deepEqual(first, second); assert.deepEqual(first.slice(0, 2), [{ id: 'a', label: '김교사 · 동명이인 1' }, { id: 'b', label: '김교사 · 동명이인 2' }])
+})
+test('대화에서 확인한 동명이인 두 명을 각각 한 부로 연결하고, 다른 학교·종료 소속은 제외한다', () => {
+  const source = [member('a', '김교사'), member('b', '김교사'), member('s', '김교사', {schoolId:'elsewhere'}), member('ended', '김교사', {validThrough:'2026-11-03'})]
+  const options = collectionDraftTargetOptions(source, source[0], '2026-11-04')
+  const units = personalUnitsForDraft(['b','a'], options)
+  assert.deepEqual(units, [
+    { label:'김교사 · 동명이인 2', responsibleMemberId:'b', contributorMemberIds:[] },
+    { label:'김교사 · 동명이인 1', responsibleMemberId:'a', contributorMemberIds:[] },
+  ])
+  for (const ids of [['s','a'], ['a','ended'], ['a','a']]) assert.equal(personalUnitsForDraft(ids,options), null)
+  assert.deepEqual(collectionDraftTargetOptions(source, source[3], '2026-11-04'), [])
 })
 test('추가할 때 기존 이름·책임자·공동 작성자를 변경하지 않고 깊은 복사한다', () => {
   const original = [unit()], before = structuredClone(original)

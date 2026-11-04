@@ -20,7 +20,7 @@ const message={id:'message',schoolId:'school',threadId:'thread',senderMemberId:'
 const notifications=[{id:'notice',schoolId:'school',ownerMemberId:'teacher',title:'수합 제출 기한',body:'학급 자료를 제출해 주세요.',createdAt:now,readAt:null,version:1,source:{module:'collections',id:'collection-one'}},{id:'student-notice',schoolId:'school',ownerMemberId:'teacher',title:'학생 확인',body:'학생 기록 원본을 확인해 주세요.',createdAt:now,readAt:null,version:1,source:{module:'students',id:'student-one'}},{id:'cooperation-notice',schoolId:'school',ownerMemberId:'teacher',title:'협업 요청 도착',body:'최신 담당자와 상태를 원본에서 확인해 주세요.',createdAt:now,readAt:null,version:1,source:{module:'cooperation',id:'cooperation-one'}}];
 window.calls=[];window.delivered=0;window.readWrites=0;window.sourceError=null;window.sourceDeferred=false;window.fileCalls=[];window.fileUploaded=false;window.fileFailed=false;window.sources=[];window.listFailed=false;window.saved=new Map();window.pending=createPendingRequests();window.drafts=createEditDrafts();window.readinessCalls=0;window.replayOptions=[];
 function receipt(command,key){return{requestKey:key,kind:command.kind,recordedAt:now,deliveries:command.kind==='start'?(command.mode==='individual'?command.recipients.map((r,i)=>({threadId:'thread-'+i,messageId:'sent-'+i,recipientMemberIds:[r.memberId],sequence:3})):[{threadId:'thread',messageId:'sent',recipientMemberIds:command.recipients.map(r=>r.memberId),sequence:3}]):command.kind==='reply'?[{threadId:'thread',messageId:'sent',recipientMemberIds:command.recipientMemberIds,sequence:3}]:[],threadId:['reply','read_thread'].includes(command.kind)?command.threadId:null,throughSequence:command.kind==='read_thread'?command.throughSequence:null,noticeId:command.kind==='read_notice'?command.noticeId:null,version:command.kind==='read_notice'?command.expectedVersion+1:null}}
-const server={async readiness(){window.readinessCalls++;if(window.forceDisabled)return{available:false,reason:'disabled',limits:null,attachments:'not_configured'};if(window.scenario==='missing')throw new MessagingError('QUERY_FAILED');return{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:window.scenario==='files'?'hwpx_basic_v1':'not_configured'}},async recipients(member,query,cursor){return{items:clone(recipients.filter(r=>(r.name+r.department).includes(query))),nextCursor:null}},async threads(){if(window.listFailed)throw new MessagingError('QUERY_FAILED');return{items:[clone(thread)],nextCursor:null}},async messages(){return{thread:clone(thread),items:[clone(message)],nextCursor:null}},async inbox(member,unread){return{items:clone(notifications.filter(n=>!unread||!n.readAt)),nextCursor:null}},async mutate(member,command,key,options){window.replayOptions.push(clone(options));window.calls.push(clone({member,command,key}));if(window.scenario==='conflict'&&command.kind==='reply'&&thread.version===1){thread.version=2;thread.kind='group';thread.participants.push(recipients[1]);throw new MessagingError('CONFLICT')}if(window.saved.has(key))return clone(window.saved.get(key));if(window.scenario==='notice_conflict'&&command.kind==='read_notice'&&!window.readConflict){window.readConflict=true;notifications.find(n=>n.id===command.noticeId).version=2;throw new MessagingError('CONFLICT')}const result=receipt(command,key);if(command.kind==='start'||command.kind==='reply')window.delivered++;if(command.kind==='read_thread')thread.readSequence=command.throughSequence;if(command.kind==='read_notice'){window.readWrites++;const n=notifications.find(n=>n.id===command.noticeId);n.readAt=now;n.version++}window.saved.set(key,result);if((window.scenario==='unknown'||window.scenario==='notice_unknown')&&!window.failed){window.failed=true;throw new MessagingError('RESULT_UNKNOWN')}return clone(result)}};
+const server={async readiness(){window.readinessCalls++;if(window.forceDisabled)return{available:false,reason:'disabled',limits:null,attachments:'not_configured'};if(window.scenario==='missing')throw new MessagingError('QUERY_FAILED');return{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:window.recipientLimit ?? 50},attachments:window.scenario==='files'?'hwpx_basic_v1':'not_configured'}},async recipients(member,query,cursor){if(window.recipientQueryFail)throw new MessagingError('QUERY_FAILED');return{items:clone(recipients.filter(r=>(r.name+r.department).includes(query))),nextCursor:null}},async threads(){if(window.listFailed)throw new MessagingError('QUERY_FAILED');return{items:[clone(thread)],nextCursor:null}},async messages(){return{thread:clone(thread),items:[clone(message)],nextCursor:null}},async inbox(member,unread){return{items:clone(notifications.filter(n=>!unread||!n.readAt)),nextCursor:null}},async mutate(member,command,key,options){window.replayOptions.push(clone(options));window.calls.push(clone({member,command,key}));if(window.scenario==='conflict'&&command.kind==='reply'&&thread.version===1){thread.version=2;thread.kind='group';thread.participants.push(recipients[1]);throw new MessagingError('CONFLICT')}if(window.saved.has(key))return clone(window.saved.get(key));if(window.scenario==='notice_conflict'&&command.kind==='read_notice'&&!window.readConflict){window.readConflict=true;notifications.find(n=>n.id===command.noticeId).version=2;throw new MessagingError('CONFLICT')}const result=receipt(command,key);if(command.kind==='start'||command.kind==='reply')window.delivered++;if(command.kind==='read_thread')thread.readSequence=command.throughSequence;if(command.kind==='read_notice'){window.readWrites++;const n=notifications.find(n=>n.id===command.noticeId);n.readAt=now;n.version++}window.saved.set(key,result);if((window.scenario==='unknown'||window.scenario==='notice_unknown')&&!window.failed){window.failed=true;throw new MessagingError('RESULT_UNKNOWN')}return clone(result)}};
 const ref={id:'message-file',name:'학급자료.hwpx',bytes:7,sha256:'a'.repeat(64),profile:'hwpx_basic_v1'};
 const fileServer={async readiness(){return{available:true,reason:'ready',policy:{extensions:['hwpx'],maxFileBytes:1024,maxFiles:2}}},async prepare(member,file,policy,key,options){window.fileCalls.push({options,kind:'prepare',key,name:file.name});return{fileId:ref.id,bucket:'workhub-message-files',path:'school/teacher/message-file/original.hwpx',expiresAt:'2099-10-16T12:00:00Z',state:'awaiting_upload'}},async upload(){window.fileCalls.push({kind:'upload'});window.fileUploaded=true},async complete(member,fileId,key){window.fileCalls.push({kind:'complete',key,fileId});if(!window.fileUploaded)return{fileId,state:'awaiting_upload',file:null,storageObjectId:null};if(!window.fileFailed){window.fileFailed=true;throw new MessagingError('RESULT_UNKNOWN')}return{fileId,state:'ready',file:ref,storageObjectId:'object'}},async status(){window.fileCalls.push({kind:'status',fileId:ref.id});return{fileId:ref.id,state:'ready',file:ref,storageObjectId:'object'}},async download(){return new Blob(['파일'])}};
 function App(){const[ai,setAi]=useState(undefined);window.proposeMessage=value=>setAi({id:'ai-request',schoolId:'school',memberId:'teacher',body:'AI가 작성한 안내 초안',...value});const[revision,setRevision]=useState(0),[mounted,setMounted]=useState(true),[current,setCurrent]=useState(member);window.refresh=()=>setRevision(v=>v+1);window.unmount=()=>setMounted(false);window.remount=()=>setMounted(true);window.changeScope=()=>setCurrent({...member,id:'other-member',userId:'other-user',schoolId:'other-school'});return<EditDraftsProvider store={window.drafts}><PendingRequestsProvider store={window.pending}>{mounted&&<MessagingWorkspace composeRequest={ai} onComposeRequestConsumed={()=>setAi(undefined)} connection={{}} server={server} fileServer={fileServer} member={current} date='2026-10-16' revision={revision} onNavigationLockChange={v=>window.locked=v} canOpenSource={source=>['collections','cooperation'].includes(source.module)} onOpenSource={async source=>{window.sources.push(source);if(source.module==='cooperation'&&window.sourceError)throw Object.assign(new Error('원본 조회 실패'),{code:window.sourceError});if(window.sourceDeferred)await new Promise(resolve=>window.resolveSource=resolve)}}/>}</PendingRequestsProvider></EditDraftsProvider>}
@@ -44,6 +44,54 @@ try {
     assert.equal(await page.getByRole('checkbox',{checked:true}).count(),0);assert.equal(await page.evaluate(()=>window.calls.length),0)
     await page.getByLabel('김교사 · 교무부',{exact:true}).check();await page.getByRole('button',{name:'받는 사람과 내용 확인'}).click()
     assert.equal(await page.evaluate(()=>window.calls.length),0);await page.getByRole('button',{name:'확인한 내용 보내기'}).click();await page.getByText(/메시지를 보냈습니다/).waitFor()
+  })
+  const kim = { memberId: 'kim', schoolId: 'school', name: '김교사', department: '교무부', version: 1 }
+  const lee = { memberId: 'lee', schoolId: 'school', name: '이교사', department: '연구부', version: 1 }
+  const offer = people => page.evaluate(recipients => window.proposeMessage({
+    basisDate: '2026-10-16', body: '회의 안건을 확인해 주세요.', recipients,
+  }), people)
+  const accept = () => page.getByRole('button', { name: '전달받은 메시지 초안 사용', exact: true })
+  await test('대화에서 고른 두 수신자를 개별 대화 작성으로 넘기고 미리보기까지 전송하지 않는다', async () => {
+    await offer([lee, kim])
+    await accept().click()
+    await page.getByRole('form', { name: '새 메시지 작성' }).waitFor()
+    assert.equal(await page.getByLabel('보내는 방식').inputValue(), 'individual')
+    assert.equal(await page.getByRole('checkbox', { checked: true }).count(), 2)
+    assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '회의 안건을 확인해 주세요.')
+    await page.getByRole('button', { name: '받는 사람과 내용 확인' }).click()
+    assert.match(await page.getByRole('region', { name: '보내기 전 확인' }).innerText(), /각 교사와의 개별 대화/)
+    assert.equal(await page.evaluate(() => window.calls.length), 0)
+  })
+  await test('수신자 재조회 실패에는 초안을 보존하고 판이 바뀐 사람이 있으면 전원을 다시 선택한다', async () => {
+    await offer([kim, { ...lee, version: 2 }])
+    await page.evaluate(() => { window.recipientQueryFail = true })
+    await accept().click()
+    await page.getByText(/서버에 연결하지 못했습니다/).waitFor()
+    assert.equal(await page.getByRole('form', { name: '새 메시지 작성' }).count(), 0)
+    assert.equal(await accept().isEnabled(), true)
+    await page.evaluate(() => { window.recipientQueryFail = false })
+    await accept().click()
+    await page.getByText(/받는 사람 정보가 바뀌었습니다/).waitFor()
+    assert.equal(await page.getByRole('checkbox', { checked: true }).count(), 0)
+    assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '회의 안건을 확인해 주세요.')
+    assert.equal(await page.evaluate(() => window.calls.length), 0)
+  })
+  await test('수신자 수 정책이 줄면 본문만 유지하고 수신자를 다시 고르게 한다', async () => {
+    await page.evaluate(() => { window.recipientLimit = 1; window.refresh() })
+    await offer([lee, kim])
+    await accept().click()
+    await page.getByText(/현재 수신자 한도를 넘었습니다/).waitFor()
+    assert.equal(await page.getByRole('checkbox', { checked: true }).count(), 0)
+    assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '회의 안건을 확인해 주세요.')
+    assert.equal(await page.evaluate(() => window.calls.length), 0)
+  })
+  await test('중복·본인·다른 학교 수신자는 메시지 작성기로 넘기지 않는다', async () => {
+    for (const people of [[kim, kim], [{ ...kim, memberId: 'teacher' }], [{ ...kim, schoolId: 'elsewhere' }]]) {
+      await offer(people)
+      assert.equal(await accept().isDisabled(), true)
+      assert.equal(await page.getByRole('form', { name: '새 메시지 작성' }).count(), 0)
+    }
+    assert.equal(await page.evaluate(() => window.calls.length), 0)
   })
   await test('AI 초안 도착은 기존 입력과 미확정 요청을 덮어쓰지 않는다',async()=>{
     await compose();await page.evaluate(()=>window.proposeMessage({}));assert.equal(await page.getByRole('button',{name:'전달받은 메시지 초안 사용'}).isDisabled(),true)

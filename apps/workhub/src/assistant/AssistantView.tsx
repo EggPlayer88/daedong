@@ -16,6 +16,7 @@ import { intentLabels } from './workspace-model'
 import type { useAssistantWorkspace } from './useAssistantWorkspace'
 import { WorkspaceCommandResult } from './WorkspaceCommandResult'
 import { CalendarFollowupCard } from './CalendarFollowupCard'
+import { DraftFollowupCard } from './DraftFollowupCard'
 export function AssistantView({ model }: { model: ReturnType<typeof useAssistantWorkspace> }) {
   const {
     addTask,
@@ -24,6 +25,15 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     canSubmit,
     calendarFollowup,
     cancelCalendar,
+    draftFollowup,
+    draftPeople,
+    draftSearching,
+    startDraftFollowup,
+    selectDraftPerson,
+    removeDraftPerson,
+    cancelDraftFollowup,
+    openDraftForm,
+    dismissDraftPeople,
     dismissTaskMatches,
     baseEditable,
     budgetError,
@@ -86,6 +96,9 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     workspaceResult,
     workspaceSearching,
   } = model
+  const continuing = Boolean(calendarFollowup || draftFollowup)
+  const canContinueDraft = !continuing && workspaceActions?.findDraftPeople && (
+    workspaceCommand?.kind === 'messageDraft' || workspaceCommand?.kind === 'collectionDraft')
   return (
     <section className="assistant-workspace" aria-labelledby={`${uid}-title`}>
       <style>{styles}</style>
@@ -212,7 +225,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
       )}
       <div className="assistant-layout">
         <div className="assistant-main">
-          {!readError && !loading && !workspaceResult && !calendarFollowup && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
+          {!readError && !loading && !workspaceResult && !continuing && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
             <div className="assistant-welcome">
               <h3>어떤 일을 도와드릴까요?</h3>
               <p>{workspaceActions ? '찾고 싶은 자료, 해야 할 일, 이동할 화면을 말씀해 주세요.' : '학교 자료를 찾아보고, 필요한 내용을 함께 정리하세요.'}</p>
@@ -314,7 +327,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                         <button
                           type="button"
                           disabled={
-                            !editable || Boolean(session.proposal) || Boolean(session.prompt.trim())
+                            !editable || continuing || Boolean(session.proposal) || Boolean(session.prompt.trim())
                           }
                           onClick={() =>
                             update({
@@ -432,6 +445,11 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             disabled={!workspaceEditable || Boolean(session.prompt.trim())}
             onDismiss={dismissTaskMatches} onOpen={openWorkspaceItem} />}
           {calendarFollowup && <CalendarFollowupCard command={calendarFollowup} disabled={!workspaceEditable} onCancel={cancelCalendar} />}
+          {draftFollowup && <DraftFollowupCard draft={draftFollowup} result={draftPeople}
+            disabled={!workspaceEditable || draftSearching} searching={draftSearching}
+            pendingInput={Boolean(session.prompt.trim())} onSelect={selectDraftPerson}
+            onRemove={removeDraftPerson} onDismiss={dismissDraftPeople} onCancel={cancelDraftFollowup}
+            onOpen={openDraftForm} />}
           <form
             className="assistant-compose"
             onSubmit={(event) => {
@@ -443,7 +461,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <label htmlFor={`${uid}-intent`}>요청 종류</label>
               <select
                 id={`${uid}-intent`}
-                disabled={!editable || Boolean(draft) || Boolean(calendarFollowup)}
+                disabled={!editable || Boolean(draft) || continuing}
                 value={session.intent}
                 onChange={(event) => changeIntent(event.target.value as AssistantIntent)}
               >
@@ -459,7 +477,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                     </option>
                   ))}
               </select>
-              <span className="assistant-compose-model">{calendarFollowup ? '일정' : session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span>
+              <span className="assistant-compose-model">{calendarFollowup ? '일정' : draftFollowup ? '초안' : session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span>
             </div>
             {(session.references.length > 0 || session.studentContext) && (
               <div className="assistant-context">
@@ -506,12 +524,12 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               rows={4}
               aria-describedby={`${uid}-prompt-hint`}
               aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars}
-              placeholder={calendarFollowup ? '빠진 정보만 답해 주세요.' : workspaceActions ? '예: 시간표 열어줘 · 학교 자료에서 출장 찾아줘' : '예: 선택한 학교 규정에서 제출 절차를 알려 주세요.'}
-              disabled={busy || memoryLocked || Boolean(recovery.request) || Boolean(draft)}
+              placeholder={draftFollowup ? (draftFollowup.command.kind === 'messageDraft' ? '예: 김민지 선생님' : '예: 다음 주 금요일, 김민지 선생님') : calendarFollowup ? '빠진 정보만 답해 주세요.' : workspaceActions ? '예: 시간표 열어줘 · 학교 자료에서 출장 찾아줘' : '예: 선택한 학교 규정에서 제출 절차를 알려 주세요.'}
+              disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || Boolean(draft)}
               value={session.prompt}
               onChange={(event) => update({ ...latest.current, prompt: event.target.value })}
             />
-            {workspaceActions && !calendarFollowup && !session.contextId && !session.references.length && !session.studentContext && (
+            {workspaceActions && !continuing && !session.contextId && !session.references.length && !session.studentContext && (
               <details className="assistant-command-help">
                 <summary>대화로 할 수 있는 일</summary>
                 <div className="assistant-command-examples">
@@ -533,11 +551,14 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               </p>
             )}
             <div className="assistant-actions">
+              {canContinueDraft && <button type="button" className="assistant-primary" disabled={!workspaceEditable} onClick={startDraftFollowup}>
+                {workspaceCommand?.kind === 'messageDraft' ? '수신자 이어서 선택' : '기한·대상 이어서 입력'}
+              </button>}
               <button
                 type="submit"
-                className="assistant-primary"
+                className={canContinueDraft ? 'assistant-quiet' : 'assistant-primary'}
                 disabled={
-                  !canSubmit ||
+                  !canSubmit || draftSearching ||
                   Boolean(draft) ||
                   Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars ||
                   !session.prompt.trim() ||
@@ -550,7 +571,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <button
                 type="button"
                 className="assistant-quiet"
-                disabled={busy || memoryLocked || Boolean(recovery.request) || !session.prompt}
+                disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || !session.prompt}
                 onClick={() => update({ ...latest.current, prompt: '' })}
               >
                 질문 비우기
@@ -704,10 +725,10 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             date={date}
             revision={revision}
             service={memoryServer}
-            blocked={busy || Boolean(recovery.request) || Boolean(draft) || Boolean(calendarFollowup) || openingCitation}
+            blocked={busy || Boolean(recovery.request) || Boolean(draft) || continuing || openingCitation}
             canUse={
               baseEditable &&
-              !calendarFollowup &&
+              !continuing &&
               !draft &&
               ['school_advice', 'personal_assistant', 'document_draft'].includes(session.intent)
             }
@@ -716,7 +737,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               const current = latest.current
               if (
                 !baseEditable ||
-                calendarFollowup ||
+                continuing ||
                 current.proposal ||
                 operation.current ||
                 !['school_advice', 'personal_assistant', 'document_draft'].includes(current.intent)

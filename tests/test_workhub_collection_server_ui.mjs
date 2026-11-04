@@ -35,6 +35,14 @@ for (const patch of [
 assert.equal(valid({ ...example, basisDate: '2026-02-31' }, '2026-02-31'), false)
 console.log('  ✓ 수합 제안은 현재 소속·날짜와 기존 길이 한도 및 원문 문자를 확인한다')
 
+assert.equal(valid({ ...example, dueDate: example.basisDate, targetMemberIds: ['a','b'] }), true)
+for (const patch of [
+  { dueDate:'2026-02-30' }, { dueDate:'1999-01-01' }, { dueDate:'2026-11-10T00:00:00Z' },
+  { targetMemberIds:['a','a'] }, { targetMemberIds:['a','다른 ID'] }, { targetMemberIds:'a' },
+  { targetMemberIds:Array(1) }, { targetMemberIds:Array.from({length:101}, (_,n)=>`id${n}`) },
+]) assert.equal(valid({ ...example, ...patch }), false)
+console.log('  ✓ 대화 수합 기한은 실제 학교 날짜이고 대상은 한도 내의 서로 다른 소속 번호다')
+
 const offered = render(example).replace(/<style>[\s\S]*?<\/style>/g, '')
 assert.match(offered, /aria-label="전달받은 수합 초안"/)
 assert.match(offered, /<button[^>]*disabled[^>]*>수합 초안 사용<\/button>/)

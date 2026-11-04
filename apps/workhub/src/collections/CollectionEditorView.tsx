@@ -224,10 +224,16 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
         <section className="cs-notice" aria-label="전달받은 수합 초안">
           <h3>전달받은 수합 초안</h3>
           {readiness?.available && newCollectionPolicy && list && !readError && (
-            <p>{offeredCompose.title}</p>
+            <>
+              <p>{offeredCompose.title}</p>
+              {(offeredCompose.dueDate || Boolean(offeredCompose.targetMemberIds?.length)) && (
+                <p>{[offeredCompose.dueDate && `기한 ${offeredCompose.dueDate}`,
+                  offeredCompose.targetMemberIds?.length && `개인 제출 ${offeredCompose.targetMemberIds.length}부`].filter(Boolean).join(' · ')}</p>
+              )}
+            </>
           )}
           <p>{hasWork || parked ? '작성 중인 내용과 미확정 요청을 먼저 마무리해 주세요.'
-            : '수합 초안을 사용한 뒤 기한과 제출 대상을 직접 선택하세요.'}</p>
+            : '작성 화면에서 기한과 제출 대상을 확인하세요.'}</p>
           <div className="cs-actions">
             <button type="button" disabled={!canStartEditor} onClick={() => startEditor(true)}>
               수합 초안 사용

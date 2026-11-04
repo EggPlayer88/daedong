@@ -1,5 +1,6 @@
 import { isoDate } from '../services/service-values'
 import { collectionIdentifier } from './validation'
+import { collectionUnitLimit } from '../workflows/entry-guide'
 import { validCollectionComposeText } from './compose-text'
 import type { GeneratedDocument } from '../documents/guided-contracts'
 import type { CollectionOperationsServer } from './operations'
@@ -26,6 +27,8 @@ export interface CollectionComposeRequest {
   basisDate: string
   title: string
   instructions: string
+  dueDate?: string
+  targetMemberIds?: readonly string[]
 }
 export function isCurrentCollectionComposeRequest(
   request: CollectionComposeRequest, member: Membership, date: string,
@@ -35,6 +38,12 @@ export function isCurrentCollectionComposeRequest(
   try {
     collectionIdentifier(request.id)
     isoDate(request.basisDate)
+    if (request.dueDate !== undefined && isoDate(request.dueDate) < date) return false
+    if (request.targetMemberIds !== undefined) {
+      const ids = request.targetMemberIds
+      if (!Array.isArray(ids) || ids.length > collectionUnitLimit || new Set(ids).size !== ids.length) return false
+      for (const id of ids) collectionIdentifier(id)
+    }
     return validCollectionComposeText(request.title, request.instructions)
   } catch {
     return false
