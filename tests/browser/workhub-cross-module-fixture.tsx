@@ -30,10 +30,10 @@ const mapping={profile:'explicit_paragraph_v1',templateSha256:'b'.repeat(64),que
 const template={id:'guided-template',schoolId:primary.schoolId,ownerMemberId:'gaon-minjun',title:'학교 행사 참여 원본 양식',version:2,state:'published',inspection:{profile:'explicit_paragraph_v1',templateSha256:'b'.repeat(64),anchors,unsupportedParagraphs:0},mapping,collectionRequestId:'collection-source',canManage:false}
 let response={id:'guided-response',templateId:template.id,templateVersion:2,schoolId:primary.schoolId,ownerMemberId:primary.id,version:3,answers:{q0:'저장된 계획',q1:'3'},preview:false,artifact:null}
 const receipts=new Map<string,any>(),aiThreads=new Map<string,any>()
-w.cross={calls:[],writes:[],aiCalls:[],unknownMessage:false,unknownGuided:false,unknownTask:false,appliedTasks:0,createdTaskId:null,holdMessage:false,releaseMessage:null,heldSettled:false,appliedMessages:0,appliedGuided:0,basisDate:data.basisDate}
+w.cross={calls:[],writes:[],aiCalls:[],storageCalls:[],collectionUnavailable:false,unknownMessage:false,unknownGuided:false,unknownTask:false,appliedTasks:0,createdTaskId:null,holdMessage:false,releaseMessage:null,heldSettled:false,appliedMessages:0,appliedGuided:0,basisDate:data.basisDate}
 w.cross.assistantHttp=async(payload:any)=>{
  const member=actor(payload.memberId)
- if(payload.action==='readiness')return envelope(member,'assistant.v1',{available:true})
+ if(payload.action==='readiness')return envelope(member,'assistant.v1',w.cross.budgetExhausted?{available:false,reason:'budget_exhausted'}:{available:true})
  if(payload.action!=='ask')throw Error('unexpected synthetic AI action '+payload.action)
  w.cross.aiCalls.push(copy(payload))
  const input=payload.input,prior=aiThreads.get(member.id)
@@ -43,7 +43,11 @@ w.cross.assistantHttp=async(payload:any)=>{
  aiThreads.set(member.id,result)
  return envelope(member,'assistant.v1',{state:'completed',requestKey:payload.requestKey,thread:result})
 }
-const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>copy(ctx),info:()=>copy(ctx),subscribeIdentity:()=>()=>{},subscribeInvalidation:()=>()=>{},checkReadiness:async()=>({stage:'ready',code:'READY',checkedAt:now(),readySchoolCount:2}),rpcVerified:async(name:string,args:any)=>{
+const connection:any={getIdentity:async()=>({...copy(identity),approved:!w.cross.approvalRevoked}),
+ loadContext:async()=>{
+  if(w.cross.failContext)throw new ContractError('QUERY_FAILED','합성 학교 연결을 일시적으로 확인하지 못했습니다.')
+  return copy(ctx)
+ },info:()=>copy(ctx),subscribeIdentity:()=>()=>{},subscribeInvalidation:()=>()=>{},checkReadiness:async()=>({stage:'ready',code:'READY',checkedAt:now(),readySchoolCount:2}),rpcVerified:async(name:string,args:any)=>{
  const member=actor(args.p_member_id)
  w.cross.calls.push(copy({name,args}))
  if(/_(mutate|execute|close|render|publish|commit|save|confirm_task)$/.test(name))w.cross.writes.push(copy({name,args}))
@@ -52,6 +56,12 @@ const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>c
  if(name==='workhub_task_list')return tasks.listTasks(member.id).filter(t=>t.id!==w.cross.createdTaskId)
  if(name==='workhub_task_get'){const task=tasks.listTasks(member.id).find(t=>t.id===args.p_task_id);if(!task)throw new ContractError('FORBIDDEN','합성 원본을 읽을 수 없습니다');return task}
  if(name==='workhub_home_overview')return envelope(member,'home.v1',{asOf:now(),items:member.id===primary.id?[{id:'home-message',kind:'message',title:'확인할 원본 메시지',dueDate:null,sourceId:'home-thread',priority:'normal',label:'안 읽은 메시지 1개'}]:[],counts:{collection:0,supplement:0,message:member.id===primary.id?1:0,student_followup:0,cooperation:0},unavailable:[]})
+ if(name==='workhub_collection_basic_readiness'||name==='workhub_collection_list'){
+  if(name==='workhub_collection_list' && w.cross.denyCollectionList)throw new ContractError('FORBIDDEN','합성 수합 목록 접근 거절')
+  const policy={extensions:['hwpx'],maxFileBytes:1048576,maxFiles:3}
+  const ready=w.cross.collectionUnavailable?{available:false,reason:'storage_missing',policy:null}:{available:true,reason:'ready',policy}
+  return {contractVersion:1,schoolId:member.schoolId,memberId:member.id,data:name==='workhub_collection_list'?{items:[],nextCursor:null}:ready}
+ }
  if(name==='workhub_messaging_readiness')return messaging(member,{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:50},attachments:'not_configured'})
  if(name==='workhub_message_threads')return messaging(member,{items:[thread(member,'other-thread')],nextCursor:null})
  if(name==='workhub_message_recipients')return messaging(member,{items:[recipient(member)],nextCursor:null})
