@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { usePendingRequest } from '../app/pending-requests'
+import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 import { activeAt } from '../domain'
 import {
@@ -27,6 +27,8 @@ import { knowledgeCitationRequest } from '../knowledge/assistant-links'
 import type { Citation } from './contracts'
 import type { SearchItem } from '../search/contracts'
 import { parseWorkspaceCommand, type WorkspaceCommand } from './workspace-commands'
+import { calendarQuestion, continueCalendar } from './calendar-conversation'
+import type { TaskChangeCommand } from './task-change-command'
 import type { AssistantWorkspaceSearchResult } from './workspace-model'
 import {
   AssistantPanelProps,
@@ -91,10 +93,12 @@ export function useAssistantWorkspace({
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [readError, setReadError] = useState('')
-  const [workspaceResult, setWorkspaceResult] = useState<{
+  const [searchResult, setWorkspaceResult] = useState<{
     prompt: string
     query: string
     result: AssistantWorkspaceSearchResult
+    scope: object
+    taskChange?: TaskChangeCommand
   }>()
   const [workspaceSearching, setWorkspaceSearching] = useState(false)
   const [workspaceActionNotice, setWorkspaceActionNotice] = useState<{ prompt: string; message: string }>()
@@ -138,7 +142,7 @@ export function useAssistantWorkspace({
   const [memoryLocked, setMemoryLocked] = useState(false)
   const enabled = activeAt(member, date),
     locked = Boolean(
-      session.prompt.trim() || session.proposal || recovery.request || busy || memoryLocked,
+      session.prompt.trim() || session.calendarDialogue || session.proposal || recovery.request || busy || memoryLocked,
     ),
     baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError,
     editable = baseEditable && !memoryLocked
@@ -147,16 +151,24 @@ export function useAssistantWorkspace({
   // 다른 화면이 고정한 원문·학생 근거와 AI 출력은 명령으로 해석하지 않는다.
   const commandContext = Boolean(workspaceActions) && !session.contextId &&
     !session.references.length && !session.studentContext
-  const workspaceCommand = commandContext ? parseWorkspaceCommand(session.prompt, date) : null
+  const scope = useMemo(() => ({}), [member.id, member.schoolId, date, enabled, revision, server])
+  const dialogueScope = recoveryScope(member)
+  const workspaceResult = commandContext && enabled && searchResult?.scope === scope ? searchResult : undefined
+  const calendarFollowup = commandContext && enabled && session.calendarDialogue?.basisDate === date &&
+    session.calendarDialogue.scope === dialogueScope ? session.calendarDialogue.command : undefined
+  // 이어지는 짧은 답은 항상 로컬 일정 입력이다. 잘못된 답도 유료 질문으로 넘기지 않는다.
+  const workspaceCommand = commandContext ? calendarFollowup ?? parseWorkspaceCommand(session.prompt, date) : null
   const freeCommand = workspaceCommand && workspaceCommand.kind !== 'task'
   const canSubmit = freeCommand ? workspaceEditable : editable
-  const submitLabel = workspaceCommand?.kind === 'navigate' ? '바로 이동' :
+  const submitLabel = calendarFollowup ? '일정 정보 이어 입력' :
+    workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
+    workspaceCommand?.kind === 'navigate' ? '바로 이동' :
     workspaceCommand?.kind === 'search' ? '자료 찾기' :
     workspaceCommand?.kind === 'calendar' ? '일정 초안 열기' :
     workspaceCommand?.kind === 'clarify' ? '요청 확인' : 'AI에게 요청'
   function update(value: Session) {
     latest.current = value
-    memory.save(value, Boolean(value.prompt.trim() || value.proposal))
+    memory.save(value, Boolean(value.prompt.trim() || value.proposal || value.calendarDialogue))
     setSession(value)
   }
   useEffect(
@@ -165,6 +177,15 @@ export function useAssistantWorkspace({
     },
     [server],
   )
+  useEffect(() => {
+    const current = latest.current
+    // 창 복귀 재조회는 입력을 유지하고, 실제 소속·권한·기준일이 바뀔 때만 닫는다.
+    if (current.calendarDialogue && (!enabled || !commandContext ||
+        current.calendarDialogue.basisDate !== date || current.calendarDialogue.scope !== dialogueScope)) {
+      update({ ...current, prompt: '', calendarDialogue: undefined })
+      setNotice('학교 연결이나 기준일이 바뀌어 이전 일정 입력을 닫았습니다.')
+    }
+  }, [commandContext, enabled, date, dialogueScope])
   useEffect(() => {
     setWorkspaceResult(undefined)
     setWorkspaceActionNotice(undefined)
@@ -419,8 +440,12 @@ export function useAssistantWorkspace({
       }
     }
   }
-  async function searchWorkspace(command: Extract<WorkspaceCommand, { kind: 'search' }>) {
+  async function searchWorkspace(command: Extract<WorkspaceCommand, { kind: 'search' }> | TaskChangeCommand) {
     if (!workspaceActions || !workspaceEditable || operation.current) return
+    if (command.kind === 'taskChange' && !workspaceActions.changeTask) {
+      setError('현재 화면에서는 할 일 변경을 준비할 수 없습니다. 내 업무에서 확인해 주세요.')
+      return
+    }
     operation.current = true
     setBusy(true)
     setWorkspaceSearching(true)
@@ -432,9 +457,10 @@ export function useAssistantWorkspace({
     searchFlight.current?.abort()
     searchFlight.current = controller
     try {
-      const result = await workspaceActions.search(command.query, command.kinds, controller.signal)
+      const result = await workspaceActions.search(command.query, command.kind === 'taskChange' ? ['task'] : command.kinds, controller.signal)
       if (controller.signal.aborted || searchEpoch.current !== epoch || life.current !== lifecycle) return
-      setWorkspaceResult({ prompt, query: command.query, result })
+      setWorkspaceResult({ prompt, query: command.query, scope, result,
+        ...(command.kind === 'taskChange' ? { taskChange: command } : {}) })
       update({ ...latest.current, prompt: '' })
     } catch {
       if (!controller.signal.aborted && searchEpoch.current === epoch && life.current === lifecycle)
@@ -453,43 +479,65 @@ export function useAssistantWorkspace({
     const found = workspaceResult?.result.items.find((row) => row === item)
     if (!found) return
     try {
-      if (!workspaceActions.open(found)) throw new Error('이동 보류')
+      if (workspaceResult?.taskChange) {
+        if (found.kind !== 'task' || !Number.isSafeInteger(found.version) || !workspaceActions.changeTask?.(workspaceResult.taskChange, found))
+          throw new Error('업무 확인 보류')
+        setWorkspaceActionNotice({ prompt: workspaceResult.prompt, message: '내 업무에서 변경 내용을 확인해 주세요. 아직 저장하지 않았습니다.' })
+        setWorkspaceResult(undefined)
+      } else if (!workspaceActions.open(found)) throw new Error('이동 보류')
       setError('')
     } catch {
-      setError('자료를 열지 못했습니다. 현재 작성 중인 작업을 확인한 뒤 다시 열어 주세요.')
+      setError(workspaceResult?.taskChange ? '할 일을 열지 못했습니다. 현재 작성 중인 작업을 마친 뒤 다시 선택해 주세요.'
+        : '자료를 열지 못했습니다. 현재 작성 중인 작업을 확인한 뒤 다시 열어 주세요.')
     }
   }
+  function cancelCalendar() {
+    if (!calendarFollowup || !workspaceEditable || operation.current) return
+    update({ ...latest.current, prompt: '', calendarDialogue: undefined })
+    setError('')
+    setNotice('일정 작성을 취소했습니다. 저장한 일정은 없습니다.')
+  }
   function ask() {
+    let command = workspaceCommand
+    if (latest.current.calendarDialogue && !calendarFollowup) return
+    if (calendarFollowup && workspaceEditable && !operation.current) {
+      const turn = continueCalendar(calendarFollowup, latest.current.prompt, date)
+      if (turn.kind === 'cancel') { cancelCalendar(); return }
+      if (turn.kind === 'clarify') { setError(turn.message); setNotice(''); return }
+      command = turn.command
+    }
     if (workspaceCommand && !workspaceEditable) return
-    if (workspaceCommand && workspaceEditable && !operation.current) {
-      if (workspaceCommand.kind === 'clarify') {
-        setNotice(workspaceCommand.message)
+    if (command && workspaceEditable && !operation.current) {
+      if (command.kind === 'clarify') {
+        setNotice(command.message)
         setError('')
         return
       }
-      if (workspaceCommand.kind === 'search') {
-        void searchWorkspace(workspaceCommand)
+      if (command.kind === 'search' || command.kind === 'taskChange') {
+        void searchWorkspace(command)
         return
       }
-      if (workspaceCommand.kind === 'navigate' || workspaceCommand.kind === 'calendar') {
-        if (workspaceCommand.kind === 'calendar' && (!workspaceCommand.title || !workspaceCommand.date ||
-          (!workspaceCommand.allDay && (!workspaceCommand.startTime || !workspaceCommand.endTime)))) {
-          setNotice('일정 제목과 날짜, 시작·종료 시각을 함께 알려 주세요. 하루 일정은 “종일”이라고 적어 주세요.')
+      if (command.kind === 'navigate' || command.kind === 'calendar') {
+        if (command.kind === 'calendar' && calendarQuestion(command)) {
+          update({ ...latest.current, prompt: '', calendarDialogue: { command, basisDate: date, scope: dialogueScope } })
+          setWorkspaceResult(undefined)
+          setWorkspaceActionNotice(undefined)
+          setNotice('')
           setError('')
           return
         }
         try {
           // 이동 전에 busy를 세우면 부모의 기존 이동 보호가 자기 요청까지 막으므로 동기로 넘긴다.
-          const accepted = workspaceCommand.kind === 'navigate'
-            ? workspaceActions!.navigate(workspaceCommand.page)
-            : workspaceActions!.calendar(workspaceCommand)
+          const accepted = command.kind === 'navigate'
+            ? workspaceActions!.navigate(command.page)
+            : workspaceActions!.calendar(command)
           if (!accepted) throw new Error('기존 작업 확인 필요')
-          setWorkspaceActionNotice({ prompt: latest.current.prompt,
-            message: workspaceCommand.kind === 'calendar'
+          setWorkspaceActionNotice({ prompt: command.kind === 'calendar' ? command.prompt : latest.current.prompt,
+            message: command.kind === 'calendar'
               ? '일정 화면에서 초안을 확인한 뒤 저장해 주세요. 아직 저장하지 않았습니다.'
               : '요청한 화면을 열었습니다.' })
           setWorkspaceResult(undefined)
-          update({ ...latest.current, prompt: '' })
+          update({ ...latest.current, prompt: '', calendarDialogue: undefined })
           setError('')
           setNotice('')
         } catch {
@@ -576,7 +624,7 @@ export function useAssistantWorkspace({
     setNotice('')
   }
   function changeIntent(intent: AssistantIntent) {
-    if (!editable) return
+    if (!editable || calendarFollowup) return
     update({
       ...latest.current,
       intent,
@@ -673,6 +721,9 @@ export function useAssistantWorkspace({
     applyContext,
     ask,
     canSubmit,
+    calendarFollowup,
+    cancelCalendar,
+    dismissTaskMatches: () => { setWorkspaceResult(undefined); setError(''); setNotice('할 일 선택을 닫았습니다. 변경한 내용은 없습니다.') },
     baseEditable,
     budgetError,
     busy,

@@ -28,6 +28,7 @@ import timetableNavigationStyles from './timetable-navigation.css?inline'
 import { ConnectionReadinessPanel } from './ConnectionReadinessPanel'
 import { createSupabaseTaskAdapter } from '../tasks/supabase-task-adapter'
 import { TaskPanel } from '../tasks/TaskPanel'
+import type { AssistantTaskChangeRequest } from '../tasks/assistant-change'
 import { WorkspaceShell } from './WorkspaceShell'
 import { AssistantDock } from './AssistantDock'
 import { ModuleBoundary } from './ModuleBoundary'
@@ -112,6 +113,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [guidedSuggestion, setGuidedSuggestion] = useState<GuidedAiSuggestion>()
   const [knowledgeOpen, setKnowledgeOpen] = useState<{ scope: string; request: KnowledgeOpenRequest; fromPage?: PageId }>()
   const [messageDraft, setMessageDraft] = useState<{scope:string;draft:MessageComposeRequest}>()
+  const [assistantTask, setAssistantTask] = useState<{scope:string;request:AssistantTaskChangeRequest}>()
   const [assistantCalendar, setAssistantCalendar] = useState<{scope:string;request:AssistantCalendarDraftRequest;prompt:string}>()
   const [generatedFile, setGeneratedFile] = useState<{scope:string; value:GeneratedDocument}>()
   const [handoffError, setHandoffError] = useState('')
@@ -119,7 +121,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [teachingOpen,setTeachingOpen]=useState<{scope:string;courseId:string;token:string;source:'home'|'search'}>()
   const [transitionOpen,setTransitionOpen]=useState<{scope:string;key:string;id:string}>()
   const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId?:string;requestId?:string;notificationId?:string;date?:string;key:string;fromPage:'home'|'calendar'|'messages'|'schoolAdmin';intent?:{kind:'makeup';lessonId:string;token:string};preparationStep?:'target'|'setup'|'preparation'|'import'}>()
-  const clearHandoffs = useCallback(() => {setAssistantOpen(false);setAssistantVisited(false);setAssistantNavigationLocked(false);setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setAssistantCalendar(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTransitionOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
+  const clearHandoffs = useCallback(() => {setAssistantOpen(false);setAssistantVisited(false);setAssistantNavigationLocked(false);setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setAssistantCalendar(undefined);setAssistantTask(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTransitionOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
 
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
@@ -215,6 +217,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; if (next === 'assistant' && page !== 'assistant') assistantReturn.current = {scope:currentScope,page}; setHandoff(undefined); setWorkReturn(undefined); return true }
   useEffect(() => { if (workReturn && (page !== workReturn.page || (currentScope && currentScope !== workReturn.scope))) setWorkReturn(undefined) }, [page, currentScope, workReturn])
   // 수업 선택은 한 번의 이동에만 속한다. 다른 메뉴에서 시간표를 다시 열 때 과거 수업을 강제로 열지 않는다.
+  useEffect(() => { if (page !== 'tasks') setAssistantTask(undefined) }, [page])
   useEffect(() => { if (page !== 'timetable') setTimetableOpen(undefined) }, [page])
   useEffect(() => { if (page !== 'students') setTeachingOpen(undefined) }, [page])
   useEffect(() => { if (page !== 'knowledge') setKnowledgeOpen(undefined) }, [page])
@@ -258,6 +261,17 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     search: (query, kinds, signal) => searchAssistantWorkspace(searchSources, query, kinds, signal),
     open(item) {
       if (!openSearchItem(item)) return false
+      setAssistantOpen(false)
+      return true
+    },
+    changeTask(command,item) {
+      if (!member || !context || !activeAt(member,context.basisDate) || connectionUnavailable || navigationLocked
+        || pendingRequests.count() || assistantTask || item.kind !== 'task' || !item.id || !Number.isSafeInteger(item.version)
+        || (item.version ?? 0) < 1 || editDrafts.bind(currentScope,'task-editor').initial) return false
+      if (!navigate('tasks')) return false
+      setAssistantTask({scope:currentScope,request:{key:crypto.randomUUID(),schoolId:member.schoolId,memberId:member.id,
+        basisDate:context.basisDate,taskId:item.id,title:item.title,expectedVersion:item.version!,change:command.change}})
+      setWorkReturn({scope:currentScope,page:'tasks',fromPage:'assistant'})
       setAssistantOpen(false)
       return true
     },
@@ -361,7 +375,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
              } catch {throw new Error('AI로 전달할 양식과 답변을 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.')}}} onRequestAi={input => {try{sendToAssistant(documentAssistantRequest(input))}catch{setHandoffError('AI로 전달할 제목·입력 길이와 근거를 확인해 주세요. 문서 입력은 보관되어 있습니다.')}}} onOpenCollection={requestId => setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId})} onUseGenerated={value => {setGeneratedFile({scope:currentScope,value});setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId:value.requestId})}} /> :
              page === 'cooperation' ? <CooperationWorkspace openRequest={requested?.kind === 'cooperation' && requested.id ? { key: requested.key, id: requested.id } : undefined} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} onOpenTask={id => resource.openSearchItem({kind:'task',id,title:'',description:'',meta:''})} /> :
              <KnowledgeWorkspace returnLabel={knowledgeOpen?.fromPage ? '이전 화면으로 돌아가기' : undefined} openRequest={knowledgeOpen?.scope === currentScope ? knowledgeOpen.request : undefined} onReturnToSource={knowledgeOpen?.scope === currentScope && knowledgeOpen.fromPage !== 'knowledge' ? () => {navigate(knowledgeOpen.fromPage ?? 'assistant')} : undefined} onAskAssistant={request => sendToAssistant(knowledgeAssistantContext(request,member))} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} />}
-          </Suspense></main> : page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}><CollectionServerPanel key={resetKey} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setCollectionNavigationLocked} openRequest={requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} /></Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} /></main> :
+          </Suspense></main> : page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}><CollectionServerPanel key={resetKey} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setCollectionNavigationLocked} openRequest={requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} /></Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={assistantTask?.scope === currentScope ? {key:assistantTask.request.key, taskId:assistantTask.request.taskId, change:assistantTask.request} : requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} onAssistantTaskHandled={key => setAssistantTask(current => current?.request.key === key ? undefined : current)} /></main> :
             page === 'calendar' && batchOpen ? <main id="main-content" className="main-content"><header className="page-header"><h1 tabIndex={-1}>시트에서 일정 가져오기</h1></header><Suspense fallback={<p role="status">일괄 가져오기를 준비하고 있습니다…</p>}><CalendarBatchImport connection={connection} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setBatchNavigationLocked} onClose={() => setBatchOpen(false)} onSaved={() => setRefreshEpoch(value => value + 1)} /></Suspense></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
               page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked} onOpenBatchImport={() => setBatchOpen(true)}

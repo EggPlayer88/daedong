@@ -47,7 +47,7 @@ export function taskSearchSource(adapter: TaskAdapter, member: Membership, date:
   return { kind: 'task', label: '내 업무', async load() {
     usable(member, date)
     const tasks = taskListResponse(await adapter.list(member.id), { memberId: member.id, schoolId: member.schoolId })
-    return tasks.map(task => ({ kind: 'task', id: task.id, title: task.title, description: task.notes,
+    return tasks.map(task => ({ kind: 'task', id: task.id, version: task.version, title: task.title, description: task.notes,
       meta: `${taskLabels[task.status]} · ${task.dueDate ? `${task.dueDate}까지` : '기한 없음'} · 나만 보는 업무`, date: task.dueDate || undefined,
     }))
   } }
