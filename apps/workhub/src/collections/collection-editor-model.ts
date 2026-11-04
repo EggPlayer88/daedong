@@ -1,3 +1,6 @@
+import { isoDate } from '../services/service-values'
+import { collectionIdentifier } from './validation'
+import { validCollectionComposeText } from './compose-text'
 import type { GeneratedDocument } from '../documents/guided-contracts'
 import type { CollectionOperationsServer } from './operations'
 import { useEffect, useLayoutEffect } from 'react'
@@ -16,9 +19,32 @@ import {
   type CollectionUpload,
 } from './contracts'
 import { type StagedTemplate } from './template-staging'
+export interface CollectionComposeRequest {
+  id: string
+  schoolId: string
+  memberId: string
+  basisDate: string
+  title: string
+  instructions: string
+}
+export function isCurrentCollectionComposeRequest(
+  request: CollectionComposeRequest, member: Membership, date: string,
+): boolean {
+  if (!request || request.schoolId !== member.schoolId || request.memberId !== member.id || request.basisDate !== date)
+    return false
+  try {
+    collectionIdentifier(request.id)
+    isoDate(request.basisDate)
+    return validCollectionComposeText(request.title, request.instructions)
+  } catch {
+    return false
+  }
+}
 export interface CollectionServerPanelProps {
   server: CollectionServer
   operations?: CollectionOperationsServer
+  composeRequest?: CollectionComposeRequest
+  onComposeRequestConsumed?: (id: string) => void
   incomingFile?: GeneratedDocument
   onIncomingFileConsumed?: () => void
   member: Membership

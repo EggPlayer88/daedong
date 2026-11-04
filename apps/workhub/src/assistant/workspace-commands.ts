@@ -1,3 +1,4 @@
+import { parseDraftCommand, type DirectDraftCommand } from './draft-commands'
 import { parseTaskChangeCommand, type TaskChangeCommand } from './task-change-command'
 import type { PageId } from '../modules'
 import type { SearchKind } from '../search/contracts'
@@ -5,6 +6,7 @@ import { SEARCH_LIMITS } from '../search/limits'
 import limits from '../../../main/api/workhub-ai/_assets/assistant-limits.json'
 
 export type WorkspaceCommand =
+  | DirectDraftCommand
   | TaskChangeCommand
   | { kind: 'navigate'; page: PageId }
   | { kind: 'search'; query: string; kinds: SearchKind[] }
@@ -148,6 +150,8 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   if (typeof prompt !== 'string') return clarification('요청 내용을 확인해 주세요.')
   if (!validWorkspaceText(prompt))
     return clarification('요청 길이와 문자를 확인해 주세요. 한 번에 한 가지 업무를 적어 주세요.')
+  const draft = parseDraftCommand(prompt)
+  if (draft) return draft
   let text = prompt.trim().replace(/\s+/g, ' ').replace(/[.!?。！？]+$/, '').trim()
   if (!text) return null
   // 인용·가정·부정·설명 요청을 실행 의사로 취급하지 않는다.

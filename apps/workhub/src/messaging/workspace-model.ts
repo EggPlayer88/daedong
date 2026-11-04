@@ -7,13 +7,14 @@ export interface MessageComposeRequest {
   id: string
   schoolId: string
   memberId: string
+  basisDate?: string
   body: string
 }
 export interface MessagingWorkspaceProps {
   openRequest?: { key: string; id: string }
   onReturnToSource?: () => void
   composeRequest?: MessageComposeRequest
-  onComposeRequestConsumed?: () => void
+  onComposeRequestConsumed?: (id: string) => void
   connection: SupabaseConnection
   member: Membership
   date: string

@@ -14,7 +14,7 @@ import { CollectionUnitWorkbench } from './CollectionUnitWorkbench'
 import styles from './collection-server.css?inline'
 import composerStyles from '../app/composer-layout.css?inline'
 import { ComposerOptions } from '../app/ComposerOptions'
-import { blank, inputOf, same } from './collection-editor-model'
+import { inputOf, same } from './collection-editor-model'
 import type { useCollectionEditor } from './useCollectionEditor'
 export function CollectionEditorView({ model }: { model: ReturnType<typeof useCollectionEditor> }) {
   const {
@@ -29,6 +29,10 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
     canRetainAction,
     canShowAnswer,
     canShowEditor,
+    canStartEditor,
+    offeredCompose,
+    finishCompose,
+    startEditor,
     chooseFile,
     compareLatest,
     comparison,
@@ -208,32 +212,32 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
               type="button"
               className="cs-primary"
               data-cs-focus="create-button"
-              disabled={locked || loading || !newCollectionPolicy}
-              onClick={() => {
-                if (!newCollectionPolicy) return
-                focusNext('editor')
-                setSession({
-                  editor: {
-                    staged: [],
-                    input: {
-                      ...blank(),
-                      fileCollection: {
-                        policy: newCollectionPolicy,
-                        required: true,
-                        templates: [],
-                      },
-                    },
-                  },
-                })
-                setError('')
-                setNotice('')
-              }}
+              disabled={!canStartEditor}
+              onClick={() => startEditor()}
             >
               새 수합 만들기
             </button>
           </div>
         )}
       </header>
+      {offeredCompose && (
+        <section className="cs-notice" aria-label="전달받은 수합 초안">
+          <h3>전달받은 수합 초안</h3>
+          {readiness?.available && newCollectionPolicy && list && !readError && (
+            <p>{offeredCompose.title}</p>
+          )}
+          <p>{hasWork || parked ? '작성 중인 내용과 미확정 요청을 먼저 마무리해 주세요.'
+            : '수합 초안을 사용한 뒤 기한과 제출 대상을 직접 선택하세요.'}</p>
+          <div className="cs-actions">
+            <button type="button" disabled={!canStartEditor} onClick={() => startEditor(true)}>
+              수합 초안 사용
+            </button>
+            <button type="button" onClick={() => finishCompose(offeredCompose.id)}>
+              전달받은 수합 초안 닫기
+            </button>
+          </div>
+        </section>
+      )}
       {readiness?.available && !parked && !newCollectionPolicy && (
         <p className="cs-warning">
           HWPX 수합 규칙을 먼저 연결해야 새 수합을 만들 수 있습니다. 기존 기록은 확인할 수 있습니다.

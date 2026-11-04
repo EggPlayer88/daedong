@@ -18,6 +18,8 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
     closeComposer,
     closeThread,
     composeRequest,
+    canUseAiDraft,
+    dismissAiDraft,
     composerInput,
     composing,
     conflict,
@@ -142,12 +144,13 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
       {composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && (
         <section className="messaging-status" aria-label="AI 메시지 초안">
           <p>
-            AI가 작성한 메시지 초안이 있습니다. 받는 사람은 직접 선택하고 보내기 전에 내용을
-            확인하세요.{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}
+            받는 사람은 직접 선택합니다.{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}
           </p>
-          <button type="button" disabled={!usable || locked || dirty} onClick={useAiDraft}>
+          {composeRequest.basisDate && usable && !checking && !readyError && <p className="messaging-body">{composeRequest.body}</p>}
+          <button type="button" disabled={!canUseAiDraft} onClick={useAiDraft}>
             전달받은 메시지 초안 사용
           </button>
+          {composeRequest.basisDate && <button type="button" onClick={dismissAiDraft}>전달받은 메시지 초안 닫기</button>}
         </section>
       )}
       {checking && <p role="status">메시지 연결을 확인하는 중…</p>}

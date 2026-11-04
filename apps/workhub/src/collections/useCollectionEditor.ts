@@ -29,7 +29,9 @@ import { formatCollectionRecordedTime } from './submission-summary'
 import { collectionSubmissionGuidance } from './submission-guidance'
 import { stageTemplates } from './template-staging'
 import {
-  CollectionServerPanelProps,
+  blank,
+  isCurrentCollectionComposeRequest,
+  type CollectionServerPanelProps,
   Upload,
   Session,
   FocusTarget,
@@ -42,6 +44,8 @@ import {
 export function useCollectionEditor({
   server,
   operations,
+  composeRequest,
+  onComposeRequestConsumed,
   incomingFile,
   onIncomingFileConsumed,
   member,
@@ -174,6 +178,40 @@ export function useCollectionEditor({
       ),
     )
     setSessionState(value)
+  }
+  const handledComposeIds = useRef(new Set<string>())
+  const [lastHandledCompose, setLastHandledCompose] = useState<string>()
+  const currentCompose = composeRequest && enabled &&
+    isCurrentCollectionComposeRequest(composeRequest, member, date)
+  const offeredCompose = currentCompose && composeRequest.id !== lastHandledCompose &&
+    !handledComposeIds.current.has(composeRequest.id) ? composeRequest : undefined
+  function finishCompose(id: string) {
+    if (handledComposeIds.current.has(id)) return
+    handledComposeIds.current.add(id)
+    setLastHandledCompose(id)
+    onComposeRequestConsumed?.(id)
+  }
+  // 날짜나 소속이 달라진 제안은 원문을 표시하지 않고 해당 번호만 닫는다.
+  useEffect(() => {
+    if (composeRequest && !currentCompose) finishCompose(composeRequest.id)
+  }, [composeRequest, currentCompose, onComposeRequestConsumed])
+
+  const canStartEditor = Boolean(enabled && newCollectionPolicy && list && !blocked &&
+    !locked && !hasWork && !parked && !savingRequest)
+  function startEditor(fromCompose = false) {
+    if (!canStartEditor || !newCollectionPolicy || operation.current || sessionRef.current !== session) return
+    if (fromCompose && (!offeredCompose || handledComposeIds.current.has(offeredCompose.id))) return
+    const input = blank()
+    if (fromCompose && offeredCompose) {
+      input.title = offeredCompose.title
+      input.instructions = offeredCompose.instructions
+    }
+    input.fileCollection = { policy: newCollectionPolicy, required: true, templates: [] }
+    focusNext('editor')
+    setSession({ editor: { input, staged: [] } })
+    setError('')
+    setNotice(fromCompose ? '수합 초안을 열었습니다. 기한과 제출 대상을 확인한 뒤 저장해 주세요.' : '')
+    if (fromCompose && offeredCompose) finishCompose(offeredCompose.id)
   }
   function resetEditing(selected?: string) {
     setPublishReview(undefined)
@@ -1105,6 +1143,10 @@ export function useCollectionEditor({
     canRetainAction,
     canShowAnswer,
     canShowEditor,
+    canStartEditor,
+    offeredCompose,
+    finishCompose,
+    startEditor,
     chooseFile,
     compareLatest,
     comparison,

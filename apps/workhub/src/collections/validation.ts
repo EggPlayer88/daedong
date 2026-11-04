@@ -1,3 +1,4 @@
+import { COLLECTION_TEXT_LIMITS } from './text-limits'
 import { FILE_TECHNICAL_LIMITS, type FilePolicy, type FileReference } from '../files/contracts'
 import { normalizeFilePolicy, validateFileReferences } from '../files/validation'
 import type { AnswerInput, CollectionDraft, CollectionInput, CollectionRequest, CollectionUnit, Submission, ReviewRecord, Supplement, Withdrawal } from '../workflows/types'
@@ -19,6 +20,12 @@ function array<T>(raw: unknown, parse: (item: unknown) => T, maximum = 1000): T[
 function text(raw: unknown, maximum: number, required = false): string {
   if (typeof raw !== 'string' || raw.length > maximum || (required && !raw.trim()) || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/u.test(raw)) return invalid()
   return raw
+}
+export function collectionComposeText(title: unknown, instructions: unknown): Pick<CollectionInput, 'title' | 'instructions'> {
+  return {
+    title: text(title, COLLECTION_TEXT_LIMITS.title, true),
+    instructions: text(instructions, COLLECTION_TEXT_LIMITS.instructions),
+  }
 }
 export const collectionIdentifier = (raw: unknown): string => typeof raw === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(raw) ? raw : invalid()
 const nullableId = (raw: unknown): string | null => raw === null ? null : collectionIdentifier(raw)
@@ -50,7 +57,7 @@ function input(raw: unknown): CollectionInput {
     return result
   }, 100)
   if (!units.length || new Set(units.map(unit => unit.label)).size !== units.length) invalid()
-  const result: CollectionInput = { title: text(value.title, 120, true), instructions: text(value.instructions, 3000), dueDate: date(value.dueDate), reviewMode: oneOf(value.reviewMode, ['none', 'required']), reviewerMemberId: value.reviewerMemberId === '' ? '' : collectionIdentifier(value.reviewerMemberId), textLabel: text(value.textLabel, 120), textRequired: boolean(value.textRequired), numberLabel: text(value.numberLabel, 120), numberRequired: boolean(value.numberRequired), units }
+  const result: CollectionInput = { ...collectionComposeText(value.title, value.instructions), dueDate: date(value.dueDate), reviewMode: oneOf(value.reviewMode, ['none', 'required']), reviewerMemberId: value.reviewerMemberId === '' ? '' : collectionIdentifier(value.reviewerMemberId), textLabel: text(value.textLabel, 120), textRequired: boolean(value.textRequired), numberLabel: text(value.numberLabel, 120), numberRequired: boolean(value.numberRequired), units }
   if (value.fileCollection !== undefined) {
     const config = shape(value.fileCollection, ['policy', 'required', 'templates']), policy = collectionPolicy(config.policy)
     result.fileCollection = { policy, required: boolean(config.required), templates: collectionFiles(config.templates, policy) }
