@@ -180,6 +180,14 @@ try{
     assert.equal(await page.getByRole('region',{name:'대화 업무 처리 안내'}).count(),0)
     assert.equal(await page.evaluate(()=>window.tasks),0)
   })
+  await test('안내문 문체를 바꾸는 부탁은 개인 할 일 조회 없이 기존 AI 요청 한 번으로 처리한다',async()=>{
+    const text='이 안내문을 존댓말로 바꿔줘'
+    await request(text)
+    await page.getByRole('heading',{name:'AI 답변',exact:true}).waitFor()
+    assert.deepEqual(await page.evaluate(()=>window.searches),[])
+    assert.equal(await page.evaluate(()=>window.aiCalls),1)
+    assert.equal(await page.evaluate(()=>window.calls.find(row=>row.kind==='ask').payload.input.prompt),text)
+  })
   await test('다른 화면에서 전달한 문서 근거 문장은 메뉴 명령으로 가로채지 않는다',async()=>{
     await page.evaluate(()=>window.setContext({id:'context-one',request:{mode:'school',intent:'document_draft',prompt:'시간표 열어줘',references:[{kind:'knowledge',id:'travel-rule',version:2}],studentContext:null}}))
     await button('전달받은 요청 사용').click();await settle()

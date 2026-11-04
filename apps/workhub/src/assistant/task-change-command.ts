@@ -44,6 +44,9 @@ export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskC
     const body = update![1].trim()
     const memo = body.match(/^(.*?)\s*(?:의\s*)?메모(?:를|는)?\s+(.+?)(?:으)?로$/)
     const due = body.match(/^(.*?)\s+(?:((?:이번\s*주|다음\s*주)\s*[월화수목금토일]요일|\S+?))(?:까지)?(?:으)?로$/)
+    // ‘바꿔줘’만으로는 할 일 변경이 아니다. 문장·안내문 편집은 기존 AI 경로에 둔다.
+    const taskHint = /^(?:내\s+)?(?:할\s*일|업무)(?:\s|[의을를은는]|$)|(?:^|\s)(?:기한|마감(?:일)?|메모)(?:을|를|은|는)?(?:\s|$)/.test(body)
+    if (!memo && !(due && datePattern.test(due[2])) && !taskHint) return null
     if (memo) {
       rawTarget = memo[1]; const notes = memo[2].trim()
       if (!notes || Array.from(notes).length > TASK_INPUT_LIMITS.notesChars)

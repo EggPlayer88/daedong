@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
-const { parseTaskChangeCommand: parse, reviewAssistantTaskChange: review, verifyTaskChangeReceipt: verify } = await loadBrowserModule(`
+const { parseWorkspaceCommand, parseTaskChangeCommand: parse, reviewAssistantTaskChange: review, verifyTaskChangeReceipt: verify } = await loadBrowserModule(`
+  export { parseWorkspaceCommand } from '../apps/workhub/src/assistant/workspace-commands.ts'
   export * from '../apps/workhub/src/assistant/task-change-command.ts'
   export * from '../apps/workhub/src/tasks/assistant-change.ts'
 `)
@@ -24,7 +25,17 @@ check('메모 교체·완료는 대상 한 건을 확인할 명령으로만 해�
   assert.deepEqual(change('제출 자료 확인을 완료해줘').change,{kind:'complete'})
 })
 check('대상 누락·범위 전체·잘못된 날짜·비지원 변경은 확인만 요청한다',()=>{
-  for(const p of ['완료해줘','할 일 전부 완료해줘','제출 자료 확인을 2026-02-30까지로 바꿔줘','제출 자료 확인 기한을 다음 학기로 바꿔줘','제출 자료 확인 수정해줘']) assert.equal(change(p)?.kind,'clarify',p)
+  for(const p of ['완료해줘','할 일 전부 완료해줘','제출 자료 확인을 2026-02-30까지로 바꿔줘','제출 자료 확인 기한을 다음 학기로 바꿔줘','내 할 일 제출 자료 확인 수정해줘']) assert.equal(change(p)?.kind,'clarify',p)
+})
+check('일반 문체 수정은 AI에 맡기고 개인 할 일의 기한 변경과 잘못된 날짜만 로컬에서 처리한다',()=>{
+  for (const prompt of ['이 문장을 더 자연스럽게 바꿔줘','이 안내문을 존댓말로 바꿔줘'])
+    assert.equal(parseWorkspaceCommand(prompt,day),null,prompt)
+  assert.match(parseWorkspaceCommand('제출 자료 확인 수정해줘',day)?.message ?? '',/해당 업무 화면/)
+  for (const [prompt,kind] of [
+    ['제출 자료 확인을 금요일까지로 바꿔줘','taskChange'],
+    ['내 할 일 제출 자료 확인 기한을 다음 학기로 바꿔줘','clarify'],
+    ['제출 자료 확인을 2026-02-30까지로 바꿔줘','clarify'],
+  ]) assert.equal(parseWorkspaceCommand(prompt,day)?.kind,kind,prompt)
 })
 check('원본의 다른 필드와 버전을 보존한 변경 전후 비교를 만든다',()=>{
   const result=review(req,task,member,day)
