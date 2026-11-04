@@ -22,6 +22,8 @@ import { type KnowledgeAssistantRequest } from '../knowledge/assistant-links'
 import type { PageId } from '../modules'
 import type { SearchItem, SearchKind } from '../search/contracts'
 import type { WorkspaceCommand } from './workspace-commands'
+import type { DraftFollowup, DraftPeople } from './draft-followup'
+import type { DirectDraftCommand } from './draft-commands'
 import type { TaskChangeCommand } from './task-change-command'
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
 export interface AssistantWorkspaceSearchResult {
@@ -34,7 +36,8 @@ export interface AssistantWorkspaceActions {
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean
   calendar: (command: CalendarWorkspaceCommand) => boolean
-  prepareDraft?: (command: Extract<WorkspaceCommand, { kind: 'messageDraft' | 'collectionDraft' }>) => boolean
+  findDraftPeople?: (kind: DirectDraftCommand['kind'], query: string, signal: AbortSignal) => Promise<DraftPeople & { limit: number }>
+  prepareDraft?: (command: DirectDraftCommand, followup?: DraftFollowup) => boolean
   changeTask?: (command: TaskChangeCommand, selected: SearchItem) => boolean
 }
 export interface AssistantDraftReady {
@@ -77,6 +80,7 @@ export type Session = {
   mode: AssistantMode
   intent: AssistantIntent
   prompt: string
+  draftDialogue?: DraftFollowup
   calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string }
   references: AssistantContextRequest['references']
   studentContext: StudentContext | null

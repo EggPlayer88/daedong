@@ -269,20 +269,33 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       return true
     },
     search: (query, kinds, signal) => searchAssistantWorkspace(searchSources, query, kinds, signal),
-    prepareDraft(command) {
+    async findDraftPeople(kind, query, signal) {
+      const page = kind === 'messageDraft' ? 'messages' : 'collections'
+      if (!member || !context || connectionUnavailable || !activeAt(member, context.basisDate) || !connectedPages.includes(page))
+        throw new Error('학교 연결을 확인해 주세요.')
+      const { findDraftPeople } = await import('./draft-people')
+      return findDraftPeople(kind, query, signal, connection, collectionServer, member, context)
+    },
+    prepareDraft(command, followup) {
       if (!member || !context || !activeAt(member, context.basisDate) || connectionUnavailable ||
           navigationLocked || pendingRequests.count() || handoff) return false
+      if (followup && (followup.scope !== currentScope || followup.basisDate !== context.basisDate ||
+          followup.command !== command)) return false
       const isMessage = command.kind === 'messageDraft'
       const destination = isMessage ? 'messages' : 'collections'
       const slot = isMessage ? 'messaging-composer' : 'collection-editor'
       if (!connectedPages.includes(destination) || editDrafts.bind(currentScope, slot).dirty ||
           (isMessage ? messageDraft : collectionDraft || generatedFile)) return false
       const identity = { id: crypto.randomUUID(), schoolId: member.schoolId, memberId: member.id, basisDate: context.basisDate }
+      const recipients = followup?.selected.flatMap(person => person.recipient && person.recipient.memberId === person.memberId &&
+        person.recipient.schoolId === member.schoolId ? [person.recipient] : [])
+      if (isMessage && followup && recipients?.length !== followup.selected.length) return false
       if (!navigate(destination)) return false
       if (command.kind === 'messageDraft') {
-        setMessageDraft({ scope: currentScope, draft: { ...identity, body: command.body } })
+        setMessageDraft({ scope: currentScope, draft: { ...identity, body: command.body, recipients } })
       } else {
-        setCollectionDraft({ scope: currentScope, draft: { ...identity, title: command.title, instructions: command.instructions } })
+        setCollectionDraft({ scope: currentScope, draft: { ...identity, title: command.title, instructions: command.instructions,
+          dueDate: followup?.dueDate, targetMemberIds: followup?.selected.map(person => person.memberId) } })
       }
       setWorkReturn({ scope: currentScope, page: destination, fromPage: 'assistant' })
       setAssistantOpen(false)

@@ -27,6 +27,8 @@ import { knowledgeCitationRequest } from '../knowledge/assistant-links'
 import type { Citation } from './contracts'
 import type { SearchItem } from '../search/contracts'
 import { parseWorkspaceCommand, type WorkspaceCommand } from './workspace-commands'
+import type { DirectDraftCommand } from './draft-commands'
+import { useDraftContinuation } from './useDraftContinuation'
 import { calendarQuestion, continueCalendar } from './calendar-conversation'
 import type { TaskChangeCommand } from './task-change-command'
 import type { AssistantWorkspaceSearchResult } from './workspace-model'
@@ -142,7 +144,7 @@ export function useAssistantWorkspace({
   const [memoryLocked, setMemoryLocked] = useState(false)
   const enabled = activeAt(member, date),
     locked = Boolean(
-      session.prompt.trim() || session.calendarDialogue || session.proposal || recovery.request || busy || memoryLocked,
+      session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked,
     ),
     baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError,
     editable = baseEditable && !memoryLocked
@@ -156,11 +158,26 @@ export function useAssistantWorkspace({
   const workspaceResult = commandContext && enabled && searchResult?.scope === scope ? searchResult : undefined
   const calendarFollowup = commandContext && enabled && session.calendarDialogue?.basisDate === date &&
     session.calendarDialogue.scope === dialogueScope ? session.calendarDialogue.command : undefined
-  // 이어지는 짧은 답은 항상 로컬 일정 입력이다. 잘못된 답도 유료 질문으로 넘기지 않는다.
-  const workspaceCommand = commandContext ? calendarFollowup ?? parseWorkspaceCommand(session.prompt, date) : null
+  function draftOpened(command: DirectDraftCommand) {
+    const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
+    setWorkspaceActionNotice({ prompt: command.prompt, message: `${destination} 화면에서 초안을 확인해 주세요.` })
+    setWorkspaceResult(undefined)
+    update({ ...latest.current, prompt: '', draftDialogue: undefined })
+    setError('')
+    setNotice('')
+  }
+  const continuation = useDraftContinuation({
+    session, latest, update, actions: workspaceActions, scope: dialogueScope, basisDate: date, revision,
+    active: commandContext && enabled, editable: workspaceEditable, opened: draftOpened,
+    feedback: (error, notice = '') => { setError(error); setNotice(notice) },
+  })
+  // 이어지는 답은 현재 초안에만 사용한다. 잘못된 날짜나 이름도 유료 질문이 되지 않는다.
+  const workspaceCommand = commandContext
+    ? continuation.draftFollowup?.command ?? calendarFollowup ?? parseWorkspaceCommand(session.prompt, date)
+    : null
   const freeCommand = workspaceCommand && workspaceCommand.kind !== 'task'
   const canSubmit = freeCommand ? workspaceEditable : editable
-  const submitLabel = calendarFollowup ? '일정 정보 이어 입력' :
+  const submitLabel = continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
     workspaceCommand?.kind === 'navigate' ? '바로 이동' :
     workspaceCommand?.kind === 'search' ? '자료 찾기' :
@@ -170,7 +187,7 @@ export function useAssistantWorkspace({
     workspaceCommand?.kind === 'clarify' ? '요청 확인' : 'AI에게 요청'
   function update(value: Session) {
     latest.current = value
-    memory.save(value, Boolean(value.prompt.trim() || value.proposal || value.calendarDialogue))
+    memory.save(value, Boolean(value.prompt.trim() || value.proposal || value.calendarDialogue || value.draftDialogue))
     setSession(value)
   }
   useEffect(
@@ -182,6 +199,12 @@ export function useAssistantWorkspace({
   useEffect(() => {
     const current = latest.current
     // 창 복귀 재조회는 입력을 유지하고, 실제 소속·권한·기준일이 바뀔 때만 닫는다.
+    if (current.draftDialogue && (!enabled || !commandContext ||
+        current.draftDialogue.scope !== dialogueScope || current.draftDialogue.basisDate !== date)) {
+      update({ ...current, prompt: '', draftDialogue: undefined })
+      setNotice('학교 연결이나 기준일이 바뀌어 이전 초안 입력을 닫았습니다.')
+      return
+    }
     if (current.calendarDialogue && (!enabled || !commandContext ||
         current.calendarDialogue.basisDate !== date || current.calendarDialogue.scope !== dialogueScope)) {
       update({ ...current, prompt: '', calendarDialogue: undefined })
@@ -500,6 +523,7 @@ export function useAssistantWorkspace({
     setNotice('일정 작성을 취소했습니다. 저장한 일정은 없습니다.')
   }
   function ask() {
+    if (latest.current.draftDialogue) { void continuation.reply(); return }
     let command = workspaceCommand
     if (latest.current.calendarDialogue && !calendarFollowup) return
     if (calendarFollowup && workspaceEditable && !operation.current) {
@@ -525,11 +549,7 @@ export function useAssistantWorkspace({
           setError(`${destination} 초안을 열 수 없습니다. 작성 중인 입력이나 확인할 요청을 마친 뒤 다시 시도해 주세요. 원문은 유지했습니다.`)
           return
         }
-        setWorkspaceActionNotice({ prompt: command.prompt, message: `${destination} 화면에서 초안을 확인해 주세요.` })
-        setWorkspaceResult(undefined)
-        update({ ...latest.current, prompt: '' })
-        setError('')
-        setNotice('')
+        draftOpened(command)
         return
       }
       if (command.kind === 'navigate' || command.kind === 'calendar') {
@@ -639,7 +659,7 @@ export function useAssistantWorkspace({
     setNotice('')
   }
   function changeIntent(intent: AssistantIntent) {
-    if (!editable || calendarFollowup) return
+    if (!editable || calendarFollowup || continuation.draftFollowup) return
     update({
       ...latest.current,
       intent,
@@ -736,6 +756,13 @@ export function useAssistantWorkspace({
     applyContext,
     ask,
     canSubmit,
+    ...continuation,
+    startDraftFollowup: () => {
+      if (workspaceCommand?.kind !== 'messageDraft' && workspaceCommand?.kind !== 'collectionDraft') return
+      continuation.startDraftFollowup(workspaceCommand)
+      setWorkspaceResult(undefined)
+      setWorkspaceActionNotice(undefined)
+    },
     calendarFollowup,
     cancelCalendar,
     dismissTaskMatches: () => { setWorkspaceResult(undefined); setError(''); setNotice('할 일 선택을 닫았습니다. 변경한 내용은 없습니다.') },

@@ -9,7 +9,7 @@ const clarify = (message: string): Clarification => ({ kind: 'clarify', message 
 const datePattern = /^(?:오늘|내일|모레|(?:이번\s*주\s*|다음\s*주\s*)?[월화수목금토일]요일|\d{4}[-./]\d{1,2}[-./]\d{1,2})$/
 const weekdayIndex = '일월화수목금토'
 
-function dueDateFrom(token: string, basisDate: string): string | null {
+export function resolveAssistantDueDate(token: string, basisDate: string): string | null {
   if (!datePattern.test(token)) return null
   const base = new Date(basisDate + 'T00:00:00.000Z')
   if (!Number.isFinite(base.getTime()) || base.toISOString().slice(0, 10) !== basisDate) return null
@@ -54,7 +54,7 @@ export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskC
       change = { kind: 'notes', value: notes }
     } else if (due) {
       rawTarget = due[1].replace(/(?:의\s*)?(?:기한|마감일?)(?:을|를|은|는)?$/, '')
-      const date = dueDateFrom(due[2], basisDate)
+      const date = resolveAssistantDueDate(due[2], basisDate)
       if (!date) return clarify('변경할 기한을 날짜나 요일로 적어 주세요. 예: 제출 자료 확인을 금요일까지로 바꿔줘')
       change = { kind: 'dueDate', value: date }
     } else return clarify('할 일 제목과 바꿀 기한 또는 메모를 알려 주세요. 예: 제출 자료 확인을 금요일까지로 바꿔줘')

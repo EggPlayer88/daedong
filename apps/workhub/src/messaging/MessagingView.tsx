@@ -19,6 +19,8 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
     closeThread,
     composeRequest,
     canUseAiDraft,
+    chosenRecipients,
+    checkingDraftRecipients,
     dismissAiDraft,
     composerInput,
     composing,
@@ -144,11 +146,13 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
       {composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && (
         <section className="messaging-status" aria-label="AI 메시지 초안">
           <p>
-            받는 사람은 직접 선택합니다.{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}
+            {usable && !checking && !readyError && chosenRecipients?.length
+              ? `대화에서 선택한 수신자 ${chosenRecipients.length}명을 확인하고 초안을 엽니다.`
+              : '받는 사람은 직접 선택합니다.'}{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}
           </p>
           {composeRequest.basisDate && usable && !checking && !readyError && <p className="messaging-body">{composeRequest.body}</p>}
           <button type="button" disabled={!canUseAiDraft} onClick={useAiDraft}>
-            전달받은 메시지 초안 사용
+            {checkingDraftRecipients ? '받는 사람 확인 중…' : '전달받은 메시지 초안 사용'}
           </button>
           {composeRequest.basisDate && <button type="button" onClick={dismissAiDraft}>전달받은 메시지 초안 닫기</button>}
         </section>

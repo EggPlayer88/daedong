@@ -1,6 +1,6 @@
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
-import { MessagingError, type MessagingServer, type NotificationSource } from './contracts'
+import { MessagingError, type MessagingServer, type NotificationSource, type Recipient } from './contracts'
 import { type MessageAttempt, type MessageDraft } from './composer'
 import { type MessageFileServer } from './files'
 export interface MessageComposeRequest {
@@ -9,6 +9,7 @@ export interface MessageComposeRequest {
   memberId: string
   basisDate?: string
   body: string
+  recipients?: Recipient[]
 }
 export interface MessagingWorkspaceProps {
   openRequest?: { key: string; id: string }

@@ -244,6 +244,8 @@
 
 /* 대화에서 찾은 자료도 기존 목록과 같은 버튼으로 연다. 긴 제목은 좁은 옆자리 안에서 줄바꿈한다. */
 .assistant-workspace-result{min-width:0;padding:20px;margin:0 0 20px;border:1px solid var(--ui-line,#e3e7ed);border-radius:18px;background:var(--ui-surface,#fff);overflow-wrap:anywhere}
+.assistant-draft-people{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;padding:0;list-style:none}
+.assistant-draft-people li{display:flex;align-items:center;gap:4px;max-width:100%;flex-wrap:wrap}
 .assistant-command-question{margin:0 0 16px;color:var(--ui-muted,#626d7c);white-space:pre-wrap;font-size:var(--ui-small-size,13px)}
 .assistant-workspace-result-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 .assistant-workspace-result-heading h3{margin:0;font-size:var(--ui-body-size,16px)}
