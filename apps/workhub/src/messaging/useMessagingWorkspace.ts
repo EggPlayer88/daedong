@@ -141,6 +141,11 @@ export function useMessagingWorkspace({
     busy || fileLocked || Boolean(preview) || (!folded && (dirty || Boolean(pending)))
   const hasAnyDraft = dirty || Boolean(pending)
   const waitingOpen = Boolean(openRequest && openRequest.key !== handledOpenKey)
+  const offeredDraft = composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id &&
+    (!composeRequest.basisDate || composeRequest.basisDate === date) ? composeRequest : undefined
+  const handledDraft = useRef<string>()
+  const canUseAiDraft = !!offeredDraft && usable && !checking && !readyError && !locked && !dirty &&
+    !recovery.request && !fileRecovery.request
   useEffect(() => {
     alive.current = true
     serverGeneration.current++
@@ -422,25 +427,21 @@ export function useMessagingWorkspace({
   }
   function useAiDraft() {
     if (
-      !usable ||
-      locked ||
-      dirty ||
-      !composeRequest ||
-      composeRequest.schoolId !== member.schoolId ||
-      composeRequest.memberId !== member.id ||
-      typeof composeRequest.body !== 'string' ||
-      !composeRequest.body.trim() ||
-      Array.from(composeRequest.body).length > 50000
+      !canUseAiDraft || !offeredDraft || (offeredDraft.basisDate && handledDraft.current === offeredDraft.id) ||
+      typeof offeredDraft.body !== 'string' || !offeredDraft.body.trim() ||
+      Array.from(offeredDraft.body).length > 50000
     )
       return
-    setDraft({ ...blankMessageDraft(), body: composeRequest.body })
+    handledDraft.current = offeredDraft.id
+    setDraft({ ...blankMessageDraft(), body: offeredDraft.body })
     setComposing(true)
     setFolded(false)
     setError('')
-    setNotice('AI 초안을 불러왔습니다. 받는 사람과 내용을 확인한 뒤 전송해 주세요.')
+    setNotice(offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
+      : 'AI 초안을 불러왔습니다. 받는 사람과 내용을 확인한 뒤 전송해 주세요.')
     setDiscardConfirm(false)
     setConflict(false)
-    onComposeRequestConsumed?.()
+    onComposeRequestConsumed?.(offeredDraft.id)
   }
   function closeComposer() {
     if (locked) return
@@ -632,7 +633,9 @@ export function useMessagingWorkspace({
     chooseRecipient,
     closeComposer,
     closeThread,
-    composeRequest,
+    canUseAiDraft,
+    composeRequest: offeredDraft,
+    dismissAiDraft: () => { if (offeredDraft) onComposeRequestConsumed?.(offeredDraft.id) },
     composerInput,
     composing,
     conflict,

@@ -26,8 +26,10 @@ export function createEditDrafts(restricted = false) {
     clear() { entries.clear(); active = false; selected = undefined; generation++; notify() },
     bind<T>(scope: string, slot: string) {
       const epoch = generation
-      const saved = allowed(scope, epoch) ? entries.get(scope)?.get(slot)?.value : undefined
+      const entry = allowed(scope, epoch) ? entries.get(scope)?.get(slot) : undefined
+      const saved = entry?.value
       return {
+        dirty: entry?.warn === true,
         initial: saved === undefined ? undefined : structuredClone(saved) as T,
         save(value: T | undefined, warn = true) {
           if (!allowed(scope, epoch)) return

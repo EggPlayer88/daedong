@@ -7,4 +7,4 @@ function CollectionScope(props: CollectionServerPanelProps) {
  return <CollectionEditorView model={useCollectionEditor(props)} />;
 }
 
-export type { CollectionServerPanelProps } from './collection-editor-model'
+export type { CollectionComposeRequest, CollectionServerPanelProps } from './collection-editor-model'

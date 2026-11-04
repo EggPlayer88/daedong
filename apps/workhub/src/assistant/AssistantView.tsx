@@ -515,7 +515,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <details className="assistant-command-help">
                 <summary>대화로 할 수 있는 일</summary>
                 <div className="assistant-command-examples">
-                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘'].map((text) => (
+                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '메시지 초안: 내일 회의 자료를 확인해 주세요', '수합 초안: 현장체험학습 계획서'].map((text) => (
                   <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
                 ))}

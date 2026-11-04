@@ -164,6 +164,8 @@ export function useAssistantWorkspace({
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
     workspaceCommand?.kind === 'navigate' ? '바로 이동' :
     workspaceCommand?.kind === 'search' ? '자료 찾기' :
+    workspaceCommand?.kind === 'messageDraft' ? '메시지 초안 열기' :
+    workspaceCommand?.kind === 'collectionDraft' ? '수합 초안 열기' :
     workspaceCommand?.kind === 'calendar' ? '일정 초안 열기' :
     workspaceCommand?.kind === 'clarify' ? '요청 확인' : 'AI에게 요청'
   function update(value: Session) {
@@ -515,6 +517,19 @@ export function useAssistantWorkspace({
       }
       if (command.kind === 'search' || command.kind === 'taskChange') {
         void searchWorkspace(command)
+        return
+      }
+      if (command.kind === 'messageDraft' || command.kind === 'collectionDraft') {
+        const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
+        if (!workspaceActions?.prepareDraft?.(command)) {
+          setError(`${destination} 초안을 열 수 없습니다. 작성 중인 입력이나 확인할 요청을 마친 뒤 다시 시도해 주세요. 원문은 유지했습니다.`)
+          return
+        }
+        setWorkspaceActionNotice({ prompt: command.prompt, message: `${destination} 화면에서 초안을 확인해 주세요.` })
+        setWorkspaceResult(undefined)
+        update({ ...latest.current, prompt: '' })
+        setError('')
+        setNotice('')
         return
       }
       if (command.kind === 'navigate' || command.kind === 'calendar') {

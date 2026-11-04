@@ -34,6 +34,7 @@ export interface AssistantWorkspaceActions {
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean
   calendar: (command: CalendarWorkspaceCommand) => boolean
+  prepareDraft?: (command: Extract<WorkspaceCommand, { kind: 'messageDraft' | 'collectionDraft' }>) => boolean
   changeTask?: (command: TaskChangeCommand, selected: SearchItem) => boolean
 }
 export interface AssistantDraftReady {
