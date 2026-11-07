@@ -39,12 +39,22 @@
     "api/workhub-documents/extract-knowledge.py": {
       "includeFiles": "{api/workhub-documents/**,api/collections/**}",
       "maxDuration": 60
+    },
+    "api/neis/data.py": {
+      "includeFiles": "{api/neis/**,api/collections/**}",
+      "maxDuration": 60
     }
   },
   "rewrites": [
     {
       "source": "/(.*)",
       "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/neis/data",
+      "schedule": "0 21 * * *"
     }
   ]
 }

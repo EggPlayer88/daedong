@@ -1,0 +1,13 @@
+{
+  "pageSize": 1000,
+  "maxRows": 20000,
+  "maxPages": 20,
+  "responseBytes": 4000000,
+  "totalSeconds": 40,
+  "httpSeconds": 12,
+  "snapshotBytes": 12000000,
+  "calendarBatch": 50,
+  "mealDays": 62,
+  "timetableDays": 14,
+  "refreshMinutes": 30
+}
