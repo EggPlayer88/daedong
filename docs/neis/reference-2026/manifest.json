@@ -1,0 +1,51 @@
+{
+  "source": {
+    "officeCode": "K10",
+    "schoolCode": "7892043",
+    "schoolName": "대동여자중학교"
+  },
+  "academicYear": 2026,
+  "productionApplied": false,
+  "datasets": [
+    {
+      "kind": "schedule",
+      "from": "2026-03-01",
+      "to": "2027-02-28",
+      "rawRows": 185,
+      "rows": 184,
+      "jsonSha256": "c18f74deed9854954309cc269cf9821a2118d2bd762481c228aa244d1d56f9be",
+      "sqlFile": "N1-10-1_schedule_초기원본.sql",
+      "sqlBytes": 60496
+    },
+    {
+      "kind": "timetable",
+      "from": "2026-11-02",
+      "to": "2026-11-15",
+      "rawRows": 751,
+      "rows": 612,
+      "jsonSha256": "fd44936d90e97725036bc6a7e1a3468ae829638384ed30f8eb83cd463f23415c",
+      "sqlFile": "N1-10-2_timetable_초기원본.sql",
+      "sqlBytes": 183106
+    },
+    {
+      "kind": "classes",
+      "from": "2026-03-01",
+      "to": "2027-02-28",
+      "rawRows": 9,
+      "rows": 9,
+      "jsonSha256": "9bdcdac0c922d8dc82a88141993665b5b319006813a218330093dd007d7dd97f",
+      "sqlFile": "N1-10-3_classes_초기원본.sql",
+      "sqlBytes": 3106
+    },
+    {
+      "kind": "meals",
+      "from": "2026-11-01",
+      "to": "2026-12-31",
+      "rawRows": 20,
+      "rows": 20,
+      "jsonSha256": "16ebebeb65db862e7d1b3bb226e0b549957ec7243fcb54a0243260b54f389797",
+      "sqlFile": "N1-10-4_meals_초기원본.sql",
+      "sqlBytes": 24588
+    }
+  ]
+}

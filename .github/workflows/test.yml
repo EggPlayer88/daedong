@@ -226,6 +226,11 @@ jobs:
           python database/workhub-annual/af2/test/run_current_baseline.py
           python database/workhub-current/int11/build_checks.py
           npm run check:workhub:current-checks
+      - name: 나이스 증분·통합 기준 재생성·권한 훼손 검출
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55679'
+        run: python database/workhub-neis/n1/build_checks.py
       - name: 실제 시간표 가져오기 SQL·원자성·앱 응답
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

@@ -3,3 +3,8 @@ apps/main/api/doc-ai/_assets/prompt-rules.v2.md text eol=lf
 
 # 셸 스크립트는 Windows 체크아웃(core.autocrlf)에서도 LF 로 둔다. CRLF 면 bash 가 "pipefail\r" 로 멈춘다.
 *.sh text eol=lf
+
+# 나이스 공개 원본과 생성 점검 파일은 운영 전달 해시를 Windows에서도 동일하게 유지한다.
+docs/neis/reference-2026/* text eol=lf
+database/workhub-neis/n1/*.sql text eol=lf
+database/workhub-neis/n1/checks.json text eol=lf
