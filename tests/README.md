@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+나이스 연결: `test_neis_*`는 앱·서버·기존 일정 저장 함수·공개 초기 원본을 격리 환경에서 대조한다. `browser/workhub-neis.mjs`는 비교·확인·복구·좁은 화면을, `database/workhub-neis/n1/build_checks.py`는 기존 설치 전체+N1·INT-12 지문과 훼손 검출을 확인한다. 운영 API 키나 외부 DB는 자동 시험에 사용하지 않는다. [검증 기록](../docs/neis/verification.md).
+
 업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합·할 일 원본 왕복 8개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
 
 수합 다운로드: `test_workhub_collection_download.mjs`는 전송 실패를 권한 오류로 오인하지 않는 안내를, `browser/workhub-collection-create.mjs`는 같은 초안에서 재다운로드와 실제 권한 거절 시 상세 비노출을 확인한다. 실제 SQL·RLS의 정보 조회→본문 읽기 경계는 [S1 격리 PostgreSQL 회귀](../database/workhub-storage-download/s1/README.md)에서 별도로 실행한다.

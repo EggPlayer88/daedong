@@ -1,0 +1,9 @@
+{
+  "postcheck": "INT-12",
+  "baseline": "INT-11 + N1",
+  "rows": 18,
+  "source": "database/workhub-neis/n1/INT-12_나이스포함_통합점검.sql",
+  "bytes": 631848,
+  "sha256": "87436c9cf861d011135424d7d463e6d461c55c4d2f50b5c169de8775bd5e4eee",
+  "deltaObjects": 72
+}
