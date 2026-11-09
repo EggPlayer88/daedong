@@ -1,0 +1,10 @@
+{
+  "teachers": 300,
+  "classes": 200,
+  "courses": 4000,
+  "slots": 140,
+  "lessons": 12000,
+  "name": 100,
+  "title": 120,
+  "fileBytes": 4000000
+}
