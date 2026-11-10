@@ -26,6 +26,7 @@ const envelope=(data:any)=>({contract:'guided.v1',schoolId:current.schoolId,memb
 w.calls=[];w.asks=[];w.pending=createPendingRequests();w.drafts=createEditDrafts();w.receipts=new Map()
 const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[current],schools:[{id:current.schoolId}],basisDate:'2026-10-21'}),loadContext:async()=>clone(initialContext),subscribeIdentity:()=>()=>{},subscribeInvalidation:()=>()=>{},getIdentity:async()=>({userId:current.userId,approved:true,profile:{id:current.userId,name:'합성 교사',email:'test@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}}),rpcVerified:async(name:string,args:any)=>{
  w.calls.push(clone({name,args}))
+ if(name==='workhub_teacher_roster_published')return {contract:'teacher-roster.v1',schoolId:current.schoolId,memberId:current.id,data:{date:args.p_date,timeZone:'Asia/Seoul',available:false,plans:[],myTeacherIds:[]}}
  if(name==='workhub_template_list')return envelope({items:current.schoolId===member.schoolId?[template]:[],nextCursor:null,canCreate:false})
  if(name==='workhub_template_get'){
   if(w.readFail)throw Error('synthetic read failure')
@@ -46,7 +47,7 @@ const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[
  if(name==='workhub_document_list')return {contract:'documents.v1',schoolId:member.schoolId,memberId:member.id,data:{items:[],nextCursor:null,canShare:false}}
  if(name==='workhub_ai_policy_threads_list')return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data:{items:[],nextCursor:null}}
  if(name==='workhub_ai_policy_thread_get')return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data:clone(thread)}
- if(/mutate|commit|save|render|publish/.test(name))throw Error('unexpected write '+name)
+ if(/(?:^|_)(?:mutate|commit|save|render|publish)(?:_|$)/.test(name))throw Error('unexpected write '+name)
  throw new ContractError('QUERY_FAILED','선택 기능은 합성 시험에 포함하지 않습니다')
 }}
 let thread:any=null

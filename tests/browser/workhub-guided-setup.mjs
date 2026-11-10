@@ -12,7 +12,8 @@ const output=mkdtempSync(join(tmpdir(),'workhub-guided-setup-'))
 page.setDefaultTimeout(12000);page.on('pageerror',error=>errors.push(error.message))
 await context.route('**/*',route=>{if(route.request().url().startsWith('http://127.0.0.1:5179/'))return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:8px"><div id="root"></div></body></html>'});external.push(route.request().url());return route.abort()})
 const panel=()=>page.getByRole('region',{name:'수합 방식과 질문 제안',exact:true})
-const writes=()=>page.evaluate(()=>window.calls.filter(c=>/mutate|request_get|render|publish/.test(c.name)))
+// published는 조회다. publish와 구분하되 저장·생성·원번호 복구 검사는 유지한다.
+const writes=()=>page.evaluate(()=>window.calls.filter(c=>/(?:^|_)(?:mutate|request_get|render|publish)(?:_|$)/.test(c.name)))
 async function start(connected=false,complex=false){await page.goto('http://127.0.0.1:5179/guided-setup');await page.evaluate(value=>Object.assign(window,value),{connected,complex});await page.addScriptTag({content:bundle.outputFiles[0].text});if(connected){await clickWorkspaceMenu(page,'문서함');await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).click()}await page.getByRole('button',{name:/가상 학교 행사 양식/}).click();await panel().waitFor()}
 async function choose(indices=[1,2]){await panel().getByRole('button',{name:'질문형으로 준비',exact:true}).click();for(const index of indices)await panel().getByLabel('제안 선택 '+index,{exact:true}).check()}
 async function confirm(){await panel().getByLabel('선택한 질문과 원본 위치를 확인했습니다',{exact:true}).check()}
