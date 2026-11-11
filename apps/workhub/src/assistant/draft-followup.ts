@@ -40,6 +40,16 @@ const dateResidue = /[0-9][/.:-]|\d+\s*(?:일|월|년|시|분)|내일모레|글�
 const unsafeAction = /[?？;；“”‘’"`]|보내\s*줘|(?:전송|발송|공개|게시|저장|작성|취소|삭제|열어)\s*(?:해|하|줘)|하지\s*마|말고|아니라/
 const broadGroup = /(?:^|\s)(?:전원|모두|전체|모든\s*교사|전\s*교사|아무나|누구나)(?:$|\s|에게|한테|께)/
 
+// 제목 질문에는 원문을 우선한다. 기한으로 표시한 잘못된 날짜는 제목에 넣지 않고 다시 묻는다.
+export function isDeadlineReplyWhileNaming(reply: string, parsed: DraftReply): boolean {
+  const text = reply.trim()
+  const labelled = /^(?:제출\s*기한|기한|마감(?:일|날짜)?)\s*(?:은|는|[:：])/.test(text)
+  if (parsed.kind === 'clarify') return labelled
+  if (parsed.kind !== 'fields' || !parsed.dueDate) return false
+  if (parsed.query) return labelled && /[,，]\s*(?:제출\s*대상|대상(?:자)?)\s*(?:은|는|[:：])/.test(text)
+  return dueLabel.test(text) || /까지(?:요)?[.!。！]*$/.test(text)
+}
+
 // 명시된 접수 기한과 검색어만 읽는다. 검색 결과 하나도 사람의 선택 전에는 수신자가 되지 않는다.
 export function parseDraftReply(draft: DraftFollowup, reply: string): DraftReply {
   if (typeof reply !== 'string' || !validWorkspaceText(reply)) return explain('입력한 글자와 길이를 확인해 주세요.')

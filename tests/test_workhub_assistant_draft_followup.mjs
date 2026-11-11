@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
-const { parseDraftReply } = await loadBrowserModule(`
-  export { parseDraftReply } from '../apps/workhub/src/assistant/draft-followup.ts'
+const { parseDraftReply, isDeadlineReplyWhileNaming } = await loadBrowserModule(`
+  export { parseDraftReply, isDeadlineReplyWhileNaming } from '../apps/workhub/src/assistant/draft-followup.ts'
 `)
 const selected = [{ memberId: 'member-a', displayName: '이수진' }]
 const message = { command: { kind: 'messageDraft', body: '두 줄\n안내', prompt: '메시지 초안: 두 줄\n안내' },
@@ -41,6 +41,18 @@ check('수합 기한·이름은 어느 순서로 답해도 원문이나 선택 �
   }
   assert.deepEqual(parseDraftReply({ ...collection, dueDate: '2026-12-31' }, '대상: 박선우'), { kind: 'fields', query: '박선우' })
   assert.deepEqual(collection, before)
+})
+
+check('제목을 물었을 때 기한 답변만 구분하고 날짜가 들어간 실제 제목은 그대로 받는다', () => {
+  const deadline = text => isDeadlineReplyWhileNaming(text, parseDraftReply(collection, text))
+  for (const text of ['기한은 내일까지', '제출 기한 12월 31일', '내일까지', '마감일: 2027-02-29',
+    '기한: 내일이나 모레', '기한은 내일까지, 제출 대상은 김다솜 선생님']) {
+    assert.equal(deadline(text), true, text)
+  }
+  for (const text of ['내일', '내일 체험학습 안내', '12월 31일까지 제출할 계획서', '기한 관리 안내',
+    '마감일 12월 31일 대비 계획서']) {
+    assert.equal(deadline(text), false, text)
+  }
 })
 
 check('일괄 발송·다른 명령·여러 이름·불명확한 날짜는 기존 초안에서 안내한다', () => {
