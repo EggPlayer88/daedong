@@ -1,0 +1,3119 @@
+{
+  "format": "teacher-roster-plan.v1",
+  "plan": {
+    "id": "fixture_plan",
+    "termId": "fixture_term",
+    "title": "9학급 합성 시간표",
+    "from": "2026-11-16",
+    "until": "2027-03-01",
+    "teachers": [
+      {
+        "id": "teacher_1",
+        "name": "교사 1",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_2",
+        "name": "교사 2",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_3",
+        "name": "교사 3",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_4",
+        "name": "교사 4",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_5",
+        "name": "교사 5",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_6",
+        "name": "교사 6",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_7",
+        "name": "교사 7",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_8",
+        "name": "교사 8",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_9",
+        "name": "교사 9",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_10",
+        "name": "교사 10",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_11",
+        "name": "교사 11",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_12",
+        "name": "교사 12",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_13",
+        "name": "교사 13",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_14",
+        "name": "교사 14",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_15",
+        "name": "교사 15",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_16",
+        "name": "교사 16",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_17",
+        "name": "교사 17",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_18",
+        "name": "교사 18",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_19",
+        "name": "교사 19",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_20",
+        "name": "교사 20",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_21",
+        "name": "교사 21",
+        "kind": "person"
+      },
+      {
+        "id": "teacher_22",
+        "name": "교사 22",
+        "kind": "person"
+      }
+    ],
+    "classes": [
+      {
+        "id": "class_1",
+        "grade": 1,
+        "number": 1,
+        "name": "1학년 1반",
+        "officialId": null
+      },
+      {
+        "id": "class_2",
+        "grade": 1,
+        "number": 2,
+        "name": "1학년 2반",
+        "officialId": null
+      },
+      {
+        "id": "class_3",
+        "grade": 1,
+        "number": 3,
+        "name": "1학년 3반",
+        "officialId": null
+      },
+      {
+        "id": "class_4",
+        "grade": 2,
+        "number": 1,
+        "name": "2학년 1반",
+        "officialId": null
+      },
+      {
+        "id": "class_5",
+        "grade": 2,
+        "number": 2,
+        "name": "2학년 2반",
+        "officialId": null
+      },
+      {
+        "id": "class_6",
+        "grade": 2,
+        "number": 3,
+        "name": "2학년 3반",
+        "officialId": null
+      },
+      {
+        "id": "class_7",
+        "grade": 3,
+        "number": 1,
+        "name": "3학년 1반",
+        "officialId": null
+      },
+      {
+        "id": "class_8",
+        "grade": 3,
+        "number": 2,
+        "name": "3학년 2반",
+        "officialId": null
+      },
+      {
+        "id": "class_9",
+        "grade": 3,
+        "number": 3,
+        "name": "3학년 3반",
+        "officialId": null
+      }
+    ],
+    "courses": [
+      {
+        "id": "course_1",
+        "name": "수업 1",
+        "subject": "교과 1",
+        "teacherId": "teacher_7",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_2",
+        "name": "수업 2",
+        "subject": "교과 1",
+        "teacherId": "teacher_17",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_3",
+        "name": "수업 3",
+        "subject": "교과 2",
+        "teacherId": "teacher_7",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_4",
+        "name": "수업 4",
+        "subject": "교과 3",
+        "teacherId": "teacher_8",
+        "classId": "class_1",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_5",
+        "name": "수업 5",
+        "subject": "교과 4",
+        "teacherId": "teacher_12",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_6",
+        "name": "수업 6",
+        "subject": "교과 6",
+        "teacherId": "teacher_3",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_7",
+        "name": "수업 7",
+        "subject": "교과 8",
+        "teacherId": "teacher_16",
+        "classId": "class_1",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_8",
+        "name": "수업 8",
+        "subject": "교과 9",
+        "teacherId": "teacher_5",
+        "classId": "class_1",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_9",
+        "name": "수업 9",
+        "subject": "교과 11",
+        "teacherId": "teacher_21",
+        "classId": "class_1",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_10",
+        "name": "수업 10",
+        "subject": "교과 12",
+        "teacherId": "teacher_21",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_11",
+        "name": "수업 11",
+        "subject": "교과 13",
+        "teacherId": "teacher_9",
+        "classId": "class_1",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_12",
+        "name": "수업 12",
+        "subject": "교과 14",
+        "teacherId": "teacher_9",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_13",
+        "name": "수업 13",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_14",
+        "name": "수업 14",
+        "subject": "교과 17",
+        "teacherId": "teacher_1",
+        "classId": "class_1",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_15",
+        "name": "수업 15",
+        "subject": "교과 18",
+        "teacherId": "teacher_1",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_16",
+        "name": "수업 16",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_17",
+        "name": "수업 17",
+        "subject": "교과 22",
+        "teacherId": "teacher_13",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_18",
+        "name": "수업 18",
+        "subject": "교과 23",
+        "teacherId": "teacher_9",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_19",
+        "name": "수업 19",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_20",
+        "name": "수업 20",
+        "subject": "교과 24",
+        "teacherId": "teacher_18",
+        "classId": "class_1",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_21",
+        "name": "수업 21",
+        "subject": "교과 26",
+        "teacherId": "teacher_12",
+        "classId": "class_1",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_22",
+        "name": "수업 22",
+        "subject": "교과 1",
+        "teacherId": "teacher_7",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_23",
+        "name": "수업 23",
+        "subject": "교과 1",
+        "teacherId": "teacher_17",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_24",
+        "name": "수업 24",
+        "subject": "교과 2",
+        "teacherId": "teacher_7",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_25",
+        "name": "수업 25",
+        "subject": "교과 3",
+        "teacherId": "teacher_8",
+        "classId": "class_2",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_26",
+        "name": "수업 26",
+        "subject": "교과 6",
+        "teacherId": "teacher_3",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_27",
+        "name": "수업 27",
+        "subject": "교과 7",
+        "teacherId": "teacher_3",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_28",
+        "name": "수업 28",
+        "subject": "교과 8",
+        "teacherId": "teacher_16",
+        "classId": "class_2",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_29",
+        "name": "수업 29",
+        "subject": "교과 9",
+        "teacherId": "teacher_5",
+        "classId": "class_2",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_30",
+        "name": "수업 30",
+        "subject": "교과 11",
+        "teacherId": "teacher_21",
+        "classId": "class_2",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_31",
+        "name": "수업 31",
+        "subject": "교과 12",
+        "teacherId": "teacher_21",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_32",
+        "name": "수업 32",
+        "subject": "교과 13",
+        "teacherId": "teacher_9",
+        "classId": "class_2",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_33",
+        "name": "수업 33",
+        "subject": "교과 14",
+        "teacherId": "teacher_9",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_34",
+        "name": "수업 34",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_35",
+        "name": "수업 35",
+        "subject": "교과 17",
+        "teacherId": "teacher_19",
+        "classId": "class_2",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_36",
+        "name": "수업 36",
+        "subject": "교과 18",
+        "teacherId": "teacher_19",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_37",
+        "name": "수업 37",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_38",
+        "name": "수업 38",
+        "subject": "교과 22",
+        "teacherId": "teacher_13",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_39",
+        "name": "수업 39",
+        "subject": "교과 23",
+        "teacherId": "teacher_6",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_40",
+        "name": "수업 40",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_41",
+        "name": "수업 41",
+        "subject": "교과 24",
+        "teacherId": "teacher_18",
+        "classId": "class_2",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_42",
+        "name": "수업 42",
+        "subject": "교과 26",
+        "teacherId": "teacher_12",
+        "classId": "class_2",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_43",
+        "name": "수업 43",
+        "subject": "교과 1",
+        "teacherId": "teacher_7",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_44",
+        "name": "수업 44",
+        "subject": "교과 1",
+        "teacherId": "teacher_17",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_45",
+        "name": "수업 45",
+        "subject": "교과 3",
+        "teacherId": "teacher_22",
+        "classId": "class_3",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_46",
+        "name": "수업 46",
+        "subject": "교과 4",
+        "teacherId": "teacher_12",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_47",
+        "name": "수업 47",
+        "subject": "교과 6",
+        "teacherId": "teacher_3",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_48",
+        "name": "수업 48",
+        "subject": "교과 7",
+        "teacherId": "teacher_3",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_49",
+        "name": "수업 49",
+        "subject": "교과 8",
+        "teacherId": "teacher_16",
+        "classId": "class_3",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_50",
+        "name": "수업 50",
+        "subject": "교과 9",
+        "teacherId": "teacher_5",
+        "classId": "class_3",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_51",
+        "name": "수업 51",
+        "subject": "교과 11",
+        "teacherId": "teacher_21",
+        "classId": "class_3",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_52",
+        "name": "수업 52",
+        "subject": "교과 12",
+        "teacherId": "teacher_21",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_53",
+        "name": "수업 53",
+        "subject": "교과 13",
+        "teacherId": "teacher_9",
+        "classId": "class_3",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_54",
+        "name": "수업 54",
+        "subject": "교과 14",
+        "teacherId": "teacher_9",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_55",
+        "name": "수업 55",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_56",
+        "name": "수업 56",
+        "subject": "교과 17",
+        "teacherId": "teacher_19",
+        "classId": "class_3",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_57",
+        "name": "수업 57",
+        "subject": "교과 18",
+        "teacherId": "teacher_19",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_58",
+        "name": "수업 58",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_59",
+        "name": "수업 59",
+        "subject": "교과 22",
+        "teacherId": "teacher_13",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_60",
+        "name": "수업 60",
+        "subject": "교과 23",
+        "teacherId": "teacher_21",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_61",
+        "name": "수업 61",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_62",
+        "name": "수업 62",
+        "subject": "교과 24",
+        "teacherId": "teacher_18",
+        "classId": "class_3",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_63",
+        "name": "수업 63",
+        "subject": "교과 26",
+        "teacherId": "teacher_12",
+        "classId": "class_3",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_64",
+        "name": "수업 64",
+        "subject": "교과 1",
+        "teacherId": "teacher_7",
+        "classId": "class_4",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_65",
+        "name": "수업 65",
+        "subject": "교과 3",
+        "teacherId": "teacher_8",
+        "classId": "class_4",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_66",
+        "name": "수업 66",
+        "subject": "교과 3",
+        "teacherId": "teacher_12",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_67",
+        "name": "수업 67",
+        "subject": "교과 5",
+        "teacherId": "teacher_14",
+        "classId": "class_4",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_68",
+        "name": "수업 68",
+        "subject": "교과 9",
+        "teacherId": "teacher_5",
+        "classId": "class_4",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_69",
+        "name": "수업 69",
+        "subject": "교과 13",
+        "teacherId": "teacher_11",
+        "classId": "class_4",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_70",
+        "name": "수업 70",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_71",
+        "name": "수업 71",
+        "subject": "교과 16",
+        "teacherId": "teacher_10",
+        "classId": "class_4",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_72",
+        "name": "수업 72",
+        "subject": "교과 17",
+        "teacherId": "teacher_19",
+        "classId": "class_4",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_73",
+        "name": "수업 73",
+        "subject": "교과 18",
+        "teacherId": "teacher_19",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_74",
+        "name": "수업 74",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_75",
+        "name": "수업 75",
+        "subject": "교과 20",
+        "teacherId": "teacher_2",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_76",
+        "name": "수업 76",
+        "subject": "교과 21",
+        "teacherId": "teacher_13",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_77",
+        "name": "수업 77",
+        "subject": "교과 23",
+        "teacherId": "teacher_18",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_78",
+        "name": "수업 78",
+        "subject": "교과 24",
+        "teacherId": "teacher_18",
+        "classId": "class_4",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_79",
+        "name": "수업 79",
+        "subject": "교과 25",
+        "teacherId": "teacher_12",
+        "classId": "class_4",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_80",
+        "name": "수업 80",
+        "subject": "교과 1",
+        "teacherId": "teacher_7",
+        "classId": "class_5",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_81",
+        "name": "수업 81",
+        "subject": "교과 3",
+        "teacherId": "teacher_8",
+        "classId": "class_5",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_82",
+        "name": "수업 82",
+        "subject": "교과 3",
+        "teacherId": "teacher_12",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_83",
+        "name": "수업 83",
+        "subject": "교과 5",
+        "teacherId": "teacher_14",
+        "classId": "class_5",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_84",
+        "name": "수업 84",
+        "subject": "교과 9",
+        "teacherId": "teacher_5",
+        "classId": "class_5",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_85",
+        "name": "수업 85",
+        "subject": "교과 13",
+        "teacherId": "teacher_11",
+        "classId": "class_5",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_86",
+        "name": "수업 86",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_87",
+        "name": "수업 87",
+        "subject": "교과 16",
+        "teacherId": "teacher_10",
+        "classId": "class_5",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_88",
+        "name": "수업 88",
+        "subject": "교과 17",
+        "teacherId": "teacher_19",
+        "classId": "class_5",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_89",
+        "name": "수업 89",
+        "subject": "교과 18",
+        "teacherId": "teacher_19",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_90",
+        "name": "수업 90",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_91",
+        "name": "수업 91",
+        "subject": "교과 20",
+        "teacherId": "teacher_2",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_92",
+        "name": "수업 92",
+        "subject": "교과 21",
+        "teacherId": "teacher_13",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_93",
+        "name": "수업 93",
+        "subject": "교과 23",
+        "teacherId": "teacher_10",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_94",
+        "name": "수업 94",
+        "subject": "교과 24",
+        "teacherId": "teacher_18",
+        "classId": "class_5",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_95",
+        "name": "수업 95",
+        "subject": "교과 25",
+        "teacherId": "teacher_12",
+        "classId": "class_5",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_96",
+        "name": "수업 96",
+        "subject": "교과 1",
+        "teacherId": "teacher_7",
+        "classId": "class_6",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_97",
+        "name": "수업 97",
+        "subject": "교과 3",
+        "teacherId": "teacher_8",
+        "classId": "class_6",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_98",
+        "name": "수업 98",
+        "subject": "교과 3",
+        "teacherId": "teacher_12",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_99",
+        "name": "수업 99",
+        "subject": "교과 5",
+        "teacherId": "teacher_14",
+        "classId": "class_6",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_100",
+        "name": "수업 100",
+        "subject": "교과 9",
+        "teacherId": "teacher_5",
+        "classId": "class_6",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_101",
+        "name": "수업 101",
+        "subject": "교과 13",
+        "teacherId": "teacher_11",
+        "classId": "class_6",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_102",
+        "name": "수업 102",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_103",
+        "name": "수업 103",
+        "subject": "교과 16",
+        "teacherId": "teacher_10",
+        "classId": "class_6",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_104",
+        "name": "수업 104",
+        "subject": "교과 17",
+        "teacherId": "teacher_19",
+        "classId": "class_6",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_105",
+        "name": "수업 105",
+        "subject": "교과 18",
+        "teacherId": "teacher_19",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_106",
+        "name": "수업 106",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_107",
+        "name": "수업 107",
+        "subject": "교과 20",
+        "teacherId": "teacher_2",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_108",
+        "name": "수업 108",
+        "subject": "교과 21",
+        "teacherId": "teacher_13",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_109",
+        "name": "수업 109",
+        "subject": "교과 23",
+        "teacherId": "teacher_8",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_110",
+        "name": "수업 110",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_111",
+        "name": "수업 111",
+        "subject": "교과 24",
+        "teacherId": "teacher_18",
+        "classId": "class_6",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_112",
+        "name": "수업 112",
+        "subject": "교과 25",
+        "teacherId": "teacher_12",
+        "classId": "class_6",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_113",
+        "name": "수업 113",
+        "subject": "교과 1",
+        "teacherId": "teacher_17",
+        "classId": "class_7",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_114",
+        "name": "수업 114",
+        "subject": "교과 3",
+        "teacherId": "teacher_22",
+        "classId": "class_7",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_115",
+        "name": "수업 115",
+        "subject": "교과 5",
+        "teacherId": "teacher_14",
+        "classId": "class_7",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_116",
+        "name": "수업 116",
+        "subject": "교과 6",
+        "teacherId": "teacher_3",
+        "classId": "class_7",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_117",
+        "name": "수업 117",
+        "subject": "교과 10",
+        "teacherId": "teacher_20",
+        "classId": "class_7",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_118",
+        "name": "수업 118",
+        "subject": "교과 11",
+        "teacherId": "teacher_21",
+        "classId": "class_7",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_119",
+        "name": "수업 119",
+        "subject": "교과 13",
+        "teacherId": "teacher_11",
+        "classId": "class_7",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_120",
+        "name": "수업 120",
+        "subject": "교과 13",
+        "teacherId": "teacher_16",
+        "classId": "class_7",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_121",
+        "name": "수업 121",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_7",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_122",
+        "name": "수업 122",
+        "subject": "교과 16",
+        "teacherId": "teacher_10",
+        "classId": "class_7",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_123",
+        "name": "수업 123",
+        "subject": "교과 17",
+        "teacherId": "teacher_1",
+        "classId": "class_7",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_124",
+        "name": "수업 124",
+        "subject": "교과 18",
+        "teacherId": "teacher_1",
+        "classId": "class_7",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_125",
+        "name": "수업 125",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_7",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_126",
+        "name": "수업 126",
+        "subject": "교과 23",
+        "teacherId": "teacher_14",
+        "classId": "class_7",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_127",
+        "name": "수업 127",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_7",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_128",
+        "name": "수업 128",
+        "subject": "교과 1",
+        "teacherId": "teacher_17",
+        "classId": "class_8",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_129",
+        "name": "수업 129",
+        "subject": "교과 3",
+        "teacherId": "teacher_22",
+        "classId": "class_8",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_130",
+        "name": "수업 130",
+        "subject": "교과 5",
+        "teacherId": "teacher_14",
+        "classId": "class_8",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_131",
+        "name": "수업 131",
+        "subject": "교과 6",
+        "teacherId": "teacher_3",
+        "classId": "class_8",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_132",
+        "name": "수업 132",
+        "subject": "교과 10",
+        "teacherId": "teacher_20",
+        "classId": "class_8",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_133",
+        "name": "수업 133",
+        "subject": "교과 11",
+        "teacherId": "teacher_21",
+        "classId": "class_8",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_134",
+        "name": "수업 134",
+        "subject": "교과 13",
+        "teacherId": "teacher_11",
+        "classId": "class_8",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_135",
+        "name": "수업 135",
+        "subject": "교과 13",
+        "teacherId": "teacher_16",
+        "classId": "class_8",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_136",
+        "name": "수업 136",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_8",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_137",
+        "name": "수업 137",
+        "subject": "교과 16",
+        "teacherId": "teacher_10",
+        "classId": "class_8",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_138",
+        "name": "수업 138",
+        "subject": "교과 17",
+        "teacherId": "teacher_1",
+        "classId": "class_8",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_139",
+        "name": "수업 139",
+        "subject": "교과 18",
+        "teacherId": "teacher_1",
+        "classId": "class_8",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_140",
+        "name": "수업 140",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_8",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_141",
+        "name": "수업 141",
+        "subject": "교과 23",
+        "teacherId": "teacher_16",
+        "classId": "class_8",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_142",
+        "name": "수업 142",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_8",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_143",
+        "name": "수업 143",
+        "subject": "교과 1",
+        "teacherId": "teacher_17",
+        "classId": "class_9",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_144",
+        "name": "수업 144",
+        "subject": "교과 3",
+        "teacherId": "teacher_22",
+        "classId": "class_9",
+        "weeklyHours": 4
+      },
+      {
+        "id": "course_145",
+        "name": "수업 145",
+        "subject": "교과 5",
+        "teacherId": "teacher_14",
+        "classId": "class_9",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_146",
+        "name": "수업 146",
+        "subject": "교과 6",
+        "teacherId": "teacher_3",
+        "classId": "class_9",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_147",
+        "name": "수업 147",
+        "subject": "교과 10",
+        "teacherId": "teacher_20",
+        "classId": "class_9",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_148",
+        "name": "수업 148",
+        "subject": "교과 11",
+        "teacherId": "teacher_21",
+        "classId": "class_9",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_149",
+        "name": "수업 149",
+        "subject": "교과 13",
+        "teacherId": "teacher_11",
+        "classId": "class_9",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_150",
+        "name": "수업 150",
+        "subject": "교과 13",
+        "teacherId": "teacher_16",
+        "classId": "class_9",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_151",
+        "name": "수업 151",
+        "subject": "교과 15",
+        "teacherId": "teacher_4",
+        "classId": "class_9",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_152",
+        "name": "수업 152",
+        "subject": "교과 16",
+        "teacherId": "teacher_10",
+        "classId": "class_9",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_153",
+        "name": "수업 153",
+        "subject": "교과 17",
+        "teacherId": "teacher_1",
+        "classId": "class_9",
+        "weeklyHours": 3
+      },
+      {
+        "id": "course_154",
+        "name": "수업 154",
+        "subject": "교과 18",
+        "teacherId": "teacher_1",
+        "classId": "class_9",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_155",
+        "name": "수업 155",
+        "subject": "교과 19",
+        "teacherId": "teacher_6",
+        "classId": "class_9",
+        "weeklyHours": 2
+      },
+      {
+        "id": "course_156",
+        "name": "수업 156",
+        "subject": "교과 23",
+        "teacherId": "teacher_17",
+        "classId": "class_9",
+        "weeklyHours": 1
+      },
+      {
+        "id": "course_157",
+        "name": "수업 157",
+        "subject": "교과 24",
+        "teacherId": "teacher_15",
+        "classId": "class_9",
+        "weeklyHours": 3
+      }
+    ],
+    "slots": [
+      {
+        "id": "slot_1_1",
+        "day": 1,
+        "period": 1,
+        "start": 525,
+        "end": 570
+      },
+      {
+        "id": "slot_1_2",
+        "day": 1,
+        "period": 2,
+        "start": 580,
+        "end": 625
+      },
+      {
+        "id": "slot_1_3",
+        "day": 1,
+        "period": 3,
+        "start": 635,
+        "end": 680
+      },
+      {
+        "id": "slot_1_4",
+        "day": 1,
+        "period": 4,
+        "start": 690,
+        "end": 735
+      },
+      {
+        "id": "slot_1_5",
+        "day": 1,
+        "period": 5,
+        "start": 785,
+        "end": 830
+      },
+      {
+        "id": "slot_1_6",
+        "day": 1,
+        "period": 6,
+        "start": 840,
+        "end": 885
+      },
+      {
+        "id": "slot_2_1",
+        "day": 2,
+        "period": 1,
+        "start": 525,
+        "end": 570
+      },
+      {
+        "id": "slot_2_2",
+        "day": 2,
+        "period": 2,
+        "start": 580,
+        "end": 625
+      },
+      {
+        "id": "slot_2_3",
+        "day": 2,
+        "period": 3,
+        "start": 635,
+        "end": 680
+      },
+      {
+        "id": "slot_2_4",
+        "day": 2,
+        "period": 4,
+        "start": 690,
+        "end": 735
+      },
+      {
+        "id": "slot_2_5",
+        "day": 2,
+        "period": 5,
+        "start": 785,
+        "end": 830
+      },
+      {
+        "id": "slot_2_6",
+        "day": 2,
+        "period": 6,
+        "start": 840,
+        "end": 885
+      },
+      {
+        "id": "slot_2_7",
+        "day": 2,
+        "period": 7,
+        "start": 895,
+        "end": 940
+      },
+      {
+        "id": "slot_3_1",
+        "day": 3,
+        "period": 1,
+        "start": 525,
+        "end": 570
+      },
+      {
+        "id": "slot_3_2",
+        "day": 3,
+        "period": 2,
+        "start": 580,
+        "end": 625
+      },
+      {
+        "id": "slot_3_3",
+        "day": 3,
+        "period": 3,
+        "start": 635,
+        "end": 680
+      },
+      {
+        "id": "slot_3_4",
+        "day": 3,
+        "period": 4,
+        "start": 690,
+        "end": 735
+      },
+      {
+        "id": "slot_3_5",
+        "day": 3,
+        "period": 5,
+        "start": 785,
+        "end": 830
+      },
+      {
+        "id": "slot_3_6",
+        "day": 3,
+        "period": 6,
+        "start": 840,
+        "end": 885
+      },
+      {
+        "id": "slot_4_1",
+        "day": 4,
+        "period": 1,
+        "start": 525,
+        "end": 570
+      },
+      {
+        "id": "slot_4_2",
+        "day": 4,
+        "period": 2,
+        "start": 580,
+        "end": 625
+      },
+      {
+        "id": "slot_4_3",
+        "day": 4,
+        "period": 3,
+        "start": 635,
+        "end": 680
+      },
+      {
+        "id": "slot_4_4",
+        "day": 4,
+        "period": 4,
+        "start": 690,
+        "end": 735
+      },
+      {
+        "id": "slot_4_5",
+        "day": 4,
+        "period": 5,
+        "start": 785,
+        "end": 830
+      },
+      {
+        "id": "slot_4_6",
+        "day": 4,
+        "period": 6,
+        "start": 840,
+        "end": 885
+      },
+      {
+        "id": "slot_4_7",
+        "day": 4,
+        "period": 7,
+        "start": 895,
+        "end": 940
+      },
+      {
+        "id": "slot_5_1",
+        "day": 5,
+        "period": 1,
+        "start": 525,
+        "end": 570
+      },
+      {
+        "id": "slot_5_2",
+        "day": 5,
+        "period": 2,
+        "start": 580,
+        "end": 625
+      },
+      {
+        "id": "slot_5_3",
+        "day": 5,
+        "period": 3,
+        "start": 635,
+        "end": 680
+      },
+      {
+        "id": "slot_5_4",
+        "day": 5,
+        "period": 4,
+        "start": 690,
+        "end": 735
+      },
+      {
+        "id": "slot_5_5",
+        "day": 5,
+        "period": 5,
+        "start": 785,
+        "end": 830
+      },
+      {
+        "id": "slot_5_6",
+        "day": 5,
+        "period": 6,
+        "start": 840,
+        "end": 885
+      }
+    ],
+    "lessons": [
+      {
+        "id": "lesson_1",
+        "courseId": "course_7",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_2",
+        "courseId": "course_14",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_3",
+        "courseId": "course_4",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_4",
+        "courseId": "course_9",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_5",
+        "courseId": "course_11",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_6",
+        "courseId": "course_12",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_7",
+        "courseId": "course_20",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_8",
+        "courseId": "course_6",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_9",
+        "courseId": "course_4",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_10",
+        "courseId": "course_15",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_11",
+        "courseId": "course_11",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_12",
+        "courseId": "course_21",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_13",
+        "courseId": "course_10",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_14",
+        "courseId": "course_7",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_15",
+        "courseId": "course_20",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_16",
+        "courseId": "course_16",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_17",
+        "courseId": "course_14",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_18",
+        "courseId": "course_5",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_19",
+        "courseId": "course_3",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_20",
+        "courseId": "course_19",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_21",
+        "courseId": "course_13",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_22",
+        "courseId": "course_11",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_23",
+        "courseId": "course_4",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_24",
+        "courseId": "course_2",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_25",
+        "courseId": "course_9",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_26",
+        "courseId": "course_18",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_27",
+        "courseId": "course_4",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_28",
+        "courseId": "course_1",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_29",
+        "courseId": "course_11",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_30",
+        "courseId": "course_17",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_31",
+        "courseId": "course_8",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_32",
+        "courseId": "course_8",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_33",
+        "courseId": "course_35",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_34",
+        "courseId": "course_30",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_35",
+        "courseId": "course_41",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_36",
+        "courseId": "course_32",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_37",
+        "courseId": "course_28",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_38",
+        "courseId": "course_42",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_39",
+        "courseId": "course_38",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_40",
+        "courseId": "course_29",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_41",
+        "courseId": "course_29",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_42",
+        "courseId": "course_25",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_43",
+        "courseId": "course_36",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_44",
+        "courseId": "course_31",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_45",
+        "courseId": "course_33",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_46",
+        "courseId": "course_40",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_47",
+        "courseId": "course_26",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_48",
+        "courseId": "course_32",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_49",
+        "courseId": "course_25",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_50",
+        "courseId": "course_24",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_51",
+        "courseId": "course_27",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_52",
+        "courseId": "course_34",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_53",
+        "courseId": "course_41",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_54",
+        "courseId": "course_22",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_55",
+        "courseId": "course_30",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_56",
+        "courseId": "course_25",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_57",
+        "courseId": "course_32",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_58",
+        "courseId": "course_39",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_59",
+        "courseId": "course_23",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_60",
+        "courseId": "course_25",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_61",
+        "courseId": "course_37",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_62",
+        "courseId": "course_28",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_63",
+        "courseId": "course_32",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_64",
+        "courseId": "course_35",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_65",
+        "courseId": "course_53",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_66",
+        "courseId": "course_43",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_67",
+        "courseId": "course_47",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_68",
+        "courseId": "course_57",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_69",
+        "courseId": "course_61",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_70",
+        "courseId": "course_52",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_71",
+        "courseId": "course_53",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_72",
+        "courseId": "course_45",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_73",
+        "courseId": "course_62",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_74",
+        "courseId": "course_44",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_75",
+        "courseId": "course_49",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_76",
+        "courseId": "course_54",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_77",
+        "courseId": "course_63",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_78",
+        "courseId": "course_45",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_79",
+        "courseId": "course_49",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_80",
+        "courseId": "course_51",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_81",
+        "courseId": "course_62",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_82",
+        "courseId": "course_48",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_83",
+        "courseId": "course_46",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_84",
+        "courseId": "course_50",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_85",
+        "courseId": "course_50",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_86",
+        "courseId": "course_55",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_87",
+        "courseId": "course_53",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_88",
+        "courseId": "course_56",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_89",
+        "courseId": "course_45",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_90",
+        "courseId": "course_60",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_91",
+        "courseId": "course_58",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_92",
+        "courseId": "course_53",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_93",
+        "courseId": "course_59",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_94",
+        "courseId": "course_45",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_95",
+        "courseId": "course_56",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_96",
+        "courseId": "course_51",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_97",
+        "courseId": "course_68",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_98",
+        "courseId": "course_68",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_99",
+        "courseId": "course_69",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_100",
+        "courseId": "course_71",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_101",
+        "courseId": "course_64",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_102",
+        "courseId": "course_78",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_103",
+        "courseId": "course_79",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_104",
+        "courseId": "course_72",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_105",
+        "courseId": "course_67",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_106",
+        "courseId": "course_64",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_107",
+        "courseId": "course_76",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_108",
+        "courseId": "course_69",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_109",
+        "courseId": "course_65",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_110",
+        "courseId": "course_70",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_111",
+        "courseId": "course_65",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_112",
+        "courseId": "course_69",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_113",
+        "courseId": "course_73",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_114",
+        "courseId": "course_71",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_115",
+        "courseId": "course_78",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_116",
+        "courseId": "course_65",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_117",
+        "courseId": "course_67",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_118",
+        "courseId": "course_67",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_119",
+        "courseId": "course_75",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_120",
+        "courseId": "course_71",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_121",
+        "courseId": "course_72",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_122",
+        "courseId": "course_77",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_123",
+        "courseId": "course_69",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_124",
+        "courseId": "course_78",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_125",
+        "courseId": "course_64",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_126",
+        "courseId": "course_74",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_127",
+        "courseId": "course_67",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_128",
+        "courseId": "course_66",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_129",
+        "courseId": "course_86",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_130",
+        "courseId": "course_94",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_131",
+        "courseId": "course_88",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_132",
+        "courseId": "course_85",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_133",
+        "courseId": "course_83",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_134",
+        "courseId": "course_81",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_135",
+        "courseId": "course_80",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_136",
+        "courseId": "course_87",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_137",
+        "courseId": "course_95",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_138",
+        "courseId": "course_88",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_139",
+        "courseId": "course_85",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_140",
+        "courseId": "course_81",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_141",
+        "courseId": "course_90",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_142",
+        "courseId": "course_83",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_143",
+        "courseId": "course_80",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_144",
+        "courseId": "course_84",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_145",
+        "courseId": "course_84",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_146",
+        "courseId": "course_89",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_147",
+        "courseId": "course_81",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_148",
+        "courseId": "course_80",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_149",
+        "courseId": "course_91",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_150",
+        "courseId": "course_87",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_151",
+        "courseId": "course_85",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_152",
+        "courseId": "course_94",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_153",
+        "courseId": "course_92",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_154",
+        "courseId": "course_93",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_155",
+        "courseId": "course_94",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_156",
+        "courseId": "course_83",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_157",
+        "courseId": "course_83",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_158",
+        "courseId": "course_85",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_159",
+        "courseId": "course_82",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_160",
+        "courseId": "course_87",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_161",
+        "courseId": "course_101",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_162",
+        "courseId": "course_99",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_163",
+        "courseId": "course_99",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_164",
+        "courseId": "course_110",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_165",
+        "courseId": "course_97",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_166",
+        "courseId": "course_104",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_167",
+        "courseId": "course_104",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_168",
+        "courseId": "course_106",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_169",
+        "courseId": "course_101",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_170",
+        "courseId": "course_98",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_171",
+        "courseId": "course_103",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_172",
+        "courseId": "course_111",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_173",
+        "courseId": "course_99",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_174",
+        "courseId": "course_105",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_175",
+        "courseId": "course_101",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_176",
+        "courseId": "course_102",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_177",
+        "courseId": "course_96",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_178",
+        "courseId": "course_108",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_179",
+        "courseId": "course_103",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_180",
+        "courseId": "course_103",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_181",
+        "courseId": "course_97",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_182",
+        "courseId": "course_107",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_183",
+        "courseId": "course_96",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_184",
+        "courseId": "course_101",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_185",
+        "courseId": "course_111",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_186",
+        "courseId": "course_109",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_187",
+        "courseId": "course_100",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_188",
+        "courseId": "course_100",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_189",
+        "courseId": "course_112",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_190",
+        "courseId": "course_97",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_191",
+        "courseId": "course_96",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_192",
+        "courseId": "course_99",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_193",
+        "courseId": "course_123",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_194",
+        "courseId": "course_116",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_195",
+        "courseId": "course_114",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_196",
+        "courseId": "course_117",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_197",
+        "courseId": "course_113",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_198",
+        "courseId": "course_122",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_199",
+        "courseId": "course_116",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_200",
+        "courseId": "course_121",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_201",
+        "courseId": "course_120",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_202",
+        "courseId": "course_127",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_203",
+        "courseId": "course_114",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_204",
+        "courseId": "course_113",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_205",
+        "courseId": "course_123",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_206",
+        "courseId": "course_118",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_207",
+        "courseId": "course_114",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_208",
+        "courseId": "course_115",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_209",
+        "courseId": "course_115",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_210",
+        "courseId": "course_125",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_211",
+        "courseId": "course_124",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_212",
+        "courseId": "course_119",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_213",
+        "courseId": "course_114",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_214",
+        "courseId": "course_127",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_215",
+        "courseId": "course_125",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_216",
+        "courseId": "course_120",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_217",
+        "courseId": "course_123",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_218",
+        "courseId": "course_126",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_219",
+        "courseId": "course_122",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_220",
+        "courseId": "course_118",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_221",
+        "courseId": "course_113",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_222",
+        "courseId": "course_113",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_223",
+        "courseId": "course_127",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_224",
+        "courseId": "course_120",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_225",
+        "courseId": "course_140",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_226",
+        "courseId": "course_128",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_227",
+        "courseId": "course_128",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_228",
+        "courseId": "course_129",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_229",
+        "courseId": "course_138",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_230",
+        "courseId": "course_135",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_231",
+        "courseId": "course_136",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_232",
+        "courseId": "course_133",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_233",
+        "courseId": "course_139",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_234",
+        "courseId": "course_131",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_235",
+        "courseId": "course_142",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_236",
+        "courseId": "course_135",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_237",
+        "courseId": "course_137",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_238",
+        "courseId": "course_131",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_239",
+        "courseId": "course_140",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_240",
+        "courseId": "course_137",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_241",
+        "courseId": "course_128",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_242",
+        "courseId": "course_129",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_243",
+        "courseId": "course_134",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_244",
+        "courseId": "course_138",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_245",
+        "courseId": "course_132",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_246",
+        "courseId": "course_129",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_247",
+        "courseId": "course_142",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_248",
+        "courseId": "course_130",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_249",
+        "courseId": "course_130",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_250",
+        "courseId": "course_141",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_251",
+        "courseId": "course_133",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_252",
+        "courseId": "course_135",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_253",
+        "courseId": "course_129",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_254",
+        "courseId": "course_142",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_255",
+        "courseId": "course_138",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_256",
+        "courseId": "course_128",
+        "slotId": "slot_5_6"
+      },
+      {
+        "id": "lesson_257",
+        "courseId": "course_144",
+        "slotId": "slot_1_1"
+      },
+      {
+        "id": "lesson_258",
+        "courseId": "course_152",
+        "slotId": "slot_1_2"
+      },
+      {
+        "id": "lesson_259",
+        "courseId": "course_150",
+        "slotId": "slot_1_3"
+      },
+      {
+        "id": "lesson_260",
+        "courseId": "course_155",
+        "slotId": "slot_1_4"
+      },
+      {
+        "id": "lesson_261",
+        "courseId": "course_146",
+        "slotId": "slot_1_5"
+      },
+      {
+        "id": "lesson_262",
+        "courseId": "course_154",
+        "slotId": "slot_1_6"
+      },
+      {
+        "id": "lesson_263",
+        "courseId": "course_147",
+        "slotId": "slot_2_1"
+      },
+      {
+        "id": "lesson_264",
+        "courseId": "course_143",
+        "slotId": "slot_2_2"
+      },
+      {
+        "id": "lesson_265",
+        "courseId": "course_144",
+        "slotId": "slot_2_3"
+      },
+      {
+        "id": "lesson_266",
+        "courseId": "course_148",
+        "slotId": "slot_2_4"
+      },
+      {
+        "id": "lesson_267",
+        "courseId": "course_145",
+        "slotId": "slot_2_5"
+      },
+      {
+        "id": "lesson_268",
+        "courseId": "course_145",
+        "slotId": "slot_2_6"
+      },
+      {
+        "id": "lesson_269",
+        "courseId": "course_157",
+        "slotId": "slot_2_7"
+      },
+      {
+        "id": "lesson_270",
+        "courseId": "course_153",
+        "slotId": "slot_3_1"
+      },
+      {
+        "id": "lesson_271",
+        "courseId": "course_151",
+        "slotId": "slot_3_2"
+      },
+      {
+        "id": "lesson_272",
+        "courseId": "course_157",
+        "slotId": "slot_3_3"
+      },
+      {
+        "id": "lesson_273",
+        "courseId": "course_146",
+        "slotId": "slot_3_4"
+      },
+      {
+        "id": "lesson_274",
+        "courseId": "course_150",
+        "slotId": "slot_3_5"
+      },
+      {
+        "id": "lesson_275",
+        "courseId": "course_143",
+        "slotId": "slot_3_6"
+      },
+      {
+        "id": "lesson_276",
+        "courseId": "course_143",
+        "slotId": "slot_4_1"
+      },
+      {
+        "id": "lesson_277",
+        "courseId": "course_143",
+        "slotId": "slot_4_2"
+      },
+      {
+        "id": "lesson_278",
+        "courseId": "course_150",
+        "slotId": "slot_4_3"
+      },
+      {
+        "id": "lesson_279",
+        "courseId": "course_153",
+        "slotId": "slot_4_4"
+      },
+      {
+        "id": "lesson_280",
+        "courseId": "course_144",
+        "slotId": "slot_4_5"
+      },
+      {
+        "id": "lesson_281",
+        "courseId": "course_155",
+        "slotId": "slot_4_6"
+      },
+      {
+        "id": "lesson_282",
+        "courseId": "course_156",
+        "slotId": "slot_4_7"
+      },
+      {
+        "id": "lesson_283",
+        "courseId": "course_144",
+        "slotId": "slot_5_1"
+      },
+      {
+        "id": "lesson_284",
+        "courseId": "course_153",
+        "slotId": "slot_5_2"
+      },
+      {
+        "id": "lesson_285",
+        "courseId": "course_157",
+        "slotId": "slot_5_3"
+      },
+      {
+        "id": "lesson_286",
+        "courseId": "course_152",
+        "slotId": "slot_5_4"
+      },
+      {
+        "id": "lesson_287",
+        "courseId": "course_148",
+        "slotId": "slot_5_5"
+      },
+      {
+        "id": "lesson_288",
+        "courseId": "course_149",
+        "slotId": "slot_5_6"
+      }
+    ],
+    "homerooms": []
+  },
+  "source": {
+    "sha256": null,
+    "referenceOnly": true
+  },
+  "homeroomCandidates": []
+}

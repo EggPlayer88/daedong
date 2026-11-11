@@ -8,3 +8,7 @@ apps/main/api/doc-ai/_assets/prompt-rules.v2.md text eol=lf
 docs/neis/reference-2026/* text eol=lf
 database/workhub-neis/n1/*.sql text eol=lf
 database/workhub-neis/n1/checks.json text eol=lf
+
+# 가입 전 명부 SQL과 통합 점검의 전달 해시는 LF 기준이다.
+database/workhub-teacher-roster/tr1/*.sql text eol=lf
+database/workhub-teacher-roster/tr1/checks.json text eol=lf

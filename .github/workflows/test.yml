@@ -185,6 +185,16 @@ jobs:
         run: |
           python database/workhub-school-data/p10/test/run_p10.py
           node tests/test_workhub_school_data_maintenance.mjs
+      - name: 가입 전 교사·288교시·가입 후 담당 연결
+        env:
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          P9_TEST_PORT: '55781'
+        run: python database/workhub-teacher-roster/tr1/test/run_tr1.py
+      - name: 교사 명부 포함 전체 통합 점검 재생성
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55791'
+        run: python database/workhub-teacher-roster/tr1/build_checks.py
       - name: 학교 자료 과거 원문·판 이력 SQL·앱 응답
         env:
           K1_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

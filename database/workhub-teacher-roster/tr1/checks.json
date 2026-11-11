@@ -1,0 +1,9 @@
+{
+  "postcheck": "INT-13",
+  "baseline": "INT-12 + TR1",
+  "rows": 18,
+  "source": "database/workhub-teacher-roster/tr1/INT-13_교사명부포함_통합점검.sql",
+  "bytes": 644397,
+  "sha256": "2aa81010a7e3cd2dcb92d5d2a83aaa716edb47d654cb136f3fc3fd57a7285cc6",
+  "deltaObjects": 142
+}

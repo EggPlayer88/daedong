@@ -32,6 +32,7 @@ w.replyBody=JSON.stringify({mode:'guided',reason:'선택한 두 빈 문단에 �
 w.source=()=>clone({template,response})
 const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[current],schools:[{id:current.schoolId}],basisDate:'2026-10-21'}),loadContext:async()=>clone(initialContext),subscribeIdentity:()=>()=>{},subscribeInvalidation:()=>()=>{},getIdentity:async()=>({userId:current.userId,approved:true,profile:{id:current.userId,name:'가상 담당 교사',email:'virtual@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}}),rpcVerified:async(name:string,args:any)=>{
  w.calls.push(clone({name,args}))
+ if(name==='workhub_teacher_roster_published')return {contract:'teacher-roster.v1',schoolId:current.schoolId,memberId:current.id,data:{date:args.p_date,timeZone:'Asia/Seoul',available:false,plans:[],myTeacherIds:[]}}
  if(name==='workhub_template_list')return envelope({items:current.schoolId===member.schoolId?[template,secondTemplate]:[],nextCursor:null,canCreate:current.schoolId===member.schoolId})
  if(name==='workhub_template_get'){
   if(w.getError)return {contract:'guided.v1',schoolId:current.schoolId,memberId:current.id,error:{code:w.getError}}
@@ -55,7 +56,7 @@ const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[
  if(name==='workhub_document_list')return{contract:'documents.v1',schoolId:member.schoolId,memberId:member.id,data:{items:[],nextCursor:null,canShare:false}}
  if(name==='workhub_ai_policy_threads_list')return aiEnvelope({items:[],nextCursor:null})
  if(name==='workhub_ai_policy_thread_get')return aiEnvelope(thread)
- if(/mutate|commit|save|render|publish/.test(name))throw Error('예상하지 않은 쓰기 '+name)
+ if(/(?:^|_)(?:mutate|commit|save|render|publish)(?:_|$)/.test(name))throw Error('예상하지 않은 쓰기 '+name)
  throw new ContractError('QUERY_FAILED','선택 기능은 합성 시험 범위 밖입니다')
 }}
 let thread:any=null

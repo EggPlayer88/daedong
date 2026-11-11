@@ -27,6 +27,8 @@ const Transitions=lazy(()=>import('../administration/SchoolTransitions').then(m=
 const Timetable=lazy(()=>import('../timetable/TimetableOperationsWorkspace').then(m=>({default:m.TimetableOperationsWorkspace})))
 const Teaching=lazy(()=>import('../teaching/TeachingWorkspace').then(m=>({default:m.TeachingWorkspace})))
 const Collections=lazy(()=>import('../collections/CollectionServerPanel').then(m=>({default:m.CollectionServerPanel})))
+const PublishedRoster=lazy(()=>import('../teacher-roster/PublishedRoster').then(m=>({default:m.PublishedRoster})))
+const PersonalRosterAgenda=lazy(()=>import('../teacher-roster/PersonalRosterAgenda').then(m=>({default:m.PersonalRosterAgenda})))
 const TimetableAgenda=lazy(()=>import('../timetable/TimetableAgendaPanel').then(m=>({default:m.TimetableAgendaWorkspace})))
 export interface ParticipantAccess { userId:string;schoolId:string;memberId:string;scopes:string[];expiresAt:string;revision:number }
 import { participantPage } from './page'
@@ -45,6 +47,7 @@ export function ParticipantWorkspace({access,connection:provided}:{access:Partic
  const displayModules=pages.flatMap(scope=>enabledModules('connected').filter(module=>module.id===participantPage(scope.id)).map(module=>({...module,title:scope.label})))
  const navigation=useWorkspaceNavigation({allowedPages:pages.map(s=>participantPage(s.id)),defaultPage:participantPage(pages[0]?.id??'messages'),scopeKey:`${access.userId}:${access.memberId}`,locked:locked||(!context&&(draftCount>0||pendingCount>0)),exitLocked:draftCount>0||pendingCount>0})
  const page=navigation.page as PageId
+ const [basicTimetable,setBasicTimetable]=useState(false)
  const [opened,setOpened]=useState<{page:PageId;id:string;key:string;lessonDate?:string}>()
  const basisDate=useRef<string>();basisDate.current=context?.date
  const host=useRef<HTMLDivElement>(null),[root,setRoot]=useState<ShadowRoot>()
@@ -52,7 +55,7 @@ export function ParticipantWorkspace({access,connection:provided}:{access:Partic
  const collectionServer=useMemo(()=>createSupabaseCollectionServer(connection),[connection]),collectionOperations=useMemo(()=>createCollectionOperations(connection),[connection])
  useEffect(()=>{if(host.current)setRoot(host.current.shadowRoot??host.current.attachShadow({mode:'open'}))},[])
  useEffect(()=>watchSchoolDay(window,()=>setAttempt(n=>n+1),()=>basisDate.current),[])
- useEffect(()=>{setOpened(undefined)},[access.userId,access.memberId,access.schoolId])
+ useEffect(()=>{setOpened(undefined);setBasicTimetable(false)},[access.userId,access.memberId,access.schoolId])
  useEffect(()=>{
   let alive=true,invalidated=false
   setContext(undefined);setError('')
@@ -69,17 +72,17 @@ export function ParticipantWorkspace({access,connection:provided}:{access:Partic
   const expiry=setTimeout(stop,Math.min(2147483647,Math.max(0,Date.parse(access.expiresAt)-Date.now())))
   return()=>{alive=false;clearTimeout(deadline);clearTimeout(expiry);off()}
  },[connection,drafts,pending,accessKey,attempt])
- function open(next:PageId,id?:string,lessonDate?:string){if(!pages.some(s=>participantPage(s.id)===next)||!navigation.requestNavigate(next))return false;setOpened(id?{page:next,id,key:crypto.randomUUID(),lessonDate}:undefined);return true}
+ function open(next:PageId,id?:string,lessonDate?:string){if(!pages.some(s=>participantPage(s.id)===next)||!navigation.requestNavigate(next))return false;if(next==='timetable'&&id)setBasicTimetable(false);setOpened(id?{page:next,id,key:crypto.randomUUID(),lessonDate}:undefined);return true}
  const props=context?{connection,member:context.member,date:context.date,onNavigationLockChange:setLocked}:null
  const content=<WorkspaceShell participant mode="connected" page={page} onNavigate={next=>{open(next)}} schoolName={context?.name??'업무실'} memberName={context?.member.name??'선생님'} navigationModules={displayModules} locked={locked} notice={navigation.announcement&&<p role="status">{navigation.announcement}</p>}><main className="main-content participant-workspace"><header className="page-header"><div><p className="eyebrow">{context?.name??'업무실'} · 업무 참여</p><h1>{pages.find(scope=>participantPage(scope.id)===page)?.label??'업무실'}</h1></div></header>
  {error?<div role="alert"><p>{error}</p><button onClick={()=>setAttempt(n=>n+1)}>학교 소속 다시 확인</button></div>:props&&context?<ModuleBoundary moduleName={pages.find(s=>participantPage(s.id)===page)?.label??'업무'} resetKey={`${access.userId}:${access.memberId}:${page}`}><Suspense fallback={<p role="status">업무 화면을 준비하고 있습니다…</p>}>
  {page==='messages'?<Messages {...props} canOpenSource={s=>['cooperation','timetable','collections','tasks','calendar','transitions'].includes(s.module)&&access.scopes.includes(s.module)} onOpenSource={s=>{if(!open(s.module==='transitions'?'schoolAdmin':s.module as PageId,s.id))throw new Error(navigationBlockedMessage)}}/>:null}
  {page==='tasks'?<TaskPanel adapter={taskAdapter} member={context.member} date={context.date} onNavigationLockChange={setLocked} openRequest={opened?.page===page?{key:opened.key,taskId:opened.id}:undefined}/>:null}
  {page==='calendar'?<CalendarPanel member={context.member} members={context.members} schoolName={context.name} date={context.date} adapter={calendarAdapter} revision={attempt} page="calendar" onPageChange={()=>{}} onNavigationLockChange={setLocked} openRequest={opened?.page===page?{key:opened.key,id:opened.id}:undefined}
- renderLessonAgenda={access.scopes.includes('timetable')?date=><ModuleBoundary moduleName="내 수업" resetKey={`${context.member.id}:${date}`}><Suspense fallback={<p role="status">내 수업을 확인하고 있습니다…</p>}><TimetableAgenda connection={connection} member={context.member} date={date} revision={attempt} onOpen={(id,day)=>{open('timetable',id,day)}}/></Suspense></ModuleBoundary>:undefined}/>:null}
+ renderLessonAgenda={access.scopes.includes('timetable')?date=><ModuleBoundary moduleName="내 수업" resetKey={`${context.member.id}:${date}`}><Suspense fallback={<p role="status">내 수업을 확인하고 있습니다…</p>}><TimetableAgenda connection={connection} member={context.member} date={date} revision={attempt} onOpen={(id,day)=>{open('timetable',id,day)}}/><PersonalRosterAgenda connection={connection} member={context.member} date={date} revision={attempt}/></Suspense></ModuleBoundary>:undefined}/>:null}
  {page==='cooperation'?<Cooperation {...props} onOpenTask={id=>open('tasks',id)} openRequest={opened?.page===page?{key:opened.key,id:opened.id}:undefined}/>:null}
  {page==='schoolAdmin'?<Transitions {...props} openRequest={opened?.page===page?{key:opened.key,id:opened.id}:undefined}/>:null}
- {page==='timetable'?<Timetable embeddedHeader {...props} aiEnabled={false} initialNotificationId={opened?.page===page&&!opened.lessonDate?opened.id:undefined} initialLessonId={opened?.page===page&&opened.lessonDate?opened.id:undefined} initialDate={opened?.page===page?opened.lessonDate:undefined}/>:null}
+ {page==='timetable'?<><div className="button-row"><button disabled={locked||pendingCount>0||draftCount>0} aria-pressed={!basicTimetable} onClick={()=>setBasicTimetable(false)}>날짜별 시간표</button><button disabled={locked||pendingCount>0||draftCount>0} aria-pressed={basicTimetable} onClick={()=>setBasicTimetable(true)}>기본 주간표</button></div>{basicTimetable?<PublishedRoster connection={connection} member={context.member} date={context.date}/>:<Timetable embeddedHeader {...props} aiEnabled={false} initialNotificationId={opened?.page===page&&!opened.lessonDate?opened.id:undefined} initialLessonId={opened?.page===page&&opened.lessonDate?opened.id:undefined} initialDate={opened?.page===page?opened.lessonDate:undefined}/>}</>:null}
  {page==='students'?<Teaching {...props}/>:null}
  {page==='collections'?<Collections server={collectionServer} operations={collectionOperations} member={context.member} members={context.members} date={context.date} onNavigationLockChange={setLocked} openRequest={opened?.page===page?{key:opened.key,id:opened.id}:undefined}/>:null}
  </Suspense></ModuleBoundary>:<p role="status">학교 소속을 확인하고 있습니다…</p>}
