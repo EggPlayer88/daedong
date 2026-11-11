@@ -386,6 +386,15 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 
 ## 공통 메뉴·검색·알림·상태 안내
 
+### 대화 업무 4차 통합
+
+- `test_workhub_workspace_plan.mjs`: 명시적 복합 요청의 원문·순서·한도, 본문/인용 보호, 부분 실행 방지, 일반 대화 구분.
+- `workhub-assistant-plan.mjs`: 실제 연결 셸에서 계획 작성·단계 선택·별도 실행, 새 입력/날짜/신원 보호와 무료 경로.
+- `workhub-assistant-remaining.mjs`: 대화 안 협업 요청·완료, 학교 자료 원문 판·게시·복구.
+- `workhub-assistant-calendar-workspace.mjs`: 공유·여러 날짜·직접 대상, 기존 판 충돌 비교, 일괄 저장과 원키 복구.
+- `workhub-assistant-completion-mobile.mjs`: 320px·화면 높이 축소·두 배 글씨에서 입력·대화 복귀·미확정 요청 보존. 실제 휴대폰 IME 시험을 대체하지 않는다.
+- 전체 브라우저 러너에 등록했다. 결과·합성/운영 경계는 [4차 검증 기록](../docs/ai-workspace/completion-verification.md)에 둔다.
+
 - `workhub-navigation-ui.mjs`: 실제 React·합성 응답 23건. 메뉴 범위/현재 위치, 검색 원본 ID·판/부분 실패/이동 잠금, 알림 원본 이동·읽음 분리, 복구·연결 안내를 검사한다.
 - 320px·두 배 글씨·세 스킨의 글자 대비·키보드 복귀와 외부 요청 0건을 확인한다. 기존 메시지/파일·검색·복구·모바일 회귀 17파일과 함께 실행한다.
 - 전체 브라우저 러너에 등록. `node tests/browser/run.mjs workhub-navigation-ui`로 실행한다. [화면·검증 기록](../docs/workhub/navigation-ui/README.md).
