@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+대화 중심 AI 2차: `browser/workhub-collection-conversation.mjs`는 대화 안 초안/공개/최종 제출과 생성물 선택 해제를, `browser/workhub-assistant-documents.mjs`는 실제 HWPX 생성·파일 해시·수합 제출을, `browser/workhub-assistant-dock.mjs`는 처리 중 Escape 닫기 보호를 검증한다. 기존 메시지·문서·질문형 AI·교차 모듈 회귀에도 대화 패널의 단일 편집기와 원키 복구를 포함한다. [2차 검증 기록](../docs/ai-workspace/delivery-verification.md).
+
 대화 중심 AI 1차: `test_workhub_conversation_guidance.mjs/.py`는 분야 지침·원문·기존 SQL 제목/검색 낱말·입력 한도를, `test_workhub_assistant_operations.mjs`는 개인 업무 실행과 원키 복구를 검증한다. `browser/workhub-ai-foundation.mjs`, `browser/workhub-assistant-operations.mjs`, 기존 `browser/workhub-assistant-connected.mjs`는 실제 React와 업무 어댑터를 합성 응답에 연결한다. 운영 DB·유료 AI 호출은 없다. [구축 순서](../docs/ai-workspace/README.md), [검증 기록](../docs/ai-workspace/verification.md).
 
 나이스 연결: `test_neis_*`는 앱·서버·기존 일정 저장 함수·공개 초기 원본을 격리 환경에서 대조한다. `browser/workhub-neis.mjs`는 비교·확인·복구·좁은 화면을, `database/workhub-neis/n1/build_checks.py`는 기존 설치 전체+N1·INT-12 지문과 훼손 검출을 확인한다. 운영 API 키나 외부 DB는 자동 시험에 사용하지 않는다. [검증 기록](../docs/neis/verification.md).

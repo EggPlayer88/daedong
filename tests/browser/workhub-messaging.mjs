@@ -23,7 +23,8 @@ function receipt(command,key){return{requestKey:key,kind:command.kind,recordedAt
 const server={async readiness(){window.readinessCalls++;if(window.forceDisabled)return{available:false,reason:'disabled',limits:null,attachments:'not_configured'};if(window.scenario==='missing')throw new MessagingError('QUERY_FAILED');return{available:true,reason:'ready',limits:{bodyCharacters:2000,titleCharacters:100,recipients:window.recipientLimit ?? 50},attachments:window.scenario==='files'?'hwpx_basic_v1':'not_configured'}},async recipients(member,query,cursor){if(window.recipientQueryFail)throw new MessagingError('QUERY_FAILED');return{items:clone(recipients.filter(r=>(r.name+r.department).includes(query))),nextCursor:null}},async threads(){if(window.listFailed)throw new MessagingError('QUERY_FAILED');return{items:[clone(thread)],nextCursor:null}},async messages(){return{thread:clone(thread),items:[clone(message)],nextCursor:null}},async inbox(member,unread){return{items:clone(notifications.filter(n=>!unread||!n.readAt)),nextCursor:null}},async mutate(member,command,key,options){window.replayOptions.push(clone(options));window.calls.push(clone({member,command,key}));if(window.scenario==='conflict'&&command.kind==='reply'&&thread.version===1){thread.version=2;thread.kind='group';thread.participants.push(recipients[1]);throw new MessagingError('CONFLICT')}if(window.saved.has(key))return clone(window.saved.get(key));if(window.scenario==='notice_conflict'&&command.kind==='read_notice'&&!window.readConflict){window.readConflict=true;notifications.find(n=>n.id===command.noticeId).version=2;throw new MessagingError('CONFLICT')}const result=receipt(command,key);if(command.kind==='start'||command.kind==='reply')window.delivered++;if(command.kind==='read_thread')thread.readSequence=command.throughSequence;if(command.kind==='read_notice'){window.readWrites++;const n=notifications.find(n=>n.id===command.noticeId);n.readAt=now;n.version++}window.saved.set(key,result);if((window.scenario==='unknown'||window.scenario==='notice_unknown')&&!window.failed){window.failed=true;throw new MessagingError('RESULT_UNKNOWN')}return clone(result)}};
 const ref={id:'message-file',name:'학급자료.hwpx',bytes:7,sha256:'a'.repeat(64),profile:'hwpx_basic_v1'};
 const fileServer={async readiness(){return{available:true,reason:'ready',policy:{extensions:['hwpx'],maxFileBytes:1024,maxFiles:2}}},async prepare(member,file,policy,key,options){window.fileCalls.push({options,kind:'prepare',key,name:file.name});return{fileId:ref.id,bucket:'workhub-message-files',path:'school/teacher/message-file/original.hwpx',expiresAt:'2099-10-16T12:00:00Z',state:'awaiting_upload'}},async upload(){window.fileCalls.push({kind:'upload'});window.fileUploaded=true},async complete(member,fileId,key){window.fileCalls.push({kind:'complete',key,fileId});if(!window.fileUploaded)return{fileId,state:'awaiting_upload',file:null,storageObjectId:null};if(!window.fileFailed){window.fileFailed=true;throw new MessagingError('RESULT_UNKNOWN')}return{fileId,state:'ready',file:ref,storageObjectId:'object'}},async status(){window.fileCalls.push({kind:'status',fileId:ref.id});return{fileId:ref.id,state:'ready',file:ref,storageObjectId:'object'}},async download(){return new Blob(['파일'])}};
-function App(){const[ai,setAi]=useState(undefined);window.proposeMessage=value=>setAi({id:'ai-request',schoolId:'school',memberId:'teacher',body:'AI가 작성한 안내 초안',...value});const[revision,setRevision]=useState(0),[mounted,setMounted]=useState(true),[current,setCurrent]=useState(member);window.refresh=()=>setRevision(v=>v+1);window.unmount=()=>setMounted(false);window.remount=()=>setMounted(true);window.changeScope=()=>setCurrent({...member,id:'other-member',userId:'other-user',schoolId:'other-school'});return<EditDraftsProvider store={window.drafts}><PendingRequestsProvider store={window.pending}>{mounted&&<MessagingWorkspace composeRequest={ai} onComposeRequestConsumed={()=>setAi(undefined)} connection={{}} server={server} fileServer={fileServer} member={current} date='2026-10-16' revision={revision} onNavigationLockChange={v=>window.locked=v} canOpenSource={source=>['collections','cooperation'].includes(source.module)} onOpenSource={async source=>{window.sources.push(source);if(source.module==='cooperation'&&window.sourceError)throw Object.assign(new Error('원본 조회 실패'),{code:window.sourceError});if(window.sourceDeferred)await new Promise(resolve=>window.resolveSource=resolve)}}/>}</PendingRequestsProvider></EditDraftsProvider>}
+window.recipientRows=recipients;window.listQueries=0;for(const method of ['threads','inbox']){const original=server[method];server[method]=async(...args)=>{window.listQueries++;return original(...args)}}
+function App(){const[ai,setAi]=useState(undefined);window.proposeMessage=value=>setAi({id:'ai-request',schoolId:'school',memberId:'teacher',body:'AI가 작성한 안내 초안',...value});const[revision,setRevision]=useState(0),[mounted,setMounted]=useState(true),[current,setCurrent]=useState(member);window.refresh=()=>setRevision(v=>v+1);window.unmount=()=>setMounted(false);window.remount=()=>setMounted(true);window.changeScope=()=>setCurrent({...member,id:'other-member',userId:'other-user',schoolId:'other-school'});return<EditDraftsProvider store={window.drafts}><PendingRequestsProvider store={window.pending}>{mounted&&<MessagingWorkspace presentation={window.presentation} composeRequest={ai} onComposeRequestConsumed={()=>setAi(undefined)} connection={{}} server={server} fileServer={fileServer} member={current} date='2026-10-16' revision={revision} onNavigationLockChange={v=>window.locked=v} canOpenSource={source=>['collections','cooperation'].includes(source.module)} onOpenSource={async source=>{window.sources.push(source);if(source.module==='cooperation'&&window.sourceError)throw Object.assign(new Error('원본 조회 실패'),{code:window.sourceError});if(window.sourceDeferred)await new Promise(resolve=>window.resolveSource=resolve)}}/>}</PendingRequestsProvider></EditDraftsProvider>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
 `, resolveDir: fileURLToPath(new URL('../../', import.meta.url)), loader: 'tsx' }, bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' })
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 390, height: 844 } }), page = await context.newPage()
@@ -33,8 +34,8 @@ await context.route('**/*', route => {
   if (!route.request().url().startsWith('http://127.0.0.1:5179/')) { external.push(route.request().url()); return route.abort() }
   return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div></body></html>' })
 })
-async function start(scenario = '') { await page.goto('http://127.0.0.1:5179/messages'); await page.evaluate(value => { window.scenario = value }, scenario); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await page.getByRole('heading', { name: '메시지와 알림' }).waitFor(); if (scenario !== 'missing') await page.getByRole('button', { name: /김교사와의 대화/ }).waitFor() }
-async function test(name, run, scenario = '') { await start(scenario); try { await run() } catch (error) { console.error('실패 화면:', await page.locator('body').innerText()); console.error('입력 상태:', await page.locator('textarea').evaluateAll(items => items.map(i => ({html:i.outerHTML,labels:[...i.labels].map(l=>l.outerHTML)})))); throw error } passed.push(name); console.log('  ✓ ' + name) }
+async function start(scenario = '', presentation = 'page') { await page.goto('http://127.0.0.1:5179/messages'); await page.evaluate(value => { window.scenario = value.scenario; window.presentation=value.presentation }, {scenario,presentation}); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await page.getByRole('heading', { name: presentation==='assistant'?'메시지 보내기':'메시지와 알림',exact:true }).waitFor(); if (scenario !== 'missing' && presentation !== 'assistant') await page.getByRole('button', { name: /김교사와의 대화/ }).waitFor() }
+async function test(name, run, scenario = '', presentation = 'page') { await start(scenario,presentation); try { await run() } catch (error) { console.error('실패 화면:', await page.locator('body').innerText()); console.error('입력 상태:', await page.locator('textarea').evaluateAll(items => items.map(i => ({html:i.outerHTML,labels:[...i.labels].map(l=>l.outerHTML)})))); throw error } passed.push(name); console.log('  ✓ ' + name) }
 async function compose() { await page.getByRole('button', { name: '새 메시지', exact: true }).click(); await page.getByLabel('김교사 · 교무부', { exact: true }).check(); await page.getByLabel('메시지', { exact: true }).fill('확인 부탁드립니다.') }
 try {
   await test('AI 메시지 초안은 사용자 선택 뒤 불러오고 받는 사람은 자동 선택하지 않는다',async()=>{
@@ -181,6 +182,89 @@ try {
     if (output) { mkdirSync(output, { recursive: true }); await page.screenshot({ path: join(output, 'messaging-320.png'), fullPage: true }) }
     await page.setViewportSize({ width: 390, height: 844 })
   })
+  await test('대화 안 메시지는 선택한 대상·본문으로 열리고 최종 확인 전에는 전송하지 않는다', async () => {
+    await offer([kim,lee]); await page.getByLabel('메시지',{exact:true}).waitFor()
+    assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'회의 안건을 확인해 주세요.')
+    assert.equal(await page.getByLabel('보내는 방식').inputValue(),'individual')
+    assert.equal(await page.getByRole('region',{name:'대화 목록'}).count(),0)
+    assert.equal(await page.getByRole('button',{name:'업무 알림',exact:true}).count(),0)
+    assert.equal(await page.evaluate(()=>window.listQueries),0)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+    await page.getByRole('button',{name:'받는 사람과 내용 확인'}).click()
+    await page.getByRole('region',{name:'보내기 전 확인'}).waitFor()
+    assert.equal(await page.getByRole('form',{name:'새 메시지 작성'}).isVisible(),false)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+    await page.getByRole('button',{name:'확인한 내용 보내기'}).click()
+    await page.getByRole('region',{name:'최근 발송 결과'}).waitFor()
+    const calls=await page.evaluate(()=>window.calls)
+    assert.equal(calls.length,1);assert.equal(calls[0].command.mode,'individual')
+    assert.deepEqual(calls[0].command.recipients.map(p=>p.memberId),['kim','lee'])
+  },'','assistant')
+  await test('대화 안 초안의 수신자 판이 바뀌면 본문을 보존하고 다시 선택하게 한다', async () => {
+    await page.evaluate(()=>{window.recipientRows[0].version=2})
+    await offer([kim,lee]);await page.getByText(/받는 사람 정보가 바뀌었습니다/).waitFor()
+    assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'회의 안건을 확인해 주세요.')
+    assert.equal(await page.getByRole('checkbox',{checked:true}).count(),0)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+  },'','assistant')
+  await test('대화 안 메시지의 미확정 결과는 재진입과 모듈 중지 뒤에도 원래 요청으로만 확인한다', async () => {
+    await offer([kim]);await page.getByLabel('메시지',{exact:true}).waitFor()
+    await page.getByRole('button',{name:'받는 사람과 내용 확인'}).click()
+    await page.getByRole('button',{name:'확인한 내용 보내기'}).click()
+    await page.getByRole('button',{name:'이전 요청 그대로 다시 확인'}).waitFor()
+    await page.evaluate(()=>window.unmount());await page.getByRole('heading',{name:'메시지 보내기',exact:true}).waitFor({state:'detached'})
+    await page.evaluate(()=>{window.forceDisabled=true;window.remount()})
+    await page.getByRole('button',{name:'연결 다시 확인'}).waitFor()
+    await page.getByRole('button',{name:'이전 요청 그대로 다시 확인'}).click()
+    await page.getByText(/메시지를 보냈습니다/).waitFor()
+    const calls=await page.evaluate(()=>window.calls)
+    assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1])
+    assert.equal(await page.evaluate(()=>window.delivered),1)
+    assert.equal(await page.evaluate(()=>window.replayOptions[1].replayOnly),true)
+    assert.equal(await page.evaluate(()=>window.pending.count()),0)
+  },'unknown','assistant')
+  await test('대화 안 HWPX 첨부도 검사 미확정 동안 전송을 막고 원래 파일을 복구한다', async () => {
+    await offer([kim]);await page.getByLabel('메시지',{exact:true}).waitFor()
+    await page.locator('.messaging-attachment-editor>summary').click()
+    await page.getByLabel('첨부할 HWPX 파일',{exact:true}).setInputFiles({name:'학급자료.hwpx',mimeType:'application/hwp+zip',buffer:Buffer.from([80,75,3,4,1,2,3])})
+    await page.getByRole('button',{name:'같은 파일 확인 계속하기'}).waitFor()
+    assert.equal(await page.getByRole('button',{name:'받는 사람과 내용 확인'}).isDisabled(),true)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+    await page.getByRole('button',{name:'같은 파일 확인 계속하기'}).click()
+    await page.getByText(/기본 확인을 마쳤습니다/).waitFor()
+    await page.getByRole('button',{name:'받는 사람과 내용 확인'}).click()
+    assert.match(await page.getByRole('region',{name:'보내기 전 확인'}).innerText(),/학급자료.hwpx/)
+    await page.getByRole('button',{name:'확인한 내용 보내기'}).click()
+    await page.getByText(/메시지를 보냈습니다/).waitFor()
+    assert.deepEqual(await page.evaluate(()=>window.calls[0].command.attachmentIds),['message-file'])
+    const files=await page.evaluate(()=>window.fileCalls)
+    assert.equal(files.filter(row=>row.kind==='prepare').length,1)
+    assert.equal(files.filter(row=>row.kind==='upload').length,1)
+  },'files','assistant')
+  await test('대화 안 초안 조회 실패는 자동 반복하지 않고 사용자가 다시 확인할 수 있다', async () => {
+    await page.evaluate(()=>{window.recipientQueryFail=true});await offer([kim])
+    await page.getByText(/서버에 연결하지 못했습니다/).waitFor()
+    assert.equal(await page.getByRole('form',{name:'새 메시지 작성'}).count(),0)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+    await page.evaluate(()=>{window.recipientQueryFail=false});await accept().click()
+    await page.getByLabel('메시지',{exact:true}).waitFor()
+    assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'회의 안건을 확인해 주세요.')
+  },'','assistant')
+  await test('대화 안에 이미 작성한 본문은 새 대화 초안이 덮어쓰지 않는다', async () => {
+    await offer([kim]);await page.getByLabel('메시지',{exact:true}).waitFor()
+    await page.getByLabel('메시지',{exact:true}).fill('아직 보내지 않은 개인 입력')
+    await page.evaluate(()=>window.proposeMessage({id:'new-offer',body:'새 제안',basisDate:'2026-10-16'}))
+    assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'아직 보내지 않은 개인 입력')
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+  },'','assistant')
+  await test('대화 안 작성·최종 확인은 320px와 큰 글씨에서도 가로로 넘치지 않는다', async () => {
+    await page.setViewportSize({width:320,height:740});await page.addStyleTag({content:'html{font-size:200%}'})
+    await offer([kim,lee]);await page.getByLabel('메시지',{exact:true}).waitFor()
+    await page.getByRole('button',{name:'받는 사람과 내용 확인'}).click()
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
+    if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,'assistant-message-review-320.png'),fullPage:true})}
+    await page.setViewportSize({width:390,height:844})
+  },'','assistant')
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
   if (output) { mkdirSync(output, { recursive: true }); writeFileSync(join(output, 'results.json'), JSON.stringify({ passed, pageErrors: errors, externalRequests: external }, null, 2)) }
   console.log(`메신저·알림 브라우저 ${passed.length}건 통과`)

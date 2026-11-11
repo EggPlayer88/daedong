@@ -37,16 +37,10 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     await page.getByText('승인된 이용 한도에 도달했습니다.', { exact: true }).waitFor()
     await request('메시지 초안: ' + message, '메시지 초안 열기')
     const accept = button('전달받은 메시지 초안 사용')
-    await accept.waitFor()
-    assert.equal(await messageForm().count(), 0)
-    await button('전달받은 메시지 초안 닫기').click()
-    await accept.waitFor({ state: 'detached' })
-    assert.equal(await messageForm().count(), 0)
-    await request('메시지 초안: ' + message, '메시지 초안 열기')
-    await accept.waitFor()
-    await noSideEffects()
-    await accept.click()
     await messageForm().waitFor()
+    await noSideEffects()
+    assert.equal(await page.locator('.messaging-workspace').getAttribute('data-presentation'), 'assistant')
+    assert.equal(await page.getByRole('region', {name:'대화 목록',exact:true}).count(), 0)
     assert.equal(await accept.count(), 0)
     assert.equal(await messageForm().getByLabel('메시지', { exact: true }).inputValue(), message)
     const recipient = messageForm().getByLabel('이민준 · 교무부', { exact: true })
@@ -139,40 +133,42 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
   })
 
   for (const offer of [
-    { name: '메시지', content: message, accept: '전달받은 메시지 초안 사용', editor: messageForm, ready: '새 메시지', file: 'message' },
-    { name: '수합', content: title, accept: '수합 초안 사용', editor: collectionForm, ready: '새 수합 만들기', file: 'collection' },
+    { name: '메시지', content: message, accept: '전달받은 메시지 초안 사용', editor: messageForm, ready: '새 메시지', file: 'message', page: '메시지와 알림' },
+    { name: '수합', content: title, accept: '수합 초안 사용', editor: collectionForm, ready: '새 수합 만들기', file: 'collection', page: '자료 수합' },
   ]) {
-    await test(offer.name + ' 미사용 초안은 동일 소속 재연결 때 복구하고 승인 철회 뒤에는 폐기한다', async () => {
+    await test(offer.name + ' 미전송 초안은 동일 소속 재연결 때 복구하고 승인 철회 뒤에는 폐기한다', async () => {
       const accept = button(offer.accept)
-      const preview = page.getByText(offer.content, { exact: true })
       const errorPanel = page.getByRole('heading', { name: '학교 연결을 완료하지 못했습니다', exact: true })
+      const assertPrepared = async () => {
+        if (offer.file === 'message') {
+          await offer.editor().waitFor()
+          assert.equal(await offer.editor().getByLabel('메시지', {exact:true}).inputValue(), offer.content)
+          assert.equal(await accept.count(), 0)
+        } else {
+          await accept.and(page.locator(':enabled')).waitFor()
+          await collectionCard().getByText(offer.content, {exact:true}).waitFor()
+          assert.equal(await offer.editor().count(), 0)
+        }
+      }
       await request(offer.name + ' 초안: ' + offer.content, offer.name + ' 초안 열기')
-      await accept.and(page.locator(':enabled')).waitFor()
-      await preview.waitFor()
-      await page.evaluate(() => {
-        window.cross.failContext = true
-        window.dispatchEvent(new Event('focus'))
-      })
+      await assertPrepared()
+      await page.evaluate(() => { window.cross.failContext = true; window.dispatchEvent(new Event('focus')) })
       await errorPanel.waitFor()
       assert.equal(await accept.count(), 0)
-      assert.equal(await preview.count(), 0)
+      assert.equal(await offer.editor().count(), 0)
       await page.evaluate(() => { window.cross.failContext = false })
       await button('학교 연결 다시 확인').click()
-      await accept.and(page.locator(':enabled')).waitFor()
-      await preview.waitFor()
-      assert.equal(await offer.editor().count(), 0)
+      await assertPrepared()
       await page.screenshot({ path: join(output, 'explicit-' + offer.file + '-reconnected-offer.png'), fullPage: true })
-      await page.evaluate(() => {
-        window.cross.approvalRevoked = true
-        window.dispatchEvent(new Event('focus'))
-      })
+      await page.evaluate(() => { window.cross.approvalRevoked = true; window.dispatchEvent(new Event('focus')) })
       await errorPanel.waitFor()
-      assert.equal(await preview.count(), 0)
+      assert.equal(await offer.editor().count(), 0)
       await page.evaluate(() => { window.cross.approvalRevoked = false })
       await button('학교 연결 다시 확인').click()
+      await go(offer.page)
       await button(offer.ready).and(page.locator(':enabled')).waitFor()
       assert.equal(await accept.count(), 0)
-      assert.equal(await preview.count(), 0)
+      assert.equal(await page.getByText(offer.content, {exact:true}).count(), 0)
       assert.equal(await offer.editor().count(), 0)
       await noSideEffects()
     })

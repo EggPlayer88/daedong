@@ -198,6 +198,12 @@ await check('교사 화면 SSR은 연결 중·비활성 새 메시지로 시작�
   const h = harness(), html = m.render({ connection: h.connection, member, date: '2026-10-16', server: h.server }).replace(/<style>[\s\S]*?<\/style>/g, '')
   assert.match(html, /메시지 연결을 확인하는 중/); assert.match(html, /disabled=""[^>]*>새 메시지/); assert.doesNotMatch(html, /김교사|가짜|sample|전송되었습니다/)
 })
+await check('대화 안 메시지 SSR은 작성 목적만 표시하고 대화 목록과 자동 전송을 만들지 않는다', () => {
+  const h = harness(), html = m.render({ connection: h.connection, member, date: '2026-10-16', server: h.server, presentation: 'assistant' }).replace(/<style>[\s\S]*?<\/style>/g, '')
+  assert.match(html, /data-presentation="assistant"/); assert.match(html, /메시지 보내기/)
+  assert.match(html, /메시지 연결을 확인하는 중/); assert.doesNotMatch(html, /대화 목록|내 업무 알림|확인한 내용 보내기/)
+  assert.equal(h.calls.length, 0)
+})
 await check('개별 일괄 확인 화면은 받는 사람·본문·개별 전송 의미를 명시한다', () => {
   const attempt = m.composer.messageAttempt({ ...m.composer.blankMessageDraft(), mode: 'individual', recipients: [person(), person('member-three', '이교사')], body: '<script>실행 금지</script>' }, member.id, 'request-one')
   const html = m.preview(attempt)

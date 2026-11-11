@@ -28,18 +28,17 @@ export async function checkDraftFollowup({ page, test, request, noSideEffects, o
     await results().getByRole('button', { name: /이민준.*교무부.*선택/ }).waitFor()
     assert.equal(await results().getByRole('button', { name: /이민준.*선택/ }).count(), 2)
     assert.match(await messageCard().innerText(), /받는 사람 · 0명/)
-    assert.equal(await button('작성 화면에서 확인').isDisabled(), true)
+    assert.equal(await button('첨부·최종 검토로 계속').isDisabled(), true)
     await results().getByRole('button', { name: /이민준.*연구부.*선택/ }).click()
     await messageCard().getByRole('list', { name: '받는 사람 선택 목록' }).waitFor()
     assert.equal(await box().inputValue(), '')
   }
   async function continueToMessage() {
-    await button('작성 화면에서 확인').click()
-    const accept = button('전달받은 메시지 초안 사용')
-    await accept.waitFor()
-    assert.equal(await messages().count(), 0)
-    await accept.click()
+    await button('첨부·최종 검토로 계속').click()
     await messages().waitFor()
+    const detail = messages().locator('.messaging-recipient-editor')
+    if (!await detail.evaluate(node => node.open)) await detail.locator('summary').first().click()
+    assert.equal(await button('전달받은 메시지 초안 사용').count(), 0)
     assert.equal(await messages().getByLabel('메시지', { exact: true }).inputValue(), body)
   }
 
@@ -72,7 +71,7 @@ export async function checkDraftFollowup({ page, test, request, noSideEffects, o
     const chosen=messageCard().getByRole('list',{name:'받는 사람 선택 목록'})
     assert.match(await chosen.innerText(), /이민준.*연구부/)
     assert.equal(await box().inputValue(),'김서진 선생님')
-    assert.equal(await button('작성 화면에서 확인').isDisabled(),true)
+    assert.equal(await button('첨부·최종 검토로 계속').isDisabled(),true)
     await noSideEffects()
   })
 
@@ -116,7 +115,7 @@ export async function checkDraftFollowup({ page, test, request, noSideEffects, o
     await chosen.getByRole('button',{name:label(selected)+' 선택 해제',exact:true}).waitFor()
     assert.equal((await chosen.innerText()).includes(other),false)
     await reply('내일')
-    await button('작성 화면에서 확인').click()
+    await button('첨부·최종 검토로 계속').click()
     await button('수합 초안 사용').click()
     const form=collections()
     await form.waitFor()
@@ -143,7 +142,7 @@ export async function checkDraftFollowup({ page, test, request, noSideEffects, o
       assert.match(await collectionCard().innerText(), new RegExp('제출 대상 · '+index+'명'))
       await candidate.click()
     }
-    await button('작성 화면에서 확인').click()
+    await button('첨부·최종 검토로 계속').click()
     const accept=button('수합 초안 사용')
     await accept.waitFor()
     assert.equal(await collections().count(), 0)

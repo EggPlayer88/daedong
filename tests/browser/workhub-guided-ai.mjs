@@ -16,7 +16,7 @@ async function start(connected=false){await page.goto('http://127.0.0.1:5179/gui
 async function ask(){await page.getByRole('button',{name:'답변 작성 도움 받기'}).click();await page.getByRole('button',{name:'전달받은 요청 사용'}).click();await page.getByRole('button',{name:'AI에게 요청'}).click();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기'}).last().waitFor()}
 async function back(){await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기'}).click();await page.getByLabel('제안을 반영할 질문',{exact:true}).waitFor()}
 async function choose(id='q0',value){await page.getByLabel('제안을 반영할 질문',{exact:true}).selectOption(id);if(value!==undefined)await page.getByLabel('선택한 질문에 반영할 내용',{exact:true}).fill(value);await page.getByLabel('선택한 질문과 현재 답변을 비교했습니다',{exact:true}).check()}
-async function check(name,run,connected=false){await start(connected);try{await run();results.push({name,passed:true});console.log('  ✓ '+name)}catch(error){console.error(await page.locator('body').innerText());console.error(await page.evaluate(()=>({calls:window.calls,asks:window.asks,locked:window.locked})));throw error}}
+async function check(name,run,connected=false){await start(connected);try{await run();results.push({name,passed:true});console.log('  ✓ '+name)}catch(error){console.error(await page.locator('.ws-ai-body').allInnerTexts());console.error(await page.locator('body').innerText());console.error({errors});console.error(await page.evaluate(()=>({calls:window.calls,asks:window.asks,locked:window.locked})));writeFileSync(join(output,'failure.html'),await page.content());await page.screenshot({path:join(output,'failure.png'),fullPage:true});console.error(output);throw error}}
 try{
  await check('실제 비서 요청에서 원래 양식의 복귀 번호를 보존하고 자동 배정·저장하지 않는다',async()=>{await ask();await back();assert.equal(await page.getByLabel('제안을 반영할 질문',{exact:true}).inputValue(),'');const value=await page.evaluate(()=>({origin:window.lastRequest.origin,context:window.returnContext,calls:window.calls}));assert.equal(value.context,value.origin.id);assert.equal(value.origin.answers.q0,'내가 아직 저장하지 않은 계획');assert.equal(value.origin.answers.q1,'7');assert.equal(value.calls.some(c=>/(?:^|_)(?:mutate|render|publish)(?:_|$)/.test(c.name)),false)})
  await check('질문을 직접 선택하고 비교한 내용만 입력에 반영하며 다른 답변은 유지한다',async()=>{await ask();await back();await choose('q0','검토한 새 계획');await page.getByRole('button',{name:'선택한 질문에만 반영'}).click();await page.getByLabel('참여 계획 (필수)',{exact:true}).waitFor();assert.equal(await page.getByLabel('참여 계획 (필수)',{exact:true}).inputValue(),'검토한 새 계획');assert.equal(await page.getByLabel('참여 인원 (필수)',{exact:true}).inputValue(),'7');assert.equal(await page.evaluate(()=>window.calls.some(c=>/(?:^|_)(?:mutate|render|publish)(?:_|$)/.test(c.name))),false)})
@@ -33,6 +33,35 @@ try{
  await check('320px에서도 질문 선택·비교·돌아온 제안을 가로 넘침 없이 사용한다',async()=>{await page.setViewportSize({width:320,height:740});await ask();await back();await choose();assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);await page.screenshot({path:join(output,'guided-ai-320.png'),fullPage:true});assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0)})
  await page.setViewportSize({width:1280,height:1000})
  await check('실제 업무실에서 양식→비서→원래 질문형 탭으로 돌아와 답변을 보존한다',async()=>{await ask();await back();assert.equal(await page.getByRole('button',{name:'질문형 수합 양식',exact:true}).getAttribute('aria-pressed'),'true');await choose();assert.match(await page.getByRole('region',{name:'질문별 AI 제안 비교'}).innerText(),/내가 아직 저장하지 않은 계획/);assert.equal(await page.evaluate(()=>window.calls.some(c=>/(?:^|_)(?:mutate|commit|save|render|publish)(?:_|$)/.test(c.name))),false)},true)
+ await check('대화 안 문서 작업을 접지 않고 다시 질문해도 같은 양식·미저장 답변을 한 화면에 유지한다',async()=>{
+  await ask();await back();await page.locator('.assistant-delivery-work div.documents-assistant-pane').waitFor()
+  await choose('q0','대화에서 검토한 계획');await page.getByRole('button',{name:'선택한 질문에만 반영',exact:true}).click()
+  await page.getByLabel('참여 계획 (필수)',{exact:true}).waitFor();await page.getByLabel('참여 인원 (필수)',{exact:true}).fill('11')
+  await ask();assert.equal(await page.locator('.assistant-delivery-work').isHidden(),true)
+  await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기',exact:true}).last().click();await page.getByLabel('제안을 반영할 질문',{exact:true}).waitFor();await choose()
+  assert.equal(await page.locator('div.documents-assistant-pane').count(),1)
+  assert.equal(await page.getByRole('region',{name:'질문형 수합 양식',exact:true}).count(),1)
+  assert.match(await page.getByRole('region',{name:'질문별 AI 제안 비교'}).innerText(),/대화에서 검토한 계획/)
+  await page.getByRole('button',{name:'선택한 질문에만 반영',exact:true}).click();await page.getByLabel('참여 인원 (필수)',{exact:true}).waitFor()
+  assert.equal(await page.getByLabel('참여 인원 (필수)',{exact:true}).inputValue(),'11')
+  assert.equal(await page.evaluate(()=>window.asks.length),2)
+  assert.equal(await page.evaluate(()=>window.calls.some(c=>/(?:^|_)(?:mutate|commit|save|render|publish)(?:_|$)/.test(c.name))),false)
+ },true)
+ await check('대화 안 문서의 결과 미상은 대화 전환·접기를 막고 원래 요청 번호로 한 번만 저장한다',async()=>{
+  await ask();await back();await choose('q0','확인 후 저장할 계획');await page.getByRole('button',{name:'선택한 질문에만 반영',exact:true}).click()
+  await page.getByLabel('참여 계획 (필수)',{exact:true}).waitFor();await page.evaluate(()=>window.unknown=true)
+  await page.getByRole('button',{name:'답변 임시 저장',exact:true}).click();await page.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).waitFor()
+  assert.equal(await page.getByRole('button',{name:'대화 보기',exact:true}).isDisabled(),true)
+  assert.equal(await page.getByRole('button',{name:'작업 마치기',exact:true}).isDisabled(),true)
+  assert.equal(await page.getByRole('button',{name:'답변 작성 도움 받기',exact:true}).isDisabled(),true)
+  assert.equal(await page.getByLabel('참여 계획 (필수)',{exact:true}).inputValue(),'확인 후 저장할 계획')
+  assert.equal(await page.getByLabel('참여 인원 (필수)',{exact:true}).inputValue(),'7')
+  await page.getByRole('button',{name:'같은 양식 요청 다시 확인',exact:true}).click();await page.getByText(/저장을 확인했습니다/).waitFor()
+  const writes=await page.evaluate(()=>window.calls.filter(c=>/workhub_template_(mutate|request_get)$/.test(c.name)))
+  assert.equal(writes.length,2);assert.deepEqual(writes[0].args,writes[1].args)
+  assert.equal(await page.evaluate(()=>window.receipts.size),1)
+  await page.getByRole('button',{name:'대화 보기',exact:true}).and(page.locator(':enabled')).waitFor()
+ },true)
  await check('실제 업무실은 다른 context의 과거 답변을 원래 양식에 보내지 않는다',async()=>{await page.evaluate(()=>window.includeOld=true);await ask();await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기'}).first().click();await page.getByText(/초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다/).waitFor();assert.equal(await page.getByRole('region',{name:'AI 비서',exact:true}).getByRole('heading',{name:'AI 비서',exact:true}).count(),1);assert.equal(await page.getByRole('region',{name:'질문별 AI 제안 비교'}).count(),0);await page.getByRole('button',{name:'이 초안을 작성 화면으로 보내기'}).last().click();await page.getByLabel('제안을 반영할 질문',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.calls.some(c=>/(?:^|_)(?:mutate|commit|save|render|publish)(?:_|$)/.test(c.name))),false)},true)
  assert.deepEqual(errors,[]);writeFileSync(join(output,'results.json'),JSON.stringify({passed:results.length,results},null,2));console.log(`질문형 AI 복귀 브라우저 ${results.length}건 통과 · ${output}`)
 }finally{await browser.close()}
