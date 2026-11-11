@@ -202,7 +202,9 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     const text = '현장체험학습 안내 메시지를 짧게 작성해 주세요.'
     await request(text, 'AI에게 요청')
     await page.getByRole('heading', { name: 'AI 답변', exact: true }).waitFor()
-    assert.deepEqual(await page.evaluate(() => window.cross.aiCalls.map(call => call.input.prompt)), [text])
+    // 자동 전문 관점은 전달 꼬리표만 더하며 사용자에게는 같은 원문을 보여 준다.
+    assert.deepEqual(await page.evaluate(() => window.cross.aiCalls.map(call => call.input.prompt)), [text + '\n\n[[:2:]]'])
+    assert.equal(await page.locator('.assistant-question .assistant-text').innerText(), text)
     assert.deepEqual(await page.evaluate(() => window.cross.writes), [])
   })
 }
