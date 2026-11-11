@@ -89,6 +89,18 @@ try {
     assert.equal(await page.evaluate(() => window.task.notes), '다른 창의 정정')
     await card().getByRole('button', { name: '닫기', exact: true }).click(); await noConfirmed()
   })
+  await test('서버 저장 뒤 화면 갱신 예외는 성공을 미확정으로 되돌리거나 다시 저장하지 않는다', async () => {
+    await build(); await chooseFirst(); await taskReview(); await page.evaluate(() => { window.failUpdated = true })
+    await button('확인한 변경 저장').click(); await saved()
+    await page.getByText('저장은 확인했지만 후속 화면을 갱신하지 못했습니다. 저장된 원본을 확인해 주세요.', { exact: true }).waitFor()
+    assert.equal(await card().getAttribute('data-operation-status'), 'saved')
+    assert.equal(await page.evaluate(() => window.pending.count()), 0)
+    assert.equal(await page.evaluate(() => window.applied), 1)
+    assert.equal(await button('같은 요청으로 저장 결과 확인').count(), 0)
+    assert.match(await plan().locator('li').nth(0).innerText(), /서버 처리 확인/)
+    await request('다음 업무', '업무 목록 확인'); assert.equal(await input().inputValue(), calendar)
+    assert.equal(await page.evaluate(() => window.applied), 1)
+  })
   await test('일정 누락 정보를 이어 채워도 최초 선택 단계와 접수 결과를 정확히 연결한다', async () => {
     const partial = '내일 회의 일정 잡아줘'
     await build(partial, '시간표 보여줘'); await chooseFirst(); await button('일정 초안 열기').click()

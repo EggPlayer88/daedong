@@ -74,7 +74,7 @@ function App() {
     },
   }
   return <EditDraftsProvider store={w.memory}><PendingRequestsProvider store={w.pending}>
-    {show && <AssistantPanel connection={connection} member={member} date={date} revision={revision} server={server} settingsServer={settingsServer} workspaceActions={actions} onNavigationLockChange={locked => { w.locked = locked }} />}
+    {show && <AssistantPanel connection={connection} member={member} date={date} revision={revision} server={server} settingsServer={settingsServer} workspaceActions={actions} onNavigationLockChange={locked => { w.locked = locked }} onUpdated={() => { if (w.failUpdated) throw new Error('합성 후속 갱신 실패') }} />}
   </PendingRequestsProvider></EditDraftsProvider>
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)
