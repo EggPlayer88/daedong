@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-11. 기준은 PR #123의 CI 보완 커밋 `ebe59f9d`와 이번 복합 업무 이어가기이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-12. 기준은 PR #124와 이번 메시지·수합·시간표 처리 이력 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -20,12 +20,13 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 
 **AI 작업 공간 안의 지원 경로: 55/61개 (90.2%).** 이 중 9개는 AI 기본 화면·확인 카드, 46개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니다.** 기존 화면의 최종 확인·후보 선택·파일 선택을 포함한다. 이번 연결로 사용자의 목표인 “AI 대화만으로 90% 이상 완료”를 달성했다고 판단하지 않는다. 평가계획서 작성·제출의 새 탭 링크 2개도 이 55개에 넣지 않았다.
 
-AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md)에 유지하고, 이번 실행 결과는 [plan-continuation-verification.md](plan-continuation-verification.md)에 구분한다.
+AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md), [plan-continuation-verification.md](plan-continuation-verification.md)에 유지하고, 이번 실행 결과는 [workflow-results-verification.md](workflow-results-verification.md)에 구분한다.
 
 ## 이번에 보완한 공통 업무 진행
 
 - **목록 이어가기:** “다음 업무”, “2번 단계”, “업무 목록 보여줘”로 나누어 둔 요청을 확인하고 다음 입력을 준비한다. 선택만으로 화면을 실행하거나 업무를 저장하지 않는다. 기존 업무를 잇는 공통 제어이므로 집계를 늘리지 않으며, 기존 61개 업무와 55개 내부 지원 경로를 유지한다.
-- **처리 결과 구분:** 화면을 연 단계에는 “화면 연결됨”, 검증된 개인 할 일 변경·개인 일정 등록 접수증을 받은 단계에만 “서버 처리 확인”을 표시한다. 메시지 전송·수합 공개 등 다른 패널의 업무가 끝났다고 추정하지 않는다.
+- **처리 결과 구분:** 화면을 연 단계에는 “화면 연결됨”, 검증된 개인 할 일 변경·개인 일정 등록 접수증에는 “서버 처리 확인”을 표시한다. 8차는 메시지·수합·T2 승인 패널의 검증된 접수 뒤 “처리 내역 확인”을 추가하고 초안 저장·공개·최종 제출 등 실제 행위를 구분한다. 초안 저장을 전체 업무 완료로 표시하지 않는다.
+- **업무 출처와 이력:** 해당 AI 초안 또는 직접 선택한 원본의 첫 접수에만 연결한다. 초안을 취소한 뒤 다른 새 작업을 처리한 결과는 붙지 않는다. 원키 복구는 중복 기록하지 않고 같은 원본의 후속 이력을 추가한다. T3 대강 승인·공식 인계 등의 결과 요약은 후속이며 일반 기능은 유지한다. [8차 검증](workflow-results-verification.md), [실제 연결 셸 회귀](../../tests/browser/workhub-plan-workflow-connected.mjs), [패널 접수 이벤트 회귀](../../tests/browser/workhub-workflow-result-events.mjs)를 참조한다. 같은 61개 업무의 연결 보강이므로 집계를 올리지 않는다.
 - **입력·복구 보존:** 일정의 누락 정보를 대화로 채워도 최초 선택 원문에 접수 결과를 연결한다. 미확정 응답은 완료로 표시하지 않고 같은 요청 번호로 복구하며, 날짜가 바뀐 목록은 새 날짜로 자동 실행하지 않는다.
 - **중복 실행 방지 범위:** 처리 확인된 단계의 버튼·번호 재선택과 전체 원문 복원을 막고, 다음 단계는 확인된 단계를 건너뛴다. 원문 읽기·목록 닫기는 유지한다. 사용자가 목록 밖에서 작성하는 별도 새 요청까지 중복 판정하는 기능은 아니다.
 - **근거:** [목록 제어·입력 보존 브라우저 회귀](../../tests/browser/workhub-assistant-plan-continuation.mjs), [개인 업무 접수·원키 복구 브라우저 회귀](../../tests/browser/workhub-assistant-plan-receipts.mjs), [명령·결과 분류 회귀](../../tests/test_workhub_plan_control.mjs). 실제 React·실행기와 합성 어댑터의 검증이며 운영 DB 왕복이나 실제 AI 답변 품질의 증거로 바꾸지 않는다.
