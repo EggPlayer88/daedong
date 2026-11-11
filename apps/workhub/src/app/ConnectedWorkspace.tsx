@@ -18,6 +18,7 @@ import { homeCountLabels } from '../home/counts'
 import type { HomeKind } from '../home/overview'
 import type { NotificationSource } from '../messaging/contracts'
 import type { DailyCommand } from '../assistant/daily-command'
+import type { WorkflowResultListener } from './workflow-results'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { buildAssistantCalendarDraft, type AssistantCalendarDraftRequest } from '../calendar/assistant-draft'
 import type { AssistantWorkspaceActions } from '../assistant/workspace-model'
@@ -229,6 +230,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   })
   const page = navigation.page as PageId
   const activeDelivery = page === 'assistant' && delivery?.scope === currentScope ? delivery : undefined
+  const deliveryResultContext = useRef({ key: activeDelivery?.key, scope: currentScope, date: context?.basisDate, available: !connectionUnavailable })
+  deliveryResultContext.current = { key: activeDelivery?.key, scope: currentScope, date: context?.basisDate, available: !connectionUnavailable }
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
   const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; if (next === 'assistant' && page !== 'assistant') assistantReturn.current = {scope:currentScope,page}; setHandoff(undefined); setWorkReturn(undefined); return true }
@@ -251,7 +254,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const requested = resource.current
   const deliverySwitchBlocked = (kind: DeliveryKind) => Boolean(activeDelivery && activeDelivery.kind !== kind &&
     hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)))
-  function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false, task?: SpecialistTask, options?: { daily?: DailyCommand; inbox?: boolean; list?: boolean; evaluation?: EvaluationTarget }) {
+  function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false, task?: SpecialistTask, options?: { daily?: DailyCommand; inbox?: boolean; list?: boolean; evaluation?: EvaluationTarget; onResult?: WorkflowResultListener }) {
     if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() ||
         !activeAt(member, context.basisDate) || !connectedPages.includes(kind === 'daily' ? 'home' : kind === 'evaluation' ? 'documents' : kind)) return false
     if (!resume && hasDeliveryDraft(kind, editDrafts.dirtySlots(currentScope))) return false
@@ -262,7 +265,14 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!navigate('assistant')) return false
     // 이전 메뉴 알림·준비 링크는 새 대화 목표에 재사용하지 않는다.
     setTimetableOpen(undefined); setTeachingOpen(undefined); setTransitionOpen(undefined); setKnowledgeOpen(undefined)
-    setDelivery({ scope: currentScope, kind, key: crypto.randomUUID(), request, task, ...options })
+    const key = crypto.randomUUID(), sourceScope = currentScope, sourceDate = context.basisDate
+    const report = options?.onResult
+    const onResult: WorkflowResultListener | undefined = report ? result => {
+      const current = deliveryResultContext.current
+      if (!current.available || current.key !== key || current.scope !== sourceScope || current.date !== sourceDate || result.scope !== sourceScope) return
+      try { report(result) } catch { /* 결과 표시가 원래 처리의 성공·복구를 바꾸지 않는다. */ }
+    } : undefined
+    setDelivery({ scope: currentScope, kind, key, request, task, ...options, onResult })
     setHandoffError('')
     setDeliveryTalking(false); setDeliveryLocked(false); openAssistant()
     return true
@@ -322,9 +332,9 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       return command.view === 'notifications' ? startDelivery('messages', undefined, false, undefined, { inbox: true })
         : startDelivery('daily', undefined, false, undefined, { daily: command })
     },
-    specialist(command) {
+    specialist(command, onResult) {
       const workflow = specialistWorkflow(command.task)
-      return Boolean(workflow && startDelivery(workflow.page, undefined, false, command.task))
+      return Boolean(workflow && startDelivery(workflow.page, undefined, false, command.task, {onResult}))
     },
     operations: createConnectedAssistantOperations(taskAdapter, adapter, (kind, preparing) => {
       if (!member || !context || connectionUnavailable || !activeAt(member, context.basisDate))
@@ -344,9 +354,9 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       const epoch = generation.current
       return { member, date: context.basisDate, isCurrent: () => epoch === generation.current }
     }),
-    navigate(next) {
+    navigate(next, onResult) {
       if (!member || connectionUnavailable || navigationLocked || !connectedPages.includes(next)) return false
-      if (isDeliveryKind(next)) return startDelivery(next)
+      if (isDeliveryKind(next)) return startDelivery(next, undefined, false, undefined, {onResult})
       if (!navigate(next)) return false
       setWorkReturn(next === 'assistant' ? undefined : {scope:currentScope,page:next,fromPage:'assistant'})
       setAssistantOpen(false)
@@ -360,7 +370,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       const { findDraftPeople } = await import('./draft-people')
       return findDraftPeople(kind, query, signal, connection, collectionServer, member, context)
     },
-    prepareDraft(command, followup) {
+    prepareDraft(command, followup, onResult, composeId) {
       if (!member || !context || !activeAt(member, context.basisDate) || connectionUnavailable ||
           navigationLocked || pendingRequests.count() || handoff) return false
       if (followup && (followup.scope !== currentScope || followup.basisDate !== context.basisDate ||
@@ -370,11 +380,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       const slot = isMessage ? 'messaging-composer' : 'collection-editor'
       if (!connectedPages.includes(destination) || editDrafts.bind(currentScope, slot).dirty ||
           (isMessage ? messageDraft : collectionDraft || generatedFile)) return false
-      const identity = { id: crypto.randomUUID(), schoolId: member.schoolId, memberId: member.id, basisDate: context.basisDate }
+      const identity = { id: composeId ?? crypto.randomUUID(), schoolId: member.schoolId, memberId: member.id, basisDate: context.basisDate }
       const recipients = followup?.selected.flatMap(person => person.recipient && person.recipient.memberId === person.memberId &&
         person.recipient.schoolId === member.schoolId ? [person.recipient] : [])
       if (isMessage && followup && recipients?.length !== followup.selected.length) return false
-      if (!startDelivery(destination)) return false
+      if (!startDelivery(destination, undefined, false, undefined, {onResult})) return false
       if (command.kind === 'messageDraft') {
         setMessageDraft({ scope: currentScope, draft: { ...identity, body: command.body, recipients } })
       } else {
@@ -383,7 +393,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       }
       return true
     },
-    open(item) {
+    open(item, onResult) {
       if (item.kind === 'knowledge') {
         if (!member || item.version === undefined || item.locator === undefined) return false
         const request = {key:crypto.randomUUID(),schoolId:member.schoolId,memberId:member.id,sourceId:item.id,sourceVersion:item.version,title:item.title,locator:item.locator}
@@ -391,7 +401,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         setKnowledgeOpen({scope:currentScope,request,fromPage:'assistant'}); return true
       }
       const kind = deliveryKind(item.kind)
-      if (kind) return startDelivery(kind, {key:crypto.randomUUID(),id:item.id,version:item.version})
+      if (kind) return startDelivery(kind, {key:crypto.randomUUID(),id:item.id,version:item.version}, false, undefined, {onResult})
       if (!openSearchItem(item)) return false
       setAssistantOpen(false)
       return true
@@ -463,7 +473,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderMessages(inDelivery: boolean) {
     if (!member || !context) return null
-    return <MessagingWorkspace presentation={inDelivery ? 'assistant' : 'page'} initialTab={inDelivery && activeDelivery?.inbox ? 'inbox' : 'messages'} showThreadList={inDelivery && activeDelivery?.list}
+    return <MessagingWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} initialTab={inDelivery && activeDelivery?.inbox ? 'inbox' : 'messages'} showThreadList={inDelivery && activeDelivery?.list}
       onUpdated={() => setRefreshEpoch(value => value + 1)}
       openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'message' && requested.id ? {key:requested.key,id:requested.id} : undefined}
       onReturnToSource={!inDelivery && requested?.kind === 'message' ? () => resource.navigate('home') : undefined}
@@ -489,7 +499,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderCollections(inDelivery: boolean) {
     if (!member || !context) return null
-    return <CollectionServerPanel presentation={inDelivery ? 'assistant' : 'page'} key={resetKey} composeRequest={collectionDraft?.scope === currentScope ? collectionDraft.draft : undefined} onComposeRequestConsumed={id => setCollectionDraft(current => current?.draft.id === id ? undefined : current)} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={inDelivery ? setDeliveryLocked : setCollectionNavigationLocked} openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} />
+    return <CollectionServerPanel onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} key={resetKey} composeRequest={collectionDraft?.scope === currentScope ? collectionDraft.draft : undefined} onComposeRequestConsumed={id => setCollectionDraft(current => current?.draft.id === id ? undefined : current)} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={inDelivery ? setDeliveryLocked : setCollectionNavigationLocked} openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} />
   }
   function renderSchoolAdmin(inDelivery: boolean) {
     if (!member || !context) return null
@@ -516,7 +526,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!member || !context) return null
     const task = inDelivery ? activeDelivery?.task : undefined
     const opened = timetableOpen?.scope === currentScope ? timetableOpen : undefined
-    return <TimetableWorkspace presentation={inDelivery ? 'assistant' : 'page'}
+    return <TimetableWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'}
       initialOperationTab={task === 'timetableExchange' || task === 'timetableSubstitute' ? 'exchange' : task === 'timetablePublish' ? 'publish' : task === 'timetableView' ? 'shared' : undefined}
       initialOperationMode={task === 'timetableSubstitute' ? 'interventions' : task === 'timetableExchange' ? 'exchange' : undefined}
       initialPreparationStep={opened?.preparationStep ?? (task === 'timetablePrepare' ? 'target' : undefined)}

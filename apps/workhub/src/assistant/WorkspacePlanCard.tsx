@@ -1,5 +1,7 @@
 import type { useWorkspacePlan } from './useWorkspacePlan'
 import styles from './workspace-plan.css?inline'
+import { hasWorkspacePlanResult } from './plan-control'
+import { workflowResultLabel } from '../app/workflow-results'
 
 export function WorkspacePlanCard({ model, hasInput }: { model: ReturnType<typeof useWorkspacePlan>; hasInput: boolean }) {
   const saved = model.saved
@@ -12,13 +14,19 @@ export function WorkspacePlanCard({ model, hasInput }: { model: ReturnType<typeo
     <ol>{saved.plan.steps.map((step, index) => {
       const outcome = saved.outcomes?.[step.id]
       return <li key={step.id}>
-      <button type="button" disabled={!model.selectable || outcome?.kind === 'confirmed'} onClick={() => model.choose(step.id)} aria-label={`${index + 1}단계 선택 · ${step.label}`}>
+      <button type="button" disabled={!model.selectable || hasWorkspacePlanResult(outcome)} onClick={() => model.choose(step.id)} aria-label={`${index + 1}단계 선택 · ${step.label}`}>
         <span className="assistant-plan-number">{index + 1}</span><span><strong>{step.label}</strong><span>{step.prompt}</span></span>
         {saved.selectedId === step.id && <small>최근 선택</small>}
       </button>
       {outcome && <div className="assistant-plan-progress" data-outcome={outcome.kind}>
-        <strong>{outcome.kind === 'confirmed' ? '서버 처리 확인' : '화면 연결됨'}</strong>
+        <strong>{outcome.kind === 'confirmed' ? '서버 처리 확인' : outcome.kind === 'recorded' ? '처리 내역 확인' : '화면 연결됨'}</strong>
         {outcome.kind === 'confirmed' && <span>{outcome.receipt.title}</span>}
+        {outcome.kind === 'recorded' && <>
+          <span>{workflowResultLabel(outcome.results[outcome.results.length - 1])}</span>
+          {outcome.results.length > 1 && <details><summary>이전 처리 {outcome.results.length - 1}건</summary>
+            <ul>{outcome.results.slice(0, -1).map(result => <li key={result.key}>{workflowResultLabel(result)}</li>)}</ul>
+          </details>}
+        </>}
       </div>}
     </li>})}</ol>
     <button type="button" className="assistant-plan-next" disabled={!model.selectable || !model.nextStep} onClick={() => model.nextStep && model.choose(model.nextStep.id)}>다음 단계 준비</button>

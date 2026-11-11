@@ -6,8 +6,9 @@ import type { CollectionCommand } from '../collections/contracts'
 
 export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask; fromAssistant?: true }
 export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
-export type CollectionRecovery = { command: CollectionCommand; key: string }
-export type ModuleRecovery = { command: unknown; key: string }
+// 작성 출처는 같은 탭의 복구 메타일 뿐 서버 명령에 포함하지 않는다.
+export type CollectionRecovery = { command: CollectionCommand; key: string; composeId?: string }
+export type ModuleRecovery = { command: unknown; key: string; composeId?: string }
 export type SchoolRosterRecovery = ModuleRecovery & { closeState?: 'closing' }
 // 닫기 응답이 유실되어도 원키·원문과 닫는 단계를 같은 탭에서 함께 보관한다.
 export type TimetableRecovery = ModuleRecovery & { closeState?: 'available' | 'closing' }

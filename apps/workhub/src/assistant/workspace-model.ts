@@ -1,5 +1,6 @@
 import type { EvaluationTarget } from './evaluation-workspace'
 import type { SavedWorkspacePlan } from './plan-control'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import type { DailyCommand } from './daily-command'
 import type { MemoryService } from './memory-contracts'
 import type { Membership } from '../contracts'
@@ -39,15 +40,15 @@ export interface AssistantWorkspaceSearchResult {
 }
 export interface AssistantWorkspaceActions {
   deliveryInConversation?: boolean
-  specialist?: (command: SpecialistCommand) => boolean
+  specialist?: (command: SpecialistCommand, onResult?: WorkflowResultListener) => boolean
   daily?: (command: DailyCommand) => boolean
   evaluation?: (target: EvaluationTarget) => boolean
-  navigate: (page: PageId) => boolean
+  navigate: (page: PageId, onResult?: WorkflowResultListener) => boolean
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
-  open: (item: SearchItem) => boolean
+  open: (item: SearchItem, onResult?: WorkflowResultListener) => boolean
   calendar: (command: CalendarWorkspaceCommand) => boolean
   findDraftPeople?: (kind: DirectDraftCommand['kind'], query: string, signal: AbortSignal) => Promise<DraftPeople & { limit: number }>
-  prepareDraft?: (command: DirectDraftCommand, followup?: DraftFollowup) => boolean
+  prepareDraft?: (command: DirectDraftCommand, followup?: DraftFollowup, onResult?: WorkflowResultListener, composeId?: string) => boolean
   changeTask?: (command: TaskChangeCommand, selected: SearchItem) => boolean
   operations?: {
     prepareTask: (command: TaskChangeCommand, selected: SearchItem) => Promise<WorkspaceOperationReview>

@@ -4,6 +4,7 @@ import type { SearchKind } from '../search/contracts'
 import styles from './delivery-workspace.css?inline'
 import { specialistWorkflow, type SpecialistTask } from './specialist-workflows'
 import type { DailyCommand } from './daily-command'
+import type { WorkflowResultListener } from '../app/workflow-results'
 
 export type DeliveryKind = 'messages' | 'collections' | 'documents' | 'timetable' | 'students' | 'schoolAdmin' | 'cooperation' | 'knowledge' | 'calendar' | 'tasks' | 'daily' | 'evaluation'
 export interface DeliveryWorkspace {
@@ -16,6 +17,7 @@ export interface DeliveryWorkspace {
   inbox?: boolean
   list?: boolean
   evaluation?: EvaluationTarget
+  onResult?: WorkflowResultListener
 }
 export const deliveryLabels: Record<DeliveryKind, string> = { messages: '메시지 작성·확인', collections: '수합 작성·제출', documents: '문서 작성·파일 생성', timetable: '시간표 요청·확인', students: '수업·학생 기록', schoolAdmin: '학교 자료·인계', cooperation: '협업 요청·완료 확인', knowledge: '학교 자료·원문', calendar: '일정 작성·변경', tasks: '내 할 일', daily: '오늘 업무·급식', evaluation: '평가계획서 연결' }
 export const deliveryDraftSlots: Record<DeliveryKind, readonly string[]> = {

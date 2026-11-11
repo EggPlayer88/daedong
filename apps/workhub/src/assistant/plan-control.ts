@@ -1,6 +1,7 @@
 import { validWorkspaceText } from './workspace-commands'
 import type { WorkspacePlan } from './workspace-plan'
 import type { WorkspaceOperationReceipt } from './workspace-operations'
+import type { WorkflowResult } from '../app/workflow-results'
 
 export type WorkspacePlanControl =
   | { kind: 'next' }
@@ -11,11 +12,16 @@ export type WorkspacePlanControl =
 export type WorkspacePlanOutcome =
   | { kind: 'opened' }
   | { kind: 'confirmed'; receipt: Pick<WorkspaceOperationReceipt, 'kind' | 'key' | 'id' | 'title' | 'version'> }
+  | { kind: 'recorded'; results: WorkflowResult[] }
 export interface SavedWorkspacePlan {
   plan: WorkspacePlan
   scope: string
   selectedId?: string
   outcomes?: Record<string, WorkspacePlanOutcome>
+}
+
+export function hasWorkspacePlanResult(outcome?: WorkspacePlanOutcome): boolean {
+  return outcome?.kind === 'confirmed' || outcome?.kind === 'recorded'
 }
 
 const ordinalNumbers: Record<string, number> = { 첫: 1, 첫째: 1, 두: 2, 둘째: 2, 세: 3, 셋째: 3, 네: 4, 넷째: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 }
@@ -40,15 +46,15 @@ export function parseWorkspacePlanControl(prompt: string): WorkspacePlanControl 
 export function nextWorkspacePlanStep(saved: SavedWorkspacePlan) {
   const index = saved.plan.steps.findIndex(step => step.id === saved.selectedId)
   if (saved.selectedId && index < 0) return undefined
-  return saved.plan.steps.slice(index + 1).find(step => saved.outcomes?.[step.id]?.kind !== 'confirmed')
+  return saved.plan.steps.slice(index + 1).find(step => !hasWorkspacePlanResult(saved.outcomes?.[step.id]))
 }
 
 // 선택/화면 열기는 서버 완료가 아니다. 확인된 개인 업무의 접수증 요약만 별도로 기록한다.
 export function recordWorkspacePlanOutcome(saved: SavedWorkspacePlan | undefined, prompt: string,
-  kind: WorkspacePlanOutcome['kind'], scope: string, date: string, receipt?: WorkspaceOperationReceipt): SavedWorkspacePlan | undefined {
+  kind: 'opened' | 'confirmed', scope: string, date: string, receipt?: WorkspaceOperationReceipt): SavedWorkspacePlan | undefined {
   if (!saved || saved.scope !== scope || !saved.plan || saved.plan.basisDate !== date || !Array.isArray(saved.plan.steps)) return saved
   const step = saved.plan.steps.find(item => item.id === saved.selectedId)
-  if (!step || step.prompt !== prompt || saved.outcomes?.[step.id]?.kind === 'confirmed') return saved
+  if (!step || step.prompt !== prompt || hasWorkspacePlanResult(saved.outcomes?.[step.id])) return saved
   let outcome: WorkspacePlanOutcome
   if (kind === 'opened') outcome = { kind }
   else {

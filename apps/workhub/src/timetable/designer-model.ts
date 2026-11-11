@@ -9,6 +9,7 @@ import type { AssistantServer } from '../assistant/contracts'
 import type { PreparationServer } from './preparation'
 import type { SetupServer } from './setup'
 import type { TargetServer } from './target'
+import type { WorkflowResultListener } from '../app/workflow-results'
 export type Step = 'basis' | 'conditions' | 'compose' | 'publish'
 export type ConditionForm = {
   kind: 'fixed' | 'unavailable' | 'preferences'
@@ -40,6 +41,7 @@ export interface WorkspaceProps {
   date: string
   revision?: number
   onNavigationLockChange?: (locked: boolean) => void
+  onWorkflowResult?: WorkflowResultListener
   onOpenSchoolAdmin?: () => void
   onOpenTeaching?: () => void
   initialLessonId?: string

@@ -1,7 +1,9 @@
-import type { MutableRefObject } from 'react'
+import { useEffect, useRef, type MutableRefObject } from 'react'
 import type { Session } from './workspace-model'
 import { parseWorkspacePlan } from './workspace-plan'
-import { nextWorkspacePlanStep, parseWorkspacePlanControl, recordWorkspacePlanOutcome, type WorkspacePlanOutcome } from './plan-control'
+import { hasWorkspacePlanResult, nextWorkspacePlanStep, parseWorkspacePlanControl, recordWorkspacePlanOutcome } from './plan-control'
+import { captureWorkflowPlanOrigin, recordWorkflowPlanResult, type WorkflowPlanOrigin } from './plan-workflow-results'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import type { WorkspaceOperationReceipt } from './workspace-operations'
 
 // 계획은 탭 메모리다. 화면 연결과 검증된 접수 결과를 구분하며 자동 실행을 만들지 않는다.
@@ -10,6 +12,9 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
   active: boolean; editable: boolean; update: (session: Session) => void
   feedback: (error: string, notice?: string) => void; selected: () => void
 }) {
+  const present = useRef({ scope, date, active }), mounted = useRef(true)
+  present.current = { scope, date, active }
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
   const continuing = Boolean(session.calendarDialogue || session.draftDialogue)
   const candidate = active && !continuing ? parseWorkspacePlan(session.prompt, date) : null
   const control = active && !continuing ? parseWorkspacePlanControl(session.prompt) : null
@@ -25,7 +30,7 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
     if (!current || current.scope !== scope || current.plan.basisDate !== date) return
     const step = current.plan.steps.find(item => item.id === id)
     if (!step) return
-    if (current.outcomes?.[id]?.kind === 'confirmed') {
+    if (hasWorkspacePlanResult(current.outcomes?.[id])) {
       feedback('이미 서버 처리를 확인한 단계입니다. 처리 결과를 확인하고, 같은 업무가 다시 필요하면 새 요청으로 작성해 주세요.'); return
     }
     update({ ...latest.current, prompt: step.prompt, workspacePlan: { ...current, selectedId: id } })
@@ -55,7 +60,7 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
   }
   function restoreOriginal() {
     if (!manageable || !saved || latest.current.prompt.trim()) return
-    if (Object.values(saved.outcomes ?? {}).some(outcome => outcome.kind === 'confirmed')) {
+    if (Object.values(saved.outcomes ?? {}).some(hasWorkspacePlanResult)) {
       feedback(confirmedRestoreMessage); return
     }
     update({ ...latest.current, prompt: saved.plan.prompt, workspacePlan: undefined })
@@ -78,7 +83,7 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
       feedback('', '업무 목록을 닫았습니다. 입력과 이미 처리한 업무는 그대로입니다.'); return true
     }
     if (control.kind === 'restore') {
-      if (Object.values(current.outcomes ?? {}).some(outcome => outcome.kind === 'confirmed')) {
+      if (Object.values(current.outcomes ?? {}).some(hasWorkspacePlanResult)) {
         feedback(confirmedRestoreMessage); return true
       }
       update({ ...latest.current, prompt: current.plan.prompt, workspacePlan: undefined })
@@ -97,7 +102,7 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
     prepareStep(step.id)
     return true
   }
-  function mark(prompt: string, kind: WorkspacePlanOutcome['kind'], receipt?: WorkspaceOperationReceipt) {
+  function mark(prompt: string, kind: 'opened' | 'confirmed', receipt?: WorkspaceOperationReceipt) {
     if (!active) return
     try {
       const before = latest.current.workspacePlan
@@ -107,6 +112,22 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
       // 보조 목록 표시 실패로 이미 받은 서버 접수 결과를 미확정으로 바꾸지 않는다.
     }
   }
+  function resultListener(prompt: string, target?: WorkflowPlanOrigin['target']): WorkflowResultListener | undefined {
+    if (!active) return
+    const origin = captureWorkflowPlanOrigin(latest.current.workspacePlan, prompt, scope, date, target)
+    if (!origin) return
+    return result => {
+      const current = present.current
+      if (!mounted.current || !current.active) return
+      try {
+        const before = latest.current.workspacePlan
+        const next = recordWorkflowPlanResult(before, origin, result, current.scope, current.date)
+        if (next !== before) update({ ...latest.current, workspacePlan: next })
+      } catch {
+        // 보조 이력 기록 실패는 이미 확인된 전송·제출·승인 결과에 영향을 주지 않는다.
+      }
+    }
+  }
   const nextStep = saved ? nextWorkspacePlanStep(saved) : undefined
-  return { candidate, control, saved, stale, blockedSelection, selectable, manageable, nextStep, build, choose, dismiss, restoreOriginal, handleControl, mark }
+  return { candidate, control, saved, stale, blockedSelection, selectable, manageable, nextStep, build, choose, dismiss, restoreOriginal, handleControl, mark, resultListener }
 }

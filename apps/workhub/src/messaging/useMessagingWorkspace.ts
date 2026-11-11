@@ -47,6 +47,7 @@ export function useMessagingWorkspace({
   revision = 0,
   onNavigationLockChange,
   onUpdated,
+  onWorkflowResult,
   onOpenSource,
   canOpenSource,
   composeRequest,
@@ -73,11 +74,13 @@ export function useMessagingWorkspace({
   const [restoredPending] = useState<MessageAttempt | null>(() => {
     if (!recovery.request) return restored?.pending ?? null
     try {
+      const command = checkedCommand(recovery.request.command, member.id)
       return {
         key: recovery.request.key,
-        command: checkedCommand(recovery.request.command, member.id),
+        command,
         recipientNames: restored?.pending?.recipientNames ?? [],
         recipientSnapshots: restored?.pending?.recipientSnapshots,
+        ...(command.kind === 'start' && recovery.request.composeId ? { composeId: recovery.request.composeId } : {}),
       }
     } catch {
       return null
@@ -455,7 +458,7 @@ export function useMessagingWorkspace({
       if (!current()) return
       const recipients = matches ? chosenRecipients : []
       handledDraft.current = offeredDraft.id
-      setDraft({ ...blankMessageDraft(), body: offeredDraft.body, recipients,
+      setDraft({ ...blankMessageDraft(), body: offeredDraft.body, recipients, composeId: offeredDraft.id,
         mode: recipients.length > 1 ? 'individual' : 'direct' })
       setComposing(true)
       setFolded(false)
@@ -519,8 +522,10 @@ export function useMessagingWorkspace({
     setNotice('')
     const saved = retryMessageAttempt(attempt)
     const generation = serverGeneration.current
+    const reportResult = onWorkflowResult
     setPending(saved)
-    recovery.put({ key: saved.key, command: saved.command })
+    recovery.put({ key: saved.key, command: saved.command,
+      ...(saved.command.kind === 'start' && saved.composeId ? { composeId: saved.composeId } : {}) })
     setPreview(null)
     try {
       // 연결 복원 후에는 대화 권한을 먼저 다시 조회한다. 요청 번호와 원본 버전은 바꾸지 않는다.
@@ -548,6 +553,18 @@ export function useMessagingWorkspace({
         )
       } else setNotice('읽음으로 표시했습니다. 업무 처리나 문서 제출 상태는 바뀌지 않습니다.')
       setRefresh((value) => value + 1)
+      if (confirmed && (saved.command.kind === 'start' || saved.command.kind === 'reply')) {
+        try {
+          reportResult?.({
+            kind: 'message', action: saved.command.kind, scope: recoveryScope(member),
+            key: confirmed.receipt.requestKey, recordedAt: confirmed.receipt.recordedAt,
+            ...(saved.command.kind === 'start' && saved.composeId ? { composeId: saved.composeId } : {}),
+            deliveries: confirmed.receipt.deliveries.map(({ threadId, messageId, sequence }) => ({ threadId, messageId, sequence })),
+          })
+        } catch {
+          // 보조 작업 표시 실패가 이미 확인한 메시지 전송을 미확정으로 바꾸지 않는다.
+        }
+      }
       onUpdated?.()
     } catch (failure) {
       if (!alive.current || generation !== serverGeneration.current) return

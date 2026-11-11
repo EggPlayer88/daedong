@@ -195,6 +195,7 @@ export function useAssistantWorkspace({
   const continuation = useDraftContinuation({
     session, latest, update, actions: workspaceActions, scope: dialogueScope, basisDate: date, revision,
     active: commandContext && enabled, editable: workspaceEditable, opened: draftOpened,
+    resultListener: (prompt, target) => workspacePlan.resultListener(prompt, target),
     feedback: (error, notice = '') => { setError(error); setNotice(notice) },
   })
   // 이어지는 답은 현재 초안에만 사용한다. 잘못된 날짜나 이름도 유료 질문이 되지 않는다.
@@ -552,7 +553,7 @@ export function useAssistantWorkspace({
         setWorkspaceActionNotice({ prompt: workspaceResult.prompt, message: '내 업무에서 변경 내용을 확인해 주세요. 아직 저장하지 않았습니다.' })
         setWorkspaceResult(undefined)
       } else {
-        if (!workspaceActions.open(found)) throw new Error('이동 보류')
+        if (!workspaceActions.open(found, workspacePlan.resultListener(workspaceResult?.prompt ?? '', { kind: found.kind, id: found.id }))) throw new Error('이동 보류')
         if (workspaceResult) workspacePlan.mark(workspaceResult.prompt, 'opened')
       }
       setError('')
@@ -621,7 +622,7 @@ export function useAssistantWorkspace({
         return
       }
       if (command.kind === 'specialist') {
-        if (!workspaceActions?.specialist?.(command)) {
+        if (!workspaceActions?.specialist?.(command, workspacePlan.resultListener(latest.current.prompt))) {
           setError('업무를 열지 못했습니다. 작성 중인 내용이나 결과 확인을 먼저 마쳐 주세요. 요청은 유지했습니다.')
           return
         }
@@ -642,7 +643,8 @@ export function useAssistantWorkspace({
           return
         }
         const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
-        if (!workspaceActions?.prepareDraft?.(command)) {
+        const composeId = crypto.randomUUID()
+        if (!workspaceActions?.prepareDraft?.(command, undefined, workspacePlan.resultListener(command.prompt, {kind: 'compose', id: composeId}), composeId)) {
           setError(`${destination} 초안을 열 수 없습니다. 작성 중인 입력이나 확인할 요청을 마친 뒤 다시 시도해 주세요. 원문은 유지했습니다.`)
           return
         }
@@ -671,7 +673,7 @@ export function useAssistantWorkspace({
         try {
           // 이동 전에 busy를 세우면 부모의 기존 이동 보호가 자기 요청까지 막으므로 동기로 넘긴다.
           const accepted = command.kind === 'navigate'
-            ? workspaceActions!.navigate(command.page)
+            ? workspaceActions!.navigate(command.page, workspacePlan.resultListener(latest.current.prompt))
             : workspaceActions!.calendar(command)
           if (!accepted) throw new Error('기존 작업 확인 필요')
           workspacePlan.mark(command.kind === 'calendar' ? latest.current.calendarDialogue?.planPrompt ?? command.prompt : latest.current.prompt, 'opened')
