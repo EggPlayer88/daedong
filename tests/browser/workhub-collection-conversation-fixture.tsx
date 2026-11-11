@@ -11,7 +11,7 @@ const members = ['담당교사', '시험교사'].map((name, index) => ({ id: `me
 const policy = { extensions: ['hwpx'], maxFileBytes: 1024, maxFiles: 3 }
 const state: any = { request: null, units: [], draft: null, submissions: [], reviews: [], supplements: [], withdrawals: [] }
 const receipts = new Map(), files = new Map(), edits = createEditDrafts(), pending = createPendingRequests()
-w.calls = []; w.uploads = []; w.unknown = ''; w.fileMode = ''; w.denied = false; w.phase = 'open'; w.state = state
+w.calls = []; w.uploads = []; w.workflowResults = []; w.resultThrows = false; w.unknown = ''; w.fileMode = ''; w.denied = false; w.phase = 'open'; w.state = state
 const server: any = {
   async readiness() { return { available: true, reason: 'ready', policy } },
   async list() { return { items: state.request ? [copy(state.request)] : [], nextCursor: null } },
@@ -69,6 +69,6 @@ function App() {
   const [incoming, setIncoming] = useState<any>()
   w.remount = setVisible; w.refresh = () => setRevision(value => value + 1)
   w.provideGenerated = () => setIncoming({ requestId: 'request-1', artifactId: 'document-artifact-1', templateId: 'template-1', templateVersion: 1, blob: new Blob(['PK synthetic generated']), fileName: '질문답변.hwpx' })
-  return visible && <CollectionServerPanel presentation="assistant" server={server} operations={operations} member={members[0] as any} members={members as any} date="2026-11-11" revision={revision} composeRequest={compose} onComposeRequestConsumed={() => setCompose(undefined)} incomingFile={incoming} onIncomingFileConsumed={() => setIncoming(undefined)} onNavigationLockChange={value => { w.locked = value }} />
+  return visible && <CollectionServerPanel presentation="assistant" server={server} operations={operations} member={members[0] as any} members={members as any} date="2026-11-11" revision={revision} composeRequest={compose} onComposeRequestConsumed={() => setCompose(undefined)} incomingFile={incoming} onIncomingFileConsumed={() => setIncoming(undefined)} onNavigationLockChange={value => { w.locked = value }} onWorkflowResult={value => { w.workflowResults.push(copy(value)); if (w.resultThrows) throw Error('합성 결과 표시 실패') }} />
 }
 createRoot(document.getElementById('root')!).render(<EditDraftsProvider store={edits}><PendingRequestsProvider store={pending}><App /></PendingRequestsProvider></EditDraftsProvider>)
