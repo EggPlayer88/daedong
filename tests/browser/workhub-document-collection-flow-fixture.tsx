@@ -111,5 +111,5 @@ const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>c
  }
  throw new ContractError('QUERY_FAILED','이 합성 시험에서 사용하지 않는 선택 기능입니다')
 }}
-function App(){const[epoch,setEpoch]=useState(0);flow.login=(id:string)=>{active=data.memberships.find(m=>m.id===id)!;identity=identityFor(active);setEpoch(n=>n+1)};return <ConnectedWorkspace key={epoch} expectedUserId={identity.userId} legacyHomeHref='/legacy' connection={connection}/>}
+function App(){const[epoch,setEpoch]=useState(0);flow.login=(id:string)=>{active=data.memberships.find(m=>m.id===id)!;identity=identityFor(active);setEpoch(n=>n+1);return {memberName:active.name,schoolName:data.schools.find(s=>s.id===active.schoolId)!.name}};return <ConnectedWorkspace key={epoch} expectedUserId={identity.userId} legacyHomeHref='/legacy' connection={connection}/>}
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)
