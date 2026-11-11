@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-11. 기준은 5차 후속 기준 커밋 `24e05f75`와 이번 실제 수업 요약·평가계획서 화면 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-11. 기준은 PR #123의 CI 보완 커밋 `ebe59f9d`와 이번 복합 업무 이어가기이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -20,9 +20,17 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 
 **AI 작업 공간 안의 지원 경로: 55/61개 (90.2%).** 이 중 9개는 AI 기본 화면·확인 카드, 46개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니다.** 기존 화면의 최종 확인·후보 선택·파일 선택을 포함한다. 이번 연결로 사용자의 목표인 “AI 대화만으로 90% 이상 완료”를 달성했다고 판단하지 않는다. 평가계획서 작성·제출의 새 탭 링크 2개도 이 55개에 넣지 않았다.
 
-AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md)와 [daily-actions-verification.md](daily-actions-verification.md)에 유지하고, 이번 실행 결과는 [lessons-seasonal-verification.md](lessons-seasonal-verification.md)에 구분한다.
+AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md)에 유지하고, 이번 실행 결과는 [plan-continuation-verification.md](plan-continuation-verification.md)에 구분한다.
 
-## 이번에 연결한 범위
+## 이번에 보완한 공통 업무 진행
+
+- **목록 이어가기:** “다음 업무”, “2번 단계”, “업무 목록 보여줘”로 나누어 둔 요청을 확인하고 다음 입력을 준비한다. 선택만으로 화면을 실행하거나 업무를 저장하지 않는다. 기존 업무를 잇는 공통 제어이므로 집계를 늘리지 않으며, 기존 61개 업무와 55개 내부 지원 경로를 유지한다.
+- **처리 결과 구분:** 화면을 연 단계에는 “화면 연결됨”, 검증된 개인 할 일 변경·개인 일정 등록 접수증을 받은 단계에만 “서버 처리 확인”을 표시한다. 메시지 전송·수합 공개 등 다른 패널의 업무가 끝났다고 추정하지 않는다.
+- **입력·복구 보존:** 일정의 누락 정보를 대화로 채워도 최초 선택 원문에 접수 결과를 연결한다. 미확정 응답은 완료로 표시하지 않고 같은 요청 번호로 복구하며, 날짜가 바뀐 목록은 새 날짜로 자동 실행하지 않는다.
+- **중복 실행 방지 범위:** 처리 확인된 단계의 버튼·번호 재선택과 전체 원문 복원을 막고, 다음 단계는 확인된 단계를 건너뛴다. 원문 읽기·목록 닫기는 유지한다. 사용자가 목록 밖에서 작성하는 별도 새 요청까지 중복 판정하는 기능은 아니다.
+- **근거:** [목록 제어·입력 보존 브라우저 회귀](../../tests/browser/workhub-assistant-plan-continuation.mjs), [개인 업무 접수·원키 복구 브라우저 회귀](../../tests/browser/workhub-assistant-plan-receipts.mjs), [명령·결과 분류 회귀](../../tests/test_workhub_plan_control.mjs). 실제 React·실행기와 합성 어댑터의 검증이며 운영 DB 왕복이나 실제 AI 답변 품질의 증거로 바꾸지 않는다.
+
+## 앞선 실제 수업·평가계획서 연결
 
 - **H01:** 오늘 업무·기한·수합 요약에 T2 날짜별 수업을 함께 표시한다. 실제 수업 시각과 교환·휴업 취소 상태를 우선하며, 기본 배치표는 접힌 참고 자료로 구분한다. 실제 수업의 원본 번호와 날짜를 유지해 상세 화면으로 연결한다.
 - **L01·L02:** “평가계획서 작성 화면 열어줘”, “평가계획서 제출 화면 보여줘”처럼 명시적으로 화면 열기를 요청하면 새 탭 링크를 제공한다. 기간 업무 표시 설정과 기존 메뉴 범위를 유지하며, 링크는 사용자가 눌러야 열린다. 실제 생성·제출은 원래 화면에서 확인한다.
@@ -48,7 +56,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
 | A01 | 일반·업무별 질문과 Haiku 답변·Sonnet 재검토 | AI 기본 화면·확인 카드 | 직접 | 질문·분야 선택 후 답변과 정밀 검토 결과 확인. 실제 provider의 답변 품질은 합성 응답 시험으로 증명하지 않음. [workhub-ai-foundation](../../tests/browser/workhub-ai-foundation.mjs) · [workhub-assistant-ui](../../tests/browser/workhub-assistant-ui.mjs) |
-| A02 | 게시 학교 자료를 근거로 질문하고 인용 확인 | AI 기본 화면·확인 카드 | 조합 | 선택한 자료 판·위치의 답변 근거와 원문 확인. 원문 열기 패널과 실제 유료 답변을 한 운영 왕복으로 재시험한 결과 아님. [workhub-assistant-ui](../../tests/browser/workhub-assistant-ui.mjs) · [workhub-knowledge-assistant](../../tests/browser/workhub-knowledge-assistant.mjs) |
+| A02 | 게시 학교 자료를 근거로 질문하고 인용 확인 | AI 기본 화면·확인 카드 | 조합 | 선택한 자료 판·위치의 답변 근거와 원문 확인. 원문 열기 패널과 실제 유료 답변을 한 운영 왕복으로 재시험한 결과 아님. [workhub-assistant-ui](../../tests/browser/workhub-assistant-ui.mjs) · [workhub-knowledge-assistant](../../tests/browser/workhub-knowledge-assistant.mjs) · [workhub-pilot-connected](../../tests/browser/workhub-pilot-connected.mjs) |
 | A03 | 개인 기억 저장·수정·중지·선택 사용 | AI 기본 화면·확인 카드 | 직접 | 명시 보관 확인과 선택한 최신 기억을 질문에 반영. 모든 대화를 자동 기억하지 않으며 비밀번호·상담 자료 수집 기능 아님. [workhub-ai-memory](../../tests/browser/workhub-ai-memory.mjs) |
 | A04 | 허용 자료 검색과 결과 선택 | AI 기본 화면·확인 카드 | 직접 | 8개 자료 종류의 검색 결과·누락 범위 확인. 자료원 첫 쪽·최대 표시 수 제한이 있고 원문 완료는 각 업무에서 따로 확인. [workhub-assistant-workflows](../../tests/browser/workhub-assistant-workflows.mjs) · [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) |
 
@@ -57,7 +65,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
 | W01 | 새 할 일 제안 검토·등록 | AI 기본 화면·확인 카드 | 직접 | 제목·기한·메모 검토 후 접수 결과 확인. 원래 유료 제안·확정 절차 유지. [workhub-assistant-workflows](../../tests/browser/workhub-assistant-workflows.mjs) |
-| W02 | 기존 할 일 메모·기한 수정 | AI 기본 화면·확인 카드 | 직접 | 동명 후보 선택·원본 비교·같은 요청 저장. 원본 판 충돌 시 새 판에 임의 덮어쓰기 없음. [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) |
+| W02 | 기존 할 일 메모·기한 수정 | AI 기본 화면·확인 카드 | 직접 | 동명 후보 선택·원본 비교·같은 요청 저장. 원본 판 충돌 시 새 판에 임의 덮어쓰기 없음. [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) · [workhub-assistant-plan-receipts](../../tests/browser/workhub-assistant-plan-receipts.mjs) · [test_workhub_plan_control](../../tests/test_workhub_plan_control.mjs) |
 | W03 | 기존 할 일 완료 | AI 기본 화면·확인 카드 | 직접 | 선택한 개인 업무 한 건의 완료 결과 확인. 협업 완료 확인과 일반 할 일 완료를 동일 처리하지 않음. [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) |
 | W04 | 할 일 제목 정정·다시 시작·기타 상태 변경 | AI 기본 화면·확인 카드 | 직접 | 동명 후보에서 한 건을 선택하고 제목·상태·재개 전후를 명시 확인한 뒤 기존 할 일 RPC로 저장. 완료·취소 업무의 재개, 원본 판 충돌, 원키 복구를 합성 응답으로 검증; 다른 필드·업무는 유지하며 확인 없는 저장 없음. [workhub-assistant-daily-actions](../../tests/browser/workhub-assistant-daily-actions.mjs) · [test_workhub_task_daily_actions](../../tests/test_workhub_task_daily_actions.mjs) · [assistant-change](../../apps/workhub/src/tasks/assistant-change.ts) |
 
@@ -65,7 +73,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
-| C01 | 개인 일정의 누락 정보 보완·등록 | AI 기본 화면·확인 카드 | 직접 | 한 날짜·나만 보기 일정 검토·저장. 학교 공유·여러 날짜·반복 일정을 임의 개인 일정으로 바꾸지 않음. [workhub-assistant-calendar](../../tests/browser/workhub-assistant-calendar.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) |
+| C01 | 개인 일정의 누락 정보 보완·등록 | AI 기본 화면·확인 카드 | 직접 | 한 날짜·나만 보기 일정 검토·저장. 학교 공유·여러 날짜·반복 일정을 임의 개인 일정으로 바꾸지 않음. [workhub-assistant-calendar](../../tests/browser/workhub-assistant-calendar.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) · [workhub-assistant-plan-receipts](../../tests/browser/workhub-assistant-plan-receipts.mjs) · [test_workhub_plan_control](../../tests/test_workhub_plan_control.mjs) |
 | C02 | 공유·대상 지정·여러 날짜 일정 작성 | AI 안 기존 업무 패널 | 직접 | 기존 일정 화면에서 대상·기간·내용 검토·저장. 실제 CalendarPanel과 합성 어댑터로 공유·여러 날·직접 대상 저장을 검증; 운영 왕복 아님. [workhub-assistant-calendar-workspace](../../tests/browser/workhub-assistant-calendar-workspace.mjs) · [workhub-calendar-views](../../tests/browser/workhub-calendar-views.mjs) |
 | C03 | 기존 일정 수정 | AI 안 기존 업무 패널 | 직접 | 검색한 일정의 원본·판 비교 뒤 수정 확인. 현재 판 충돌 비교와 재저장을 검증; 삭제·취소 UI는 현재 지원하지 않음. [workhub-assistant-calendar-workspace](../../tests/browser/workhub-assistant-calendar-workspace.mjs) · [workhub-calendar-views](../../tests/browser/workhub-calendar-views.mjs) |
 | C04 | 일정 일괄 가져오기·대상 비교 | AI 안 기존 업무 패널 | 직접 | 입력 원문·기간·대상 비교 후 일괄 저장. 원문·대상 비교, 선택 저장과 미확정 원키 복구를 검증; 운영 왕복 아님. [workhub-assistant-calendar-workspace](../../tests/browser/workhub-assistant-calendar-workspace.mjs) · [workhub-calendar-import](../../tests/browser/workhub-calendar-import.mjs) |

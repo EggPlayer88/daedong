@@ -1,7 +1,7 @@
 {
   "schema": "ai-workspace.coverage.v1",
   "asOf": "2026-11-11",
-  "baselineCommit": "24e05f75ecaaa1b068bf515ece8076fb37f8e353",
+  "baselineCommit": "ebe59f9ded59e31b61f93ad3e9e056078f9cf46a",
   "scope": "운영 사이트의 교사·관리자 사용자 업무 목록. 시험 전용 사이트·외부 배포·SQL 적용·과금계정 발급은 제외.",
   "counting": "결과 중심 61개 업무를 동일 가중치로 센다. 별칭·버튼·실패 상황을 별도 업무로 중복 계산하지 않는다. 기관별 빈도·중요도 가중치는 측정하지 않았다.",
   "definitions": {
@@ -34,12 +34,13 @@
   },
   "limits": [
     "AI 작업 공간 안에서 화면과 확인 버튼을 이용하는 경로 지원율이며 자연어만으로 완료하는 비율이 아니다.",
-    "증거 파일은 회귀의 존재와 검증 범위를 가리킨다. 파일이 있다는 이유로 현재 커밋에서 실행·통과했다고 간주하지 않는다. 이전 실행 결과는 completion-verification.md와 daily-actions-verification.md에 유지하고 이번 실행 결과는 lessons-seasonal-verification.md에 별도로 기록한다.",
+    "증거 파일은 회귀의 존재와 검증 범위를 가리킨다. 파일이 있다는 이유로 현재 커밋에서 실행·통과했다고 간주하지 않는다. 이전 실행 결과는 completion-verification.md, daily-actions-verification.md, lessons-seasonal-verification.md에 유지하고 이번 실행 결과는 plan-continuation-verification.md에 별도로 기록한다.",
     "composed는 하나의 대화 시작부터 모든 업무 결과까지 단일 통합 시험이 있다는 뜻이 아니다.",
     "평가계획서 작성·제출은 기존 화면을 새 탭으로 여는 명시적 링크만 제공한다. AI 내부 완료 또는 실제 HWPX 생성·제출까지의 단일 통합 시험으로 집계하지 않는다.",
     "일반 교사 AI 공개는 확대하지 않았다. 각 업무의 기존 권한·readiness·현재 소속을 충족한 사용자 기준이다.",
     "DB·Storage·provider는 주로 합성하며 실제 AI 답변 품질·휴대폰 키보드·운영 동시성의 성공률을 뜻하지 않는다.",
-    "프로젝트 전체 구축률이나 기능의 사용 가능 여부와 다른 지표다. AI에 미연결된 기존 기능은 일반 화면에서 유지된다."
+    "프로젝트 전체 구축률이나 기능의 사용 가능 여부와 다른 지표다. AI에 미연결된 기존 기능은 일반 화면에서 유지된다.",
+    "복합 업무 목록의 다음 단계·번호 선택·원문 검토는 기존 업무를 준비하는 공통 제어이므로 분모·분자에 새 업무로 더하지 않는다. 화면 연결과 검증된 개인 할 일·일정의 서버 접수 확인을 구분하며, 확인된 단계의 재선택·전체 원문 복원은 차단한다. 단계 선택만으로 저장·전송하지 않고 다른 업무의 완료도 추정하지 않는다."
   ],
   "workflows": [
     {
@@ -63,7 +64,8 @@
       "evidenceLevel": "composed",
       "evidence": [
         "tests/browser/workhub-assistant-ui.mjs",
-        "tests/browser/workhub-knowledge-assistant.mjs"
+        "tests/browser/workhub-knowledge-assistant.mjs",
+        "tests/browser/workhub-pilot-connected.mjs"
       ],
       "completion": "선택한 자료 판·위치의 답변 근거와 원문 확인",
       "boundary": "원문 열기 패널과 실제 유료 답변을 한 운영 왕복으로 재시험한 결과 아님"
@@ -113,7 +115,9 @@
       "evidenceLevel": "direct_scenario",
       "evidence": [
         "tests/browser/workhub-assistant-connected.mjs",
-        "tests/browser/workhub-assistant-operations.mjs"
+        "tests/browser/workhub-assistant-operations.mjs",
+        "tests/browser/workhub-assistant-plan-receipts.mjs",
+        "tests/test_workhub_plan_control.mjs"
       ],
       "completion": "동명 후보 선택·원본 비교·같은 요청 저장",
       "boundary": "원본 판 충돌 시 새 판에 임의 덮어쓰기 없음"
@@ -153,7 +157,9 @@
       "evidenceLevel": "direct_scenario",
       "evidence": [
         "tests/browser/workhub-assistant-calendar.mjs",
-        "tests/browser/workhub-assistant-operations.mjs"
+        "tests/browser/workhub-assistant-operations.mjs",
+        "tests/browser/workhub-assistant-plan-receipts.mjs",
+        "tests/test_workhub_plan_control.mjs"
       ],
       "completion": "한 날짜·나만 보기 일정 검토·저장",
       "boundary": "학교 공유·여러 날짜·반복 일정을 임의 개인 일정으로 바꾸지 않음"
