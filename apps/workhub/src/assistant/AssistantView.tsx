@@ -18,6 +18,7 @@ import { CalendarFollowupCard } from './CalendarFollowupCard'
 import { DraftFollowupCard } from './DraftFollowupCard'
 import { CONVERSATION_PROFILES, readConversationPrompt } from './conversation-guidance'
 import { WorkspaceOperationCard } from './WorkspaceOperationCard'
+import { specialistStarters } from './specialist-workflows'
 export function AssistantView({ model }: { model: ReturnType<typeof useAssistantWorkspace> }) {
   const {
     addTask,
@@ -604,7 +605,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             <div className="assistant-welcome">
               <h3>이렇게 시작해 보세요</h3>
               <div className="assistant-starters" aria-label="대화 시작 예시">
-                {conversationProfile.starterPrompts.slice(0, 3).map((prompt) => (
+                {(workspaceActions?.specialist ? specialistStarters(conversationProfile.id) ?? conversationProfile.starterPrompts : conversationProfile.starterPrompts).slice(0, 3).map((prompt) => (
                   <button type="button" key={prompt} disabled={(!editable && !workspaceEditable) || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt })}>
                     {prompt}

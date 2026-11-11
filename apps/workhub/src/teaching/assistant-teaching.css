@@ -1,0 +1,21 @@
+.teaching-assistant{width:100%;max-width:100%;min-width:0}
+.teaching-assistant [hidden]{display:none!important}
+.teaching-assistant .teaching-heading{margin-bottom:.75rem;gap:.6rem}
+.teaching-assistant .teaching-heading h2{font-size:1.2rem}
+.teaching-conversation-steps{display:flex;flex-wrap:wrap;gap:.5rem;list-style:none;padding:0;margin:0 0 1rem;counter-reset:step}
+.teaching-conversation-steps li{counter-increment:step;border:1px solid var(--ui-line,#e2e6eb);border-radius:999px;padding:.3rem .7rem;font-size:.85rem;color:var(--ui-muted,#636b78)}
+.teaching-conversation-steps li::before{content:counter(step) ' ';font-weight:700}
+.teaching-conversation-steps li[aria-current=step]{color:var(--ui-accent,#365f95);background:var(--ui-accent-soft,#eef4fc);border-color:var(--ui-accent,#365f95)}
+.teaching-assistant .teaching-layout{grid-template-columns:minmax(0,1fr);gap:.75rem}
+.teaching-assistant .teaching-pane-selection{border:1px solid var(--ui-line,#e2e6eb);border-radius:12px;padding:0 .8rem;margin:.65rem 0;background:var(--ui-surface,#fff)}
+.teaching-assistant .teaching-pane-selection>summary{font-weight:600;overflow-wrap:anywhere;display:list-item;list-style-position:inside;padding:.65rem 0;min-height:44px}
+.teaching-assistant .teaching-pane-selection[open]>summary{border-bottom:1px solid var(--ui-line,#e2e6eb);margin-bottom:.5rem}
+.teaching-assistant .teaching-roster ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(180px,100%),1fr));gap:.4rem}
+.teaching-assistant .teaching-roster li{margin:0}
+.teaching-assistant .teaching-course-context,.teaching-assistant .teaching-student-context{gap:.6rem;padding:.6rem 0}
+.teaching-assistant .teaching-course-context h3,.teaching-assistant .teaching-student-context h3{font-size:1.1rem;overflow-wrap:anywhere}
+.teaching-assistant .teaching-course-context p{font-size:.85rem;margin:.25rem 0}
+.teaching-assistant .teaching-actions{margin:.65rem 0}
+.teaching-assistant .teaching-card{padding:1rem;margin:.75rem 0}
+.teaching-assistant .teaching-content{min-width:0}
+@media(max-width:480px){.teaching-assistant .teaching-course-search{grid-template-columns:minmax(0,1fr)}.teaching-assistant .teaching-card{padding:.8rem}.teaching-assistant .teaching-heading{align-items:flex-start}.teaching-assistant .teaching-heading button{font-size:.85rem}.teaching-assistant .teaching-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}}

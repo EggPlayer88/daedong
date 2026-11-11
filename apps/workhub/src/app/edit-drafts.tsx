@@ -17,6 +17,8 @@ export function createEditDrafts(restricted = false) {
   return {
     subscribe(listener: Listener) { listeners.add(listener); return () => { listeners.delete(listener) } },
     count: () => [...entries.values()].reduce((count, slots) => count + [...slots.values()].filter(entry => entry.warn).length, 0),
+    dirtySlots: (scope: string) => allowed(scope, generation)
+      ? [...(entries.get(scope)?.entries() ?? [])].filter(([, entry]) => entry.warn).map(([slot]) => slot) : [],
     activate(scope: string) {
       if (selected !== scope) { entries.clear(); generation++; selected = scope }
       active = true

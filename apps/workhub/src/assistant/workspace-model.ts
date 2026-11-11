@@ -27,6 +27,7 @@ import type { DirectDraftCommand } from './draft-commands'
 import type { TaskChangeCommand } from './task-change-command'
 import type { ConversationFocus } from './conversation-guidance'
 import type { WorkspaceOperationReview, WorkspaceOperationReceipt } from './workspace-operations'
+import type { SpecialistCommand } from './specialist-workflows'
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
 export interface AssistantWorkspaceSearchResult {
   items: SearchItem[]
@@ -35,6 +36,7 @@ export interface AssistantWorkspaceSearchResult {
 }
 export interface AssistantWorkspaceActions {
   deliveryInConversation?: boolean
+  specialist?: (command: SpecialistCommand) => boolean
   navigate: (page: PageId) => boolean
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean

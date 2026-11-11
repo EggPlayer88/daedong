@@ -34,6 +34,7 @@ export interface DraftSession {
   savedDraft?: SavedTimetableDraft
 }
 export interface WorkspaceProps {
+  presentation?: 'page' | 'assistant'
   connection: SupabaseConnection
   member: Membership
   date: string
@@ -47,6 +48,8 @@ export interface WorkspaceProps {
   initialNotificationId?: string
   initialIntent?: { kind: 'makeup'; lessonId: string; token: string }
   initialPreparationStep?: 'target' | 'setup' | 'preparation' | 'import'
+  initialOperationTab?: 'shared' | 'publish' | 'exchange'
+  initialOperationMode?: 'exchange' | 'interventions'
 }
 export interface PanelProps extends Omit<WorkspaceProps, 'connection'> {
   server: TimetableServer

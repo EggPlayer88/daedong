@@ -199,6 +199,7 @@ export function useAssistantWorkspace({
   const canSubmit = freeCommand ? workspaceEditable : editable
   const submitLabel = continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
+    workspaceCommand?.kind === 'specialist' ? '업무 시작' :
     workspaceCommand?.kind === 'navigate' ? '바로 이동' :
     workspaceCommand?.kind === 'search' ? '자료 찾기' :
     workspaceCommand?.kind === 'messageDraft' ? (workspaceCommand.firstTurn ? '메시지 초안 확인' : '메시지 초안 열기') :
@@ -568,6 +569,16 @@ export function useAssistantWorkspace({
       if (command.kind === 'clarify') {
         setNotice(command.message)
         setError('')
+        return
+      }
+      if (command.kind === 'specialist') {
+        if (!workspaceActions?.specialist?.(command)) {
+          setError('업무를 열지 못했습니다. 작성 중인 내용이나 결과 확인을 먼저 마쳐 주세요. 요청은 유지했습니다.')
+          return
+        }
+        setWorkspaceActionNotice({ prompt: latest.current.prompt, message: '대상과 현재 원본을 확인할 업무를 열었습니다. 변경은 검토 후 직접 확정합니다.' })
+        setWorkspaceResult(undefined); setNotice(''); setError('')
+        update({ ...latest.current, prompt: '' })
         return
       }
       if (command.kind === 'search' || command.kind === 'taskChange') {

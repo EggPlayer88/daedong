@@ -13,9 +13,9 @@ import {createTransitionService,transitionCommand,transitionPlan,transitionActio
 interface Draft{plan?:TransitionPlan;action?:Extract<TransitionCommand,{recordId:string}>;preview?:TransitionPreview;confirmed:boolean;pending?:{command:TransitionCommand;key:string}}
 const stateLabels={awaiting_admin:'관리자 확인 대기',pending:'인수 확인 대기',accepted:'인수 완료',rejected:'반려',cancelled:'취소',completed:'처리 완료'}
 const actionTitles={admin_confirm:'공식 담당 인계 확인',admin_reject:'공식 담당 인계 반려',accept:'인수 확인',reject:'인계 반려',cancel:'인계 요청 취소'}
-interface Props{openRequest?:{key:string;id:string};connection:SupabaseConnection;member:Membership;revision?:number;onNavigationLockChange?:(locked:boolean)=>void}
+interface Props{openRequest?:{key:string;id:string};connection:SupabaseConnection;member:Membership;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;presentation?:'page'|'assistant'}
 export function SchoolTransitions(props:Props){return <ScopedSchoolTransitions key={recoveryScope(props.member)} {...props}/> }
-function ScopedSchoolTransitions({connection,member,revision=0,onNavigationLockChange,openRequest}:Props){
+function ScopedSchoolTransitions({connection,member,revision=0,onNavigationLockChange,openRequest,presentation='page'}:Props){
  const service=useMemo(()=>createTransitionService(connection),[connection]),memory=useEditDraft<Draft>(member,'school-transitions'),recovery=usePendingRequest(member,'handover')
  const[draft,setState]=useState<Draft|undefined>(()=>{if(memory.initial)return memory.initial;try{if(recovery.request){const command=transitionCommand(recovery.request.command,{recovering:true});return {plan:command.kind==='apply'?command.plan:undefined,action:command.kind!=='apply'?command:undefined,confirmed:false,pending:{command,key:recovery.request.key}}}}catch{}return undefined}),[data,setData]=useState<TransitionCatalog>(),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0),[cursor,setCursor]=useState<string|null>(null),[history,setHistory]=useState<(string|null)[]>([])
  const alive=useRef(true),working=useRef(false),latestDraft=useRef(draft),lastData=useRef<TransitionCatalog>(),listGeneration=useRef(0)
@@ -40,7 +40,7 @@ function ScopedSchoolTransitions({connection,member,revision=0,onNavigationLockC
  const selectedRecord=data?.records.find(record=>record.id===draft?.action?.recordId)
  const canAct=(record:TransitionCatalog['records'][number],kind:Extract<TransitionCommand,{recordId:string}>['kind'])=>!!data&&transitionActionAllowed(data,{kind,recordId:record.id,expectedVersion:record.version,reason:''})
  const allowed=!!data&&(plan?.kind!=='new_year'||data.canManageYear)&&(!plan||!needsAdminReview(plan)||data.dutyApproval==='admin_review_v1')&&(!draft?.action||transitionActionAllowed(data,draft.action))
- return <details ref={root} className="school-transitions" open={draft||notice||openRequest?true:undefined}><summary>업무 인계와 새 학년도 준비</summary><style>{styles}{composerStyles}</style>
+ return <details ref={root} className="school-transitions" open={draft||notice||openRequest||presentation==='assistant'?true:undefined}><summary>업무 인계와 새 학년도 준비</summary><style>{styles}{composerStyles}</style>
  <p className="transitions-intro">공식 업무와 학교 구성을 이어갑니다. 개인 메모·상담·DM·학생 기록은 일괄 복사하지 않습니다. 공식 담당 인계는 관리자 확인 후 받는 교사의 수락으로 완료됩니다.</p>{error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
  <div className="transitions-toolbar"><span>{data?'현재 페이지의 인계 기록 '+data.records.length+'건':error?'연결 확인 필요':'인계 정보를 불러오는 중…'}</span><button type="button" disabled={busy} onClick={()=>setReload(x=>x+1)}>{data?'인계 상태 새로 확인':'인계 서버 다시 확인'}</button></div>
  {data&&data.dutyApproval===null&&<p role="status">공식 담당 인계의 새 신청·수락과 관리자 확인 기능을 준비 중입니다. 협업·수합 인계와 기존 요청의 반려·취소는 현재 권한에 따라 계속 처리할 수 있습니다.</p>}

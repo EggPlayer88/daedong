@@ -1,11 +1,13 @@
 import { parseDraftCommand, type DirectDraftCommand } from './draft-commands'
 import { parseTaskChangeCommand, type TaskChangeCommand } from './task-change-command'
+import { parseSpecialistCommand, type SpecialistCommand } from './specialist-workflows'
 import type { PageId } from '../modules'
 import type { SearchKind } from '../search/contracts'
 import { SEARCH_LIMITS } from '../search/limits'
 import limits from '../../../main/api/workhub-ai/_assets/assistant-limits.json'
 
 export type WorkspaceCommand =
+  | SpecialistCommand
   | DirectDraftCommand
   | TaskChangeCommand
   | { kind: 'navigate'; page: PageId }
@@ -166,6 +168,8 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
         return { kind: 'navigate', page }
     }
   }
+  const specialist = parseSpecialistCommand(text)
+  if (specialist) return specialist
   for (const [label, kinds] of searchScopes) {
     const pattern = esc(label)
     if (new RegExp(`^${pattern}\\s*(?:을|를)?\\s*${findEnd}$`).test(text))
