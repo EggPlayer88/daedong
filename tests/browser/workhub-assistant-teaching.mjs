@@ -137,6 +137,8 @@ try{
   const calls=await writes();assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1])
   assert.equal(await page.evaluate(()=>window.state.observations.filter(r=>r.text==='한 번만 저장할 관찰').length),1)
   assert.equal(await page.evaluate(()=>window.pending.count()),0)
+  // 기록 목록 반영 뒤 부모 프레임에 잠금 해제가 전달되는 시점까지 확인한다.
+  await page.getByRole('button',{name:'대화 보기',exact:true}).and(page.locator(':enabled')).waitFor()
   assert.equal(await page.getByRole('button',{name:'대화 보기',exact:true}).isEnabled(),true)
  })
  await check('작성 권한 철회는 기존 민감 입력을 숨기고 AI 근거·저장을 막는다',async()=>{
