@@ -3,7 +3,7 @@ import type { SearchKind } from '../search/contracts'
 import styles from './delivery-workspace.css?inline'
 import { specialistWorkflow, type SpecialistTask } from './specialist-workflows'
 
-export type DeliveryKind = 'messages' | 'collections' | 'documents' | 'timetable' | 'students' | 'schoolAdmin'
+export type DeliveryKind = 'messages' | 'collections' | 'documents' | 'timetable' | 'students' | 'schoolAdmin' | 'cooperation' | 'knowledge' | 'calendar'
 export interface DeliveryWorkspace {
   scope: string
   kind: DeliveryKind
@@ -11,12 +11,14 @@ export interface DeliveryWorkspace {
   request?: { key: string; id: string; version?: number }
   task?: SpecialistTask
 }
-export const deliveryLabels: Record<DeliveryKind, string> = { messages: '메시지 작성·확인', collections: '수합 작성·제출', documents: '문서 작성·파일 생성', timetable: '시간표 요청·확인', students: '수업·학생 기록', schoolAdmin: '학교 자료·인계' }
+export const deliveryLabels: Record<DeliveryKind, string> = { messages: '메시지 작성·확인', collections: '수합 작성·제출', documents: '문서 작성·파일 생성', timetable: '시간표 요청·확인', students: '수업·학생 기록', schoolAdmin: '학교 자료·인계', cooperation: '협업 요청·완료 확인', knowledge: '학교 자료·원문', calendar: '일정 작성·변경' }
 export const deliveryDraftSlots: Record<DeliveryKind, readonly string[]> = {
   messages: ['messaging-composer'], collections: ['collection-editor'],
   documents: ['document-editor', 'guided-documents'],
   timetable: ['timetable-', 'annual-operations'],
   students: ['teaching-', 'school-data-maintenance', 'student-'],
+  calendar: ['calendar-'],
+  cooperation: ['cooperation.editor'], knowledge: ['knowledge-editor', 'knowledge-import'],
   schoolAdmin: ['school-admin-editor', 'school-roster', 'teacher-roster-', 'school-transitions', 'school-configuration', 'school-preparation', 'school-ai-'],
 }
 export function hasDeliveryDraft(kind: DeliveryKind, slots: readonly string[]): boolean {
@@ -24,7 +26,7 @@ export function hasDeliveryDraft(kind: DeliveryKind, slots: readonly string[]): 
 }
 export function isDeliveryKind(value: string): value is DeliveryKind { return Object.hasOwn(deliveryLabels, value) }
 export function deliveryKind(kind: SearchKind): DeliveryKind | undefined {
-  return kind === 'message' ? 'messages' : kind === 'collection' ? 'collections' : kind === 'document' ? 'documents' : kind === 'course' ? 'students' : undefined
+  return kind === 'message' ? 'messages' : kind === 'collection' ? 'collections' : kind === 'document' ? 'documents' : kind === 'course' ? 'students' : kind === 'cooperation' ? 'cooperation' : kind === 'calendar' ? 'calendar' : undefined
 }
 
 // 대화와 업무 편집기는 각각 한 번만 마운트한다. 접어도 원문·요청 번호의 소유자는 바뀌지 않는다.

@@ -17,7 +17,7 @@ const source={id:'source-one',schoolId:teacher.schoolId,authorMemberId:teacher.i
 const course={id:'course-one',schoolId:teacher.schoolId,version:1,label:'가상 1학년 국어',termId:'term-one',subjectId:'korean',assignmentId:'assignment-one',validFrom:'2026-08-13',validThrough:'2027-02-28',canRecord:true,canCounsel:false,canManageRoster:true}
 const teaching={contractVersion:'teaching.v1',schoolId:teacher.schoolId,memberId:teacher.id,ownerUserId:teacher.userId}
 const qaTasks = createDialogueTaskFixture(teacher)
-w.qa={qaTasks,calls:[],failNext:false,defer:false,releases:[],deny(){denied=true;authChanged()},teachers:members}
+w.qa={setDate(value:string){context.basisDate=value;authChanged()},qaTasks,calls:[],failNext:false,defer:false,releases:[],deny(){denied=true;authChanged()},teachers:members}
 const services:any={getSession:async()=>({user:{id:teacher.userId}}),fetchMyProfile:async()=>({id:teacher.userId,name:teacher.name,email:'virtual@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:!denied}),onAuthStateChange(cb:any){authChanged=()=>cb({user:{id:teacher.userId}});return()=>{}},async signOut(){},async signInWithGoogle(){},async rpc(name:string,args:any){
  w.qa.calls.push(clone({name,args})); const ok=(data:any)=>({data,error:null})
  if(name==='workhub_context')return ok(clone(context))

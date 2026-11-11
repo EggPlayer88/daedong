@@ -1,3 +1,4 @@
+import type { WorkspacePlan } from './workspace-plan'
 import type { MemoryService } from './memory-contracts'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
@@ -92,6 +93,7 @@ export type Session = {
   intent: AssistantIntent
   prompt: string
   conversationFocus?: ConversationFocus
+  workspacePlan?: { plan: WorkspacePlan; scope: string; selectedId?: string }
   draftDialogue?: DraftFollowup
   calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string }
   references: AssistantContextRequest['references']

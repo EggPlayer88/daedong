@@ -1,6 +1,7 @@
 .assistant-delivery{min-width:0;color:var(--text)}
 .assistant-delivery [hidden]{display:none!important}
-.assistant-delivery-header{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.assistant-delivery-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;padding:18px 20px;border-bottom:1px solid var(--border)}
+.assistant-delivery-header>div:first-child{min-width:0;flex:1 1 14rem}
 .assistant-delivery-header span{font-size:.76rem;color:var(--muted)}
 .assistant-delivery-header h2{font-size:1.08rem;line-height:1.5;margin:4px 0 0;outline-offset:5px}
 .assistant-delivery-controls{display:flex;flex-wrap:wrap;gap:6px}
@@ -14,4 +15,4 @@
 .assistant-specialist-plan{margin:0 16px;border-bottom:1px solid var(--border)}
 .assistant-specialist-plan>summary{cursor:pointer;padding:9px 4px;font-size:.77rem;color:var(--muted)}
 .assistant-delivery-work :is(input,textarea,select){max-width:100%;box-sizing:border-box}
-@media(max-width:600px){.assistant-delivery-header{align-items:flex-start;flex-direction:column;padding:14px}.assistant-delivery-controls{width:100%}.assistant-delivery-controls button{flex:1}.assistant-delivery-work{padding:10px}}
+@media(max-width:600px){.assistant-delivery-header{align-items:flex-start;flex-direction:column;padding:14px}.assistant-delivery-header>div:first-child{flex-basis:auto}.assistant-delivery-controls{width:100%}.assistant-delivery-controls button{flex:1}.assistant-delivery-work{padding:10px}}

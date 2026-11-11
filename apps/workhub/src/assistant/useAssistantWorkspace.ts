@@ -1,3 +1,4 @@
+import { useWorkspacePlan } from './useWorkspacePlan'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
@@ -161,7 +162,7 @@ export function useAssistantWorkspace({
   }
   const enabled = activeAt(member, date),
     locked = Boolean(
-      workActive || session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked || workspaceOperation.locked,
+      workActive || session.workspacePlan || session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked || workspaceOperation.locked,
     ),
     baseEditable = !workActive && enabled && ready?.available === true && !busy && !recovery.request && !readError && !workspaceOperation.locked,
     editable = baseEditable && !memoryLocked
@@ -194,10 +195,15 @@ export function useAssistantWorkspace({
   const workspaceCommand = commandContext
     ? continuation.draftFollowup?.command ?? calendarFollowup ?? parseWorkspaceCommand(session.prompt, date)
     : null
-  const freeCommand = workspaceCommand && workspaceCommand.kind !== 'task'
+  const workspacePlan = useWorkspacePlan({ session, latest, scope: dialogueScope, date, active: commandContext && enabled,
+    editable: workspaceEditable && !operation.current, update,
+    feedback: (error, notice = '') => { setError(error); setNotice(notice) },
+    selected: () => { setWorkspaceResult(undefined); setWorkspaceActionNotice(undefined) },
+  })
+  const freeCommand = Boolean(workspacePlan.candidate) || (workspaceCommand && workspaceCommand.kind !== 'task')
   const promptLimit = freeCommand ? ASSISTANT_LIMITS.promptChars : conversationPromptLimit(conversationProfile.id, session.prompt)
-  const canSubmit = freeCommand ? workspaceEditable : editable
-  const submitLabel = continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+  const canSubmit = !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
+  const submitLabel = workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
     workspaceCommand?.kind === 'specialist' ? '업무 시작' :
     workspaceCommand?.kind === 'navigate' ? '바로 이동' :
@@ -208,7 +214,7 @@ export function useAssistantWorkspace({
     workspaceCommand?.kind === 'clarify' ? '요청 확인' : 'AI에게 요청'
   function update(value: Session) {
     latest.current = value
-    memory.save(value, Boolean(value.prompt.trim() || value.proposal || value.calendarDialogue || value.draftDialogue))
+    memory.save(value, Boolean(value.workspacePlan || value.prompt.trim() || value.proposal || value.calendarDialogue || value.draftDialogue))
     setSession(value)
   }
   useEffect(
@@ -556,6 +562,8 @@ export function useAssistantWorkspace({
   }
   function ask() {
     if (latest.current.draftDialogue) { void continuation.reply(); return }
+    if (workspacePlan.blockedSelection) { setError('계획의 기준 날짜가 바뀌었습니다. 입력을 유지했으니 현재 날짜로 다시 검토해 주세요.'); return }
+    if (workspacePlan.build()) return
     let command = workspaceCommand
     if (latest.current.calendarDialogue && !calendarFollowup) return
     if (calendarFollowup && workspaceEditable && !operation.current) {
@@ -829,6 +837,7 @@ export function useAssistantWorkspace({
     conversationProfile,
     setConversationFocus,
     workspaceOperation,
+    workspacePlan,
     contextRequest,
     date,
     draft,

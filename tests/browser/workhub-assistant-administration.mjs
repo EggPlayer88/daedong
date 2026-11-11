@@ -17,6 +17,12 @@ const writes = () => page.evaluate(() => window.calls.filter(x => x.name.endsWit
 async function start(section = 'transitions') { await page.setViewportSize({ width: 980, height: 900 }); await page.goto('http://127.0.0.1:5179/administration'); await page.evaluate(section => { window.initialSection = section }, section); await page.addScriptTag({ content: bundle.outputFiles[0].text }); await (section === 'settings' ? button('구성 수정') : button('업무 인계 준비')).waitFor() }
 async function test(name, action, section) { await start(section); try { await action() } catch (error) { console.error(await page.locator('body').innerText()); throw error } results.push(name); console.log('  ✓ ' + name) }
 async function prepare() { await button('업무 인계 준비').click(); await page.getByLabel('인수 교사', { exact: true }).selectOption('next'); await page.getByLabel('평가 자료 · 3판').check(); await page.getByLabel('인계 내용', { exact: true }).fill('담당 수합을 인계합니다.'); await button('변경 대상 미리보기').click(); await page.getByRole('region', { name: '인계 변경 미리보기' }).waitFor() }
+async function savedHandover() {
+  await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.', { exact: true }).waitFor()
+  // 저장 안내보다 한 렌더 늦게 전달되는 부모 잠금까지 해제돼야 다음 업무를 고를 수 있다.
+  await page.getByLabel('학교 관리 업무', { exact: true }).and(page.locator(':enabled')).waitFor()
+  await page.waitForFunction(() => window.locked === false && window.pending.count() === 0)
+}
 try {
   await test('학교 관리 분야는 선택한 인계 작업을 대화 안에서 바로 조회하고 쓰지 않는다', async () => {
     assert.equal(await page.getByLabel('학교 관리 업무', { exact: true }).inputValue(), 'transitions'); assert.equal(await page.getByRole('group', { name: '학교 관리 구분' }).count(), 0)
@@ -26,7 +32,7 @@ try {
   await test('인계는 최신 대상·제외 자료 미리보기와 별도 확인 후에만 요청한다', async () => {
     await prepare(); assert.deepEqual(await writes(), []); assert.equal(await button('확인한 변경 요청').isDisabled(), true)
     assert.match(await page.getByRole('region', { name: '인계 변경 미리보기' }).innerText(), /인수 교사/); assert.match(await page.locator('body').innerText(), /개인 상담과 학생 자료/)
-    await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check(); await button('확인한 변경 요청').click(); await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.', { exact: true }).waitFor()
+    await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check(); await button('확인한 변경 요청').click(); await savedHandover()
     assert.equal((await writes()).length, 1); assert.equal(await page.evaluate(() => window.locked), false)
   })
   await test('대화로 접었다 돌아와도 인계 원문·선택·미리보기는 그대로다', async () => {
@@ -43,7 +49,7 @@ try {
     await prepare(); await page.getByLabel('현재 대상과 변경 내용을 확인했습니다').check(); await page.evaluate(() => { window.mode = 'deferred' }); await button('확인한 변경 요청').click(); await page.waitForFunction(() => typeof window.release === 'function')
     assert.equal(await page.getByLabel('학교 관리 업무', { exact: true }).isDisabled(), true); assert.equal(await button('처리 결과 확인 중…').isDisabled(), true)
     await page.evaluate(() => { window.mode = 'lost_after_save'; window.release() }); await button('원래 인계 요청 결과 확인').waitFor(); assert.equal(await page.evaluate(() => window.applied), 1)
-    await page.evaluate(() => { window.mode = 'ok' }); await button('원래 인계 요청 결과 확인').click(); await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.', { exact: true }).waitFor()
+    await page.evaluate(() => { window.mode = 'ok' }); await button('원래 인계 요청 결과 확인').click(); await savedHandover()
     const calls = await writes(); assert.deepEqual(calls[0], calls[1]); assert.equal(await page.evaluate(() => window.applied), 1); assert.equal(await page.evaluate(() => window.pending.count()), 0)
   })
   await test('배경 원본 판 변경은 오래된 미리보기와 확인을 취소하고 입력은 남긴다', async () => {
@@ -65,7 +71,7 @@ try {
     await page.evaluate(() => { window.mode = 'lost_after_save' }); await button('확인한 변경 요청').click(); await button('원래 인계 요청 결과 확인').waitFor()
     await page.evaluate(() => { window.mode = 'ok'; window.remount() }); await button('원래 인계 요청 결과 확인').waitFor()
     assert.equal(await page.getByLabel('학교 관리 업무', { exact: true }).inputValue(), 'transitions'); await button('원래 인계 요청 결과 확인').click()
-    await page.getByText('인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.', { exact: true }).waitFor(); const calls = await writes(); assert.deepEqual(calls[0], calls[1]); assert.equal(await page.evaluate(() => window.applied), 1)
+    await savedHandover(); const calls = await writes(); assert.deepEqual(calls[0], calls[1]); assert.equal(await page.evaluate(() => window.applied), 1)
   }, 'settings')
   await test('조회 권한 실패 중 인계 입력을 숨겨 보존하고 재조회 후 복구한다', async () => {
     await prepare(); await page.evaluate(() => { window.failRead = true; window.refresh() }); await page.getByText('현재 인계 권한과 대상을 다시 확인할 때까지 보관한 입력을 숨깁니다.', { exact: true }).waitFor()

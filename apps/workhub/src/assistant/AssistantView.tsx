@@ -1,3 +1,4 @@
+import { WorkspacePlanCard } from './WorkspacePlanCard'
 import { AiMemoryPanel } from './AiMemoryPanel'
 import { WorkspaceIcon } from '../app/WorkspaceIcon'
 import { composeMemoryPrompt } from './memory-prompt'
@@ -442,6 +443,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               if (receipt) workspaceActions?.open({ kind: receipt.kind === 'taskChange' ? 'task' : 'calendar', id: receipt.id,
                 title: receipt.title, description: '', meta: '', version: receipt.version })
             } : undefined} />}
+          {enabled && <WorkspacePlanCard model={model.workspacePlan} hasInput={Boolean(session.prompt.trim())} />}
           {workspaceSearching && <p role="status" className="assistant-workspace-searching">열람 가능한 자료를 찾고 있습니다.</p>}
           {workspaceActionNotice && enabled && <section className="assistant-workspace-result" aria-label="대화 업무 처리 안내">
             <p className="assistant-command-question">{workspaceActionNotice.prompt}</p>
@@ -601,7 +603,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               </button>
             </div>
           </form>
-          {!readError && !loading && !workspaceResult && !continuing && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
+          {!readError && !loading && !workspaceResult && !session.workspacePlan && !continuing && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
             <div className="assistant-welcome">
               <h3>이렇게 시작해 보세요</h3>
               <div className="assistant-starters" aria-label="대화 시작 예시">
