@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+대화 중심 AI 9차: `test_workhub_approval_results.mjs`는 승인·인계·문서·HWPX 결과의 단계와 첫 원본·날짜·출처를, `browser/workhub-approval-result-events.mjs`, `workhub-document-result-events.mjs`, `workhub-plan-approval-connected.mjs`는 실제 React·어댑터·연결 셸에서 원키 복구와 늦은 결과·후속 조회 실패를 검증한다. 생성·저장·제출은 구분하며 DB·Storage·provider 응답만 합성한다. [9차 검증 기록](../docs/ai-workspace/approval-artifacts-verification.md).
+
 대화 중심 AI 3차: `test_workhub_assistant_specialists.mjs`와 `browser/workhub-assistant-specialists.mjs`, `workhub-assistant-timetable.mjs`, `workhub-assistant-teaching.mjs`, `workhub-assistant-administration.mjs`는 전문 업무 입구·원본 선택·영향 비교·명시 확인·원키 복구를 확인한다. 실제 운영 쓰기와 유료 AI 호출 없이 기존 React/어댑터를 사용한다. [3차 검증 기록](../docs/ai-workspace/specialists-verification.md).
 
 대화 중심 AI 2차: `browser/workhub-collection-conversation.mjs`는 대화 안 초안/공개/최종 제출과 생성물 선택 해제를, `browser/workhub-assistant-documents.mjs`는 실제 HWPX 생성·파일 해시·수합 제출을, `browser/workhub-assistant-dock.mjs`는 처리 중 Escape 닫기 보호를 검증한다. 기존 메시지·문서·질문형 AI·교차 모듈 회귀에도 대화 패널의 단일 편집기와 원키 복구를 포함한다. [2차 검증 기록](../docs/ai-workspace/delivery-verification.md).

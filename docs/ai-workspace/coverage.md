@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-12. 기준은 PR #124와 이번 메시지·수합·시간표 처리 이력 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-12. 기준은 PR #125와 이번 승인·인계·문서 생성 결과 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -23,6 +23,8 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md), [plan-continuation-verification.md](plan-continuation-verification.md)에 유지하고, 이번 실행 결과는 [workflow-results-verification.md](workflow-results-verification.md)에 구분한다.
 
 ## 이번에 보완한 공통 업무 진행
+
+- **승인·인계·문서 결과:** T3 approve/applied, 인계 신청·관리자 확인·수락/반려, 문서함 저장·내용 확인·보관, HWPX 생성 결과를 같은 열린 업무 화면에서 받는다. 단계별 의미와 첫 원본·복구·늦은 응답을 검증했다. 새 경로 수나 자연어 완료율을 늘리지 않으며 상세 근거는 [9차 검증](approval-artifacts-verification.md)에 둔다.
 
 - **목록 이어가기:** “다음 업무”, “2번 단계”, “업무 목록 보여줘”로 나누어 둔 요청을 확인하고 다음 입력을 준비한다. 선택만으로 화면을 실행하거나 업무를 저장하지 않는다. 기존 업무를 잇는 공통 제어이므로 집계를 늘리지 않으며, 기존 61개 업무와 55개 내부 지원 경로를 유지한다.
 - **처리 결과 구분:** 화면을 연 단계에는 “화면 연결됨”, 검증된 개인 할 일 변경·개인 일정 등록 접수증에는 “서버 처리 확인”을 표시한다. 8차는 메시지·수합·T2 승인 패널의 검증된 접수 뒤 “처리 내역 확인”을 추가하고 초안 저장·공개·최종 제출 등 실제 행위를 구분한다. 초안 저장을 전체 업무 완료로 표시하지 않는다.
