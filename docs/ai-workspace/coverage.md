@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-11. 기준은 4차 후속 기준 커밋 `29ecc11b`와 이번 오늘 업무·급식·알림·할 일 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-11. 기준은 5차 후속 기준 커밋 `24e05f75`와 이번 실제 수업 요약·평가계획서 화면 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -13,29 +13,27 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 | 구분 | 업무 수 | 의미 |
 |---|---:|---|
 | AI 기본 화면·확인 카드 | 9 | AI 기본 화면에서 질문·정보 보완·확인 카드 사용 |
-| AI 안 기존 업무 패널 | 45 | 대화에서 기존 편집기·조회·확정 화면을 내부 패널로 사용 |
-| 일반 업무 화면 연결 | 1 | 일반 메뉴로 이동해 업무 수행 |
+| AI 안 기존 업무 패널 | 46 | 대화에서 기존 편집기·조회·확정 화면을 내부 패널로 사용 |
+| 기존 업무 화면 연결·새 탭 | 2 | 평가계획서 작성·제출 화면을 사용자가 링크를 눌러 새 탭에서 사용 |
 | 외부 도구 단계 필요 | 1 | 로컬 계산 작업자 등 사이트 밖 단계 포함 |
-| AI 업무 연결 없음 | 5 | 기존 기능은 유지되지만 AI가 해당 업무를 이어 받지 못함 |
+| AI 업무 연결 없음 | 3 | 기존 기능은 유지되지만 AI가 해당 업무를 이어 받지 못함 |
 
-**AI 작업 공간 안의 지원 경로: 54/61개 (88.5%).** 이 중 9개는 AI 기본 화면·확인 카드, 45개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니며, AI 내부 경로도 아직 90%에 이르지 않았다.** 최종 확인·후보 선택·파일 선택 같은 기존 화면 조작을 포함한다.
+**AI 작업 공간 안의 지원 경로: 55/61개 (90.2%).** 이 중 9개는 AI 기본 화면·확인 카드, 46개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니다.** 기존 화면의 최종 확인·후보 선택·파일 선택을 포함한다. 이번 연결로 사용자의 목표인 “AI 대화만으로 90% 이상 완료”를 달성했다고 판단하지 않는다. 평가계획서 작성·제출의 새 탭 링크 2개도 이 55개에 넣지 않았다.
 
-AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **26/61개 (42.6%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 4차의 역사적 실행 기록은 [completion-verification.md](completion-verification.md)를 유지하고 이번 실행 결과는 [daily-actions-verification.md](daily-actions-verification.md)에서 구분한다.
+AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md)와 [daily-actions-verification.md](daily-actions-verification.md)에 유지하고, 이번 실행 결과는 [lessons-seasonal-verification.md](lessons-seasonal-verification.md)에 구분한다.
 
 ## 이번에 연결한 범위
 
-- **W04:** 할 일 제목 정정·다시 시작·상태 변경을 후보 선택 → 원본 비교 → 명시 확인 카드 → 같은 요청 번호의 저장·복구로 연결했다.
-- **H02:** 날짜별 급식을 AI 안 기존 조회 패널에서 확인한다. 대화 요청으로 급식을 새로 수집하거나 유료 AI를 호출하지 않는다.
-- **H01 부분 연결:** 할 일·관련 일정·수합·메시지·학생 후속 업무를 AI 안에서 조회한다. 실제 수업 시각·시간표 요약은 이번 패널에 없어 H01 전체는 기존 화면 연결로 남겼으며 54개에 포함하지 않는다.
-- **M03:** 알림 목록·필터·재조회와 지원 원본 열기를 AI 내부로 연결했다. 알림을 여는 것과 읽음·업무 확정은 별개다.
+- **H01:** 오늘 업무·기한·수합 요약에 T2 날짜별 수업을 함께 표시한다. 실제 수업 시각과 교환·휴업 취소 상태를 우선하며, 기본 배치표는 접힌 참고 자료로 구분한다. 실제 수업의 원본 번호와 날짜를 유지해 상세 화면으로 연결한다.
+- **L01·L02:** “평가계획서 작성 화면 열어줘”, “평가계획서 제출 화면 보여줘”처럼 명시적으로 화면 열기를 요청하면 새 탭 링크를 제공한다. 기간 업무 표시 설정과 기존 메뉴 범위를 유지하며, 링크는 사용자가 눌러야 열린다. 실제 생성·제출은 원래 화면에서 확인한다.
+- **평가계획서의 근거 한계:** AI 카드와 사이트 연결, 기존 작성·제출 기능의 회귀를 조합했다. 대화 시작부터 실제 HWPX 생성·제출까지 한 번에 수행한 통합 시험으로 표시하지 않는다. AI 호출·비용·파일 생성 방식을 바꾸지 않았다.
 
 ## 남은 연결의 우선순위
 
-1. 오늘 업무와 실제 날짜별 수업의 통합 조회(H01): 수업 시각·시간표 요약을 AI 내부 홈에 연결하고 기존 원본 조회·충돌·미준비 표시를 보존해야 한다.
-2. 평가계획서 작성·제출(L01·L02): 일반 HWPX 수합과 다른 기존 전용 흐름이다. 기간 업무 메뉴 및 기존 파일 엔진을 유지한 채 연결을 별도 검토해야 한다.
+1. 연결된 55개 업무의 자연어 안내와 직접 회귀 근거 확대: 현재는 27개 업무의 대표 결과에 직접 근거가 있다. 여러 세부 작업의 연쇄 처리·운영 동시성·실제 AI 답변 품질은 별도 검증한다.
+2. 평가계획서 작성·제출(L01·L02)의 내부 작업 연결: 이번에는 명시적인 새 탭 링크까지만 지원한다. 기존 전용 파일 엔진·비용·기간 업무 메뉴를 유지한 실제 작성·생성·제출의 내부 연결은 별도 범위다.
 3. 사용자 승인·전역 권한·기간 업무·개인화 설정(L03~L05): 관리자 또는 개인 설정의 명시 확인이 필요하며 현재 AI 명령으로 대신 변경하지 않는다.
 4. 시간표 계산 작업자(T03): 로컬 실행과 결과 가져오기는 외부 단계로 유지한다. 웹 대화만으로 계산 실행을 완료했다고 보고하지 않는다.
-5. 연결된 54개 업무의 자연어 안내와 직접 회귀 근거 확대: 현재는 26개 업무의 대표 결과에 직접 근거가 있다. 여러 세부 작업의 연쇄 처리·운영 동시성·실제 AI 답변 품질은 별도 검증한다.
 
 공유·대상 지정·여러 날짜 일정, 기존 일정 변경, 일괄 입력은 원래 일정 편집기와 미리보기 계약을 AI 패널 안에서 이용한다. 자연어가 일정의 모든 필드를 자동 입력하거나 저장을 자동 확정하는 뜻은 아니다.
 
@@ -158,15 +156,15 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
-| H01 | 오늘 업무·기한·수업·수합 요약 조회 | 일반 업무 화면 연결 | 조합 | 할 일·관련 일정·수합·메시지·학생 후속 업무는 AI 안에서 조회하며 실제 수업 시각을 포함한 전체 홈 요약은 기존 화면에서 확인. AI 조회와 할 일·대화 목록 연결에는 직접 회귀가 있으나 실제 수업 시각·시간표 요약은 이번 패널에 포함되지 않아 H01 전체를 AI 안 완료로 집계하지 않음. [workhub-assistant-daily](../../tests/browser/workhub-assistant-daily.mjs) · [workhub-assistant-daily-connected](../../tests/browser/workhub-assistant-daily-connected.mjs) · [AssistantDailyWorkspace](../../apps/workhub/src/assistant/AssistantDailyWorkspace.tsx) · [workhub-home-overview](../../tests/browser/workhub-home-overview.mjs) · [workhub-home-grid](../../tests/browser/workhub-home-grid.mjs) |
+| H01 | 오늘 업무·기한·수업·수합 요약 조회 | AI 안 기존 업무 패널 | 직접 | 오늘 업무·기한·수합과 T2 날짜별 수업의 실제 시각·교환·휴업 취소 상태를 AI 안에서 조회하고 원본 수업으로 연결. 공개된 날짜별 수업을 우선하며 기본 배치표는 접힌 참고 자료로 구분; 미준비·오류·수업 없음은 별도 표시하고 조회만으로 저장·변경·유료 AI를 실행하지 않음. [workhub-assistant-daily-lessons](../../tests/browser/workhub-assistant-daily-lessons.mjs) · [workhub-assistant-lessons-connected](../../tests/browser/workhub-assistant-lessons-connected.mjs) · [workhub-assistant-daily-connected](../../tests/browser/workhub-assistant-daily-connected.mjs) · [workhub-assistant-daily](../../tests/browser/workhub-assistant-daily.mjs) · [AssistantDailyWorkspace](../../apps/workhub/src/assistant/AssistantDailyWorkspace.tsx) · [TimetableAgendaPanel](../../apps/workhub/src/timetable/TimetableAgendaPanel.tsx) |
 | H02 | 학교 급식 조회 | AI 안 기존 업무 패널 | 직접 | 오늘·내일·명시 날짜의 나이스 급식과 갱신 상태를 대화 안에서 조회. 학교 기준일의 소속으로 검증하고 날짜 선택·미연결·실패를 구분; 자동 갱신은 기존 서버 작업이며 대화 요청으로 새로 수집하거나 유료 AI를 호출하지 않음. [workhub-assistant-daily](../../tests/browser/workhub-assistant-daily.mjs) · [workhub-assistant-daily-connected](../../tests/browser/workhub-assistant-daily-connected.mjs) · [NeisMeals](../../apps/workhub/src/neis/NeisMeals.tsx) |
 
 ### 기존·공통 사이트
 
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
-| L01 | 평가계획서 AI 작성·HWPX 생성 | AI 업무 연결 없음 | 코드 | 기존 평가계획서 화면의 작성·생성. AI 작업 패널에서 기존 평가계획서 전용 흐름을 실행하지 않음. [DocAiPage](../../apps/main/src/pages/DocAiPage.jsx) · [DOC_AI_MASTER_PLAN](../../docs/DOC_AI_MASTER_PLAN.md) |
-| L02 | 평가계획서 제출·담당자 수합 | AI 업무 연결 없음 | 코드 | 기존 제출 화면의 파일·접수·담당자 확인. 일반 문서 수합과 별개 기존 기능이며 AI 대화 연결 완료에 포함하지 않음. [SubmissionsPage](../../apps/main/src/pages/SubmissionsPage.jsx) · [test_submissions](../../tests/test_submissions.mjs) |
+| L01 | 평가계획서 AI 작성·HWPX 생성 | 기존 업무 화면 연결·새 탭 | 조합 | 대화의 명시적 화면 열기 요청에서 기간 업무 표시·기존 메뉴 범위를 확인한 뒤 평가계획서 작성 화면을 새 탭으로 연결. 새 탭 링크를 직접 눌러 기존 화면에서 작성·AI 실행·HWPX 생성을 진행; AI 내부 완료에 포함하지 않으며 링크·기존 업무 시험의 조합은 실제 생성·제출까지의 단일 통합 시험이 아님. [test_workhub_evaluation_command](../../tests/test_workhub_evaluation_command.mjs) · [test_site_ai_evaluation_links](../../tests/test_site_ai_evaluation_links.mjs) · [workhub-assistant-evaluation](../../tests/browser/workhub-assistant-evaluation.mjs) · [site-ai-evaluation-bridge](../../tests/browser/site-ai-evaluation-bridge.mjs) · [evaluation-workspace](../../apps/workhub/src/assistant/evaluation-workspace.tsx) · [legacy-evaluation-links](../../apps/main/src/site/legacy-evaluation-links.js) · [DocAiPage](../../apps/main/src/pages/DocAiPage.jsx) · [DOC_AI_MASTER_PLAN](../../docs/DOC_AI_MASTER_PLAN.md) |
+| L02 | 평가계획서 제출·담당자 수합 | 기존 업무 화면 연결·새 탭 | 조합 | 대화의 명시적 화면 열기 요청에서 기간 업무 표시·기존 메뉴 범위를 확인한 뒤 평가계획서 제출 화면을 새 탭으로 연결. 새 탭 링크를 직접 눌러 기존 화면에서 파일 제출·담당자 수합을 진행; AI 내부 완료에 포함하지 않으며 링크·기존 업무 시험의 조합은 실제 생성·제출까지의 단일 통합 시험이 아님. [test_workhub_evaluation_command](../../tests/test_workhub_evaluation_command.mjs) · [test_site_ai_evaluation_links](../../tests/test_site_ai_evaluation_links.mjs) · [workhub-assistant-evaluation](../../tests/browser/workhub-assistant-evaluation.mjs) · [site-ai-evaluation-bridge](../../tests/browser/site-ai-evaluation-bridge.mjs) · [evaluation-workspace](../../apps/workhub/src/assistant/evaluation-workspace.tsx) · [legacy-evaluation-links](../../apps/main/src/site/legacy-evaluation-links.js) · [SubmissionsPage](../../apps/main/src/pages/SubmissionsPage.jsx) · [test_submissions](../../tests/test_submissions.mjs) |
 | L03 | 사용자 가입 승인·전역 계정 권한 | AI 업무 연결 없음 | 코드 | 기존 사용자 관리 화면의 승인. AI로 관리자 권한을 부여하는 기능 아님. [AdminUsersPage](../../apps/main/src/pages/AdminUsersPage.jsx) · [modules](../../apps/main/src/lib/modules.js) |
 | L04 | 기간 업무 메뉴 표시·숨김 설정 | AI 업무 연결 없음 | 코드 | 기존 기간 업무 관리 화면의 설정. 원래 관리자 수동 설정이며 메뉴 공개 범위 유지. [test_site_seasonal](../../tests/test_site_seasonal.mjs) · [modules](../../apps/main/src/lib/modules.js) |
 | L05 | 내 계정·화면 표시·접근성 설정 | AI 업무 연결 없음 | 코드 | 현재 계정·글자 크기·화면 설정. 설정 UI는 유지하지만 대화에서 값을 바꾸는 명령 없음. [modules](../../apps/main/src/lib/modules.js) · [workhub-ui-renewal](../../tests/browser/workhub-ui-renewal.mjs) |
