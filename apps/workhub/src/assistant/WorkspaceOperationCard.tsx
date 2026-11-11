@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react'
 import type { WorkspaceOperationReceipt, WorkspaceOperationReview, WorkspaceOperationStatus } from './workspace-operations'
 import operationStyles from './workspace-operations.css?inline'
+import { taskChangeConfirmLabel } from '../tasks/assistant-change'
 
 export interface WorkspaceOperationCardProps {
   review: WorkspaceOperationReview
@@ -45,7 +46,7 @@ function WorkspaceOperationCardContent({ review, status, receipt, error, onConfi
     {status === 'pending' && <p className="workspace-operation-note" role="status">저장이 처리된 뒤 응답만 끊겼을 수 있습니다. 같은 내용과 요청 번호로 결과를 확인합니다. 확인 전에는 새 작업을 저장하지 않습니다.</p>}
     {saved && <p className="workspace-operation-note" role="status">{receipt.title} · 저장된 원본 v{receipt.version}</p>}
     <div className="workspace-operation-actions">
-      {status === 'review' && <button type="button" className="workspace-operation-primary" onClick={onConfirm}>{task?.command.kind === 'status' ? '확인한 할 일 완료' : task ? '확인한 변경 저장' : '확인한 일정 등록'}</button>}
+      {status === 'review' && <button type="button" className="workspace-operation-primary" onClick={onConfirm}>{task ? taskChangeConfirmLabel(task) : '확인한 일정 등록'}</button>}
       {status === 'pending' && <button type="button" className="workspace-operation-primary" onClick={onRetry}>같은 요청으로 저장 결과 확인</button>}
       {saved && onOpenResult && <button type="button" className="workspace-operation-primary" onClick={onOpenResult}>저장된 원본 보기</button>}
       {status === 'review' && onOpenEditor && <button type="button" className="workspace-operation-secondary" onClick={onOpenEditor}>편집 화면에서 계속</button>}

@@ -1,4 +1,5 @@
 import type { WorkspacePlan } from './workspace-plan'
+import type { DailyCommand } from './daily-command'
 import type { MemoryService } from './memory-contracts'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
@@ -38,6 +39,7 @@ export interface AssistantWorkspaceSearchResult {
 export interface AssistantWorkspaceActions {
   deliveryInConversation?: boolean
   specialist?: (command: SpecialistCommand) => boolean
+  daily?: (command: DailyCommand) => boolean
   navigate: (page: PageId) => boolean
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean

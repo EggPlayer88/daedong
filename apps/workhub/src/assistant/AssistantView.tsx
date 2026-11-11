@@ -558,7 +558,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <details className="assistant-command-help">
                 <summary>대화로 할 수 있는 일</summary>
                 <div className="assistant-command-examples">
-                {['시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].map((text) => (
+                {['오늘 업무 요약해줘', '내일 급식 알려줘', '업무 알림 보여줘', '할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘', '할 일 자료 점검 다시 시작해줘', '시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].map((text) => (
                   <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
                 ))}

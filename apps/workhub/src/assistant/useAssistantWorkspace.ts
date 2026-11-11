@@ -204,6 +204,7 @@ export function useAssistantWorkspace({
   const promptLimit = freeCommand ? ASSISTANT_LIMITS.promptChars : conversationPromptLimit(conversationProfile.id, session.prompt)
   const canSubmit = !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
   const submitLabel = workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+    workspaceCommand?.kind === 'daily' ? '학교 자료 확인' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
     workspaceCommand?.kind === 'specialist' ? '업무 시작' :
     workspaceCommand?.kind === 'navigate' ? '바로 이동' :
@@ -577,6 +578,16 @@ export function useAssistantWorkspace({
       if (command.kind === 'clarify') {
         setNotice(command.message)
         setError('')
+        return
+      }
+      if (command.kind === 'daily') {
+        if (!workspaceActions?.daily?.(command)) {
+          setError('조회 화면을 열지 못했습니다. 작성 중인 내용이나 결과 확인을 먼저 마쳐 주세요. 요청은 유지했습니다.')
+          return
+        }
+        setWorkspaceActionNotice({ prompt: latest.current.prompt, message: '학교 자료 조회 화면을 열었습니다. 조회만으로 업무를 변경하지 않습니다.' })
+        setWorkspaceResult(undefined); setNotice(''); setError('')
+        update({ ...latest.current, prompt: '' })
         return
       }
       if (command.kind === 'specialist') {

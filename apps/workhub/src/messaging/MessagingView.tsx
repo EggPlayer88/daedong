@@ -11,6 +11,7 @@ import { timeLabel, sourceLabels } from './workspace-model'
 import type { useMessagingWorkspace } from './useMessagingWorkspace'
 export function MessagingView({ model }: { model: ReturnType<typeof useMessagingWorkspace> }) {
   const {
+    showThreadList,
     busy,
     canOpenSource,
     canRead,
@@ -112,7 +113,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
       <header className="messaging-header ws-page-intro">
         <div>
           <h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>
-            {assistant ? '메시지 보내기' : '메시지와 알림'}
+            {assistant ? tab === 'inbox' ? '업무 알림' : '메시지 보내기' : '메시지와 알림'}
           </h2>
 
         </div>
@@ -509,8 +510,8 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               onEdit={() => setPreview(null)}
             />
           )}
-          {assistant && !composing && !pending && !delivered && !composeRequest && !openedId && <button type="button" className="messaging-primary" onClick={() => start()}>메시지 작성</button>}
-          {!assistant && <div className="messaging-filters">
+          {assistant && tab === 'messages' && !composing && !pending && !delivered && !composeRequest && !openedId && <button type="button" className="messaging-primary" onClick={() => start()}>메시지 작성</button>}
+          {(!assistant || tab === 'inbox' || showThreadList) && <div className="messaging-filters">
             <label className="messaging-check">
               <input
                 type="checkbox"
@@ -527,9 +528,9 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               새로고침
             </button>
           </div>}
-          {(!assistant || openedId) && (tab === 'messages' ? (
+          {(!assistant || openedId || tab === 'inbox' || showThreadList) && (tab === 'messages' ? (
             <div className="messaging-grid">
-              {!assistant && <section className="messaging-panel" aria-label="대화 목록">
+              {(!assistant || showThreadList) && <section className="messaging-panel" aria-label="대화 목록">
                 <form
                   className="messaging-filters"
                   onSubmit={(event) => {

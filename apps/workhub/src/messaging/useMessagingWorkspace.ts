@@ -37,6 +37,8 @@ import {
 } from './workspace-model'
 export function useMessagingWorkspace({
   presentation = 'page',
+  initialTab = 'messages',
+  showThreadList = false,
   openRequest,
   onReturnToSource,
   connection,
@@ -89,7 +91,7 @@ export function useMessagingWorkspace({
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const [conflict, setConflict] = useState(false)
   const [fileLocked, setFileLocked] = useState(false)
-  const [tab, setTab] = useState<'messages' | 'inbox'>('messages')
+  const [tab, setTab] = useState<'messages' | 'inbox'>(() => restored?.composing || restoredPending || composeRequest || openRequest ? 'messages' : initialTab)
   const [readiness, setReadiness] = useState<MessagingReadiness | null>(null)
   const [readyError, setReadyError] = useState(''),
     [checking, setChecking] = useState(true),
@@ -252,14 +254,14 @@ export function useMessagingWorkspace({
     }
   }, [server, member.id, enabled, revision, refresh])
   useEffect(() => {
-    if (!usable || presentation === 'assistant') return
-    void loadThreads(false)
-    void loadInbox(false)
+    if (!usable || (presentation === 'assistant' && tab !== 'inbox' && !showThreadList)) return
+    if (presentation !== 'assistant' || showThreadList) void loadThreads(false)
+    if (presentation !== 'assistant' || tab === 'inbox') void loadInbox(false)
     return () => {
       listGeneration.current++
       inboxGeneration.current++
     }
-  }, [server, usable, search, unreadOnly, refresh, revision, presentation])
+  }, [server, usable, search, unreadOnly, refresh, revision, presentation, tab, showThreadList])
   useEffect(() => {
     if (!usable || !composing || draft.thread) return
     void loadRecipients(false)
@@ -662,6 +664,7 @@ export function useMessagingWorkspace({
 
   return {
     presentation,
+    showThreadList,
     busy,
     canOpenSource,
     canRead,

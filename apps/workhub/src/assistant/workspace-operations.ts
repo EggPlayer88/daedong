@@ -5,7 +5,7 @@ import { validateAssistantCalendarDraftRequest, type AssistantCalendarDraftReque
 import { eventResponse } from '../connection/validation'
 import { canonical, isoDate, object } from '../services/service-values'
 import { TaskError, type PersonalTask, type TaskAdapter } from '../tasks/contracts'
-import { taskIdentifier, taskRequestKey, taskResponse, taskVersion } from '../tasks/validation'
+import { taskIdentifier, taskRequestKey, taskResponse, taskStatus, taskVersion } from '../tasks/validation'
 import { changedTaskMessage, reviewAssistantTaskChange, verifyTaskChangeReceipt, type AssistantTaskChangeRequest, type TaskChangeReview } from '../tasks/assistant-change'
 
 interface OperationContext {
@@ -51,9 +51,12 @@ function context(key: string, title: string, member: Membership, date: string): 
 function taskRequest(raw: unknown): AssistantTaskChangeRequest {
   if (!object(raw) || !object(raw.change)) invalid()
   const change = raw.change
-  if (change.kind === 'complete') {
+  if (change.kind === 'complete' || change.kind === 'restart') {
     if (Object.keys(change).length !== 1) invalid()
-  } else if ((change.kind !== 'notes' && change.kind !== 'dueDate') || typeof change.value !== 'string' || Object.keys(change).length !== 2) invalid()
+  } else if (change.kind === 'status') {
+    if (Object.keys(change).length !== 2) invalid()
+    taskStatus(change.value)
+  } else if (!['notes', 'dueDate', 'title'].includes(change.kind as string) || typeof change.value !== 'string' || Object.keys(change).length !== 2) invalid()
   taskRequestKey(raw.key); taskIdentifier(raw.taskId); taskIdentifier(raw.schoolId); taskIdentifier(raw.memberId); taskVersion(raw.expectedVersion); isoDate(raw.basisDate)
   if (typeof raw.title !== 'string') invalid()
   return structuredClone(raw) as unknown as AssistantTaskChangeRequest
