@@ -1,0 +1,253 @@
+{
+  "date": "2026-10-28",
+  "appReviewCommit": "f5b1151f5ae14c515a6fd3adc0ea1a6cfee91a0f",
+  "documentationOnly": true,
+  "remoteCheckedAt": "2026-10-28T12:28:59.641860+00:00",
+  "mainChecks": [
+    {
+      "name": "test",
+      "status": "completed",
+      "conclusion": "success",
+      "details_url": "https://github.com/EggPlayer88/daedong/actions/runs/40640811751/job/122658256546",
+      "completed_at": "2026-10-28T06:32:07Z"
+    }
+  ],
+  "production": {
+    "id": 7378312460,
+    "sha": "f5b1151f5ae14c515a6fd3adc0ea1a6cfee91a0f",
+    "createdAt": "2026-10-28T05:56:26Z",
+    "status": [
+      {
+        "state": "success",
+        "environment_url": "https://daedong-5o0u4ptdw-eggplayer88s-projects.vercel.app",
+        "log_url": "https://daedong-5o0u4ptdw-eggplayer88s-projects.vercel.app",
+        "created_at": "2026-10-28T05:56:27Z"
+      }
+    ]
+  },
+  "mergedPullRequests": [
+    {
+      "number": 85,
+      "title": "홈·시간표·AI 옆자리 중심의 UI·UX 개편",
+      "url": "https://github.com/EggPlayer88/daedong/pull/85",
+      "merged": true,
+      "mergeCommit": "87cbd411df4256c79af864e60cb9946ca4322a22",
+      "mergedAt": "2026-10-26T04:28:02Z",
+      "baseSha": "df9f30614621aa67ee96ddffd7bb0303d70d3c47"
+    },
+    {
+      "number": 86,
+      "title": "편성 안내·AI 입력·시간표 밀도와 업무 참여 화면 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/86",
+      "merged": true,
+      "mergeCommit": "71c04e7b22a6acb68a12f0d5ea95c30c78ff2f3e",
+      "mergedAt": "2026-10-26T11:50:19Z",
+      "baseSha": "87cbd411df4256c79af864e60cb9946ca4322a22"
+    },
+    {
+      "number": 87,
+      "title": "메신저·수합·내 업무 입력 화면을 공통 구성으로 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/87",
+      "merged": true,
+      "mergeCommit": "8ecc65a71083679aea1f9e0d0320fb96e0fadc0a",
+      "mergedAt": "2026-10-26T23:48:46Z",
+      "baseSha": "71c04e7b22a6acb68a12f0d5ea95c30c78ff2f3e"
+    },
+    {
+      "number": 88,
+      "title": "일정·협업·인계의 입력과 처리 화면을 한 흐름으로 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/88",
+      "merged": true,
+      "mergeCommit": "421d4b75a80a2bc13c44a1ece0c1fc68af3ffd7f",
+      "mergedAt": "2026-10-26T23:56:10Z",
+      "baseSha": "71c04e7b22a6acb68a12f0d5ea95c30c78ff2f3e"
+    },
+    {
+      "number": 89,
+      "title": "시간표 준비·조건·결과·교환·승인 화면 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/89",
+      "merged": true,
+      "mergeCommit": "22ecd9909eff07fd0bfbfa1881ff9d2614b92401",
+      "mergedAt": "2026-10-27T01:06:46Z",
+      "baseSha": "421d4b75a80a2bc13c44a1ece0c1fc68af3ffd7f"
+    },
+    {
+      "number": 90,
+      "title": "학교·수업 자료 관리와 학생 기록 화면 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/90",
+      "merged": true,
+      "mergeCommit": "5f8844b8aa12df03c50c752c97d291f068dabcfe",
+      "mergedAt": "2026-10-27T02:33:13Z",
+      "baseSha": "22ecd9909eff07fd0bfbfa1881ff9d2614b92401"
+    },
+    {
+      "number": 91,
+      "title": "문서함·학교 자료·질문형 양식 화면 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/91",
+      "merged": true,
+      "mergeCommit": "807d7ba5e9d6dedf29274739f1f085d63e59efaf",
+      "mergedAt": "2026-10-27T04:31:39Z",
+      "baseSha": "5f8844b8aa12df03c50c752c97d291f068dabcfe"
+    },
+    {
+      "number": 92,
+      "title": "AI 답변·근거·개인 기억·관리자 설정 화면 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/92",
+      "merged": true,
+      "mergeCommit": "7e34dbefa7c05f2b69b3295188916fbf542970ee",
+      "mergedAt": "2026-10-27T06:08:20Z",
+      "baseSha": "807d7ba5e9d6dedf29274739f1f085d63e59efaf"
+    },
+    {
+      "number": 93,
+      "title": "공통 메뉴·검색·알림·모바일 이동과 상태 안내 정리",
+      "url": "https://github.com/EggPlayer88/daedong/pull/93",
+      "merged": true,
+      "mergeCommit": "429dde75976b99d9bd192ec5e8959a75a411f7d1",
+      "mergedAt": "2026-10-27T07:16:33Z",
+      "baseSha": "7e34dbefa7c05f2b69b3295188916fbf542970ee"
+    },
+    {
+      "number": 94,
+      "title": "기존 업무·화면 간 이동·모바일 전체 UI 마감",
+      "url": "https://github.com/EggPlayer88/daedong/pull/94",
+      "merged": true,
+      "mergeCommit": "7e12b19eae2f90fb233d4db2fc060cfc46ed8b18",
+      "mergedAt": "2026-10-27T11:33:52Z",
+      "baseSha": "429dde75976b99d9bd192ec5e8959a75a411f7d1"
+    },
+    {
+      "number": 95,
+      "title": "핵심 업무 흐름 확인과 첫 화면 로딩 개선",
+      "url": "https://github.com/EggPlayer88/daedong/pull/95",
+      "merged": true,
+      "mergeCommit": "f598e242d81d97a746521c80a28d7a61ac5b4c9d",
+      "mergedAt": "2026-10-28T00:21:04Z",
+      "baseSha": "7e12b19eae2f90fb233d4db2fc060cfc46ed8b18"
+    },
+    {
+      "number": 96,
+      "title": "협업 완료 흐름·작은 화면과 요청 복구 안내 보완",
+      "url": "https://github.com/EggPlayer88/daedong/pull/96",
+      "merged": true,
+      "mergeCommit": "7269bb64b8ef4b45fe8d3f8fdf3577c57a938e3d",
+      "mergedAt": "2026-10-28T01:44:17Z",
+      "baseSha": "f598e242d81d97a746521c80a28d7a61ac5b4c9d"
+    },
+    {
+      "number": 97,
+      "title": "인계·문서·수합 처리 중 안내 및 완료 흐름 점검",
+      "url": "https://github.com/EggPlayer88/daedong/pull/97",
+      "merged": true,
+      "mergeCommit": "f5b1151f5ae14c515a6fd3adc0ea1a6cfee91a0f",
+      "mergedAt": "2026-10-28T05:55:45Z",
+      "baseSha": "7269bb64b8ef4b45fe8d3f8fdf3577c57a938e3d"
+    }
+  ],
+  "priorAutomatedEvidence": {
+    "unitPassed": 5204,
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "postMergeBrowserSuites": {
+      "workhub-school-transitions": 53,
+      "workhub-document-collection-flow": 11,
+      "workhub-collection-server": 38,
+      "workhub-document-library-ui": 14,
+      "workhub-coordination-ui": 8,
+      "workhub-cooperation-batch": 22,
+      "workhub-accessibility": 24,
+      "workhub-mobile-navigation": 16
+    },
+    "postMergeBrowserPassed": 186,
+    "localSupplementalImePassed": 8,
+    "supplementalTotal": 194,
+    "transport": "synthetic HTTP/RPC/Storage; local IME supplement is not a CI suite",
+    "note": "과거 PR 실행 건수와 중복 합산하지 않는다"
+  },
+  "productionEvidence": {
+    "cooperation": "completed version 4",
+    "timetable": "approved then restored original time",
+    "handover": "round trip completed; original owner restored",
+    "collection": "final submission v1; completed 1 missing 0",
+    "downloadAndZip": {
+      "bytes": 12633,
+      "hwpxCount": 1,
+      "csvDataRows": 1,
+      "bytesEqual": true,
+      "sha256": "5c6c4dc7dac1617a2d246374b5979d46cc4b0bb27d5937dc0badcd2d1047fcf4"
+    },
+    "postDeployment": {
+      "handover": {
+        "requestPendingNotice": "pass",
+        "disabledRecoveryWhileProcessing": "pass",
+        "requestSaved": "pass",
+        "cancelPendingNotice": "pass",
+        "cancelledBeforeAcceptance": true
+      },
+      "document": {
+        "operation": "generate from unchanged template v4 and response v2",
+        "pendingNotice": "pass",
+        "disabledRecoveryWhileProcessing": "pass",
+        "completionNotice": "pass",
+        "originalAnswersRetained": true
+      },
+      "chromeZoom": {
+        "userConfirmed": "200%",
+        "metrics": {
+          "devicePixelRatio": 4,
+          "documentWidth": 712,
+          "height": 354,
+          "width": 720
+        },
+        "documentInput": "pass",
+        "documentActions": "pass",
+        "handoverInput": "pass",
+        "handoverFooterActions": "pass",
+        "horizontalOverflow": false
+      },
+      "testOnlyChanges": [
+        "one handover request created and cancelled before acceptance",
+        "existing test HWPX regenerated from unchanged answers"
+      ]
+    },
+    "collectionPendingNotice": "passed; existing final v1 retained; additional draft saved",
+    "limitations": "existing test accounts and listed flows only; not exhaustive production coverage"
+  },
+  "preserved": [
+    "features",
+    "database schema",
+    "authentication",
+    "permissions",
+    "visibility",
+    "AI billing",
+    "file generation"
+  ],
+  "deferredByUser": [
+    "physical mobile keyboard",
+    "real teacher account linking"
+  ],
+  "outsideScope": [
+    "general teacher rollout",
+    "new SQL execution or activation",
+    "new paid AI calls"
+  ],
+  "next": [
+    "Claude consolidated review",
+    "batch confirmed fixes after review"
+  ],
+  "documentationValidation": {
+    "status": "passed",
+    "date": "2026-10-28",
+    "command": "npm test",
+    "passed": 5204,
+    "filesPassed": 224,
+    "failedFiles": 0,
+    "skippedFiles": 0,
+    "relativeLinksChecked": 29,
+    "jsonFilesParsed": 3,
+    "gitDiffCheck": "passed",
+    "changes": "documentation only",
+    "localLog": ".tmp-ui-closeout-npm-test.log",
+    "prCi": "not yet started at commit time"
+  }
+}

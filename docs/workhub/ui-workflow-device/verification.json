@@ -104,5 +104,19 @@
     "publicity",
     "AI pricing",
     "file generation"
-  ]
+  ],
+  "recordScope": "PR #96 당시 기록이며 최종 상태는 closeout을 따른다",
+  "closeout": {
+    "sha": "f5b1151f5ae14c515a6fd3adc0ea1a6cfee91a0f",
+    "mainRunId": 40640811751,
+    "mainConclusion": "success",
+    "productionStatus": "success",
+    "timetableRestored": true,
+    "handoverCompletedAndRestored": true,
+    "documentFinalSubmitAndZip": "passed",
+    "actualChromeZoom200": "passed",
+    "physicalMobileKeyboard": "deferred_by_user",
+    "realTeacherLinking": "deferred_by_user",
+    "currentRecord": "../ui-ux-closeout/README.md"
+  }
 }

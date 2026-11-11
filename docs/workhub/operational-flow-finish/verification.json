@@ -1,7 +1,11 @@
 {
   "date": "2026-10-28",
   "base": "7269bb64b8ef4b45fe8d3f8fdf3577c57a938e3d",
-  "mainCI": {"runId": 40616822275, "status": "completed", "conclusion": "success"},
+  "mainCI": {
+    "runId": 40616822275,
+    "status": "completed",
+    "conclusion": "success"
+  },
   "automated": {
     "unitPassed": 5204,
     "typecheck": "passed",
@@ -27,9 +31,13 @@
     "failedSuite": "workhub-cooperation-batch",
     "fix": "wait for previous input detachment before re-entering the form",
     "reproduction": "delayed remount proves the old heading wait accepts stale DOM; full CI event ordering not reproduced",
-    "remountDelayMs": [0, 300],
+    "remountDelayMs": [
+      0,
+      300
+    ],
     "localPassed": 22,
-    "requiresNewCISuccess": true
+    "requiresNewCISuccess": false,
+    "resolvedByMainRunId": 40640811751
   },
   "production": {
     "scope": "existing administrator and one existing teacher test account",
@@ -44,12 +52,61 @@
     "fileBytes": 12633,
     "sourceDownloadZipSha256": "5c6c4dc7dac1617a2d246374b5979d46cc4b0bb27d5937dc0badcd2d1047fcf4",
     "filesByteEqual": true,
-    "responsiveViewportWidths": [320, 390],
-    "browserActualZoom200": "not_verified",
-    "physicalMobileKeyboard": "not_verified",
-    "newNoticeDeployed": false
+    "responsiveViewportWidths": [
+      320,
+      390
+    ],
+    "browserActualZoom200": "passed",
+    "physicalMobileKeyboard": "deferred_by_user",
+    "newNoticeDeployed": true
   },
-  "unchanged": ["database", "server contracts", "authentication", "permissions", "visibility", "AI billing", "file generation"],
+  "unchanged": [
+    "database",
+    "server contracts",
+    "authentication",
+    "permissions",
+    "visibility",
+    "AI billing",
+    "file generation"
+  ],
   "newSQLRequired": false,
-  "localEvidence": ".tmp-operation-finish/"
+  "localEvidence": ".tmp-operation-finish/",
+  "recordScope": "원래 base/mainCI/automated는 PR 작성 시점, deployment와 postMerge는 후속 마감 시점",
+  "deployment": {
+    "sha": "f5b1151f5ae14c515a6fd3adc0ea1a6cfee91a0f",
+    "productionStatus": "success",
+    "mainRunId": 40640811751,
+    "mainConclusion": "success",
+    "checkedAt": "2026-10-28T12:28:59.641860+00:00"
+  },
+  "postMerge": {
+    "browserPassed": 186,
+    "syntheticImeChecksPassed": 8,
+    "actualChromeZoom": {
+      "userConfirmed": "200%",
+      "metrics": {
+        "devicePixelRatio": 4,
+        "documentWidth": 712,
+        "height": 354,
+        "width": 720
+      },
+      "documentInput": "pass",
+      "documentActions": "pass",
+      "handoverInput": "pass",
+      "handoverFooterActions": "pass",
+      "horizontalOverflow": false
+    },
+    "pendingNotices": {
+      "collection": "passed",
+      "handover": "passed",
+      "document": "passed"
+    },
+    "testDataChanges": [
+      "existing final submission v1 retained; additional draft saved",
+      "handover request cancelled before acceptance; owner unchanged",
+      "HWPX regenerated with unchanged template v4 and response v2"
+    ],
+    "currentRecord": "../ui-ux-closeout/README.md",
+    "localEvidence": ".tmp-post97-live-reconnected/"
+  }
 }
