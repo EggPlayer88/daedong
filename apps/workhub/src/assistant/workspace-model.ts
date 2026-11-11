@@ -34,6 +34,7 @@ export interface AssistantWorkspaceSearchResult {
   hasMore: boolean
 }
 export interface AssistantWorkspaceActions {
+  deliveryInConversation?: boolean
   navigate: (page: PageId) => boolean
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean
@@ -55,6 +56,7 @@ export interface AssistantDraftReady {
   studentContext: StudentContext | null
 }
 export interface AssistantPanelProps {
+  workActive?: boolean
   connection: SupabaseConnection
   member: Membership
   date: string

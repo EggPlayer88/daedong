@@ -6,6 +6,7 @@ import { MessageAttachments } from './MessageAttachments'
 import messagingStyles from './messaging.css?inline'
 import composerStyles from '../app/composer-layout.css?inline'
 import inboxStyles from './inbox-ui.css?inline'
+import assistantStyles from './assistant-messaging.css?inline'
 import { timeLabel, sourceLabels } from './workspace-model'
 import type { useMessagingWorkspace } from './useMessagingWorkspace'
 export function MessagingView({ model }: { model: ReturnType<typeof useMessagingWorkspace> }) {
@@ -104,24 +105,25 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
     useAiDraft,
     waitingOpen,
   } = model
+  const assistant = model.presentation === 'assistant'
   return (
-    <section className="messaging-workspace" aria-labelledby={`${id}-heading`}>
-      <style>{messagingStyles + composerStyles + inboxStyles}</style>
+    <section className="messaging-workspace" data-presentation={model.presentation} aria-labelledby={`${id}-heading`}>
+      <style>{messagingStyles + composerStyles + inboxStyles + assistantStyles}</style>
       <header className="messaging-header ws-page-intro">
         <div>
           <h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>
-            메시지와 알림
+            {assistant ? '메시지 보내기' : '메시지와 알림'}
           </h2>
 
         </div>
-        <button
+        {!assistant && <button
           type="button"
           className="messaging-primary"
           disabled={!usable || locked || dirty}
           onClick={() => start()}
         >
           새 메시지
-        </button>
+        </button>}
       </header>
       {openRequest && onReturnToSource && (
         <div className="messaging-actions">
@@ -143,7 +145,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
           </button>
         </section>
       )}
-      {composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && (
+      {(!assistant || !composing || folded) && composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && (
         <section className="messaging-status" aria-label="AI 메시지 초안">
           <p>
             {usable && !checking && !readyError && chosenRecipients?.length
@@ -198,9 +200,9 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
             >
               이전 요청 그대로 다시 확인
             </button>
-            <button type="button" disabled={busy} onClick={() => setFolded((value) => !value)}>
+            {!assistant && <button type="button" disabled={busy} onClick={() => setFolded((value) => !value)}>
               {folded ? '보관한 입력 보기' : '입력 접고 목록 보기'}
-            </button>
+            </button>}
           </div>
         </section>
       )}
@@ -227,7 +229,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               onDismiss={() => setDelivered(null)}
             />
           )}
-          <div className="messaging-tabs" role="group" aria-label="메시지 분류">
+          {!assistant && <div className="messaging-tabs" role="group" aria-label="메시지 분류">
             <button
               type="button"
               aria-pressed={tab === 'messages'}
@@ -238,18 +240,18 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
             <button type="button" aria-pressed={tab === 'inbox'} onClick={() => setTab('inbox')}>
               업무 알림
             </button>
-          </div>
+          </div>}
           {composing && (
             <form
-              hidden={folded}
+              hidden={folded || (assistant && Boolean(preview || pending))}
               className="messaging-compose wh-composer"
               onSubmit={prepare}
               aria-label={draft.thread ? '답장 작성' : '새 메시지 작성'}
             >
               <header className="wh-compose-heading">
-                <span className="wh-compose-eyebrow">메시지 작성</span>
+                {!assistant && <span className="wh-compose-eyebrow">메시지 작성</span>}
                 <h3>{draft.thread ? '답장 작성' : '새 메시지 작성'}</h3>
-                <p>받는 사람과 내용을 확인한 뒤 전송합니다.</p>
+                {!assistant && <p>받는 사람과 내용을 확인한 뒤 전송합니다.</p>}
               </header>
               {conflict && (
                 <div className="messaging-status" role="alert">
@@ -272,6 +274,8 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               <div className="messaging-compose-grid">
                 <fieldset disabled={locked} className="messaging-to wh-compose-body">
                   <legend className="messaging-sr-only">받는 사람과 내용</legend>
+                  <details className="messaging-recipient-editor" open={!assistant || !draft.recipients.length || Boolean(draft.thread) || conflict}>
+                    <summary hidden={!assistant}>받는 사람 {draft.recipients.length}명 · {draft.recipients.map(person => recipientLabel(person, draft.recipients)).join(', ')}</summary>
                   <div className="wh-compose-label">
                     <h4>받는 사람</h4>
                     <span>
@@ -423,6 +427,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                       )}
                     </>
                   )}
+                  </details>
                 </fieldset>
                 <div className="messaging-compose-content wh-compose-body">
                   <fieldset disabled={locked} className="messaging-body-fields">
@@ -447,7 +452,9 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                       {readiness?.limits?.bodyCharacters.toLocaleString()}자
                     </p>
                   </fieldset>
-                  <MessageAttachments
+                  <details className="messaging-attachment-editor" open={!assistant || fileLocked || draft.attachments.length > 0}>
+                    <summary hidden={!assistant}>파일 첨부{draft.attachments.length > 0 ? ` · ${draft.attachments.length}개` : ''}</summary>
+                    <MessageAttachments
                     server={fileServer}
                     member={member}
                     enabled={readiness?.attachments === 'hwpx_basic_v1'}
@@ -455,12 +462,13 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                     files={draft.attachments}
                     onChange={(files) => setDraft((value) => ({ ...value, attachments: files }))}
                     onLockChange={setFileLocked}
-                  />
+                    />
+                  </details>
                 </div>
               </div>
               {!pending && !preview && (
                 <footer className="wh-compose-footer">
-                  <p>다음 화면에서 최종 확인 후 보냅니다.</p>
+                  {!assistant && <p>다음 화면에서 최종 확인 후 보냅니다.</p>}
                   <div className="messaging-actions">
                     <button
                       className="messaging-primary"
@@ -474,7 +482,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                     </button>
                     {dirty && (
                       <button type="button" disabled={busy} onClick={() => setFolded(true)}>
-                        입력 접고 목록 보기
+                        {assistant ? '입력 보관하고 접기' : '입력 접고 목록 보기'}
                       </button>
                     )}
                   </div>
@@ -501,7 +509,8 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               onEdit={() => setPreview(null)}
             />
           )}
-          <div className="messaging-filters">
+          {assistant && !composing && !pending && !delivered && !composeRequest && !openedId && <button type="button" className="messaging-primary" onClick={() => start()}>메시지 작성</button>}
+          {!assistant && <div className="messaging-filters">
             <label className="messaging-check">
               <input
                 type="checkbox"
@@ -517,10 +526,10 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
             >
               새로고침
             </button>
-          </div>
-          {tab === 'messages' ? (
+          </div>}
+          {(!assistant || openedId) && (tab === 'messages' ? (
             <div className="messaging-grid">
-              <section className="messaging-panel" aria-label="대화 목록">
+              {!assistant && <section className="messaging-panel" aria-label="대화 목록">
                 <form
                   className="messaging-filters"
                   onSubmit={(event) => {
@@ -586,12 +595,12 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                     대화 더 보기
                   </button>
                 )}
-              </section>
+              </section>}
               <section className="messaging-panel" aria-label="선택한 대화">
                 {openedId && (
                   <div className="messaging-actions">
                     <button type="button" onClick={closeThread}>
-                      대화 목록으로 돌아가기
+                      {assistant ? '발송 결과로 돌아가기' : '대화 목록으로 돌아가기'}
                     </button>
                   </div>
                 )}
@@ -780,7 +789,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                 </button>
               )}
             </section>
-          )}
+          ))}
         </>
       )}
     </section>

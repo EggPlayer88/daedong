@@ -1,0 +1,21 @@
+.collection-conversation{min-width:0;max-width:100%;overflow-wrap:anywhere}
+.collection-conversation-next{margin:0 0 14px;font-weight:650;color:var(--text,#172033)}
+.collection-conversation .collection-server{max-width:none;margin:0}
+.collection-conversation .cs-heading{gap:10px;align-items:center}
+.collection-conversation .cs-heading h2{font-size:1rem}
+.collection-conversation .cs-card{padding:16px;margin-block:12px}
+.collection-conversation .cs-compose-columns{grid-template-columns:1fr}
+.collection-conversation .cs-composer-heading{padding:0 0 12px}
+.collection-conversation .cs-compose-section{padding:12px 0}
+.collection-conversation .cs-compose-footer{position:static;padding:12px 0 0}
+.collection-conversation .cs-conversation-details{margin-block:12px;border-top:1px solid var(--line,#e3e8ef);padding-top:10px}
+.collection-conversation .cs-conversation-details>summary{cursor:pointer;font-size:.9rem;font-weight:600;padding:6px 0}
+.collection-conversation .cs-conversation-details[open]>summary{margin-bottom:10px}
+.collection-conversation .cs-actions{flex-wrap:wrap}
+.collection-conversation .cs-actions button{white-space:normal;overflow-wrap:anywhere}
+.collection-conversation .cs-conversation-submit-review{border:1px solid var(--accent,#4b67a4);border-radius:14px;padding:14px;margin-top:14px}
+.collection-conversation .cs-conversation-submit-review h4{margin:0 0 10px}
+.collection-conversation .cs-conversation-submit-review dl{display:grid;grid-template-columns:5em minmax(0,1fr);gap:7px;margin:0 0 12px}
+.collection-conversation .cs-conversation-submit-review dt{color:var(--muted,#62728a)}
+.collection-conversation .cs-conversation-submit-review dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:560px){.collection-conversation .cs-card{padding:12px}.collection-conversation .cs-basics{grid-template-columns:1fr}.collection-conversation .cs-heading{align-items:flex-start;flex-direction:column}.collection-conversation .cs-actions>button{max-width:100%}}

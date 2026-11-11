@@ -36,6 +36,7 @@ import {
   mergePage,
 } from './workspace-model'
 export function useMessagingWorkspace({
+  presentation = 'page',
   openRequest,
   onReturnToSource,
   connection,
@@ -145,6 +146,7 @@ export function useMessagingWorkspace({
   const offeredDraft = composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id &&
     (!composeRequest.basisDate || composeRequest.basisDate === date) ? composeRequest : undefined
   const handledDraft = useRef<string>()
+  const autoOpenedDraft = useRef<string>()
   const chosenRecipients = parseDraftRecipients(offeredDraft?.recipients, member)
   const canUseAiDraft = !!offeredDraft && chosenRecipients !== null &&
     (!chosenRecipients.length || !!offeredDraft.basisDate) && usable && !checking && !readyError && !locked && !dirty &&
@@ -250,14 +252,14 @@ export function useMessagingWorkspace({
     }
   }, [server, member.id, enabled, revision, refresh])
   useEffect(() => {
-    if (!usable) return
+    if (!usable || presentation === 'assistant') return
     void loadThreads(false)
     void loadInbox(false)
     return () => {
       listGeneration.current++
       inboxGeneration.current++
     }
-  }, [server, usable, search, unreadOnly, refresh, revision])
+  }, [server, usable, search, unreadOnly, refresh, revision, presentation])
   useEffect(() => {
     if (!usable || !composing || draft.thread) return
     void loadRecipients(false)
@@ -457,7 +459,7 @@ export function useMessagingWorkspace({
       setFolded(false)
       setNotice(overLimit ? '현재 수신자 한도를 넘었습니다. 본문은 유지했으니 받는 사람을 다시 선택해 주세요.'
         : !matches ? '받는 사람 정보가 바뀌었습니다. 본문은 유지했으니 받는 사람을 다시 선택해 주세요.'
-        : offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
+        : presentation === 'assistant' ? '' : offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
         : 'AI 초안을 불러왔습니다. 받는 사람과 내용을 확인한 뒤 전송해 주세요.')
       setDiscardConfirm(false)
       setConflict(false)
@@ -469,6 +471,13 @@ export function useMessagingWorkspace({
       if (alive.current) setBusy(false)
     }
   }
+  useEffect(() => {
+    // 대화에서 사용자가 요청한 초안만 연다. 실패한 확인은 자동 반복하거나 전송하지 않는다.
+    if (presentation !== 'assistant' || !canUseAiDraft || !offeredDraft ||
+        autoOpenedDraft.current === offeredDraft.id) return
+    autoOpenedDraft.current = offeredDraft.id
+    void useAiDraft()
+  }, [presentation, canUseAiDraft, offeredDraft?.id])
   function closeComposer() {
     if (locked) return
     if (dirty && !discardConfirm) {
@@ -652,6 +661,7 @@ export function useMessagingWorkspace({
   const recipientPeers = mergePage(recipients.items, draft.recipients, (item) => item.memberId)
 
   return {
+    presentation,
     busy,
     canOpenSource,
     canRead,

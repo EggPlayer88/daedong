@@ -39,6 +39,7 @@ export type Memory = {
   setupOrigin?: GuidedSetupAiOrigin
 }
 export interface GuidedWorkspaceProps {
+  presentation?: 'page' | 'assistant'
   connection: SupabaseConnection
   member: Membership
   date: string

@@ -50,6 +50,7 @@ export function isCurrentCollectionComposeRequest(
   }
 }
 export interface CollectionServerPanelProps {
+  presentation?: 'page' | 'assistant'
   server: CollectionServer
   operations?: CollectionOperationsServer
   composeRequest?: CollectionComposeRequest

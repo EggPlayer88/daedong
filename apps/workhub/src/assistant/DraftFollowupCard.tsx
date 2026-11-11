@@ -1,6 +1,7 @@
 import type { DraftFollowup, DraftPeople, DraftPerson } from './draft-followup'
 
 interface Props {
+  inConversation?: boolean
   draft: DraftFollowup
   result?: DraftPeople
   disabled: boolean
@@ -20,6 +21,7 @@ function personLabel(person: DraftPerson) {
 }
 
 export function DraftFollowupCard({
+  inConversation = false,
   draft, result, disabled, searching, pendingInput, onSelect, onRemove, onDismiss, onRetry, canRetry, onOpen, onCancel,
 }: Props) {
   const { command, selected, dueDate } = draft
@@ -31,7 +33,7 @@ export function DraftFollowupCard({
   const nextQuestion = result || searching ? '' : pendingName ? `확인할 교사 이름은 “${pendingName}”입니다.` :
     missingContent ? (message ? '메시지 본문을 적어 주세요.' : '수합 제목을 적어 주세요.') :
     !message && !dueDate ? '제출 기한은 언제인가요?' :
-    selected.length ? '작성 화면에서 선택한 내용과 대상을 확인해 주세요.' :
+    selected.length ? (inConversation ? '내용과 대상을 확인한 뒤 첨부·최종 검토로 이어가세요.' : '작성 화면에서 선택한 내용과 대상을 확인해 주세요.') :
     message ? '누구에게 보낼까요? 교사 이름을 적어 주세요.' : '누가 제출하나요? 교사 이름을 적어 주세요.'
 
   return <section className="assistant-workspace-result" aria-label={heading}>
@@ -68,7 +70,7 @@ export function DraftFollowupCard({
     {nextQuestion && <p role="status">{nextQuestion}</p>}
     <div className="assistant-actions">
       <button type="button" className="assistant-primary" disabled={disabled || pendingInput || Boolean(result) || searching || Boolean(pendingName) || missingContent}
-        onClick={onOpen}>작성 화면에서 확인</button>
+        onClick={onOpen}>{inConversation ? '첨부·최종 검토로 계속' : '작성 화면에서 확인'}</button>
       <button type="button" className="assistant-quiet" disabled={disabled} onClick={onCancel}>이어 입력 취소</button>
     </div>
   </section>

@@ -44,6 +44,7 @@ import {
   newKey,
 } from './workspace-model'
 export function useAssistantWorkspace({
+  workActive = false,
   connection,
   member,
   date,
@@ -153,18 +154,18 @@ export function useAssistantWorkspace({
   } })
   const conversationFocus = session.conversationFocus ?? 'auto'
   const conversationProfile = profileFor(conversationFocus === 'auto' ? inferConversationProfile(session) : conversationFocus)
-  const canChangeConversationFocus = !busy && !recovery.request && !workspaceOperation.locked && !memoryLocked && !session.proposal
+  const canChangeConversationFocus = !workActive && !busy && !recovery.request && !workspaceOperation.locked && !memoryLocked && !session.proposal
   function setConversationFocus(value: ConversationFocus) {
     if (!canChangeConversationFocus || operation.current || (value !== 'auto' && !CONVERSATION_PROFILES.some(row => row.id === value))) return
     update({ ...latest.current, conversationFocus: value })
   }
   const enabled = activeAt(member, date),
     locked = Boolean(
-      session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked || workspaceOperation.locked,
+      workActive || session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked || workspaceOperation.locked,
     ),
-    baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError && !workspaceOperation.locked,
+    baseEditable = !workActive && enabled && ready?.available === true && !busy && !recovery.request && !readError && !workspaceOperation.locked,
     editable = baseEditable && !memoryLocked
-  const workspaceEditable = Boolean(workspaceActions) && enabled && !busy && !recovery.request &&
+  const workspaceEditable = !workActive && Boolean(workspaceActions) && enabled && !busy && !recovery.request &&
     !memoryLocked && !session.proposal && !openingCitation && !workspaceOperation.locked
   // 다른 화면이 고정한 원문·학생 근거와 AI 출력은 명령으로 해석하지 않는다.
   const commandContext = Boolean(workspaceActions) && !session.contextId &&
@@ -176,7 +177,9 @@ export function useAssistantWorkspace({
     session.calendarDialogue.scope === dialogueScope ? session.calendarDialogue.command : undefined
   function draftOpened(command: DirectDraftCommand) {
     const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
-    setWorkspaceActionNotice({ prompt: command.prompt, message: `${destination} 화면에서 초안을 확인해 주세요.` })
+    setWorkspaceActionNotice({ prompt: command.prompt, message: workspaceActions?.deliveryInConversation
+      ? `${destination} 작업을 대화 안에서 열었습니다. 마지막 확인 전에는 전송·저장하지 않습니다.`
+      : `${destination} 화면에서 초안을 확인해 주세요.` })
     setWorkspaceResult(undefined)
     update({ ...latest.current, prompt: '', draftDialogue: undefined })
     setError('')

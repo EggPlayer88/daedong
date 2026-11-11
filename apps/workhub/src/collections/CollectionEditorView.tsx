@@ -1,9 +1,10 @@
+import { useEffect, useState, type ReactNode } from 'react'
 import { collectionStateLabel } from './presentation'
 import { CollectionOperations } from './CollectionOperations'
 import { type FilePolicy, type FileReference } from '../files/contracts'
 import { formatFileBytes } from '../files/FileControls'
 import { hwpxCollectionPolicy } from '../files/hwpx-basic-policy'
-import { type CollectionFileParent } from './contracts'
+import { type CollectionCommand, type CollectionFileParent } from './contracts'
 import { CollectionUnitsEditor } from './CollectionUnitsEditor'
 import { AnswerInputComparison, CollectionInputComparison } from './CollectionInputComparison'
 import { CollectionSubmissionHistory } from './CollectionSubmissionHistory'
@@ -16,7 +17,17 @@ import composerStyles from '../app/composer-layout.css?inline'
 import { ComposerOptions } from '../app/ComposerOptions'
 import { inputOf, same } from './collection-editor-model'
 import type { useCollectionEditor } from './useCollectionEditor'
-export function CollectionEditorView({ model }: { model: ReturnType<typeof useCollectionEditor> }) {
+function ConversationDetails({ enabled, summary, children }: { enabled: boolean; summary: string; children: ReactNode }) {
+  return enabled ? <details className="cs-conversation-details"><summary>{summary}</summary>{children}</details> : <>{children}</>
+}
+export function CollectionEditorView({ model, presentation = 'page' }: { model: ReturnType<typeof useCollectionEditor>; presentation?: 'page' | 'assistant' }) {
+  const assistant = presentation === 'assistant'
+  const [submitReview, setSubmitReview] = useState<{
+    command: Extract<CollectionCommand, { kind: 'submit' }>
+    input: unknown
+    label: string
+    request: { id: string; version: number; title: string; dueDate: string }
+  }>()
   const {
     answerClosed,
     answerSubmitClosed,
@@ -40,6 +51,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
     cursor,
     date,
     detail,
+    discardIncomingFile,
     dirty,
     download,
     enabled,
@@ -103,6 +115,19 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
     unitValidation,
     uploadFile,
   } = model
+  useEffect(() => { if (!session.answer) setSubmitReview(undefined) }, [session.answer])
+  function currentSubmitCommand(): Extract<CollectionCommand, { kind: 'submit' }> | undefined {
+    const answer = session.answer
+    if (!answer?.original || !selectedUnit || selectedUnit.responsibleMemberId !== member.id) return undefined
+    return { kind: 'submit', requestId: answer.requestId, unitId: answer.unitId,
+      draftId: answer.original.id, expectedDraftVersion: answer.original.version,
+      expectedVersion: selectedUnit.version, reason: answer.reason,
+      ...(answer.correctionRequestId ? { correctionRequestId: answer.correctionRequestId } : {}) }
+  }
+  const currentSubmitRequest = detail ? { id: detail.request.id, version: detail.request.version, title: detail.request.title, dueDate: detail.request.dueDate } : undefined
+  const submitReviewCurrent = Boolean(submitReview && same(submitReview.command, currentSubmitCommand()) &&
+    same(submitReview.input, session.answer?.input) && same(submitReview.request, currentSubmitRequest) &&
+    submitReview.label === selectedUnit?.label)
   function filesView(
     files: FileReference[],
     parent?: CollectionFileParent,
@@ -197,17 +222,17 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
       <style>{styles + composerStyles}</style>
       <header className="cs-heading ws-page-intro">
         <div>
-          <h2>문서 수합</h2>
+          <h2>{assistant ? '수합 작업' : '문서 수합'}</h2>
         </div>
         {readiness?.available && !parked && (
           <div className="cs-actions">
-            <button
+            {(!assistant || !hasWork) && <button
               type="button"
               disabled={!!busy || !!pending || loading || exportBusy}
               onClick={() => setReload((value) => value + 1)}
             >
               새로 확인
-            </button>
+            </button>}
             <button
               type="button"
               className="cs-primary"
@@ -220,6 +245,15 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
           </div>
         )}
       </header>
+      {assistant && incomingFile && (
+        <section className="cs-notice" aria-label="전달받은 생성 파일">
+          <p><strong>{incomingFile.fileName}</strong> · 수합에 첨부할 파일</p>
+          <button type="button"
+            disabled={Boolean(busy || pending || session.upload || exportBusy || savingRequest)}
+            onClick={discardIncomingFile}>전달받은 생성 파일 사용 안 함</button>
+          <p className="cs-muted">이 선택을 해제해도 문서함의 생성 원본은 유지됩니다.</p>
+        </section>
+      )}
       {offeredCompose && (
         <section className="cs-notice" aria-label="전달받은 수합 초안">
           <h3>전달받은 수합 초안</h3>
@@ -233,7 +267,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
             </>
           )}
           <p>{hasWork || parked ? '작성 중인 내용과 미확정 요청을 먼저 마무리해 주세요.'
-            : '작성 화면에서 기한과 제출 대상을 확인하세요.'}</p>
+            : assistant ? '아래에서 기한과 제출 대상을 확인하고 이어갈 수 있어요.' : '작성 화면에서 기한과 제출 대상을 확인하세요.'}</p>
           <div className="cs-actions">
             <button type="button" disabled={!canStartEditor} onClick={() => startEditor(true)}>
               수합 초안 사용
@@ -260,11 +294,17 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
           {error}
         </p>
       )}
+      {assistant && !parked && !pending &&
+        (session.editor || session.answer || session.review || session.management) && (
+          <button type="button"
+            disabled={Boolean(busy || session.upload || exportBusy || savingRequest)}
+            onClick={parkEditing}>입력 보관하고 접기</button>
+        )}
       {parked && (
         <section className="cs-notice" aria-label="보관한 수합 작업">
           <h3>작성 중인 수합 작업을 보관했습니다</h3>
           <p>
-            업무실 안의 다른 메뉴를 이용할 수 있습니다. 자료 수합으로 돌아와 보관한 입력
+            {assistant ? '대화로 돌아갈 수 있습니다. 이 작업을 다시 열어 보관한 입력' : '업무실 안의 다른 메뉴를 이용할 수 있습니다. 자료 수합으로 돌아와 보관한 입력'}
             {pending ? '과 기존 요청 번호로 결과를' : '을'} 다시 확인해 주세요.
           </p>
           <p>
@@ -978,6 +1018,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                 </p>
               )}
               {operations && detail.request.status === 'published' && (
+                <ConversationDetails enabled={assistant} summary="접수 상태·마감 관리">
                 <CollectionOperations
                   key={detail.request.id}
                   server={operations}
@@ -1000,6 +1041,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                   onState={setOperationState}
                   onChanged={() => setReload((value) => value + 1)}
                 />
+                </ConversationDetails>
               )}
               {filesView(detail.request.fileCollection?.templates ?? [], {
                 kind: 'template',
@@ -1009,6 +1051,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
               {detail.request.status === 'published' &&
                 detail.request.managerMemberId === member.id &&
                 detail.request.fileCollection && (
+                  <ConversationDetails enabled={assistant} summary="담당자 전체 내려받기">
                   <CollectionServerExport
                     server={server}
                     member={member}
@@ -1017,6 +1060,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                     disabled={Boolean(busy || pending || dirty || restoring || !enabled)}
                     onBusyChange={setExportBusy}
                   />
+                  </ConversationDetails>
                 )}
               {detail.request.status === 'draft' &&
                 detail.request.managerMemberId === member.id && (
@@ -1116,6 +1160,7 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
               )}
               {detail.request.status === 'published' && (
                 <CollectionUnitWorkbench
+                  compact={assistant}
                   detail={detail}
                   memberId={member.id}
                   date={date}
@@ -1670,25 +1715,41 @@ export function CollectionEditorView({ model }: { model: ReturnType<typeof useCo
                       className={submissionGuide?.canSubmit ? 'cs-primary' : undefined}
                       disabled={blocked || answerSubmitClosed || !submissionGuide?.canSubmit}
                       onClick={() => {
-                        void mutate({
-                          kind: 'submit',
-                          requestId: session.answer!.requestId,
-                          unitId: session.answer!.unitId,
-                          draftId: session.answer!.original!.id,
-                          expectedDraftVersion: session.answer!.original!.version,
-                          expectedVersion: selectedUnit!.version,
-                          reason: session.answer!.reason,
-                          ...(session.answer!.correctionRequestId
-                            ? { correctionRequestId: session.answer!.correctionRequestId }
-                            : {}),
-                        })
+                        const command = currentSubmitCommand()
+                        if (!command) return
+                        if (assistant && currentSubmitRequest) setSubmitReview({ command, input: structuredClone(session.answer!.input), label: selectedUnit!.label, request: currentSubmitRequest })
+                        else void mutate(command)
                       }}
                     >
-                      {hadSubmission ? '저장한 파일 다시 제출' : '저장한 파일 최종 제출'}
+                      {assistant ? '최종 제출 내용 확인' : hadSubmission ? '저장한 파일 다시 제출' : '저장한 파일 최종 제출'}
                     </button>
                   )}
                 </div>
               </footer>
+              {assistant && submitReview && (
+                <section className="cs-conversation-submit-review" aria-label="대화 수합 최종 제출 확인">
+                  <h4>{hadSubmission ? '보완·재제출 내용을 확인하세요' : '이 내용으로 최종 제출할까요?'}</h4>
+                  <dl>
+                    <dt>수합</dt><dd>{submitReview.request.title}</dd>
+                    <dt>제출 단위</dt><dd>{submitReview.label}</dd>
+                    <dt>제출 기한</dt><dd>{submitReview.request.dueDate}</dd>
+                    <dt>저장한 판</dt><dd>{submitReview.command.expectedDraftVersion}판</dd>
+                    <dt>파일</dt><dd>{session.answer!.original?.files?.map(file => file.name).join('\n') || '첨부 없음'}</dd>
+                    {session.answer!.input.text && <><dt>글 응답</dt><dd>{session.answer!.input.text}</dd></>}
+                    {session.answer!.input.number !== null && <><dt>숫자 응답</dt><dd>{session.answer!.input.number}</dd></>}
+                    {submitReview.command.reason && <><dt>사유</dt><dd>{submitReview.command.reason}</dd></>}
+                  </dl>
+                  {!submitReviewCurrent && <p role="alert">입력이나 저장한 판이 달라졌습니다. 확인을 닫고 현재 내용을 다시 확인해 주세요.</p>}
+                  <div className="cs-actions">
+                    <button type="button" disabled={Boolean(busy || pending)} onClick={() => setSubmitReview(undefined)}>제출 확인 닫기</button>
+                    <button type="button" className="cs-primary"
+                      disabled={blocked || answerSubmitClosed || !submissionGuide?.canSubmit || !submitReviewCurrent}
+                      onClick={() => { if (!submitReviewCurrent || !submissionGuide?.canSubmit) return; void mutate(submitReview.command) }}>
+                      {hadSubmission ? '확인한 파일 다시 제출' : '확인한 파일 최종 제출'}
+                    </button>
+                  </div>
+                </section>
+              )}
               <p className="cs-muted cs-answer-note">
                 최종 제출은 책임 교사만 할 수 있습니다. 서버에서 권한과 최신 버전을 다시 확인합니다.
               </p>

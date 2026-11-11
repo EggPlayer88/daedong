@@ -19,6 +19,7 @@ import { CalendarPanel } from '../calendar/CalendarPanel'
 import { buildAssistantCalendarDraft, type AssistantCalendarDraftRequest } from '../calendar/assistant-draft'
 import type { AssistantWorkspaceActions } from '../assistant/workspace-model'
 import { createConnectedAssistantOperations } from '../assistant/connected-operations'
+import { AssistantDeliveryFrame, deliveryKind, deliveryDraftSlots, type DeliveryWorkspace, type DeliveryKind } from '../assistant/delivery-workspace'
 import { searchAssistantWorkspace } from '../assistant/workspace-search'
 import { activeAt } from '../domain'
 import { ContractError } from '../contracts'
@@ -104,6 +105,10 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [assistantNavigationLocked, setAssistantNavigationLocked] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
   const [assistantVisited, setAssistantVisited] = useState(false)
+  const [delivery, setDelivery] = useState<DeliveryWorkspace>()
+  const [deliveryTalking, setDeliveryTalking] = useState(false)
+  const [deliveryLocked, setDeliveryLocked] = useState(false)
+  const [deliveryTransfer, setDeliveryTransfer] = useState<DeliveryWorkspace>()
   const assistantReturn = useRef<{scope:string;page:PageId}>()
   const [batchOpen, setBatchOpen] = useState(false)
   const [batchNavigationLocked, setBatchNavigationLocked] = useState(false)
@@ -126,7 +131,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [teachingOpen,setTeachingOpen]=useState<{scope:string;courseId:string;token:string;source:'home'|'search'}>()
   const [transitionOpen,setTransitionOpen]=useState<{scope:string;key:string;id:string}>()
   const [timetableOpen, setTimetableOpen] = useState<{scope:string;lessonId?:string;requestId?:string;notificationId?:string;date?:string;key:string;fromPage:'home'|'calendar'|'messages'|'schoolAdmin';intent?:{kind:'makeup';lessonId:string;token:string};preparationStep?:'target'|'setup'|'preparation'|'import'}>()
-  const clearHandoffs = useCallback(() => {setAssistantOpen(false);setAssistantVisited(false);setAssistantNavigationLocked(false);setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setCollectionDraft(undefined);setAssistantCalendar(undefined);setAssistantTask(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTransitionOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
+  const clearHandoffs = useCallback(() => {setDelivery(undefined);setDeliveryTransfer(undefined);setDeliveryLocked(false);setDeliveryTalking(false);setAssistantOpen(false);setAssistantVisited(false);setAssistantNavigationLocked(false);setHandoff(undefined);setWorkReturn(undefined);setAssistantContext(undefined);setDocumentDraft(undefined);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(undefined);setSetupSuggestion(undefined);setKnowledgeOpen(undefined);setMessageDraft(undefined);setCollectionDraft(undefined);setAssistantCalendar(undefined);setAssistantTask(undefined);setGeneratedFile(undefined);setHandoffError('');setTimetableOpen(undefined);setTransitionOpen(undefined);setTeachingOpen(undefined);setHomeListOpen(undefined);setBatchOpen(false);setBatchNavigationLocked(false)}, [])
 
   const checkReadiness = useCallback(() => connection.checkReadiness(), [connection])
   const generation = useRef(0)
@@ -208,7 +213,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const school = context?.schools.find(item => item.id === member?.schoolId)
   const connectionUnavailable = loading || !!error || !context || !member || !school
   const currentScope = member ? recoveryScope(member) : ''
-  const navigationLocked = assistantNavigationLocked || batchNavigationLocked || taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
+  const navigationLocked = deliveryLocked || assistantNavigationLocked || batchNavigationLocked || taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
   const exitLocked = draftCount > 0 || pendingCount > 0
   const navigation = useWorkspaceNavigation({
     allowedPages: connectedPages,
@@ -217,6 +222,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     exitLocked,
   })
   const page = navigation.page as PageId
+  const activeDelivery = page === 'assistant' && delivery?.scope === currentScope ? delivery : undefined
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
   const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; if (next === 'assistant' && page !== 'assistant') assistantReturn.current = {scope:currentScope,page}; setHandoff(undefined); setWorkReturn(undefined); return true }
@@ -226,20 +232,52 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   useEffect(() => {
     // 일시적으로 신원을 다시 읽을 때는 초안을 보관하고, 확인된 다음 날짜로만 비교한다.
     if (connectionUnavailable || !context) return
-    setCollectionDraft(current => current && (page !== 'collections' || current.draft.basisDate !== context?.basisDate)
+    setCollectionDraft(current => current && ((page !== 'collections' && activeDelivery?.kind !== 'collections') || current.draft.basisDate !== context?.basisDate)
       ? undefined : current)
-    setMessageDraft(current => current?.draft.basisDate && (page !== 'messages' || current.draft.basisDate !== context?.basisDate)
+    setMessageDraft(current => current?.draft.basisDate && ((page !== 'messages' && activeDelivery?.kind !== 'messages') || current.draft.basisDate !== context?.basisDate)
       ? undefined : current)
-  }, [page, context?.basisDate, connectionUnavailable])
+  }, [page, activeDelivery?.kind, context?.basisDate, connectionUnavailable])
   useEffect(() => { if (page !== 'timetable') setTimetableOpen(undefined) }, [page])
   useEffect(() => { if (page !== 'students') setTeachingOpen(undefined) }, [page])
   useEffect(() => { if (page !== 'knowledge') setKnowledgeOpen(undefined) }, [page])
   useEffect(() => { if (homeListOpen && (page !== homeListOpen.page || currentScope !== homeListOpen.scope)) setHomeListOpen(undefined) }, [page, currentScope, homeListOpen])
   const searchSources = useMemo(() => member && context ? createConnectedSearchSources(connection,member,context.basisDate,{calendarAdapter:adapter,taskAdapter,collectionServer}) : [], [connection,adapter,taskAdapter,collectionServer,member,context])
   const requested = resource.current
+  const deliverySwitchBlocked = (kind: DeliveryKind) => Boolean(activeDelivery && activeDelivery.kind !== kind &&
+    deliveryDraftSlots[activeDelivery.kind].some(slot => editDrafts.bind(currentScope, slot).dirty))
+  function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false) {
+    if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() ||
+        !activeAt(member, context.basisDate) || !connectedPages.includes(kind)) return false
+    if (!resume && deliveryDraftSlots[kind].some(slot => editDrafts.bind(currentScope, slot).dirty)) return false
+    if (deliverySwitchBlocked(kind)) return false
+    if (!navigate('assistant')) return false
+    setDelivery({ scope: currentScope, kind, key: crypto.randomUUID(), request })
+    setHandoffError('')
+    setDeliveryTalking(false); setDeliveryLocked(false); openAssistant()
+    return true
+  }
+  function queueDeliveryCollection(requestId?: string, value?: GeneratedDocument) {
+    if (!member || !activeDelivery || activeDelivery.kind !== 'documents') return
+    if (deliveryDraftSlots.collections.some(slot => editDrafts.bind(currentScope, slot).dirty) || collectionDraft || generatedFile)
+      throw new Error('수합에서 작성 중인 내용을 먼저 확인해 주세요. 생성한 파일은 문서에 유지됩니다.')
+    if (value) setGeneratedFile({scope:currentScope,value})
+    setDeliveryTransfer({scope:currentScope,kind:'collections',key:crypto.randomUUID(),
+      request:requestId ? {key:crypto.randomUUID(),id:requestId} : undefined})
+  }
+  useEffect(() => {
+    if (!deliveryTransfer || deliveryTransfer.scope !== currentScope || connectionUnavailable ||
+        navigationLocked || pendingCount || page !== 'assistant') return
+    // 생성물 내려받기/접수 결과가 끝나기 전에는 원 문서 편집기를 해제하지 않는다.
+    setDelivery(deliveryTransfer); setDeliveryTalking(false); setDeliveryTransfer(undefined)
+  }, [deliveryTransfer, currentScope, connectionUnavailable, navigationLocked, pendingCount, page])
   useEffect(() => {
     if (!handoff || !currentScope || navigationLocked || handoff.scope !== currentScope) return
     if (handoff.fromPage !== page) {setHandoff(undefined);return}
+    if (handoff.viaAssistant && ['messages','collections','documents'].includes(handoff.page)) {
+      const target = handoff.page as DeliveryKind
+      if (startDelivery(target, handoff.requestId ? {key:crypto.randomUUID(),id:handoff.requestId} : undefined, true)) setHandoff(undefined)
+      return
+    }
     const moved = handoff.taskId && handoff.page === 'tasks' ? resource.openSearchItem({kind:'task',id:handoff.taskId,title:'',description:'',meta:''}) : handoff.requestId ? resource.openCollection(handoff.requestId) : resource.navigate(handoff.page)
     if (moved) {
       // 이동에 성공한 현재 학교의 작업만 복귀 경로로 보관한다. 이동 자체로 전송·제출하지 않는다.
@@ -264,11 +302,12 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     setHandoff(undefined);setWorkReturn(undefined);return true
   }
   const assistantActions: AssistantWorkspaceActions = {
+    deliveryInConversation: true,
     operations: createConnectedAssistantOperations(taskAdapter, adapter, (kind, preparing) => {
       if (!member || !context || connectionUnavailable || !activeAt(member, context.basisDate))
         throw new Error('현재 학교 연결과 소속을 확인해 주세요.')
       const ownPending = pendingRequests.get(currentScope, 'assistantOperation') ? 1 : 0
-      if (pendingRequests.count() > (preparing ? 0 : ownPending) || handoff ||
+      if (pendingRequests.count() > (preparing ? 0 : ownPending) || handoff || activeDelivery ||
           taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || batchNavigationLocked)
         throw new Error('먼저 작성 중인 업무나 결과 확인을 마쳐 주세요. 입력은 유지됩니다.')
       if (kind === 'taskChange' && (assistantTask || editDrafts.bind(currentScope, 'task-editor').initial))
@@ -284,6 +323,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     }),
     navigate(next) {
       if (!member || connectionUnavailable || navigationLocked || !connectedPages.includes(next)) return false
+      if (next === 'messages' || next === 'collections' || next === 'documents') return startDelivery(next)
       if (!navigate(next)) return false
       setWorkReturn(next === 'assistant' ? undefined : {scope:currentScope,page:next,fromPage:'assistant'})
       setAssistantOpen(false)
@@ -311,18 +351,18 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       const recipients = followup?.selected.flatMap(person => person.recipient && person.recipient.memberId === person.memberId &&
         person.recipient.schoolId === member.schoolId ? [person.recipient] : [])
       if (isMessage && followup && recipients?.length !== followup.selected.length) return false
-      if (!navigate(destination)) return false
+      if (!startDelivery(destination)) return false
       if (command.kind === 'messageDraft') {
         setMessageDraft({ scope: currentScope, draft: { ...identity, body: command.body, recipients } })
       } else {
         setCollectionDraft({ scope: currentScope, draft: { ...identity, title: command.title, instructions: command.instructions,
           dueDate: followup?.dueDate, targetMemberIds: followup?.selected.map(person => person.memberId) } })
       }
-      setWorkReturn({ scope: currentScope, page: destination, fromPage: 'assistant' })
-      setAssistantOpen(false)
       return true
     },
     open(item) {
+      const kind = deliveryKind(item.kind)
+      if (kind) return startDelivery(kind, {key:crypto.randomUUID(),id:item.id,version:item.version})
       if (!openSearchItem(item)) return false
       setAssistantOpen(false)
       return true
@@ -355,11 +395,16 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function sendToAssistant(request: AssistantContextRequest, origin?: GuidedAiOrigin) {
     if (!member) return
+    if (activeDelivery?.kind === 'documents') setDeliveryTalking(true)
     setHandoffError('');setSetupOrigin(undefined);setSetupSuggestion(undefined);setGuidedOrigin(origin);setGuidedSuggestion(undefined);setAssistantContext({scope:currentScope,id:origin?.id ?? crypto.randomUUID(),request});openAssistant()
   }
 
   function forwardMessageAnswer(value: { requestId: string; body: string }) {
     if (!member) return
+    if (deliverySwitchBlocked('messages') || deliveryTransfer) {
+      setHandoffError('작성하던 업무를 먼저 마친 뒤 이 답변을 다시 선택해 주세요. 답변과 기존 입력은 유지했습니다.')
+      return
+    }
     if (messageDraft?.draft.basisDate) {
       setHandoffError('메시지 화면에서 먼저 전달받은 초안을 사용하거나 닫아 주세요.')
       return
@@ -369,19 +414,43 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     setHandoff({ scope: currentScope, fromPage: page, viaAssistant: true, page: 'messages' })
   }
   function openAssistant() { setAssistantVisited(true); setAssistantOpen(true) }
-  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && navigationLocked} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantPanel workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={value => {
+
+  // AI 안과 일반 메뉴는 같은 편집기·서버를 사용하며 현재 페이지에서 한 번만 렌더한다.
+  function renderMessages(inDelivery: boolean) {
+    if (!member || !context) return null
+    return <MessagingWorkspace presentation={inDelivery ? 'assistant' : 'page'} onUpdated={() => setRefreshEpoch(value => value + 1)} openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'message' && requested.id ? { key: requested.key, id: requested.id } : undefined} onReturnToSource={requested?.kind === 'message' ? () => resource.navigate('home') : undefined} composeRequest={messageDraft?.scope === currentScope ? messageDraft.draft : undefined} onComposeRequestConsumed={id => setMessageDraft(current => current?.draft.id === id ? undefined : current)} canOpenSource={source => ['calendar', 'tasks', 'collections', 'cooperation', 'timetable', 'transitions'].includes(source.module)} onOpenSource={source => { if(source.module==='transitions'){if(!navigate('schoolAdmin'))throw new Error('작성 중인 내용을 확인해 주세요.');setTransitionOpen({scope:currentScope,id:source.id,key:crypto.randomUUID()});return} if (source.module === 'timetable') { if (!navigate('timetable')) throw new Error('작성 중인 내용을 확인한 뒤 시간표 요청을 열어 주세요.'); setTimetableOpen({ scope: currentScope, notificationId: source.id, key: crypto.randomUUID(), fromPage: 'messages' }); return } const moved = source.module === 'cooperation' ? resource.openCooperation(source.id) : source.module === 'collections' ? resource.openCollection(source.id) : (source.module === 'tasks' || source.module === 'calendar') ? resource.openSearchItem({ kind: source.module === 'tasks' ? 'task' : 'calendar', id: source.id, title: '', description: '', meta: '' }) : false; if (!moved) throw new Error('작성 중인 내용을 확인한 뒤 원본을 열어 주세요.') }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={inDelivery ? setDeliveryLocked : setExtensionNavigationLocked} />
+  }
+  function renderDocuments(inDelivery: boolean) {
+    if (!member || !context) return null
+    return <DocumentsWorkspace presentation={inDelivery ? 'assistant' : 'page'} onOpenFileCollections={()=>inDelivery ? queueDeliveryCollection() : setHandoff({scope:currentScope,fromPage:page,page:'collections'})} guidedSetupAiSuggestion={setupSuggestion?.origin.scope===currentScope?setupSuggestion:undefined} onRequestGuidedSetupAi={value=>{
+               const origin=guidedSetupOrigin(value.origin,member)
+               if(value.request.intent!=='guided_collection')throw new Error('질문형 준비 요청 불일치')
+               const request=documentAssistantRequest(value.request)
+               if(inDelivery)setDeliveryTalking(true);setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(origin);setSetupSuggestion(undefined);setHandoffError('');setAssistantContext({scope:currentScope,id:origin.id,request});openAssistant()
+             }} openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'document' && requested.id ? {key:requested.key,id:requested.id,version:requested.version} : undefined} legacyPlanHref={legacyPlanHref} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={inDelivery ? setDeliveryLocked : setExtensionNavigationLocked} aiDraft={documentDraft?.scope === currentScope ? documentDraft.draft : undefined} guidedAiSuggestion={guidedSuggestion?.origin.scope === currentScope ? guidedSuggestion : undefined} onRequestGuidedAi={value => {try {
+               const origin = guidedAiOrigin(value.origin,member)
+               if (value.request.intent !== 'guided_collection') throw new Error('질문형 작성 요청 불일치')
+               sendToAssistant(documentAssistantRequest(value.request),origin)
+             } catch {throw new Error('AI로 전달할 양식과 답변을 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.')}}} onRequestAi={input => {try{sendToAssistant(documentAssistantRequest(input))}catch{setHandoffError('AI로 전달할 제목·입력 길이와 근거를 확인해 주세요. 문서 입력은 보관되어 있습니다.')}}} onOpenCollection={requestId => inDelivery ? queueDeliveryCollection(requestId) : setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId})} onUseGenerated={value => {if(inDelivery){queueDeliveryCollection(value.requestId,value);return}setGeneratedFile({scope:currentScope,value});setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId:value.requestId})}} />
+  }
+  function renderCollections(inDelivery: boolean) {
+    if (!member || !context) return null
+    return <CollectionServerPanel presentation={inDelivery ? 'assistant' : 'page'} key={resetKey} composeRequest={collectionDraft?.scope === currentScope ? collectionDraft.draft : undefined} onComposeRequestConsumed={id => setCollectionDraft(current => current?.draft.id === id ? undefined : current)} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={inDelivery ? setDeliveryLocked : setCollectionNavigationLocked} openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} />
+  }
+  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} closeDisabled={navigationLocked || Boolean(activeDelivery && pendingCount)} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantDeliveryFrame error={handoffError} workspace={activeDelivery} finishDisabled={Boolean(activeDelivery && (deliveryDraftSlots[activeDelivery.kind].some(slot => editDrafts.bind(currentScope, slot).dirty) || (activeDelivery.kind === 'messages' ? messageDraft : activeDelivery.kind === 'collections' ? collectionDraft || generatedFile : false)))} talking={deliveryTalking} locked={deliveryLocked || assistantNavigationLocked || pendingCount > 0 || Boolean(deliveryTransfer)} onTalk={() => setDeliveryTalking(true)} onResume={() => setDeliveryTalking(false)} onClose={() => {if(!deliveryLocked && !pendingCount){setDelivery(undefined);setDeliveryTalking(false)}}} chat={<AssistantPanel workActive={Boolean(activeDelivery && !deliveryTalking)} workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={value => {
                const request = {...value,key:crypto.randomUUID()}
                if (!validKnowledgeOpenRequest(request,member)) throw new Error('현재 학교의 인용인지 확인하지 못했습니다.')
                setKnowledgeOpen({scope:currentScope,request});setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'knowledge'})
              }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={forwardMessageAnswer} onNavigationLockChange={setAssistantNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} onDraftReady={(value, contextId) => {try {
+               if (deliverySwitchBlocked('documents') || deliveryTransfer) {setHandoffError('작성하던 업무를 먼저 마친 뒤 이 답변을 다시 선택해 주세요. 답변과 기존 입력은 유지했습니다.');return}
                const draft = assistantDocumentDraft(value,member)
                if (value.intent === 'guided_collection') {
                  if(setupOrigin?.scope===currentScope&&setupOrigin.id===contextId){setSetupSuggestion(guidedSetupSuggestion({origin:setupOrigin,requestId:value.requestKey,body:draft.body},member));setGuidedSuggestion(undefined)}
                  else{if (!guidedOrigin || guidedOrigin.scope !== currentScope || guidedOrigin.id !== contextId) throw new Error('질문형 원본 연결 없음')
                  setGuidedSuggestion(guidedAiSuggestion({origin:guidedOrigin,requestId:value.requestKey,body:draft.body},member));setSetupSuggestion(undefined)}setDocumentDraft(undefined)
                } else {setDocumentDraft({scope:currentScope,draft});setGuidedSuggestion(undefined);setSetupSuggestion(undefined)}
-               setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'documents'})
-             } catch {setHandoffError('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} /></Suspense></ModuleBoundary></AssistantDock> : undefined
+               if(activeDelivery?.kind === 'documents')setDeliveryTalking(false);else setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'documents'})
+             } catch {setHandoffError('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} />}>{activeDelivery?.kind === 'messages' ? renderMessages(true) : activeDelivery?.kind === 'collections' ? renderCollections(true) : activeDelivery?.kind === 'documents' ? renderDocuments(true) : null}</AssistantDeliveryFrame></Suspense></ModuleBoundary></AssistantDock> : undefined
 
   function discardUnsentInput() {
     if (pendingRequests.count() > 0) return false
@@ -415,7 +484,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
         <ModuleBoundary moduleName={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
           {assistantNavigationLocked && !assistantOpen && page !== 'assistant' && <p className="ws-ai-preserved" role="status">AI 입력 또는 확인할 요청이 보관되어 있습니다. <button type="button" onClick={openAssistant}>작성 중인 AI 대화 열기</button></p>}
-          {handoffError && <p role="alert">{handoffError}</p>}
+          {handoffError && !assistantOpen && page !== 'assistant' && <p role="alert">{handoffError}</p>}
           {workReturn?.scope === currentScope && workReturn.page === page && <nav aria-label="작업 연결" className="timetable-source-navigation">
             <button type="button" className="text-button" disabled={navigationLocked} onClick={() => workReturn.fromPage === 'assistant' ? openAssistant() : navigate(workReturn.fromPage)}>{workReturn.fromPage === 'assistant' ? 'AI 비서로 돌아가기' : workReturn.fromPage === 'knowledge' ? '학교 자료로 돌아가기' : `${enabledModules('connected').find(item => item.id === workReturn.fromPage)?.title ?? '이전 작업'}으로 돌아가기`}</button>
             <span>{page === 'messages' ? '전달받은 초안은 받는 사람과 내용을 확인한 뒤 전송하세요.' : page === 'collections' ? '연결한 문서와 제출 대상을 확인한 뒤 첨부·제출하세요.' : page === 'documents' ? 'AI 초안을 검토하고 필요한 내용만 반영하세요.' : '답변을 확인한 뒤 원래 작업을 이어갈 수 있습니다.'}</span>
@@ -434,21 +503,12 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
             {page === 'schoolAdmin' ? <SchoolAdminPanel transitionOpen={transitionOpen?.scope===currentScope?transitionOpen:undefined} initialGuideOpen={timetableOpen?.scope === currentScope && timetableOpen.fromPage === 'schoolAdmin'} onOpenPreparation={destination => { if (destination === 'teaching') navigate('students'); else if (['target','setup','preparation','import'].includes(destination) && navigate('timetable')) setTimetableOpen({scope:currentScope,key:crypto.randomUUID(),fromPage:'schoolAdmin',preparationStep:destination as 'target'|'setup'|'preparation'|'import'}) }} onUpdated={() => setAttempt(value => value + 1)} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
              page === 'timetable' ? <TimetableWorkspace initialPreparationStep={timetableOpen?.scope === currentScope ? timetableOpen.preparationStep : undefined} initialIntent={timetableOpen?.scope === currentScope ? timetableOpen.intent : undefined} initialNotificationId={timetableOpen?.scope === currentScope ? timetableOpen.notificationId : undefined} initialRequestId={timetableOpen?.scope === currentScope ? timetableOpen.requestId : undefined} initialLessonId={timetableOpen?.scope === currentScope ? timetableOpen.lessonId : undefined} initialDate={timetableOpen?.scope === currentScope ? timetableOpen.date : undefined} key={`${resetKey}:${timetableOpen?.key ?? ''}`} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} onOpenSchoolAdmin={() => navigate('schoolAdmin')} onOpenTeaching={() => navigate('students')} /> :
              page === 'students' ? <TeachingWorkspace initialRequest={teachingOpen?.scope===currentScope?teachingOpen:undefined} onRequestStudentDraft={source => { try { sendToAssistant(studentAssistantRequest(source,member)) } catch { setHandoffError('현재 학교와 학생 근거를 다시 확인해 주세요.') } }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
-             page === 'messages' ? <MessagingWorkspace onUpdated={() => setRefreshEpoch(value => value + 1)} openRequest={requested?.kind === 'message' && requested.id ? { key: requested.key, id: requested.id } : undefined} onReturnToSource={requested?.kind === 'message' ? () => resource.navigate('home') : undefined} composeRequest={messageDraft?.scope === currentScope ? messageDraft.draft : undefined} onComposeRequestConsumed={id => setMessageDraft(current => current?.draft.id === id ? undefined : current)} canOpenSource={source => ['calendar', 'tasks', 'collections', 'cooperation', 'timetable', 'transitions'].includes(source.module)} onOpenSource={source => { if(source.module==='transitions'){if(!navigate('schoolAdmin'))throw new Error('작성 중인 내용을 확인해 주세요.');setTransitionOpen({scope:currentScope,id:source.id,key:crypto.randomUUID()});return} if (source.module === 'timetable') { if (!navigate('timetable')) throw new Error('작성 중인 내용을 확인한 뒤 시간표 요청을 열어 주세요.'); setTimetableOpen({ scope: currentScope, notificationId: source.id, key: crypto.randomUUID(), fromPage: 'messages' }); return } const moved = source.module === 'cooperation' ? resource.openCooperation(source.id) : source.module === 'collections' ? resource.openCollection(source.id) : (source.module === 'tasks' || source.module === 'calendar') ? resource.openSearchItem({ kind: source.module === 'tasks' ? 'task' : 'calendar', id: source.id, title: '', description: '', meta: '' }) : false; if (!moved) throw new Error('작성 중인 내용을 확인한 뒤 원본을 열어 주세요.') }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} /> :
+             page === 'messages' ? renderMessages(false) :
              page === 'assistant' ? null :
-             page === 'documents' ? <DocumentsWorkspace onOpenFileCollections={()=>setHandoff({scope:currentScope,fromPage:page,page:'collections'})} guidedSetupAiSuggestion={setupSuggestion?.origin.scope===currentScope?setupSuggestion:undefined} onRequestGuidedSetupAi={value=>{
-               const origin=guidedSetupOrigin(value.origin,member)
-               if(value.request.intent!=='guided_collection')throw new Error('질문형 준비 요청 불일치')
-               const request=documentAssistantRequest(value.request)
-               setGuidedOrigin(undefined);setGuidedSuggestion(undefined);setSetupOrigin(origin);setSetupSuggestion(undefined);setHandoffError('');setAssistantContext({scope:currentScope,id:origin.id,request});openAssistant()
-             }} openRequest={requested?.kind === 'document' && requested.id ? {key:requested.key,id:requested.id,version:requested.version} : undefined} legacyPlanHref={legacyPlanHref} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} aiDraft={documentDraft?.scope === currentScope ? documentDraft.draft : undefined} guidedAiSuggestion={guidedSuggestion?.origin.scope === currentScope ? guidedSuggestion : undefined} onRequestGuidedAi={value => {try {
-               const origin = guidedAiOrigin(value.origin,member)
-               if (value.request.intent !== 'guided_collection') throw new Error('질문형 작성 요청 불일치')
-               sendToAssistant(documentAssistantRequest(value.request),origin)
-             } catch {throw new Error('AI로 전달할 양식과 답변을 확인하지 못했습니다. 작성 중인 내용은 유지됩니다.')}}} onRequestAi={input => {try{sendToAssistant(documentAssistantRequest(input))}catch{setHandoffError('AI로 전달할 제목·입력 길이와 근거를 확인해 주세요. 문서 입력은 보관되어 있습니다.')}}} onOpenCollection={requestId => setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId})} onUseGenerated={value => {setGeneratedFile({scope:currentScope,value});setHandoff({scope:currentScope,fromPage:page,page:'collections',requestId:value.requestId})}} /> :
+             page === 'documents' ? renderDocuments(false) :
              page === 'cooperation' ? <CooperationWorkspace openRequest={requested?.kind === 'cooperation' && requested.id ? { key: requested.key, id: requested.id } : undefined} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} onOpenTask={id => resource.openSearchItem({kind:'task',id,title:'',description:'',meta:''})} /> :
              <KnowledgeWorkspace returnLabel={knowledgeOpen?.fromPage ? '이전 화면으로 돌아가기' : undefined} openRequest={knowledgeOpen?.scope === currentScope ? knowledgeOpen.request : undefined} onReturnToSource={knowledgeOpen?.scope === currentScope && knowledgeOpen.fromPage !== 'knowledge' ? () => {navigate(knowledgeOpen.fromPage ?? 'assistant')} : undefined} onAskAssistant={request => sendToAssistant(knowledgeAssistantContext(request,member))} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setExtensionNavigationLocked} />}
-          </Suspense></main> : page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}><CollectionServerPanel key={resetKey} composeRequest={collectionDraft?.scope === currentScope ? collectionDraft.draft : undefined} onComposeRequestConsumed={id => setCollectionDraft(current => current?.draft.id === id ? undefined : current)} server={collectionServer} operations={collectionOperations} incomingFile={generatedFile?.scope === currentScope ? generatedFile.value : undefined} onIncomingFileConsumed={() => setGeneratedFile(undefined)} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setCollectionNavigationLocked} openRequest={requested?.kind === 'collection' && requested.id ? { key: requested.key, id: requested.id } : undefined} /></Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={assistantTask?.scope === currentScope ? {key:assistantTask.request.key, taskId:assistantTask.request.taskId, change:assistantTask.request} : requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} onAssistantTaskHandled={key => setAssistantTask(current => current?.request.key === key ? undefined : current)} /></main> :
+          </Suspense></main> : page === 'collections' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>자료 수합</h1><p>양식을 배부하고 제출된 파일을 확인하세요.</p></div></header><Suspense fallback={<p role="status">자료 수합 화면을 준비하고 있습니다…</p>}>{renderCollections(false)}</Suspense></main> : page === 'tasks' ? <main id="main-content" className="main-content"><header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>내 업무</h1><p>현재 학교에서 내가 할 일을 정리하고 진행 상황을 확인하세요.</p></div></header><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setTaskNavigationLocked} openRequest={assistantTask?.scope === currentScope ? {key:assistantTask.request.key, taskId:assistantTask.request.taskId, change:assistantTask.request} : requested?.kind === 'task' ? { key: requested.key, taskId: requested.id, dueFilter: requested.dueFilter } : undefined} onAssistantTaskHandled={key => setAssistantTask(current => current?.request.key === key ? undefined : current)} /></main> :
             page === 'calendar' && batchOpen ? <main id="main-content" className="main-content"><header className="page-header"><h1 tabIndex={-1}>시트에서 일정 가져오기</h1></header><Suspense fallback={<p role="status">일괄 가져오기를 준비하고 있습니다…</p>}><CalendarBatchImport connection={connection} member={member} members={context.memberships} date={context.basisDate} revision={refreshEpoch} onNavigationLockChange={setBatchNavigationLocked} onClose={() => setBatchOpen(false)} onSaved={() => setRefreshEpoch(value => value + 1)} /></Suspense></main> :
             <CalendarPanel key={resetKey} member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} adapter={adapter} revision={refreshEpoch}
               page={page === 'calendar' ? 'calendar' : 'home'} onPageChange={navigate} onNavigationLockChange={setCalendarNavigationLocked} onOpenBatchImport={() => setBatchOpen(true)}

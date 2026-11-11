@@ -450,7 +450,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             disabled={!workspaceEditable || Boolean(session.prompt.trim())}
             onDismiss={dismissTaskMatches} onOpen={openWorkspaceItem} />}
           {calendarFollowup && <CalendarFollowupCard command={calendarFollowup} disabled={!workspaceEditable} onCancel={cancelCalendar} />}
-          {draftFollowup && <DraftFollowupCard draft={draftFollowup} result={draftPeople}
+          {draftFollowup && <DraftFollowupCard inConversation={workspaceActions?.deliveryInConversation} draft={draftFollowup} result={draftPeople}
             disabled={!workspaceEditable || draftSearching} searching={draftSearching}
             pendingInput={Boolean(session.prompt.trim())} onSelect={selectDraftPerson}
             onRemove={removeDraftPerson} onDismiss={dismissDraftPeople} onRetry={retryDraftName} canRetry={!session.prompt.trim() || draftFollowup.pendingNames?.[0] === session.prompt} onCancel={cancelDraftFollowup}

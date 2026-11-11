@@ -1,0 +1,17 @@
+.messaging-recipient-editor[open],.messaging-attachment-editor[open]{display:grid;gap:.75rem}
+.messaging-workspace[data-presentation=assistant]{gap:.75rem}
+.messaging-workspace[data-presentation=assistant] .messaging-header{padding:0}
+.messaging-workspace[data-presentation=assistant] .messaging-header h2{font-size:1.1rem}
+.messaging-workspace[data-presentation=assistant] .messaging-compose-grid,
+.messaging-workspace[data-presentation=assistant] .messaging-grid{grid-template-columns:minmax(0,1fr)}
+.messaging-workspace[data-presentation=assistant] .wh-compose-heading,
+.messaging-workspace[data-presentation=assistant] .wh-compose-body,
+.messaging-workspace[data-presentation=assistant] .wh-compose-footer{padding:.8rem}
+.messaging-workspace[data-presentation=assistant] .wh-compose-heading h3{font-size:1rem}
+.messaging-workspace[data-presentation=assistant] .messaging-recipient-editor>summary,
+.messaging-workspace[data-presentation=assistant] .messaging-attachment-editor>summary{cursor:pointer;min-height:2.75rem;align-content:center;line-height:1.5;overflow-wrap:anywhere;font-weight:600}
+.messaging-workspace[data-presentation=assistant] .messaging-compose textarea{min-height:7rem}
+.messaging-workspace[data-presentation=assistant] .messaging-compose-content{gap:.75rem}
+.messaging-workspace[data-presentation=assistant] .messaging-preview,
+.messaging-workspace[data-presentation=assistant] .messaging-panel,
+.messaging-workspace[data-presentation=assistant] .messaging-status{padding:.85rem}

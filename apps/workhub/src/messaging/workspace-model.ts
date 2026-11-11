@@ -12,6 +12,8 @@ export interface MessageComposeRequest {
   recipients?: Recipient[]
 }
 export interface MessagingWorkspaceProps {
+  /** 대화 안에서도 같은 작성·첨부·확인·복구 흐름을 사용한다. */
+  presentation?: 'page' | 'assistant'
   openRequest?: { key: string; id: string }
   onReturnToSource?: () => void
   composeRequest?: MessageComposeRequest

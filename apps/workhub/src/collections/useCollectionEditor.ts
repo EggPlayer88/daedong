@@ -991,6 +991,12 @@ export function useCollectionEditor({
     )
       onIncomingFileConsumed?.()
   }
+  function discardIncomingFile() {
+    // 전달한 파일 선택만 해제한다. 문서함의 생성 원본이나 업로드 중인 파일은 지우지 않는다.
+    if (!incomingFile || operation.current || busy || pending || sessionRef.current.upload || exportBusy || savingRequest)
+      return
+    onIncomingFileConsumed?.()
+  }
   async function download(parent: CollectionFileParent, file: FileReference) {
     if (operation.current || exportBusy) return
     const epoch = life.current
@@ -1162,6 +1168,7 @@ export function useCollectionEditor({
     cursor,
     date,
     detail,
+    discardIncomingFile,
     dirty,
     download,
     enabled,
