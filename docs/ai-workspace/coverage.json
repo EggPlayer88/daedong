@@ -1,7 +1,7 @@
 {
   "schema": "ai-workspace.coverage.v1",
   "asOf": "2026-11-11",
-  "baselineCommit": "7ebd871c288851d1d77b622aef4612c7123c8c07",
+  "baselineCommit": "29ecc11baeac3f8994487963d802f394b3526921",
   "scope": "운영 사이트의 교사·관리자 사용자 업무 목록. 시험 전용 사이트·외부 배포·SQL 적용·과금계정 발급은 제외.",
   "counting": "결과 중심 61개 업무를 동일 가중치로 센다. 별칭·버튼·실패 상황을 별도 업무로 중복 계산하지 않는다. 기관별 빈도·중요도 가중치는 측정하지 않았다.",
   "definitions": {
@@ -19,22 +19,22 @@
   "metrics": {
     "inventoryTotal": 61,
     "modeCounts": {
-      "chat_card": 8,
-      "linked_screen": 4,
-      "embedded_panel": 43,
+      "chat_card": 9,
+      "embedded_panel": 45,
+      "linked_screen": 1,
       "external_step": 1,
       "not_connected": 5
     },
-    "insideAiWorkspace": 51,
-    "insideAiWorkspacePercent": 83.6,
-    "directAiScenarioEvidence": 23,
-    "directAiScenarioEvidencePercent": 37.7,
+    "insideAiWorkspace": 54,
+    "insideAiWorkspacePercent": 88.5,
+    "directAiScenarioEvidence": 26,
+    "directAiScenarioEvidencePercent": 42.6,
     "naturalLanguageOnlyCompletionPercent": null,
     "productionPassRate": null
   },
   "limits": [
     "AI 작업 공간 안에서 화면과 확인 버튼을 이용하는 경로 지원율이며 자연어만으로 완료하는 비율이 아니다.",
-    "증거 파일은 회귀의 존재와 검증 범위를 가리킨다. 파일이 있다는 이유로 현재 커밋에서 실행·통과했다고 간주하지 않는다. 실행 결과는 completion-verification.md에 별도로 기록한다.",
+    "증거 파일은 회귀의 존재와 검증 범위를 가리킨다. 파일이 있다는 이유로 현재 커밋에서 실행·통과했다고 간주하지 않는다. 4차 실행 결과는 completion-verification.md, 이번 후속 실행 결과는 daily-actions-verification.md에 별도로 기록한다.",
     "composed는 하나의 대화 시작부터 모든 업무 결과까지 단일 통합 시험이 있다는 뜻이 아니다.",
     "일반 교사 AI 공개는 확대하지 않았다. 각 업무의 기존 권한·readiness·현재 소속을 충족한 사용자 기준이다.",
     "DB·Storage·provider는 주로 합성하며 실제 AI 답변 품질·휴대폰 키보드·운영 동시성의 성공률을 뜻하지 않는다.",
@@ -134,15 +134,15 @@
       "id": "W04",
       "area": "개인 업무",
       "title": "할 일 제목 정정·다시 시작·기타 상태 변경",
-      "mode": "linked_screen",
-      "evidenceLevel": "composed",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
       "evidence": [
-        "apps/workhub/src/tasks/TaskPanel.tsx",
-        "apps/workhub/src/tasks/TaskCard.tsx",
-        "tests/browser/workhub-tasks.mjs"
+        "tests/browser/workhub-assistant-daily-actions.mjs",
+        "tests/test_workhub_task_daily_actions.mjs",
+        "apps/workhub/src/tasks/assistant-change.ts"
       ],
-      "completion": "일반 업무 화면의 수정·다시 시작·상태 선택",
-      "boundary": "AI 확인 카드는 메모·기한·완료만 지원하므로 제목 변경과 재개는 원래 화면에서 수행"
+      "completion": "동명 후보에서 한 건을 선택하고 제목·상태·재개 전후를 명시 확인한 뒤 기존 할 일 RPC로 저장",
+      "boundary": "완료·취소 업무의 재개, 원본 판 충돌, 원키 복구를 합성 응답으로 검증; 다른 필드·업무는 유지하며 확인 없는 저장 없음"
     },
     {
       "id": "C01",
@@ -226,14 +226,16 @@
       "id": "M03",
       "area": "메시지",
       "title": "업무 알림에서 원래 업무 열기",
-      "mode": "linked_screen",
-      "evidenceLevel": "composed",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
       "evidence": [
-        "tests/browser/workhub-home-message.mjs",
-        "tests/browser/workhub-timetable-notification.mjs"
+        "tests/browser/workhub-assistant-daily-connected.mjs",
+        "tests/browser/workhub-messaging.mjs",
+        "tests/browser/workhub-timetable-notification.mjs",
+        "apps/workhub/src/app/ConnectedWorkspace.tsx"
       ],
-      "completion": "알림의 원본 업무·요청 ID 확인",
-      "boundary": "알림 출처가 일반 화면으로 연결될 수 있어 AI 안 완료로 세지 않음"
+      "completion": "업무 알림 목록·필터·재조회와 지원되는 원본 업무의 ID를 대화 안 패널로 연결",
+      "boundary": "할 일·일정 원본 연결을 직접 검증하고 나머지 지원 종류는 기존 회귀와 조합; 기존 6종 원본 범위를 유지하며 자동 읽음·수락·완료·승인 없음"
     },
     {
       "id": "F01",
@@ -409,10 +411,11 @@
       "evidenceLevel": "composed",
       "evidence": [
         "tests/browser/workhub-assistant-remaining.mjs",
-        "tests/browser/workhub-cooperation-handover.mjs"
+        "tests/browser/workhub-cooperation-handover.mjs",
+        "apps/workhub/src/app/ConnectedWorkspace.tsx"
       ],
       "completion": "현재 담당자와 변조 없는 이력 확인",
-      "boundary": "원래 이력 파서와 권한을 유지하며 연결 업무 열기는 일반 화면으로 이어질 수 있음"
+      "boundary": "원래 이력 파서와 권한을 유지하며 AI 패널의 연결 할 일도 내부 원본 패널로 전달; 협업 전체 이력과 연결 할 일을 단일 운영 시험으로 검증한 의미 아님"
     },
     {
       "id": "T01",
@@ -743,24 +746,28 @@
       "mode": "linked_screen",
       "evidenceLevel": "composed",
       "evidence": [
+        "tests/browser/workhub-assistant-daily.mjs",
+        "tests/browser/workhub-assistant-daily-connected.mjs",
+        "apps/workhub/src/assistant/AssistantDailyWorkspace.tsx",
         "tests/browser/workhub-home-overview.mjs",
         "tests/browser/workhub-home-grid.mjs"
       ],
-      "completion": "현재 역할의 긴급 업무·기한·수업·제출 상태 확인",
-      "boundary": "홈으로 이동하여 보며 대화 안의 통합 요약을 새로 만드는 기능 아님"
+      "completion": "할 일·관련 일정·수합·메시지·학생 후속 업무는 AI 안에서 조회하며 실제 수업 시각을 포함한 전체 홈 요약은 기존 화면에서 확인",
+      "boundary": "AI 조회와 할 일·대화 목록 연결에는 직접 회귀가 있으나 실제 수업 시각·시간표 요약은 이번 패널에 포함되지 않아 H01 전체를 AI 안 완료로 집계하지 않음"
     },
     {
       "id": "H02",
       "area": "홈·조회",
       "title": "학교 급식 조회",
-      "mode": "linked_screen",
-      "evidenceLevel": "composed",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
       "evidence": [
-        "tests/browser/workhub-neis.mjs",
-        "apps/workhub/src/app/ConnectedWorkspace.tsx"
+        "tests/browser/workhub-assistant-daily.mjs",
+        "tests/browser/workhub-assistant-daily-connected.mjs",
+        "apps/workhub/src/neis/NeisMeals.tsx"
       ],
-      "completion": "기준 날짜의 나이스 급식과 갱신 상태 확인",
-      "boundary": "자동 갱신은 기존 서버 작업이며 AI가 대화 요청으로 급식을 새로 수집하지 않음"
+      "completion": "오늘·내일·명시 날짜의 나이스 급식과 갱신 상태를 대화 안에서 조회",
+      "boundary": "학교 기준일의 소속으로 검증하고 날짜 선택·미연결·실패를 구분; 자동 갱신은 기존 서버 작업이며 대화 요청으로 새로 수집하거나 유료 AI를 호출하지 않음"
     },
     {
       "id": "L01",

@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-11. 기준은 3차 `7ebd871c`와 이번 4차 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-11. 기준은 4차 후속 기준 커밋 `29ecc11b`와 이번 오늘 업무·급식·알림·할 일 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -12,25 +12,32 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 
 | 구분 | 업무 수 | 의미 |
 |---|---:|---|
-| AI 기본 화면·확인 카드 | 8 | AI 기본 화면에서 질문·정보 보완·확인 카드 사용 |
-| AI 안 기존 업무 패널 | 43 | 대화에서 기존 편집기·조회·확정 화면을 내부 패널로 사용 |
-| 일반 업무 화면 연결 | 4 | 일반 메뉴로 이동해 업무 수행 |
+| AI 기본 화면·확인 카드 | 9 | AI 기본 화면에서 질문·정보 보완·확인 카드 사용 |
+| AI 안 기존 업무 패널 | 45 | 대화에서 기존 편집기·조회·확정 화면을 내부 패널로 사용 |
+| 일반 업무 화면 연결 | 1 | 일반 메뉴로 이동해 업무 수행 |
 | 외부 도구 단계 필요 | 1 | 로컬 계산 작업자 등 사이트 밖 단계 포함 |
 | AI 업무 연결 없음 | 5 | 기존 기능은 유지되지만 AI가 해당 업무를 이어 받지 못함 |
 
-**AI 작업 공간 안의 지원 경로: 51/61개 (83.6%).** 이 중 8개는 AI 기본 화면·확인 카드, 43개는 기존 업무 패널이다. 따라서 전체 사이트에서 “대화만으로 90% 이상 완료”는 아직 입증되지 않았다.
+**AI 작업 공간 안의 지원 경로: 54/61개 (88.5%).** 이 중 9개는 AI 기본 화면·확인 카드, 45개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니며, AI 내부 경로도 아직 90%에 이르지 않았다.** 최종 확인·후보 선택·파일 선택 같은 기존 화면 조작을 포함한다.
 
-AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **23/61개 (37.7%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않으며, 이번 실행 결과와 운영 검증의 구분은 통합 검증 기록을 따른다.
+AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **26/61개 (42.6%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 4차의 역사적 실행 기록은 [completion-verification.md](completion-verification.md)를 유지하고 이번 실행 결과는 [daily-actions-verification.md](daily-actions-verification.md)에서 구분한다.
+
+## 이번에 연결한 범위
+
+- **W04:** 할 일 제목 정정·다시 시작·상태 변경을 후보 선택 → 원본 비교 → 명시 확인 카드 → 같은 요청 번호의 저장·복구로 연결했다.
+- **H02:** 날짜별 급식을 AI 안 기존 조회 패널에서 확인한다. 대화 요청으로 급식을 새로 수집하거나 유료 AI를 호출하지 않는다.
+- **H01 부분 연결:** 할 일·관련 일정·수합·메시지·학생 후속 업무를 AI 안에서 조회한다. 실제 수업 시각·시간표 요약은 이번 패널에 없어 H01 전체는 기존 화면 연결로 남겼으며 54개에 포함하지 않는다.
+- **M03:** 알림 목록·필터·재조회와 지원 원본 열기를 AI 내부로 연결했다. 알림을 여는 것과 읽음·업무 확정은 별개다.
 
 ## 남은 연결의 우선순위
 
-1. 할 일 제목 정정·다시 시작·기타 상태 변경: 원래 업무 화면에서 처리한다. AI의 메모·기한·완료 카드가 이 작업들까지 지원하는 것으로 세지 않는다.
-2. 홈 업무 요약·급식과 알림의 원본 열기: 일부는 일반 화면으로 이동한다. 자료가 사라지는 문제는 아니지만 AI 안 완료로 집계하지 않는다.
-3. 평가계획서 작성·제출: 일반 HWPX 수합과 다른 기존 전용 흐름이다. 기간 업무 메뉴 및 기존 파일 엔진을 유지한 채 연결을 별도 검토해야 한다.
-4. 사용자 승인·전역 권한·기간 업무·개인화 설정: 관리자 또는 개인 설정의 명시 확인이 필요하며 현재 AI 명령으로 대신 변경하지 않는다.
-5. 시간표 계산 작업자: 로컬 실행과 결과 가져오기는 외부 단계로 유지한다. 웹 대화만으로 계산 실행을 완료했다고 보고하지 않는다.
+1. 오늘 업무와 실제 날짜별 수업의 통합 조회(H01): 수업 시각·시간표 요약을 AI 내부 홈에 연결하고 기존 원본 조회·충돌·미준비 표시를 보존해야 한다.
+2. 평가계획서 작성·제출(L01·L02): 일반 HWPX 수합과 다른 기존 전용 흐름이다. 기간 업무 메뉴 및 기존 파일 엔진을 유지한 채 연결을 별도 검토해야 한다.
+3. 사용자 승인·전역 권한·기간 업무·개인화 설정(L03~L05): 관리자 또는 개인 설정의 명시 확인이 필요하며 현재 AI 명령으로 대신 변경하지 않는다.
+4. 시간표 계산 작업자(T03): 로컬 실행과 결과 가져오기는 외부 단계로 유지한다. 웹 대화만으로 계산 실행을 완료했다고 보고하지 않는다.
+5. 연결된 54개 업무의 자연어 안내와 직접 회귀 근거 확대: 현재는 26개 업무의 대표 결과에 직접 근거가 있다. 여러 세부 작업의 연쇄 처리·운영 동시성·실제 AI 답변 품질은 별도 검증한다.
 
-새로 연결한 공유·대상 지정·여러 날짜 일정, 기존 일정 변경, 일괄 입력은 원래 일정 편집기와 미리보기 계약을 AI 패널 안에서 이용한다. 자연어가 일정의 모든 필드를 자동 입력하거나 저장을 자동 확정하는 뜻은 아니다.
+공유·대상 지정·여러 날짜 일정, 기존 일정 변경, 일괄 입력은 원래 일정 편집기와 미리보기 계약을 AI 패널 안에서 이용한다. 자연어가 일정의 모든 필드를 자동 입력하거나 저장을 자동 확정하는 뜻은 아니다.
 
 이 목록은 미연결 부분을 이번에 무조건 구현하거나 권한·비용 변경을 승인한다는 뜻이 아니다. 기존 기능은 원래 메뉴에서 계속 사용할 수 있다.
 
@@ -54,7 +61,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 | W01 | 새 할 일 제안 검토·등록 | AI 기본 화면·확인 카드 | 직접 | 제목·기한·메모 검토 후 접수 결과 확인. 원래 유료 제안·확정 절차 유지. [workhub-assistant-workflows](../../tests/browser/workhub-assistant-workflows.mjs) |
 | W02 | 기존 할 일 메모·기한 수정 | AI 기본 화면·확인 카드 | 직접 | 동명 후보 선택·원본 비교·같은 요청 저장. 원본 판 충돌 시 새 판에 임의 덮어쓰기 없음. [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) |
 | W03 | 기존 할 일 완료 | AI 기본 화면·확인 카드 | 직접 | 선택한 개인 업무 한 건의 완료 결과 확인. 협업 완료 확인과 일반 할 일 완료를 동일 처리하지 않음. [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) · [workhub-assistant-operations](../../tests/browser/workhub-assistant-operations.mjs) |
-| W04 | 할 일 제목 정정·다시 시작·기타 상태 변경 | 일반 업무 화면 연결 | 조합 | 일반 업무 화면의 수정·다시 시작·상태 선택. AI 확인 카드는 메모·기한·완료만 지원하므로 제목 변경과 재개는 원래 화면에서 수행. [TaskPanel](../../apps/workhub/src/tasks/TaskPanel.tsx) · [TaskCard](../../apps/workhub/src/tasks/TaskCard.tsx) · [workhub-tasks](../../tests/browser/workhub-tasks.mjs) |
+| W04 | 할 일 제목 정정·다시 시작·기타 상태 변경 | AI 기본 화면·확인 카드 | 직접 | 동명 후보에서 한 건을 선택하고 제목·상태·재개 전후를 명시 확인한 뒤 기존 할 일 RPC로 저장. 완료·취소 업무의 재개, 원본 판 충돌, 원키 복구를 합성 응답으로 검증; 다른 필드·업무는 유지하며 확인 없는 저장 없음. [workhub-assistant-daily-actions](../../tests/browser/workhub-assistant-daily-actions.mjs) · [test_workhub_task_daily_actions](../../tests/test_workhub_task_daily_actions.mjs) · [assistant-change](../../apps/workhub/src/tasks/assistant-change.ts) |
 
 ### 일정
 
@@ -71,7 +78,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 |---|---|---|---|---|
 | M01 | 메시지 본문·수신자·첨부 검토·전송 | AI 안 기존 업무 패널 | 직접 | 대상 선택·HWPX 확인·명시 전송·접수증. 대상 교사 자동 선택·확인 없는 전송 없음. [workhub-messaging](../../tests/browser/workhub-messaging.mjs) · [workhub-messaging-deliveries](../../tests/browser/workhub-messaging-deliveries.mjs) |
 | M02 | 받은 메시지 조회·읽음·첨부 내려받기 | AI 안 기존 업무 패널 | 조합 | 허용된 대화 원문과 파일 조회. 학교·참여자 검사는 기존 서버가 수행. [workhub-messaging](../../tests/browser/workhub-messaging.mjs) · [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) |
-| M03 | 업무 알림에서 원래 업무 열기 | 일반 업무 화면 연결 | 조합 | 알림의 원본 업무·요청 ID 확인. 알림 출처가 일반 화면으로 연결될 수 있어 AI 안 완료로 세지 않음. [workhub-home-message](../../tests/browser/workhub-home-message.mjs) · [workhub-timetable-notification](../../tests/browser/workhub-timetable-notification.mjs) |
+| M03 | 업무 알림에서 원래 업무 열기 | AI 안 기존 업무 패널 | 직접 | 업무 알림 목록·필터·재조회와 지원되는 원본 업무의 ID를 대화 안 패널로 연결. 할 일·일정 원본 연결을 직접 검증하고 나머지 지원 종류는 기존 회귀와 조합; 기존 6종 원본 범위를 유지하며 자동 읽음·수락·완료·승인 없음. [workhub-assistant-daily-connected](../../tests/browser/workhub-assistant-daily-connected.mjs) · [workhub-messaging](../../tests/browser/workhub-messaging.mjs) · [workhub-timetable-notification](../../tests/browser/workhub-timetable-notification.mjs) · [ConnectedWorkspace](../../apps/workhub/src/app/ConnectedWorkspace.tsx) |
 
 ### 수합
 
@@ -105,7 +112,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
 | O01 | 협업 요청·수락·반려·완료 확인 | AI 안 기존 업무 패널 | 직접 | 수신자 요청·할 일 연결·완료 요청·요청자 확인. AI 상태의 요청·수락·완료 요청 결과를 검증; 반려와 요청자의 최종 완료 확인은 원래 패널 회귀와 조합. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-cooperation-batch](../../tests/browser/workhub-cooperation-batch.mjs) |
-| O02 | 기존 협업 조회·처리 이력·연결 업무 | AI 안 기존 업무 패널 | 조합 | 현재 담당자와 변조 없는 이력 확인. 원래 이력 파서와 권한을 유지하며 연결 업무 열기는 일반 화면으로 이어질 수 있음. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-cooperation-handover](../../tests/browser/workhub-cooperation-handover.mjs) |
+| O02 | 기존 협업 조회·처리 이력·연결 업무 | AI 안 기존 업무 패널 | 조합 | 현재 담당자와 변조 없는 이력 확인. 원래 이력 파서와 권한을 유지하며 AI 패널의 연결 할 일도 내부 원본 패널로 전달; 협업 전체 이력과 연결 할 일을 단일 운영 시험으로 검증한 의미 아님. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-cooperation-handover](../../tests/browser/workhub-cooperation-handover.mjs) · [ConnectedWorkspace](../../apps/workhub/src/app/ConnectedWorkspace.tsx) |
 
 ### 시간표
 
@@ -151,8 +158,8 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
-| H01 | 오늘 업무·기한·수업·수합 요약 조회 | 일반 업무 화면 연결 | 조합 | 현재 역할의 긴급 업무·기한·수업·제출 상태 확인. 홈으로 이동하여 보며 대화 안의 통합 요약을 새로 만드는 기능 아님. [workhub-home-overview](../../tests/browser/workhub-home-overview.mjs) · [workhub-home-grid](../../tests/browser/workhub-home-grid.mjs) |
-| H02 | 학교 급식 조회 | 일반 업무 화면 연결 | 조합 | 기준 날짜의 나이스 급식과 갱신 상태 확인. 자동 갱신은 기존 서버 작업이며 AI가 대화 요청으로 급식을 새로 수집하지 않음. [workhub-neis](../../tests/browser/workhub-neis.mjs) · [ConnectedWorkspace](../../apps/workhub/src/app/ConnectedWorkspace.tsx) |
+| H01 | 오늘 업무·기한·수업·수합 요약 조회 | 일반 업무 화면 연결 | 조합 | 할 일·관련 일정·수합·메시지·학생 후속 업무는 AI 안에서 조회하며 실제 수업 시각을 포함한 전체 홈 요약은 기존 화면에서 확인. AI 조회와 할 일·대화 목록 연결에는 직접 회귀가 있으나 실제 수업 시각·시간표 요약은 이번 패널에 포함되지 않아 H01 전체를 AI 안 완료로 집계하지 않음. [workhub-assistant-daily](../../tests/browser/workhub-assistant-daily.mjs) · [workhub-assistant-daily-connected](../../tests/browser/workhub-assistant-daily-connected.mjs) · [AssistantDailyWorkspace](../../apps/workhub/src/assistant/AssistantDailyWorkspace.tsx) · [workhub-home-overview](../../tests/browser/workhub-home-overview.mjs) · [workhub-home-grid](../../tests/browser/workhub-home-grid.mjs) |
+| H02 | 학교 급식 조회 | AI 안 기존 업무 패널 | 직접 | 오늘·내일·명시 날짜의 나이스 급식과 갱신 상태를 대화 안에서 조회. 학교 기준일의 소속으로 검증하고 날짜 선택·미연결·실패를 구분; 자동 갱신은 기존 서버 작업이며 대화 요청으로 새로 수집하거나 유료 AI를 호출하지 않음. [workhub-assistant-daily](../../tests/browser/workhub-assistant-daily.mjs) · [workhub-assistant-daily-connected](../../tests/browser/workhub-assistant-daily-connected.mjs) · [NeisMeals](../../apps/workhub/src/neis/NeisMeals.tsx) |
 
 ### 기존·공통 사이트
 
