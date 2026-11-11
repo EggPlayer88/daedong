@@ -1,5 +1,5 @@
 import type { EvaluationTarget } from './evaluation-workspace'
-import type { WorkspacePlan } from './workspace-plan'
+import type { SavedWorkspacePlan } from './plan-control'
 import type { DailyCommand } from './daily-command'
 import type { MemoryService } from './memory-contracts'
 import type { Membership } from '../contracts'
@@ -97,9 +97,9 @@ export type Session = {
   intent: AssistantIntent
   prompt: string
   conversationFocus?: ConversationFocus
-  workspacePlan?: { plan: WorkspacePlan; scope: string; selectedId?: string }
+  workspacePlan?: SavedWorkspacePlan
   draftDialogue?: DraftFollowup
-  calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string }
+  calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string; planPrompt?: string }
   references: AssistantContextRequest['references']
   studentContext: StudentContext | null
   thread?: AssistantThread

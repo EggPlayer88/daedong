@@ -1,4 +1,5 @@
 import { useWorkspacePlan } from './useWorkspacePlan'
+import { parseWorkspacePlanControl } from './plan-control'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
@@ -148,7 +149,11 @@ export function useAssistantWorkspace({
     /* 보존한 원문이 읽히지 않으면 임의로 지우지 않는다. */
   }
   const [memoryLocked, setMemoryLocked] = useState(false)
-  const workspaceOperation = useWorkspaceOperation({ member, date, actions: workspaceActions?.operations, onSaved: () => {
+  const workspaceOperation = useWorkspaceOperation({ member, date, actions: workspaceActions?.operations, onSaved: (prompt, receipt) => {
+    const dialogue = latest.current.calendarDialogue
+    const sourcePrompt = receipt.kind === 'calendarCreate' && dialogue?.scope === dialogueScope && dialogue.basisDate === date
+      ? dialogue.planPrompt ?? prompt : prompt
+    workspacePlan.mark(sourcePrompt, 'confirmed', receipt)
     update({ ...latest.current, prompt: '', calendarDialogue: undefined })
     setWorkspaceResult(undefined)
     onUpdated?.()
@@ -177,6 +182,7 @@ export function useAssistantWorkspace({
   const calendarFollowup = commandContext && enabled && session.calendarDialogue?.basisDate === date &&
     session.calendarDialogue.scope === dialogueScope ? session.calendarDialogue.command : undefined
   function draftOpened(command: DirectDraftCommand) {
+    workspacePlan.mark(command.prompt, 'opened')
     const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
     setWorkspaceActionNotice({ prompt: command.prompt, message: workspaceActions?.deliveryInConversation
       ? `${destination} 작업을 대화 안에서 열었습니다. 마지막 확인 전에는 전송·저장하지 않습니다.`
@@ -200,10 +206,10 @@ export function useAssistantWorkspace({
     feedback: (error, notice = '') => { setError(error); setNotice(notice) },
     selected: () => { setWorkspaceResult(undefined); setWorkspaceActionNotice(undefined) },
   })
-  const freeCommand = Boolean(workspacePlan.candidate) || (workspaceCommand && workspaceCommand.kind !== 'task')
+  const freeCommand = Boolean(workspacePlan.control || workspacePlan.candidate) || (workspaceCommand && workspaceCommand.kind !== 'task')
   const promptLimit = freeCommand ? ASSISTANT_LIMITS.promptChars : conversationPromptLimit(conversationProfile.id, session.prompt)
   const canSubmit = !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
-  const submitLabel = workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+  const submitLabel = workspacePlan.control ? '업무 목록 확인' : workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
     workspaceCommand?.kind === 'evaluation' ? '평가계획서 연결 확인' :
     workspaceCommand?.kind === 'daily' ? '학교 자료 확인' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
@@ -542,9 +548,13 @@ export function useAssistantWorkspace({
         }
         if (found.kind !== 'task' || !Number.isSafeInteger(found.version) || !workspaceActions.changeTask?.(workspaceResult.taskChange, found))
           throw new Error('업무 확인 보류')
+        workspacePlan.mark(workspaceResult.prompt, 'opened')
         setWorkspaceActionNotice({ prompt: workspaceResult.prompt, message: '내 업무에서 변경 내용을 확인해 주세요. 아직 저장하지 않았습니다.' })
         setWorkspaceResult(undefined)
-      } else if (!workspaceActions.open(found)) throw new Error('이동 보류')
+      } else {
+        if (!workspaceActions.open(found)) throw new Error('이동 보류')
+        if (workspaceResult) workspacePlan.mark(workspaceResult.prompt, 'opened')
+      }
       setError('')
     } catch {
       setError(workspaceResult?.taskChange ? '할 일을 열지 못했습니다. 현재 작성 중인 작업을 마친 뒤 다시 선택해 주세요.'
@@ -563,7 +573,14 @@ export function useAssistantWorkspace({
     setWorkspaceActionNotice(undefined)
   }
   function ask() {
+    // 누락 정보를 받는 중에는 목록 명령을 제목이나 수신자 이름으로 채우지 않는다.
+    if (commandContext && (latest.current.calendarDialogue || latest.current.draftDialogue) &&
+        parseWorkspacePlanControl(latest.current.prompt)) {
+      if (workspaceEditable && !operation.current) setError('작성 중인 업무의 빠진 정보를 먼저 채우거나 취소해 주세요. 업무 목록과 입력은 유지했습니다.')
+      return
+    }
     if (latest.current.draftDialogue) { void continuation.reply(); return }
+    if (workspacePlan.handleControl()) return
     if (workspacePlan.blockedSelection) { setError('계획의 기준 날짜가 바뀌었습니다. 입력을 유지했으니 현재 날짜로 다시 검토해 주세요.'); return }
     if (workspacePlan.build()) return
     let command = workspaceCommand
@@ -587,6 +604,7 @@ export function useAssistantWorkspace({
           return
         }
         setWorkspaceActionNotice({prompt:latest.current.prompt,message:'새 탭으로 열 연결을 준비했습니다. 작성·제출은 열린 화면에서 직접 확인합니다.'})
+        workspacePlan.mark(latest.current.prompt, 'opened')
         setWorkspaceResult(undefined); setNotice(''); setError('')
         update({...latest.current,prompt:''})
         return
@@ -597,6 +615,7 @@ export function useAssistantWorkspace({
           return
         }
         setWorkspaceActionNotice({ prompt: latest.current.prompt, message: '학교 자료 조회 화면을 열었습니다. 조회만으로 업무를 변경하지 않습니다.' })
+        workspacePlan.mark(latest.current.prompt, 'opened')
         setWorkspaceResult(undefined); setNotice(''); setError('')
         update({ ...latest.current, prompt: '' })
         return
@@ -607,6 +626,7 @@ export function useAssistantWorkspace({
           return
         }
         setWorkspaceActionNotice({ prompt: latest.current.prompt, message: '대상과 현재 원본을 확인할 업무를 열었습니다. 변경은 검토 후 직접 확정합니다.' })
+        workspacePlan.mark(latest.current.prompt, 'opened')
         setWorkspaceResult(undefined); setNotice(''); setError('')
         update({ ...latest.current, prompt: '' })
         return
@@ -631,7 +651,11 @@ export function useAssistantWorkspace({
       }
       if (command.kind === 'navigate' || command.kind === 'calendar') {
         if (command.kind === 'calendar' && calendarQuestion(command)) {
-          update({ ...latest.current, prompt: '', calendarDialogue: { command, basisDate: date, scope: dialogueScope } })
+          const plan = latest.current.workspacePlan
+          const planPrompt = latest.current.calendarDialogue?.planPrompt ??
+            (plan?.scope === dialogueScope && plan.plan.basisDate === date &&
+              plan.plan.steps.find(step => step.id === plan.selectedId)?.prompt === command.prompt ? command.prompt : undefined)
+          update({ ...latest.current, prompt: '', calendarDialogue: { command, basisDate: date, scope: dialogueScope, planPrompt } })
           setWorkspaceResult(undefined)
           setWorkspaceActionNotice(undefined)
           setNotice('')
@@ -650,6 +674,7 @@ export function useAssistantWorkspace({
             ? workspaceActions!.navigate(command.page)
             : workspaceActions!.calendar(command)
           if (!accepted) throw new Error('기존 작업 확인 필요')
+          workspacePlan.mark(command.kind === 'calendar' ? latest.current.calendarDialogue?.planPrompt ?? command.prompt : latest.current.prompt, 'opened')
           setWorkspaceActionNotice({ prompt: command.kind === 'calendar' ? command.prompt : latest.current.prompt,
             message: command.kind === 'calendar'
               ? '일정 화면에서 초안을 확인한 뒤 저장해 주세요. 아직 저장하지 않았습니다.'

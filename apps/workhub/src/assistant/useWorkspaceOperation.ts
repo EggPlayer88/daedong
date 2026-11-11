@@ -17,7 +17,7 @@ type OperationState = {
 // 확정 전 비교표와 미확정 원요청은 대화 답변과 분리한다. 모델 출력으로 저장을 실행하지 않는다.
 export function useWorkspaceOperation({ member, date, actions, onSaved }: {
   member: Membership; date: string; actions?: AssistantWorkspaceActions['operations']
-  onSaved: (prompt: string) => void
+  onSaved: (prompt: string, receipt: WorkspaceOperationReceipt) => void
 }) {
   const recovery = usePendingRequest(member, 'assistantOperation')
   const draft = useEditDraft<OperationState>(member, 'assistant-operation')
@@ -76,7 +76,9 @@ export function useWorkspaceOperation({ member, date, actions, onSaved }: {
       if (epoch !== life.current) return
       recovery.remove(original.review.key)
       store({ ...original, status: 'saved', receipt, error: undefined })
-      context.onSaved(original.prompt)
+      // 화면의 후속 표시 실패를 서버 저장 미확정으로 바꾸지 않는다.
+      try { context.onSaved(original.prompt, receipt) }
+      catch { setError('저장은 확인했지만 후속 화면을 갱신하지 못했습니다. 저장된 원본을 확인해 주세요.') }
     } catch (cause) {
       if (epoch !== life.current) return
       const definite = cause instanceof WorkspaceOperationError && cause.outcome === 'not_saved'
