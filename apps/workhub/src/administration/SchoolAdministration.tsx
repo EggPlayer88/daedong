@@ -7,6 +7,7 @@ import { SchoolTransitions } from './SchoolTransitions'
 import { SchoolRosterPanel } from '../setup/SchoolRosterPanel'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, useRecoveryStore } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import type { SchoolPreparationDestination } from '../setup/school-preparation-summary'
 import styles from './school-administration-conversation.css?inline'
 
@@ -28,12 +29,13 @@ export type SchoolAdministrationSection = typeof sections[number]['id']
 type Props = {
   connection: SupabaseConnection; member: Membership; date: string; revision?: number
   onNavigationLockChange?: (locked: boolean) => void; onUpdated?: () => void
+  onWorkflowResult?: WorkflowResultListener
   onOpenPreparation?: (destination: SchoolPreparationDestination) => void
   initialGuideOpen?: boolean; transitionOpen?: { key: string; id: string }
   presentation?: 'page' | 'assistant'; initialSection?: SchoolAdministrationSection
 }
 
-export function SchoolAdministration({ connection, member, date, revision = 0, onNavigationLockChange, onUpdated, onOpenPreparation, initialGuideOpen = false, transitionOpen, presentation = 'page', initialSection = 'settings' }: Props) {
+export function SchoolAdministration({ connection, member, date, revision = 0, onNavigationLockChange, onWorkflowResult, onUpdated, onOpenPreparation, initialGuideOpen = false, transitionOpen, presentation = 'page', initialSection = 'settings' }: Props) {
   const recovery = useRecoveryStore(), scope = recoveryScope(member)
   const settingsDraft = useEditDraft<unknown>(member, 'school-admin-editor')
   const rosterDraft = useEditDraft<unknown>(member, 'school-roster')
@@ -95,7 +97,7 @@ export function SchoolAdministration({ connection, member, date, revision = 0, o
           tab === 'settings' ? <SchoolAdminPanel connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /> :
             tab === 'roster' ? <SchoolRosterPanel connection={connection} member={member} date={date} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /> :
               tab === 'ai' ? <Suspense fallback={<p role="status">학교 AI 설정을 여는 중…</p>}><SchoolAiSettingsPanel connection={connection} member={member} revision={revision} onNavigationLockChange={setAiLocked} /></Suspense> :
-                <SchoolTransitions presentation={presentation} openRequest={transitionOpen} connection={connection} member={member} revision={revision} onNavigationLockChange={setTransitionsLocked} />}
+                <SchoolTransitions presentation={presentation} openRequest={transitionOpen} connection={connection} member={member} revision={revision} onNavigationLockChange={setTransitionsLocked} onWorkflowResult={onWorkflowResult} />}
     </div>
     {assistant && <details className="school-administration-conversation__tools"><summary>준비 현황·참여 범위</summary>{tools}</details>}
   </section>

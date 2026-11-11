@@ -486,7 +486,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderDocuments(inDelivery: boolean) {
     if (!member || !context) return null
-    return <DocumentsWorkspace presentation={inDelivery ? 'assistant' : 'page'} onOpenFileCollections={()=>inDelivery ? queueDeliveryCollection() : setHandoff({scope:currentScope,fromPage:page,page:'collections'})} guidedSetupAiSuggestion={setupSuggestion?.origin.scope===currentScope?setupSuggestion:undefined} onRequestGuidedSetupAi={value=>{
+    return <DocumentsWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} onOpenFileCollections={()=>inDelivery ? queueDeliveryCollection() : setHandoff({scope:currentScope,fromPage:page,page:'collections'})} guidedSetupAiSuggestion={setupSuggestion?.origin.scope===currentScope?setupSuggestion:undefined} onRequestGuidedSetupAi={value=>{
                const origin=guidedSetupOrigin(value.origin,member)
                if(value.request.intent!=='guided_collection')throw new Error('질문형 준비 요청 불일치')
                const request=documentAssistantRequest(value.request)
@@ -505,7 +505,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!member || !context) return null
     const task = inDelivery ? activeDelivery?.task : undefined
     const initialSection = task === 'schoolRoster' ? 'teachers' : task === 'schoolMembership' ? 'roster' : task === 'schoolTransition' ? 'transitions' : task === 'schoolSettings' ? 'settings' : undefined
-    return <SchoolAdminPanel presentation={inDelivery ? 'assistant' : 'page'} initialSection={initialSection}
+    return <SchoolAdminPanel onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} initialSection={initialSection}
       transitionOpen={transitionOpen?.scope === currentScope ? transitionOpen : undefined}
       initialGuideOpen={!inDelivery && timetableOpen?.scope === currentScope && timetableOpen.fromPage === 'schoolAdmin'}
       onOpenPreparation={destination => {

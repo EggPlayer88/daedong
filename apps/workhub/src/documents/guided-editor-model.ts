@@ -1,5 +1,6 @@
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { ServiceError } from '../services/service-values'
 import { type GuidedService } from './guided-adapter'
 import {
@@ -45,6 +46,7 @@ export interface GuidedWorkspaceProps {
   date: string
   revision?: number
   onNavigationLockChange?: (locked: boolean) => void
+  onWorkflowResult?: WorkflowResultListener
   onRequestAi?: (request: DocumentAiRequest) => void
   onRequestGuidedAi?: (request: GuidedAiRequest) => void
   onRequestGuidedSetupAi?: (request: GuidedSetupAiRequest) => void

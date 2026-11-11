@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { usePendingRequest } from '../app/pending-requests'
+import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 import { canonical, ServiceError } from '../services/service-values'
 import { requestBlobDownload, safeDownloadName } from '../files/download'
@@ -7,6 +7,7 @@ import { activeAt } from '../domain'
 import { createGuidedService } from './guided-adapter'
 import {
   answers,
+  artifact,
   GUIDED_LIMITS,
   questionMapping,
   type Artifact,
@@ -25,6 +26,7 @@ export function useGuidedEditor({
   date,
   revision = 0,
   onNavigationLockChange,
+  onWorkflowResult,
   onRequestAi,
   onRequestGuidedAi,
   onRequestGuidedSetupAi,
@@ -85,6 +87,7 @@ export function useGuidedEditor({
     ),
     [resumeError, setResumeError] = useState('')
   const alive = useRef(true),
+    life = useRef(0),
     writing = useRef(false),
     generation = useRef(0),
     selectionGeneration = useRef(0)
@@ -102,8 +105,11 @@ export function useGuidedEditor({
       busy || aiBusy || setupBusy || restoring || (!folded && (dirty || Boolean(pending)))
   useEffect(() => {
     alive.current = true
+    writing.current = false
+    setBusy(false)
     return () => {
       alive.current = false
+      life.current++
       generation.current++
       selectionGeneration.current++
     }
@@ -290,6 +296,8 @@ export function useGuidedEditor({
   }
   async function execute(next: Pending, retry = false) {
     if (writing.current || denied) return
+    const epoch = life.current, reportResult = onWorkflowResult
+    const current = () => alive.current && life.current === epoch
     writing.current = true
     setBusy(true)
     setError('')
@@ -298,6 +306,7 @@ export function useGuidedEditor({
     recovery.put({ key: next.key, command: next })
     try {
       let templateId: string
+      let generated: Artifact | undefined
       if (next.kind === 'upload') {
         const replayOnly = retry && Boolean(loadError),
           reserved = await service.prepare(member.id, next.file, next.title, next.key, replayOnly)
@@ -321,8 +330,8 @@ export function useGuidedEditor({
         }
         templateId = reserved.templateId
       } else if (next.kind === 'render') {
-        if (retry && loadError)
-          await service.recoverOperation(member.id, {
+        const result = retry && loadError
+          ? await service.recoverOperation(member.id, {
             action: 'render',
             templateId: next.templateId,
             templateVersion: next.templateVersion,
@@ -330,8 +339,7 @@ export function useGuidedEditor({
             responseVersion: next.responseVersion,
             requestKey: next.key,
           })
-        else
-          await service.render(
+          : await service.render(
             member.id,
             next.templateId,
             next.templateVersion,
@@ -339,6 +347,10 @@ export function useGuidedEditor({
             next.responseVersion,
             next.key,
           )
+        generated = artifact(result)
+        if (generated.templateId !== next.templateId || generated.templateVersion !== next.templateVersion ||
+            generated.responseId !== next.responseId || generated.responseVersion !== next.responseVersion)
+          throw new ServiceError('INVALID_RESPONSE')
         templateId = next.templateId
       } else {
         const receipt =
@@ -347,9 +359,17 @@ export function useGuidedEditor({
             : await service.mutate(member.id, next.command, next.key)
         templateId = receipt.templateId
       }
-      if (!alive.current) return
+      if (!current()) return
       setPending(null)
       recovery.remove(next.key)
+      if (generated) {
+        try {
+          reportResult?.({ kind: 'guided', action: 'render', scope: recoveryScope(member), key: next.key,
+            observedAt: new Date().toISOString(), ...generated })
+        } catch {
+          // 목록 표시 실패로 확인한 생성물을 다시 만들거나 최종 제출로 처리하지 않는다.
+        }
+      }
       if (next.kind === 'upload') setUploadTitle('')
       setNotice(
         next.kind === 'upload'
@@ -369,25 +389,25 @@ export function useGuidedEditor({
       }
       try {
         const value = await service.get(member.id, templateId)
-        if (alive.current) {
+        if (current()) {
           useDetail(value)
           if (value.template.canManage)
             try {
               const choices = await targetsFor(member.id)
-              if (alive.current) setTargets(choices)
+              if (current()) setTargets(choices)
             } catch {
-              if (alive.current) {
+              if (current()) {
                 setTargets([])
                 setError('저장은 확인했습니다. 연결할 수합 목록은 다시 열어 확인해 주세요.')
               }
             }
         }
       } catch {
-        if (alive.current) setNotice('처리는 확인했습니다. 목록에서 원본을 다시 열어 주세요.')
+        if (current()) setNotice('처리는 확인했습니다. 목록에서 원본을 다시 열어 주세요.')
       }
-      void load()
+      if (current()) void load()
     } catch (error) {
-      if (!alive.current) return
+      if (!current()) return
       const problem = errorOf(error)
       if (
         ['INVALID_INPUT', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'CONFLICT'].includes(
@@ -400,8 +420,7 @@ export function useGuidedEditor({
       if (problem.code === 'CONFLICT') setConflict(true)
       fail(problem)
     } finally {
-      writing.current = false
-      if (alive.current) setBusy(false)
+      if (current()) { writing.current = false; setBusy(false) }
     }
   }
   const command = (value: GuidedCommand) =>

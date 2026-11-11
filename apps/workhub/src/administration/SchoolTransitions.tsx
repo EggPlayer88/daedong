@@ -6,34 +6,41 @@ import type {Membership} from '../contracts'
 import type {SupabaseConnection} from '../connection/supabase-connection'
 import {useEditDraft} from '../app/edit-drafts'
 import {recoveryScope,usePendingRequest} from '../app/pending-requests'
+import type {WorkflowResultListener} from '../app/workflow-results'
 import { ServiceError } from '../services/service-values'
 import composerStyles from '../app/composer-layout.css?inline'
 import styles from './school-transitions.css?inline'
-import {createTransitionService,transitionCommand,transitionPlan,transitionActionAllowed,needsAdminReview,type TransitionCatalog,type TransitionPlan,type TransitionPreview,type TransitionCommand} from './transitions'
+import {createTransitionService,transitionCommand,transitionPlan,transitionActionAllowed,needsAdminReview,type TransitionCatalog,type TransitionPlan,type TransitionPreview,type TransitionCommand,type TransitionService} from './transitions'
 interface Draft{plan?:TransitionPlan;action?:Extract<TransitionCommand,{recordId:string}>;preview?:TransitionPreview;confirmed:boolean;pending?:{command:TransitionCommand;key:string}}
 const stateLabels={awaiting_admin:'관리자 확인 대기',pending:'인수 확인 대기',accepted:'인수 완료',rejected:'반려',cancelled:'취소',completed:'처리 완료'}
 const actionTitles={admin_confirm:'공식 담당 인계 확인',admin_reject:'공식 담당 인계 반려',accept:'인수 확인',reject:'인계 반려',cancel:'인계 요청 취소'}
-interface Props{openRequest?:{key:string;id:string};connection:SupabaseConnection;member:Membership;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;presentation?:'page'|'assistant'}
+interface Props{openRequest?:{key:string;id:string};connection:SupabaseConnection;member:Membership;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener;presentation?:'page'|'assistant'}
+function reportTransition(listener:WorkflowResultListener|undefined,scope:string,command:TransitionCommand,receipt:Awaited<ReturnType<TransitionService['mutate']>>){
+ if(!listener||receipt.legacyDutyReceipt)return
+ try{listener({kind:'transition',action:command.kind,scope,key:receipt.requestKey,recordedAt:receipt.recordedAt,recordId:receipt.recordId,recordVersion:receipt.version,state:receipt.state})}catch{
+  // 결과 목록 표시 실패는 검증된 접수 결과나 원래 요청의 복구 상태를 바꾸지 않는다.
+ }
+}
 export function SchoolTransitions(props:Props){return <ScopedSchoolTransitions key={recoveryScope(props.member)} {...props}/> }
-function ScopedSchoolTransitions({connection,member,revision=0,onNavigationLockChange,openRequest,presentation='page'}:Props){
+function ScopedSchoolTransitions({connection,member,revision=0,onNavigationLockChange,onWorkflowResult,openRequest,presentation='page'}:Props){
  const service=useMemo(()=>createTransitionService(connection),[connection]),memory=useEditDraft<Draft>(member,'school-transitions'),recovery=usePendingRequest(member,'handover')
  const[draft,setState]=useState<Draft|undefined>(()=>{if(memory.initial)return memory.initial;try{if(recovery.request){const command=transitionCommand(recovery.request.command,{recovering:true});return {plan:command.kind==='apply'?command.plan:undefined,action:command.kind!=='apply'?command:undefined,confirmed:false,pending:{command,key:recovery.request.key}}}}catch{}return undefined}),[data,setData]=useState<TransitionCatalog>(),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[reload,setReload]=useState(0),[cursor,setCursor]=useState<string|null>(null),[history,setHistory]=useState<(string|null)[]>([])
- const alive=useRef(true),working=useRef(false),latestDraft=useRef(draft),lastData=useRef<TransitionCatalog>(),listGeneration=useRef(0)
+ const alive=useRef(true),life=useRef(0),working=useRef(false),latestDraft=useRef(draft),lastData=useRef<TransitionCatalog>(),listGeneration=useRef(0)
  latestDraft.current=draft
  const setDraft=(next:Draft|undefined)=>{latestDraft.current=next;memory.save(next);setState(next)}
- useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[])
+ useEffect(()=>{alive.current=true;working.current=false;setBusy(false);return()=>{alive.current=false;life.current++}},[service])
  useEffect(()=>{onNavigationLockChange?.(!!draft||busy);return()=>onNavigationLockChange?.(false)},[draft,busy,onNavigationLockChange])
  useEffect(()=>{let current=true;const sequence=++listGeneration.current;setData(undefined);void service.list(member.id,cursor).then(v=>{if(current&&sequence===listGeneration.current){const previous=lastData.current;lastData.current=v;const currentDraft=latestDraft.current;if(previous&&JSON.stringify(previous)!==JSON.stringify(v)&&currentDraft&&!currentDraft.pending)setDraft({...currentDraft,preview:undefined,confirmed:false});setData(v);setError('')}}).catch(e=>{if(current&&sequence===listGeneration.current)setError(e instanceof ServiceError?e.message:'인계 정보를 확인하지 못했습니다.')});return()=>{current=false}},[service,member.id,revision,reload,cursor])
  const root=useRef<HTMLDetailsElement>(null)
  const[openedKey,setOpenedKey]=useState(''),[highlight,setHighlight]=useState('')
  useEffect(()=>{if(!openRequest||openRequest.key===openedKey||draft||working.current)return;let current=true;listGeneration.current++;working.current=true;setBusy(true);setError('');void service.locate(member.id,openRequest.id).then(result=>{if(!current)return;setOpenedKey(openRequest.key);if(!result.target){setHighlight('');setError('이 인계가 없거나 현재 소속으로 조회할 수 없습니다.');return}setCursor(result.cursor);setHistory([]);setData(result.catalog);setHighlight(result.target.id);setNotice('알림에서 선택한 인계입니다. 현재 상태와 가능한 작업을 확인해 주세요.')}).catch(e=>{if(current){setOpenedKey(openRequest.key);setError(e instanceof ServiceError?e.message:'인계를 확인하지 못했습니다.')}}).finally(()=>{if(current){working.current=false;setBusy(false)}});return()=>{current=false;working.current=false}},[openRequest?.key,service,member.id,draft])
  useEffect(()=>{if(highlight&&data?.records.some(item=>item.id===highlight))root.current?.querySelector<HTMLElement>('[data-transition-id="'+CSS.escape(highlight)+'"]')?.focus()},[highlight,data])
- async function preview(){if(!draft?.plan||!allowed||draft.pending||working.current)return;if(draft.plan.kind==='new_year'&&!academicYearStartMatches(draft.plan.targetYear,draft.plan.firstDay)){setError(ACADEMIC_YEAR_START_MESSAGE);return}working.current=true;setBusy(true);setError('');try{const plan=transitionPlan(draft.plan),result=await service.preview(member.id,plan);if(alive.current)setDraft({...draft,plan,preview:result,confirmed:false})}catch(e){if(alive.current)setError(e instanceof ServiceError?e.message:'입력 형식을 확인해 주세요.')}finally{working.current=false;if(alive.current)setBusy(false)}}
+ async function preview(){if(!draft?.plan||!allowed||draft.pending||working.current)return;if(draft.plan.kind==='new_year'&&!academicYearStartMatches(draft.plan.targetYear,draft.plan.firstDay)){setError(ACADEMIC_YEAR_START_MESSAGE);return}const epoch=life.current;working.current=true;setBusy(true);setError('');try{const plan=transitionPlan(draft.plan),result=await service.preview(member.id,plan);if(alive.current&&epoch===life.current)setDraft({...draft,plan,preview:result,confirmed:false})}catch(e){if(alive.current&&epoch===life.current)setError(e instanceof ServiceError?e.message:'입력 형식을 확인해 주세요.')}finally{if(alive.current&&epoch===life.current){working.current=false;setBusy(false)}}}
  async function commit(command:TransitionCommand,key:string=crypto.randomUUID(),recovering=false){
-  if(working.current)return;working.current=true;setBusy(true);setError('');const snapshot={...draft!,pending:{command,key}};setDraft(snapshot);recovery.put({command,key})
-  try{const receipt=await (recovering?service.recover(member.id,command,key):service.mutate(member.id,command,key));if(!alive.current)return;recovery.remove(key);setDraft(undefined);setNotice(receipt.legacyDutyReceipt?'이전 인계 요청의 접수 결과를 확인했습니다. 현재 관리자 확인·인수 상태는 새로 조회한 기록에서 확인해 주세요.':receipt.state==='awaiting_admin'?'인계 요청을 저장했습니다. 관리자 확인 후 받는 교사가 인수할 수 있습니다.':receipt.state==='pending'?'인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.':'확인한 변경을 서버에 반영했습니다.');setReload(x=>x+1)}
-  catch(e){if(!alive.current)return;setError(e instanceof ServiceError?e.message:'처리 결과를 확인하지 못했습니다.');if(e instanceof ServiceError&&['INVALID_INPUT','CONFLICT','FORBIDDEN','NOT_FOUND','INACTIVE_MEMBERSHIP'].includes(e.code)){recovery.remove(key);setDraft({...snapshot,preview:undefined,confirmed:false,pending:undefined})}}
-  finally{working.current=false;if(alive.current)setBusy(false)}
+  if(working.current)return;const epoch=life.current,resultListener=onWorkflowResult,scope=recoveryScope(member);working.current=true;setBusy(true);setError('');const snapshot={...draft!,pending:{command,key}};setDraft(snapshot);recovery.put({command,key})
+  try{const receipt=await (recovering?service.recover(member.id,command,key):service.mutate(member.id,command,key));if(!alive.current||epoch!==life.current)return;recovery.remove(key);setDraft(undefined);setNotice(receipt.legacyDutyReceipt?'이전 인계 요청의 접수 결과를 확인했습니다. 현재 관리자 확인·인수 상태는 새로 조회한 기록에서 확인해 주세요.':receipt.state==='awaiting_admin'?'인계 요청을 저장했습니다. 관리자 확인 후 받는 교사가 인수할 수 있습니다.':receipt.state==='pending'?'인계 요청을 저장했습니다. 받는 교사의 인수 확인을 기다립니다.':'확인한 변경을 서버에 반영했습니다.');setReload(x=>x+1);reportTransition(resultListener,scope,command,receipt)}
+  catch(e){if(!alive.current||epoch!==life.current)return;setError(e instanceof ServiceError?e.message:'처리 결과를 확인하지 못했습니다.');if(e instanceof ServiceError&&['INVALID_INPUT','CONFLICT','FORBIDDEN','NOT_FOUND','INACTIVE_MEMBERSHIP'].includes(e.code)){recovery.remove(key);setDraft({...snapshot,preview:undefined,confirmed:false,pending:undefined})}}
+  finally{if(alive.current&&epoch===life.current){working.current=false;setBusy(false)}}
  }
  function updatePlan(plan:TransitionPlan){setDraft({plan,confirmed:false})}
  const plan=draft?.plan

@@ -140,7 +140,7 @@ export function createTransitionService(connection:SupabaseConnection){
    const legacyDutyReceipt=recovering&&command.kind==='apply'&&needsAdminReview(command.plan)&&raw.state==='pending'
    if(command.kind==='apply'&&(raw.version!==1||!legacyDutyReceipt&&raw.state!==(command.plan.kind==='new_year'?'completed':needsAdminReview(command.plan)?'awaiting_admin':'pending')))fail()
    if(command.kind!=='apply'&&raw.state!==({accept:'accepted',reject:'rejected',cancel:'cancelled',admin_confirm:'pending',admin_reject:'rejected'} as const)[command.kind])fail()
-   return{requestKey:key,recordId:raw.recordId as string,state:raw.state as string,legacyDutyReceipt}
+   return{requestKey:key,recordId:raw.recordId as string,version:raw.version as number,state:raw.state as TransitionRecord['state'],recordedAt:raw.recordedAt as string,legacyDutyReceipt}
   },true)
  }
  return{

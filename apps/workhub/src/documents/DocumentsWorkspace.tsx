@@ -5,10 +5,11 @@ import type { SupabaseConnection } from '../connection/supabase-connection'
 import { activeAt } from '../domain'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { canonical, ServiceError } from '../services/service-values'
 import { requestBlobDownload } from '../files/download'
 import { createDocumentsService, type DocumentsService } from './adapter'
-import { blankDocument, documentAiDraft, documentAiRequest, documentCommand, documentInput, documentKindLabels, documentPlainText, DOCUMENT_KINDS, type DocumentAiDraft, type DocumentAiRequest, type DocumentCommand, type DocumentInput, type LibraryDocument } from './contracts'
+import { blankDocument, documentAiDraft, documentAiRequest, documentCommand, documentInput, documentKindLabels, documentPlainText, documentReceipt, DOCUMENT_KINDS, type DocumentAiDraft, type DocumentAiRequest, type DocumentCommand, type DocumentInput, type LibraryDocument } from './contracts'
 import { DocumentReviewTools } from './DocumentReviewTools'
 import { readSavedDocument } from './document-review'
 import { GuidedWorkspace } from './GuidedWorkspace'
@@ -22,6 +23,7 @@ export interface DocumentsWorkspaceProps {
   presentation?: 'page' | 'assistant'
   connection: SupabaseConnection; member: Membership; date: string; revision?: number
   onNavigationLockChange?: (locked: boolean) => void
+  onWorkflowResult?: WorkflowResultListener
   onRequestAi?: (request: DocumentAiRequest) => void
   onRequestGuidedAi?: (request: GuidedAiRequest) => void
   guidedAiSuggestion?: GuidedAiSuggestion
@@ -35,8 +37,9 @@ export interface DocumentsWorkspaceProps {
   onUseGenerated?: (file: GeneratedDocument) => void
   service?: DocumentsService
 }
-type Pending = { command: DocumentCommand; key: string }
-type Memory = { input: DocumentInput; original: LibraryDocument | null; origin: LibraryDocument['origin']; editing: boolean; pending: Pending | null; folded: boolean }
+// AI 반영 출처는 화면 복구 메타로만 보관한다. 서버 문서 명령·본문에는 넣지 않는다.
+type Pending = { command: DocumentCommand; key: string; composeId?: string }
+type Memory = { input: DocumentInput; original: LibraryDocument | null; origin: LibraryDocument['origin']; editing: boolean; pending: Pending | null; folded: boolean; composeId?: string }
 const problemOf = (error: unknown) => error instanceof ServiceError ? error : new ServiceError('QUERY_FAILED')
 const inputOf = (value: LibraryDocument): DocumentInput => ({ title: value.title, kind: value.kind, body: value.body, visibility: value.visibility, sources: value.sources, basisDate: value.basisDate, studentContext: value.studentContext })
 const statusLabels = { draft: '작성 중', confirmed: '내용 확인 완료', archived: '보관함' }
@@ -64,17 +67,19 @@ function DocumentsRouter(props: DocumentsWorkspaceProps) {
   useEffect(() => { if (props.guidedSetupAiSuggestion && !locked && !recovering && consumedSetup.current !== props.guidedSetupAiSuggestion.requestId) { consumedSetup.current = props.guidedSetupAiSuggestion.requestId; setTab('guided') } }, [props.guidedSetupAiSuggestion, locked, recovering])
   // AI 도움 요청 뒤에도 원래 문서 작업으로 돌아온다. 탭 기억은 미저장 입력 경고에 포함하지 않는다.
   useEffect(() => { route.save({tab,aiId:seenAi.current,guidedId:consumedSuggestion.current,setupId:consumedSetup.current},false) }, [tab, props.aiDraft, props.guidedAiSuggestion, props.guidedSetupAiSuggestion, route])
-  return <div className={`documents-workspace document-library-ui${props.presentation === 'assistant' ? ' documents-assistant-pane' : ''}`}><style>{documentStyles}</style><style>{libraryStyles}</style><div className="documents-tabs" aria-label="문서 작업 선택"><button type="button" aria-pressed={tab === 'library'} disabled={locked && tab !== 'library'} onClick={() => setTab('library')}>내 문서함</button><button type="button" aria-pressed={tab === 'guided'} disabled={locked && tab !== 'guided'} onClick={() => setTab('guided')}>질문형 수합 양식</button></div>{tab === 'guided' && target && <section className="documents-status" aria-label="선택한 문서 열기 대기"><p>선택한 문서가 있습니다. 작성 중인 양식은 먼저 입력을 보관하고 접어 주세요. 처리 결과를 모르는 요청은 원래 요청 번호로 확인한 뒤 열 수 있습니다.</p><button type="button" disabled={locked || recovering} onClick={() => setTab('library')}>선택한 문서 열기</button></section>}{tab === 'library' ? <DocumentsWorkspaceScope {...props} openRequest={target} onOpenRequestHandled={setOpened} onNavigationLockChange={onLock} /> : <GuidedWorkspace presentation={props.presentation} connection={props.connection} member={props.member} date={props.date} revision={props.revision} onNavigationLockChange={onLock} onRequestAi={props.onRequestAi} onRequestGuidedSetupAi={props.onRequestGuidedSetupAi} setupAiSuggestion={props.guidedSetupAiSuggestion} onOpenFileCollections={props.onOpenFileCollections} onRequestGuidedAi={props.onRequestGuidedAi} aiSuggestion={props.guidedAiSuggestion} onOpenCollection={props.onOpenCollection} onUseGenerated={props.onUseGenerated} />}</div>
+  return <div className={`documents-workspace document-library-ui${props.presentation === 'assistant' ? ' documents-assistant-pane' : ''}`}><style>{documentStyles}</style><style>{libraryStyles}</style><div className="documents-tabs" aria-label="문서 작업 선택"><button type="button" aria-pressed={tab === 'library'} disabled={locked && tab !== 'library'} onClick={() => setTab('library')}>내 문서함</button><button type="button" aria-pressed={tab === 'guided'} disabled={locked && tab !== 'guided'} onClick={() => setTab('guided')}>질문형 수합 양식</button></div>{tab === 'guided' && target && <section className="documents-status" aria-label="선택한 문서 열기 대기"><p>선택한 문서가 있습니다. 작성 중인 양식은 먼저 입력을 보관하고 접어 주세요. 처리 결과를 모르는 요청은 원래 요청 번호로 확인한 뒤 열 수 있습니다.</p><button type="button" disabled={locked || recovering} onClick={() => setTab('library')}>선택한 문서 열기</button></section>}{tab === 'library' ? <DocumentsWorkspaceScope {...props} openRequest={target} onOpenRequestHandled={setOpened} onNavigationLockChange={onLock} /> : <GuidedWorkspace presentation={props.presentation} connection={props.connection} member={props.member} date={props.date} revision={props.revision} onNavigationLockChange={onLock} onRequestAi={props.onRequestAi} onRequestGuidedSetupAi={props.onRequestGuidedSetupAi} setupAiSuggestion={props.guidedSetupAiSuggestion} onOpenFileCollections={props.onOpenFileCollections} onRequestGuidedAi={props.onRequestGuidedAi} aiSuggestion={props.guidedAiSuggestion} onOpenCollection={props.onOpenCollection} onUseGenerated={props.onUseGenerated} onWorkflowResult={props.onWorkflowResult} />}</div>
 }
-function DocumentsWorkspaceScope({ presentation = 'page', connection, member, date, revision = 0, onNavigationLockChange, onRequestAi, legacyPlanHref, aiDraft, openRequest, onOpenRequestHandled, service: supplied }: DocumentsWorkspaceProps & { onOpenRequestHandled: (token: string) => void }) {
+function DocumentsWorkspaceScope({ presentation = 'page', connection, member, date, revision = 0, onNavigationLockChange, onWorkflowResult, onRequestAi, legacyPlanHref, aiDraft, openRequest, onOpenRequestHandled, service: supplied }: DocumentsWorkspaceProps & { onOpenRequestHandled: (token: string) => void }) {
   const service = useMemo(() => supplied ?? createDocumentsService(connection), [connection, supplied]), id = useId(), memory = useEditDraft<Memory>(member, 'document-editor'), recovery = usePendingRequest(member, 'documents')
   const [saved] = useState(() => memory.initial)
   const [restored] = useState(() => { try { return recovery.request ? documentCommand(recovery.request.command) : null } catch { return null } })
   const [input, setInput] = useState(saved?.input ?? (restored && 'input' in restored ? restored.input : blankDocument(date))), [original, setOriginal] = useState<LibraryDocument | null>(saved?.original ?? null), [origin, setOrigin] = useState<LibraryDocument['origin']>(saved?.origin ?? (restored?.kind === 'create' ? restored.origin : null))
   const [editing, setEditing] = useState(saved?.editing ?? Boolean(restored && 'input' in restored)), [pending, setPending] = useState<Pending | null>(() => {
-    if (recovery.request) { try { return { key: recovery.request.key, command: documentCommand(recovery.request.command) } } catch { return saved?.pending ?? null } }
+    if (recovery.request) { try { return { key: recovery.request.key, command: documentCommand(recovery.request.command), ...(recovery.request.composeId ? { composeId: recovery.request.composeId } : {}) } } catch { return saved?.pending ?? null } }
     return saved?.pending ?? null
   })
+  const [composeId, setComposeId] = useState<string | undefined>(saved?.composeId ?? recovery.request?.composeId)
+  const [beforeAiComposeId, setBeforeAiComposeId] = useState<string | undefined>()
   const [folded, setFolded] = useState(saved?.folded ?? Boolean(pending)), [busy, setBusy] = useState(false), [loading, setLoading] = useState(true), [error, setError] = useState(''), [loadError, setLoadError] = useState(''), [notice, setNotice] = useState(''), [denied, setDenied] = useState(false)
   const [items, setItems] = useState<LibraryDocument[]>([]), [cursor, setCursor] = useState<string | null>(null), [canShare, setCanShare] = useState(false), [selected, setSelected] = useState<LibraryDocument | null>(null)
   const [history, setHistory] = useState<Awaited<ReturnType<DocumentsService['history']>>>([]), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [archived, setArchived] = useState(false), [refresh, setRefresh] = useState(0)
@@ -83,7 +88,7 @@ function DocumentsWorkspaceScope({ presentation = 'page', connection, member, da
   currentTarget.current = externalToken
   const [requested, setRequested] = useState<{ token: string; phase: 'waiting' | 'loading' | 'failed'; message?: string } | null>(null)
   const seenOpen = useRef<string | null>(null), selectionGeneration = useRef(0)
-  const alive = useRef(true), writing = useRef(false), generation = useRef(0), bodyInput = useRef<HTMLTextAreaElement>(null), heading = useRef<HTMLHeadingElement>(null), seenAi = useRef<string | null>(null), focusEditor = useRef(false)
+  const alive = useRef(true), life = useRef(0), writing = useRef(false), generation = useRef(0), bodyInput = useRef<HTMLTextAreaElement>(null), heading = useRef<HTMLHeadingElement>(null), seenAi = useRef<string | null>(null), focusEditor = useRef(false)
   const enabled = activeAt(member, date), dirty = editing && canonical(input) !== canonical(original ? inputOf(original) : blankDocument(date)), locked = busy || Boolean(pending)
   const navigationLocked = busy || Boolean(conflict) || (!folded && (dirty || Boolean(pending)))
   // 입력을 시작한 뒤 예약된 초점 이동이 제목 입력을 가로채지 않도록 DOM 반영 직후 한 번만 실행한다.
@@ -93,14 +98,14 @@ function DocumentsWorkspaceScope({ presentation = 'page', connection, member, da
     bodyInput.current?.focus()
     bodyInput.current?.scrollIntoView({ block: 'center' })
   })
-  useEffect(() => { alive.current = true; return () => { alive.current = false; generation.current++; selectionGeneration.current++ } }, [service])
+  useEffect(() => { alive.current = true; writing.current = false; setBusy(false); return () => { alive.current = false; life.current++; generation.current++; selectionGeneration.current++ } }, [service])
   useEffect(() => { onNavigationLockChange?.(navigationLocked); return () => onNavigationLockChange?.(false) }, [navigationLocked, onNavigationLockChange])
-  useEffect(() => { memory.save(dirty || pending ? { input, original, origin, editing, pending, folded } : undefined, dirty || Boolean(pending)) }, [input, original, origin, editing, pending, folded, dirty, memory])
+  useEffect(() => { memory.save(dirty || pending ? { input, original, origin, editing, pending, folded, composeId } : undefined, dirty || Boolean(pending)) }, [input, original, origin, editing, pending, folded, composeId, dirty, memory])
   useEffect(() => { if (!dirty && !pending) return; const listener = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', listener); return () => window.removeEventListener('beforeunload', listener) }, [dirty, pending])
   function fail(error: unknown, setter = setError) {
     if (!alive.current) return
     const problem = problemOf(error); setter(problem.message)
-    if (['FORBIDDEN', 'INACTIVE_MEMBERSHIP'].includes(problem.code)) { setDenied(true); setItems([]); setSelected(null); setOriginal(null); setInput(blankDocument(date)); setEditing(false); setPending(null); recovery.remove(); memory.remove(); setProposal(null); setBeforeAi(null) }
+    if (['FORBIDDEN', 'INACTIVE_MEMBERSHIP'].includes(problem.code)) { setDenied(true); setItems([]); setSelected(null); setOriginal(null); setInput(blankDocument(date)); setEditing(false); setPending(null); recovery.remove(); memory.remove(); setProposal(null); setBeforeAi(null); setComposeId(undefined); setBeforeAiComposeId(undefined) }
     if (problem.code === 'CANCELLED') { setItems([]); setSelected(null); setProposal(null) }
   }
   async function load(more = false) {
@@ -160,38 +165,46 @@ function DocumentsWorkspaceScope({ presentation = 'page', connection, member, da
     if (locked || dirty) return
     focusEditor.current = true
     setInput(document ? { ...inputOf(document), title: copy ? `${document.title} (사본)` : document.title, visibility: copy ? 'private' : document.visibility } : blankDocument(date)); setOriginal(copy ? null : document); setOrigin(copy && document ? { documentId: document.id, version: document.version } : document?.origin ?? null)
-    setEditing(true); setFolded(false); setDiscard(false); setConflict(null); setError(''); setBeforeAi(null)
+    setEditing(true); setFolded(false); setDiscard(false); setConflict(null); setError(''); setBeforeAi(null); setComposeId(undefined); setBeforeAiComposeId(undefined)
   }
   function close() {
     if (locked) return
     if (dirty && !discard) { setDiscard(true); return }
-    setEditing(false); setInput(blankDocument(date)); setOriginal(null); setOrigin(null); setConflict(null); setDiscard(false); memory.remove(); heading.current?.focus()
+    setEditing(false); setInput(blankDocument(date)); setOriginal(null); setOrigin(null); setConflict(null); setDiscard(false); setComposeId(undefined); setBeforeAiComposeId(undefined); memory.remove(); heading.current?.focus()
   }
   async function perform(command: DocumentCommand, key = `document-${crypto.randomUUID()}`, recovering = false) {
     if (writing.current) return
     const checked = documentCommand(command); writing.current = true; setBusy(true); setError(''); setNotice('')
-    const next = { command: checked, key }; setPending(next); recovery.put(next)
+    const requestComposeId = recovering ? pending?.composeId : checked.kind === 'create' || checked.kind === 'update' ? composeId : undefined
+    const next = { command: checked, key, ...(requestComposeId ? { composeId: requestComposeId } : {}) }, epoch = life.current, reportResult = onWorkflowResult
+    const current = () => alive.current && life.current === epoch
+    setPending(next); recovery.put(next)
     try {
-      const receipt = recovering && loadError ? await service.recover(member.id, checked, key) : await service.mutate(member.id, checked, key)
-      if (!alive.current) return
-      setPending(null); recovery.remove(key); setEditing(false); setOriginal(null); setInput(blankDocument(date)); setConflict(null); memory.remove(); setFolded(false); setBeforeAi(null)
+      const receipt = documentReceipt(recovering && loadError ? await service.recover(member.id, checked, key) : await service.mutate(member.id, checked, key), key, checked)
+      if (!current()) return
+      setPending(null); recovery.remove(key); setEditing(false); setOriginal(null); setInput(blankDocument(date)); setConflict(null); memory.remove(); setFolded(false); setBeforeAi(null); setComposeId(undefined); setBeforeAiComposeId(undefined)
       setNotice(`문서 v${receipt.version}을 저장했습니다.${checked.kind === 'confirm' ? ' 내용을 확인한 버전으로 표시했습니다.' : checked.kind === 'archive' ? ' 보관함으로 옮겼습니다.' : ' 작성 중 초안이며 제출이나 결재가 완료된 것은 아닙니다.'}`); setRefresh(value => value + 1)
-      try { const document = await service.get(member.id, receipt.documentId); if (alive.current) setSelected(document) } catch { if (alive.current) setNotice(`문서 v${receipt.version} 저장은 확인했습니다. 목록을 새로 불러오면 원본을 확인할 수 있습니다.`) }
+      try {
+        reportResult?.({ kind: 'document', action: checked.kind, scope: recoveryScope(member), key: receipt.requestKey, recordedAt: receipt.recordedAt, documentId: receipt.documentId, documentVersion: receipt.version, ...(requestComposeId ? { composeId: requestComposeId } : {}) })
+      } catch {
+        // 업무목록 표시 실패는 이미 확인한 문서 저장을 다시 실행할 이유가 아니다.
+      }
+      try { const document = await service.get(member.id, receipt.documentId); if (current()) setSelected(document) } catch { if (current()) setNotice(`문서 v${receipt.version} 저장은 확인했습니다. 목록을 새로 불러오면 원본을 확인할 수 있습니다.`) }
     } catch (error) {
-      if (!alive.current) return
+      if (!current()) return
       const problem = problemOf(error)
       if (!['RESULT_UNKNOWN', 'QUERY_FAILED', 'INVALID_RESPONSE', 'CANCELLED', 'IDEMPOTENCY_CONFLICT', 'NOT_READY'].includes(problem.code)) { setPending(null); recovery.remove(key) }
       if (problem.code === 'CONFLICT' && 'documentId' in checked) {
-        try { const current = await service.get(member.id, checked.documentId); if (alive.current) { if (checked.kind === 'update') { setConflict(current); setFolded(false) } else setSelected(current) } } catch { /* 최신 내용을 모르면 저장하지 않는다. */ }
+        try { const latest = await service.get(member.id, checked.documentId); if (current()) { if (checked.kind === 'update') { setConflict(latest); setFolded(false) } else setSelected(latest) } } catch { /* 최신 내용을 모르면 저장하지 않는다. */ }
       }
-      fail(problem)
-    } finally { writing.current = false; if (alive.current) setBusy(false) }
+      if (current()) fail(problem)
+    } finally { if (current()) { writing.current = false; setBusy(false) } }
   }
   function save() { try { const checked = documentInput(input); void perform(original ? { kind: 'update', documentId: original.id, expectedVersion: original.version, input: checked } : { kind: 'create', input: checked, origin }) } catch (error) { fail(error) } }
   function applyAi() {
     if (!proposal || locked || conflict) return
     if ((Boolean(input.studentContext) !== Boolean(proposal.studentContext) && original) || (input.studentContext && proposal.studentContext && (input.studentContext.studentId !== proposal.studentContext.studentId || input.studentContext.courseId !== proposal.studentContext.courseId))) { setError('다른 학생의 기록 초안은 별도 새 문서에서 검토해 주세요. 현재 문서를 먼저 닫아 주세요.'); return }
-    setBeforeAi(structuredClone(input)); setInput(value => ({ ...value, title: proposal.title, body: proposal.body, sources: proposal.sources, studentContext: proposal.studentContext, kind: proposal.studentContext ? 'student_record' : value.kind === 'student_record' ? 'general' : value.kind, visibility: proposal.studentContext ? 'private' : value.visibility })); setEditing(true); setFolded(false); setProposal(null); setNotice('AI 초안을 입력에 반영했습니다. 내용과 근거를 직접 확인한 뒤 저장해 주세요.')
+    setBeforeAi(structuredClone(input)); setBeforeAiComposeId(composeId); setComposeId(proposal.requestId); setInput(value => ({ ...value, title: proposal.title, body: proposal.body, sources: proposal.sources, studentContext: proposal.studentContext, kind: proposal.studentContext ? 'student_record' : value.kind === 'student_record' ? 'general' : value.kind, visibility: proposal.studentContext ? 'private' : value.visibility })); setEditing(true); setFolded(false); setProposal(null); setNotice('AI 초안을 입력에 반영했습니다. 내용과 근거를 직접 확인한 뒤 저장해 주세요.')
   }
   async function exportText(document: LibraryDocument) {
     if (locked || writing.current || loading || loadError || denied || !enabled) return
@@ -218,8 +231,8 @@ function DocumentsWorkspaceScope({ presentation = 'page', connection, member, da
     {(!enabled || denied) ? <p role="alert">현재 학교의 문서함 이용 권한을 다시 확인해 주세요.</p> : <>
       {proposal && <section className="documents-panel" aria-label="AI 문서 초안 비교"><h3>AI가 제안한 초안</h3><p className="documents-muted">현재 입력과 비교한 뒤 반영 여부를 결정합니다. 아직 저장되지 않았습니다.</p><div className="documents-comparison"><div><h4>현재 입력</h4><p className="documents-body">{input.body || '작성한 내용 없음'}</p></div><div><h4>{proposal.title}</h4><p className="documents-body">{proposal.body}</p><Sources sources={proposal.sources} /></div></div><div className="documents-actions"><button type="button" disabled={locked || Boolean(conflict)} onClick={applyAi}>이 초안을 입력에 반영</button><button type="button" onClick={() => setProposal(null)}>제안 닫기</button></div></section>}
       {editing && <form hidden={folded} className="documents-editor" aria-label="문서 초안 작성" onSubmit={event => { event.preventDefault(); save() }}><h3>{original ? `문서 수정 · v${original.version}` : '새 문서 초안'}</h3>
-        {conflict && <section className="documents-status" aria-label="문서 변경 비교"><h4>다른 곳에서 먼저 저장했습니다</h4><div className="documents-comparison"><div><h4>최신 원본 · v{conflict.version}</h4><DocumentContents document={conflict} /></div><div><h4>내 입력</h4><DocumentContents document={input} /></div></div><div className="documents-actions"><button type="button" disabled={busy} onClick={() => { setOriginal(conflict); setConflict(null); setNotice('최신 버전을 기준으로 바꿨습니다. 내 입력을 다시 확인한 뒤 저장해 주세요.') }}>비교 완료 · 내 입력으로 계속 수정</button><button type="button" disabled={busy} onClick={() => { setInput(inputOf(conflict)); setOriginal(conflict); setConflict(null) }}>최신 원본 사용</button></div></section>}
-        <fieldset disabled={locked || Boolean(conflict)}><legend>문서 정보와 본문</legend><div className="library-metadata"><label htmlFor={`${id}-title`}>문서 제목<input id={`${id}-title`} value={input.title} maxLength={200} required onChange={event => setInput(value => ({ ...value, title: event.target.value }))} /></label><div className="documents-fields"><label htmlFor={`${id}-kind`}>문서 종류<select aria-label="문서 종류" id={`${id}-kind`} value={input.kind} disabled={Boolean(input.studentContext)} onChange={event => setInput(value => ({ ...value, kind: event.target.value as DocumentInput['kind'] }))}>{DOCUMENT_KINDS.filter(kind => kind !== 'student_record' || input.studentContext).map(kind => <option key={kind} value={kind}>{documentKindLabels[kind]}</option>)}</select></label><label htmlFor={`${id}-date`}>기준일<input type="date" id={`${id}-date`} value={input.basisDate} required onChange={event => setInput(value => ({ ...value, basisDate: event.target.value }))} /></label></div><label htmlFor={`${id}-visibility`}>공개 범위<select aria-label="공개 범위" id={`${id}-visibility`} value={input.visibility} disabled={Boolean(input.studentContext)} onChange={event => setInput(value => ({ ...value, visibility: event.target.value as DocumentInput['visibility'] }))}><option value="private">나만 보기</option><option value="school" disabled={!canShare}>학교 선생님과 공유</option></select></label></div><div><label htmlFor={`${id}-body`}>문서 본문</label><textarea id={`${id}-body`} ref={bodyInput} value={input.body} maxLength={100000} required onChange={event => setInput(value => ({ ...value, body: event.target.value }))} /></div><div className="documents-actions"><button type="button" disabled={Boolean(input.body) || input.kind === 'general'} onClick={() => setInput(value => ({ ...value, body: scaffolds[value.kind] }))}>빈 본문에 기본 항목 넣기</button>{onRequestAi && <button type="button" onClick={() => { try { const request = documentAiRequest(input, original); setFolded(true); onRequestAi(request) } catch { setError('본문이 길어 한 번에 전달할 수 없습니다. 먼저 문서를 저장한 뒤 저장된 원본으로 AI 초안을 요청해 주세요. 입력은 유지했습니다.') } }}>현재 입력으로 AI 초안 요청</button>}</div><Sources sources={input.sources} />{input.studentContext && <p className="documents-status">학생 기록 검토용 초안입니다. 나만 보기로 보관하며, 공식 생활기록부에 자동 기재하지 않습니다. 근거 {input.studentContext.evidence.length}건의 버전·해시·범위를 보존합니다.</p>}{beforeAi && <button type="button" onClick={() => { setInput(beforeAi); setBeforeAi(null) }}>AI 반영 전 입력으로 되돌리기</button>}</fieldset>
+        {conflict && <section className="documents-status" aria-label="문서 변경 비교"><h4>다른 곳에서 먼저 저장했습니다</h4><div className="documents-comparison"><div><h4>최신 원본 · v{conflict.version}</h4><DocumentContents document={conflict} /></div><div><h4>내 입력</h4><DocumentContents document={input} /></div></div><div className="documents-actions"><button type="button" disabled={busy} onClick={() => { setOriginal(conflict); setConflict(null); setNotice('최신 버전을 기준으로 바꿨습니다. 내 입력을 다시 확인한 뒤 저장해 주세요.') }}>비교 완료 · 내 입력으로 계속 수정</button><button type="button" disabled={busy} onClick={() => { setInput(inputOf(conflict)); setOriginal(conflict); setConflict(null); setComposeId(undefined); setBeforeAi(null); setBeforeAiComposeId(undefined) }}>최신 원본 사용</button></div></section>}
+        <fieldset disabled={locked || Boolean(conflict)}><legend>문서 정보와 본문</legend><div className="library-metadata"><label htmlFor={`${id}-title`}>문서 제목<input id={`${id}-title`} value={input.title} maxLength={200} required onChange={event => setInput(value => ({ ...value, title: event.target.value }))} /></label><div className="documents-fields"><label htmlFor={`${id}-kind`}>문서 종류<select aria-label="문서 종류" id={`${id}-kind`} value={input.kind} disabled={Boolean(input.studentContext)} onChange={event => setInput(value => ({ ...value, kind: event.target.value as DocumentInput['kind'] }))}>{DOCUMENT_KINDS.filter(kind => kind !== 'student_record' || input.studentContext).map(kind => <option key={kind} value={kind}>{documentKindLabels[kind]}</option>)}</select></label><label htmlFor={`${id}-date`}>기준일<input type="date" id={`${id}-date`} value={input.basisDate} required onChange={event => setInput(value => ({ ...value, basisDate: event.target.value }))} /></label></div><label htmlFor={`${id}-visibility`}>공개 범위<select aria-label="공개 범위" id={`${id}-visibility`} value={input.visibility} disabled={Boolean(input.studentContext)} onChange={event => setInput(value => ({ ...value, visibility: event.target.value as DocumentInput['visibility'] }))}><option value="private">나만 보기</option><option value="school" disabled={!canShare}>학교 선생님과 공유</option></select></label></div><div><label htmlFor={`${id}-body`}>문서 본문</label><textarea id={`${id}-body`} ref={bodyInput} value={input.body} maxLength={100000} required onChange={event => setInput(value => ({ ...value, body: event.target.value }))} /></div><div className="documents-actions"><button type="button" disabled={Boolean(input.body) || input.kind === 'general'} onClick={() => setInput(value => ({ ...value, body: scaffolds[value.kind] }))}>빈 본문에 기본 항목 넣기</button>{onRequestAi && <button type="button" onClick={() => { try { const request = documentAiRequest(input, original); setFolded(true); onRequestAi(request) } catch { setError('본문이 길어 한 번에 전달할 수 없습니다. 먼저 문서를 저장한 뒤 저장된 원본으로 AI 초안을 요청해 주세요. 입력은 유지했습니다.') } }}>현재 입력으로 AI 초안 요청</button>}</div><Sources sources={input.sources} />{input.studentContext && <p className="documents-status">학생 기록 검토용 초안입니다. 나만 보기로 보관하며, 공식 생활기록부에 자동 기재하지 않습니다. 근거 {input.studentContext.evidence.length}건의 버전·해시·범위를 보존합니다.</p>}{beforeAi && <button type="button" onClick={() => { setInput(beforeAi); setBeforeAi(null); setComposeId(beforeAiComposeId); setBeforeAiComposeId(undefined) }}>AI 반영 전 입력으로 되돌리기</button>}</fieldset>
         {!pending && <div className="documents-actions"><button type="submit" className="documents-primary" disabled={locked || Boolean(conflict)}>초안 저장</button><button type="button" disabled={locked} onClick={close}>{discard ? '입력 버리고 닫기' : '작성 닫기'}</button>{dirty && <button type="button" disabled={busy} onClick={() => setFolded(true)}>입력 접고 문서함 보기</button>}</div>}{discard && <p role="status">닫기를 한 번 더 누르면 아직 저장하지 않은 입력을 버립니다.</p>}
       </form>}
       {editing && folded && !pending && <div className="documents-status"><p>작성 중인 문서를 현재 탭에 보관했습니다.</p><button type="button" onClick={() => setFolded(false)}>문서 작성 계속하기</button></div>}
