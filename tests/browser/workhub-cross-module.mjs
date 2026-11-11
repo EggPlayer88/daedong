@@ -132,7 +132,7 @@ try{
   assert.equal(await page.evaluate(()=>window.cross.writes.length),1)
  })
  for(const unknown of [false,true])await test('AI 할 일 '+(unknown?'같은 요청 복구 뒤':'확인 저장 뒤')+' 목록에 없는 정확한 원본을 열고 다른 학교에 남기지 않는다',async()=>{
-  await go('AI 비서');await page.getByRole('button',{name:'내 개인 비서',exact:true}).click()
+  await go('AI 비서');await page.getByText('자료 범위 변경',{exact:true}).click();await page.getByRole('button',{name:'내 개인 비서',exact:true}).click()
   await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('제출 자료 확인을 내 할 일로 정리해 주세요.');await page.getByRole('button',{name:'AI에게 요청',exact:true}).click()
   await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).click();await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).click();await noWrites()
   assert.equal(await page.getByRole('button',{name:'추가한 할 일 열기',exact:true}).count(),0)

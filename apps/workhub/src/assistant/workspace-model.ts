@@ -25,6 +25,8 @@ import type { WorkspaceCommand } from './workspace-commands'
 import type { DraftFollowup, DraftPeople } from './draft-followup'
 import type { DirectDraftCommand } from './draft-commands'
 import type { TaskChangeCommand } from './task-change-command'
+import type { ConversationFocus } from './conversation-guidance'
+import type { WorkspaceOperationReview, WorkspaceOperationReceipt } from './workspace-operations'
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
 export interface AssistantWorkspaceSearchResult {
   items: SearchItem[]
@@ -39,6 +41,11 @@ export interface AssistantWorkspaceActions {
   findDraftPeople?: (kind: DirectDraftCommand['kind'], query: string, signal: AbortSignal) => Promise<DraftPeople & { limit: number }>
   prepareDraft?: (command: DirectDraftCommand, followup?: DraftFollowup) => boolean
   changeTask?: (command: TaskChangeCommand, selected: SearchItem) => boolean
+  operations?: {
+    prepareTask: (command: TaskChangeCommand, selected: SearchItem) => Promise<WorkspaceOperationReview>
+    prepareCalendar: (command: CalendarWorkspaceCommand) => Promise<WorkspaceOperationReview>
+    execute: (review: WorkspaceOperationReview, retry: boolean) => Promise<WorkspaceOperationReceipt>
+  }
 }
 export interface AssistantDraftReady {
   intent: AssistantIntent
@@ -80,6 +87,7 @@ export type Session = {
   mode: AssistantMode
   intent: AssistantIntent
   prompt: string
+  conversationFocus?: ConversationFocus
   draftDialogue?: DraftFollowup
   calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string }
   references: AssistantContextRequest['references']

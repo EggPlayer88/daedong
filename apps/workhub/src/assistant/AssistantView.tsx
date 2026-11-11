@@ -4,7 +4,6 @@ import { composeMemoryPrompt } from './memory-prompt'
 import {
   ASSISTANT_ROUTING,
   AssistantError,
-  ASSISTANT_LIMITS,
   TASK_INPUT_LIMITS,
   type AnswerSegment,
   type AssistantIntent,
@@ -17,11 +16,14 @@ import type { useAssistantWorkspace } from './useAssistantWorkspace'
 import { WorkspaceCommandResult } from './WorkspaceCommandResult'
 import { CalendarFollowupCard } from './CalendarFollowupCard'
 import { DraftFollowupCard } from './DraftFollowupCard'
+import { CONVERSATION_PROFILES, readConversationPrompt } from './conversation-guidance'
+import { WorkspaceOperationCard } from './WorkspaceOperationCard'
 export function AssistantView({ model }: { model: ReturnType<typeof useAssistantWorkspace> }) {
   const {
     addTask,
     applyContext,
     ask,
+    canChangeConversationFocus,
     canSubmit,
     calendarFollowup,
     cancelCalendar,
@@ -42,6 +44,8 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     changeIntent,
     changeMode,
     connection,
+    conversationFocus,
+    conversationProfile,
     contextRequest,
     date,
     draft,
@@ -82,6 +86,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     session,
     submitLabel,
     setError,
+    setConversationFocus,
     setMemoryLocked,
     setNotice,
     setRefresh,
@@ -110,29 +115,36 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
         </div>
       </header>
       <div className="assistant-scope-bar">
-      <div className="assistant-modes" role="group" aria-label="비서의 자료 범위">
-        <button
-          type="button"
-          aria-pressed={session.mode === 'school'}
-          disabled={locked}
-          onClick={() => changeMode('school')}
-        >
-          학교 업무 안내
-        </button>
-        <button
-          type="button"
-          aria-pressed={session.mode === 'personal'}
-          disabled={locked}
-          onClick={() => changeMode('personal')}
-        >
-          내 개인 비서
-        </button>
-      </div>
-      <p className="assistant-scope">
-        {session.mode === 'school'
-          ? '현재 학교에서 열람 가능한 공통 자료만 사용합니다.'
-          : '내가 볼 수 있는 학교 자료와 내 업무를 사용합니다. 상담 기록은 자동으로 가져오지 않습니다.'}
-      </p>
+        <p className="assistant-scope-current">
+          <WorkspaceIcon name="school" />
+          <span>자료 범위 · <strong>{session.mode === 'school' ? '학교 공통 자료' : '내가 볼 수 있는 자료와 업무'}</strong></span>
+        </p>
+        <details className="assistant-scope-settings">
+          <summary>자료 범위 변경</summary>
+          <div className="assistant-modes" role="group" aria-label="비서의 자료 범위">
+            <button
+              type="button"
+              aria-pressed={session.mode === 'school'}
+              disabled={locked}
+              onClick={() => changeMode('school')}
+            >
+              학교 업무 안내
+            </button>
+            <button
+              type="button"
+              aria-pressed={session.mode === 'personal'}
+              disabled={locked}
+              onClick={() => changeMode('personal')}
+            >
+              내 개인 비서
+            </button>
+          </div>
+          <p className="assistant-scope">
+            {session.mode === 'school'
+              ? '현재 학교에서 열람 가능한 공통 자료만 사용합니다.'
+              : '내가 볼 수 있는 학교 자료와 내 업무를 사용합니다. 상담 기록은 자동으로 가져오지 않습니다.'}
+          </p>
+        </details>
       </div>
       {loading && <p role="status">대화 연결을 확인하고 있습니다.</p>}
       {ready && !ready.available && (
@@ -160,7 +172,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
       )}
       <div className="assistant-thread-heading">
         <h3>
-          {readError ? '대화 연결을 다시 확인해 주세요' : (session.thread?.title ?? '새 대화')}
+          {readError ? '대화 연결을 다시 확인해 주세요' : (session.thread?.title ?? '무엇을 도와드릴까요?')}
         </h3>
         <button
           type="button"
@@ -226,23 +238,6 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
       )}
       <div className="assistant-layout">
         <div className="assistant-main">
-          {!readError && !loading && !workspaceResult && !continuing && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
-            <div className="assistant-welcome">
-              <h3>어떤 일을 도와드릴까요?</h3>
-              <p>{workspaceActions ? '찾고 싶은 자료, 해야 할 일, 이동할 화면을 말씀해 주세요.' : '학교 자료를 찾아보고, 필요한 내용을 함께 정리하세요.'}</p>
-              <div className="assistant-starters" aria-label="요청 종류 빠른 선택">
-                {([
-                  ['school_advice', 'knowledge', '학교 업무 알아보기', '규정과 절차 확인'],
-                  ['document_draft', 'documents', '문서 초안 작성', '생각을 글로 정리'],
-                  ['guided_collection', 'collections', '수합 질문 준비', '질문과 항목 구성'],
-                ] as const).map(([intent, icon, title, description]) => (
-                  <button type="button" key={intent} disabled={!editable || Boolean(draft)} aria-pressed={session.intent === intent} onClick={() => changeIntent(intent)}>
-                    <WorkspaceIcon name={icon} /><strong>{title}</strong><span>{description}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <div
             className="assistant-conversation"
             hidden={
@@ -260,7 +255,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 <article className="assistant-exchange" key={exchange.id}>
                   <div className="assistant-question">
                     <h4>내 질문</h4>
-                    <p className="assistant-text">{exchange.prompt}</p>
+                    <p className="assistant-text">{readConversationPrompt(exchange.prompt).prompt}</p>
                   </div>
                   <div className="assistant-answer-heading">
                     <h4>AI 답변</h4>
@@ -437,6 +432,15 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 </article>
               ))}
           </div>
+          {model.workspaceOperation.preparing && <p role="status">저장 전에 현재 내용을 확인하고 있습니다…</p>}
+          {(model.workspaceOperation.error || model.workspaceOperation.unreadable) && <p role="alert">{model.workspaceOperation.error || '보관한 저장 요청을 읽지 못했습니다. 원래 요청을 유지하며 새 저장을 막았습니다.'}</p>}
+          {model.workspaceOperation.state && enabled && <WorkspaceOperationCard {...model.workspaceOperation.state}
+            onConfirm={model.workspaceOperation.confirm} onRetry={model.workspaceOperation.retry} onCancel={model.workspaceOperation.cancel}
+            onOpenResult={model.workspaceOperation.state.receipt ? () => {
+              const receipt = model.workspaceOperation.state?.receipt
+              if (receipt) workspaceActions?.open({ kind: receipt.kind === 'taskChange' ? 'task' : 'calendar', id: receipt.id,
+                title: receipt.title, description: '', meta: '', version: receipt.version })
+            } : undefined} />}
           {workspaceSearching && <p role="status" className="assistant-workspace-searching">열람 가능한 자료를 찾고 있습니다.</p>}
           {workspaceActionNotice && enabled && <section className="assistant-workspace-result" aria-label="대화 업무 처리 안내">
             <p className="assistant-command-question">{workspaceActionNotice.prompt}</p>
@@ -458,28 +462,45 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               ask()
             }}
           >
-            <div className="assistant-intent-row">
-              <label htmlFor={`${uid}-intent`}>요청 종류</label>
-              <select
-                id={`${uid}-intent`}
-                disabled={!editable || Boolean(draft) || continuing}
-                value={session.intent}
-                onChange={(event) => changeIntent(event.target.value as AssistantIntent)}
-              >
-                {Object.entries(intentLabels)
-                  .filter(
-                    ([key]) =>
-                      session.mode === 'personal' ||
-                      (key !== 'personal_assistant' && key !== 'student_record_draft'),
-                  )
-                  .map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
-              </select>
-              <span className="assistant-compose-model">{calendarFollowup ? '일정' : draftFollowup ? '초안' : session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span>
+            <div className="assistant-compose-heading">
+              <div className="assistant-focus-control">
+                <label htmlFor={`${uid}-focus`}>대화 분야</label>
+                <select
+                  id={`${uid}-focus`}
+                  disabled={!canChangeConversationFocus}
+                  value={conversationFocus}
+                  onChange={(event) => setConversationFocus(event.target.value as typeof conversationFocus)}
+                >
+                  <option value="auto">{conversationFocus === 'auto' ? `자동 · ${conversationProfile.label}` : '자동'}</option>
+                  {CONVERSATION_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
+                </select>
+              </div>
             </div>
+            <details className="assistant-request-settings">
+              <summary>요청 설정 <span>{intentLabels[session.intent]}</span><span className="assistant-compose-model"> · {calendarFollowup ? '일정' : draftFollowup ? '초안' : session.intent === 'student_record_draft' ? ASSISTANT_ROUTING.models.review.label : ASSISTANT_ROUTING.models.quick.label}</span></summary>
+              <div className="assistant-intent-row">
+                <label htmlFor={`${uid}-intent`}>요청 종류</label>
+                <select
+                  id={`${uid}-intent`}
+                  disabled={!editable || Boolean(draft) || continuing}
+                  value={session.intent}
+                  onChange={(event) => changeIntent(event.target.value as AssistantIntent)}
+                >
+                  {Object.entries(intentLabels)
+                    .filter(
+                      ([key]) =>
+                        session.mode === 'personal' ||
+                        (key !== 'personal_assistant' && key !== 'student_record_draft'),
+                    )
+                    .map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <p className="assistant-hint">대화 분야는 답변의 관점을 정합니다. 사용할 자료 범위는 위에서 직접 선택합니다.</p>
+            </details>
             {(session.references.length > 0 || session.studentContext) && (
               <div className="assistant-context">
                 <p>
@@ -522,11 +543,11 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             <label htmlFor={`${uid}-prompt`}>질문 또는 부탁할 일</label>
             <textarea
               id={`${uid}-prompt`}
-              rows={4}
+              rows={3}
               aria-describedby={`${uid}-prompt-hint`}
-              aria-invalid={Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars}
-              placeholder={draftFollowup ? (draftFollowup.command.kind === 'messageDraft' ? '예: 김민지 선생님' : '예: 다음 주 금요일, 김민지 선생님') : calendarFollowup ? '빠진 정보만 답해 주세요.' : workspaceActions ? '예: 시간표 열어줘 · 학교 자료에서 출장 찾아줘' : '예: 선택한 학교 규정에서 제출 절차를 알려 주세요.'}
-              disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || Boolean(draft)}
+              aria-invalid={Array.from(session.prompt).length > model.promptLimit}
+              placeholder={draftFollowup ? (draftFollowup.command.kind === 'messageDraft' ? '예: 김민지 선생님' : '예: 다음 주 금요일, 김민지 선생님') : calendarFollowup ? '빠진 정보만 답해 주세요.' : '필요한 일이나 궁금한 점을 편하게 적어 주세요.'}
+              disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || Boolean(draft) || model.workspaceOperation.locked}
               value={session.prompt}
               onChange={(event) => update({ ...latest.current, prompt: event.target.value })}
             />
@@ -542,12 +563,12 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               </details>
             )}
             <span id={`${uid}-prompt-hint`} className="assistant-hint">
-              {Array.from(session.prompt).length} / {ASSISTANT_LIMITS.promptChars}자 · 상담·건강
+              {Array.from(session.prompt).length} / {model.promptLimit}자 · 상담·건강
               정보는 입력하지 마세요.
             </span>
-            {Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars && (
+            {Array.from(session.prompt).length > model.promptLimit && (
               <p role="alert">
-                질문은 {ASSISTANT_LIMITS.promptChars}자 이내로 줄여 주세요. 입력은 자동으로 자르지
+                질문은 {model.promptLimit}자 이내로 줄여 주세요. 입력은 자동으로 자르지
                 않습니다.
               </p>
             )}
@@ -561,7 +582,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 disabled={
                   !canSubmit || draftSearching ||
                   Boolean(draft) ||
-                  Array.from(session.prompt).length > ASSISTANT_LIMITS.promptChars ||
+                  Array.from(session.prompt).length > model.promptLimit ||
                   !session.prompt.trim() ||
                   (session.intent === 'student_record_draft' && !session.studentContext && !workspaceCommand)
                 }
@@ -572,13 +593,26 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <button
                 type="button"
                 className="assistant-quiet"
-                disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || !session.prompt}
+                disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || !session.prompt || model.workspaceOperation.locked}
                 onClick={() => update({ ...latest.current, prompt: '' })}
               >
                 질문 비우기
               </button>
             </div>
           </form>
+          {!readError && !loading && !workspaceResult && !continuing && !session.thread?.exchanges.length && !session.thread?.nextCursor && !recovery.request && !draft && (
+            <div className="assistant-welcome">
+              <h3>이렇게 시작해 보세요</h3>
+              <div className="assistant-starters" aria-label="대화 시작 예시">
+                {conversationProfile.starterPrompts.slice(0, 3).map((prompt) => (
+                  <button type="button" key={prompt} disabled={(!editable && !workspaceEditable) || Boolean(session.prompt.trim())}
+                    onClick={() => update({ ...latest.current, prompt })}>
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {draft && (
             <section className="assistant-task-editor" aria-labelledby={`${uid}-task`}>
               <h3 id={`${uid}-task`}>개인 할 일 확인</h3>

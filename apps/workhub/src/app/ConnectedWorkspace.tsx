@@ -18,6 +18,7 @@ import type { HomeKind } from '../home/overview'
 import { CalendarPanel } from '../calendar/CalendarPanel'
 import { buildAssistantCalendarDraft, type AssistantCalendarDraftRequest } from '../calendar/assistant-draft'
 import type { AssistantWorkspaceActions } from '../assistant/workspace-model'
+import { createConnectedAssistantOperations } from '../assistant/connected-operations'
 import { searchAssistantWorkspace } from '../assistant/workspace-search'
 import { activeAt } from '../domain'
 import { ContractError } from '../contracts'
@@ -263,6 +264,24 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     setHandoff(undefined);setWorkReturn(undefined);return true
   }
   const assistantActions: AssistantWorkspaceActions = {
+    operations: createConnectedAssistantOperations(taskAdapter, adapter, (kind, preparing) => {
+      if (!member || !context || connectionUnavailable || !activeAt(member, context.basisDate))
+        throw new Error('현재 학교 연결과 소속을 확인해 주세요.')
+      const ownPending = pendingRequests.get(currentScope, 'assistantOperation') ? 1 : 0
+      if (pendingRequests.count() > (preparing ? 0 : ownPending) || handoff ||
+          taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || batchNavigationLocked)
+        throw new Error('먼저 작성 중인 업무나 결과 확인을 마쳐 주세요. 입력은 유지됩니다.')
+      if (kind === 'taskChange' && (assistantTask || editDrafts.bind(currentScope, 'task-editor').initial))
+        throw new Error('내 업무 화면에서 작성 중인 내용을 먼저 확인해 주세요.')
+      if (kind === 'calendarCreate') {
+        const prior = editDrafts.bind<{ editor?: unknown; importing?: boolean }>(currentScope, 'calendar-panel').initial
+        if (batchOpen || assistantCalendar || prior?.editor || prior?.importing ||
+            ['calendar-editor', 'calendar-import', 'calendar-batch'].some(slot => editDrafts.bind(currentScope, slot).initial))
+          throw new Error('일정 화면에서 작성 중인 내용을 먼저 확인해 주세요.')
+      }
+      const epoch = generation.current
+      return { member, date: context.basisDate, isCurrent: () => epoch === generation.current }
+    }),
     navigate(next) {
       if (!member || connectionUnavailable || navigationLocked || !connectedPages.includes(next)) return false
       if (!navigate(next)) return false

@@ -226,8 +226,7 @@
 .ws-shell .ws-ai-body .assistant-workspace .assistant-actions>button{min-height:44px;font-size:var(--ui-small-size)}
 .ws-shell .ws-ai-body .assistant-workspace :is(.assistant-budget-disclosure,.assistant-history){margin:0;font-size:var(--ui-small-size)}
 .ws-shell .ws-ai-body .assistant-workspace .assistant-budget-disclosure>summary{min-height:44px;padding:10px 0}
-/* 옆자리는 현재 업무를 돕는 입력에 바로 닿게 한다. 같은 요청 선택은 폼에 남아 있다. */
-.ws-shell .ws-ai-dock:not(.ws-ai-full) .assistant-workspace .assistant-welcome{display:none}
+/* 옆자리에서도 시작 예시를 입력 아래에 두어 같은 기능을 사용할 수 있다. */
 .assistant-tools>.assistant-reconnect{order:4;font-size:var(--ui-small-size,13px);font-weight:500;padding:10px 0;flex:0 1 auto}
 .ws-shell .ws-ai-dock:not(.ws-ai-full) .assistant-workspace .assistant-intent-row{display:flex;flex-wrap:nowrap}
 .ws-shell .ws-ai-dock:not(.ws-ai-full) .assistant-workspace .assistant-intent-row>label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -263,7 +262,7 @@
 .assistant-result-coverage ul{padding-left:20px;line-height:1.7}
 .assistant-command-examples{display:flex;gap:6px;flex-wrap:wrap}
 .assistant-command-examples>button{font-size:var(--ui-small-size,13px);min-height:40px;max-width:100%;padding:7px 10px;border-radius:10px;border:1px solid var(--ui-line,#e3e7ed);background:var(--ui-surface-muted,#f6f7f9);color:var(--ui-muted,#626d7c);text-align:left;overflow-wrap:anywhere}
-.assistant-command-examples>button:disabled{display:none}
+.assistant-command-examples>button:disabled{opacity:.55}
 @container assistant (max-width:420px){
  .assistant-workspace-result{padding:14px}
  .assistant-resource-list button{grid-template-columns:minmax(0,1fr)}
@@ -271,3 +270,65 @@
 }
 .assistant-command-help{font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
 .assistant-command-help>summary{min-height:40px;display:flex;align-items:center;cursor:pointer}
+
+/* AI 업무실 1차: 대화·입력·결과를 중심에 두고 범위와 세부 설정은 직접 펼친다. */
+.assistant-workspace{max-width:920px}
+.assistant-scope-bar{gap:4px 14px;padding:12px 0;margin-bottom:14px;align-items:center}
+.assistant-scope-current{display:flex;align-items:center;gap:7px;margin:0;flex:1 1 180px;min-width:0;font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c);overflow-wrap:anywhere}
+.assistant-scope-current strong{font-weight:500;color:var(--ui-text,#202832)}
+.assistant-scope-current .ws-tossface{font-size:17px;flex:0 0 auto}
+.assistant-scope-settings{min-width:0;max-width:100%;font-size:var(--ui-small-size,13px)}
+.assistant-scope-settings>summary{min-height:44px;padding:10px 0;cursor:pointer;color:var(--ui-muted,#626d7c)}
+.assistant-scope-settings[open]{flex-basis:100%;padding:0 14px 14px;border:1px solid var(--ui-line,#e3e7ed);border-radius:12px;background:var(--ui-surface,#fff)}
+.assistant-scope-settings .assistant-modes{max-width:100%;margin-bottom:8px}
+.assistant-scope-settings .assistant-scope{margin:0;max-width:68ch}
+.assistant-workspace>.assistant-thread-heading{margin-bottom:12px}
+.assistant-main{gap:16px}
+.assistant-main>.assistant-compose{padding:18px 20px;gap:8px}
+.assistant-compose-heading{display:flex;gap:8px 12px;align-items:center;flex-wrap:wrap;min-width:0}
+.assistant-focus-control{display:flex;align-items:center;flex-wrap:wrap;gap:8px;flex:1;min-width:0}
+.assistant-focus-control>label{flex:0 0 auto;color:var(--ui-muted,#626d7c);font-weight:500}
+.assistant-compose .assistant-focus-control>select{width:auto;flex:1;max-width:260px;min-width:min(180px,100%);min-height:44px;margin:0;padding:7px 30px 7px 10px;border:0;border-radius:9px;background:var(--ui-surface-muted,#f0f2f5);font-size:var(--ui-small-size,13px)}
+.assistant-compose-heading .assistant-compose-model{margin-left:auto;font-variant-numeric:tabular-nums}
+.assistant-request-settings{min-width:0;font-size:var(--ui-small-size,13px);color:var(--ui-muted,#626d7c)}
+.assistant-request-settings>summary{min-height:40px;padding:8px 0;cursor:pointer;overflow-wrap:anywhere}
+.assistant-request-settings>summary>span{margin-left:8px;font-size:var(--ui-small-size,13px);color:var(--ui-text,#202832)}
+.assistant-request-settings>summary>.assistant-compose-model{display:inline-block;color:var(--ui-muted,#626d7c);font-size:var(--ui-small-size,13px)}
+.assistant-request-settings[open]{padding-bottom:8px;border-bottom:1px solid var(--ui-line,#e3e7ed)}
+.assistant-request-settings .assistant-intent-row{padding:8px 0 0;border:0}
+.assistant-request-settings>.assistant-hint{margin:8px 0 0}
+.assistant-compose>label{margin-top:2px;color:var(--ui-text,#202832)}
+.assistant-compose>textarea{min-height:100px}
+.assistant-compose>.assistant-actions{padding-top:10px}
+.assistant-welcome{padding:0;min-width:0}
+.assistant-welcome h3{font-size:var(--ui-small-size,13px);font-weight:500;color:var(--ui-muted,#626d7c);letter-spacing:0;margin:0 0 8px;line-height:1.6}
+.assistant-starters{display:flex;flex-wrap:wrap;gap:6px}
+.assistant-workspace .assistant-starters>button{display:block;flex:1 1 200px;min-width:0;text-align:left;padding:10px 12px;font-size:var(--ui-small-size,13px);line-height:1.6;font-weight:400;border-radius:11px;background:var(--ui-surface,#fff);overflow-wrap:anywhere}
+.assistant-layout{gap:16px}
+.assistant-tools{padding-top:8px;border-top:1px solid var(--ui-line,#e3e7ed);gap:4px 18px}
+.assistant-workspace-result{padding:18px;margin:0;border-radius:14px}
+.assistant-workspace-result-heading{margin-bottom:12px}
+.assistant-command-question{margin-bottom:12px}
+.assistant-resource-list button{border-radius:10px}
+.assistant-compose .assistant-command-help>summary{font-weight:400}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-scope-bar{gap:4px 14px;padding:0 0 10px;margin-bottom:12px}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-thread-heading{margin-bottom:12px}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-compose{padding:16px 18px;gap:8px}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-compose textarea{min-height:100px}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-request-settings .assistant-intent-row{display:flex;flex-wrap:wrap}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-request-settings .assistant-intent-row>label{position:static;width:auto;height:auto;overflow:visible;clip-path:none;white-space:normal}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-scope-settings .assistant-modes{width:fit-content;max-width:100%;margin-bottom:8px;flex-wrap:wrap}
+.ws-shell .ws-ai-body .assistant-workspace .assistant-scope-settings .assistant-modes>button{flex:0 1 auto;min-width:0;white-space:normal}
+@container assistant (max-width:540px){
+ .assistant-focus-control{flex-basis:100%}
+ .assistant-compose .assistant-focus-control>select{max-width:none}
+ .assistant-compose-heading .assistant-compose-model{margin-left:0}
+ .assistant-compose-heading{gap:3px 8px}
+ .assistant-starters{gap:6px}
+ .assistant-workspace .assistant-starters>button{flex-basis:100%;padding:9px 12px}
+ .assistant-scope-settings>summary{padding:8px 0}
+ .assistant-tools{gap:2px 12px}
+ .assistant-main>.assistant-compose,.ws-shell .ws-ai-body .assistant-workspace .assistant-compose{padding:14px}
+ .assistant-compose-heading .assistant-compose-model{font-size:var(--ui-small-size,13px)}
+ .assistant-request-settings>summary>span{margin-left:4px}
+}

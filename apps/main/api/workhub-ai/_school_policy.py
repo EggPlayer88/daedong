@@ -171,6 +171,7 @@ def checked_claim(value, original, key):
 
 
 def provider_body(claim, configuration):
+    # 분야별 지침은 공통 조립부에서 계승한다. 학교별 모델·계수·출력 계약은 그대로 따른다.
     body = legacy.provider_body(claim)
     tier = policy(configuration)
     body['model'] = configuration['model']

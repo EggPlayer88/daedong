@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+대화 중심 AI 1차: `test_workhub_conversation_guidance.mjs/.py`는 분야 지침·원문·기존 SQL 제목/검색 낱말·입력 한도를, `test_workhub_assistant_operations.mjs`는 개인 업무 실행과 원키 복구를 검증한다. `browser/workhub-ai-foundation.mjs`, `browser/workhub-assistant-operations.mjs`, 기존 `browser/workhub-assistant-connected.mjs`는 실제 React와 업무 어댑터를 합성 응답에 연결한다. 운영 DB·유료 AI 호출은 없다. [구축 순서](../docs/ai-workspace/README.md), [검증 기록](../docs/ai-workspace/verification.md).
+
 나이스 연결: `test_neis_*`는 앱·서버·기존 일정 저장 함수·공개 초기 원본을 격리 환경에서 대조한다. `browser/workhub-neis.mjs`는 비교·확인·복구·좁은 화면을, `database/workhub-neis/n1/build_checks.py`는 기존 설치 전체+N1·INT-12 지문과 훼손 검출을 확인한다. 운영 API 키나 외부 DB는 자동 시험에 사용하지 않는다. [검증 기록](../docs/neis/verification.md).
 
 업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합·할 일 원본 왕복 8개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
