@@ -1,3 +1,4 @@
+import type { EvaluationTarget } from './evaluation-workspace'
 import type { WorkspacePlan } from './workspace-plan'
 import type { DailyCommand } from './daily-command'
 import type { MemoryService } from './memory-contracts'
@@ -40,6 +41,7 @@ export interface AssistantWorkspaceActions {
   deliveryInConversation?: boolean
   specialist?: (command: SpecialistCommand) => boolean
   daily?: (command: DailyCommand) => boolean
+  evaluation?: (target: EvaluationTarget) => boolean
   navigate: (page: PageId) => boolean
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
   open: (item: SearchItem) => boolean

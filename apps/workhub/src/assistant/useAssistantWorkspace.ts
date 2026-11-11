@@ -204,6 +204,7 @@ export function useAssistantWorkspace({
   const promptLimit = freeCommand ? ASSISTANT_LIMITS.promptChars : conversationPromptLimit(conversationProfile.id, session.prompt)
   const canSubmit = !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
   const submitLabel = workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+    workspaceCommand?.kind === 'evaluation' ? '평가계획서 연결 확인' :
     workspaceCommand?.kind === 'daily' ? '학교 자료 확인' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
     workspaceCommand?.kind === 'specialist' ? '업무 시작' :
@@ -578,6 +579,16 @@ export function useAssistantWorkspace({
       if (command.kind === 'clarify') {
         setNotice(command.message)
         setError('')
+        return
+      }
+      if (command.kind === 'evaluation') {
+        if (!workspaceActions?.evaluation?.(command.target)) {
+          setError('평가계획서 연결을 열지 못했습니다. 기간 업무 표시 상태와 작성 중인 업무를 확인해 주세요. 요청은 유지했습니다.')
+          return
+        }
+        setWorkspaceActionNotice({prompt:latest.current.prompt,message:'새 탭으로 열 연결을 준비했습니다. 작성·제출은 열린 화면에서 직접 확인합니다.'})
+        setWorkspaceResult(undefined); setNotice(''); setError('')
+        update({...latest.current,prompt:''})
         return
       }
       if (command.kind === 'daily') {

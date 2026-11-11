@@ -13,6 +13,8 @@ import { recoveryScope } from '../app/pending-requests'
 import { HomeOverviewPanel } from '../home/HomeOverviewPanel'
 import type { HomeAction, HomeKind } from '../home/overview'
 import { NeisMeals } from '../neis/NeisMeals'
+import { TimetableAgendaWorkspace } from '../timetable/TimetableAgendaPanel'
+import { PersonalRosterAgenda } from '../teacher-roster/PersonalRosterAgenda'
 import { iso } from '../neis/contracts'
 import styles from './daily-workspace.css?inline'
 
@@ -33,6 +35,7 @@ export interface AssistantDailyWorkspaceProps {
   onOpenTask: (item: { id: string; version: number; title: string }) => void
   onOpenCalendarList: () => void
   onOpenTaskList: () => void
+  onOpenLesson?: (lessonId: string, date: string) => void
 }
 
 // 원본은 기존 조회·표시 규칙을 사용한다. 이 화면의 조회 결과를 AI 문맥이나 쓰기 명령으로 바꾸지 않는다.
@@ -48,12 +51,20 @@ function DailyWorkspaceScope(props: AssistantDailyWorkspaceProps & { mealDate: s
   return <section className="assistant-daily" aria-label={view === 'meals' ? '대화에서 급식 확인' : '대화에서 오늘 업무 확인'}>
     <style>{styles}</style>
     <header className="assistant-daily-heading"><h2>{view === 'meals' ? '급식' : '오늘의 업무'}</h2>{view === 'overview' && <span>{dayLabel(date)}</span>}</header>
-    {view === 'meals' ? <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" /> : <div className="assistant-daily-grid">
+    {view === 'meals' ? <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" /> : <>
+    {props.onOpenLesson && <section className="assistant-daily-lessons" aria-label="대화에서 오늘 수업">
+      <fieldset disabled={locked} aria-label="오늘 수업 조회">
+        <TimetableAgendaWorkspace connection={connection} member={member} date={date} revision={revision} title="오늘 수업"
+          onOpen={(lessonId, lessonDate) => { if (!locked) props.onOpenLesson?.(lessonId, lessonDate) }} />
+        <PersonalRosterAgenda connection={connection} member={member} date={date} revision={revision} />
+      </fieldset>
+    </section>}
+    <div className="assistant-daily-grid">
       <HomeOverviewPanel connection={connection} member={member} revision={revision} locked={locked} onOpen={onOpen} onOpenList={onOpenList} />
       <DailyTasks {...props} />
       <DailyCalendar {...props} />
       <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" />
-    </div>}
+    </div></>}
   </section>
 }
 

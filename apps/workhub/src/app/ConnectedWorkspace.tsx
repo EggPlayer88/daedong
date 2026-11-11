@@ -1,3 +1,4 @@
+import { EvaluationWorkspace, evaluationLink, type EvaluationTarget, type LegacyEvaluationLinks } from '../assistant/evaluation-workspace'
 import { retryableLazy as lazy } from './retryable-lazy'
 import {guidedSetupOrigin,guidedSetupSuggestion,type GuidedSetupAiOrigin,type GuidedSetupAiSuggestion} from '../documents/guided-setup-ai'
 import { assistantDocumentDraft, documentAssistantRequest, studentAssistantRequest } from './pilot-handoff'
@@ -82,7 +83,7 @@ function StyleBoundary({ children }: { children: ReactNode }) {
   `}</style><div className="workhub-connected">{children}</div></>, root) : <p role="status">새 업무 화면을 준비하고 있습니다…</p>}</div>
 }
 
-export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanHref, connection: providedConnection }: { expectedUserId: string; legacyHomeHref: string; legacyPlanHref?: string; connection?: SupabaseConnection }) {
+export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanHref, legacyEvaluationLinks, connection: providedConnection }: { expectedUserId: string; legacyHomeHref: string; legacyPlanHref?: string; legacyEvaluationLinks?: LegacyEvaluationLinks; connection?: SupabaseConnection }) {
   const [connection] = useState(() => providedConnection ?? createSupabaseConnection())
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
@@ -250,9 +251,9 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const requested = resource.current
   const deliverySwitchBlocked = (kind: DeliveryKind) => Boolean(activeDelivery && activeDelivery.kind !== kind &&
     hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)))
-  function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false, task?: SpecialistTask, options?: { daily?: DailyCommand; inbox?: boolean; list?: boolean }) {
+  function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false, task?: SpecialistTask, options?: { daily?: DailyCommand; inbox?: boolean; list?: boolean; evaluation?: EvaluationTarget }) {
     if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() ||
-        !activeAt(member, context.basisDate) || !connectedPages.includes(kind === 'daily' ? 'home' : kind)) return false
+        !activeAt(member, context.basisDate) || !connectedPages.includes(kind === 'daily' ? 'home' : kind === 'evaluation' ? 'documents' : kind)) return false
     if (!resume && hasDeliveryDraft(kind, editDrafts.dirtySlots(currentScope))) return false
     if (deliverySwitchBlocked(kind)) return false
     // 같은 업무도 미저장 입력이 있으면 새 대상·분야로 다시 마운트하지 않는다.
@@ -313,6 +314,9 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   const assistantActions: AssistantWorkspaceActions = {
     deliveryInConversation: true,
+    evaluation(target) {
+      return Boolean(evaluationLink(legacyEvaluationLinks,target)) && startDelivery('evaluation', undefined, false, undefined, {evaluation:target})
+    },
     daily(command) {
       if (!context || !/^\d{4}-\d{2}-\d{2}$/.test(command.date) || (command.view !== 'meals' && command.date !== context.basisDate)) return false
       return command.view === 'notifications' ? startDelivery('messages', undefined, false, undefined, { inbox: true })
@@ -584,6 +588,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         } else startDelivery(item.kind === 'message' ? 'messages' : item.kind === 'cooperation' ? 'cooperation' : 'collections',{key:crypto.randomUUID(),id:item.sourceId})
       }}
       onOpenList={kind => {const target=homeCountLabels[kind].page;if(isDeliveryKind(target))startDelivery(target, undefined, false, undefined, target === 'messages' ? {list:true} : undefined)}}
+      onOpenLesson={(lessonId,date) => {if(startDelivery('timetable',undefined,false,'timetableView'))setTimetableOpen({scope:currentScope,lessonId:lessonId||undefined,date,key:crypto.randomUUID(),fromPage:'home'})}}
       onOpenCalendar={item => startDelivery('calendar',{key:crypto.randomUUID(),id:item.id,version:item.version})}
       onOpenTask={item => startDelivery('tasks',{key:crypto.randomUUID(),id:item.id,version:item.version})}
       onOpenCalendarList={() => startDelivery('calendar')} onOpenTaskList={() => startDelivery('tasks')} />
@@ -602,7 +607,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
                  setGuidedSuggestion(guidedAiSuggestion({origin:guidedOrigin,requestId:value.requestKey,body:draft.body},member));setSetupSuggestion(undefined)}setDocumentDraft(undefined)
                } else {setDocumentDraft({scope:currentScope,draft});setGuidedSuggestion(undefined);setSetupSuggestion(undefined)}
                if(activeDelivery?.kind === 'documents')setDeliveryTalking(false);else setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'documents'})
-             } catch {setHandoffError('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} />}>{activeDelivery?.kind === 'messages' ? renderMessages(true) : activeDelivery?.kind === 'collections' ? renderCollections(true) : activeDelivery?.kind === 'documents' ? renderDocuments(true) : activeDelivery?.kind === 'timetable' ? renderTimetable(true) : activeDelivery?.kind === 'students' ? renderTeaching(true) : activeDelivery?.kind === 'schoolAdmin' ? renderSchoolAdmin(true) : activeDelivery?.kind === 'cooperation' ? renderCooperation(true) : activeDelivery?.kind === 'knowledge' ? renderKnowledge(true) : activeDelivery?.kind === 'calendar' ? renderAssistantCalendar() : activeDelivery?.kind === 'tasks' ? renderAssistantTasks() : activeDelivery?.kind === 'daily' ? renderAssistantDaily() : null}</AssistantDeliveryFrame></Suspense></ModuleBoundary></AssistantDock> : undefined
+             } catch {setHandoffError('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} />}>{activeDelivery?.kind === 'messages' ? renderMessages(true) : activeDelivery?.kind === 'collections' ? renderCollections(true) : activeDelivery?.kind === 'documents' ? renderDocuments(true) : activeDelivery?.kind === 'timetable' ? renderTimetable(true) : activeDelivery?.kind === 'students' ? renderTeaching(true) : activeDelivery?.kind === 'schoolAdmin' ? renderSchoolAdmin(true) : activeDelivery?.kind === 'cooperation' ? renderCooperation(true) : activeDelivery?.kind === 'knowledge' ? renderKnowledge(true) : activeDelivery?.kind === 'calendar' ? renderAssistantCalendar() : activeDelivery?.kind === 'evaluation' ? <EvaluationWorkspace links={legacyEvaluationLinks} target={activeDelivery.evaluation ?? 'authoring'} locked={navigationLocked || pendingCount > 0} /> : activeDelivery?.kind === 'tasks' ? renderAssistantTasks() : activeDelivery?.kind === 'daily' ? renderAssistantDaily() : null}</AssistantDeliveryFrame></Suspense></ModuleBoundary></AssistantDock> : undefined
 
   function discardUnsentInput() {
     if (pendingRequests.count() > 0) return false

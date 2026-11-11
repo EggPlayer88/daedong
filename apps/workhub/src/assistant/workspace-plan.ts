@@ -28,6 +28,7 @@ const explicitRequest = /(?:줘|주세요|주십시오|줄래요?)[.!?。！？]
 
 function stepLabel(command: PlannedWorkspaceCommand): string {
   switch (command.kind) {
+    case 'evaluation': return command.target === 'authoring' ? '평가계획서 작성 연결' : '평가계획서 제출 연결'
     case 'daily': return command.view === 'meals' ? command.date + ' 급식' : command.view === 'notifications' ? '업무 알림' : '오늘 업무 요약'
     case 'navigate': return (workhubModules.find(module => module.id === command.page)?.title ?? '업무') + ' 열기'
     case 'specialist': return specialistWorkflow(command.task)?.title ?? '업무 검토'

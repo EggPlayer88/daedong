@@ -1,3 +1,4 @@
+import type { EvaluationTarget } from './evaluation-workspace'
 import { parseDraftCommand, type DirectDraftCommand } from './draft-commands'
 import { parseTaskChangeCommand, type TaskChangeCommand } from './task-change-command'
 import { parseSpecialistCommand, type SpecialistCommand } from './specialist-workflows'
@@ -8,6 +9,7 @@ import { parseDailyCommand, type DailyCommand } from './daily-command'
 import limits from '../../../main/api/workhub-ai/_assets/assistant-limits.json'
 
 export type WorkspaceCommand =
+  | { kind: 'evaluation'; target: EvaluationTarget }
   | DailyCommand
   | SpecialistCommand
   | DirectDraftCommand
@@ -164,6 +166,8 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   text = text.replace(/^(?:비서야|AI야|부탁인데)\s*[,，]?\s*/, '')
   if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해|수정해|완료해|변경해|바꿔|전송해|잡아)\s*(?:주고|줘서)|(?:열고|찾고|등록하고|추가하고|만들고|이동하고|수정하고|완료하고|변경하고|바꾸고|전송하고|잡고)|[;；]/.test(text))
     return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
+  const evaluation = text.match(new RegExp(`^평가\\s*계획서\\s*(작성|제출)(?:\\s*(?:메뉴|화면))?\\s*(?:을|를|으로|로)?\\s*${moveEnd}$`))
+  if (evaluation) return {kind:'evaluation',target:evaluation[1] === '작성' ? 'authoring' : 'submissions'}
   const daily = parseDailyCommand(text, basisDate)
   if (daily) return daily
   for (const [page, aliases] of menus) {
