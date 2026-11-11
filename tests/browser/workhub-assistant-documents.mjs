@@ -53,7 +53,7 @@ async function generate(){
  assert.equal(await review().isDisabled(),true);assert.equal(await page.getByRole('button',{name:'확인한 파일을 수합에 첨부하기',exact:true}).isDisabled(),true)
 }
 async function download(){
- const waiting=page.waitForEvent('download');await page.getByRole('button',{name:'생성 HWPX 내려받기',exact:true}).click();const file=await waiting
+ const [file]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'생성 HWPX 내려받기',exact:true}).click()])
  assert.equal(digest(readFileSync(await file.path())),seed.documents[0].file.sha256)
  return file.suggestedFilename()
 }
@@ -90,10 +90,16 @@ try{
  })
  await test('다운로드·파일 전달 중 대화 전환을 막고 결과 미상 수합 저장은 같은 번호로 복구한다',async()=>{
   await page.setViewportSize({width:1280,height:1000});await openPane();await generate();await page.evaluate(()=>window.flow.holdDownload=true)
-  const waiting=page.waitForEvent('download');await page.getByRole('button',{name:'생성 HWPX 내려받기',exact:true}).click();await page.waitForFunction(()=>typeof window.flow.releaseDownload==='function')
-  assert.equal(await page.getByRole('button',{name:'대화 보기',exact:true}).isDisabled(),true)
-  assert.equal(await page.getByRole('button',{name:'확인한 파일을 수합에 첨부하기',exact:true}).isDisabled(),true)
-  await page.evaluate(()=>window.flow.releaseDownload());const file=await waiting;assert.equal(digest(readFileSync(await file.path())),seed.documents[0].file.sha256)
+  // Storage 도착과 React의 상위 잠금 반영은 별개다. 잠금이 실제 표시되기 전에는 다운로드를 풀지 않는다.
+  // 두 Promise를 함께 관찰해 단언 실패 뒤 브라우저 종료가 원래 실패를 덮지 않게 한다.
+  const [file]=await Promise.all([page.waitForEvent('download'),(async()=>{
+   await page.getByRole('button',{name:'생성 HWPX 내려받기',exact:true}).click();await page.waitForFunction(()=>typeof window.flow.releaseDownload==='function')
+   const talk=page.getByRole('button',{name:'대화 보기',exact:true})
+   await talk.and(page.locator(':disabled')).waitFor()
+   assert.equal(await talk.isDisabled(),true)
+   assert.equal(await page.getByRole('button',{name:'확인한 파일을 수합에 첨부하기',exact:true}).isDisabled(),true)
+   await page.evaluate(()=>window.flow.releaseDownload())
+  })()]);assert.equal(digest(readFileSync(await file.path())),seed.documents[0].file.sha256)
   await transfer();await page.evaluate(()=>window.flow.unknownKind='save_draft')
   await page.getByRole('button',{name:'제출 초안 저장',exact:true}).click();await page.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).waitFor()
   assert.equal(await page.getByRole('button',{name:'대화 보기',exact:true}).isDisabled(),true)

@@ -58,6 +58,8 @@ try {
     await go('메시지와 알림'); await page.getByRole('button', { name: '새 메시지', exact: true }).click()
     await page.getByLabel('메시지', { exact: true }).fill('교사가 작성 중인 원래 안내')
     await go('AI 비서'); await ai().getByLabel('질문 또는 부탁할 일', { exact: true }).fill('보관할 AI 질문')
+    // 옆자리는 접어도 같은 편집기가 살아 있다. 메뉴 이동 잠금을 닫기 잠금으로 쓰면 입력이 갇힌다.
+    assert.equal(await ai().getByRole('button', { name: 'AI 비서 닫기', exact: true }).isEnabled(), true)
     await ai().getByRole('button', { name: 'AI 비서 닫기', exact: true }).click()
     assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '교사가 작성 중인 원래 안내')
     await go('AI 비서'); assert.equal(await ai().getByLabel('질문 또는 부탁할 일', { exact: true }).inputValue(), '보관할 AI 질문')
@@ -82,6 +84,7 @@ try {
     await ai().getByRole('button', { name: 'AI에게 요청', exact: true }).click()
     await ai().getByRole('button', { name: '같은 요청으로 결과 확인', exact: true }).waitFor()
     const original = await page.evaluate(() => window.cross.aiCalls[0])
+    assert.equal(await ai().getByRole('button', { name: 'AI 비서 닫기', exact: true }).isEnabled(), true)
     await ai().getByRole('button', { name: 'AI 비서 닫기', exact: true }).click()
     assert(await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).isVisible())
     assert(await page.getByRole('button', { name: '홈', exact: true }).isDisabled())
