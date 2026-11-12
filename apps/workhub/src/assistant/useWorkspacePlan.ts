@@ -31,7 +31,8 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
     const step = current.plan.steps.find(item => item.id === id)
     if (!step) return
     if (hasWorkspacePlanResult(current.outcomes?.[id])) {
-      feedback('이미 서버 처리를 확인한 단계입니다. 처리 결과를 확인하고, 같은 업무가 다시 필요하면 새 요청으로 작성해 주세요.'); return
+      const resultNotice = current.outcomes?.[id]?.kind === 'recorded' ? '이미 처리 내역을 확인한 단계입니다.' : '이미 서버 처리를 확인한 단계입니다.'
+      feedback(resultNotice + ' 처리 결과를 확인하고, 같은 업무가 다시 필요하면 새 요청으로 작성해 주세요.'); return
     }
     update({ ...latest.current, prompt: step.prompt, workspacePlan: { ...current, selectedId: id } })
     selected(); feedback('', '선택한 요청을 입력칸에 준비했습니다.')

@@ -20,15 +20,18 @@ function matchesStep(step: WorkspacePlanStep, result: WorkflowResult): boolean {
   const command = step.command
   if (command.kind === 'messageDraft') return result.kind === 'message'
   if (command.kind === 'collectionDraft') return result.kind === 'collection'
+  if (command.kind === 'navigate' && result.kind === 'school_data') return command.page === 'students' || command.page === 'timetable'
   if (command.kind === 'navigate') return command.page === ({ message: 'messages', collection: 'collections', timetable: 'timetable',
     intervention: 'timetable', transition: 'schoolAdmin', document: 'documents', guided: 'documents',
-    cooperation: 'cooperation', calendar: 'calendar', calendar_batch: 'calendar', teaching: 'students' } as const)[result.kind]
+    cooperation: 'cooperation', calendar: 'calendar', calendar_batch: 'calendar', teaching: 'students', school_data: 'students', publication: 'timetable', record_export: 'students' } as const)[result.kind]
   if (command.kind === 'specialist') return command.task === 'timetableExchange' && result.kind === 'timetable' ||
     command.task === 'timetableSubstitute' && result.kind === 'intervention' || command.task === 'schoolTransition' && result.kind === 'transition' ||
+    command.task === 'timetablePublish' && result.kind === 'publication' || command.task === 'timetablePrepare' && result.kind === 'school_data' ||
+    result.kind === 'record_export' && (command.task === 'teachingRecords' && result.observations && !result.assessments || command.task === 'teachingAssessment' && result.assessments && !result.observations) ||
     result.kind === 'teaching' && (command.task === 'teachingRecords' && ['observation_save', 'record_withdraw'].includes(result.action) && result.recordKind !== 'assessment' ||
       command.task === 'teachingAssessment' && ['rubric_save', 'assessment_save', 'record_withdraw'].includes(result.action) && result.recordKind !== 'observation' ||
       command.task === 'teachingActivity' && ['activity_import', 'activity_review', 'activity_correct'].includes(result.action))
-  if (command.kind === 'search') return result.kind === 'teaching' ? command.kinds.includes('course')
+  if (command.kind === 'search') return ['teaching', 'school_data', 'record_export'].includes(result.kind) ? command.kinds.includes('course')
     : (result.kind === 'message' || result.kind === 'collection' || result.kind === 'document' || result.kind === 'cooperation' || result.kind === 'calendar') && command.kinds.includes(result.kind)
   return false
 }
@@ -41,7 +44,7 @@ function matchesTarget(result: WorkflowResult, target: WorkflowPlanOrigin['targe
       : result.kind === 'document' ? target.kind === 'document' && result.documentId === target.id
         : result.kind === 'cooperation' ? target.kind === 'cooperation' && result.requestId === target.id
           : result.kind === 'calendar' ? target.kind === 'calendar' && result.eventId === target.id
-            : result.kind === 'teaching' && target.kind === 'course' && result.courseId === target.id
+            : (result.kind === 'teaching' || result.kind === 'school_data' || result.kind === 'record_export') && target.kind === 'course' && result.courseId === target.id
 }
 function teachingResource(result: Extract<WorkflowResult, {kind:'teaching'}>): string {
   if (result.action === 'record_withdraw') return result.recordKind!
@@ -49,6 +52,10 @@ function teachingResource(result: Extract<WorkflowResult, {kind:'teaching'}>): s
 }
 function sameResource(first: WorkflowResult, next: WorkflowResult): boolean {
   if (first.kind !== next.kind) return false
+  if (first.kind === 'publication' && next.kind === 'publication') return first.publicationId === next.publicationId
+  if (first.kind === 'school_data' && next.kind === 'school_data') return first.courseId === next.courseId && first.entityId === next.entityId && first.action.split('_')[0] === next.action.split('_')[0]
+  if (first.kind === 'record_export' && next.kind === 'record_export') return first.courseId === next.courseId && first.studentId === next.studentId &&
+    first.firstDay === next.firstDay && first.lastDay === next.lastDay && first.observations === next.observations && first.assessments === next.assessments && first.includeWithdrawn === next.includeWithdrawn
   if (first.kind === 'message' && next.kind === 'message')
     return next.deliveries.every(row => first.deliveries.some(prior => prior.threadId === row.threadId))
   if (first.kind === 'transition' && next.kind === 'transition') return first.recordId === next.recordId

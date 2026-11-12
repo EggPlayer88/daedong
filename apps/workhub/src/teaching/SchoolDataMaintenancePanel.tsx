@@ -2,33 +2,59 @@ import {useEffect,useRef,useState} from 'react'
 import type {Membership} from '../contracts'
 import {useEditDraft} from '../app/edit-drafts'
 import {recoveryScope,usePendingRequest} from '../app/pending-requests'
+import type {WorkflowResultListener} from '../app/workflow-results'
 import { ServiceError } from '../services/service-values'
 import {ListPagination} from '../app/ListPagination'
 import {listWindow} from '../app/list-window'
-import {maintenanceIntent,type MaintenanceIntent,type MaintenanceKind,type MaintenanceCommand,type MaintenancePreview,type MaintenanceSnapshot,type SchoolDataMaintenanceServer} from './school-data-maintenance-contracts'
+import {maintenanceIntent,maintenanceCommand,maintenanceReceipt,maintenanceClose,type MaintenanceIntent,type MaintenanceKind,type MaintenanceCommand,type MaintenanceReceipt,type MaintenancePreview,type MaintenanceSnapshot,type SchoolDataMaintenanceServer} from './school-data-maintenance-contracts'
 type Draft={courseId:string;intent:MaintenanceIntent|null}
 const labels:Record<MaintenanceKind,string>={course_correct:'수업 이름·기간 정정',course_cancel:'잘못 등록한 수업 취소',course_archive:'수업 보관',course_restore:'보관 수업 복원',course_teacher_correct:'시작 전 수업 담당 정정',student_correct:'학생 이름·관리 번호 정정',student_void:'잘못 등록한 학생 취소',student_restore:'등록 취소 학생 복원',enrollment_correct:'학년·반·번호 정정'}
 const reasons:Record<string,string>={VERSION_CHANGED:'다른 변경으로 판이 바뀌었습니다. 입력을 보존하고 현재 자료를 다시 확인하세요.',ALREADY_CLOSED:'현재 보관·취소 상태에서는 이 작업을 할 수 없습니다.',OUTSIDE_TERM:'수업 기간이 학기 밖입니다.',PERIOD_CUTS_RELATIONS:'담당·수강 관계를 자르는 기간 변경입니다. 관계 관리에서 먼저 확인하세요.',IN_PUBLISHED_TIMETABLE:'공개 시간표에 연결되어 있습니다. 운영 이력을 유지하는 변경 절차를 이용하세요.',USE_RELATION_CHANGE:'이미 시작한 수업입니다. 담당·수강 관계 관리에서 변경하세요.',HAS_CONTENT:'작성된 기록이 있어 등록 취소나 계획 담당 정정을 할 수 없습니다.',TEACHER_UNAVAILABLE:'선택한 교사의 소속이 수업 전체 기간을 포함하지 않습니다.',KEY_TAKEN:'이미 쓰는 학생 관리 번호입니다.',GRADE_OUT_OF_RANGE:'학교의 학년 범위를 벗어났습니다.',SEAT_TAKEN:'같은 학년·반·번호가 이미 있습니다.',FUTURE_LESSONS:'남은 공개 수업이 있어 보관할 수 없습니다.',NO_CHANGE:'현재 자료와 같은 내용입니다.'}
 const fieldLabels:Record<string,string>={label:'수업 이름',validFrom:'시작일',validThrough:'마지막 날',name:'학생 이름',schoolStudentKey:'학생 관리 번호',grade:'학년',classLabel:'반',seatNumber:'번호',teacherMemberIds:'담당 교사'}
 const message=(e:unknown)=>e instanceof ServiceError?e.message:'처리 결과를 확인하지 못했습니다. 입력과 원래 요청 번호를 보존했습니다.'
 const rejected=(e:unknown)=>e instanceof ServiceError&&['INVALID_INPUT','FORBIDDEN','INACTIVE_MEMBERSHIP','CONFLICT','NOT_READY','NOT_FOUND'].includes(e.code)
-type PanelProps={focusStudent?:{studentId:string;enrollmentId:string;schoolStudentKey:string;kind:'student'|'enrollment'};server:SchoolDataMaintenanceServer;member:Membership;courseId:string;onClose:()=>void;onSaved?:()=>void;closeLabel?:string}
+type PanelProps={focusStudent?:{studentId:string;enrollmentId:string;schoolStudentKey:string;kind:'student'|'enrollment'};server:SchoolDataMaintenanceServer;member:Membership;courseId:string;date?:string;onClose:()=>void;onSaved?:()=>void;onWorkflowResult?:WorkflowResultListener;closeLabel?:string}
 export function SchoolDataMaintenancePanel(props:PanelProps){return <MaintenanceBody key={recoveryScope(props.member)} {...props}/>}
-function MaintenanceBody({focusStudent,server,member,courseId,onClose,onSaved,closeLabel='수업 화면으로 돌아가기'}:PanelProps){
+function MaintenanceBody({focusStudent,server,member,courseId,date,onClose,onSaved,onWorkflowResult,closeLabel='수업 화면으로 돌아가기'}:PanelProps){
  const [studentQuery,setStudentQuery]=useState(''),[studentPage,setStudentPage]=useState(0)
  const memory=useEditDraft<Draft>(member,'school-data-maintenance'),recovery=usePendingRequest(member,'schoolDataMaintenance')
  const [draft,setDraft]=useState<Draft>(()=>memory.initial??{courseId,intent:null}),[data,setData]=useState<MaintenanceSnapshot>(),[preview,setPreview]=useState<MaintenancePreview>(),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[confirmed,setConfirmed]=useState(false),[closeConfirmed,setCloseConfirmed]=useState(false),[discardConfirmed,setDiscardConfirmed]=useState(false),[tick,setTick]=useState(Date.now()),[reload,setReload]=useState(0)
- const generation=useRef(0),running=useRef(false)
+ const generation=useRef(0),running=useRef(false),serverRef=useRef({server,date})
+ // 연결·기준일이 바뀐 뒤에는 이전 서버의 늦은 접수를 현재 정정 결과로 사용하지 않는다.
+ if(serverRef.current.server!==server||serverRef.current.date!==date){serverRef.current={server,date};generation.current++}
  const pending=recovery.request as {key:string;command:MaintenanceCommand;closeState?:'closing'}|undefined,locked=busy||Boolean(pending)
- useEffect(()=>{generation.current++;return()=>{generation.current++}},[server,member.id])
+ useEffect(()=>{generation.current++;running.current=false;setBusy(false);return()=>{generation.current++}},[server,member.id,date])
  useEffect(()=>{const timer=window.setInterval(()=>setTick(Date.now()),1000);return()=>window.clearInterval(timer)},[])
- useEffect(()=>{let stale=false;generation.current++;setLoading(true);setData(undefined);setPreview(undefined);setConfirmed(false);server.get(member.id,draft.courseId||null).then(x=>{if(!stale)setData(x)}).catch(e=>{if(!stale)setError(message(e))}).finally(()=>{if(!stale)setLoading(false)});return()=>{stale=true}},[server,member.id,draft.courseId,reload])
+ useEffect(()=>{let stale=false;generation.current++;setLoading(true);setData(undefined);setPreview(undefined);setConfirmed(false);server.get(member.id,draft.courseId||null).then(x=>{if(!stale)setData(x)}).catch(e=>{if(!stale)setError(message(e))}).finally(()=>{if(!stale)setLoading(false)});return()=>{stale=true}},[server,member.id,date,draft.courseId,reload])
  function change(next:Draft){if(locked)return;setDraft(next);memory.save(next,Boolean(next.intent));setPreview(undefined);setConfirmed(false);setError('');setNotice('')}
  function begin(kind:MaintenanceKind,studentId?:string){if(!data?.course)return;const c=data.course,s=data.students.find(s=>s.id===studentId),en=s?.enrollment;const changes=kind==='course_correct'?{...c.fields}:kind==='course_teacher_correct'?{teacherMemberIds:[...c.teacherMemberIds]}:kind==='student_correct'&&s?{...s.fields}:kind==='enrollment_correct'&&en?{...en.fields}:{};const entityId=kind.startsWith('course_')?c.id:kind==='enrollment_correct'?en?.id:s?.id;const expectedVersion=kind.startsWith('course_')?c.version:kind==='enrollment_correct'?en?.version:s?.version;if(!entityId||!expectedVersion)return;change({...draft,intent:{kind,courseId:c.id,entityId,expectedVersion,changes,reason:''}})}
  function field(k:string,v:unknown){if(draft.intent)change({...draft,intent:{...draft.intent,changes:{...draft.intent.changes,[k]:v}}})}
  async function review(){if(!draft.intent||!data?.available||running.current||locked)return;let intent:MaintenanceIntent;try{intent=maintenanceIntent(draft.intent)}catch(e){setError(message(e));return}const turn=generation.current;running.current=true;setBusy(true);setError('');try{const p=await server.preview(member.id,intent);if(turn===generation.current){setPreview(p);setConfirmed(false)}}catch(e){if(turn===generation.current)setError(message(e))}finally{if(turn===generation.current){setBusy(false);running.current=false}}}
- function done(key:string,applied:boolean){recovery.remove(key);setPreview(undefined);setConfirmed(false);setCloseConfirmed(false);if(applied){memory.remove();setDraft({...draft,intent:null});onSaved?.();setNotice('서버 반영을 확인했습니다. 기존 ID와 과거 기록은 보존했습니다.')}else setNotice('요청을 닫았습니다. 늦은 전송은 반영되지 않습니다. 입력을 보존했으니 다시 확인할 수 있습니다.');setReload(n=>n+1)}
- async function send(retry=false,closing=false){if(running.current)return;const request=retry?pending:preview&&confirmed&&preview.allowed&&Date.parse(preview.expiresAt)>Date.now()?{key:crypto.randomUUID(),command:{previewId:preview.previewId,fingerprint:preview.fingerprint,intent:preview.intent}}:undefined;if(!request)return;const isClose=closing||('closeState' in request&&request.closeState==='closing');if(isClose&&!closeConfirmed&&(!('closeState' in request)||request.closeState!=='closing'))return;const turn=generation.current;running.current=true;setBusy(true);setError('');recovery.put({...request,...(isClose?{closeState:'closing' as const}:{})});try{if(isClose){const result=await server.close(member.id,request.command,request.key);if(turn===generation.current)done(request.key,result.outcome==='applied')}else{await server.commit(member.id,request.command,request.key);if(turn===generation.current)done(request.key,true)}}catch(e){if(turn===generation.current){if(!retry&&rejected(e)){recovery.remove(request.key);setPreview(undefined);setReload(n=>n+1)}setError(message(e))}}finally{if(turn===generation.current){running.current=false;setBusy(false)}}}
+ function done(command:MaintenanceCommand,key:string,receipt?:MaintenanceReceipt){
+  recovery.remove(key);setPreview(undefined);setConfirmed(false);setCloseConfirmed(false)
+  if(receipt){
+   memory.remove();setDraft({...draft,intent:null});setNotice('서버 반영을 확인했습니다. 기존 ID와 과거 기록은 보존했습니다.')
+   try{onWorkflowResult?.({kind:'school_data',action:receipt.kind,scope:recoveryScope(member),key,recordedAt:receipt.recordedAt,courseId:command.intent.courseId,entityId:receipt.entityId,entityVersion:receipt.version})}catch{/* 보조 결과 표시 실패로 확인한 정정을 다시 보내지 않는다. */}
+   try{onSaved?.()}catch{/* 후속 화면 조회 실패와 확인한 접수는 분리한다. */}
+  }else setNotice('요청을 닫았습니다. 늦은 전송은 반영되지 않습니다. 입력을 보존했으니 다시 확인할 수 있습니다.')
+  setReload(n=>n+1)
+ }
+ async function send(retry=false,closing=false){
+  if(running.current)return
+  const request=retry?pending:preview&&confirmed&&preview.allowed&&Date.parse(preview.expiresAt)>Date.now()?{key:crypto.randomUUID(),command:{previewId:preview.previewId,fingerprint:preview.fingerprint,intent:preview.intent}}:undefined
+  if(!request)return
+  const isClose=closing||('closeState' in request&&request.closeState==='closing')
+  if(isClose&&!closeConfirmed&&(!('closeState' in request)||request.closeState!=='closing'))return
+  let command:MaintenanceCommand
+  try{command=maintenanceCommand(request.command)}catch(e){setError(message(e));return}
+  const turn=generation.current
+  running.current=true;setBusy(true);setError('');recovery.put({...request,command,...(isClose?{closeState:'closing' as const}:{})})
+  try{
+   if(isClose){const result=maintenanceClose(await server.close(member.id,command,request.key),command,request.key);if(turn===generation.current)done(command,request.key,result.outcome==='applied'?result.receipt:undefined)}
+   else{const receipt=maintenanceReceipt(await server.commit(member.id,command,request.key),command,request.key);if(turn===generation.current)done(command,request.key,receipt)}
+  }catch(e){if(turn===generation.current){if(!retry&&rejected(e)){recovery.remove(request.key);setPreview(undefined);setReload(n=>n+1)}setError(message(e))}}
+  finally{if(turn===generation.current){running.current=false;setBusy(false)}}
+ }
  function adopt(){if(!draft.intent||!data?.course)return;const i=draft.intent,s=data.students.find(s=>s.id===i.entityId||s.enrollment.id===i.entityId);const v=i.kind.startsWith('course_')?data.course.version:i.kind==='enrollment_correct'?s?.enrollment.version:s?.version;if(v)change({...draft,intent:{...i,expectedVersion:v}})}
  const i=draft.intent
  const focused=data?.students.find(s=>s.id===focusStudent?.studentId&&s.enrollment.id===focusStudent.enrollmentId&&s.fields.schoolStudentKey===focusStudent.schoolStudentKey)

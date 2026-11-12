@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import {buildSync} from 'esbuild'
 import {fileURLToPath} from 'node:url'
-import {mkdirSync,writeFileSync} from 'node:fs'
+import {mkdirSync,writeFileSync,readFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {launchBrowser} from './launch-browser.mjs'
 
@@ -158,6 +158,25 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
   assert.deepEqual(await page.evaluate(()=>({local:localStorage.length,session:sessionStorage.length})),{local:0,session:0})
   if(output){mkdirSync(output,{recursive:true});await page.screenshot({path:join(output,'teaching-conversation-320.png'),fullPage:true})}
+ })
+ await check('대화 수업 패널의 미리보기 결과는 출력 전으로 AI 업무 목록에 연결된다',async()=>{
+  await openStudent();await page.getByRole('button',{name:'기록 출력·내보내기',exact:true}).click()
+  await page.getByRole('button',{name:'기록 미리보기',exact:true}).click()
+  await page.getByText('최신 기록으로 미리보기를 만들었습니다. 학생·기간·상태를 확인해 주세요.',{exact:true}).waitFor()
+  await page.getByRole('button',{name:'출력 닫기',exact:true}).click();await page.getByRole('button',{name:'대화 보기',exact:true}).click()
+  const plan=page.getByRole('region',{name:'나누어 진행할 업무',exact:true});await plan.getByText(/기록 미리보기.*출력 전/).waitFor()
+  assert.doesNotMatch(await plan.innerText(),/서버 처리 확인|저장 완료|합성 학생 가|확정한 평가 의견/);assert.deepEqual(await writes(),[])
+ })
+ await check('같은 학생·기간의 실제 CSV 요청 뒤 AI 목록에 저장 확인 필요를 남긴다',async()=>{
+  await openStudent();await page.getByRole('button',{name:'기록 출력·내보내기',exact:true}).click();await page.getByRole('button',{name:'기록 미리보기',exact:true}).click()
+  await page.getByText('최신 기록으로 미리보기를 만들었습니다. 학생·기간·상태를 확인해 주세요.',{exact:true}).waitFor()
+  await page.getByLabel('학생·기간·기록 상태와 철회·근거 재검토 표시를 확인했습니다.',{exact:true}).check()
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'CSV 내려받기',exact:true}).click();const file=await pending
+  const csv=readFileSync(await file.path(),'utf8');assert.match(csv,/합성 학생 가/);assert.match(csv,/확정한 평가 의견/)
+  await page.getByRole('button',{name:'출력 닫기',exact:true}).click();await page.getByRole('button',{name:'대화 보기',exact:true}).click()
+  const plan=page.getByRole('region',{name:'나누어 진행할 업무',exact:true});await plan.getByText(/기록 CSV 내려받기 요청.*파일 저장 확인 필요/).waitFor()
+  assert.equal(await page.evaluate(()=>window.plan.outcomes['step-a'].results.length),2)
+  assert.doesNotMatch(await page.evaluate(()=>JSON.stringify(window.plan)),/합성 학생 가|확정한 평가 의견/);assert.deepEqual(await writes(),[])
  })
  assert.deepEqual(errors,[]);assert.deepEqual(external,[])
  if(output){mkdirSync(output,{recursive:true});writeFileSync(join(output,'teaching-assistant-results.json'),JSON.stringify({passed,errors,external},null,2))}

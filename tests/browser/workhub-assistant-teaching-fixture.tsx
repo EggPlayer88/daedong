@@ -2,9 +2,11 @@
 import React, {useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {TeachingWorkspace} from '../../apps/workhub/src/teaching/TeachingWorkspace'
+import {WorkspacePlanCard} from '../../apps/workhub/src/assistant/WorkspacePlanCard'
+import {captureWorkflowPlanOrigin,recordWorkflowPlanResult} from '../../apps/workhub/src/assistant/plan-workflow-results'
 import {AssistantDeliveryFrame} from '../../apps/workhub/src/assistant/delivery-workspace'
 import {createEditDrafts, EditDraftsProvider} from '../../apps/workhub/src/app/edit-drafts'
-import {createPendingRequests, PendingRequestsProvider} from '../../apps/workhub/src/app/pending-requests'
+import {createPendingRequests, PendingRequestsProvider, recoveryScope} from '../../apps/workhub/src/app/pending-requests'
 
 const w=window as any, copy=structuredClone
 const member={id:'member-a',schoolId:'school-a',userId:'user-a',name:'합성 담당 교사',role:'teacher',active:true,validFrom:'2026-03-01',validThrough:'2027-02-28',departmentIds:[],gradeIds:[],subjectIds:[]}
@@ -42,13 +44,16 @@ const connection:any={
 }
 function App(){
  const params=new URLSearchParams(location.search)
+ const [plan,setPlan]=useState<any>(()=>({scope:recoveryScope(member as any),selectedId:'step-a',plan:{kind:'plan',basisDate:'2026-10-16',prompt:'수업 자료 작업',steps:[{id:'step-a',prompt:'수업 자료 작업',label:'수업 자료',command:{kind:'navigate',page:'students'}}]}}))
+ const [origin]=useState(()=>captureWorkflowPlanOrigin(plan,'수업 자료 작업',recoveryScope(member as any),'2026-10-16'));w.plan=plan
+ const onResult=(result:any)=>setPlan((before:any)=>recordWorkflowPlanResult(before,origin!,result,recoveryScope(member as any),'2026-10-16'))
  const [revision,setRevision]=useState(0),[locked,setLocked]=useState(false),[talking,setTalking]=useState(false)
  const [request,setRequest]=useState<any>(params.has('empty')?undefined:{courseId:params.get('course')??'course-a',token:'open-1',source:'assistant',tab:params.get('tab')??'records'})
  w.refresh=()=>setRevision(v=>v+1);w.openCourse=(courseId:string)=>setRequest({courseId,token:crypto.randomUUID(),source:'assistant',tab:'activity'});w.talk=()=>setTalking(true)
  const work={scope:'synthetic',kind:'students',key:'teaching-work'} as any
  return <EditDraftsProvider store={w.memory}><PendingRequestsProvider store={w.pending}>
-  <AssistantDeliveryFrame workspace={work} talking={talking} locked={locked} finishDisabled={locked} onTalk={()=>setTalking(true)} onResume={()=>setTalking(false)} onClose={()=>{w.closed=true}} chat={<section><h2>합성 전문 대화</h2></section>}>
-   <TeachingWorkspace presentation="assistant" initialAction={params.has('import')?'activityImport':undefined} initialTab={params.get('tab') as any??'records'} initialRequest={request} connection={connection} member={member as any} date="2026-10-16" revision={revision} onNavigationLockChange={setLocked} onRequestStudentDraft={source=>{w.drafts.push(copy(source));setTalking(true)}}/>
+  <AssistantDeliveryFrame workspace={work} talking={talking} locked={locked} finishDisabled={locked} onTalk={()=>setTalking(true)} onResume={()=>setTalking(false)} onClose={()=>{w.closed=true}} chat={<section><h2>합성 전문 대화</h2><WorkspacePlanCard hasInput={false} model={{saved:plan,manageable:true,selectable:true,stale:false,blockedSelection:false,dismiss(){},choose(){},restoreOriginal(){}} as any}/></section>}>
+   <TeachingWorkspace onWorkflowResult={onResult} presentation="assistant" initialAction={params.has('import')?'activityImport':undefined} initialTab={params.get('tab') as any??'records'} initialRequest={request} connection={connection} member={member as any} date="2026-10-16" revision={revision} onNavigationLockChange={setLocked} onRequestStudentDraft={source=>{w.drafts.push(copy(source));setTalking(true)}}/>
   </AssistantDeliveryFrame>
  </PendingRequestsProvider></EditDraftsProvider>
 }

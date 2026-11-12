@@ -7,6 +7,7 @@ import { activeAt } from '../domain'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest, type TimetableRecovery } from '../app/pending-requests'
 import type { WorkflowResultListener } from '../app/workflow-results'
+import { reportOperationResult } from './workflow-results'
 import { ServiceError } from '../services/service-values'
 import { createTimetableOperationsServer } from './operations-server'
 import type { OperationCommand, OperationLesson, OperationReceipt, OperationsReadiness, OperationsView, TimetableOperationsServer } from './operations-contracts'
@@ -49,18 +50,6 @@ const message = (error: unknown) => error instanceof ServiceError ? error.messag
 const rejected = (error: unknown) => error instanceof ServiceError && ['NOT_READY', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'INVALID_INPUT', 'CONFLICT'].includes(error.code)
 const readinessMessage = { not_installed: '확정·공유·교환 기능의 서버 연결을 준비 중입니다.', not_allowed: '현재 계정에는 시간표 운영 자료를 볼 권한이 없습니다.', basis_missing: '학교의 시간표 운영 기초 자료를 먼저 연결해야 합니다.' }
 const receiptMessage = (receipt: OperationsReceipt) => receipt.kind === 'publish_manifest' ? `전체 기간의 시간표 ${receipt.version}판을 확정했습니다. 변경 수업 ${receipt.changedCount}건을 공유 화면에서 확인할 수 있습니다.` : receipt.kind === 'school_day' ? `학사 변경을 ${receipt.changedLessonCount}개 수업에 반영했습니다. 보강 검토가 필요한 수업은 ${receipt.lostLessonCount}개입니다.` : receipt.kind === 'publish' ? `학교 시간표 ${receipt.version}판을 확정했습니다. 공유 화면에서 적용 기간을 확인할 수 있습니다.` : receipt.status === 'applied' ? '수업 변경을 시간표에 반영했습니다. 최신 수업을 확인해 주세요.' : '수업 변경 요청의 처리 결과를 확인했습니다. 요청 현황에서 다음 단계를 확인해 주세요.'
-
-// 서버가 검증한 교환·이동 승인만 전달한다. 표시 실패는 이미 확인한 승인을 되돌리지 않는다.
-function reportApproval(listener: WorkflowResultListener | undefined, scope: string, key: string, command: OperationsCommand, receipt: OperationsReceipt) {
-  if (!listener || command.kind !== 'action' || command.action !== 'approve' || receipt.kind !== 'action' || receipt.status !== 'applied') return
-  try {
-    if (receipt.requestKey !== key || receipt.entityId !== command.requestId || receipt.version !== command.expectedVersion + 1 || !receipt.changedLessons.length) return
-    listener({ kind: 'timetable', action: 'approve', scope, key: receipt.requestKey, recordedAt: receipt.recordedAt,
-      requestId: receipt.entityId, requestVersion: receipt.version, changedLessonIds: receipt.changedLessons.map(lesson => lesson.id) })
-  } catch {
-    // AI 목록의 보조 표시 오류가 정상 접수 결과·원키 복구 상태에 영향을 주지 않는다.
-  }
-}
 
 export function TimetableOperationsWorkspace(props: Props & { aiEnabled?: boolean }) {
   const annualServer=useMemo(()=>createAnnualOperations(props.connection),[props.connection])
@@ -174,7 +163,10 @@ export function TimetableOperationsPanel({ presentation = 'page', initialOperati
     setPublishLink({ id: initialDraftId, version: initialDraftVersion! }); setTab('publish'); route.save('publish', false)
   }, [initialDraftId, initialDraftVersion, pending, navLocked, onInitialDraftConsumed])
   useEffect(() => { if (focusedDate !== focusSource.current && !locked) { focusSource.current = focusedDate; setBoardDate(focusedDate); setFrom(timetableWeekStart(focusedDate)) } }, [focusedDate, locked])
-  useEffect(() => { life.current++; return () => { life.current++; running.current = false } }, [server, publicationExecution, schoolDayExecution, memberScope])
+  useEffect(() => {
+    life.current++; running.current = false; setBusy(false)
+    return () => { life.current++; running.current = false }
+  }, [server, publicationExecution, schoolDayExecution, memberScope, date])
   useEffect(() => { onNavigationLockChange?.(navLocked); return () => onNavigationLockChange?.(false) }, [navLocked, onNavigationLockChange])
   useEffect(() => { if (!navLocked) return; const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', beforeLeave); return () => window.removeEventListener('beforeunload', beforeLeave) }, [navLocked])
   useEffect(() => {
@@ -259,7 +251,7 @@ export function TimetableOperationsPanel({ presentation = 'page', initialOperati
       if (generation !== life.current) throw new ServiceError('CANCELLED')
       retainCompletedTarget(command, receipt, snapshot)
       pendingStore.remove(request.key); setNotice(receiptMessage(receipt)); refresh()
-      reportApproval(resultListener, memberScope, request.key, request.command, receipt)
+      reportOperationResult(resultListener, memberScope, request.key, request.command, receipt)
       return receipt
     } catch (failure) {
       if (generation === life.current && rejected(failure)) {
@@ -281,7 +273,7 @@ export function TimetableOperationsPanel({ presentation = 'page', initialOperati
       if (generation !== life.current) return
       retainCompletedTarget(request.command, receipt, current.current.view)
       pendingStore.remove(request.key); clearCommandDraft(request.command); setNotice(receiptMessage(receipt)); refresh()
-      reportApproval(resultListener, memberScope, request.key, request.command, receipt)
+      reportOperationResult(resultListener, memberScope, request.key, request.command, receipt)
     } catch (failure) {
       if (generation !== life.current) return
       // 현재 권한·준비 조회 실패로 이전 실행이 취소되었다고 판단하지 않는다.
@@ -316,7 +308,7 @@ export function TimetableOperationsPanel({ presentation = 'page', initialOperati
         retainCompletedTarget(request.command, result.receipt, current.current.view)
         clearCommandDraft(request.command)
         setNotice('원래 요청이 이미 처리된 것을 확인했습니다. ' + receiptMessage(result.receipt))
-        reportApproval(resultListener, memberScope, request.key, request.command, result.receipt)
+        reportOperationResult(resultListener, memberScope, request.key, request.command, result.receipt)
       } else {
         // 입력은 남기고 이전 미리보기·확인만 버려 새 검토 없이 재전송하지 않게 한다.
         if (request.command.kind === 'publish' || request.command.kind === 'publish_manifest') setPublishEpoch(value => value + 1)

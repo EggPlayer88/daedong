@@ -28,6 +28,7 @@ w.drafts = createEditDrafts(true)
 w.scope = () => recoveryScope(w.member)
 w.drafts.activate(w.scope())
 w.calls = []; w.importWrites = 0; w.correctionWrites = 0; w.externalOpen = []; w.previews = {}; w.receipts = {}; w.closed = {}; w.commands = {}
+w.workflowResults = []
 w.locked = false
 w.school = { version: 1, asOfDate: '2026-10-21', availableYears: [2026], ...schoolBatchFixture(), memberships: [], assignments: [], capabilities: { configuration: true, memberships: true, assignments: true } }
 w.schoolWrites = 0; w.setupWrites = 0
@@ -183,7 +184,7 @@ w.switchMember = () => {
 }
 w.render = () => w.root.render(<EditDraftsProvider store={w.drafts}><PendingRequestsProvider store={w.pending}>
   <style>{theme + timetable + teaching}</style>
-  <main className="timetable-workspace"><TimetableWorkspace connection={connection} member={w.member} date="2026-10-21" initialPreparationStep="import"
+  <main className="timetable-workspace"><TimetableWorkspace onWorkflowResult={value => w.workflowResults.push(copy(value))} connection={connection} member={w.member} date="2026-10-21" initialPreparationStep="import"
     onNavigationLockChange={value => w.locked = value} onOpenSchoolAdmin={() => w.externalOpen.push('schoolAdmin')} onOpenTeaching={() => w.externalOpen.push('teaching')} /></main>
 </PendingRequestsProvider></EditDraftsProvider>)
 w.mount = () => { w.root = createRoot(document.getElementById('root')!); w.render() }

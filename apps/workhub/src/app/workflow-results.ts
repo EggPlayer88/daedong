@@ -6,6 +6,7 @@ export type TransitionResultAction = 'apply' | 'admin_confirm' | 'admin_reject' 
 export type TransitionResultState = 'awaiting_admin' | 'pending' | 'accepted' | 'rejected' | 'cancelled' | 'completed'
 export type CooperationResultAction = 'create' | 'accept' | 'decline' | 'request_completion' | 'confirm_completion' | 'return_completion' | 'retract_completion' | 'cancel'
 export type TeachingResultAction = 'course_create' | 'roster_import' | 'observation_save' | 'record_withdraw' | 'rubric_save' | 'assessment_save' | 'activity_review' | 'activity_import' | 'activity_correct'
+export type SchoolDataResultAction = 'course_correct' | 'course_cancel' | 'course_archive' | 'course_restore' | 'course_teacher_correct' | 'student_correct' | 'student_void' | 'student_restore' | 'enrollment_correct'
 export type WorkflowResult = ResultBase & (
   | RecordedResult & { kind: 'message'; action: 'start' | 'reply'; deliveries: { threadId: string; messageId: string; sequence: number }[] }
   | RecordedResult & { kind: 'collection'; action: CollectionResultAction; requestId: string; resourceId: string; resourceVersion: number }
@@ -16,6 +17,9 @@ export type WorkflowResult = ResultBase & (
   | RecordedResult & { kind: 'calendar'; action: 'create' | 'update'; eventId: string; eventVersion: number }
   | RecordedResult & { kind: 'calendar_batch'; action: 'commit'; prepareId: string; events: { eventId: string; eventVersion: number }[] }
   | RecordedResult & { kind: 'teaching'; action: TeachingResultAction; courseId: string; entityId: string; entityVersion: number; recordKind?: 'observation' | 'assessment'; confirmed?: boolean; disposition?: 'hold' | 'adopt' | 'exclude' | 'withdraw'; previousImportId?: string }
+  | RecordedResult & { kind: 'school_data'; action: SchoolDataResultAction; courseId: string; entityId: string; entityVersion: number }
+  | RecordedResult & { kind: 'publication'; action: 'publish' | 'publish_manifest'; publicationId: string; publicationVersion: number; changedCount: number }
+  | { kind: 'record_export'; action: 'preview' | 'csv_requested' | 'print_opened'; observedAt: string; courseId: string; studentId: string; firstDay: string; lastDay: string; observations: boolean; assessments: boolean; includeWithdrawn: boolean; recordCount: number; fingerprint: string }
   | { kind: 'guided'; action: 'render'; observedAt: string; artifactId: string; templateId: string; templateVersion: number; responseId: string; responseVersion: number; sha256: string; bytes: number }
 )
 export type WorkflowResultListener = (result: WorkflowResult) => void
@@ -23,6 +27,12 @@ export type WorkflowResultListener = (result: WorkflowResult) => void
 const text = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= 512 && !/[\u0000-\u001f\u007f]/.test(value)
 const version = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0
 const instant = (value: unknown): value is string => text(value) && Number.isFinite(Date.parse(value))
+const date = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value
+const schoolDataLabels: Record<SchoolDataResultAction, string> = {
+  course_correct: '수업 자료 정정', course_cancel: '수업 취소', course_archive: '수업 보관', course_restore: '수업 복원',
+  course_teacher_correct: '수업 담당 정정', student_correct: '학생 자료 정정', student_void: '잘못 등록한 학생 무효 처리',
+  student_restore: '학생 자료 복원', enrollment_correct: '학년·학급·번호 정정',
+}
 const collectionLabels: Record<CollectionResultAction, string> = {
   create: '수합 초안 저장 · 아직 미공개', update: '수합 초안 변경 저장 · 아직 미공개',
   publish: '수합 공개', save_draft: '제출 초안 저장 · 최종 제출 전', submit: '최종 제출 접수',
@@ -45,6 +55,16 @@ export function copyWorkflowResult(raw: WorkflowResult): WorkflowResult | undefi
   if (!raw || !text(raw.scope) || !text(raw.key)) return
   if (raw.composeId !== undefined && !text(raw.composeId)) return
   const shared = { scope: raw.scope, key: raw.key, ...(raw.composeId ? {composeId: raw.composeId} : {}) }
+  // 출력은 서버 쓰기 접수증이 아니다. 미리보기·브라우저 전달 사실과 확인한 범위만 보존한다.
+  if (raw.kind === 'record_export') {
+    if (!['preview', 'csv_requested', 'print_opened'].includes(raw.action) || !instant(raw.observedAt) || !text(raw.courseId) || !text(raw.studentId) ||
+        !date(raw.firstDay) || !date(raw.lastDay) || raw.firstDay > raw.lastDay || typeof raw.observations !== 'boolean' || typeof raw.assessments !== 'boolean' ||
+        typeof raw.includeWithdrawn !== 'boolean' || (!raw.observations && !raw.assessments) || !Number.isSafeInteger(raw.recordCount) || raw.recordCount < 0 ||
+        (raw.action !== 'preview' && raw.recordCount === 0) || typeof raw.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(raw.fingerprint)) return
+    return { ...shared, kind: raw.kind, action: raw.action, observedAt: raw.observedAt, courseId: raw.courseId, studentId: raw.studentId,
+      firstDay: raw.firstDay, lastDay: raw.lastDay, observations: raw.observations, assessments: raw.assessments,
+      includeWithdrawn: raw.includeWithdrawn, recordCount: raw.recordCount, fingerprint: raw.fingerprint }
+  }
   // 생성물 계약에는 서버 접수 시각이 없다. 클라이언트 확인 시각을 서버 시각으로 꾸미지 않는다.
   if (raw.kind === 'guided') {
     if (raw.action !== 'render' || !instant(raw.observedAt) || !text(raw.artifactId) || !text(raw.templateId) ||
@@ -56,6 +76,11 @@ export function copyWorkflowResult(raw: WorkflowResult): WorkflowResult | undefi
   }
   if (!instant(raw.recordedAt)) return
   const base = { ...shared, recordedAt: raw.recordedAt }
+  if (raw.kind === 'school_data' && Object.hasOwn(schoolDataLabels, raw.action) && text(raw.courseId) && text(raw.entityId) && version(raw.entityVersion) && raw.entityVersion >= 2 &&
+      (!raw.action.startsWith('course_') || raw.courseId === raw.entityId))
+    return { ...base, kind: raw.kind, action: raw.action, courseId: raw.courseId, entityId: raw.entityId, entityVersion: raw.entityVersion }
+  if (raw.kind === 'publication' && ['publish', 'publish_manifest'].includes(raw.action) && text(raw.publicationId) && version(raw.publicationVersion) && version(raw.changedCount))
+    return { ...base, kind: raw.kind, action: raw.action, publicationId: raw.publicationId, publicationVersion: raw.publicationVersion, changedCount: raw.changedCount }
   if (raw.kind === 'message' && (raw.action === 'start' || raw.action === 'reply')) {
     if (!Array.isArray(raw.deliveries) || !raw.deliveries.length ||
         raw.deliveries.some(row => !row || !text(row.threadId) || !text(row.messageId) || !version(row.sequence)) ||
@@ -97,6 +122,11 @@ export function copyWorkflowResult(raw: WorkflowResult): WorkflowResult | undefi
 }
 
 export function workflowResultLabel(result: WorkflowResult): string {
+  if (result.kind === 'school_data') return schoolDataLabels[result.action]
+  if (result.kind === 'publication') return `시간표 공개 · 수업 ${result.changedCount}건 반영`
+  if (result.kind === 'record_export') return result.action === 'preview' ? `기록 미리보기 · ${result.recordCount}건 · 출력 전`
+    : result.action === 'csv_requested' ? `기록 CSV 내려받기 요청 · ${result.recordCount}건 · 파일 저장 확인 필요`
+      : `기록 인쇄 창 전달 · ${result.recordCount}건 · 인쇄·PDF 저장 확인 필요`
   if (result.kind === 'message') return `${result.action === 'start' ? '메시지 전송' : '답장 전송'} · ${result.deliveries.length}개 대화 접수`
   if (result.kind === 'collection') return collectionLabels[result.action]
   if (result.kind === 'document') return documentLabels[result.action]

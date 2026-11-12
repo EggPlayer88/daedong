@@ -318,6 +318,13 @@ try {
       await page.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, 'timetable-import-correction-320.png'), fullPage: true })
     }
   })
+  await check('시간표 안의 수업 자료 정정 접수를 상위 AI 결과 콜백으로 전달한다', async () => {
+    await enter();await openCorrection();await editCourse();assert.deepEqual(await page.evaluate(()=>window.workflowResults),[])
+    await commitCorrection();await page.waitForFunction(()=>window.workflowResults.length===1)
+    const result=await page.evaluate(()=>window.workflowResults[0]);assert.equal(result.kind,'school_data');assert.equal(result.action,'course_correct');assert.equal(result.courseId,'course-a');assert.equal(result.entityVersion,2)
+    assert.doesNotMatch(JSON.stringify(result),/서버에서 정정한 국어|합성 정정|teacher-a/)
+    await returned();assert.equal(await input().inputValue(),csv);assert.equal(await page.evaluate(()=>window.workflowResults.length),1)
+  })
   assert.deepEqual(pageErrors, [])
   console.log(`시간표 원파일 정정 왕복: ${results.length}개 통과`)
 } finally {
