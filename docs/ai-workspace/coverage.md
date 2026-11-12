@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-12. 기준은 PR #126과 이번 협업·일정·수업·학생 기록 결과 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-12. 기준은 PR #127과 후속 브랜치 `feat/ai-workspace-publish-export-results`의 학교 자료 정정·시간표 공개·학생 기록 출력 결과 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -20,9 +20,11 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 
 **AI 작업 공간 안의 지원 경로: 55/61개 (90.2%).** 이 중 9개는 AI 기본 화면·확인 카드, 46개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니다.** 기존 화면의 최종 확인·후보 선택·파일 선택을 포함한다. 이번 연결로 사용자의 목표인 “AI 대화만으로 90% 이상 완료”를 달성했다고 판단하지 않는다. 평가계획서 작성·제출의 새 탭 링크 2개도 이 55개에 넣지 않았다.
 
-AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md), [plan-continuation-verification.md](plan-continuation-verification.md)에 유지하고, 8~10차 실행 결과는 [8차](workflow-results-verification.md), [9차](approval-artifacts-verification.md), [10차](daily-record-results-verification.md)에 구분한다.
+AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md), [plan-continuation-verification.md](plan-continuation-verification.md)에 유지하고, 8~11차 실행 결과는 [8차](workflow-results-verification.md), [9차](approval-artifacts-verification.md), [10차](daily-record-results-verification.md), [11차](publish-export-results-verification.md)에 구분한다.
 
 ## 이번에 보완한 공통 업무 진행
+
+- **학교 자료 정정·공개·출력 결과:** 학교 자료 정정 9종은 기존 접수증의 요청 번호·종류·원본·다음 판·시각을 검증한 뒤 기록한다. 시간표 일반 공개와 전체 명세 공개는 실제 접수 및 원키 복구·명시 재전송·닫기 중 반영 확인을 연결한다. 학생 기록은 0건을 포함한 미리보기, CSV 요청, 인쇄 창 전달을 구분하고 로컬 `observedAt`을 사용한다. 물리 인쇄·PDF·파일 저장 성공을 주장하지 않으며 이름·본문·점수·정정 사유를 결과에 복제하지 않는다. 같은 수업·학생·기간·선택 범위와 전문 업무만 이으며 일반 메뉴·기존 RPC와 확인 절차를 유지한다. 기존 경로의 결과 표시 보강이므로 55/61과 직접 근거 27/61을 유지한다. [11차 검증](publish-export-results-verification.md).
 
 - **협업·일정·수업·기록 결과:** 요청/수락/완료 확인, 단일/일괄 일정, 수업/명부/관찰/평가/활동 자료의 실제 접수 단계를 같은 업무 목록에 기록한다. 첫 원본과 전문 업무를 구분하고 활동 정정은 직전 자료의 계보만 잇는다. 상담 본문과 처리 사실은 제외한다. 기존 경로의 이력 보강으로 집계를 늘리지 않는다. [10차 검증](daily-record-results-verification.md).
 

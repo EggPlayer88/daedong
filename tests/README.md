@@ -1,5 +1,9 @@
 # tests/ — 검증 스크립트
 
+대화 중심 AI 11차: `test_workhub_publish_export_results.mjs`는 학교 자료 정정 9종·시간표 공개·학생 기록 출력의 최소 메타, 원본/날짜/학생/선택 범위/전문 작업 일치와 표시 문구를 검증한다. `browser/workhub-school-data-result-events.mjs`, `workhub-publication-result-events.mjs`, `workhub-record-export-result-events.mjs`는 실제 패널·어댑터의 접수, 원키 조회·재전송·닫기 중 반영 확인, 출력 전 재조회와 실패를 다룬다. `browser/workhub-plan-publication-connected.mjs`는 실제 연결 셸과 AI 계획의 공개 결과를 확인하며, 기존 `workhub-assistant-teaching.mjs`에도 출력 결과 전달을 포함한다. 출력의 `preview`/`csv_requested`/`print_opened`와 로컬 `observedAt`은 실제 파일·PDF 저장이나 물리 인쇄 성공을 뜻하지 않는다. 이름·본문·점수는 결과 요약에서 제외한다. [11차 검증 기록](../docs/ai-workspace/publish-export-results-verification.md).
+
+11차 CI 회귀: `test_workhub_calendar_response_boundary.mjs`는 기존 연결 경로와 일정 화면이 같은 순수 응답 검증기를 사용하고 잘못된 응답을 동일하게 거부하는지 검사하며, 기존 운영 연결 차단 가드를 실행해 실제 오프라인 HTML도 생성한다. `browser/workhub-assistant-teaching.mjs`는 부모의 이동 잠금 반영을 기다린 뒤 기존 비활성 단언을 수행한다. 제한시간·기대값·오프라인 보호 가드는 유지한다.
+
 대화 중심 AI 10차: `test_workhub_daily_record_results.mjs`는 협업·일정·수업·학생 기록 결과의 출처/계보/전문 작업을 검증한다. `browser/workhub-calendar-result-events.mjs`, `workhub-teaching-result-events.mjs`, `workhub-cooperation-result-connected.mjs`는 기존 화면·실행기·연결 셸의 실제 접수 뒤 결과 연결과 원키 복구를 검증한다. 상담 내용/처리 사실은 전달하지 않는다. [10차 검증 기록](../docs/ai-workspace/daily-record-results-verification.md).
 
 대화 중심 AI 9차: `test_workhub_approval_results.mjs`는 승인·인계·문서·HWPX 결과의 단계와 첫 원본·날짜·출처를, `browser/workhub-approval-result-events.mjs`, `workhub-document-result-events.mjs`, `workhub-plan-approval-connected.mjs`는 실제 React·어댑터·연결 셸에서 원키 복구와 늦은 결과·후속 조회 실패를 검증한다. 생성·저장·제출은 구분하며 DB·Storage·provider 응답만 합성한다. [9차 검증 기록](../docs/ai-workspace/approval-artifacts-verification.md).
