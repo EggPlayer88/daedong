@@ -1,5 +1,7 @@
 # tests/ — 검증 스크립트
 
+대화 중심 AI 10차: `test_workhub_daily_record_results.mjs`는 협업·일정·수업·학생 기록 결과의 출처/계보/전문 작업을 검증한다. `browser/workhub-calendar-result-events.mjs`, `workhub-teaching-result-events.mjs`, `workhub-cooperation-result-connected.mjs`는 기존 화면·실행기·연결 셸의 실제 접수 뒤 결과 연결과 원키 복구를 검증한다. 상담 내용/처리 사실은 전달하지 않는다. [10차 검증 기록](../docs/ai-workspace/daily-record-results-verification.md).
+
 대화 중심 AI 9차: `test_workhub_approval_results.mjs`는 승인·인계·문서·HWPX 결과의 단계와 첫 원본·날짜·출처를, `browser/workhub-approval-result-events.mjs`, `workhub-document-result-events.mjs`, `workhub-plan-approval-connected.mjs`는 실제 React·어댑터·연결 셸에서 원키 복구와 늦은 결과·후속 조회 실패를 검증한다. 생성·저장·제출은 구분하며 DB·Storage·provider 응답만 합성한다. [9차 검증 기록](../docs/ai-workspace/approval-artifacts-verification.md).
 
 대화 중심 AI 3차: `test_workhub_assistant_specialists.mjs`와 `browser/workhub-assistant-specialists.mjs`, `workhub-assistant-timetable.mjs`, `workhub-assistant-teaching.mjs`, `workhub-assistant-administration.mjs`는 전문 업무 입구·원본 선택·영향 비교·명시 확인·원키 복구를 확인한다. 실제 운영 쓰기와 유료 AI 호출 없이 기존 React/어댑터를 사용한다. [3차 검증 기록](../docs/ai-workspace/specialists-verification.md).
