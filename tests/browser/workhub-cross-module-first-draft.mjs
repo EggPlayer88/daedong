@@ -7,7 +7,7 @@ export async function checkFirstDraftSentence({ page, test, request, noSideEffec
   const box = () => page.getByRole('textbox', { name: '질문 또는 부탁할 일', exact: true })
   const results = () => region('교사 검색 결과')
   const candidate = name => results().getByRole('button', { name })
-  const goForm = async label => { await button('작성 화면에서 확인').click(); await button(label).click() }
+  const goForm = async label => { await button('첨부·최종 검토로 계속').click(); if (label === '수합 초안 사용') await button(label).click(); await form(label === '수합 초안 사용' ? '수합 초안 작성' : '새 메시지 작성').waitFor(); if (label !== '수합 초안 사용') { const detail = page.locator('.messaging-recipient-editor'); if (!await detail.evaluate(node => node.open)) await detail.locator('summary').first().click() } }
   async function reply(text) { await box().fill(text); await button('초안 정보 이어 입력').click() }
   const tomorrow = async () => page.evaluate(() => new Date(Date.parse(window.cross.basisDate + 'T00:00:00Z') + 86400000).toISOString().slice(0,10))
 
@@ -18,7 +18,7 @@ export async function checkFirstDraftSentence({ page, test, request, noSideEffec
     await results().waitFor()
     assert.equal(await candidate(/이민준.*선택/).count(),2)
     assert.match(await region('작성 중인 메시지').innerText(), /받는 사람 · 0명/)
-    assert.equal(await button('작성 화면에서 확인').isDisabled(),true)
+    assert.equal(await button('첨부·최종 검토로 계속').isDisabled(),true)
     await noSideEffects()
     await candidate(/이민준.*연구부.*선택/).click()
     await goForm('전달받은 메시지 초안 사용')
@@ -35,7 +35,7 @@ export async function checkFirstDraftSentence({ page, test, request, noSideEffec
     await card.getByText(date,{exact:true}).waitFor()
     await candidate(/이민준.*선택/).click()
     await candidate(/김서진.*선택/).waitFor()
-    assert.equal(await button('작성 화면에서 확인').isDisabled(),true)
+    assert.equal(await button('첨부·최종 검토로 계속').isDisabled(),true)
     await candidate(/김서진.*선택/).click()
     assert.match(await card.innerText(), /제출 대상 · 2명/)
     assert.doesNotMatch(await card.innerText(), /제출 기한은 언제|누가 제출/)
@@ -53,7 +53,7 @@ export async function checkFirstDraftSentence({ page, test, request, noSideEffec
     await request('김서진 선생님께 내일까지 수합 초안 만들어줘','수합 초안 확인')
     await candidate(/김서진.*선택/).click()
     await page.getByText('수합 제목을 적어 주세요.',{exact:true}).waitFor()
-    assert.equal(await button('작성 화면에서 확인').isDisabled(),true)
+    assert.equal(await button('첨부·최종 검토로 계속').isDisabled(),true)
     await reply('학년별 안내문')
     await goForm('수합 초안 사용')
     const editor=form('수합 초안 작성')

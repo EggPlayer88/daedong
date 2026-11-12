@@ -1,7 +1,7 @@
 import type { Membership } from '../contracts'
 import type { TaskChange } from '../assistant/task-change-command'
 import { TaskError, type PersonalTask, type TaskCommand } from './contracts'
-import { normalizeTaskInput } from './validation'
+import { normalizeTaskInput, taskStatus } from './validation'
 import { taskStatusLabels } from './presentation'
 
 export interface AssistantTaskChangeRequest {
@@ -34,17 +34,29 @@ export function reviewAssistantTaskChange(request: AssistantTaskChangeRequest, o
   const context = { key: request.key, basisDate: date, original }
   const target = { taskId: original.id, expectedVersion: original.version }
   const change = request.change
-  if (change.kind === 'complete') {
-    if (original.status === 'done') throw new Error('이미 완료한 할 일입니다. 추가로 저장할 변경이 없습니다.')
-    if (original.status === 'cancelled') throw new Error('취소된 할 일입니다. 먼저 내 업무에서 상태를 확인해 주세요.')
-    return { ...context, field: '상태', before: taskStatusLabels[original.status], after: taskStatusLabels.done,
-      command: { kind: 'status', ...target, status: 'done' } }
+  if (change.kind === 'complete' || change.kind === 'restart' || change.kind === 'status') {
+    const status = change.kind === 'complete' ? 'done' : change.kind === 'restart' ? 'todo' : taskStatus(change.value)
+    if (change.kind === 'restart' && original.status !== 'done' && original.status !== 'cancelled')
+      throw new Error('이미 진행 가능한 할 일입니다. 다시 시작할 완료·취소 업무를 선택해 주세요.')
+    if (status === original.status) throw new Error('이미 같은 상태입니다. 추가로 저장할 변경이 없습니다.')
+    if (status === 'done' && original.status === 'cancelled') throw new Error('취소된 할 일입니다. 먼저 다시 시작한 뒤 완료해 주세요.')
+    return { ...context, field: '상태', before: taskStatusLabels[original.status], after: taskStatusLabels[status],
+      command: { kind: 'status', ...target, status } }
   }
   const { title, notes, dueDate } = original
   const input = normalizeTaskInput({ title, notes, dueDate, [change.kind]: change.value })
   if (input[change.kind] === original[change.kind]) throw new Error('이미 같은 내용입니다. 추가로 저장할 변경이 없습니다.')
-  return { ...context, field: change.kind === 'notes' ? '메모' : '기한', before: original[change.kind], after: input[change.kind],
+  return { ...context, field: change.kind === 'notes' ? '메모' : change.kind === 'title' ? '제목' : '기한', before: original[change.kind], after: input[change.kind],
     command: { kind: 'update', ...target, input } }
+}
+
+// 상태를 바꿔도 완료 버튼으로 보이지 않도록 일반 화면과 대화 검토가 같은 문구를 사용한다.
+export function taskChangeConfirmLabel(review: TaskChangeReview): string {
+  const command = review.command
+  if (command.kind !== 'status') return '확인한 변경 저장'
+  if (command.status === 'done') return '확인한 할 일 완료'
+  if (command.status === 'todo' && (review.original.status === 'done' || review.original.status === 'cancelled')) return '확인한 할 일 다시 시작'
+  return '확인한 상태 변경'
 }
 
 // 같은 번호를 재전송할 때도 확인한 변경을 반영한 판의 접수 결과여야 한다.

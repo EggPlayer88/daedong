@@ -1,5 +1,6 @@
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { MessagingError, type MessagingServer, type NotificationSource, type Recipient } from './contracts'
 import { type MessageAttempt, type MessageDraft } from './composer'
 import { type MessageFileServer } from './files'
@@ -12,6 +13,10 @@ export interface MessageComposeRequest {
   recipients?: Recipient[]
 }
 export interface MessagingWorkspaceProps {
+  /** 대화 안에서도 같은 작성·첨부·확인·복구 흐름을 사용한다. */
+  presentation?: 'page' | 'assistant'
+  initialTab?: 'messages' | 'inbox'
+  showThreadList?: boolean
   openRequest?: { key: string; id: string }
   onReturnToSource?: () => void
   composeRequest?: MessageComposeRequest
@@ -22,6 +27,8 @@ export interface MessagingWorkspaceProps {
   revision?: number
   onNavigationLockChange?: (locked: boolean) => void
   onUpdated?: () => void
+  /** 검증된 전송 접수 결과만 상위 작업에 알린다. 읽음은 포함하지 않는다. */
+  onWorkflowResult?: WorkflowResultListener
   onOpenSource?: (source: NotificationSource) => void | Promise<void>
   canOpenSource?: (source: NotificationSource) => boolean
   /** 시험과 상위 모듈 조합에만 사용한다. 기본 연결은 기존 공용 로그인이다. */

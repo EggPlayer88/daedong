@@ -47,7 +47,7 @@ export function AssistantDock({ open, fullPage = false, closeDisabled = false, c
   }, [open, mobile, fullPage])
   return <dialog ref={panel} className={`ws-ai-dock${fullPage ? ' ws-ai-full' : ''}`} aria-labelledby={id}
     onCancel={event => { event.preventDefault(); if (!closeDisabled) onClose() }} onKeyDown={event => {
-      if (!fullPage && !mobile && event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); onClose() }
+      if (!fullPage && !mobile && event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); if (!closeDisabled) onClose() }
     }}>
     <header className="ws-ai-heading"><div><WorkspaceIcon name="assistant" />{fullPage ? <h1 id={id}>AI 비서</h1> : <h2 id={id}>AI 비서</h2>}</div><button ref={close} type="button" disabled={closeDisabled} aria-label="AI 비서 닫기" onClick={onClose}>✕</button></header>
     {!fullPage && <div className="ws-ai-context"><span>열어 둔 화면</span><strong>{contextLabel}</strong><small>화면 내용은 자동으로 전달되지 않습니다.</small></div>}

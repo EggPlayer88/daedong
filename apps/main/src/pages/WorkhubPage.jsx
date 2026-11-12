@@ -3,7 +3,8 @@ import '../../../workhub/src/app/navigation-bridge'
 import { Component, lazy, Suspense } from 'react'
 import { useAuth } from '../lib/AuthContext.jsx'
 import { Link, useHref } from 'react-router-dom'
-import { MODULES } from '../lib/modules.js'
+import { MODULES, visibleModules } from '../lib/modules.js'
+import { buildLegacyEvaluationLinks } from '../site/legacy-evaluation-links.js'
 import { useMessagingPilot } from '../lib/MessagingPilotContext.jsx'
 import { hasMessagingPilot } from '../lib/messaging-pilot.js'
 import { hasWorkhubParticipant } from '../lib/workhub-participant.js'
@@ -28,10 +29,14 @@ export default function WorkhubPage() {
   // 새 탭 주소도 기존 메뉴 표와 현재 라우터의 기준 경로를 따른다.
   const legacyHomeHref = useHref(MODULES.find(module => module.key === 'account').to)
   const legacyPlanHref = useHref(MODULES.find(module => module.key === 'doc-ai').to)
+  const legacySubmissionsHref = useHref(MODULES.find(module => module.key === 'submissions').to)
+  const legacyEvaluationLinks = buildLegacyEvaluationLinks(visibleModules(profile, access), seasonal, {
+    authoring: legacyPlanHref, submissions: legacySubmissionsHref,
+  })
   // 기존 로그인 연결을 사용한다. 업무 화면의 실패는 기존 문서·제출 화면에 전파하지 않는다.
   if (profileLoading) return <p role="status">계정 확인 중…</p>
   if (profileError || !session?.user?.id || profile?.id !== session.user.id || profile?.is_active !== true || (profile?.role !== 'superadmin' && !hasMessagingPilot(profile, access) && !hasWorkhubParticipant(profile, access))) return <p role="alert">현재 계정으로 학교 업무 화면을 이용할 수 없습니다.</p>
   if (profile.role === 'teacher' && hasWorkhubParticipant(profile, access)) return <WorkhubBoundary key={session.user.id}><Suspense fallback={<p role="status">허용된 업무 화면을 준비하고 있습니다…</p>}><ParticipantWorkspace access={access} /></Suspense></WorkhubBoundary>
   if (profile.role === 'teacher') return <WorkhubBoundary key={session.user.id}><Suspense fallback={<p role="status">메신저 시험 화면을 준비하고 있습니다…</p>}><MessagingPilotWorkspace access={access} /></Suspense></WorkhubBoundary>
-  return <WorkhubBoundary key={session.user.id}><Suspense fallback={<p role="status">학교 업무 화면을 준비하고 있습니다…</p>}><ConnectedWorkspace expectedUserId={session.user.id} legacyHomeHref={legacyHomeHref} legacyPlanHref={seasonal.state?.enabled ? legacyPlanHref : undefined} /></Suspense></WorkhubBoundary>
+  return <WorkhubBoundary key={session.user.id}><Suspense fallback={<p role="status">학교 업무 화면을 준비하고 있습니다…</p>}><ConnectedWorkspace expectedUserId={session.user.id} legacyHomeHref={legacyHomeHref} legacyPlanHref={seasonal.state?.enabled ? legacyPlanHref : undefined} legacyEvaluationLinks={legacyEvaluationLinks} /></Suspense></WorkhubBoundary>
 }

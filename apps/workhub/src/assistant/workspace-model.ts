@@ -1,3 +1,7 @@
+import type { EvaluationTarget } from './evaluation-workspace'
+import type { SavedWorkspacePlan } from './plan-control'
+import type { WorkflowResultListener } from '../app/workflow-results'
+import type { DailyCommand } from './daily-command'
 import type { MemoryService } from './memory-contracts'
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
@@ -25,6 +29,9 @@ import type { WorkspaceCommand } from './workspace-commands'
 import type { DraftFollowup, DraftPeople } from './draft-followup'
 import type { DirectDraftCommand } from './draft-commands'
 import type { TaskChangeCommand } from './task-change-command'
+import type { ConversationFocus } from './conversation-guidance'
+import type { WorkspaceOperationReview, WorkspaceOperationReceipt } from './workspace-operations'
+import type { SpecialistCommand } from './specialist-workflows'
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
 export interface AssistantWorkspaceSearchResult {
   items: SearchItem[]
@@ -32,13 +39,22 @@ export interface AssistantWorkspaceSearchResult {
   hasMore: boolean
 }
 export interface AssistantWorkspaceActions {
-  navigate: (page: PageId) => boolean
+  deliveryInConversation?: boolean
+  specialist?: (command: SpecialistCommand, onResult?: WorkflowResultListener) => boolean
+  daily?: (command: DailyCommand) => boolean
+  evaluation?: (target: EvaluationTarget) => boolean
+  navigate: (page: PageId, onResult?: WorkflowResultListener) => boolean
   search: (query: string, kinds: SearchKind[], signal: AbortSignal) => Promise<AssistantWorkspaceSearchResult>
-  open: (item: SearchItem) => boolean
+  open: (item: SearchItem, onResult?: WorkflowResultListener) => boolean
   calendar: (command: CalendarWorkspaceCommand) => boolean
   findDraftPeople?: (kind: DirectDraftCommand['kind'], query: string, signal: AbortSignal) => Promise<DraftPeople & { limit: number }>
-  prepareDraft?: (command: DirectDraftCommand, followup?: DraftFollowup) => boolean
+  prepareDraft?: (command: DirectDraftCommand, followup?: DraftFollowup, onResult?: WorkflowResultListener, composeId?: string) => boolean
   changeTask?: (command: TaskChangeCommand, selected: SearchItem) => boolean
+  operations?: {
+    prepareTask: (command: TaskChangeCommand, selected: SearchItem) => Promise<WorkspaceOperationReview>
+    prepareCalendar: (command: CalendarWorkspaceCommand) => Promise<WorkspaceOperationReview>
+    execute: (review: WorkspaceOperationReview, retry: boolean) => Promise<WorkspaceOperationReceipt>
+  }
 }
 export interface AssistantDraftReady {
   intent: AssistantIntent
@@ -48,6 +64,7 @@ export interface AssistantDraftReady {
   studentContext: StudentContext | null
 }
 export interface AssistantPanelProps {
+  workActive?: boolean
   connection: SupabaseConnection
   member: Membership
   date: string
@@ -80,8 +97,10 @@ export type Session = {
   mode: AssistantMode
   intent: AssistantIntent
   prompt: string
+  conversationFocus?: ConversationFocus
+  workspacePlan?: SavedWorkspacePlan
   draftDialogue?: DraftFollowup
-  calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string }
+  calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string; planPrompt?: string }
   references: AssistantContextRequest['references']
   studentContext: StudentContext | null
   thread?: AssistantThread

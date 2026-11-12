@@ -4,6 +4,7 @@ import { validCollectionComposeText } from '../collections/compose-text'
 import { validWorkspaceText } from './workspace-commands'
 import type { DirectDraftCommand } from './draft-commands'
 import type { AssistantWorkspaceActions, Session } from './workspace-model'
+import type { WorkflowResultListener } from '../app/workflow-results'
 
 interface Options {
   session: Session
@@ -17,6 +18,7 @@ interface Options {
   actions?: AssistantWorkspaceActions
   feedback: (error: string, notice?: string) => void
   opened: (command: DirectDraftCommand) => void
+  resultListener?: (prompt: string, target: { kind: string; id: string }) => WorkflowResultListener | undefined
 }
 interface Matches {
   prompt: string
@@ -26,7 +28,7 @@ interface Matches {
 
 // 본문·기한·명시 선택만 탭 초안에 보관한다. 검색 후보는 당시 화면에서만 사용한다.
 export function useDraftContinuation({ session, latest, update, scope, basisDate, active, editable, revision,
-  actions, feedback, opened }: Options) {
+  actions, feedback, opened, resultListener }: Options) {
   const [matches, setMatches] = useState<Matches>()
   const [searching, setSearching] = useState(false)
   const flight = useRef<AbortController>()
@@ -145,7 +147,8 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
   function openDraftForm() {
     if (!editable || !latest.current || !followup || latest.current.prompt.trim() || flight.current || visibleMatches || followup.pendingNames?.length) return
     if (!(followup.command.kind === 'messageDraft' ? followup.command.body : followup.command.title)) return
-    if (!actions?.prepareDraft?.(followup.command, followup)) {
+    const composeId = crypto.randomUUID()
+    if (!actions?.prepareDraft?.(followup.command, followup, resultListener?.(followup.command.prompt, {kind: 'compose', id: composeId}), composeId)) {
       feedback('작성 화면을 열 수 없습니다. 작성 중인 입력이나 확인할 요청을 마친 뒤 다시 시도해 주세요. 초안은 유지했습니다.')
       return
     }

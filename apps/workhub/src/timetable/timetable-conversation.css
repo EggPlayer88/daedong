@@ -1,0 +1,18 @@
+/* 같은 시간표 컨트롤러를 대화 작업 공간의 폭에 맞춘다. */
+.timetable-conversation{min-width:0;color:var(--ui-text,#242a33)}
+.timetable-conversation>.timetable-entry-header{display:grid;gap:12px;margin:0 0 14px;padding:0}
+.timetable-conversation>.timetable-entry-header h3{margin:0;font-size:1.05rem}
+.timetable-conversation .timetable-entry-navigation{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.timetable-conversation .timetable-entry-tools{margin-left:auto;max-width:100%}
+.timetable-conversation .timetable-entry-tools>div{display:flex;flex-wrap:wrap;gap:8px;padding-top:8px}
+.timetable-conversation .timetable-operations{max-width:none;padding:0}
+.timetable-conversation .ttops-card{padding:16px}
+.timetable-conversation-plan{display:flex;flex-wrap:wrap;gap:6px 16px;padding:12px 16px;margin:0 0 12px;list-style:none;border-radius:12px;background:var(--ui-surface-muted,#f6f7f9);font-size:.875rem;color:var(--ui-muted,#626e7e)}
+.timetable-conversation-plan li{display:flex;gap:6px;align-items:center}
+.timetable-conversation-plan b{font-variant-numeric:tabular-nums;color:var(--ui-text,#242a33)}
+.timetable-conversation-status{margin:0 0 12px;font-size:.875rem;color:var(--ui-muted,#626e7e)}
+.timetable-conversation .timetable-conversation-requests{margin-block:12px}
+.timetable-conversation .timetable-conversation-requests>summary{padding:12px;border:1px solid var(--ui-line,#e2e6ed);border-radius:10px;cursor:pointer}
+.timetable-conversation .timetable-exchanges>header h2{margin-block:8px;font-size:1.05rem}
+.timetable-conversation .tt-exchange-overview{padding:12px}
+@media(max-width:640px){.timetable-conversation .timetable-entry-tools{margin-left:0}.timetable-conversation .ttops-card{padding:12px}.timetable-conversation-plan{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:12px;gap:8px}}

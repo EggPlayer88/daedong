@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { recoveryScope } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { requestBlobDownload } from '../files/download'
 import { TeachingError, teachingScope, type TeachingAdapter } from './contracts'
 import { readRecordExport, recordExportCsv, RecordExportError, RECORD_EXPORT_NOTICE, recordConfirmationLabel, recordReviewLabel, recordStateLabel, type RecordExportReport, type RecordExportSelection } from './record-export'
@@ -8,12 +9,12 @@ import { openRecordPrintWindow, type RecordPrintSession } from './record-export-
 import policy from './record-export-policy.json'
 import styles from './record-export.css?inline'
 
-export interface RecordExportPanelProps { adapter:TeachingAdapter; member:Membership; courseId:string; studentId:string; firstDay:string; lastDay:string; revision?:number; blockedReason?:string; onClose:()=>void }
-export function RecordExportPanel({adapter,member,courseId,studentId,firstDay,lastDay,revision=0,blockedReason='',onClose}:RecordExportPanelProps){
+export interface RecordExportPanelProps { adapter:TeachingAdapter; member:Membership; courseId:string; studentId:string; firstDay:string; lastDay:string; revision?:number; blockedReason?:string; onClose:()=>void; onWorkflowResult?:WorkflowResultListener }
+export function RecordExportPanel({adapter,member,courseId,studentId,firstDay,lastDay,revision=0,blockedReason='',onClose,onWorkflowResult}:RecordExportPanelProps){
   const id=useId(),scopeKey=recoveryScope(member),target=scopeKey+':'+courseId+':'+studentId
   const [selection,setSelection]=useState<RecordExportSelection>({firstDay,lastDay,observations:true,assessments:true,includeWithdrawn:false}),[report,setReport]=useState<RecordExportReport>(),[confirmed,setConfirmed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[page,setPage]=useState(0),[retryAction,setRetryAction]=useState<'csv'|'print'>(),[feedbackVersion,setFeedbackVersion]=useState(0)
   const generation=useRef(0),alive=useRef(true),inFlight=useRef(false),printWindow=useRef<RecordPrintSession>(),feedback=useRef<HTMLDivElement>(null),heading=useRef<HTMLHeadingElement>(null)
-  const gate=useRef({target,blockedReason,revision});gate.current={target,blockedReason,revision}
+  const gate=useRef({target,blockedReason,revision,adapter});gate.current={target,blockedReason,revision,adapter}
   const readScope=teachingScope(member)
   useEffect(()=>{alive.current=true;heading.current?.focus();return()=>{alive.current=false;generation.current++;printWindow.current?.close()}},[])
   useEffect(()=>{generation.current++;inFlight.current=false;printWindow.current?.close();printWindow.current=undefined;setReport(undefined);setConfirmed(false);setBusy(false);setPage(0);setNotice('');setError('');setRetryAction(undefined)},[target,adapter,revision,blockedReason])
@@ -21,24 +22,31 @@ export function RecordExportPanel({adapter,member,courseId,studentId,firstDay,la
   function update(next:RecordExportSelection){if(inFlight.current)return;printWindow.current?.close();printWindow.current=undefined;setSelection(next);setReport(undefined);setConfirmed(false);setError('');setNotice('');setRetryAction(undefined);setPage(0)}
   async function run(action:'preview'|'csv'|'print'){
     if(inFlight.current||gate.current.blockedReason||action!=='preview'&&(!report||!confirmed))return
-    const expected=report,token=++generation.current,captured={...gate.current}
+    const expected=report,token=++generation.current,captured={...gate.current},reportResult=onWorkflowResult
     let session:RecordPrintSession|undefined
     let failureStage:'read'|'output'='read'
     const closeSession=()=>{session?.close();if(printWindow.current===session)printWindow.current=undefined}
-    const current=()=>alive.current&&generation.current===token&&gate.current.target===captured.target&&gate.current.revision===captured.revision&&!gate.current.blockedReason
+    const current=()=>alive.current&&generation.current===token&&gate.current.target===captured.target&&gate.current.revision===captured.revision&&gate.current.adapter===captured.adapter&&!gate.current.blockedReason
+    const notify=(latest:RecordExportReport)=>{
+      try{reportResult?.({kind:'record_export',action:action==='csv'?'csv_requested':action==='print'?'print_opened':'preview',scope:scopeKey,key:crypto.randomUUID(),observedAt:latest.checkedAt,
+        courseId:latest.courseId,studentId:latest.student.id,...latest.selection,recordCount:latest.rows.length,fingerprint:latest.fingerprint})}catch{
+        // 출력 결과 요약은 이름·본문·점수를 복제하지 않고 실제 파일 저장·인쇄 완료를 뜻하지 않는다.
+      }
+    }
     inFlight.current=true;setBusy(true);setError('');setNotice('');setRetryAction(undefined)
     try {
       if(action==='print'){failureStage='output';printWindow.current?.close();session=openRecordPrintWindow();printWindow.current=session;failureStage='read'}
       const latest=await readRecordExport(adapter,readScope,courseId,studentId,selection,current)
       if(!current())return
       setReport(latest)
-      if(action==='preview'){setPage(0);setConfirmed(false);setNotice('최신 기록으로 미리보기를 만들었습니다. 학생·기간·상태를 확인해 주세요.');return}
+      if(action==='preview'){setPage(0);setConfirmed(false);setNotice('최신 기록으로 미리보기를 만들었습니다. 학생·기간·상태를 확인해 주세요.');notify(latest);return}
       if(latest.fingerprint!==expected?.fingerprint){setPage(0);setConfirmed(false);closeSession();setNotice('미리보기 이후 자료가 달라졌습니다. 바뀐 내용을 다시 확인한 뒤 내려받거나 인쇄해 주세요.');return}
       if(!latest.rows.length){setConfirmed(false);return}
       // 브라우저 출력 실패만 재시도할 수 있다. 최신 자료·권한 확인 실패는 기존처럼 숨긴다.
       failureStage='output'
       if(action==='csv'){requestBlobDownload(new Blob([recordExportCsv(latest)],{type:'text/csv;charset=utf-8'}),'학생기록_'+latest.student.name+'_'+selection.firstDay+'_'+selection.lastDay+'.csv');setNotice('CSV 내려받기를 요청했습니다. 파일의 저장 여부를 확인해 주세요.')}
       else {if(!session?.isOpen())throw new RecordExportError('POPUP','인쇄 창이 닫혔습니다. 인쇄를 다시 눌러 주세요.');session.print(latest);setNotice('인쇄 창에 자료를 보냈습니다. 인쇄 또는 PDF 저장 결과를 확인해 주세요.')}
+      notify(latest)
     } catch(f) {
       closeSession()
       if(!current())return

@@ -6,12 +6,13 @@ import type { CollectionCommand } from '../collections/contracts'
 
 export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask; fromAssistant?: true }
 export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
-export type CollectionRecovery = { command: CollectionCommand; key: string }
-export type ModuleRecovery = { command: unknown; key: string }
+// 작성 출처는 같은 탭의 복구 메타일 뿐 서버 명령에 포함하지 않는다.
+export type CollectionRecovery = { command: CollectionCommand; key: string; composeId?: string }
+export type ModuleRecovery = { command: unknown; key: string; composeId?: string }
 export type SchoolRosterRecovery = ModuleRecovery & { closeState?: 'closing' }
 // 닫기 응답이 유실되어도 원키·원문과 닫는 단계를 같은 탭에서 함께 보관한다.
 export type TimetableRecovery = ModuleRecovery & { closeState?: 'available' | 'closing' }
-type Requests = { teacherRoster: SchoolRosterRecovery; neis: ModuleRecovery; annualOperations: ModuleRecovery; assistantMemory: SchoolRosterRecovery; assistantSchoolSettings: SchoolRosterRecovery; schoolDataMaintenance: SchoolRosterRecovery; timetableImport: TimetableRecovery; timetableInterventions: TimetableRecovery; timetableOperationsAssistant: SchoolRosterRecovery; schoolRoster: SchoolRosterRecovery; timetableExecutionRecords: TimetableRecovery; timetableTarget: ModuleRecovery; timetableSetupBatch: ModuleRecovery; timetableSetup: ModuleRecovery; timetableAssistant: SchoolRosterRecovery; timetablePreparation: ModuleRecovery; timetableOperations: TimetableRecovery; timetable: ModuleRecovery; task: TaskRecovery; calendar: CalendarRecovery; collection: CollectionRecovery; schoolAdmin: ModuleRecovery; teaching: ModuleRecovery; teachingRelations: ModuleRecovery; messaging: ModuleRecovery; messagingFile: ModuleRecovery; knowledge: ModuleRecovery; assistant: SchoolRosterRecovery; collectionOps: ModuleRecovery; documents: ModuleRecovery; cooperation: ModuleRecovery; calendarBatch: ModuleRecovery; handover: ModuleRecovery; guidedDocuments: ModuleRecovery; knowledgeImport: ModuleRecovery }
+type Requests = { assistantOperation: ModuleRecovery; teacherRoster: SchoolRosterRecovery; neis: ModuleRecovery; annualOperations: ModuleRecovery; assistantMemory: SchoolRosterRecovery; assistantSchoolSettings: SchoolRosterRecovery; schoolDataMaintenance: SchoolRosterRecovery; timetableImport: TimetableRecovery; timetableInterventions: TimetableRecovery; timetableOperationsAssistant: SchoolRosterRecovery; schoolRoster: SchoolRosterRecovery; timetableExecutionRecords: TimetableRecovery; timetableTarget: ModuleRecovery; timetableSetupBatch: ModuleRecovery; timetableSetup: ModuleRecovery; timetableAssistant: SchoolRosterRecovery; timetablePreparation: ModuleRecovery; timetableOperations: TimetableRecovery; timetable: ModuleRecovery; task: TaskRecovery; calendar: CalendarRecovery; collection: CollectionRecovery; schoolAdmin: ModuleRecovery; teaching: ModuleRecovery; teachingRelations: ModuleRecovery; messaging: ModuleRecovery; messagingFile: ModuleRecovery; knowledge: ModuleRecovery; assistant: SchoolRosterRecovery; collectionOps: ModuleRecovery; documents: ModuleRecovery; cooperation: ModuleRecovery; calendarBatch: ModuleRecovery; handover: ModuleRecovery; guidedDocuments: ModuleRecovery; knowledgeImport: ModuleRecovery }
 type Listener = () => void
 
 // 결과 미확정 명령만 현재 탭 메모리에 둔다. 새로고침·로그아웃 후 복구 저장소로 쓰지 않는다.

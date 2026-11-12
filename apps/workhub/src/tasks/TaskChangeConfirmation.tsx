@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { TaskChangeReview } from './assistant-change'
+import { taskChangeConfirmLabel, type TaskChangeReview } from './assistant-change'
 
 export function TaskChangeConfirmation({ review, disabled, onConfirm, onCancel }: {
   review: TaskChangeReview; disabled: boolean; onConfirm: () => void; onCancel: () => void
@@ -14,7 +14,7 @@ export function TaskChangeConfirmation({ review, disabled, onConfirm, onCancel }
       <div><h4>변경 후</h4><p className="task-notes">{review.after || '없음'}</p></div>
     </div>
     <div className="task-actions">
-      <button type="button" className="task-primary" disabled={disabled} onClick={onConfirm}>{review.command.kind === 'status' ? '확인한 할 일 완료' : '확인한 변경 저장'}</button>
+      <button type="button" className="task-primary" disabled={disabled} onClick={onConfirm}>{taskChangeConfirmLabel(review)}</button>
       <button type="button" className="task-secondary" onClick={onCancel}>변경 취소</button>
     </div>
   </section>

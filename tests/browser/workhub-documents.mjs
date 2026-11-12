@@ -7,8 +7,8 @@ const bundle=buildSync({stdin:{contents:readFileSync(new URL('./workhub-document
 const browser=await launchBrowser(),context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),errors=[],external=[]
 page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message));await context.route('**/*',route=>{if(!route.request().url().startsWith('http://127.0.0.1:5179/')){external.push(route.request().url());return route.abort()}return route.fulfill({contentType:'text/html',body:'<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body><div id="root"></div></body></html>'})})
 let count=0
-async function start(scenario=''){await page.goto('http://127.0.0.1:5179/documents');await page.evaluate(value=>window.scenario=value,scenario);await page.addScriptTag({content:bundle.outputFiles[0].text});if(scenario==='missing')await page.getByRole('button',{name:'문서함 다시 연결'}).waitFor();else await page.getByRole('button',{name:scenario.startsWith('guided')?/참가 확인 양식/:/행사 원본/}).waitFor()}
-async function test(name,run,scenario=''){await start(scenario);try{await run()}catch(error){console.error(await page.locator('body').innerText());console.error(await page.evaluate(()=>({scenario:window.scenario,calls:window.calls,pending:window.pending.count(),active:window.document.activeElement?.id,fields:[...window.document.querySelectorAll('form[aria-label="문서 초안 작성"] input, form[aria-label="문서 초안 작성"] textarea')].map(field=>({id:field.id,value:field.value,valid:field.validity.valid}))})));throw error}count++;console.log('  ✓ '+name)}
+async function start(scenario='',presentation='page'){await page.goto('http://127.0.0.1:5179/documents');await page.evaluate(value=>Object.assign(window,value),{scenario,presentation});await page.addScriptTag({content:bundle.outputFiles[0].text});if(scenario==='missing')await page.getByRole('button',{name:'문서함 다시 연결'}).waitFor();else await page.getByRole('button',{name:scenario.startsWith('guided')?/참가 확인 양식/:/행사 원본/}).waitFor()}
+async function test(name,run,scenario='',presentation='page'){await start(scenario,presentation);try{await run()}catch(error){console.error(await page.locator('body').innerText());console.error(await page.evaluate(()=>({scenario:window.scenario,calls:window.calls,pending:window.pending.count(),active:window.document.activeElement?.id,fields:[...window.document.querySelectorAll('form[aria-label="문서 초안 작성"] input, form[aria-label="문서 초안 작성"] textarea')].map(field=>({id:field.id,value:field.value,valid:field.validity.valid}))})));throw error}count++;console.log('  ✓ '+name)}
 async function compose(){await page.getByRole('button',{name:'새 문서 작성'}).click();await page.getByLabel('문서 제목',{exact:true}).fill('내 행사 안내');await page.getByLabel('문서 본문',{exact:true}).fill('기록할 본문')}
 try{
  await test('초기 초점이 늦어져도 제목 입력을 가로채지 않고 원래 문서 요청을 보존한다',async()=>{
@@ -89,5 +89,55 @@ try{
   assert.equal(await picker.getByRole('button',{name:'이 위치에 질문 연결'}).count(),1);
   assert.equal(await page.evaluate(()=>window.calls.length+window.operations.length),0);
  },'guided-manager-blanks')
+ await test('대화 문서 패널도 AI 초안 비교 뒤 개인 초안 저장과 내용 확인을 따로 실행한다',async()=>{
+  assert.equal(await page.locator('.documents-assistant-pane').count(),1);
+  await page.evaluate(()=>window.setAi(false));await page.getByRole('region',{name:'AI 문서 초안 비교'}).waitFor();
+  assert.equal(await page.evaluate(()=>window.calls.length),0);
+  await page.getByRole('button',{name:'이 초안을 입력에 반영'}).click();
+  assert.equal(await page.getByLabel('공개 범위',{exact:true}).inputValue(),'private');
+  assert.equal(await page.getByRole('button',{name:/행사 원본/}).isVisible(),false);
+  await page.getByRole('button',{name:'초안 저장',exact:true}).click();await page.getByText(/문서 v1을 저장했습니다/).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.calls.map(call=>call.command.kind)),['create']);
+  await page.getByRole('button',{name:'내용 확인 완료',exact:true}).click();await page.getByText(/내용을 확인한 버전으로 표시했습니다/).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.calls.map(call=>call.command.kind)),['create','confirm']);
+  assert.equal(await page.evaluate(()=>window.calls[0].command.input.visibility),'private');
+ },'','assistant')
+ await test('대화 문서의 원본 목록이 접혀도 배경 조회 실패는 숨기지 않는다',async()=>{
+  await page.getByRole('button',{name:/행사 원본/}).click();await page.getByRole('button',{name:'이 문서 수정'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:/행사 원본/}).isVisible(),false);
+  await page.evaluate(()=>{window.listFailed=true;window.refresh()});
+  await page.getByRole('button',{name:'문서함 다시 연결'}).waitFor();
+  assert.equal(await page.getByRole('button',{name:'본문 내려받기'}).isDisabled(),true);
+  assert.equal(await page.evaluate(()=>window.calls.length),0);
+ },'','assistant')
+ await test('대화 문서 패널의 저장 유실은 접힌 목록과 재마운트 뒤에도 같은 요청으로 확인한다',async()=>{
+  await compose();await page.getByRole('button',{name:'초안 저장',exact:true}).click();await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).waitFor();
+  await page.evaluate(()=>window.unmount());await page.getByRole('heading',{name:'문서함',exact:true}).waitFor({state:'detached'});await page.evaluate(()=>window.remount());
+  assert.equal(await page.getByLabel('문서 본문',{exact:true}).inputValue(),'기록할 본문');
+  await page.getByRole('button',{name:'같은 문서 요청 다시 확인'}).click();await page.getByText(/문서 v1을 저장했습니다/).waitFor();
+  const calls=await page.evaluate(()=>window.calls);assert.equal(calls.length,2);assert.deepEqual(calls[0],calls[1]);
+ },'unknown','assistant')
+ await test('대화 질문형 패널도 다운로드·파일 확인 전에는 생성물을 수합에 전달하지 않는다',async()=>{
+  await page.getByRole('button',{name:/참가 확인 양식/}).click();
+  assert.equal(await page.getByRole('button',{name:/참가 확인 양식/}).isVisible(),false);
+  await page.getByLabel('참여 인원 (필수)',{exact:true}).fill('12');await page.getByRole('button',{name:'답변 임시 저장'}).click();await page.getByText(/저장을 확인했습니다/).waitFor();
+  await page.getByRole('button',{name:'저장한 답변으로 HWPX 생성'}).click();
+  const attach=page.getByRole('button',{name:'확인한 파일을 수합에 첨부하기'});await attach.waitFor();assert.equal(await attach.isDisabled(),true);
+  assert.equal(await page.getByLabel('파일을 열어 내용과 칸 배치를 확인했습니다').isDisabled(),true);
+  await page.getByRole('button',{name:'생성 HWPX 내려받기'}).click();assert.equal(await attach.isDisabled(),true);
+  await page.getByLabel('파일을 열어 내용과 칸 배치를 확인했습니다').check();assert.equal(await page.evaluate(()=>window.generated.length),0);
+  await attach.click();await page.waitForFunction(()=>window.generated.length===1);
+  assert.deepEqual(await page.evaluate(()=>window.generated[0]),{requestId:'collection',artifactId:'artifact',size:4});
+  assert.deepEqual(await page.evaluate(()=>window.calls.map(call=>call.command.kind)),['save_answers']);
+ },'guided-teacher','assistant')
+ await test('대화 문서 패널은 320px 큰 글씨에서도 제목·내용·확정 버튼이 잘리지 않는다',async()=>{
+  await page.setViewportSize({width:320,height:740});await compose();
+  await page.locator('.documents-assistant-pane').evaluate(node=>{node.style.setProperty('--ui-body-size','28px');node.style.setProperty('--ui-small-size','24px')});
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true);
+  for(const field of [page.getByLabel('문서 제목',{exact:true}),page.getByLabel('문서 본문',{exact:true}),page.getByRole('button',{name:'초안 저장',exact:true})]){
+    await field.scrollIntoViewIfNeeded();const box=await field.boundingBox();assert(box.x>=0&&box.x+box.width<=320);
+  }
+  assert.equal(await page.evaluate(()=>window.calls.length),0);await page.setViewportSize({width:390,height:844});
+ },'','assistant')
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('문서함·질문형 수합 브라우저 '+count+'건 통과')
 }finally{await browser.close()}

@@ -8,6 +8,17 @@ import { hasPreviewUrl } from './preview-readiness.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const scripts = [
+  'workhub-school-configuration-result-events', 'workhub-relations-result-events', 'workhub-knowledge-result-events', 'workhub-knowledge-result-events-import', 'workhub-execution-result-events', 'workhub-execution-result-events-connected', 'workhub-plan-domain-connected',
+  'workhub-plan-publication-connected', 'workhub-publication-result-events', 'workhub-school-data-result-events', 'workhub-record-export-result-events',
+  'workhub-calendar-result-events', 'workhub-teaching-result-events', 'workhub-cooperation-result-connected',
+  'workhub-approval-result-events', 'workhub-document-result-events', 'workhub-plan-approval-connected',
+  'workhub-workflow-result-events', 'workhub-plan-workflow-connected',
+  'workhub-assistant-plan-continuation', 'workhub-assistant-plan-receipts',
+  'workhub-assistant-daily-lessons', 'workhub-assistant-lessons-connected', 'workhub-assistant-evaluation', 'site-ai-evaluation-bridge',
+  'workhub-assistant-daily', 'workhub-assistant-daily-actions', 'workhub-assistant-daily-connected',
+  'workhub-assistant-plan', 'workhub-assistant-completion-mobile', 'workhub-assistant-remaining', 'workhub-assistant-calendar-workspace',
+  'workhub-assistant-specialists', 'workhub-assistant-timetable', 'workhub-assistant-teaching', 'workhub-assistant-administration',
+  'workhub-ai-foundation', 'workhub-assistant-operations', 'workhub-assistant-dock', 'workhub-collection-conversation', 'workhub-assistant-documents',
   'workhub-teacher-roster', 'workhub-roster-calendar', 'workhub-neis',
   'site-modular-shell', 'workhub-annual-operations', 'site-loading', 'workhub-home-grid', 'workhub-site-navigation',
   'site-ui-finish', 'workhub-ui-renewal', 'workhub-ui-polish', 'workhub-workflow-ui', 'workhub-coordination-ui', 'workhub-timetable-workflow-ui', 'workhub-school-records-ui', 'workhub-document-library-ui', 'workhub-assistant-ui', 'workhub-navigation-ui', 'email-login', 'workhub-messaging-pilot',

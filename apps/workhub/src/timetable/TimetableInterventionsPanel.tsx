@@ -3,9 +3,10 @@ import type { Membership } from '../contracts'
 import type { AssistantServer } from '../assistant/contracts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { canonical, ServiceError } from '../services/service-values'
 import type { ExchangeInput, OperationsView, RequestAction } from './operations-contracts'
-import type { InterventionCommand, InterventionInput, InterventionKind, InterventionPreview, InterventionRequest, InterventionsView, TimetableInterventionsServer } from './interventions-contracts'
+import type { InterventionCommand, InterventionInput, InterventionKind, InterventionPreview, InterventionReceipt, InterventionRequest, InterventionsView, TimetableInterventionsServer } from './interventions-contracts'
 import { duplicateInterventionRequests, interventionAction, interventionCommand, interventionDisplayState, interventionInput, interventionInputProblem, interventionLabels, interventionStateLabels, interventionActionLabels, interventionNeedsMyAction, interventionSubmit, selectInterventionRequests, type InterventionRequestFilter } from './interventions-domain'
 import { timetableDateOffset, timetableLocalDate } from './operations-calendar'
 import type { InterventionOpenIntent } from './operations-links'
@@ -23,11 +24,22 @@ interface Props {
   onInitialIntentConsumed?: (token: string) => void
   onViewChange?: (value: InterventionsView | undefined) => void
   onApplied?: (lessonId: string, date: string) => void
+  onWorkflowResult?: WorkflowResultListener
 }
 interface Form { kind: InterventionKind; lessonId: string; teacherId: string; closureId: string; targetStart: string; targetEnd: string; reason: string }
 const empty = (): Form => ({ kind: 'substitute', lessonId: '', teacherId: '', closureId: '', targetStart: '', targetEnd: '', reason: '' })
 const message = (e: unknown) => e instanceof Error ? e.message : '결과를 확인하지 못했습니다. 원래 요청과 입력은 유지합니다.'
 const definite = (error: unknown) => error instanceof ServiceError && ['INVALID_INPUT', 'NOT_READY', 'NOT_FOUND', 'FORBIDDEN', 'CONFLICT', 'IDEMPOTENCY_CONFLICT', 'INACTIVE_MEMBERSHIP'].includes(error.code)
+function reportApproval(listener: WorkflowResultListener | undefined, scope: string, key: string, command: InterventionCommand, receipt: InterventionReceipt) {
+  if (!listener || command.kind !== 'action' || command.action !== 'approve' || receipt.kind !== 'action' || receipt.status !== 'applied') return
+  try {
+    if (receipt.requestKey !== key || receipt.entityId !== command.requestId || receipt.version !== command.expectedVersion + 1 || !receipt.changedLessons.length) return
+    listener({ kind: 'intervention', action: 'approve', scope, key: receipt.requestKey, recordedAt: receipt.recordedAt,
+      requestId: receipt.entityId, requestVersion: receipt.version, changedLessonIds: receipt.changedLessons.map(lesson => lesson.id) })
+  } catch {
+    // 보조 결과 표시의 오류가 이미 검증한 승인과 원래 요청 복구 상태를 되돌리지 않는다.
+  }
+}
 function timestampInput(value: string, zone: string) {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::[0-5]\d)?$/.test(value)) throw new ServiceError('INVALID_INPUT')
   const minute = schoolDayLocalTime(value.slice(0, 10), value.slice(11, 16), zone)
@@ -58,7 +70,7 @@ function InterventionsPanel(props: Props) {
   const from = props.view?.from ?? props.date, until = props.view?.until ?? timetableDateOffset(props.date, 7)
   const sourceKey = canonical([props.member, from, until, props.revision, reload]), validUntil = preview ? Date.parse(preview.expiresAt) : 0
   const latestQuery = useRef(sourceKey); latestQuery.current = sourceKey
-  useEffect(() => () => { life.current++ }, [])
+  useEffect(() => { running.current = false; setBusy(false); return () => { life.current++ } }, [props.server])
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [])
   useEffect(() => { props.onLockChange?.(locked || dirty || aiLocked); return () => props.onLockChange?.(false) }, [locked, dirty, aiLocked, props.onLockChange])
   useEffect(() => { memory.save(form, dirty) }, [form, dirty, memory])
@@ -139,13 +151,14 @@ function InterventionsPanel(props: Props) {
   }
   async function send(command: InterventionCommand, key: string, recover = false) {
     if (running.current) return
-    const epoch = life.current; running.current = true; setBusy(true); setError(''); setNotice('')
+    const epoch = life.current, resultListener = props.onWorkflowResult, scope = recoveryScope(props.member); running.current = true; setBusy(true); setError(''); setNotice('')
     try {
       const receipt = await (recover ? props.server.recover(props.member.id, command, key) : props.server.execute(props.member.id, command, key))
       if (epoch !== life.current) return
       const latest = latestSource.current
       const applied = receipt.status === 'applied' ? latest?.requests.find(row => row.id === receipt.entityId)?.changes.find(row => receipt.changedLessons.some(saved => saved.id === row.after.id && saved.version === row.after.version))?.after : undefined
       finish(key, receipt.status === 'applied' ? '수업 변경을 반영했습니다. 최신 시간표에서 확인해 주세요.' : `요청 결과: ${interventionStateLabels[receipt.status]}`, command.kind === 'submit')
+      reportApproval(resultListener, scope, key, command, receipt)
       if (applied && latest) current.current.onApplied?.(applied.id, timetableLocalDate(applied.time.startsAt, latest.timeZone))
     } catch (e) {
       if (epoch !== life.current) return
@@ -174,7 +187,7 @@ function InterventionsPanel(props: Props) {
   }
   async function close() {
     if (!pending || running.current || !closeConfirmed && pending.closeState !== 'closing') return
-    const epoch = life.current; running.current = true; setBusy(true); setError('')
+    const epoch = life.current, resultListener = props.onWorkflowResult, scope = recoveryScope(props.member); running.current = true; setBusy(true); setError('')
     try {
       const command = interventionCommand(pending.command)
       recovery.put({ ...pending, closeState: 'closing' })
@@ -184,6 +197,7 @@ function InterventionsPanel(props: Props) {
         const receipt = result.receipt, latest = latestSource.current
         const applied = receipt.status === 'applied' ? latest?.requests.find(row => row.id === receipt.entityId)?.changes.find(row => receipt.changedLessons.some(saved => saved.id === row.after.id && saved.version === row.after.version))?.after : undefined
         finish(pending.key, `기존 처리 결과를 확인했습니다: ${interventionStateLabels[receipt.status]}`, command.kind === 'submit')
+        reportApproval(resultListener, scope, pending.key, command, receipt)
         if (applied && latest) current.current.onApplied?.(applied.id, timetableLocalDate(applied.time.startsAt, latest.timeZone))
       }
       else {

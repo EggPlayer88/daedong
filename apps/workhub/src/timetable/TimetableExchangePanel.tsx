@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope } from '../app/pending-requests'
@@ -17,6 +17,7 @@ import workflowStyles from './timetable-workflow-ui.css?inline'
 import { ComposerOptions } from '../app/ComposerOptions'
 
 export interface TimetableExchangePanelProps {
+  presentation?: 'page' | 'assistant'
   server: TimetableOperationsServer; member: Membership; view: OperationsView | null; loading: boolean; locked: boolean
   onCommand: (command: OperationCommand) => Promise<OperationReceipt>; onDirtyChange: (dirty: boolean) => void
   onReload: () => void; revision?: number
@@ -68,10 +69,11 @@ function ExchangeRequestDetails({ request, timeZone, selected }: { request: Exch
 export function TimetableExchangePanel(props: TimetableExchangePanelProps) {
   return <ExchangePanelSession key={recoveryScope(props.member)} {...props} />
 }
-function ExchangePanelSession({ server, member, view, loading, locked, onCommand, onDirtyChange, onReload, revision = 0, sourceSelection, extensions, onSelectionConsumed, requestSelection, onRequestSelectionConsumed, proposalSelection, onProposalSelectionConsumed }: TimetableExchangePanelProps) {
+function ExchangePanelSession({ presentation = 'page', server, member, view, loading, locked, onCommand, onDirtyChange, onReload, revision = 0, sourceSelection, extensions, onSelectionConsumed, requestSelection, onRequestSelectionConsumed, proposalSelection, onProposalSelectionConsumed }: TimetableExchangePanelProps) {
   const composeHeading = useRef<HTMLHeadingElement>(null), requestsHeading = useRef<HTMLHeadingElement>(null)
   function jumpTo(section: 'compose' | 'requests') {
     const node = (section === 'compose' ? composeHeading : requestsHeading).current
+    const details = node?.closest('details'); if (details) details.open = true
     node?.focus(); node?.scrollIntoView({ block: 'start' })
   }
   const id = useId(), memory = useEditDraft<ExchangeDraft>(member, 'timetable-exchanges')
@@ -242,17 +244,18 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
   function resetRequestFilters() { setRequestFilter('all'); setRequestQuery(''); setRequestLimit(20) }
   const requestDate = (value: string) => new Intl.DateTimeFormat('ko-KR', { timeZone: view?.timeZone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value))
   return <section className="timetable-exchanges timetable-workflow-ui" aria-labelledby={id + '-title'}><style>{styles}{inboxStyles}{reviewStyles}{workflowStyles}</style>
-    <header><h2 id={id + '-title'}>수업 변경 요청</h2><p className="timetable-muted">변경안을 먼저 확인하고, 관련 교사의 동의와 담당자 승인 후 시간표에 반영합니다.</p><ol className="timetable-exchange-flow" aria-label="수업 변경 진행 순서"><li>후보 비교·내 동의와 요청</li><li>관련 교사 동의</li><li>담당자 승인</li><li>시간표 반영</li></ol></header>
+    <header><h2 id={id + '-title'}>수업 변경 요청</h2>{presentation !== 'assistant' && <><p className="timetable-muted">변경안을 먼저 확인하고, 관련 교사의 동의와 담당자 승인 후 시간표에 반영합니다.</p><ol className="timetable-exchange-flow" aria-label="수업 변경 진행 순서"><li>후보 비교·내 동의와 요청</li><li>관련 교사 동의</li><li>담당자 승인</li><li>시간표 반영</li></ol></>}</header>
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="timetable-error">{error}</p>}{notice && <p role="status" className="timetable-notice">{notice}</p>}</div>
     {replaceSource && visible && <section className="ttops-pending" aria-label="기존 변경 요청 입력 보존"><p>작성 중인 요청이 있습니다. 시간표에서 선택한 수업으로 바꾸면 보내지 않은 입력을 비웁니다.</p><button type="button" disabled={unavailable} onClick={replaceSelectedSource}>기존 입력을 비우고 선택한 수업으로 시작</button><button type="button" className="secondary" disabled={unavailable} onClick={() => setReplaceSource(undefined)}>기존 입력 계속 작성</button></section>}
     {replaceProposal && visible && <section className="ttops-pending" aria-label="AI 제안과 기존 입력 확인"><p>작성 중인 입력을 보관했습니다. 확인한 AI 제안으로 바꾸려면 아래 버튼을 눌러 주세요.</p><p>{replaceProposal.reason}</p><button type="button" disabled={unavailable} onClick={() => adoptExternalProposal(replaceProposal)}>기존 입력 대신 확인한 AI 제안 채우기</button><button type="button" className="secondary" disabled={unavailable} onClick={() => setReplaceProposal(undefined)}>기존 입력 계속 작성</button></section>}
     {!visible ? <p role="status">{loading ? '현재 수업과 요청 권한을 확인하고 있습니다.' : '현재 권한과 수업을 확인할 때까지 보관한 변경 요청 입력을 숨깁니다.'}</p> : view && <>
       <section className="tt-exchange-overview" aria-label="변경 요청 빠른 이동">
-        <div className="tt-workflow-title"><div><strong>내가 할 일부터 확인하세요</strong><p>조회 기간 안에서 내게 필요한 동의·승인과 보낸 요청을 모았습니다.</p></div><nav className="tt-workflow-jumps" aria-label="교환 요청 화면 이동"><button type="button" disabled={!view.canRequest || unavailable} onClick={() => jumpTo('compose')}>새 요청 작성</button><button type="button" className="secondary" onClick={() => jumpTo('requests')}>동의·승인 확인</button></nav></div>
+        <div className="tt-workflow-title">{presentation !== 'assistant' && <div><strong>내가 할 일부터 확인하세요</strong><p>조회 기간 안에서 내게 필요한 동의·승인과 보낸 요청을 모았습니다.</p></div>}<nav className="tt-workflow-jumps" aria-label="교환 요청 화면 이동"><button type="button" disabled={!view.canRequest || unavailable} onClick={() => jumpTo('compose')}>새 요청 작성</button><button type="button" className="secondary" onClick={() => jumpTo('requests')}>동의·승인 확인</button></nav></div>
         <div className="timetable-exchange-inbox-summary" role="group" aria-label="내가 확인할 변경 요청">
           {([{ filter: 'consent', title: '내 동의', count: attentionCounts.consent }, { filter: 'approval', title: '내 승인', count: attentionCounts.approval }, { filter: 'requested', title: '내 요청', count: attentionCounts.requested }] as const).map(item => <button key={item.filter} type="button" className="secondary" aria-pressed={requestFilter === item.filter} aria-label={`${item.title} ${item.count}건 보기`} onClick={() => { changeRequestFilter(item.filter); jumpTo('requests') }}><span>{item.title}</span><strong>{item.count}</strong></button>)}
         </div>
       </section>
+      <ConversationRequests compact={presentation === 'assistant'} active={requests.length > 0 || Boolean(openedRequest)} count={requests.length}>
       <section className="timetable-card" aria-labelledby={id + '-requests'}><div className="timetable-toolbar"><h3 ref={requestsHeading} tabIndex={-1} className="tt-workflow-focus" id={id + '-requests'}>관련 변경 요청</h3><button type="button" className="secondary" disabled={locked || busy} onClick={onReload}>요청 상태 새로 확인</button></div><p className="timetable-muted">현재 조회 기간 {view.from} ~ {timetableDateOffset(view.until, -1)}에 받은 요청입니다. 읽음 여부와 동의, 최종 반영은 각각 구분합니다.</p>
         {openedRequest && <div className="timetable-exchange-opened" ref={requestFeedback} tabIndex={-1} role="status" aria-label="선택한 변경 요청 안내">
           <p>{opened ? '알림에서 선택한 요청을 표시했습니다. 읽는 것만으로 동의하거나 승인하지 않습니다.' : '선택한 요청을 현재 조회 기간과 권한에서 찾지 못했습니다. 다른 요청을 대신 열지 않았습니다.'}</p>
@@ -281,6 +284,7 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
         </article>)}</div>}
         {shownRequests.length > requestLimit && <button type="button" className="secondary" onClick={() => setRequestLimit(value => value + 20)}>변경 요청 20건 더 보기 ({requestLimit}/{shownRequests.length})</button>}
       </section>
+      </ConversationRequests>
       <section className="timetable-card tt-exchange-compose" aria-labelledby={id + '-compose'}>
         <div className="tt-workflow-title"><div><span className="tt-workflow-kicker">수업 선택 → 변경 비교 → 요청</span><h3 ref={composeHeading} tabIndex={-1} className="tt-workflow-focus" id={id + '-compose'}>새 변경 요청</h3><p>바꿀 내 수업을 고르고 상대 수업이나 빈 시간을 확인하세요.</p></div></div>
         {view.canRequest && !myLessons.length && <p>이 조회 기간에 변경을 요청할 수 있는 내 수업이 없습니다. 조회 기간이나 승인된 수업 배정을 확인해 주세요.</p>}
@@ -320,4 +324,9 @@ function ExchangePanelSession({ server, member, view, loading, locked, onCommand
       </section>
     </>}
   </section>
+}
+
+// 빈 요청 목록과 검색은 접어 두되, 받은 요청·확인 중인 원본은 바로 보여 준다.
+function ConversationRequests({ compact, active, count, children }: { compact: boolean; active: boolean; count: number; children: ReactNode }) {
+  return compact ? <details className="timetable-conversation-requests" open={active || undefined}><summary>요청 현황 {count}건</summary>{children}</details> : <>{children}</>
 }

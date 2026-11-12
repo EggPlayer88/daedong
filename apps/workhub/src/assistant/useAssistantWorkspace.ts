@@ -1,3 +1,5 @@
+import { useWorkspacePlan } from './useWorkspacePlan'
+import { parseWorkspacePlanControl } from './plan-control'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
@@ -11,6 +13,7 @@ import {
   assistantError,
   definiteFailure,
   TASK_INPUT_LIMITS,
+  ASSISTANT_LIMITS,
   type AssistantIntent,
   type AssistantMode,
   type Readiness,
@@ -32,6 +35,8 @@ import { useDraftContinuation } from './useDraftContinuation'
 import { calendarQuestion, continueCalendar } from './calendar-conversation'
 import type { TaskChangeCommand } from './task-change-command'
 import type { AssistantWorkspaceSearchResult } from './workspace-model'
+import { composeConversationPrompt, readConversationPrompt, conversationPromptLimit, inferConversationProfile, conversationProfile as profileFor, CONVERSATION_PROFILES, type ConversationFocus } from './conversation-guidance'
+import { useWorkspaceOperation } from './useWorkspaceOperation'
 import {
   AssistantPanelProps,
   Pending,
@@ -41,6 +46,7 @@ import {
   newKey,
 } from './workspace-model'
 export function useAssistantWorkspace({
+  workActive = false,
   connection,
   member,
   date,
@@ -74,7 +80,8 @@ export function useAssistantWorkspace({
               ...saved,
               mode: command.input.mode,
               intent: command.input.intent,
-              prompt: command.input.prompt,
+              prompt: readConversationPrompt(command.input.prompt).prompt,
+              conversationFocus: readConversationPrompt(command.input.prompt).profileId,
               references: command.input.references,
               studentContext: command.input.studentContext,
             }
@@ -142,14 +149,30 @@ export function useAssistantWorkspace({
     /* 보존한 원문이 읽히지 않으면 임의로 지우지 않는다. */
   }
   const [memoryLocked, setMemoryLocked] = useState(false)
+  const workspaceOperation = useWorkspaceOperation({ member, date, actions: workspaceActions?.operations, onSaved: (prompt, receipt) => {
+    const dialogue = latest.current.calendarDialogue
+    const sourcePrompt = receipt.kind === 'calendarCreate' && dialogue?.scope === dialogueScope && dialogue.basisDate === date
+      ? dialogue.planPrompt ?? prompt : prompt
+    workspacePlan.mark(sourcePrompt, 'confirmed', receipt)
+    update({ ...latest.current, prompt: '', calendarDialogue: undefined })
+    setWorkspaceResult(undefined)
+    onUpdated?.()
+  } })
+  const conversationFocus = session.conversationFocus ?? 'auto'
+  const conversationProfile = profileFor(conversationFocus === 'auto' ? inferConversationProfile(session) : conversationFocus)
+  const canChangeConversationFocus = !workActive && !busy && !recovery.request && !workspaceOperation.locked && !memoryLocked && !session.proposal
+  function setConversationFocus(value: ConversationFocus) {
+    if (!canChangeConversationFocus || operation.current || (value !== 'auto' && !CONVERSATION_PROFILES.some(row => row.id === value))) return
+    update({ ...latest.current, conversationFocus: value })
+  }
   const enabled = activeAt(member, date),
     locked = Boolean(
-      session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked,
+      workActive || session.workspacePlan || session.prompt.trim() || session.calendarDialogue || session.draftDialogue || session.proposal || recovery.request || busy || memoryLocked || workspaceOperation.locked,
     ),
-    baseEditable = enabled && ready?.available === true && !busy && !recovery.request && !readError,
+    baseEditable = !workActive && enabled && ready?.available === true && !busy && !recovery.request && !readError && !workspaceOperation.locked,
     editable = baseEditable && !memoryLocked
-  const workspaceEditable = Boolean(workspaceActions) && enabled && !busy && !recovery.request &&
-    !memoryLocked && !session.proposal && !openingCitation
+  const workspaceEditable = !workActive && Boolean(workspaceActions) && enabled && !busy && !recovery.request &&
+    !memoryLocked && !session.proposal && !openingCitation && !workspaceOperation.locked
   // 다른 화면이 고정한 원문·학생 근거와 AI 출력은 명령으로 해석하지 않는다.
   const commandContext = Boolean(workspaceActions) && !session.contextId &&
     !session.references.length && !session.studentContext
@@ -159,8 +182,11 @@ export function useAssistantWorkspace({
   const calendarFollowup = commandContext && enabled && session.calendarDialogue?.basisDate === date &&
     session.calendarDialogue.scope === dialogueScope ? session.calendarDialogue.command : undefined
   function draftOpened(command: DirectDraftCommand) {
+    workspacePlan.mark(command.prompt, 'opened')
     const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
-    setWorkspaceActionNotice({ prompt: command.prompt, message: `${destination} 화면에서 초안을 확인해 주세요.` })
+    setWorkspaceActionNotice({ prompt: command.prompt, message: workspaceActions?.deliveryInConversation
+      ? `${destination} 작업을 대화 안에서 열었습니다. 마지막 확인 전에는 전송·저장하지 않습니다.`
+      : `${destination} 화면에서 초안을 확인해 주세요.` })
     setWorkspaceResult(undefined)
     update({ ...latest.current, prompt: '', draftDialogue: undefined })
     setError('')
@@ -169,16 +195,26 @@ export function useAssistantWorkspace({
   const continuation = useDraftContinuation({
     session, latest, update, actions: workspaceActions, scope: dialogueScope, basisDate: date, revision,
     active: commandContext && enabled, editable: workspaceEditable, opened: draftOpened,
+    resultListener: (prompt, target) => workspacePlan.resultListener(prompt, target),
     feedback: (error, notice = '') => { setError(error); setNotice(notice) },
   })
   // 이어지는 답은 현재 초안에만 사용한다. 잘못된 날짜나 이름도 유료 질문이 되지 않는다.
   const workspaceCommand = commandContext
     ? continuation.draftFollowup?.command ?? calendarFollowup ?? parseWorkspaceCommand(session.prompt, date)
     : null
-  const freeCommand = workspaceCommand && workspaceCommand.kind !== 'task'
-  const canSubmit = freeCommand ? workspaceEditable : editable
-  const submitLabel = continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+  const workspacePlan = useWorkspacePlan({ session, latest, scope: dialogueScope, date, active: commandContext && enabled,
+    editable: workspaceEditable && !operation.current, update,
+    feedback: (error, notice = '') => { setError(error); setNotice(notice) },
+    selected: () => { setWorkspaceResult(undefined); setWorkspaceActionNotice(undefined) },
+  })
+  const freeCommand = Boolean(workspacePlan.control || workspacePlan.candidate) || (workspaceCommand && workspaceCommand.kind !== 'task')
+  const promptLimit = freeCommand ? ASSISTANT_LIMITS.promptChars : conversationPromptLimit(conversationProfile.id, session.prompt)
+  const canSubmit = !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
+  const submitLabel = workspacePlan.control ? '업무 목록 확인' : workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+    workspaceCommand?.kind === 'evaluation' ? '평가계획서 연결 확인' :
+    workspaceCommand?.kind === 'daily' ? '학교 자료 확인' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
+    workspaceCommand?.kind === 'specialist' ? '업무 시작' :
     workspaceCommand?.kind === 'navigate' ? '바로 이동' :
     workspaceCommand?.kind === 'search' ? '자료 찾기' :
     workspaceCommand?.kind === 'messageDraft' ? (workspaceCommand.firstTurn ? '메시지 초안 확인' : '메시지 초안 열기') :
@@ -187,7 +223,7 @@ export function useAssistantWorkspace({
     workspaceCommand?.kind === 'clarify' ? '요청 확인' : 'AI에게 요청'
   function update(value: Session) {
     latest.current = value
-    memory.save(value, Boolean(value.prompt.trim() || value.proposal || value.calendarDialogue || value.draftDialogue))
+    memory.save(value, Boolean(value.workspacePlan || value.prompt.trim() || value.proposal || value.calendarDialogue || value.draftDialogue))
     setSession(value)
   }
   useEffect(
@@ -226,7 +262,7 @@ export function useAssistantWorkspace({
     }
   }, [member.id, member.schoolId, date, enabled, revision, server])
   // 단순 질문 초안은 옆자리와 탭 메모리에 남는다. 처리·복구·편집 확정 중에만 메뉴 이동을 막는다.
-  const navigationLocked = Boolean(session.proposal || recovery.request || busy || memoryLocked)
+  const navigationLocked = Boolean(session.proposal || recovery.request || busy || memoryLocked || workspaceOperation.locked)
   useEffect(() => {
     onNavigationLockChange?.(navigationLocked)
     return () => onNavigationLockChange?.(false)
@@ -467,7 +503,7 @@ export function useAssistantWorkspace({
   }
   async function searchWorkspace(command: Extract<WorkspaceCommand, { kind: 'search' }> | TaskChangeCommand) {
     if (!workspaceActions || !workspaceEditable || operation.current) return
-    if (command.kind === 'taskChange' && !workspaceActions.changeTask) {
+    if (command.kind === 'taskChange' && !workspaceActions.changeTask && !workspaceActions.operations) {
       setError('현재 화면에서는 할 일 변경을 준비할 수 없습니다. 내 업무에서 확인해 주세요.')
       return
     }
@@ -505,11 +541,21 @@ export function useAssistantWorkspace({
     if (!found) return
     try {
       if (workspaceResult?.taskChange) {
+        if (workspaceActions.operations && found.kind === 'task' && Number.isSafeInteger(found.version)) {
+          const selected = workspaceResult
+          void workspaceOperation.prepare(selected.prompt, () => workspaceActions.operations!.prepareTask(selected.taskChange!, found))
+          setError('')
+          return
+        }
         if (found.kind !== 'task' || !Number.isSafeInteger(found.version) || !workspaceActions.changeTask?.(workspaceResult.taskChange, found))
           throw new Error('업무 확인 보류')
+        workspacePlan.mark(workspaceResult.prompt, 'opened')
         setWorkspaceActionNotice({ prompt: workspaceResult.prompt, message: '내 업무에서 변경 내용을 확인해 주세요. 아직 저장하지 않았습니다.' })
         setWorkspaceResult(undefined)
-      } else if (!workspaceActions.open(found)) throw new Error('이동 보류')
+      } else {
+        if (!workspaceActions.open(found, workspacePlan.resultListener(workspaceResult?.prompt ?? '', { kind: found.kind, id: found.id }))) throw new Error('이동 보류')
+        if (workspaceResult) workspacePlan.mark(workspaceResult.prompt, 'opened')
+      }
       setError('')
     } catch {
       setError(workspaceResult?.taskChange ? '할 일을 열지 못했습니다. 현재 작성 중인 작업을 마친 뒤 다시 선택해 주세요.'
@@ -528,7 +574,16 @@ export function useAssistantWorkspace({
     setWorkspaceActionNotice(undefined)
   }
   function ask() {
+    // 누락 정보를 받는 중에는 목록 명령을 제목이나 수신자 이름으로 채우지 않는다.
+    if (commandContext && (latest.current.calendarDialogue || latest.current.draftDialogue) &&
+        parseWorkspacePlanControl(latest.current.prompt)) {
+      if (workspaceEditable && !operation.current) setError('작성 중인 업무의 빠진 정보를 먼저 채우거나 취소해 주세요. 업무 목록과 입력은 유지했습니다.')
+      return
+    }
     if (latest.current.draftDialogue) { void continuation.reply(); return }
+    if (workspacePlan.handleControl()) return
+    if (workspacePlan.blockedSelection) { setError('계획의 기준 날짜가 바뀌었습니다. 입력을 유지했으니 현재 날짜로 다시 검토해 주세요.'); return }
+    if (workspacePlan.build()) return
     let command = workspaceCommand
     if (latest.current.calendarDialogue && !calendarFollowup) return
     if (calendarFollowup && workspaceEditable && !operation.current) {
@@ -544,6 +599,39 @@ export function useAssistantWorkspace({
         setError('')
         return
       }
+      if (command.kind === 'evaluation') {
+        if (!workspaceActions?.evaluation?.(command.target)) {
+          setError('평가계획서 연결을 열지 못했습니다. 기간 업무 표시 상태와 작성 중인 업무를 확인해 주세요. 요청은 유지했습니다.')
+          return
+        }
+        setWorkspaceActionNotice({prompt:latest.current.prompt,message:'새 탭으로 열 연결을 준비했습니다. 작성·제출은 열린 화면에서 직접 확인합니다.'})
+        workspacePlan.mark(latest.current.prompt, 'opened')
+        setWorkspaceResult(undefined); setNotice(''); setError('')
+        update({...latest.current,prompt:''})
+        return
+      }
+      if (command.kind === 'daily') {
+        if (!workspaceActions?.daily?.(command)) {
+          setError('조회 화면을 열지 못했습니다. 작성 중인 내용이나 결과 확인을 먼저 마쳐 주세요. 요청은 유지했습니다.')
+          return
+        }
+        setWorkspaceActionNotice({ prompt: latest.current.prompt, message: '학교 자료 조회 화면을 열었습니다. 조회만으로 업무를 변경하지 않습니다.' })
+        workspacePlan.mark(latest.current.prompt, 'opened')
+        setWorkspaceResult(undefined); setNotice(''); setError('')
+        update({ ...latest.current, prompt: '' })
+        return
+      }
+      if (command.kind === 'specialist') {
+        if (!workspaceActions?.specialist?.(command, workspacePlan.resultListener(latest.current.prompt))) {
+          setError('업무를 열지 못했습니다. 작성 중인 내용이나 결과 확인을 먼저 마쳐 주세요. 요청은 유지했습니다.')
+          return
+        }
+        setWorkspaceActionNotice({ prompt: latest.current.prompt, message: '대상과 현재 원본을 확인할 업무를 열었습니다. 변경은 검토 후 직접 확정합니다.' })
+        workspacePlan.mark(latest.current.prompt, 'opened')
+        setWorkspaceResult(undefined); setNotice(''); setError('')
+        update({ ...latest.current, prompt: '' })
+        return
+      }
       if (command.kind === 'search' || command.kind === 'taskChange') {
         void searchWorkspace(command)
         return
@@ -555,7 +643,8 @@ export function useAssistantWorkspace({
           return
         }
         const destination = command.kind === 'messageDraft' ? '메시지' : '수합'
-        if (!workspaceActions?.prepareDraft?.(command)) {
+        const composeId = crypto.randomUUID()
+        if (!workspaceActions?.prepareDraft?.(command, undefined, workspacePlan.resultListener(command.prompt, {kind: 'compose', id: composeId}), composeId)) {
           setError(`${destination} 초안을 열 수 없습니다. 작성 중인 입력이나 확인할 요청을 마친 뒤 다시 시도해 주세요. 원문은 유지했습니다.`)
           return
         }
@@ -564,19 +653,30 @@ export function useAssistantWorkspace({
       }
       if (command.kind === 'navigate' || command.kind === 'calendar') {
         if (command.kind === 'calendar' && calendarQuestion(command)) {
-          update({ ...latest.current, prompt: '', calendarDialogue: { command, basisDate: date, scope: dialogueScope } })
+          const plan = latest.current.workspacePlan
+          const planPrompt = latest.current.calendarDialogue?.planPrompt ??
+            (plan?.scope === dialogueScope && plan.plan.basisDate === date &&
+              plan.plan.steps.find(step => step.id === plan.selectedId)?.prompt === command.prompt ? command.prompt : undefined)
+          update({ ...latest.current, prompt: '', calendarDialogue: { command, basisDate: date, scope: dialogueScope, planPrompt } })
           setWorkspaceResult(undefined)
           setWorkspaceActionNotice(undefined)
           setNotice('')
           setError('')
           return
         }
+        if (command.kind === 'calendar' && workspaceActions?.operations) {
+          const calendarCommand = command
+          void workspaceOperation.prepare(command.prompt, () => workspaceActions.operations!.prepareCalendar(calendarCommand))
+          setError(''); setNotice('')
+          return
+        }
         try {
           // 이동 전에 busy를 세우면 부모의 기존 이동 보호가 자기 요청까지 막으므로 동기로 넘긴다.
           const accepted = command.kind === 'navigate'
-            ? workspaceActions!.navigate(command.page)
+            ? workspaceActions!.navigate(command.page, workspacePlan.resultListener(latest.current.prompt))
             : workspaceActions!.calendar(command)
           if (!accepted) throw new Error('기존 작업 확인 필요')
+          workspacePlan.mark(command.kind === 'calendar' ? latest.current.calendarDialogue?.planPrompt ?? command.prompt : latest.current.prompt, 'opened')
           setWorkspaceActionNotice({ prompt: command.kind === 'calendar' ? command.prompt : latest.current.prompt,
             message: command.kind === 'calendar'
               ? '일정 화면에서 초안을 확인한 뒤 저장해 주세요. 아직 저장하지 않았습니다.'
@@ -606,7 +706,7 @@ export function useAssistantWorkspace({
         input = freshAssistantInput({
           mode: current.mode,
           intent: current.intent,
-          prompt: current.prompt,
+          prompt: composeConversationPrompt(current.prompt, conversationFocus === 'auto' ? inferConversationProfile(current) : conversationProfile.id),
           threadId: current.thread?.id ?? null,
           expectedVersion: current.thread?.version ?? 0,
           references: current.references,
@@ -780,6 +880,13 @@ export function useAssistantWorkspace({
     changeIntent,
     changeMode,
     connection,
+    conversationFocus,
+    promptLimit,
+    canChangeConversationFocus,
+    conversationProfile,
+    setConversationFocus,
+    workspaceOperation,
+    workspacePlan,
     contextRequest,
     date,
     draft,

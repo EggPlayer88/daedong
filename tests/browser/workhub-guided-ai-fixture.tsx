@@ -52,6 +52,7 @@ const connection:any={info:()=>w.connected?clone(initialContext):({memberships:[
 }}
 let thread:any=null
 const assistant:any={readiness:async()=>({available:true}),list:async()=>({items:[],nextCursor:null}),get:async()=>clone(thread),ask:async(_:string,input:any,key:string)=>{
+ if(input.threadId===null)thread=null
  w.asks.push(clone({input,key}));thread={id:'thread',mode:input.mode,version:(thread?.version??0)+1,title:'질문형 작성 도움',nextCursor:null,exchanges:[...(thread?.exchanges??(w.includeOld?[{id:'old-exchange',requestKey:'old-request',intent:'guided_collection',prompt:'이전의 다른 양식 질문',segments:[{text:'다른 양식의 과거 제안',citations:[]}],proposal:null,createdAt:'2026-10-20T00:00:00Z',studentContext:null}]:[])),{id:'exchange-'+key,requestKey:key,intent:input.intent,prompt:input.prompt,segments:[{text:'제안한 참여 계획',citations:[]}],proposal:null,createdAt:'2026-10-21T00:00:00Z',studentContext:null,...(input.quality?{execution:{quality:input.quality,model:ASSISTANT_ROUTING.models[input.quality as 'quick'|'review'].id,reviewOf:input.reviewOf}}:{})}]};return askResult({state:'completed',requestKey:key,thread},key)
 }}
 w.aiPort={async send(payload:any){const data=payload.action==='readiness'?{available:true}:await assistant.ask(payload.memberId,payload.input,payload.requestKey);return {contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data}}}

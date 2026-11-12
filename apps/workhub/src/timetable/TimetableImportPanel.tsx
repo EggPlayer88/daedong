@@ -1,6 +1,7 @@
 import { retryableLazy as lazy } from '../app/retryable-lazy'
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest, type TimetableRecovery } from '../app/pending-requests'
 import { ServiceError } from '../services/service-values'
@@ -17,7 +18,7 @@ const CorrectionPanel = lazy(() => import('./TimetableImportCorrectionPanel').th
 interface Props {
   server: TimetableImportServer; member: Membership; onLockChange?: (locked: boolean) => void
   onOpenPublish?: (draft: { id: string; version: number }) => void; onOpenSchoolAdmin?: () => void; onOpenTeaching?: () => void
-  correctionContext?: ImportCorrectionContext
+  correctionContext?: ImportCorrectionContext; onWorkflowResult?: WorkflowResultListener
 }
 interface Input { title: string; csv: string }
 interface InputSource { termId: string; termLabel: string }
@@ -36,7 +37,7 @@ function downloadWorkbook(bytes: Uint8Array) {
 export function TimetableImportPanel(props: Props) {
   return <TimetableImportBody key={recoveryScope(props.member)} {...props} />
 }
-function TimetableImportBody({ server, member, onLockChange, onOpenPublish, onOpenSchoolAdmin, onOpenTeaching, correctionContext }: Props) {
+function TimetableImportBody({ server, member, onLockChange, onOpenPublish, onOpenSchoolAdmin, onOpenTeaching, correctionContext, onWorkflowResult }: Props) {
   const memory = useEditDraft<Session>(member, 'timetable-import'), recovery = usePendingRequest(member, 'timetableImport')
   const [input, setInput] = useState<Input>(memory.initial?.input ?? initial()), [receipt, setReceipt] = useState(memory.initial?.receipt)
   const [inputSource, setInputSource] = useState(memory.initial?.inputSource)
@@ -156,7 +157,7 @@ function TimetableImportBody({ server, member, onLockChange, onOpenPublish, onOp
     } finally { if (epoch === life.current) { running.current = false; setBusy(false) } }
   }
   if (correctionOpen) return <section className="timetable-card"><style>{importStyles}</style><Suspense fallback={<p role="status">보관한 입력을 유지하고 정정 화면을 준비합니다…</p>}>
-    <CorrectionPanel {...correctionContext!} member={member} target={correction!} onClose={closeCorrection} />
+    <CorrectionPanel onWorkflowResult={onWorkflowResult} {...correctionContext!} member={member} target={correction!} onClose={closeCorrection} />
   </Suspense></section>
   return <section className="timetable-card" aria-label="실제 시간표 가져오기">
     <style>{importStyles}</style>

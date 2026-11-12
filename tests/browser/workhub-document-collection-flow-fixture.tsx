@@ -61,6 +61,8 @@ flow.handleHttp=async(path:string,p:any)=>{
 }
 const connection:any={getIdentity:async()=>copy(identity),loadContext:async()=>copy(ctx),info:()=>copy(ctx),subscribeIdentity:()=>()=>{},subscribeInvalidation:()=>()=>{},checkReadiness:async()=>({stage:'ready',code:'READY',checkedAt:now(),readySchoolCount:2}),rpcVerified:async(name:string,args:any)=>{
  const m=actor(args.p_member_id);flow.calls.push(copy({name,args}))
+ // 같은 문서·수합 시험 자료에 선택 기능의 합성 응답만 덧붙일 수 있게 한다.
+ const added=await w.flowRpcHook?.(name,args,m);if(added!==undefined)return added
  if(name==='workhub_calendar_list')return calendar.list(m.id)
  if(name==='workhub_calendar_get')return calendar.get(m.id,args.p_event_id)
  if(name==='workhub_task_list')return workflows.listTasks(m.id)

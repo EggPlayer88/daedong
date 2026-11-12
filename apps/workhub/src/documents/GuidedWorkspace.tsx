@@ -4,7 +4,7 @@ import { useGuidedEditor } from './useGuidedEditor'
 import { GuidedEditorView } from './GuidedEditorView'
 export function GuidedWorkspace(props:GuidedWorkspaceProps){return <GuidedScope key={recoveryScope(props.member)} {...props}/>}
 function GuidedScope(props: GuidedWorkspaceProps) {
- return <GuidedEditorView model={useGuidedEditor(props)} />;
+ return <GuidedEditorView model={useGuidedEditor(props)} presentation={props.presentation} />;
 }
 
 export type { GuidedWorkspaceProps } from './guided-editor-model'

@@ -21,7 +21,7 @@ async function start(view){
  await page.addScriptTag({content:bundles[view]});await page.evaluate(()=>document.fonts.ready)
  if(view==='settings')await button('API 키 교체').waitFor()
  else if(view==='operations')await page.locator('.school-ai-operation-list>li').last().waitFor()
- else await button('내 개인 비서').waitFor({state:'visible'})
+ else await field('질문 또는 부탁할 일').waitFor({state:'visible'})
 }
 async function check(name,view,run){await start(view);try{await run()}catch(error){await capture('failure');console.error(await page.locator('#root').innerText());throw error}results.push(name);console.log('  ✓ '+name)}
 async function capture(name,locator=page.locator('#root')){
@@ -45,8 +45,8 @@ function contrast(a,b){const luminance=color=>{const values=color.match(/[\d.]+/
 try{
  await check('넓고 좁은 화면 모두 대화·입력 뒤에 도구를 두며 자동 호출하지 않는다','assistant',async()=>{
   const compose=page.locator('.assistant-compose'),tools=page.getByRole('complementary',{name:'AI 대화 도구'})
-  await capture('00-assistant-start');const a=await compose.boundingBox(),b=await tools.boundingBox();assert(b.y>=a.y+a.height);assert.equal(await page.getByRole('group',{name:'비서의 자료 범위'}).isVisible(),true)
-  await field('질문 또는 부탁할 일').fill('잠시 보관할 질문');await page.getByRole('button',{name:'문서 초안 작성 생각을 글로 정리',exact:true}).click();assert.equal(await field('요청 종류').inputValue(),'document_draft');assert.equal(await field('질문 또는 부탁할 일').inputValue(),'잠시 보관할 질문');assert.equal(await page.getByRole('button',{name:'학교 업무 안내',exact:true}).getAttribute('aria-pressed'),'true')
+  await capture('00-assistant-start');const a=await compose.boundingBox(),b=await tools.boundingBox();assert(b.y>=a.y+a.height);assert.equal(await page.getByRole('group',{name:'비서의 자료 범위'}).isVisible(),false);await page.getByText('자료 범위 변경',{exact:true}).click();assert.equal(await page.getByRole('group',{name:'비서의 자료 범위'}).isVisible(),true)
+  await field('질문 또는 부탁할 일').fill('잠시 보관할 질문');await field('대화 분야').selectOption('documents');assert.equal(await field('요청 종류').inputValue(),'school_advice');await page.locator('.assistant-request-settings summary').click();await field('요청 종류').selectOption('document_draft');assert.equal(await field('요청 종류').inputValue(),'document_draft');assert.equal(await field('질문 또는 부탁할 일').inputValue(),'잠시 보관할 질문');assert.equal(await page.getByRole('button',{name:'학교 업무 안내',exact:true}).getAttribute('aria-pressed'),'true')
   await page.setViewportSize({width:390,height:844});await fits();const narrow=await tools.boundingBox();assert(narrow.y>(await compose.boundingBox()).y);assert.equal(await field('질문 또는 부탁할 일').inputValue(),'잠시 보관할 질문')
   await page.getByText('학교 AI 예산 · 기본 Haiku',{exact:true}).click();await page.getByText('이전 대화 0개',{exact:true}).click();assert.equal(await page.evaluate(()=>window.calls.length),0)
  })

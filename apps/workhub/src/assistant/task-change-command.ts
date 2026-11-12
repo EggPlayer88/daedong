@@ -1,13 +1,24 @@
 import { SEARCH_LIMITS } from '../search/limits'
 import { TASK_INPUT_LIMITS } from '../tasks/validation'
+import type { TaskStatus } from '../tasks/contracts'
+import { taskStatusLabels } from '../tasks/presentation'
 
-export type TaskChange = { kind: 'dueDate'; value: string } | { kind: 'notes'; value: string } | { kind: 'complete' }
+export type TaskChange =
+  | { kind: 'dueDate'; value: string }
+  | { kind: 'notes'; value: string }
+  | { kind: 'title'; value: string }
+  | { kind: 'complete' }
+  | { kind: 'restart' }
+  | { kind: 'status'; value: TaskStatus }
 export interface TaskChangeCommand { kind: 'taskChange'; prompt: string; query: string; change: TaskChange }
 type Clarification = { kind: 'clarify'; message: string }
 
 const clarify = (message: string): Clarification => ({ kind: 'clarify', message })
 const datePattern = /^(?:오늘|내일|모레|(?:이번\s*주\s*|다음\s*주\s*)?[월화수목금토일]요일|\d{4}[-./]\d{1,2}[-./]\d{1,2})$/
 const weekdayIndex = '일월화수목금토'
+const taskPrefix = /^(?:내\s*)?(?:할\s*일|업무)\s+/
+const statusValue = (text: string): TaskStatus | undefined => (Object.entries(taskStatusLabels) as [TaskStatus, string][])
+  .find(([, label]) => label.replace(/\s/g, '') === text.replace(/\s/g, ''))?.[0]
 
 export function resolveAssistantDueDate(token: string, basisDate: string): string | null {
   if (!datePattern.test(token)) return null
@@ -34,20 +45,40 @@ export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskC
   // 공통 분류기에서 인용·부정·설명·복합 요청을 먼저 제외한다. 이 함수는 대상을 조회할 의도만 만든다.
   const value = prompt.trim()
   const complete = value.match(/^(.*?)\s*(?:완료(?:\s*처리)?|완료로\s*변경)(?:해\s*(?:줘|주세요|주십시오)|해줘요)$/)
+  const restart = value.match(/^(.*?)\s*(?:다시\s*시작|재개)해\s*(?:줘|주세요|주십시오)$/)
   const update = value.match(/^(.*?)\s*(?:바꿔|변경해|수정해)\s*(?:줘|주세요|주십시오)$/)
-  if (!complete && !update) return null
+  if (!complete && !restart && !update) return null
   let rawTarget = '', change: TaskChange
-  if (complete) {
+  if (restart) {
+    if (!taskPrefix.test(restart[1])) return null
+    rawTarget = restart[1]; change = { kind: 'restart' }
+  } else if (complete) {
     rawTarget = complete[1]
     change = { kind: 'complete' }
   } else {
     const body = update![1].trim()
+    const title = body.match(/^(.*?)\s+(?:의\s*)?제목(?:을|은)?\s+(.+?)(?:으)?로$/)
+    const status = body.match(/^(.*?)\s+(?:의\s*)?상태(?:를|는)?\s+(.+?)(?:으)?로$/)
     const memo = body.match(/^(.*?)\s*(?:의\s*)?메모(?:를|는)?\s+(.+?)(?:으)?로$/)
     const due = body.match(/^(.*?)\s+(?:((?:이번\s*주|다음\s*주)\s*[월화수목금토일]요일|\S+?))(?:까지)?(?:으)?로$/)
     // ‘바꿔줘’만으로는 할 일 변경이 아니다. 문장·안내문 편집은 기존 AI 경로에 둔다.
     const taskHint = /^(?:내\s+)?(?:할\s*일|업무)(?:\s|[의을를은는]|$)|(?:^|\s)(?:기한|마감(?:일)?|메모)(?:을|를|은|는)?(?:\s|$)/.test(body)
     if (!memo && !(due && datePattern.test(due[2])) && !taskHint) return null
-    if (memo) {
+    if ((title || status) && taskPrefix.test(body)) {
+      rawTarget = (title ?? status)![1].replace(/의\s*$/, '')
+      if (title) {
+        const name = title[2].trim()
+        if (!name || Array.from(name).length > TASK_INPUT_LIMITS.titleChars)
+          return clarify(`새 제목을 ${TASK_INPUT_LIMITS.titleChars}자 이내로 적어 주세요.`)
+        if (/(?:그리고|이어서|그\s*다음|바꾸고|수정하고|변경하고)\s*.*(?:기한|메모|상태|완료|취소|재개|시작|제목)/.test(name))
+          return clarify('한 번에 한 항목만 바꿀 수 있어요. 새 제목부터 확인한 뒤 나머지를 요청해 주세요.')
+        change = { kind: 'title', value: name }
+      } else {
+        const next = statusValue(status![2].trim())
+        if (!next) return clarify('바꿀 상태를 할 일·진행 중·대기·완료·취소 중 하나로 적어 주세요.')
+        change = next === 'done' ? { kind: 'complete' } : { kind: 'status', value: next }
+      }
+    } else if (memo) {
       rawTarget = memo[1]; const notes = memo[2].trim()
       if (!notes || Array.from(notes).length > TASK_INPUT_LIMITS.notesChars)
         return clarify(`메모를 ${TASK_INPUT_LIMITS.notesChars}자 이내로 적어 주세요.`)
@@ -57,9 +88,9 @@ export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskC
       const date = resolveAssistantDueDate(due[2], basisDate)
       if (!date) return clarify('변경할 기한을 날짜나 요일로 적어 주세요. 예: 제출 자료 확인을 금요일까지로 바꿔줘')
       change = { kind: 'dueDate', value: date }
-    } else return clarify('할 일 제목과 바꿀 기한 또는 메모를 알려 주세요. 예: 제출 자료 확인을 금요일까지로 바꿔줘')
+    } else return clarify('할 일 제목과 바꿀 제목·기한·메모 또는 상태를 알려 주세요. 예: 할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘')
   }
-  const query = rawTarget.trim().replace(/^(?:내\s+)?(?:할\s*일|업무)\s+/, '').replace(/(?:을|를)$/, '').trim()
+  const query = rawTarget.trim().replace(taskPrefix, '').replace(/(?:을|를)$/, '').trim()
   if (!query || /^(?:내\s*)?(?:일|업무|할\s*일|전부|모두|전체|모든|이것|그것|이거|그거)$/.test(query)
     || /(?:모두|전부|전체)\s*(?:완료|처리)?$|(?:하고|한 뒤|변경하고|수정하고|완료하고)|[;；]/.test(query)
     || Array.from(query).length > SEARCH_LIMITS.queryChars) return clarify('변경할 개인 할 일의 제목을 한 가지 적어 주세요.')

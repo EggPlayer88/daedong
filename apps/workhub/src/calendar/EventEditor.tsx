@@ -2,8 +2,11 @@ import { useEffect, useLayoutEffect, useId, useRef, useState, type FormEvent } f
 import { ContractError, type AudienceGroup, type CalendarEvent, type EventDraft, type Membership, type SaveCommand } from '../contracts'
 import { activeAt, canEdit, canRead, matchesAudience, normalizeDraft, recommendationReason } from '../domain'
 import type { CalendarAdapter, RelationOptions } from './contracts'
-import { usePendingRequest } from '../app/pending-requests'
+import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
+import type { WorkflowResultListener } from '../app/workflow-results'
+import { eventResponse } from './event-response'
+import { canonical } from '../services/service-values'
 import { eventTime, visibilityLabels } from './formatting'
 import { ComposerOptions } from '../app/ComposerOptions'
 import composerStyles from '../app/composer-layout.css?inline'
@@ -25,8 +28,8 @@ function audienceLabel(event: EventDraft, members: Membership[], relationLabels:
   return `${event.audience.all ? '모든 교사' : groups || '직접 포함 교사만'} · 직접 포함: ${names(event.audience.includeMemberIds)} · 제외: ${names(event.audience.excludeMemberIds)}`
 }
 
-export function EventEditor({ original: providedOriginal, initialDraft, draftSlot = 'calendar-editor', member, members, date, adapter, onClose, onSaved, onDiscard, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
-  original?: CalendarEvent; initialDraft?: EventDraft; draftSlot?: string; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onDiscard?: () => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
+export function EventEditor({ original: providedOriginal, initialDraft, draftSlot = 'calendar-editor', member, members, date, adapter, onClose, onSaved, onWorkflowResult, onDiscard, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
+  original?: CalendarEvent; initialDraft?: EventDraft; draftSlot?: string; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onWorkflowResult?: WorkflowResultListener; onDiscard?: () => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
 }) {
   const recovery = usePendingRequest(member, 'calendar')
   const [restored] = useState(() => recovery.request)
@@ -48,11 +51,17 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
   const id = useId()
   const titleInput = useRef<HTMLInputElement>(null)
   const alive = useRef(true)
+  const life = useRef(0)
   const inFlight = useRef(false)
   const saveRequest = useRef<{ payload: string; key: string }>()
   const errorRef = useRef<HTMLDivElement>(null)
   const initialValue = useRef(savedDraft?.initialValue ?? JSON.stringify(draft))
   const dirty = Boolean(initialDraft) || JSON.stringify(draft) !== initialValue.current
+  useEffect(() => {
+    inFlight.current = false; setSaving(false)
+    if (recovery.request) setPending(recovery.request.command)
+    return () => { life.current++ }
+  }, [adapter, date])
   useBrowserLayoutEffect(() => {
     if (retiredDraft.current) return
     editMemory.save({ original, draft, version, initialValue: initialValue.current, conflict }, dirty || saving || Boolean(conflict))
@@ -109,12 +118,30 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
   }
   async function perform(command: SaveCommand) {
     if (inFlight.current || conflict || restoreState !== 'ready') return
+    const epoch = life.current, reportResult = onWorkflowResult, scope = recoveryScope(member)
+    const current = () => alive.current && epoch === life.current
     inFlight.current = true; recovery.put({ command, original }); setSaving(true); setError('')
     try {
       const result = await adapter.save(member.id, command)
-      if (alive.current) { retiredDraft.current = true; editMemory.remove(); recovery.remove(command.idempotencyKey); setPending(undefined); onSaved(result) }
+      if (!current()) return
+      retiredDraft.current = true; editMemory.remove(); recovery.remove(command.idempotencyKey); setPending(undefined)
+      if (reportResult) try {
+        // 기존 저장 흐름은 유지하고, 이 요청과 일치하는 원본만 보조 업무 목록에 연결한다.
+        const saved = eventResponse(result, member.schoolId, members)
+        const content = (value: EventDraft) => {
+          const normalized = normalizeDraft(value, member, members)
+          return Object.fromEntries(Object.keys(blank(date)).map(key => [key, normalized[key as keyof EventDraft]]))
+        }
+        if ((command.id ? saved.id === command.id && saved.version === command.expectedVersion! + 1 : saved.version === 1 && saved.authorMemberId === member.id) &&
+            canonical(content(saved)) === canonical(content(command.draft)))
+          reportResult({ kind: 'calendar', action: command.id ? 'update' : 'create', scope, key: command.idempotencyKey,
+            recordedAt: saved.updatedAt, eventId: saved.id, eventVersion: saved.version })
+      } catch {
+        // 보조 표시 실패나 맞지 않는 결과 요약은 확인한 저장의 원키를 다시 만들지 않는다.
+      }
+      onSaved(result)
     } catch (failure) {
-      if (!alive.current) return
+      if (!current()) return
       if (failure instanceof ContractError && ['INVALID_INPUT', 'NOT_FOUND', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'CONFLICT'].includes(failure.code)) {
         recovery.remove(command.idempotencyKey); setPending(undefined)
         if (failure.code === 'CONFLICT') setConflict(failure.current)
@@ -124,7 +151,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
         setPending(command)
       }
       setError(failure instanceof Error ? failure.message : '저장 중 오류가 발생했습니다. 입력은 유지했습니다.')
-    } finally { inFlight.current = false; if (alive.current) setSaving(false) }
+    } finally { if (current()) { inFlight.current = false; setSaving(false) } }
   }
   function save(event: FormEvent) {
     event.preventDefault()

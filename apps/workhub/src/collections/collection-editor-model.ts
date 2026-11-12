@@ -6,6 +6,7 @@ import type { GeneratedDocument } from '../documents/guided-contracts'
 import type { CollectionOperationsServer } from './operations'
 import { useEffect, useLayoutEffect } from 'react'
 import type { Membership } from '../contracts'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { FileError, type FilePolicy } from '../files/contracts'
 import type {
   AnswerInput,
@@ -50,6 +51,7 @@ export function isCurrentCollectionComposeRequest(
   }
 }
 export interface CollectionServerPanelProps {
+  presentation?: 'page' | 'assistant'
   server: CollectionServer
   operations?: CollectionOperationsServer
   composeRequest?: CollectionComposeRequest
@@ -62,8 +64,12 @@ export interface CollectionServerPanelProps {
   revision?: number
   openRequest?: { key: string; id: string }
   onNavigationLockChange?: (locked: boolean) => void
+  /** 초안·공개·최종 제출을 구분한 검증 접수 결과만 전달한다. */
+  onWorkflowResult?: WorkflowResultListener
 }
 export type Editor = {
+  /** 이 편집기에서 사용한 AI 초안 출처. 서버 명령이나 권한 근거가 아니다. */
+  composeId?: string
   original?: CollectionRequest
   input: CollectionInput
   staged?: StagedTemplate[]

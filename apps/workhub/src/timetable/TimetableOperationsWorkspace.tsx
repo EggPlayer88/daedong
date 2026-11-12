@@ -6,6 +6,8 @@ import type { SupabaseConnection } from '../connection/supabase-connection'
 import { activeAt } from '../domain'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest, type TimetableRecovery } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
+import { reportOperationResult } from './workflow-results'
 import { ServiceError } from '../services/service-values'
 import { createTimetableOperationsServer } from './operations-server'
 import type { OperationCommand, OperationLesson, OperationReceipt, OperationsReadiness, OperationsView, TimetableOperationsServer } from './operations-contracts'
@@ -39,7 +41,7 @@ import styles from './operations.css?inline'
 import themeStyles from './timetable-theme.css?inline'
 
 type Tab = 'shared' | 'publish' | 'exchange'
-interface Props { embeddedHeader?: boolean; connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; initialLessonId?: string; initialDate?: string; initialRequestId?: string; initialNotificationId?: string; initialIntent?: { kind: 'makeup'; lessonId: string; token: string }; onInitialIntentConsumed?: (token: string) => void; initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void; onOpenLesson?: (lessonId: string, date: string) => void }
+interface Props { presentation?: 'page' | 'assistant'; initialOperationTab?: 'shared' | 'publish' | 'exchange'; initialOperationMode?: 'exchange' | 'interventions'; embeddedHeader?: boolean; connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onWorkflowResult?: WorkflowResultListener; initialLessonId?: string; initialDate?: string; initialRequestId?: string; initialNotificationId?: string; initialIntent?: { kind: 'makeup'; lessonId: string; token: string }; onInitialIntentConsumed?: (token: string) => void; initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void; onOpenLesson?: (lessonId: string, date: string) => void }
 interface PanelProps extends Omit<Props, 'connection'> { server: TimetableOperationsServer; extensions?: OperationsExtensions; publicationExecution?: PublicationExecutionServer; schoolDayExecution?: SchoolDayExecutionServer; executionRecords?: TimetableExecutionRecordsServer; interventions?: TimetableInterventionsServer; assistantServer?: AssistantServer;annualServer?:AnnualOperations }
 const operatingAssistantHttp: AssistantHttpPort = { async send(payload, expectedUserId, writing) { const { legacyAssistantHttp } = await import('../assistant/legacy-http'); return legacyAssistantHttp.send(payload, expectedUserId, writing) } }
 type OperationsCommand = OperationCommand | PublicationCommitCommand | SchoolDayCommitCommand
@@ -60,10 +62,11 @@ export function TimetableOperationsWorkspace(props: Props & { aiEnabled?: boolea
   const assistantServer = useMemo(() => createAssistantServer(props.connection, operatingAssistantHttp, {policyReads:true}), [props.connection])
   return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} annualServer={annualServer} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={props.aiEnabled === false ? undefined : assistantServer} />
 }
-export function TimetableOperationsPanel({ embeddedHeader = false, server, member, date, revision = 0, onNavigationLockChange, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, annualServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
+export function TimetableOperationsPanel({ presentation = 'page', initialOperationTab, initialOperationMode, embeddedHeader = false, server, member, date, revision = 0, onNavigationLockChange, onWorkflowResult, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, annualServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
   const id = useId(), pendingStore = usePendingRequest(member, 'timetableOperations')
   const route = useEditDraft<Tab>(member, 'timetable-operations-tab'), publishMemory = useEditDraft<unknown>(member, 'timetable-publish'), exchangeMemory = useEditDraft<unknown>(member, 'timetable-exchanges')
   const schoolDayMemory = useEditDraft<unknown>(member, 'timetable-school-day')
+  const interventionMemory = useEditDraft<unknown>(member, 'timetable-interventions-form')
   const initialRecordsRecovery = usePendingRequest(member, 'timetableExecutionRecords')
   const interventionPending = usePendingRequest(member, 'timetableInterventions')
   const interventionAssistantPending = usePendingRequest(member, 'timetableOperationsAssistant')
@@ -73,14 +76,14 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
   const [returnTo, setReturnTo] = useState<'shared' | 'school-day'>()
   const [completedTarget, setCompletedTarget] = useState<{ date: string; lessonId?: string }>()
   const [recordOpen, setRecordOpen] = useState<{ lessonId: string; token: number }>()
-  const [requestMode, setRequestMode] = useState<'exchange' | 'interventions'>(() => interventionPending.request || interventionAssistantPending.request || initialIntent ? 'interventions' : 'exchange')
+  const [requestMode, setRequestMode] = useState<'exchange' | 'interventions'>(() => interventionPending.request || interventionAssistantPending.request ? 'interventions' : pendingStore.request || exchangeMemory.dirty ? 'exchange' : interventionMemory.dirty || initialIntent ? 'interventions' : initialOperationMode ?? 'exchange')
   const [interventionLink, setInterventionLink] = useState<{ requestId?: string; schoolDayChangeId?: string }>()
   const [proposalSelection, setProposalSelection] = useState<{ input: ExchangeInput; token: number }>()
   const resolvedNotification = useRef(''), [sourceError, setSourceError] = useState('')
   const pending = pendingStore.request as (TimetableRecovery & { command: OperationsCommand }) | undefined
   const memberScope = recoveryScope(member)
   const annualPending=usePendingRequest(member,'annualOperations'),annualMemory=useEditDraft<unknown>(member,'annual-operations')
-  const [tab, setTab] = useState<Tab>(() => annualPending.request||annualMemory.initial ? 'publish' : interventionPending.request || interventionAssistantPending.request ? 'exchange' : initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId || initialNotificationId || initialIntent ? 'exchange' : initialLessonId ? 'shared' : route.initial ?? 'shared')
+  const [tab, setTab] = useState<Tab>(() => annualPending.request||annualMemory.initial ? 'publish' : interventionPending.request || interventionAssistantPending.request ? 'exchange' : initialRecordsRecovery.request ? 'shared' : pending ? ['publish', 'publish_manifest', 'school_day'].includes(pending.command.kind) ? 'publish' : 'exchange' : initialRequestId || initialNotificationId || initialIntent || interventionMemory.dirty ? 'exchange' : initialLessonId ? 'shared' : (publishMemory.initial || exchangeMemory.initial || schoolDayMemory.initial ? route.initial ?? (exchangeMemory.initial ? 'exchange' : 'publish') : initialOperationTab ?? (initialOperationMode ? 'exchange' : undefined)) ?? route.initial ?? 'shared')
   const focusedDate = dateOffset(initialDate ?? date, 0) || date, focusSource = useRef(focusedDate)
   const [from, setFrom] = useState(() => timetableWeekStart(focusedDate)), [reload, setReload] = useState(0), [ready, setReady] = useState<OperationsReadiness>()
   const [boardDate, setBoardDate] = useState(focusedDate), [schoolDayDirty, setSchoolDayDirty] = useState(Boolean(schoolDayMemory.initial))
@@ -160,7 +163,10 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
     setPublishLink({ id: initialDraftId, version: initialDraftVersion! }); setTab('publish'); route.save('publish', false)
   }, [initialDraftId, initialDraftVersion, pending, navLocked, onInitialDraftConsumed])
   useEffect(() => { if (focusedDate !== focusSource.current && !locked) { focusSource.current = focusedDate; setBoardDate(focusedDate); setFrom(timetableWeekStart(focusedDate)) } }, [focusedDate, locked])
-  useEffect(() => { life.current++; return () => { life.current++; running.current = false } }, [server, publicationExecution, schoolDayExecution, memberScope])
+  useEffect(() => {
+    life.current++; running.current = false; setBusy(false)
+    return () => { life.current++; running.current = false }
+  }, [server, publicationExecution, schoolDayExecution, memberScope, date])
   useEffect(() => { onNavigationLockChange?.(navLocked); return () => onNavigationLockChange?.(false) }, [navLocked, onNavigationLockChange])
   useEffect(() => { if (!navLocked) return; const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }; window.addEventListener('beforeunload', beforeLeave); return () => window.removeEventListener('beforeunload', beforeLeave) }, [navLocked])
   useEffect(() => {
@@ -238,13 +244,14 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
     if (command.kind === 'publish_manifest' && !snapshot.drafts.some(draft => draft.id === command.manifest.input.draftId && draft.version === command.manifest.input.draftVersion)) throw new ServiceError('CONFLICT')
     if (command.kind === 'school_day' && command.context.view.asOf !== snapshot.asOf) throw new ServiceError('CONFLICT')
     if (command.kind === 'action' && !snapshot.requests.some(request => request.id === command.requestId && request.version === command.expectedVersion && request.proposalHash === command.proposalHash && request.actions.includes(command.action))) throw new ServiceError('CONFLICT')
-    const request = { command: structuredClone(command), key: crypto.randomUUID() }, generation = life.current
+    const request = { command: structuredClone(command), key: crypto.randomUUID() }, generation = life.current, resultListener = onWorkflowResult
     running.current = true; setBusy(true); setError(''); setNotice(''); pendingStore.put(request)
     try {
       const receipt = await dispatch(request.command, request.key, 'execute')
       if (generation !== life.current) throw new ServiceError('CANCELLED')
       retainCompletedTarget(command, receipt, snapshot)
       pendingStore.remove(request.key); setNotice(receiptMessage(receipt)); refresh()
+      reportOperationResult(resultListener, memberScope, request.key, request.command, receipt)
       return receipt
     } catch (failure) {
       if (generation === life.current && rejected(failure)) {
@@ -259,13 +266,14 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
   const executeSchoolDay = (command: SchoolDayCommitCommand) => runCommand(command) as Promise<SchoolDayCommitReceipt>
   async function recover(resend = false) {
     if (!pending || pending.closeState === 'closing' || running.current || !enabled || resend && (missingKey !== pending.key || !resendConfirmed)) return
-    const request = structuredClone(pending), generation = life.current
+    const request = structuredClone(pending), generation = life.current, resultListener = onWorkflowResult
     running.current = true; setBusy(true); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
     try {
       const receipt = await dispatch(request.command, request.key, resend ? 'resend' : 'recover')
       if (generation !== life.current) return
       retainCompletedTarget(request.command, receipt, current.current.view)
       pendingStore.remove(request.key); clearCommandDraft(request.command); setNotice(receiptMessage(receipt)); refresh()
+      reportOperationResult(resultListener, memberScope, request.key, request.command, receipt)
     } catch (failure) {
       if (generation !== life.current) return
       // 현재 권한·준비 조회 실패로 이전 실행이 취소되었다고 판단하지 않는다.
@@ -278,7 +286,7 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
   }
   async function closeRequest() {
     if (!pending?.closeState || running.current || !enabled) return
-    const request = structuredClone(pending), generation = life.current
+    const request = structuredClone(pending), generation = life.current, resultListener = onWorkflowResult
     running.current = true; setBusy(true); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
     // 닫기를 보낸 뒤 응답이 끊겨도 같은 요청의 닫기만 다시 확인한다.
     pendingStore.put({ ...request, closeState: 'closing' })
@@ -300,6 +308,7 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
         retainCompletedTarget(request.command, result.receipt, current.current.view)
         clearCommandDraft(request.command)
         setNotice('원래 요청이 이미 처리된 것을 확인했습니다. ' + receiptMessage(result.receipt))
+        reportOperationResult(resultListener, memberScope, request.key, request.command, result.receipt)
       } else {
         // 입력은 남기고 이전 미리보기·확인만 버려 새 검토 없이 재전송하지 않게 한다.
         if (request.command.kind === 'publish' || request.command.kind === 'publish_manifest') setPublishEpoch(value => value + 1)
@@ -324,6 +333,12 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
   return <section className="timetable-operations" aria-labelledby={`${id}-title`}>
     <style>{themeStyles + styles}</style>
     {embeddedHeader ? <h2 id={`${id}-title`} className="sr-only">시간표 운영</h2> : <header className="ttops-header"><div><p className="ttops-eyebrow">학교 시간표</p><h1 id={`${id}-title`}>시간표 운영</h1><p className="ttops-muted">확정된 수업을 함께 확인하고, 변경은 상대 확인과 승인을 거쳐 반영합니다.</p></div><button type="button" className="secondary" onClick={refresh} disabled={busy || publicationBusy || schoolDayBusy || recordsLocked || loading}>최신 시간표 확인</button></header>}
+    {presentation === 'assistant' && <>
+      <ol className="timetable-conversation-plan" aria-label="시간표 처리 순서">
+        {(tab === 'shared' ? ['수업 조회', '대상 선택', '필요한 업무 열기', '결과 확인'] : tab === 'publish' ? ['초안·기간 선택', '변경 영향 비교', '담당자 확정', '반영 결과 확인'] : ['수업·요청 선택', '변경 영향 비교', '당사자 동의·담당자 승인', '반영 결과 확인']).map((label, index) => <li key={label}><b>{index + 1}</b>{label}</li>)}
+      </ol>
+      {view && <p className="timetable-conversation-status">{view.lessons.length}개 수업 · 요청 {view.requests.length}건</p>}
+    </>}
     <div ref={feedback} tabIndex={-1}>{error && <p role="alert" className="ttops-error">{error}</p>}{notice && <p role="status" className="ttops-notice">{notice}</p>}{sourceError && <p role="alert">{sourceError} <button type="button" onClick={refresh}>원본 다시 확인</button></p>}</div>
     {completedTarget && <button type="button" className="secondary" disabled={navLocked || loading} onClick={() => { changePeriod(completedTarget.date); setRecordLessonId(completedTarget.lessonId ?? ''); setTab('shared'); route.save('shared', false) }}>반영한 날짜의 시간표 보기</button>}
     {pending && <section className="ttops-pending" aria-labelledby={`${id}-pending`}>
@@ -349,7 +364,7 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
         {referenceError && <details><summary>학급 연결 상태</summary><p className="ttops-muted">{referenceError}</p></details>}
         <details className="ttops-publications"><summary>적용 중인 확정본 {view.publications.length}건</summary>{view.publications.length ? <ul>{view.publications.map(item => <li key={item.id}><strong>{item.title} · {item.version}판</strong><p>{item.from} ~ {dateOffset(item.until, -1)}</p><small>확정 시각 {new Date(item.publishedAt).toLocaleString('ko-KR', { timeZone: view.timeZone })}</small></li>)}</ul> : <p>이 조회 기간에 적용되는 확정본이 없습니다.</p>}</details>
       </section>}
-      <TimetableExecutionRecordsPanel member={member} lesson={view?.lessons.find(lesson => lesson.id === recordLessonId)} server={executionRecords} disabled={writeLocked || publicationBusy || schoolDayBusy || interventionLock || !enabled} openRequest={recordOpen} refreshKey={revision + reload} onLockChange={setRecordsLocked} onRecorded={refresh} />
+      <TimetableExecutionRecordsPanel member={member} date={date} lesson={view?.lessons.find(lesson => lesson.id === recordLessonId)} server={executionRecords} disabled={writeLocked || publicationBusy || schoolDayBusy || interventionLock || !enabled} openRequest={recordOpen} refreshKey={revision + reload} onLockChange={setRecordsLocked} onRecorded={refresh} onWorkflowResult={onWorkflowResult} />
     </div>
     <div hidden={tab !== 'publish'}><TimetablePublishPanel key={publishEpoch} initialDraftId={publishLink?.id} initialDraftVersion={publishLink?.version} onInitialDraftConsumed={() => setPublishLink(undefined)} server={server} member={member} view={view} loading={loading} locked={writeLocked || schoolDayBusy || recordsLocked || interventionLock} onCommand={execute} onDirtyChange={changePublishDirty} extensions={extensions} onPublicationCommand={publicationExecution ? executePublication : undefined} onPublicationBusyChange={changePublicationBusy} /><SchoolDayChangePanel key={'school-day-' + schoolDayEpoch} member={member} view={view} references={references} extensions={extensions} locked={writeLocked || publicationBusy || recordsLocked || interventionLock} onDirtyChange={setSchoolDayDirty} execution={schoolDayExecution} onCommand={schoolDayExecution ? executeSchoolDay : undefined} onBusyChange={changeSchoolDayBusy} onOpenRequest={openSchoolDayRequest} />{annualServer&&<AnnualOperationsPanel server={annualServer} member={member} canManage={view?.canPublish===true} date={date} timeZone={view?.timeZone??'UTC'} groups={[...new Map((references&&view&&references.asOf===view.asOf&&references.from===view.from&&references.until===view.until?references.lessons:[]).flatMap(l=>l.groups.map(g=>[g.id,g] as const))).values()]} disabled={busy||Boolean(pending)||publicationBusy||schoolDayBusy||recordsLocked||interventionLock||publishDirty||schoolDayDirty||exchangeDirty} onLock={setAnnualLocked} onChanged={refresh}/>}</div>
     <div hidden={tab !== 'exchange'}>
@@ -357,8 +372,8 @@ export function TimetableOperationsPanel({ embeddedHeader = false, server, membe
         <button type="button" aria-pressed={requestMode === 'exchange'} disabled={interventionLock} onClick={() => setRequestMode('exchange')}>이동·교환</button>
         <button type="button" aria-pressed={requestMode === 'interventions'} disabled={otherLocked || exchangeDirty} onClick={() => setRequestMode('interventions')}>대강·휴강·보강</button>
       </nav>}
-      <div hidden={requestMode !== 'exchange'}><TimetableExchangePanel key={exchangeEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changeExchangeDirty} onReload={refresh} revision={revision + reload} requestSelection={requestSelection} onRequestSelectionConsumed={() => setRequestSelection(undefined)} sourceSelection={sourceSelection} onSelectionConsumed={() => setSourceSelection(undefined)} proposalSelection={proposalSelection} onProposalSelectionConsumed={() => setProposalSelection(undefined)} extensions={extensions} /></div>
-      {interventions && <div hidden={requestMode !== 'interventions'}><TimetableInterventionsPanel initialIntent={lessonIntent ?? initialIntent} onInitialIntentConsumed={consumeLessonIntent} server={interventions} member={member} date={boardDate} view={view ?? undefined} selectedLessonId={recordLessonId} initialRequestId={interventionLink?.requestId} initialSchoolDayChangeId={interventionLink?.schoolDayChangeId} revision={revision + reload} disabled={otherLocked || exchangeDirty || publishDirty || schoolDayDirty || !enabled} assistantServer={assistantServer} onChanged={refresh} onViewChange={setInterventionView} onApplied={interventionApplied} onLockChange={setInterventionsLocked} onExchangeProposal={input => { setProposalSelection({ input, token: ++selectionToken.current }); setRequestMode('exchange') }} /></div>}
+      <div hidden={requestMode !== 'exchange'}><TimetableExchangePanel presentation={presentation} key={exchangeEpoch} server={server} member={member} view={view} loading={loading} locked={locked} onCommand={execute} onDirtyChange={changeExchangeDirty} onReload={refresh} revision={revision + reload} requestSelection={requestSelection} onRequestSelectionConsumed={() => setRequestSelection(undefined)} sourceSelection={sourceSelection} onSelectionConsumed={() => setSourceSelection(undefined)} proposalSelection={proposalSelection} onProposalSelectionConsumed={() => setProposalSelection(undefined)} extensions={extensions} /></div>
+      {interventions && <div hidden={requestMode !== 'interventions'}><TimetableInterventionsPanel initialIntent={lessonIntent ?? initialIntent} onInitialIntentConsumed={consumeLessonIntent} server={interventions} member={member} date={boardDate} view={view ?? undefined} selectedLessonId={recordLessonId} initialRequestId={interventionLink?.requestId} initialSchoolDayChangeId={interventionLink?.schoolDayChangeId} revision={revision + reload} disabled={otherLocked || exchangeDirty || publishDirty || schoolDayDirty || !enabled} assistantServer={assistantServer} onChanged={refresh} onViewChange={setInterventionView} onApplied={interventionApplied} onLockChange={setInterventionsLocked} onWorkflowResult={onWorkflowResult} onExchangeProposal={input => { setProposalSelection({ input, token: ++selectionToken.current }); setRequestMode('exchange') }} /></div>}
     </div>
     {(publishDirty || exchangeDirty || schoolDayDirty) && !locked && (!view || tab === 'shared' || tab === 'publish' && !view.canPublish || tab === 'exchange' && (!view.canRequest || schoolDayDirty)) && <section className="ttops-reset" aria-label="보관한 입력 정리">
       {discard ? <><p>현재 탭에 보관한 확정·교환·학사 변경 입력을 모두 버립니다. 이미 서버에 반영된 시간표와 요청은 바뀌지 않습니다.</p><button type="button" className="secondary" onClick={discardInputs}>입력 버리고 메뉴 잠금 해제</button><button type="button" className="secondary" onClick={() => setDiscard(false)}>계속 작성하기</button></> : <button type="button" className="secondary" onClick={() => setDiscard(true)}>보관한 입력 정리</button>}

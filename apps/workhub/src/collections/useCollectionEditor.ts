@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import type { Membership } from '../contracts'
 import { activeAt } from '../domain'
 import { useEditDraft } from '../app/edit-drafts'
-import { usePendingRequest } from '../app/pending-requests'
+import { recoveryScope, usePendingRequest } from '../app/pending-requests'
 import { FileError, type FilePolicy, type FileReference } from '../files/contracts'
 import { hwpxCollectionPolicy } from '../files/hwpx-basic-policy'
 import { validateFileMetadata } from '../files/validation'
@@ -57,6 +57,7 @@ export function useCollectionEditor({
   revision = 0,
   openRequest,
   onNavigationLockChange,
+  onWorkflowResult,
 }: CollectionServerPanelProps) {
   const memory = useEditDraft<Session>(member, 'collection-editor'),
     recovery = usePendingRequest(member, 'collection')
@@ -216,7 +217,7 @@ export function useCollectionEditor({
     }
     input.fileCollection = { policy: newCollectionPolicy, required: true, templates: [] }
     focusNext('editor')
-    setSession({ editor: { input, staged: [] } })
+    setSession({ editor: { input, staged: [], ...(fromCompose && offeredCompose ? { composeId: offeredCompose.id } : {}) } })
     setError('')
     setNotice(targetsChanged
       ? '수합 초안을 열었습니다. 교사 명부가 달라져 제출 대상을 옮기지 못했습니다. 현재 명부에서 다시 선택해 주세요.'
@@ -513,8 +514,14 @@ export function useCollectionEditor({
       setError('현재 접수 상태와 보완 요청 기한을 확인해 주세요. 입력과 기존 제출본은 유지됩니다.')
       return
     }
-    const request = structuredClone(retry ? saved! : { command, key }),
+    const composeId = (command.kind === 'create' || command.kind === 'update')
+      ? retry ? saved?.composeId : sessionRef.current.editor?.composeId
+      : undefined
+    const request = structuredClone(retry ? saved! : { command, key, ...(composeId ? { composeId } : {}) }),
       epoch = life.current
+    const reportResult = onWorkflowResult
+    // 양식 일괄 저장의 첫 create는 뼈대만 접수한 상태다. 마지막 update 뒤에만 결과를 알린다.
+    const intermediateCreation = request.command.kind === 'create' && Boolean(sessionRef.current.editor?.saving)
     operation.current = true
     recovery.put(request)
     setSavingRequest(true)
@@ -579,6 +586,18 @@ export function useCollectionEditor({
         `${message} 접수 시각 ${formatCollectionRecordedTime(receipt.recordedAt)} (한국 표준시)`,
       )
       setReload((value) => value + 1)
+      if (!intermediateCreation) {
+        try {
+          reportResult?.({
+            kind: 'collection', action: request.command.kind, scope: recoveryScope(member),
+            key: receipt.requestKey, recordedAt: receipt.recordedAt, requestId: receipt.requestId,
+            resourceId: receipt.resourceId, resourceVersion: receipt.resourceVersion,
+            ...(composeId ? { composeId } : {}),
+          })
+        } catch {
+          // 보조 작업 표시 실패로 확인된 저장·제출을 다시 실행하지 않는다.
+        }
+      }
     } catch (failure) {
       if (!stillHere(epoch)) return
       // 준비 해제는 복구를 기다릴 수 있다. 원래 요청을 보존해 새 키로 중복 저장하지 않는다.
@@ -991,6 +1010,12 @@ export function useCollectionEditor({
     )
       onIncomingFileConsumed?.()
   }
+  function discardIncomingFile() {
+    // 전달한 파일 선택만 해제한다. 문서함의 생성 원본이나 업로드 중인 파일은 지우지 않는다.
+    if (!incomingFile || operation.current || busy || pending || sessionRef.current.upload || exportBusy || savingRequest)
+      return
+    onIncomingFileConsumed?.()
+  }
   async function download(parent: CollectionFileParent, file: FileReference) {
     if (operation.current || exportBusy) return
     const epoch = life.current
@@ -1162,6 +1187,7 @@ export function useCollectionEditor({
     cursor,
     date,
     detail,
+    discardIncomingFile,
     dirty,
     download,
     enabled,

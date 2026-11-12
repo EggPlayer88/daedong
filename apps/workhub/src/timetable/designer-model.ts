@@ -9,6 +9,7 @@ import type { AssistantServer } from '../assistant/contracts'
 import type { PreparationServer } from './preparation'
 import type { SetupServer } from './setup'
 import type { TargetServer } from './target'
+import type { WorkflowResultListener } from '../app/workflow-results'
 export type Step = 'basis' | 'conditions' | 'compose' | 'publish'
 export type ConditionForm = {
   kind: 'fixed' | 'unavailable' | 'preferences'
@@ -34,11 +35,13 @@ export interface DraftSession {
   savedDraft?: SavedTimetableDraft
 }
 export interface WorkspaceProps {
+  presentation?: 'page' | 'assistant'
   connection: SupabaseConnection
   member: Membership
   date: string
   revision?: number
   onNavigationLockChange?: (locked: boolean) => void
+  onWorkflowResult?: WorkflowResultListener
   onOpenSchoolAdmin?: () => void
   onOpenTeaching?: () => void
   initialLessonId?: string
@@ -47,6 +50,8 @@ export interface WorkspaceProps {
   initialNotificationId?: string
   initialIntent?: { kind: 'makeup'; lessonId: string; token: string }
   initialPreparationStep?: 'target' | 'setup' | 'preparation' | 'import'
+  initialOperationTab?: 'shared' | 'publish' | 'exchange'
+  initialOperationMode?: 'exchange' | 'interventions'
 }
 export interface PanelProps extends Omit<WorkspaceProps, 'connection'> {
   server: TimetableServer

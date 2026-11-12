@@ -1,3 +1,4 @@
+import { DocumentPaneSection } from './DocumentPaneSection'
 import { GuidedMappingSection } from './GuidedMappingSection'
 import { GuidedAnswersSection } from './GuidedAnswersSection'
 import { GuidedFileSection } from './GuidedFileSection'
@@ -8,7 +9,7 @@ import { GuidedAiReview } from './GuidedAiReview'
 import { GuidedAnchorPicker } from './GuidedAnchorPicker'
 import { GuidedSetupPanel } from './GuidedSetupPanel'
 import type { useGuidedEditor } from './useGuidedEditor'
-export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuidedEditor> }) {
+export function GuidedEditorView({ model, presentation = 'page' }: { model: ReturnType<typeof useGuidedEditor>; presentation?: 'page' | 'assistant' }) {
   const {
     addQuestion,
     aiBusy,
@@ -94,7 +95,7 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
   return (
     <section
       ref={workflowRoot}
-      className="documents-workspace document-library-ui"
+      className={`documents-workspace document-library-ui${presentation === 'assistant' ? ' documents-assistant-pane' : ''}`}
       aria-label="질문형 수합 양식"
     >
       <style>{libraryStyles}</style>
@@ -205,7 +206,7 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
       ) : (
         <>
           {canCreate && (
-            <section className="documents-editor library-upload" aria-label="새 양식 올리기">
+            <DocumentPaneSection compact={presentation === 'assistant'} expanded={Boolean(uploadTitle)} summary="새 HWPX 양식 등록"><section className="documents-editor library-upload" aria-label="새 양식 올리기">
               <h3>새 양식 올리기</h3>
               <p className="documents-muted">
                 HWPX 원본을 그대로 보관하고 입력 가능한 단순 문단·표 안 문단을 찾아 보여줍니다.
@@ -241,10 +242,10 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
                   }}
                 />
               </label>
-            </section>
+            </section></DocumentPaneSection>
           )}
           <div className="documents-grid">
-            <section className="documents-panel" aria-label="질문형 양식 목록">
+            <DocumentPaneSection compact={presentation === 'assistant'} expanded={!template} summary="다른 질문형 양식 찾기"><section className="documents-panel" aria-label="질문형 양식 목록">
               <div className="library-list-heading">
                 <h3>질문형 양식</h3>
                 {!loading && !loadError && <span>불러온 양식 {items.length}개</span>}
@@ -276,7 +277,7 @@ export function GuidedEditorView({ model }: { model: ReturnType<typeof useGuided
                   양식 더 보기
                 </button>
               )}
-            </section>
+            </section></DocumentPaneSection>
             <section className="documents-panel" aria-label="선택한 질문형 양식">
               {!template ? (
                 <div className="ws-selection-empty"><span aria-hidden="true">📝</span><h3>사용할 양식을 선택하세요</h3><p className="documents-muted">답변을 작성하고 HWPX로 내려받을 수 있어요.</p></div>

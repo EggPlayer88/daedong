@@ -1,5 +1,21 @@
 # tests/ — 검증 스크립트
 
+대화 중심 AI 12차: `test_workhub_final_domain_results.mjs`는 학교 기본 구성(`school_configuration`), 담당·수강 관계(`relations`), 학교 자료(`knowledge`), 수업 실시 기록(`execution`)의 최소 메타·같은 원본·판·학교/계정/날짜·전문 업무 일치와 결과 문구를 검증한다. `browser/workhub-school-configuration-result-events.mjs`, `workhub-relations-result-events.mjs`, `workhub-knowledge-result-events.mjs`, `workhub-knowledge-result-events-import.mjs`, `workhub-execution-result-events.mjs`, `workhub-execution-result-events-connected.mjs`, `workhub-plan-domain-connected.mjs`는 실제 패널·서비스·연결 셸에서 접수와 원키 복구, 늦은 응답, 콜백 예외를 확인한다. 학교 기본 설정은 `save_configuration`의 update/create_year만 연결하며 원본 ID가 없는 교사 소속 상태·공식 담당 배정/종료 접수는 기존 기능을 유지하고 결과 해석을 확장하지 않는다. 관계 4종·학교 자료 5종·실시 기록 save/correct와 실시 완료/미실시/확인 필요를 구분한다. 원문·이름·사유는 결과 요약에서 제외한다. 전체 실행의 확정 집계와 합성 응답의 경계는 [12차 검증 기록](../docs/ai-workspace/final-domain-results-verification.md)을 따른다.
+
+대화 중심 AI 11차: `test_workhub_publish_export_results.mjs`는 학교 자료 정정 9종·시간표 공개·학생 기록 출력의 최소 메타, 원본/날짜/학생/선택 범위/전문 작업 일치와 표시 문구를 검증한다. `browser/workhub-school-data-result-events.mjs`, `workhub-publication-result-events.mjs`, `workhub-record-export-result-events.mjs`는 실제 패널·어댑터의 접수, 원키 조회·재전송·닫기 중 반영 확인, 출력 전 재조회와 실패를 다룬다. `browser/workhub-plan-publication-connected.mjs`는 실제 연결 셸과 AI 계획의 공개 결과를 확인하며, 기존 `workhub-assistant-teaching.mjs`에도 출력 결과 전달을 포함한다. 출력의 `preview`/`csv_requested`/`print_opened`와 로컬 `observedAt`은 실제 파일·PDF 저장이나 물리 인쇄 성공을 뜻하지 않는다. 이름·본문·점수는 결과 요약에서 제외한다. [11차 검증 기록](../docs/ai-workspace/publish-export-results-verification.md).
+
+11차 CI 회귀: `test_workhub_calendar_response_boundary.mjs`는 기존 연결 경로와 일정 화면이 같은 순수 응답 검증기를 사용하고 잘못된 응답을 동일하게 거부하는지 검사하며, 기존 운영 연결 차단 가드를 실행해 실제 오프라인 HTML도 생성한다. `browser/workhub-assistant-teaching.mjs`는 부모의 이동 잠금 반영을 기다린 뒤 기존 비활성 단언을 수행한다. 제한시간·기대값·오프라인 보호 가드는 유지한다.
+
+대화 중심 AI 10차: `test_workhub_daily_record_results.mjs`는 협업·일정·수업·학생 기록 결과의 출처/계보/전문 작업을 검증한다. `browser/workhub-calendar-result-events.mjs`, `workhub-teaching-result-events.mjs`, `workhub-cooperation-result-connected.mjs`는 기존 화면·실행기·연결 셸의 실제 접수 뒤 결과 연결과 원키 복구를 검증한다. 상담 내용/처리 사실은 전달하지 않는다. [10차 검증 기록](../docs/ai-workspace/daily-record-results-verification.md).
+
+대화 중심 AI 9차: `test_workhub_approval_results.mjs`는 승인·인계·문서·HWPX 결과의 단계와 첫 원본·날짜·출처를, `browser/workhub-approval-result-events.mjs`, `workhub-document-result-events.mjs`, `workhub-plan-approval-connected.mjs`는 실제 React·어댑터·연결 셸에서 원키 복구와 늦은 결과·후속 조회 실패를 검증한다. 생성·저장·제출은 구분하며 DB·Storage·provider 응답만 합성한다. [9차 검증 기록](../docs/ai-workspace/approval-artifacts-verification.md).
+
+대화 중심 AI 3차: `test_workhub_assistant_specialists.mjs`와 `browser/workhub-assistant-specialists.mjs`, `workhub-assistant-timetable.mjs`, `workhub-assistant-teaching.mjs`, `workhub-assistant-administration.mjs`는 전문 업무 입구·원본 선택·영향 비교·명시 확인·원키 복구를 확인한다. 실제 운영 쓰기와 유료 AI 호출 없이 기존 React/어댑터를 사용한다. [3차 검증 기록](../docs/ai-workspace/specialists-verification.md).
+
+대화 중심 AI 2차: `browser/workhub-collection-conversation.mjs`는 대화 안 초안/공개/최종 제출과 생성물 선택 해제를, `browser/workhub-assistant-documents.mjs`는 실제 HWPX 생성·파일 해시·수합 제출을, `browser/workhub-assistant-dock.mjs`는 처리 중 Escape 닫기 보호를 검증한다. 기존 메시지·문서·질문형 AI·교차 모듈 회귀에도 대화 패널의 단일 편집기와 원키 복구를 포함한다. [2차 검증 기록](../docs/ai-workspace/delivery-verification.md).
+
+대화 중심 AI 1차: `test_workhub_conversation_guidance.mjs/.py`는 분야 지침·원문·기존 SQL 제목/검색 낱말·입력 한도를, `test_workhub_assistant_operations.mjs`는 개인 업무 실행과 원키 복구를 검증한다. `browser/workhub-ai-foundation.mjs`, `browser/workhub-assistant-operations.mjs`, 기존 `browser/workhub-assistant-connected.mjs`는 실제 React와 업무 어댑터를 합성 응답에 연결한다. 운영 DB·유료 AI 호출은 없다. [구축 순서](../docs/ai-workspace/README.md), [검증 기록](../docs/ai-workspace/verification.md).
+
 나이스 연결: `test_neis_*`는 앱·서버·기존 일정 저장 함수·공개 초기 원본을 격리 환경에서 대조한다. `browser/workhub-neis.mjs`는 비교·확인·복구·좁은 화면을, `database/workhub-neis/n1/build_checks.py`는 기존 설치 전체+N1·INT-12 지문과 훼손 검출을 확인한다. 운영 API 키나 외부 DB는 자동 시험에 사용하지 않는다. [검증 기록](../docs/neis/verification.md).
 
 업무 연결 통합 회귀: `test_workhub_virtual_school_flow.mjs`는 두 가상 학교의 72교사를 반복한다. `tests/browser/workhub-cross-module.mjs`는 실제 연결 셸의 AI·메시지·질문형 수합·할 일 원본 왕복 8개를 확인한다. 두 파일은 각각 전체 단위/브라우저 러너에 포함한다. DB·Storage·AI 응답이 합성인 경계와 재실행 명령은 [학교 AI 검증 기록](../docs/workhub/ai-school-policy/verification.md)을 따른다.
@@ -379,6 +395,15 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - [화면·검증 기록](../docs/workhub/assistant-ui/README.md).
 
 ## 공통 메뉴·검색·알림·상태 안내
+
+### 대화 업무 4차 통합
+
+- `test_workhub_workspace_plan.mjs`: 명시적 복합 요청의 원문·순서·한도, 본문/인용 보호, 부분 실행 방지, 일반 대화 구분.
+- `workhub-assistant-plan.mjs`: 실제 연결 셸에서 계획 작성·단계 선택·별도 실행, 새 입력/날짜/신원 보호와 무료 경로.
+- `workhub-assistant-remaining.mjs`: 대화 안 협업 요청·완료, 학교 자료 원문 판·게시·복구.
+- `workhub-assistant-calendar-workspace.mjs`: 공유·여러 날짜·직접 대상, 기존 판 충돌 비교, 일괄 저장과 원키 복구.
+- `workhub-assistant-completion-mobile.mjs`: 320px·화면 높이 축소·두 배 글씨에서 입력·대화 복귀·미확정 요청 보존. 실제 휴대폰 IME 시험을 대체하지 않는다.
+- 전체 브라우저 러너에 등록했다. 결과·합성/운영 경계는 [4차 검증 기록](../docs/ai-workspace/completion-verification.md)에 둔다.
 
 - `workhub-navigation-ui.mjs`: 실제 React·합성 응답 23건. 메뉴 범위/현재 위치, 검색 원본 ID·판/부분 실패/이동 잠금, 알림 원본 이동·읽음 분리, 복구·연결 안내를 검사한다.
 - 320px·두 배 글씨·세 스킨의 글자 대비·키보드 복귀와 외부 요청 0건을 확인한다. 기존 메시지/파일·검색·복구·모바일 회귀 17파일과 함께 실행한다.

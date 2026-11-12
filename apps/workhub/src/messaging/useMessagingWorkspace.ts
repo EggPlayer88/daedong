@@ -36,6 +36,9 @@ import {
   mergePage,
 } from './workspace-model'
 export function useMessagingWorkspace({
+  presentation = 'page',
+  initialTab = 'messages',
+  showThreadList = false,
   openRequest,
   onReturnToSource,
   connection,
@@ -44,6 +47,7 @@ export function useMessagingWorkspace({
   revision = 0,
   onNavigationLockChange,
   onUpdated,
+  onWorkflowResult,
   onOpenSource,
   canOpenSource,
   composeRequest,
@@ -70,11 +74,13 @@ export function useMessagingWorkspace({
   const [restoredPending] = useState<MessageAttempt | null>(() => {
     if (!recovery.request) return restored?.pending ?? null
     try {
+      const command = checkedCommand(recovery.request.command, member.id)
       return {
         key: recovery.request.key,
-        command: checkedCommand(recovery.request.command, member.id),
+        command,
         recipientNames: restored?.pending?.recipientNames ?? [],
         recipientSnapshots: restored?.pending?.recipientSnapshots,
+        ...(command.kind === 'start' && recovery.request.composeId ? { composeId: recovery.request.composeId } : {}),
       }
     } catch {
       return null
@@ -88,7 +94,7 @@ export function useMessagingWorkspace({
   const [discardConfirm, setDiscardConfirm] = useState(false)
   const [conflict, setConflict] = useState(false)
   const [fileLocked, setFileLocked] = useState(false)
-  const [tab, setTab] = useState<'messages' | 'inbox'>('messages')
+  const [tab, setTab] = useState<'messages' | 'inbox'>(() => restored?.composing || restoredPending || composeRequest || openRequest ? 'messages' : initialTab)
   const [readiness, setReadiness] = useState<MessagingReadiness | null>(null)
   const [readyError, setReadyError] = useState(''),
     [checking, setChecking] = useState(true),
@@ -145,6 +151,7 @@ export function useMessagingWorkspace({
   const offeredDraft = composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id &&
     (!composeRequest.basisDate || composeRequest.basisDate === date) ? composeRequest : undefined
   const handledDraft = useRef<string>()
+  const autoOpenedDraft = useRef<string>()
   const chosenRecipients = parseDraftRecipients(offeredDraft?.recipients, member)
   const canUseAiDraft = !!offeredDraft && chosenRecipients !== null &&
     (!chosenRecipients.length || !!offeredDraft.basisDate) && usable && !checking && !readyError && !locked && !dirty &&
@@ -250,14 +257,14 @@ export function useMessagingWorkspace({
     }
   }, [server, member.id, enabled, revision, refresh])
   useEffect(() => {
-    if (!usable) return
-    void loadThreads(false)
-    void loadInbox(false)
+    if (!usable || (presentation === 'assistant' && tab !== 'inbox' && !showThreadList)) return
+    if (presentation !== 'assistant' || showThreadList) void loadThreads(false)
+    if (presentation !== 'assistant' || tab === 'inbox') void loadInbox(false)
     return () => {
       listGeneration.current++
       inboxGeneration.current++
     }
-  }, [server, usable, search, unreadOnly, refresh, revision])
+  }, [server, usable, search, unreadOnly, refresh, revision, presentation, tab, showThreadList])
   useEffect(() => {
     if (!usable || !composing || draft.thread) return
     void loadRecipients(false)
@@ -451,13 +458,13 @@ export function useMessagingWorkspace({
       if (!current()) return
       const recipients = matches ? chosenRecipients : []
       handledDraft.current = offeredDraft.id
-      setDraft({ ...blankMessageDraft(), body: offeredDraft.body, recipients,
+      setDraft({ ...blankMessageDraft(), body: offeredDraft.body, recipients, composeId: offeredDraft.id,
         mode: recipients.length > 1 ? 'individual' : 'direct' })
       setComposing(true)
       setFolded(false)
       setNotice(overLimit ? '현재 수신자 한도를 넘었습니다. 본문은 유지했으니 받는 사람을 다시 선택해 주세요.'
         : !matches ? '받는 사람 정보가 바뀌었습니다. 본문은 유지했으니 받는 사람을 다시 선택해 주세요.'
-        : offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
+        : presentation === 'assistant' ? '' : offeredDraft.basisDate ? '메시지 초안을 불러왔습니다. 받는 사람과 내용을 확인해 주세요.'
         : 'AI 초안을 불러왔습니다. 받는 사람과 내용을 확인한 뒤 전송해 주세요.')
       setDiscardConfirm(false)
       setConflict(false)
@@ -469,6 +476,13 @@ export function useMessagingWorkspace({
       if (alive.current) setBusy(false)
     }
   }
+  useEffect(() => {
+    // 대화에서 사용자가 요청한 초안만 연다. 실패한 확인은 자동 반복하거나 전송하지 않는다.
+    if (presentation !== 'assistant' || !canUseAiDraft || !offeredDraft ||
+        autoOpenedDraft.current === offeredDraft.id) return
+    autoOpenedDraft.current = offeredDraft.id
+    void useAiDraft()
+  }, [presentation, canUseAiDraft, offeredDraft?.id])
   function closeComposer() {
     if (locked) return
     if (dirty && !discardConfirm) {
@@ -508,8 +522,10 @@ export function useMessagingWorkspace({
     setNotice('')
     const saved = retryMessageAttempt(attempt)
     const generation = serverGeneration.current
+    const reportResult = onWorkflowResult
     setPending(saved)
-    recovery.put({ key: saved.key, command: saved.command })
+    recovery.put({ key: saved.key, command: saved.command,
+      ...(saved.command.kind === 'start' && saved.composeId ? { composeId: saved.composeId } : {}) })
     setPreview(null)
     try {
       // 연결 복원 후에는 대화 권한을 먼저 다시 조회한다. 요청 번호와 원본 버전은 바꾸지 않는다.
@@ -537,6 +553,18 @@ export function useMessagingWorkspace({
         )
       } else setNotice('읽음으로 표시했습니다. 업무 처리나 문서 제출 상태는 바뀌지 않습니다.')
       setRefresh((value) => value + 1)
+      if (confirmed && (saved.command.kind === 'start' || saved.command.kind === 'reply')) {
+        try {
+          reportResult?.({
+            kind: 'message', action: saved.command.kind, scope: recoveryScope(member),
+            key: confirmed.receipt.requestKey, recordedAt: confirmed.receipt.recordedAt,
+            ...(saved.command.kind === 'start' && saved.composeId ? { composeId: saved.composeId } : {}),
+            deliveries: confirmed.receipt.deliveries.map(({ threadId, messageId, sequence }) => ({ threadId, messageId, sequence })),
+          })
+        } catch {
+          // 보조 작업 표시 실패가 이미 확인한 메시지 전송을 미확정으로 바꾸지 않는다.
+        }
+      }
       onUpdated?.()
     } catch (failure) {
       if (!alive.current || generation !== serverGeneration.current) return
@@ -652,6 +680,8 @@ export function useMessagingWorkspace({
   const recipientPeers = mergePage(recipients.items, draft.recipients, (item) => item.memberId)
 
   return {
+    presentation,
+    showThreadList,
     busy,
     canOpenSource,
     canRead,

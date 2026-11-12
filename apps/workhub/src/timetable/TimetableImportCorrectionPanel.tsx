@@ -1,6 +1,7 @@
 import { retryableLazy as lazy } from '../app/retryable-lazy'
 import { Suspense, useCallback, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { createSchoolDataMaintenanceServer } from '../teaching/school-data-maintenance-server'
 import { createTeachingRelationsAdapter } from '../teaching/relations-adapter'
@@ -20,12 +21,12 @@ export type ImportCorrectionTarget = { kind: 'school' } | { kind: 'setup'; termI
   | { kind: 'course' | 'relations'; courseId: string }
 export interface ImportCorrectionContext { connection: SupabaseConnection; date: string; revision?: number }
 interface Props extends ImportCorrectionContext {
-  target: ImportCorrectionTarget; member: Membership; onClose: () => void
+  target: ImportCorrectionTarget; member: Membership; onWorkflowResult?: WorkflowResultListener; onClose: () => void
 }
 const labels = { school: '교과·학급·학교 자료', setup: '공간·수업과 학급 연결', course: '수업 자료', relations: '담당·수강 관계' }
 
 /** 가져오기 입력은 상위에 보관한다. 하위 화면의 원래 저장·복구 경로를 그대로 사용한다. */
-export function TimetableImportCorrectionPanel({ connection, date, revision, member, target, onClose }: Props) {
+export function TimetableImportCorrectionPanel({ connection, date, revision, member, target, onClose, onWorkflowResult }: Props) {
   const relationRecovery = usePendingRequest(member, 'teachingRelations')
   const originalRelation = relationRecovery.request?.command as RelationCommit | undefined
   const [relationCourseId] = useState(() => target.kind === 'relations' ? originalRelation?.intent?.courseId ?? target.courseId : '')
@@ -47,11 +48,11 @@ export function TimetableImportCorrectionPanel({ connection, date, revision, mem
       {locked && <span role="status">작성 중인 정정을 마치거나 취소하고, 처리 중인 요청의 결과를 확인해 주세요.</span>}
     </div> : null}
     <Suspense fallback={<p role="status">자료 정정 화면을 준비하는 중…</p>}>
-      {target.kind === 'school' ? <SchoolAdminPanel connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={notifyLock} onUpdated={notifySaved} />
+      {target.kind === 'school' ? <SchoolAdminPanel onWorkflowResult={onWorkflowResult} connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={notifyLock} onUpdated={notifySaved} />
         : target.kind === 'setup' ? <SetupPanel server={setup} member={member} disabled={false} expectedTermId={target.termId} refreshRevision={revision} initialOpen onLockChange={notifyLock} onSaved={notifySaved} />
         : <div className="teaching-workspace">{target.kind === 'course'
-          ? <MaintenancePanel server={maintenance} member={member} courseId={target.courseId} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} />
-          : <>{relationCourseId !== target.courseId && <p role="status">다른 수업 [{relationCourseId}]에서 처리 중이던 관계 변경을 먼저 확인합니다. 원래 요청 번호를 유지합니다.</p>}<RelationsPanel adapter={relations} member={member} courseId={relationCourseId} revision={revision} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} /></>}</div>}
+          ? <MaintenancePanel onWorkflowResult={onWorkflowResult} date={date} server={maintenance} member={member} courseId={target.courseId} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} />
+          : <>{relationCourseId !== target.courseId && <p role="status">다른 수업 [{relationCourseId}]에서 처리 중이던 관계 변경을 먼저 확인합니다. 원래 요청 번호를 유지합니다.</p>}<RelationsPanel onWorkflowResult={onWorkflowResult} date={date} adapter={relations} member={member} courseId={relationCourseId} revision={revision} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} /></>}</div>}
     </Suspense>
   </section>
 }

@@ -1,0 +1,858 @@
+{
+  "schema": "ai-workspace.coverage.v1",
+  "asOf": "2026-11-11",
+  "baselineCommit": "ebe59f9ded59e31b61f93ad3e9e056078f9cf46a",
+  "scope": "운영 사이트의 교사·관리자 사용자 업무 목록. 시험 전용 사이트·외부 배포·SQL 적용·과금계정 발급은 제외.",
+  "counting": "결과 중심 61개 업무를 동일 가중치로 센다. 별칭·버튼·실패 상황을 별도 업무로 중복 계산하지 않는다. 기관별 빈도·중요도 가중치는 측정하지 않았다.",
+  "definitions": {
+    "chat_card": "AI 기본 화면·확인 카드",
+    "embedded_panel": "AI 안 기존 업무 패널",
+    "linked_screen": "기존 업무 화면 연결·새 탭",
+    "external_step": "외부 도구 단계 필요",
+    "not_connected": "AI 업무 연결 없음"
+  },
+  "evidenceDefinitions": {
+    "direct_scenario": "해당 AI 표시 상태에서 대표 작업의 결과까지 다루는 회귀가 있음. 같은 행의 모든 하위 작업을 각각 검증했다는 뜻은 아님.",
+    "composed": "AI 진입·공통 패널과 기존 업무 회귀를 조합한 근거",
+    "code_reference": "코드·기능 문서 확인만, AI 완료 근거 없음"
+  },
+  "metrics": {
+    "inventoryTotal": 61,
+    "modeCounts": {
+      "chat_card": 9,
+      "embedded_panel": 46,
+      "linked_screen": 2,
+      "external_step": 1,
+      "not_connected": 3
+    },
+    "insideAiWorkspace": 55,
+    "insideAiWorkspacePercent": 90.2,
+    "directAiScenarioEvidence": 27,
+    "directAiScenarioEvidencePercent": 44.3,
+    "naturalLanguageOnlyCompletionPercent": null,
+    "productionPassRate": null
+  },
+  "limits": [
+    "AI 작업 공간 안에서 화면과 확인 버튼을 이용하는 경로 지원율이며 자연어만으로 완료하는 비율이 아니다.",
+    "증거 파일은 회귀의 존재와 검증 범위를 가리킨다. 파일이 있다는 이유로 현재 커밋에서 실행·통과했다고 간주하지 않는다. 이전 실행 결과는 completion-verification.md, daily-actions-verification.md, lessons-seasonal-verification.md에 유지하고 이번 실행 결과는 plan-continuation-verification.md에 별도로 기록한다.",
+    "composed는 하나의 대화 시작부터 모든 업무 결과까지 단일 통합 시험이 있다는 뜻이 아니다.",
+    "평가계획서 작성·제출은 기존 화면을 새 탭으로 여는 명시적 링크만 제공한다. AI 내부 완료 또는 실제 HWPX 생성·제출까지의 단일 통합 시험으로 집계하지 않는다.",
+    "일반 교사 AI 공개는 확대하지 않았다. 각 업무의 기존 권한·readiness·현재 소속을 충족한 사용자 기준이다.",
+    "DB·Storage·provider는 주로 합성하며 실제 AI 답변 품질·휴대폰 키보드·운영 동시성의 성공률을 뜻하지 않는다.",
+    "프로젝트 전체 구축률이나 기능의 사용 가능 여부와 다른 지표다. AI에 미연결된 기존 기능은 일반 화면에서 유지된다.",
+    "복합 업무 목록의 다음 단계·번호 선택·원문 검토는 기존 업무를 준비하는 공통 제어이므로 분모·분자에 새 업무로 더하지 않는다. 화면 연결과 검증된 개인 할 일·일정의 서버 접수 확인을 구분하며, 확인된 단계의 재선택·전체 원문 복원은 차단한다. 단계 선택만으로 저장·전송하지 않고 다른 업무의 완료도 추정하지 않는다."
+  ],
+  "workflows": [
+    {
+      "id": "A01",
+      "area": "AI",
+      "title": "일반·업무별 질문과 Haiku 답변·Sonnet 재검토",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-ai-foundation.mjs",
+        "tests/browser/workhub-assistant-ui.mjs"
+      ],
+      "completion": "질문·분야 선택 후 답변과 정밀 검토 결과 확인",
+      "boundary": "실제 provider의 답변 품질은 합성 응답 시험으로 증명하지 않음"
+    },
+    {
+      "id": "A02",
+      "area": "AI",
+      "title": "게시 학교 자료를 근거로 질문하고 인용 확인",
+      "mode": "chat_card",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-ui.mjs",
+        "tests/browser/workhub-knowledge-assistant.mjs",
+        "tests/browser/workhub-pilot-connected.mjs"
+      ],
+      "completion": "선택한 자료 판·위치의 답변 근거와 원문 확인",
+      "boundary": "원문 열기 패널과 실제 유료 답변을 한 운영 왕복으로 재시험한 결과 아님"
+    },
+    {
+      "id": "A03",
+      "area": "AI",
+      "title": "개인 기억 저장·수정·중지·선택 사용",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-ai-memory.mjs"
+      ],
+      "completion": "명시 보관 확인과 선택한 최신 기억을 질문에 반영",
+      "boundary": "모든 대화를 자동 기억하지 않으며 비밀번호·상담 자료 수집 기능 아님"
+    },
+    {
+      "id": "A04",
+      "area": "AI",
+      "title": "허용 자료 검색과 결과 선택",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-workflows.mjs",
+        "tests/browser/workhub-assistant-connected.mjs"
+      ],
+      "completion": "8개 자료 종류의 검색 결과·누락 범위 확인",
+      "boundary": "자료원 첫 쪽·최대 표시 수 제한이 있고 원문 완료는 각 업무에서 따로 확인"
+    },
+    {
+      "id": "W01",
+      "area": "개인 업무",
+      "title": "새 할 일 제안 검토·등록",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-workflows.mjs"
+      ],
+      "completion": "제목·기한·메모 검토 후 접수 결과 확인",
+      "boundary": "원래 유료 제안·확정 절차 유지"
+    },
+    {
+      "id": "W02",
+      "area": "개인 업무",
+      "title": "기존 할 일 메모·기한 수정",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-connected.mjs",
+        "tests/browser/workhub-assistant-operations.mjs",
+        "tests/browser/workhub-assistant-plan-receipts.mjs",
+        "tests/test_workhub_plan_control.mjs"
+      ],
+      "completion": "동명 후보 선택·원본 비교·같은 요청 저장",
+      "boundary": "원본 판 충돌 시 새 판에 임의 덮어쓰기 없음"
+    },
+    {
+      "id": "W03",
+      "area": "개인 업무",
+      "title": "기존 할 일 완료",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-connected.mjs",
+        "tests/browser/workhub-assistant-operations.mjs"
+      ],
+      "completion": "선택한 개인 업무 한 건의 완료 결과 확인",
+      "boundary": "협업 완료 확인과 일반 할 일 완료를 동일 처리하지 않음"
+    },
+    {
+      "id": "W04",
+      "area": "개인 업무",
+      "title": "할 일 제목 정정·다시 시작·기타 상태 변경",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-daily-actions.mjs",
+        "tests/test_workhub_task_daily_actions.mjs",
+        "apps/workhub/src/tasks/assistant-change.ts"
+      ],
+      "completion": "동명 후보에서 한 건을 선택하고 제목·상태·재개 전후를 명시 확인한 뒤 기존 할 일 RPC로 저장",
+      "boundary": "완료·취소 업무의 재개, 원본 판 충돌, 원키 복구를 합성 응답으로 검증; 다른 필드·업무는 유지하며 확인 없는 저장 없음"
+    },
+    {
+      "id": "C01",
+      "area": "일정",
+      "title": "개인 일정의 누락 정보 보완·등록",
+      "mode": "chat_card",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-calendar.mjs",
+        "tests/browser/workhub-assistant-operations.mjs",
+        "tests/browser/workhub-assistant-plan-receipts.mjs",
+        "tests/test_workhub_plan_control.mjs"
+      ],
+      "completion": "한 날짜·나만 보기 일정 검토·저장",
+      "boundary": "학교 공유·여러 날짜·반복 일정을 임의 개인 일정으로 바꾸지 않음"
+    },
+    {
+      "id": "C02",
+      "area": "일정",
+      "title": "공유·대상 지정·여러 날짜 일정 작성",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-calendar-workspace.mjs",
+        "tests/browser/workhub-calendar-views.mjs"
+      ],
+      "completion": "기존 일정 화면에서 대상·기간·내용 검토·저장",
+      "boundary": "실제 CalendarPanel과 합성 어댑터로 공유·여러 날·직접 대상 저장을 검증; 운영 왕복 아님"
+    },
+    {
+      "id": "C03",
+      "area": "일정",
+      "title": "기존 일정 수정",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-calendar-workspace.mjs",
+        "tests/browser/workhub-calendar-views.mjs"
+      ],
+      "completion": "검색한 일정의 원본·판 비교 뒤 수정 확인",
+      "boundary": "현재 판 충돌 비교와 재저장을 검증; 삭제·취소 UI는 현재 지원하지 않음"
+    },
+    {
+      "id": "C04",
+      "area": "일정",
+      "title": "일정 일괄 가져오기·대상 비교",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-calendar-workspace.mjs",
+        "tests/browser/workhub-calendar-import.mjs"
+      ],
+      "completion": "입력 원문·기간·대상 비교 후 일괄 저장",
+      "boundary": "원문·대상 비교, 선택 저장과 미확정 원키 복구를 검증; 운영 왕복 아님"
+    },
+    {
+      "id": "M01",
+      "area": "메시지",
+      "title": "메시지 본문·수신자·첨부 검토·전송",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-messaging.mjs",
+        "tests/browser/workhub-messaging-deliveries.mjs"
+      ],
+      "completion": "대상 선택·HWPX 확인·명시 전송·접수증",
+      "boundary": "대상 교사 자동 선택·확인 없는 전송 없음"
+    },
+    {
+      "id": "M02",
+      "area": "메시지",
+      "title": "받은 메시지 조회·읽음·첨부 내려받기",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-messaging.mjs",
+        "tests/browser/workhub-assistant-connected.mjs"
+      ],
+      "completion": "허용된 대화 원문과 파일 조회",
+      "boundary": "학교·참여자 검사는 기존 서버가 수행"
+    },
+    {
+      "id": "M03",
+      "area": "메시지",
+      "title": "업무 알림에서 원래 업무 열기",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-daily-connected.mjs",
+        "tests/browser/workhub-messaging.mjs",
+        "tests/browser/workhub-timetable-notification.mjs",
+        "apps/workhub/src/app/ConnectedWorkspace.tsx"
+      ],
+      "completion": "업무 알림 목록·필터·재조회와 지원되는 원본 업무의 ID를 대화 안 패널로 연결",
+      "boundary": "할 일·일정 원본 연결을 직접 검증하고 나머지 지원 종류는 기존 회귀와 조합; 기존 6종 원본 범위를 유지하며 자동 읽음·수락·완료·승인 없음"
+    },
+    {
+      "id": "F01",
+      "area": "수합",
+      "title": "양식 포함 수합 초안 작성·검토·공개",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-collection-conversation.mjs"
+      ],
+      "completion": "수합 제목·기한·대상·양식 확인 뒤 초안과 별도 공개",
+      "boundary": "초안 저장을 공개 성공으로 간주하지 않음"
+    },
+    {
+      "id": "F02",
+      "area": "수합",
+      "title": "HWPX 제출 초안·최종 제출",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-collection-conversation.mjs"
+      ],
+      "completion": "파일 검사·초안·최종 확인·접수 시각",
+      "boundary": "양식 파일과 제출 파일을 구분"
+    },
+    {
+      "id": "F03",
+      "area": "수합",
+      "title": "보완 요청·마감 후 보완 재제출",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-collection-followup.mjs",
+        "tests/browser/workhub-collection-conversation.mjs"
+      ],
+      "completion": "허용된 보완 단위·기한 안의 새 접수",
+      "boundary": "AI 연결 진입과 기존 수합 회귀를 조합한 근거이며 운영 재제출 실측 아님"
+    },
+    {
+      "id": "F04",
+      "area": "수합",
+      "title": "제출 현황·미제출 확인·전체 ZIP",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-collection-submission-list.mjs",
+        "tests/browser/workhub-collection-export.mjs"
+      ],
+      "completion": "허용된 제출 현황과 파일 묶음·CSV",
+      "boundary": "미제출 알림 발송도 기존 명시 확인 유지"
+    },
+    {
+      "id": "F05",
+      "area": "수합",
+      "title": "마감·재개·기한 연장·보관",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-collection-operations.mjs",
+        "tests/browser/workhub-collection-conversation.mjs"
+      ],
+      "completion": "원본 판·대상 영향 확인 뒤 상태 변경",
+      "boundary": "기존 모듈 활성화 및 담당 권한 필요"
+    },
+    {
+      "id": "D01",
+      "area": "문서",
+      "title": "개인 문서 작성·수정·저장·공유",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-documents.mjs",
+        "tests/browser/workhub-assistant-connected.mjs"
+      ],
+      "completion": "원문·문서 판·공유 범위 확인",
+      "boundary": "학교 공유 권한 확대 없음"
+    },
+    {
+      "id": "D02",
+      "area": "문서",
+      "title": "질문형 양식 원본·질문·위치 연결",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-guided-setup.mjs",
+        "tests/browser/workhub-guided-ai.mjs"
+      ],
+      "completion": "원양식·질문 위치 비교·시험 답변·게시",
+      "boundary": "AI 제안만으로 연결·게시하지 않음"
+    },
+    {
+      "id": "D03",
+      "area": "문서",
+      "title": "질문 답변·HWPX 생성·내려받기",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-documents.mjs"
+      ],
+      "completion": "저장한 답변 판으로 생성·해시 비교·파일 확인",
+      "boundary": "원래 Python 생성 엔진과 확인 절차 사용"
+    },
+    {
+      "id": "D04",
+      "area": "문서",
+      "title": "생성 문서를 수합에 첨부·최종 제출",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-documents.mjs"
+      ],
+      "completion": "별도 수합 파일 예약·검사·접수 결과",
+      "boundary": "문서 생성 성공을 수합 제출로 대신 표시하지 않음"
+    },
+    {
+      "id": "K01",
+      "area": "학교 자료",
+      "title": "HWPX 원본 가져오기·본문 추출·초안",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-remaining.mjs",
+        "tests/browser/workhub-knowledge-import.mjs"
+      ],
+      "completion": "원본 검사·추출·초안 저장",
+      "boundary": "직접 AI 회귀는 텍스트 초안 저장이며 HWPX 가져오기·추출은 원래 패널 회귀와 조합; 게시 전 확인 필요"
+    },
+    {
+      "id": "K02",
+      "area": "학교 자료",
+      "title": "자료 수정·게시·종료·유효기간 관리",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-remaining.mjs",
+        "tests/browser/workhub-knowledge.mjs"
+      ],
+      "completion": "현재 판·게시 범위·유효기간 확인",
+      "boundary": "AI 상태의 초안 저장·게시 결과를 검증; 종료·유효기간은 원래 패널 회귀와 조합"
+    },
+    {
+      "id": "K03",
+      "area": "학교 자료",
+      "title": "과거 판·인용 위치·원본 HWPX 조회",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-remaining.mjs",
+        "tests/browser/workhub-knowledge-assistant.mjs",
+        "tests/browser/workhub-assistant-connected.mjs"
+      ],
+      "completion": "요청한 sourceId·version·locator와 원본 확인",
+      "boundary": "AI 안 과거 판·질문 근거 전달을 검증; HWPX 원본 다운로드는 원래 패널 회귀와 조합"
+    },
+    {
+      "id": "O01",
+      "area": "협업",
+      "title": "협업 요청·수락·반려·완료 확인",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-remaining.mjs",
+        "tests/browser/workhub-cooperation-batch.mjs"
+      ],
+      "completion": "수신자 요청·할 일 연결·완료 요청·요청자 확인",
+      "boundary": "AI 상태의 요청·수락·완료 요청 결과를 검증; 반려와 요청자의 최종 완료 확인은 원래 패널 회귀와 조합"
+    },
+    {
+      "id": "O02",
+      "area": "협업",
+      "title": "기존 협업 조회·처리 이력·연결 업무",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-remaining.mjs",
+        "tests/browser/workhub-cooperation-handover.mjs",
+        "apps/workhub/src/app/ConnectedWorkspace.tsx"
+      ],
+      "completion": "현재 담당자와 변조 없는 이력 확인",
+      "boundary": "원래 이력 파서와 권한을 유지하며 AI 패널의 연결 할 일도 내부 원본 패널로 전달; 협업 전체 이력과 연결 할 일을 단일 운영 시험으로 검증한 의미 아님"
+    },
+    {
+      "id": "T01",
+      "area": "시간표",
+      "title": "학기·공간·정원·수업·학급·시수 준비",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-timetable-preparation.mjs",
+        "tests/browser/workhub-timetable-setup-batch.mjs",
+        "tests/browser/workhub-assistant-specialists.mjs"
+      ],
+      "completion": "준비 원본·누락·기준판 확인",
+      "boundary": "학교 기초 자료 변경은 기존 담당 권한과 미리보기 유지"
+    },
+    {
+      "id": "T02",
+      "area": "시간표",
+      "title": "하드·소프트 조건과 AI 제안 검토",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-timetable-condition-review.mjs",
+        "tests/browser/workhub-timetable-assistant.mjs"
+      ],
+      "completion": "제안 전후 조건·충돌·원본 고정",
+      "boundary": "제안이 직접 편성을 확정하지 않음"
+    },
+    {
+      "id": "T03",
+      "area": "시간표",
+      "title": "계산기 실행·후보 결과 가져오기",
+      "mode": "external_step",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-timetable-local-engine.mjs",
+        "tests/browser/workhub-timetable-worker.mjs"
+      ],
+      "completion": "로컬 계산 작업과 결과 파일 확인",
+      "boundary": "별도 Python 작업자·폴더 연결이 필요하므로 사이트 대화만으로 완료하지 못함"
+    },
+    {
+      "id": "T04",
+      "area": "시간표",
+      "title": "생성 후보 비교·수동 조정·엑셀 입출력",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-timetable-candidate-library.mjs",
+        "tests/browser/workhub-timetable-adjustments.mjs",
+        "tests/browser/workhub-timetable-workbook.mjs"
+      ],
+      "completion": "후보 점수·충돌·수업 배치·판 유지",
+      "boundary": "편성 편집기 조작을 말만으로 자동 수행하지 않음"
+    },
+    {
+      "id": "T05",
+      "area": "시간표",
+      "title": "학기 시간표 확정·공개",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-timetable-publication-commit.mjs",
+        "tests/browser/workhub-assistant-specialists.mjs"
+      ],
+      "completion": "현재 편성안과 적용 기간 영향 비교 후 접수",
+      "boundary": "AI가 공개 버튼 대신 승인하지 않음"
+    },
+    {
+      "id": "T06",
+      "area": "시간표",
+      "title": "날짜별 시간표·교사·학급 조회·출력",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-timetable.mjs",
+        "tests/browser/workhub-timetable-published-export.mjs"
+      ],
+      "completion": "확정 수업과 변경 이력·출력 원문 확인",
+      "boundary": "AI 상태의 날짜별 조회를 검증; 출력은 원래 패널 회귀와 조합하며 실제 교사 PC의 PDF 품질은 별도"
+    },
+    {
+      "id": "T07",
+      "area": "시간표",
+      "title": "교환 요청·양쪽 동의·별도 승인",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-timetable.mjs",
+        "tests/browser/workhub-timetable-exchanges.mjs"
+      ],
+      "completion": "영향 비교·동의·현재 판 승인·반영 결과",
+      "boundary": "자기 승인 금지 및 승인자 조건 유지"
+    },
+    {
+      "id": "T08",
+      "area": "시간표",
+      "title": "대강·보강 요청·실시 기록",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-timetable.mjs",
+        "tests/browser/workhub-timetable-interventions.mjs",
+        "tests/browser/workhub-timetable-execution-records.mjs"
+      ],
+      "completion": "대상·시간·당사자·승인·실시 기록",
+      "boundary": "대강 입구만으로 실제 대강 승인까지 새 회귀를 완료했다고 세지 않음"
+    },
+    {
+      "id": "T09",
+      "area": "시간표",
+      "title": "휴업·특별일과·기간 학사 변경",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-timetable-school-day-commit.mjs",
+        "tests/browser/workhub-timetable-operation-review.mjs"
+      ],
+      "completion": "영향 수업·합반·보강 확인 뒤 변경",
+      "boundary": "공식 방학과 보강 검토 대상의 기존 구분 유지"
+    },
+    {
+      "id": "E01",
+      "area": "수업·학생",
+      "title": "수업 등록·담당·학생 명부·수강 연결",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-teaching.mjs",
+        "tests/browser/workhub-roster-import.mjs"
+      ],
+      "completion": "현재 관계·수강 기간·명부 비교 후 반영",
+      "boundary": "동명 학생·교사 자동 연결 없음"
+    },
+    {
+      "id": "E02",
+      "area": "수업·학생",
+      "title": "활동 CSV 가져오기·학생 연결",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-teaching.mjs",
+        "tests/browser/workhub-teaching.mjs"
+      ],
+      "completion": "담당 수업·원문·학생 매칭·저장",
+      "boundary": "AI 입구에서 CSV 입력기까지 확인; 최종 가져오기는 기존 수업 시험 근거와 조합"
+    },
+    {
+      "id": "E03",
+      "area": "수업·학생",
+      "title": "관찰 기록 작성·정정·원문 근거",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-teaching.mjs"
+      ],
+      "completion": "선택 학생의 기록 저장·원키 복구",
+      "boundary": "학생·학교·기준판·권한을 유지"
+    },
+    {
+      "id": "E04",
+      "area": "수업·학생",
+      "title": "평가 기준판·학생 평가 기록",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-teaching.mjs",
+        "tests/browser/workhub-teaching.mjs"
+      ],
+      "completion": "평가 당시 기준판·점수·의견 확인",
+      "boundary": "기준판을 대화가 임의 선택하지 않음"
+    },
+    {
+      "id": "E05",
+      "area": "수업·학생",
+      "title": "관찰·평가 근거로 학생 기록 초안",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-teaching.mjs",
+        "tests/browser/workhub-assistant-ui.mjs"
+      ],
+      "completion": "원문 revision·hash·epoch·구간과 AI 초안 확인",
+      "boundary": "민감 상담 자료는 새로 AI에 연결하지 않으며 AI 결과 자동 확정 없음"
+    },
+    {
+      "id": "E06",
+      "area": "수업·학생",
+      "title": "담당·수강 관계 정정과 영향 검토",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-teaching-relations.mjs"
+      ],
+      "completion": "현재 관계·기록 영향·명령 hash 검토",
+      "boundary": "기존 판과 현재 권한 재검사 유지"
+    },
+    {
+      "id": "E07",
+      "area": "수업·학생",
+      "title": "학생 기록 인쇄·PDF·CSV 출력",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-record-export.mjs"
+      ],
+      "completion": "여러 쪽 기록·평가 당시 판·출력 내용",
+      "boundary": "실제 프린터·브라우저 PDF 저장 대화상자는 별도 조작"
+    },
+    {
+      "id": "E08",
+      "area": "수업·학생",
+      "title": "작성자 전용 상담 수동 조회·기록",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-teaching.mjs",
+        "apps/workhub/src/teaching/TeachingWorkspace.tsx"
+      ],
+      "completion": "상담 권한을 확인한 뒤 본인 기록만 별도로 열고 저장",
+      "boundary": "AI 안의 동일 수업 UI에 있는 수동 탭일 뿐 상담 원문은 AI 근거·생기부 초안에서 제외"
+    },
+    {
+      "id": "S01",
+      "area": "학교 관리",
+      "title": "학교·학년도·학급·교과·부서 구성",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-administration.mjs"
+      ],
+      "completion": "원본과 변경 필드 비교·명시 반영",
+      "boundary": "단일 구성 저장의 대화 상태 회귀가 있으며 전체 관리자 작업 자동화 의미 아님"
+    },
+    {
+      "id": "S02",
+      "area": "학교 관리",
+      "title": "교과·학급 자료 일괄 입력·정정",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-school-configuration-batch.mjs",
+        "tests/browser/workhub-school-data-maintenance.mjs"
+      ],
+      "completion": "일괄 원문·현재 ID·영향·오류 비교",
+      "boundary": "파일을 자동 수집하거나 기존 자료 삭제하지 않음"
+    },
+    {
+      "id": "S03",
+      "area": "학교 관리",
+      "title": "가입 전 교사 명부·담임·담당 배정",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-teacher-roster.mjs",
+        "tests/browser/workhub-assistant-specialists.mjs"
+      ],
+      "completion": "현재 교사 명부·배정 기간·연결 영향",
+      "boundary": "교사 가입과 계정 권한 부여는 별개"
+    },
+    {
+      "id": "S04",
+      "area": "학교 관리",
+      "title": "가입 계정·학교 소속 연결",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-school-roster.mjs",
+        "tests/browser/workhub-assistant-specialists.mjs"
+      ],
+      "completion": "허용 후보·계정·명부·기간 직접 확인",
+      "boundary": "승인된 후보·역할 범위 확대 없음"
+    },
+    {
+      "id": "S05",
+      "area": "학교 관리",
+      "title": "공식 담당·수합·협업 인계",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-administration.mjs",
+        "tests/browser/workhub-school-transitions.mjs"
+      ],
+      "completion": "인계 범위·현재 판·관리자 확인·인수자 수락",
+      "boundary": "개인 상담·사적 자료를 전체 이관하지 않음"
+    },
+    {
+      "id": "S06",
+      "area": "학교 관리",
+      "title": "새 학년도 생성·학기 전환 준비",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-school-transitions.mjs"
+      ],
+      "completion": "학년도 숫자·첫날·배정 영향 확인",
+      "boundary": "원래 승인 계약을 거치며 자동 연장 없음"
+    },
+    {
+      "id": "S07",
+      "area": "학교 관리",
+      "title": "나이스 원본 조회·학사일정 변경 비교·반영",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-neis.mjs",
+        "tests/browser/workhub-assistant-administration.mjs"
+      ],
+      "completion": "원본과 일정 비교 후 선택 반영",
+      "boundary": "급식 자동 갱신·API 키 등록은 이 대화 반영 작업과 별개"
+    },
+    {
+      "id": "S08",
+      "area": "학교 관리",
+      "title": "학교 AI 키·예산·진단·운영 현황",
+      "mode": "embedded_panel",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/browser/workhub-assistant-ui.mjs"
+      ],
+      "completion": "기존 설정 화면의 학교별 키 등록·상태·예산 확인",
+      "boundary": "API 발급·결제·환경변수 설정은 외부 작업이며 AI가 대신 승인하지 않음"
+    },
+    {
+      "id": "H01",
+      "area": "홈·조회",
+      "title": "오늘 업무·기한·수업·수합 요약 조회",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-daily-lessons.mjs",
+        "tests/browser/workhub-assistant-lessons-connected.mjs",
+        "tests/browser/workhub-assistant-daily-connected.mjs",
+        "tests/browser/workhub-assistant-daily.mjs",
+        "apps/workhub/src/assistant/AssistantDailyWorkspace.tsx",
+        "apps/workhub/src/timetable/TimetableAgendaPanel.tsx"
+      ],
+      "completion": "오늘 업무·기한·수합과 T2 날짜별 수업의 실제 시각·교환·휴업 취소 상태를 AI 안에서 조회하고 원본 수업으로 연결",
+      "boundary": "공개된 날짜별 수업을 우선하며 기본 배치표는 접힌 참고 자료로 구분; 미준비·오류·수업 없음은 별도 표시하고 조회만으로 저장·변경·유료 AI를 실행하지 않음"
+    },
+    {
+      "id": "H02",
+      "area": "홈·조회",
+      "title": "학교 급식 조회",
+      "mode": "embedded_panel",
+      "evidenceLevel": "direct_scenario",
+      "evidence": [
+        "tests/browser/workhub-assistant-daily.mjs",
+        "tests/browser/workhub-assistant-daily-connected.mjs",
+        "apps/workhub/src/neis/NeisMeals.tsx"
+      ],
+      "completion": "오늘·내일·명시 날짜의 나이스 급식과 갱신 상태를 대화 안에서 조회",
+      "boundary": "학교 기준일의 소속으로 검증하고 날짜 선택·미연결·실패를 구분; 자동 갱신은 기존 서버 작업이며 대화 요청으로 새로 수집하거나 유료 AI를 호출하지 않음"
+    },
+    {
+      "id": "L01",
+      "area": "기존·공통 사이트",
+      "title": "평가계획서 AI 작성·HWPX 생성",
+      "mode": "linked_screen",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/test_workhub_evaluation_command.mjs",
+        "tests/test_site_ai_evaluation_links.mjs",
+        "tests/browser/workhub-assistant-evaluation.mjs",
+        "tests/browser/site-ai-evaluation-bridge.mjs",
+        "apps/workhub/src/assistant/evaluation-workspace.tsx",
+        "apps/main/src/site/legacy-evaluation-links.js",
+        "apps/main/src/pages/DocAiPage.jsx",
+        "docs/DOC_AI_MASTER_PLAN.md"
+      ],
+      "completion": "대화의 명시적 화면 열기 요청에서 기간 업무 표시·기존 메뉴 범위를 확인한 뒤 평가계획서 작성 화면을 새 탭으로 연결",
+      "boundary": "새 탭 링크를 직접 눌러 기존 화면에서 작성·AI 실행·HWPX 생성을 진행; AI 내부 완료에 포함하지 않으며 링크·기존 업무 시험의 조합은 실제 생성·제출까지의 단일 통합 시험이 아님"
+    },
+    {
+      "id": "L02",
+      "area": "기존·공통 사이트",
+      "title": "평가계획서 제출·담당자 수합",
+      "mode": "linked_screen",
+      "evidenceLevel": "composed",
+      "evidence": [
+        "tests/test_workhub_evaluation_command.mjs",
+        "tests/test_site_ai_evaluation_links.mjs",
+        "tests/browser/workhub-assistant-evaluation.mjs",
+        "tests/browser/site-ai-evaluation-bridge.mjs",
+        "apps/workhub/src/assistant/evaluation-workspace.tsx",
+        "apps/main/src/site/legacy-evaluation-links.js",
+        "apps/main/src/pages/SubmissionsPage.jsx",
+        "tests/test_submissions.mjs"
+      ],
+      "completion": "대화의 명시적 화면 열기 요청에서 기간 업무 표시·기존 메뉴 범위를 확인한 뒤 평가계획서 제출 화면을 새 탭으로 연결",
+      "boundary": "새 탭 링크를 직접 눌러 기존 화면에서 파일 제출·담당자 수합을 진행; AI 내부 완료에 포함하지 않으며 링크·기존 업무 시험의 조합은 실제 생성·제출까지의 단일 통합 시험이 아님"
+    },
+    {
+      "id": "L03",
+      "area": "기존·공통 사이트",
+      "title": "사용자 가입 승인·전역 계정 권한",
+      "mode": "not_connected",
+      "evidenceLevel": "code_reference",
+      "evidence": [
+        "apps/main/src/pages/AdminUsersPage.jsx",
+        "apps/main/src/lib/modules.js"
+      ],
+      "completion": "기존 사용자 관리 화면의 승인",
+      "boundary": "AI로 관리자 권한을 부여하는 기능 아님"
+    },
+    {
+      "id": "L04",
+      "area": "기존·공통 사이트",
+      "title": "기간 업무 메뉴 표시·숨김 설정",
+      "mode": "not_connected",
+      "evidenceLevel": "code_reference",
+      "evidence": [
+        "tests/test_site_seasonal.mjs",
+        "apps/main/src/lib/modules.js"
+      ],
+      "completion": "기존 기간 업무 관리 화면의 설정",
+      "boundary": "원래 관리자 수동 설정이며 메뉴 공개 범위 유지"
+    },
+    {
+      "id": "L05",
+      "area": "기존·공통 사이트",
+      "title": "내 계정·화면 표시·접근성 설정",
+      "mode": "not_connected",
+      "evidenceLevel": "code_reference",
+      "evidence": [
+        "apps/main/src/lib/modules.js",
+        "tests/browser/workhub-ui-renewal.mjs"
+      ],
+      "completion": "현재 계정·글자 크기·화면 설정",
+      "boundary": "설정 UI는 유지하지만 대화에서 값을 바꾸는 명령 없음"
+    }
+  ]
+}

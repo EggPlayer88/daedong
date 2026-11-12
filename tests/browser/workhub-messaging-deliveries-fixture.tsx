@@ -5,7 +5,7 @@ import { createEditDrafts, EditDraftsProvider } from '../../apps/workhub/src/app
 import { createPendingRequests, PendingRequestsProvider } from '../../apps/workhub/src/app/pending-requests'
 
 // 실제 React와 Supabase 어댑터를 사용하고, RPC 왕복만 합성 응답으로 대신한다.
-const qa: any = { calls: [], writes: 0, saved: new Map(), unknown: false, defer: false, denied: false, drafts: createEditDrafts(), pending: createPendingRequests() }
+const qa: any = { calls: [], writes: 0, saved: new Map(), workflowResults: [], resultThrows: false, unknown: false, defer: false, denied: false, drafts: createEditDrafts(), pending: createPendingRequests() }
 ;(window as any).qa = qa
 const now = '2026-10-21T00:00:00.000Z', date = '2026-10-21'
 let current = { id: 'self', userId: 'user', schoolId: 'school', name: '나', role: 'teacher', active: true, validFrom: '2026-01-01', validThrough: '2027-12-31', departmentIds: [], gradeIds: [], subjectIds: [] }
@@ -52,9 +52,10 @@ const connection: any = {
 }
 function App() {
   const [member, setMember] = useState(current), [mounted, setMounted] = useState(true), [activeConnection, setConnection] = useState(connection)
+  const [compose, setCompose] = useState((window as any).withCompose ? { id: 'compose-message-1', schoolId: current.schoolId, memberId: current.id, basisDate: date, body: '대화에서 준비한 원래 메시지' } : undefined)
   qa.unmount = () => setMounted(false); qa.remount = () => setMounted(true)
   qa.replaceConnection = () => setConnection({ ...connection })
   qa.changeScope = () => { current = { ...current, id: 'other-self', userId: 'other-user', schoolId: 'other-school' }; setMember(current) }
-  return <EditDraftsProvider store={qa.drafts}><PendingRequestsProvider store={qa.pending}>{mounted && <MessagingWorkspace connection={activeConnection} member={member as any} date={date} onNavigationLockChange={value => { qa.locked = value }} />}</PendingRequestsProvider></EditDraftsProvider>
+  return <EditDraftsProvider store={qa.drafts}><PendingRequestsProvider store={qa.pending}>{mounted && <MessagingWorkspace connection={activeConnection} member={member as any} date={date} composeRequest={compose} onComposeRequestConsumed={() => setCompose(undefined)} onNavigationLockChange={value => { qa.locked = value }} onWorkflowResult={value => { qa.workflowResults.push(structuredClone(value)); if (qa.resultThrows) throw Error('합성 결과 표시 실패') }} />}</PendingRequestsProvider></EditDraftsProvider>
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>)
