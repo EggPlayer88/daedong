@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-12. 기준은 PR #127과 후속 브랜치 `feat/ai-workspace-publish-export-results`의 학교 자료 정정·시간표 공개·학생 기록 출력 결과 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-12. 기준은 PR #127과 후속 PR #128(`feat/ai-workspace-publish-export-results`)의 학교 자료 정정·시간표 공개·학생 기록 출력 결과 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 

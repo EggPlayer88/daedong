@@ -21,7 +21,7 @@
 
 ## 11차: 학교 자료 정정·시간표 공개·기록 출력의 결과 연결
 
-PR #127 위의 후속 브랜치 `feat/ai-workspace-publish-export-results`에서 기존 처리 결과를 AI 업무 목록에 연결했다. 새 PR 번호는 생성 뒤 확인한다.
+PR #127 위의 [PR #128](https://github.com/EggPlayer88/daedong/pull/128), 브랜치 `feat/ai-workspace-publish-export-results`에서 기존 처리 결과를 AI 업무 목록에 연결했다.
 
 | 결과 | 기록하는 사실과 확인 경계 |
 |---|---|
