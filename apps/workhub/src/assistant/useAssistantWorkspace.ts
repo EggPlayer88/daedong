@@ -487,7 +487,9 @@ export function useAssistantWorkspace({
             : undefined,
         })
         setNotice('개인 할 일에 추가했습니다.')
-        onUpdated?.()
+        // 정상 접수 뒤의 보조 화면 갱신 실패는 원요청의 저장 결과를 바꾸지 않는다.
+        try { onUpdated?.() }
+        catch { setError('저장은 확인했지만 후속 화면을 갱신하지 못했습니다. 저장된 원본을 확인해 주세요.') }
       }
     } catch (failure) {
       if (life.current !== epoch) return
