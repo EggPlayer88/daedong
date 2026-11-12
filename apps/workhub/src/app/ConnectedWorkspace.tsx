@@ -397,7 +397,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       if (item.kind === 'knowledge') {
         if (!member || item.version === undefined || item.locator === undefined) return false
         const request = {key:crypto.randomUUID(),schoolId:member.schoolId,memberId:member.id,sourceId:item.id,sourceVersion:item.version,title:item.title,locator:item.locator}
-        if (!validKnowledgeOpenRequest(request,member) || !startDelivery('knowledge')) return false
+        if (!validKnowledgeOpenRequest(request,member) || !startDelivery('knowledge', undefined, false, undefined, {onResult})) return false
         setKnowledgeOpen({scope:currentScope,request,fromPage:'assistant'}); return true
       }
       const kind = deliveryKind(item.kind)
