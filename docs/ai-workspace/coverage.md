@@ -1,6 +1,6 @@
 # AI 업무 연결 범위와 근거 목록
 
-2026-11-12. 기준은 PR #127과 후속 PR #128(`feat/ai-workspace-publish-export-results`)의 학교 자료 정정·시간표 공개·학생 기록 출력 결과 연결이다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
+2026-11-12. 기준은 PR #128 위의 12차 브랜치 `feat/ai-workspace-final-domain-results`에서 학교 기본 구성·담당/수강 관계·학교 자료·실시 기록의 결과를 연결한 범위다. 목록 원본은 [coverage.json](coverage.json)이다. **사이트 전체 구축 진척도가 아니라, 현재 기능을 AI 작업 공간에서 이용할 수 있는 범위**를 측정한다.
 
 ## 집계 방법
 
@@ -20,9 +20,11 @@ AI 안의 기존 작업 패널은 대상 선택·비교·버튼 확인을 사용
 
 **AI 작업 공간 안의 지원 경로: 55/61개 (90.2%).** 이 중 9개는 AI 기본 화면·확인 카드, 46개는 기존 업무 패널이다. 이 수치는 **자연어만으로 업무를 완료한 비율이나 실행 통과율이 아니다.** 기존 화면의 최종 확인·후보 선택·파일 선택을 포함한다. 이번 연결로 사용자의 목표인 “AI 대화만으로 90% 이상 완료”를 달성했다고 판단하지 않는다. 평가계획서 작성·제출의 새 탭 링크 2개도 이 55개에 넣지 않았다.
 
-AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md), [plan-continuation-verification.md](plan-continuation-verification.md)에 유지하고, 8~11차 실행 결과는 [8차](workflow-results-verification.md), [9차](approval-artifacts-verification.md), [10차](daily-record-results-verification.md), [11차](publish-export-results-verification.md)에 구분한다.
+AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **27/61개 (44.3%)**에 있다. 나머지는 기존 업무 회귀와 AI 진입 검사를 조합했다. 이것도 현재 커밋의 실행 성공률이 아니라 **시험 근거의 범위**다. 테스트 파일 존재 여부로 통과를 주장하지 않는다. 이전 실행 기록은 [completion-verification.md](completion-verification.md), [daily-actions-verification.md](daily-actions-verification.md), [lessons-seasonal-verification.md](lessons-seasonal-verification.md), [plan-continuation-verification.md](plan-continuation-verification.md)에 유지하고, 8~12차 실행 결과는 [8차](workflow-results-verification.md), [9차](approval-artifacts-verification.md), [10차](daily-record-results-verification.md), [11차](publish-export-results-verification.md), [12차](final-domain-results-verification.md)에 구분한다.
 
 ## 이번에 보완한 공통 업무 진행
+
+- **학교 기본 구성·관계·자료·실시 결과:** `school_configuration`은 `save_configuration`의 `update`·`create_year`만 연결한다. `relations`는 수업 담당 종료/교체·수강 종료·학생 전출 4종, `knowledge`는 초안 생성/변경·게시/종료·HWPX 초안 가져오기 5종, `execution`은 실시 기록 저장/정정과 실시 완료·미실시·확인 필요 3상태를 구분한다. 검증된 원본 ID·판·요청 번호·서버 접수 시각 등 최소 메타만 보관하며 원문·이름·사유는 복제하지 않는다. 학교 기본 설정의 교사 소속 상태·공식 담당 배정/종료는 접수증에 결과 원본 ID가 없어 결과 해석을 확장하지 않고 기존 기능을 유지한다. 미리보기·파일 전송/추출·원본 열기는 결과가 아니며 원키 복구·늦은 응답·콜백 예외를 기존 범위 안에서 다룬다. 기존 경로의 보강이므로 55/61과 직접 근거 27/61을 유지한다. [12차 검증](final-domain-results-verification.md).
 
 - **학교 자료 정정·공개·출력 결과:** 학교 자료 정정 9종은 기존 접수증의 요청 번호·종류·원본·다음 판·시각을 검증한 뒤 기록한다. 시간표 일반 공개와 전체 명세 공개는 실제 접수 및 원키 복구·명시 재전송·닫기 중 반영 확인을 연결한다. 학생 기록은 0건을 포함한 미리보기, CSV 요청, 인쇄 창 전달을 구분하고 로컬 `observedAt`을 사용한다. 물리 인쇄·PDF·파일 저장 성공을 주장하지 않으며 이름·본문·점수·정정 사유를 결과에 복제하지 않는다. 같은 수업·학생·기간·선택 범위와 전문 업무만 이으며 일반 메뉴·기존 RPC와 확인 절차를 유지한다. 기존 경로의 결과 표시 보강이므로 55/61과 직접 근거 27/61을 유지한다. [11차 검증](publish-export-results-verification.md).
 
@@ -116,8 +118,8 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
-| K01 | HWPX 원본 가져오기·본문 추출·초안 | AI 안 기존 업무 패널 | 조합 | 원본 검사·추출·초안 저장. 직접 AI 회귀는 텍스트 초안 저장이며 HWPX 가져오기·추출은 원래 패널 회귀와 조합; 게시 전 확인 필요. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-knowledge-import](../../tests/browser/workhub-knowledge-import.mjs) |
-| K02 | 자료 수정·게시·종료·유효기간 관리 | AI 안 기존 업무 패널 | 직접 | 현재 판·게시 범위·유효기간 확인. AI 상태의 초안 저장·게시 결과를 검증; 종료·유효기간은 원래 패널 회귀와 조합. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-knowledge](../../tests/browser/workhub-knowledge.mjs) |
+| K01 | HWPX 원본 가져오기·본문 추출·초안 | AI 안 기존 업무 패널 | 조합 | 원본 검사·추출·초안 저장. 직접 AI 회귀는 텍스트 초안 저장이며 HWPX 가져오기·추출은 원래 패널 회귀와 조합; 게시 전 확인 필요. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-knowledge-import](../../tests/browser/workhub-knowledge-import.mjs). HWPX 초안의 검증된 `import` 접수만 업무 결과로 연결하며 업로드·추출을 게시로 표시하지 않음. [가져오기 결과 회귀](../../tests/browser/workhub-knowledge-result-events-import.mjs) |
+| K02 | 자료 수정·게시·종료·유효기간 관리 | AI 안 기존 업무 패널 | 직접 | 현재 판·게시 범위·유효기간 확인. AI 상태의 초안 저장·게시 결과를 검증; 종료·유효기간은 원래 패널 회귀와 조합. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-knowledge](../../tests/browser/workhub-knowledge.mjs). 12차는 같은 source ID의 생성·수정·게시·종료 접수 이력을 연결하며 게시와 현재 적용을 구분. [자료 결과 회귀](../../tests/browser/workhub-knowledge-result-events.mjs) |
 | K03 | 과거 판·인용 위치·원본 HWPX 조회 | AI 안 기존 업무 패널 | 직접 | 요청한 sourceId·version·locator와 원본 확인. AI 안 과거 판·질문 근거 전달을 검증; HWPX 원본 다운로드는 원래 패널 회귀와 조합. [workhub-assistant-remaining](../../tests/browser/workhub-assistant-remaining.mjs) · [workhub-knowledge-assistant](../../tests/browser/workhub-knowledge-assistant.mjs) · [workhub-assistant-connected](../../tests/browser/workhub-assistant-connected.mjs) |
 
 ### 협업
@@ -138,7 +140,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 | T05 | 학기 시간표 확정·공개 | AI 안 기존 업무 패널 | 조합 | 현재 편성안과 적용 기간 영향 비교 후 접수. AI가 공개 버튼 대신 승인하지 않음. [workhub-timetable-publication-commit](../../tests/browser/workhub-timetable-publication-commit.mjs) · [workhub-assistant-specialists](../../tests/browser/workhub-assistant-specialists.mjs) |
 | T06 | 날짜별 시간표·교사·학급 조회·출력 | AI 안 기존 업무 패널 | 직접 | 확정 수업과 변경 이력·출력 원문 확인. AI 상태의 날짜별 조회를 검증; 출력은 원래 패널 회귀와 조합하며 실제 교사 PC의 PDF 품질은 별도. [workhub-assistant-timetable](../../tests/browser/workhub-assistant-timetable.mjs) · [workhub-timetable-published-export](../../tests/browser/workhub-timetable-published-export.mjs) |
 | T07 | 교환 요청·양쪽 동의·별도 승인 | AI 안 기존 업무 패널 | 직접 | 영향 비교·동의·현재 판 승인·반영 결과. 자기 승인 금지 및 승인자 조건 유지. [workhub-assistant-timetable](../../tests/browser/workhub-assistant-timetable.mjs) · [workhub-timetable-exchanges](../../tests/browser/workhub-timetable-exchanges.mjs) |
-| T08 | 대강·보강 요청·실시 기록 | AI 안 기존 업무 패널 | 조합 | 대상·시간·당사자·승인·실시 기록. 대강 입구만으로 실제 대강 승인까지 새 회귀를 완료했다고 세지 않음. [workhub-assistant-timetable](../../tests/browser/workhub-assistant-timetable.mjs) · [workhub-timetable-interventions](../../tests/browser/workhub-timetable-interventions.mjs) · [workhub-timetable-execution-records](../../tests/browser/workhub-timetable-execution-records.mjs) |
+| T08 | 대강·보강 요청·실시 기록 | AI 안 기존 업무 패널 | 조합 | 대상·시간·당사자·승인·실시 기록. 대강 입구만으로 실제 대강 승인까지 새 회귀를 완료했다고 세지 않음. [workhub-assistant-timetable](../../tests/browser/workhub-assistant-timetable.mjs) · [workhub-timetable-interventions](../../tests/browser/workhub-timetable-interventions.mjs) · [workhub-timetable-execution-records](../../tests/browser/workhub-timetable-execution-records.mjs). 실시 기록 저장·정정은 실시 완료/미실시/확인 필요를 구분하고 같은 수업·기록만 연결. [실시 결과 회귀](../../tests/browser/workhub-execution-result-events.mjs) · [연결 셸 회귀](../../tests/browser/workhub-execution-result-events-connected.mjs) |
 | T09 | 휴업·특별일과·기간 학사 변경 | AI 안 기존 업무 패널 | 조합 | 영향 수업·합반·보강 확인 뒤 변경. 공식 방학과 보강 검토 대상의 기존 구분 유지. [workhub-timetable-school-day-commit](../../tests/browser/workhub-timetable-school-day-commit.mjs) · [workhub-timetable-operation-review](../../tests/browser/workhub-timetable-operation-review.mjs) |
 
 ### 수업·학생
@@ -150,7 +152,7 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 | E03 | 관찰 기록 작성·정정·원문 근거 | AI 안 기존 업무 패널 | 직접 | 선택 학생의 기록 저장·원키 복구. 학생·학교·기준판·권한을 유지. [workhub-assistant-teaching](../../tests/browser/workhub-assistant-teaching.mjs) |
 | E04 | 평가 기준판·학생 평가 기록 | AI 안 기존 업무 패널 | 조합 | 평가 당시 기준판·점수·의견 확인. 기준판을 대화가 임의 선택하지 않음. [workhub-assistant-teaching](../../tests/browser/workhub-assistant-teaching.mjs) · [workhub-teaching](../../tests/browser/workhub-teaching.mjs) |
 | E05 | 관찰·평가 근거로 학생 기록 초안 | AI 안 기존 업무 패널 | 조합 | 원문 revision·hash·epoch·구간과 AI 초안 확인. 민감 상담 자료는 새로 AI에 연결하지 않으며 AI 결과 자동 확정 없음. [workhub-assistant-teaching](../../tests/browser/workhub-assistant-teaching.mjs) · [workhub-assistant-ui](../../tests/browser/workhub-assistant-ui.mjs) |
-| E06 | 담당·수강 관계 정정과 영향 검토 | AI 안 기존 업무 패널 | 조합 | 현재 관계·기록 영향·명령 hash 검토. 기존 판과 현재 권한 재검사 유지. [workhub-teaching-relations](../../tests/browser/workhub-teaching-relations.mjs) |
+| E06 | 담당·수강 관계 정정과 영향 검토 | AI 안 기존 업무 패널 | 조합 | 현재 관계·기록 영향·명령 hash 검토. 기존 판과 현재 권한 재검사 유지. [workhub-teaching-relations](../../tests/browser/workhub-teaching-relations.mjs). 담당 종료·교체/수강 종료/전출 4종의 반영 접수만 결과에 연결하며 미리보기·미반영 닫힘은 제외. [관계 결과 회귀](../../tests/browser/workhub-relations-result-events.mjs) |
 | E07 | 학생 기록 인쇄·PDF·CSV 출력 | AI 안 기존 업무 패널 | 조합 | 여러 쪽 기록·평가 당시 판·출력 내용. 실제 프린터·브라우저 PDF 저장 대화상자는 별도 조작. [workhub-record-export](../../tests/browser/workhub-record-export.mjs) |
 | E08 | 작성자 전용 상담 수동 조회·기록 | AI 안 기존 업무 패널 | 조합 | 상담 권한을 확인한 뒤 본인 기록만 별도로 열고 저장. AI 안의 동일 수업 UI에 있는 수동 탭일 뿐 상담 원문은 AI 근거·생기부 초안에서 제외. [workhub-teaching](../../tests/browser/workhub-teaching.mjs) · [TeachingWorkspace](../../apps/workhub/src/teaching/TeachingWorkspace.tsx) |
 
@@ -158,10 +160,10 @@ AI 표시 상태에서 대표 결과까지 다루는 직접 회귀 근거는 **2
 
 | 번호 | 업무 | 현재 경로 | 근거 수준 | 결과·한계 |
 |---|---|---|---|---|
-| S01 | 학교·학년도·학급·교과·부서 구성 | AI 안 기존 업무 패널 | 직접 | 원본과 변경 필드 비교·명시 반영. 단일 구성 저장의 대화 상태 회귀가 있으며 전체 관리자 작업 자동화 의미 아님. [workhub-assistant-administration](../../tests/browser/workhub-assistant-administration.mjs) |
+| S01 | 학교·학년도·학급·교과·부서 구성 | AI 안 기존 업무 패널 | 직접 | 원본과 변경 필드 비교·명시 반영. 단일 구성 저장의 대화 상태 회귀가 있으며 전체 관리자 작업 자동화 의미 아님. [workhub-assistant-administration](../../tests/browser/workhub-assistant-administration.mjs). 12차 결과는 `save_configuration`의 update/create_year에 한정하며 새 학년도 구성 저장과 담당 배정을 구분. [구성 결과 회귀](../../tests/browser/workhub-school-configuration-result-events.mjs) |
 | S02 | 교과·학급 자료 일괄 입력·정정 | AI 안 기존 업무 패널 | 조합 | 일괄 원문·현재 ID·영향·오류 비교. 파일을 자동 수집하거나 기존 자료 삭제하지 않음. [workhub-school-configuration-batch](../../tests/browser/workhub-school-configuration-batch.mjs) · [workhub-school-data-maintenance](../../tests/browser/workhub-school-data-maintenance.mjs) |
-| S03 | 가입 전 교사 명부·담임·담당 배정 | AI 안 기존 업무 패널 | 조합 | 현재 교사 명부·배정 기간·연결 영향. 교사 가입과 계정 권한 부여는 별개. [workhub-teacher-roster](../../tests/browser/workhub-teacher-roster.mjs) · [workhub-assistant-specialists](../../tests/browser/workhub-assistant-specialists.mjs) |
-| S04 | 가입 계정·학교 소속 연결 | AI 안 기존 업무 패널 | 조합 | 허용 후보·계정·명부·기간 직접 확인. 승인된 후보·역할 범위 확대 없음. [workhub-school-roster](../../tests/browser/workhub-school-roster.mjs) · [workhub-assistant-specialists](../../tests/browser/workhub-assistant-specialists.mjs) |
+| S03 | 가입 전 교사 명부·담임·담당 배정 | AI 안 기존 업무 패널 | 조합 | 현재 교사 명부·배정 기간·연결 영향. 교사 가입과 계정 권한 부여는 별개. [workhub-teacher-roster](../../tests/browser/workhub-teacher-roster.mjs) · [workhub-assistant-specialists](../../tests/browser/workhub-assistant-specialists.mjs). 학교 기본 설정의 공식 담당 배정·종료 접수에는 결과 원본 ID가 없어 이번 AI 결과 해석은 추가하지 않음. |
+| S04 | 가입 계정·학교 소속 연결 | AI 안 기존 업무 패널 | 조합 | 허용 후보·계정·명부·기간 직접 확인. 승인된 후보·역할 범위 확대 없음. [workhub-school-roster](../../tests/browser/workhub-school-roster.mjs) · [workhub-assistant-specialists](../../tests/browser/workhub-assistant-specialists.mjs). 학교 기본 설정의 교사 소속 상태 접수에도 결과 원본 ID가 없어 기존 기능을 유지하고 이번 AI 결과 해석은 추가하지 않음. |
 | S05 | 공식 담당·수합·협업 인계 | AI 안 기존 업무 패널 | 직접 | 인계 범위·현재 판·관리자 확인·인수자 수락. 개인 상담·사적 자료를 전체 이관하지 않음. [workhub-assistant-administration](../../tests/browser/workhub-assistant-administration.mjs) · [workhub-school-transitions](../../tests/browser/workhub-school-transitions.mjs) |
 | S06 | 새 학년도 생성·학기 전환 준비 | AI 안 기존 업무 패널 | 조합 | 학년도 숫자·첫날·배정 영향 확인. 원래 승인 계약을 거치며 자동 연장 없음. [workhub-school-transitions](../../tests/browser/workhub-school-transitions.mjs) |
 | S07 | 나이스 원본 조회·학사일정 변경 비교·반영 | AI 안 기존 업무 패널 | 조합 | 원본과 일정 비교 후 선택 반영. 급식 자동 갱신·API 키 등록은 이 대화 반영 작업과 별개. [workhub-neis](../../tests/browser/workhub-neis.mjs) · [workhub-assistant-administration](../../tests/browser/workhub-assistant-administration.mjs) |
