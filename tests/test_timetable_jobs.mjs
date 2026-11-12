@@ -233,9 +233,22 @@ try {
     assert.equal(status(store, req.requestId).state, 'interrupted'); assert.equal(existsSync(join(store, 'jobs', req.requestId, 'result.json')), false)
   })
   await check('보관 결과의 목적함수·지문·후보 누락 변조를 읽기에서도 거부한다', async () => {
-    const store = newStore(), req = await request(); submit(store, req); call(['work', '--store', store, '--once']); const file = join(store, 'jobs', req.requestId, 'result.json'), good = json(file)
+    const store = newStore(), req = await request(), fixture = join(temporary, '보관 검증용 후보.py')
+    // 이 시험의 대상은 보관 결과 재검증이다. 실제 계산은 위 통합 시험에서 확인하며,
+    // 제한 안에 후보를 못 찾는 정상 unknown 응답을 변조 시험의 준비 실패로 만들지 않는다.
+    const good = { contract: req.contract, requestId: req.requestId, inputHash: req.inputHash, engineVersion: json(resolve('packages/timetable/_assets/engine-policy.json')).engineVersion,
+      status: 'feasible', candidates: [{ placements: [{ lessonId: 'l1', slotId: 'm1' }], objective: { changedLessons: 0, movedLessons: 0, preferencePenalty: 0, teacherPeakPeriods: 1, courseRepeats: 0 }, optimal: false }],
+      issues: [], stats: { elapsedMs: 0, branches: 0, stoppedByLimit: false } }
+    save(fixture.replace(/\.py$/, '.json'), good)
+    writeFileSync(fixture, "import argparse\nfrom pathlib import Path\np=argparse.ArgumentParser();p.add_argument('--input');p.add_argument('--output');a=p.parse_args();Path(a.output).write_text(Path(__file__).with_suffix('.json').read_text(encoding='utf-8'),encoding='utf-8')\n")
+    submit(store, req); assert.equal((await worker(store, fixture).finished).code, 0)
+    const file = join(store, 'jobs', req.requestId, 'result.json')
+    assert.equal(status(store, req.requestId).state, 'succeeded')
+    assert.deepEqual(call(['result', '--store', store, '--request-id', req.requestId]), good)
+    assert.deepEqual(await m.parseCpSatResponse(req, json(file)), good)
     for (const change of [v => v.inputHash = '0'.repeat(64), v => v.candidates[0].objective.changedLessons = true, v => v.candidates[0].placements = []]) {
       const bad = structuredClone(good); change(bad); save(file, bad); assert.equal(call(['result', '--store', store, '--request-id', req.requestId], 1).error.code, 'RESULT_INVALID')
+      await assert.rejects(() => m.parseCpSatResponse(req, bad))
     }
   })
   await check('접수 뒤 원본 스냅샷 변경을 중복 실행으로 덮지 않는다', async () => {
