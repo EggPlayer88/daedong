@@ -195,6 +195,17 @@ jobs:
           WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
           WORKHUB_DEPLOYMENT_TEST_PORT: '55791'
         run: python database/workhub-teacher-roster/tr1/build_checks.py
+      - name: 시험 교사 10명·AI 기간 허용·담당 종료 회귀
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55801'
+          P9_TEST_PORT: '55801'
+        run: |
+          python database/workhub-teacher-pilot/tp1/build.py
+          python database/workhub-teacher-pilot/tp1/test/run_tp1.py
+          python database/workhub-teacher-pilot/tp1/build_checks.py
+          git diff --exit-code -- database/workhub-teacher-pilot
       - name: 학교 자료 과거 원문·판 이력 SQL·앱 응답
         env:
           K1_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

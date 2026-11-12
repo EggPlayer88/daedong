@@ -12,3 +12,8 @@ database/workhub-neis/n1/checks.json text eol=lf
 # 가입 전 명부 SQL과 통합 점검의 전달 해시는 LF 기준이다.
 database/workhub-teacher-roster/tr1/*.sql text eol=lf
 database/workhub-teacher-roster/tr1/checks.json text eol=lf
+
+# 시험 교사 증분과 생성 원문·점검 해시도 같은 바이트로 전달한다.
+database/workhub-teacher-pilot/tp1/*.sql text eol=lf
+database/workhub-teacher-pilot/tp1/*.sql.inc text eol=lf
+database/workhub-teacher-pilot/tp1/*.json text eol=lf

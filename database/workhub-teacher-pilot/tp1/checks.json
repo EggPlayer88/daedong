@@ -1,0 +1,9 @@
+{
+  "postcheck": "INT-14",
+  "baseline": "INT-13 + TP1-01 + TP1-02",
+  "rows": 18,
+  "source": "database/workhub-teacher-pilot/tp1/INT-14_시험교사포함_통합점검.sql",
+  "bytes": 657447,
+  "sha256": "658544a09a4096aafdfc7705ab9739b4c23bcf90cb600569d629ab7d1bcfe58a",
+  "deltaObjects": 143
+}

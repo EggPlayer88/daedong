@@ -716,7 +716,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           )}
         </div>
         <aside className="assistant-tools" aria-label="AI 대화 도구">
-          <h3>대화와 기억</h3>
+          <h3>{model.memoryEnabled ? '대화와 기억' : '대화'}</h3>
           <button type="button" className="assistant-quiet assistant-reconnect" disabled={busy || loading || memoryLocked} onClick={() => setRefresh((value) => value + 1)}>연결 다시 확인</button>
           <details className="assistant-budget-disclosure">
             <summary>학교 AI 예산 · 기본 {ASSISTANT_ROUTING.models.quick.label}</summary>
@@ -757,7 +757,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               </button>
             )}
           </details>
-          <AiMemoryPanel
+          {model.memoryEnabled && <AiMemoryPanel
             connection={connection}
             member={member}
             date={date}
@@ -785,7 +785,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               update({ ...current, prompt })
               setNotice('선택한 기억을 질문에 넣었습니다. 전송할 내용을 확인해 주세요.')
             }}
-          />
+          />}
         </aside>
       </div>
     </section>

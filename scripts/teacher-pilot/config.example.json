@@ -1,0 +1,20 @@
+{
+  "contract": "teacher.pilot.provision.v1",
+  "projectRef": "abcdefghijklmnopqrst",
+  "schoolId": "synthetic-school",
+  "batchId": "synthetic-20261116",
+  "startsAt": "2026-11-16T00:00:00.000Z",
+  "expiresAt": "2026-11-23T00:00:00.000Z",
+  "teachers": [
+    { "slot": "T01", "teacherId": "synthetic-teacher-01", "displayName": "[시험] 합성 교사 01" },
+    { "slot": "T02", "teacherId": "synthetic-teacher-02", "displayName": "[시험] 합성 교사 02" },
+    { "slot": "T03", "teacherId": "synthetic-teacher-03", "displayName": "[시험] 합성 교사 03" },
+    { "slot": "T04", "teacherId": "synthetic-teacher-04", "displayName": "[시험] 합성 교사 04" },
+    { "slot": "T05", "teacherId": "synthetic-teacher-05", "displayName": "[시험] 합성 교사 05" },
+    { "slot": "T06", "teacherId": "synthetic-teacher-06", "displayName": "[시험] 합성 교사 06" },
+    { "slot": "T07", "teacherId": "synthetic-teacher-07", "displayName": "[시험] 합성 교사 07" },
+    { "slot": "T08", "teacherId": "synthetic-teacher-08", "displayName": "[시험] 합성 교사 08" },
+    { "slot": "T09", "teacherId": "synthetic-teacher-09", "displayName": "[시험] 합성 교사 09" },
+    { "slot": "T10", "teacherId": "synthetic-teacher-10", "displayName": "[시험] 합성 교사 10" }
+  ]
+}

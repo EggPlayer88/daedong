@@ -64,6 +64,7 @@ export interface AssistantDraftReady {
   studentContext: StudentContext | null
 }
 export interface AssistantPanelProps {
+  memoryEnabled?: boolean
   workActive?: boolean
   connection: SupabaseConnection
   member: Membership

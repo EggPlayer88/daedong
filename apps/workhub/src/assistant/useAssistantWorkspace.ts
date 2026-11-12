@@ -47,6 +47,7 @@ import {
 } from './workspace-model'
 export function useAssistantWorkspace({
   workActive = false,
+  memoryEnabled = true,
   connection,
   member,
   date,
@@ -903,6 +904,7 @@ export function useAssistantWorkspace({
     member,
     memoryLocked,
     memoryServer,
+    memoryEnabled,
     moreMessages,
     moreThreads,
     nextCursor,

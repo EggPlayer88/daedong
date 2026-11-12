@@ -1,3 +1,4 @@
+import { teacherPilotAccess, sameTeacherPilot, teacherPilotPages, teacherPilotModules, teacherPilotSearchSources, type TeacherPilotAccess } from '../participation/teacher-pilot-access'
 import { EvaluationWorkspace, evaluationLink, type EvaluationTarget, type LegacyEvaluationLinks } from '../assistant/evaluation-workspace'
 import { retryableLazy as lazy } from './retryable-lazy'
 import {guidedSetupOrigin,guidedSetupSuggestion,type GuidedSetupAiOrigin,type GuidedSetupAiSuggestion} from '../documents/guided-setup-ai'
@@ -72,7 +73,8 @@ const KnowledgeWorkspace = lazy(() => import('../knowledge/KnowledgeWorkspace').
 
 const CollectionServerPanel = lazy(() => import('../collections/CollectionServerPanel').then(module => ({ default: module.CollectionServerPanel })))
 
-const connectedPages = enabledModules('connected').map(module => module.id)
+const SchoolTransitions = lazy(() => import('../administration/SchoolTransitions').then(module => ({ default: module.SchoolTransitions })))
+const allConnectedPages = enabledModules('connected').map(module => module.id)
 
 // 기존 앱의 전역 CSS와 신축 화면을 격리한다. 같은 origin·같은 인증 인스턴스를 사용한다.
 function StyleBoundary({ children }: { children: ReactNode }) {
@@ -84,8 +86,11 @@ function StyleBoundary({ children }: { children: ReactNode }) {
   `}</style><div className="workhub-connected">{children}</div></>, root) : <p role="status">새 업무 화면을 준비하고 있습니다…</p>}</div>
 }
 
-export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanHref, legacyEvaluationLinks, connection: providedConnection }: { expectedUserId: string; legacyHomeHref: string; legacyPlanHref?: string; legacyEvaluationLinks?: LegacyEvaluationLinks; connection?: SupabaseConnection }) {
-  const [connection] = useState(() => providedConnection ?? createSupabaseConnection())
+export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanHref, legacyEvaluationLinks, connection: providedConnection, teacherPilot }: { expectedUserId: string; legacyHomeHref: string; legacyPlanHref?: string; legacyEvaluationLinks?: LegacyEvaluationLinks; connection?: SupabaseConnection; teacherPilot?: TeacherPilotAccess }) {
+  const [connection] = useState(() => providedConnection ?? createSupabaseConnection(undefined, { participant: Boolean(teacherPilot) }))
+  const connectedPages = teacherPilot ? teacherPilotPages : allConnectedPages
+  const displayModules = teacherPilot ? teacherPilotModules() : enabledModules('connected')
+  const pilotKey = teacherPilot ? JSON.stringify(teacherPilot) : ''
   const [adapter] = useState(() => createSupabaseCalendarAdapter(connection))
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
   const [collectionServer] = useState(() => createSupabaseCollectionServer(connection))
@@ -166,10 +171,14 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
           try {
             const identity = await connection.getIdentity()
             if (!alive || version !== generation.current) continue
-            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== 'superadmin') { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
-            const next = await connection.loadContext()
+            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== (teacherPilot ? 'teacher' : 'superadmin')) { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error(teacherPilot ? '현재 로그인 계정으로 업무 화면을 이용할 수 없습니다. 로그인·승인 상태를 확인해 주세요.' : '현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
+            if (teacherPilot) {
+              const permitted = teacherPilotAccess(await connection.rpcVerified('workhub_teacher_pilot_access'), teacherPilot)
+              if (!sameTeacherPilot(teacherPilot, permitted)) throw new Error('시험 참여 기간 또는 허용 범위가 변경됐습니다. 학교 업무 메뉴를 다시 열어 주세요.')
+            }
+            const next = await connection.loadContext(teacherPilot?.schoolId)
             if (!alive || version !== generation.current) continue
-            const mine = next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate))
+            const mine = next.memberships.filter(item => item.userId === expectedUserId && activeAt(item, next.basisDate) && (!teacherPilot || item.schoolId === teacherPilot.schoolId && item.id === teacherPilot.memberId))
             const selected = mine.find(item => item.id === lastVerifiedMemberId.current) ?? mine[0]
             const fingerprint = selected ? recoveryScope(selected) : ''
             // 이름·동료 명부·서버 날짜 자체는 편집 권한을 바꾸지 않는다.
@@ -214,8 +223,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     const stopDayWatch = watchSchoolDay(window, () => refresh(true), () => basisDateRef.current)
     const onFocus = () => { refresh(true) }
     window.addEventListener('focus', onFocus)
-    return () => { alive = false; queued = undefined; generation.current += 1; stopDayWatch(); unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
-  }, [connection, expectedUserId, attempt, pendingRequests, editDrafts, clearHandoffs])
+    const pilotExpiry = teacherPilot ? setTimeout(() => {
+      generation.current++; queued = undefined; editDrafts.suspend(); clearHandoffs(); setContext(undefined); setLoading(false); setError('시험 참여 기간이 끝났습니다. 관리자에게 참여 기간을 확인해 주세요.')
+    }, Math.min(2147483647, Math.max(0, Date.parse(teacherPilot.expiresAt) - Date.now()))) : undefined
+    return () => { clearTimeout(pilotExpiry); alive = false; queued = undefined; generation.current += 1; stopDayWatch(); unsubscribe(); stopInvalidation(); window.removeEventListener('focus', onFocus) }
+  }, [connection, expectedUserId, attempt, pendingRequests, editDrafts, clearHandoffs, pilotKey])
   const member = context?.memberships.find(item => item.id === memberId)
   const school = context?.schools.find(item => item.id === member?.schoolId)
   const connectionUnavailable = loading || !!error || !context || !member || !school
@@ -223,7 +235,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const navigationLocked = deliveryLocked || assistantNavigationLocked || batchNavigationLocked || taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
   const exitLocked = draftCount > 0 || pendingCount > 0
   const navigation = useWorkspaceNavigation({
-    allowedPages: connectedPages,
+    allowedPages: [...connectedPages],
+    defaultPage: teacherPilot ? 'assistant' : 'home',
     scopeKey: member ? `${expectedUserId}:${memberId}:${scopeEpoch}` : undefined,
     locked: navigationLocked,
     exitLocked,
@@ -250,13 +263,17 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   useEffect(() => { if (page !== 'students' && activeDelivery?.kind !== 'students') setTeachingOpen(undefined) }, [page, activeDelivery?.kind])
   useEffect(() => { if (page !== 'knowledge' && activeDelivery?.kind !== 'knowledge') setKnowledgeOpen(undefined) }, [page, activeDelivery?.kind])
   useEffect(() => { if (homeListOpen && (page !== homeListOpen.page || currentScope !== homeListOpen.scope)) setHomeListOpen(undefined) }, [page, currentScope, homeListOpen])
-  const searchSources = useMemo(() => member && context ? createConnectedSearchSources(connection,member,context.basisDate,{calendarAdapter:adapter,taskAdapter,collectionServer}) : [], [connection,adapter,taskAdapter,collectionServer,member,context])
+  const searchSources = useMemo(() => {
+    const sources = member && context ? createConnectedSearchSources(connection,member,context.basisDate,{calendarAdapter:adapter,taskAdapter,collectionServer}) : []
+    return teacherPilot ? teacherPilotSearchSources(sources) : sources
+  }, [connection,adapter,taskAdapter,collectionServer,member,context,pilotKey])
   const requested = resource.current
   const deliverySwitchBlocked = (kind: DeliveryKind) => Boolean(activeDelivery && activeDelivery.kind !== kind &&
     hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)))
   function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false, task?: SpecialistTask, options?: { daily?: DailyCommand; inbox?: boolean; list?: boolean; evaluation?: EvaluationTarget; onResult?: WorkflowResultListener }) {
     if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() ||
         !activeAt(member, context.basisDate) || !connectedPages.includes(kind === 'daily' ? 'home' : kind === 'evaluation' ? 'documents' : kind)) return false
+    if (teacherPilot && kind === 'schoolAdmin' && task !== 'schoolTransition') return false
     if (!resume && hasDeliveryDraft(kind, editDrafts.dirtySlots(currentScope))) return false
     if (deliverySwitchBlocked(kind)) return false
     // 같은 업무도 미저장 입력이 있으면 새 대상·분야로 다시 마운트하지 않는다.
@@ -355,7 +372,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       return { member, date: context.basisDate, isCurrent: () => epoch === generation.current }
     }),
     navigate(next, onResult) {
-      if (!member || connectionUnavailable || navigationLocked || !connectedPages.includes(next)) return false
+      if (!member || connectionUnavailable || navigationLocked || !connectedPages.includes(next) || teacherPilot && next === 'schoolAdmin') return false
       if (isDeliveryKind(next)) return startDelivery(next, undefined, false, undefined, {onResult})
       if (!navigate(next)) return false
       setWorkReturn(next === 'assistant' ? undefined : {scope:currentScope,page:next,fromPage:'assistant'})
@@ -503,6 +520,10 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderSchoolAdmin(inDelivery: boolean) {
     if (!member || !context) return null
+    if (teacherPilot) return <SchoolTransitions key={inDelivery ? `${resetKey}:${activeDelivery?.key}` : resetKey} connection={connection} member={member} revision={refreshEpoch}
+      presentation={inDelivery ? 'assistant' : 'page'} onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined}
+      openRequest={transitionOpen?.scope === currentScope ? transitionOpen : undefined}
+      onNavigationLockChange={inDelivery ? setDeliveryLocked : setExtensionNavigationLocked} />
     const task = inDelivery ? activeDelivery?.task : undefined
     const initialSection = task === 'schoolRoster' ? 'teachers' : task === 'schoolMembership' ? 'roster' : task === 'schoolTransition' ? 'transitions' : task === 'schoolSettings' ? 'settings' : undefined
     return <SchoolAdminPanel onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} initialSection={initialSection}
@@ -535,7 +556,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       key={inDelivery ? `${resetKey}:${activeDelivery?.key}` : `${resetKey}:${opened?.key ?? ''}`}
       connection={connection} member={member} date={context.basisDate} revision={refreshEpoch}
       onNavigationLockChange={inDelivery ? setDeliveryLocked : setExtensionNavigationLocked}
-      onOpenSchoolAdmin={() => inDelivery ? startDelivery('schoolAdmin') : navigate('schoolAdmin')}
+      onOpenSchoolAdmin={teacherPilot ? undefined : () => inDelivery ? startDelivery('schoolAdmin') : navigate('schoolAdmin')}
       onOpenTeaching={() => inDelivery ? startDelivery('students') : navigate('students')} />
   }
   function renderTeaching(inDelivery: boolean) {
@@ -603,12 +624,12 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       onOpenTask={item => startDelivery('tasks',{key:crypto.randomUUID(),id:item.id,version:item.version})}
       onOpenCalendarList={() => startDelivery('calendar')} onOpenTaskList={() => startDelivery('tasks')} />
   }
-  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && (navigationLocked || Boolean(activeDelivery && pendingCount))} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantDeliveryFrame error={handoffError} workspace={activeDelivery} finishDisabled={Boolean(activeDelivery && (hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)) || (activeDelivery.kind === 'messages' ? messageDraft : activeDelivery.kind === 'collections' ? collectionDraft || generatedFile : false)))} talking={deliveryTalking} locked={deliveryLocked || assistantNavigationLocked || pendingCount > 0 || Boolean(deliveryTransfer)} onTalk={() => setDeliveryTalking(true)} onResume={() => setDeliveryTalking(false)} onClose={() => {if(!deliveryLocked && !pendingCount){setDelivery(undefined);setDeliveryTalking(false)}}} chat={<AssistantPanel workActive={Boolean(activeDelivery && !deliveryTalking)} workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={value => {
+  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={displayModules.find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && (navigationLocked || Boolean(activeDelivery && pendingCount))} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : teacherPilot ? 'tasks' : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantDeliveryFrame error={handoffError} workspace={activeDelivery} finishDisabled={Boolean(activeDelivery && (hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)) || (activeDelivery.kind === 'messages' ? messageDraft : activeDelivery.kind === 'collections' ? collectionDraft || generatedFile : false)))} talking={deliveryTalking} locked={deliveryLocked || assistantNavigationLocked || pendingCount > 0 || Boolean(deliveryTransfer)} onTalk={() => setDeliveryTalking(true)} onResume={() => setDeliveryTalking(false)} onClose={() => {if(!deliveryLocked && !pendingCount){setDelivery(undefined);setDeliveryTalking(false)}}} chat={<AssistantPanel memoryEnabled={!teacherPilot} workActive={Boolean(activeDelivery && !deliveryTalking)} workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={teacherPilot ? undefined : value => {
                const request = {...value,key:crypto.randomUUID()}
                if (!validKnowledgeOpenRequest(request,member)) throw new Error('현재 학교의 인용인지 확인하지 못했습니다.')
                if (!startDelivery('knowledge')) throw new Error('작성 중인 업무를 먼저 확인해 주세요.')
                setKnowledgeOpen({scope:currentScope,request,fromPage:'assistant'})
-             }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={forwardMessageAnswer} onNavigationLockChange={setAssistantNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} onDraftReady={(value, contextId) => {try {
+             }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={forwardMessageAnswer} onNavigationLockChange={setAssistantNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} onDraftReady={teacherPilot ? undefined : (value, contextId) => {try {
                if (deliverySwitchBlocked('documents') || deliveryTransfer) {setHandoffError('작성하던 업무를 먼저 마친 뒤 이 답변을 다시 선택해 주세요. 답변과 기존 입력은 유지했습니다.');return}
                const draft = assistantDocumentDraft(value,member)
                if (value.intent === 'guided_collection') {
@@ -644,16 +665,16 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       <ConnectionRecoveryActions hasDraft={draftCount > 0} hasPending={pendingCount > 0}
         announcement={navigation.announcement} onDiscard={discardUnsentInput} legacyHomeHref={legacyHomeHref} />
     </main> :
-      <WorkspaceShell onOpenAssistant={openAssistant} assistantOpen={assistantOpen || page === 'assistant'} sidePanel={assistantPanel} mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
-        serviceTools={<details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
+      <WorkspaceShell navigationModules={teacherPilot ? displayModules : undefined} onOpenAssistant={openAssistant} assistantOpen={assistantOpen || page === 'assistant'} sidePanel={assistantPanel} mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
+        serviceTools={!teacherPilot && <details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
         storageLabel={page === 'timetable' ? '학교 서버에서 확인' : page === 'collections' ? '학교 계정으로 연결' : '현재 학교 서버에 저장'} locked={navigationLocked} notice={navigation.announcement}
-        quickActions={<><WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={openSearchItem} /><WorkspaceHelp key={resetKey} connection={connection} memberId={member.id} scopeKey={`${expectedUserId}:${resetKey}:${currentScope}`} locked={navigationLocked} onNavigate={navigate}/></>}
-        contextControls={<label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
-        <ModuleBoundary moduleName={enabledModules('connected').find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
+        quickActions={<><WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={openSearchItem} />{!teacherPilot && <WorkspaceHelp key={resetKey} connection={connection} memberId={member.id} scopeKey={`${expectedUserId}:${resetKey}:${currentScope}`} locked={navigationLocked} onNavigate={navigate}/>}</>}
+        contextControls={!teacherPilot && <label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
+        <ModuleBoundary moduleName={displayModules.find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
           {assistantNavigationLocked && !assistantOpen && page !== 'assistant' && <p className="ws-ai-preserved" role="status">AI 입력 또는 확인할 요청이 보관되어 있습니다. <button type="button" onClick={openAssistant}>작성 중인 AI 대화 열기</button></p>}
           {handoffError && !assistantOpen && page !== 'assistant' && <p role="alert">{handoffError}</p>}
           {workReturn?.scope === currentScope && workReturn.page === page && <nav aria-label="작업 연결" className="timetable-source-navigation">
-            <button type="button" className="text-button" disabled={navigationLocked} onClick={() => workReturn.fromPage === 'assistant' ? openAssistant() : navigate(workReturn.fromPage)}>{workReturn.fromPage === 'assistant' ? 'AI 비서로 돌아가기' : workReturn.fromPage === 'knowledge' ? '학교 자료로 돌아가기' : `${enabledModules('connected').find(item => item.id === workReturn.fromPage)?.title ?? '이전 작업'}으로 돌아가기`}</button>
+            <button type="button" className="text-button" disabled={navigationLocked} onClick={() => workReturn.fromPage === 'assistant' ? openAssistant() : navigate(workReturn.fromPage)}>{workReturn.fromPage === 'assistant' ? 'AI 비서로 돌아가기' : workReturn.fromPage === 'knowledge' ? '학교 자료로 돌아가기' : `${displayModules.find(item => item.id === workReturn.fromPage)?.title ?? '이전 작업'}으로 돌아가기`}</button>
             <span>{page === 'messages' ? '전달받은 초안은 받는 사람과 내용을 확인한 뒤 전송하세요.' : page === 'collections' ? '연결한 문서와 제출 대상을 확인한 뒤 첨부·제출하세요.' : page === 'documents' ? 'AI 초안을 검토하고 필요한 내용만 반영하세요.' : '답변을 확인한 뒤 원래 작업을 이어갈 수 있습니다.'}</span>
             {navigationLocked && <span role="status">작성 중인 내용을 마치거나 같은 요청의 결과를 확인한 뒤 돌아갈 수 있습니다.</span>}
           </nav>}
@@ -666,7 +687,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
             <span>{timetableOpen.preparationStep ? '학교 준비 안내에서 연 입력 화면' : timetableOpen.requestId || timetableOpen.notificationId ? '알림에서 연 시간표 변경 요청' : `${timetableOpen.fromPage === 'calendar' ? '학교 일정' : '홈'}에서 연 ${timetableOpen.date} 수업`}</span>
             {navigationLocked && <span role="status">작성 중인 내용을 마치거나 같은 요청의 결과를 확인한 뒤 돌아갈 수 있습니다.</span>}
           </nav>}
-          {['schoolAdmin', 'students', 'messages', 'knowledge', 'documents', 'assistant', 'cooperation', 'timetable'].includes(page) ? <main id="main-content" className="main-content">{page !== 'timetable' && <header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>{enabledModules('connected').find(item => item.id === page)?.title}</h1></div></header>}<Suspense fallback={<p role="status">업무 화면을 준비하는 중…</p>}>
+          {['schoolAdmin', 'students', 'messages', 'knowledge', 'documents', 'assistant', 'cooperation', 'timetable'].includes(page) ? <main id="main-content" className="main-content">{page !== 'timetable' && <header className="page-header"><div><p className="eyebrow">{school.name} · {context.basisDate}</p><h1 tabIndex={-1}>{displayModules.find(item => item.id === page)?.title}</h1></div></header>}<Suspense fallback={<p role="status">업무 화면을 준비하는 중…</p>}>
             {page === 'schoolAdmin' ? renderSchoolAdmin(false) :
              page === 'timetable' ? renderTimetable(false) :
              page === 'students' ? renderTeaching(false) :
@@ -692,6 +713,6 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
               homeExtras={<><ModuleBoundary moduleName="내 업무" resetKey={resetKey}><TaskPanel key={resetKey} adapter={taskAdapter} member={member} date={context.basisDate} revision={refreshEpoch} compact onNavigationLockChange={setTaskNavigationLocked} onOpenTasks={resource.openTasks} /></ModuleBoundary><ModuleBoundary moduleName="학교 급식" resetKey={resetKey}><Suspense fallback={null}><NeisMeals connection={connection} member={member} date={context.basisDate}/></Suspense></ModuleBoundary></>} />}
         </ModuleBoundary>
       </WorkspaceShell>}
-    {connectionUnavailable && <details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
+    {connectionUnavailable && !teacherPilot && <details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
   </StyleBoundary></PendingRequestsProvider></EditDraftsProvider>
 }
