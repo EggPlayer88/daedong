@@ -14,7 +14,10 @@ interface Props {
 export function AssistantDock({ open, fullPage = false, closeDisabled = false, contextLabel, onClose, children }: Props) {
   const id = useId(), panel = useRef<HTMLDialogElement>(null), close = useRef<HTMLButtonElement>(null)
   const returnTo = useRef<HTMLElement | null>(null)
+  const innerFocus = useRef<HTMLElement | null>(null)
+  const visible = useRef(false)
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 1100px)').matches)
+  const modal = mobile && !fullPage
   useEffect(() => {
     const query = window.matchMedia('(max-width: 1100px)')
     const update = () => setMobile(query.matches)
@@ -27,13 +30,18 @@ export function AssistantDock({ open, fullPage = false, closeDisabled = false, c
     if (open || fullPage) {
       const root = element.getRootNode()
       const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
-      if (active instanceof HTMLElement && !element.contains(active)) returnTo.current = active
+      if (!visible.current && active instanceof HTMLElement && !element.contains(active)) returnTo.current = active
+      const focused = visible.current ? innerFocus.current : null
       // 같은 대화를 넓은 화면에서는 옆자리로, 작은 화면에서는 modal로 연다.
       element.close()
-      if (mobile && !fullPage) element.showModal(); else element.show()
-      close.current?.focus()
+      if (modal) element.showModal(); else element.show()
+      // 반응형 전환이 사용자가 고른 버튼을 닫기 버튼으로 바꾸지 않게 한다.
+      if (focused?.isConnected && element.contains(focused) && focused.getClientRects().length && !focused.matches(':disabled')) focused.focus()
+      else close.current?.focus()
+      visible.current = true
     } else {
       element.close()
+      visible.current = false
       const target = returnTo.current
       if (target?.isConnected && target.getClientRects().length) target.focus()
       else if (target) {
@@ -43,8 +51,14 @@ export function AssistantDock({ open, fullPage = false, closeDisabled = false, c
       }
       returnTo.current = null
     }
-    return () => element.close()
-  }, [open, mobile, fullPage])
+    innerFocus.current = null
+    return () => {
+      const root = element.getRootNode()
+      const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+      innerFocus.current = active instanceof HTMLElement && element.contains(active) ? active : null
+      element.close()
+    }
+  }, [open, modal, fullPage])
   return <dialog ref={panel} className={`ws-ai-dock${fullPage ? ' ws-ai-full' : ''}`} aria-labelledby={id}
     onCancel={event => { event.preventDefault(); if (!closeDisabled) onClose() }} onKeyDown={event => {
       if (!fullPage && !mobile && event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); if (!closeDisabled) onClose() }
