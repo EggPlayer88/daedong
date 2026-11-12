@@ -171,7 +171,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
           try {
             const identity = await connection.getIdentity()
             if (!alive || version !== generation.current) continue
-            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== (teacherPilot ? 'teacher' : 'superadmin')) { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error('현재 로그인 계정으로 업무 화면을 이용할 수 없습니다. 로그인·승인 상태를 확인해 주세요.') }
+            if (!identity?.approved || identity.userId !== expectedUserId || identity.profile?.role !== (teacherPilot ? 'teacher' : 'superadmin')) { pendingRequests.clear(); editDrafts.clear(); clearHandoffs(); throw new Error(teacherPilot ? '현재 로그인 계정으로 업무 화면을 이용할 수 없습니다. 로그인·승인 상태를 확인해 주세요.' : '현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다. 기존 앱의 로그인·승인 상태를 확인해 주세요.') }
             if (teacherPilot) {
               const permitted = teacherPilotAccess(await connection.rpcVerified('workhub_teacher_pilot_access'), teacherPilot)
               if (!sameTeacherPilot(teacherPilot, permitted)) throw new Error('시험 참여 기간 또는 허용 범위가 변경됐습니다. 학교 업무 메뉴를 다시 열어 주세요.')
