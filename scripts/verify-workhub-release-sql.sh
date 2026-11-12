@@ -64,11 +64,11 @@ mkdir -p "$OUTPUT" "$SNAPSHOT"
 echo "결과 폴더: $OUTPUT"
 
 # 실행 중 소스가 바뀌어도 시험은 처음 캡처한 앱으로 끝낸다. SQL·앱의 파일별 hash를 함께 남긴다.
-# .sh의 CRLF만 사본에서 LF로 바꾸며, SQL/원본 테스트의 내용은 바꾸지 않는다.
+# .sh의 CRLF만 사본에서 LF로 바꾼다. SQL/원본 테스트는 보존하고 아래에서 시험 사본의 접수 메타 비교만 보강한다.
 python3 - "$REPO" "$SNAPSHOT" "$OUTPUT/source-manifest.json" "$SQL_REF" <<'PY'
 import hashlib, json, pathlib, shutil, subprocess, sys
 root, target, output = map(pathlib.Path, sys.argv[1:4])
-prefixes = ['database/workhub', 'migrations', 'apps/workhub/src', 'apps/main/api', 'packages/shared', 'docs/workhub/database-integrated', 'scripts/verify-workhub-release-sql.sh', 'scripts/lib/workhub-release-results.mjs', 'tests/integration/workhub-release-relations.ts']
+prefixes = ['database/workhub', 'migrations', 'apps/workhub/src', 'apps/main/api', 'packages/shared', 'docs/workhub/database-integrated', 'scripts/verify-workhub-release-sql.sh', 'scripts/lib/workhub-release-results.mjs', 'tests/integration/workhub-release-relations.ts', 'tests/integration/workhub-transition-capture-metadata.mjs']
 names = subprocess.check_output(['git', '-C', str(root), 'ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', *prefixes]).decode().split('\0')
 rows, normalized = [], []
 for name in filter(None, names):
@@ -89,6 +89,8 @@ manifest = {'schemaVersion': 1, 'sqlCommit': sys.argv[4], 'appCommit': subproces
 output.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 print(f'원본 사본 {len(rows)}개 / 셸 LF 보정 {len(normalized)}개 (SQL 변경 0)')
 PY
+# PR #126의 앱은 판·접수 시각도 반환한다. 고정 원본의 두 비교식만 시험 사본에서 확장하며 누락·다른 값은 실패한다.
+node "$SNAPSHOT/tests/integration/workhub-transition-capture-metadata.mjs" "$SNAPSHOT" "$OUTPUT/source-manifest.json" receipt-metadata-v1
 ln -s "$REPO/node_modules" "$SNAPSHOT/node_modules"
 export INT_APP_SRC="$SNAPSHOT" P8_APP_SRC="$SNAPSHOT"
 export R0_SQL_DIR="$SNAPSHOT/database/workhub/r0"
