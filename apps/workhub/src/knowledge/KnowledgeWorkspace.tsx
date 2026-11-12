@@ -4,9 +4,11 @@ import type {Membership} from '../contracts'
 import type {SupabaseConnection} from '../connection/supabase-connection'
 import {useEditDraft} from '../app/edit-drafts'
 import {recoveryScope,usePendingRequest} from '../app/pending-requests'
+import type {WorkflowResultListener} from '../app/workflow-results'
 import { ServiceError } from '../services/service-values'
 import {createKnowledgeService} from './adapter'
-import {blankSource,knowledgeCommand,sourceEffective,sourceInput,sourceLabels,SOURCE_KINDS,type KnowledgeCommand,type KnowledgeList,type KnowledgeSource,type SourceInput} from './contracts'
+import {blankSource,knowledgeCommand,knowledgeReceipt,sourceEffective,sourceInput,sourceLabels,SOURCE_KINDS,type KnowledgeCommand,type KnowledgeList,type KnowledgeSource,type SourceInput} from './contracts'
+import {reportKnowledgeResult} from './workflow-results'
 import styles from './knowledge.css?inline'
 import {KnowledgeImport,KnowledgeSourceFile} from './KnowledgeImport'
 import {KnowledgeCitationPanel} from './KnowledgeCitationPanel'
@@ -14,10 +16,10 @@ import {KnowledgeHistoryPanel} from './KnowledgeHistoryPanel'
 import {knowledgeAssistantRequest,validKnowledgeOpenRequest,type KnowledgeAssistantRequest,type KnowledgeOpenRequest} from './assistant-links'
 interface SourceAction{source:KnowledgeSource;kind:'publish'|'retire';reason:string}
 interface Draft{base?:{id:string;version:number};recoveredAction?:Extract<KnowledgeCommand,{reason:string}>;input:SourceInput;original?:KnowledgeSource;action?:SourceAction;pending?:{command:KnowledgeCommand;key:string}}
-export interface KnowledgeWorkspaceProps{connection:SupabaseConnection;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onAskAssistant?:(request:KnowledgeAssistantRequest)=>void|Promise<void>;openRequest?:KnowledgeOpenRequest;onReturnToSource?:()=>void;returnLabel?:string}
+export interface KnowledgeWorkspaceProps{connection:SupabaseConnection;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener;onAskAssistant?:(request:KnowledgeAssistantRequest)=>void|Promise<void>;openRequest?:KnowledgeOpenRequest;onReturnToSource?:()=>void;returnLabel?:string}
 type Props=KnowledgeWorkspaceProps
 export function KnowledgeWorkspace(props:Props){return <ScopedKnowledgeWorkspace key={recoveryScope(props.member)} {...props}/> }
-function ScopedKnowledgeWorkspace({connection,member,date,revision=0,onNavigationLockChange,onAskAssistant,openRequest,onReturnToSource,returnLabel}:Props){
+function ScopedKnowledgeWorkspace({connection,member,date,revision=0,onNavigationLockChange,onWorkflowResult,onAskAssistant,openRequest,onReturnToSource,returnLabel}:Props){
  const service=useMemo(()=>createKnowledgeService(connection),[connection]),memory=useEditDraft<Draft>(member,'knowledge-editor')
  const recovery=usePendingRequest(member,'knowledge'),importRecovery=usePendingRequest(member,'knowledgeImport')
  const[importing,setImporting]=useState(Boolean(importRecovery.request)),[importLocked,setImportLocked]=useState(false)
@@ -26,21 +28,24 @@ function ScopedKnowledgeWorkspace({connection,member,date,revision=0,onNavigatio
  const[reload,setReload]=useState(0),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('')
  const[handing,setHanding]=useState<string>(),handoff=useRef(false)
  const[historySource,setHistorySource]=useState<{id:string;title:string}>()
- const epoch=useRef(0),writing=useRef(false),heading=useRef<HTMLHeadingElement>(null)
+ const epoch=useRef(0),writing=useRef(false),heading=useRef<HTMLHeadingElement>(null),lifetime=useRef({service,date})
+ // 새 연결·기준일이 렌더된 순간부터 이전 저장 응답과 결과 전달을 분리한다.
+ if(lifetime.current.service!==service||lifetime.current.date!==date){lifetime.current={service,date};epoch.current++}
  const setDraft=(value:Draft|undefined)=>{memory.save(value);setDraftState(value)}
  const action=draft?.action
  const draftSourceId=draft?.original?.id??draft?.base?.id
  const draftAllowed=!!data&&!loading&&(!draftSourceId||data.items.some(x=>x.id===draftSourceId&&x.status==='draft'&&(data.canManage||x.authorMemberId===member.id)))&&(!action||(data.canManage&&data.items.some(x=>x.id===action.source.id)))
  const setAction=(value:SourceAction|undefined)=>setDraft(value?{input:blankSource(),action:value}:undefined)
- useEffect(()=>{return()=>{epoch.current++}},[service,member.id])
+ useEffect(()=>{writing.current=false;setBusy(false);handoff.current=false;setHanding(undefined);return()=>{epoch.current++}},[service,member.id,date])
  useEffect(()=>{onNavigationLockChange?.(!!draft||busy||!!action||importLocked);return()=>onNavigationLockChange?.(false)},[draft,busy,action,importLocked,onNavigationLockChange])
  useEffect(()=>{let live=true;setLoading(true);setError('');setData(undefined);void service.list(member.id,applied,cursor).then(value=>{if(live)setData(value)}).catch(failure=>{if(live)setError(failure instanceof ServiceError?failure.message:'학교 자료를 불러오지 못했습니다.')}).finally(()=>{if(live)setLoading(false)});return()=>{live=false}},[service,member.id,applied,cursor,reload,revision])
  useEffect(()=>{if(draft)heading.current?.focus()},[!!draft])
  async function save(command:KnowledgeCommand,key:string=crypto.randomUUID()){
   if(writing.current||(!draft?.pending&&(!draftAllowed||draft?.recoveredAction)))return
+  try{command=knowledgeCommand(command)}catch(failure){setError(failure instanceof ServiceError?failure.message:'저장할 입력을 다시 확인해 주세요.');return}
   const snapshot={...draft,input:draft?.input??('input'in command?command.input:blankSource()),original:draft?.original,pending:{command,key}}
-  recovery.put({command,key});writing.current=true;setBusy(true);setError('');setNotice('');setDraft(snapshot);const started=epoch.current
-  try{const receipt=await service.mutate(member.id,command,key);if(started!==epoch.current)return;recovery.remove(key);setDraft(undefined);setNotice(`서버에 ${receipt.version}판으로 저장했습니다.`);setReload(value=>value+1)}
+  recovery.put({command,key});writing.current=true;setBusy(true);setError('');setNotice('');setDraft(snapshot);const started=epoch.current,report=onWorkflowResult
+  try{const receipt=knowledgeReceipt(await service.mutate(member.id,command,key),key,command);if(command.kind==='create'&&receipt.version!==1)throw new ServiceError('RESULT_UNKNOWN');if(started!==epoch.current)return;recovery.remove(key);setDraft(undefined);setNotice(`서버에 ${receipt.version}판으로 저장했습니다.`);reportKnowledgeResult(report,member,command.kind,receipt);setReload(value=>value+1)}
   catch(failure){if(started!==epoch.current)return;if(failure instanceof ServiceError&&['CANCELLED','FORBIDDEN','INACTIVE_MEMBERSHIP'].includes(failure.code))setData(undefined);setError(failure instanceof ServiceError?failure.message:'저장 결과를 확인하지 못했습니다. 원래 요청으로 다시 확인해 주세요.');if(failure instanceof ServiceError&&['INVALID_INPUT','CONFLICT','FORBIDDEN','NOT_FOUND','INACTIVE_MEMBERSHIP'].includes(failure.code)){recovery.remove(key);setDraft({...snapshot,pending:undefined})}}
   finally{if(started===epoch.current){writing.current=false;setBusy(false)}}
  }
@@ -50,9 +55,9 @@ function ScopedKnowledgeWorkspace({connection,member,date,revision=0,onNavigatio
   const started=epoch.current;handoff.current=true;setHanding(source.id);setError('')
   try{await onAskAssistant(knowledgeAssistantRequest(source,member,date))}
   catch{if(started===epoch.current)setError('이 자료를 비서에게 전달하지 못했습니다. 게시 상태와 적용 기간을 다시 확인해 주세요.')}
-  finally{handoff.current=false;if(started===epoch.current)setHanding(undefined)}
+  finally{if(started===epoch.current){handoff.current=false;setHanding(undefined)}}
  }
- if(importing)return <section className="knowledge document-library-ui"><style>{styles}</style><style>{libraryStyles}</style><KnowledgeImport connection={connection} member={member} date={date} onNavigationLockChange={onImportLock} onClose={()=>setImporting(false)} onCreated={receipt=>{setImporting(false);setNotice(`원본을 연결한 자료 초안을 ${receipt.version}판으로 만들었습니다. 게시 검토는 별도로 진행해 주세요.`);setReload(value=>value+1)}}/></section>
+ if(importing)return <section className="knowledge document-library-ui"><style>{styles}</style><style>{libraryStyles}</style><KnowledgeImport onWorkflowResult={onWorkflowResult} connection={connection} member={member} date={date} onNavigationLockChange={onImportLock} onClose={()=>setImporting(false)} onCreated={receipt=>{setImporting(false);setNotice(`원본을 연결한 자료 초안을 ${receipt.version}판으로 만들었습니다. 게시 검토는 별도로 진행해 주세요.`);setReload(value=>value+1)}}/></section>
  return <section className="knowledge document-library-ui" aria-label="학교 지식 자료"><style>{styles}</style><style>{libraryStyles}</style>
  <header className="ws-page-intro"><div><h2>학교 자료</h2></div><div className="knowledge-actions"><button type="button" className="knowledge-primary" disabled={busy||!!draft||!!action} onClick={()=>setImporting(true)}>HWPX에서 자료 가져오기</button><button type="button" disabled={busy||!!draft||!!action||!data} onClick={()=>edit()}>자료 초안 등록</button></div></header>
  {error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}

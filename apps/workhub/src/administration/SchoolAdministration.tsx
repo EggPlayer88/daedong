@@ -94,7 +94,7 @@ export function SchoolAdministration({ connection, member, date, revision = 0, o
     <div className={assistant ? 'school-administration-conversation__work' : undefined}>
       {tab === 'teachers' ? <Suspense fallback={<p role="status">교사 명부를 여는 중…</p>}><TeacherRosterPanel connection={connection} member={member} date={date} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /></Suspense> :
         tab === 'neis' ? <Suspense fallback={<p role="status">나이스 자료를 여는 중…</p>}><NeisWorkspace connection={connection} member={member} date={date} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /></Suspense> :
-          tab === 'settings' ? <SchoolAdminPanel connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /> :
+          tab === 'settings' ? <SchoolAdminPanel onWorkflowResult={onWorkflowResult} connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /> :
             tab === 'roster' ? <SchoolRosterPanel connection={connection} member={member} date={date} onNavigationLockChange={setSettingsLocked} onUpdated={onUpdated} /> :
               tab === 'ai' ? <Suspense fallback={<p role="status">학교 AI 설정을 여는 중…</p>}><SchoolAiSettingsPanel connection={connection} member={member} revision={revision} onNavigationLockChange={setAiLocked} /></Suspense> :
                 <SchoolTransitions presentation={presentation} openRequest={transitionOpen} connection={connection} member={member} revision={revision} onNavigationLockChange={setTransitionsLocked} onWorkflowResult={onWorkflowResult} />}

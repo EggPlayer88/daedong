@@ -1,4 +1,5 @@
 // 기존 서버 검증을 통과한 처리 결과의 화면 전달용 요약이다. 실행 명령이나 권한 근거로 사용하지 않는다.
+import schoolAdminLimits from '../setup/assets/school-admin.json'
 interface ResultBase { scope: string; key: string; composeId?: string }
 interface RecordedResult { recordedAt: string }
 export type CollectionResultAction = 'create' | 'update' | 'publish' | 'save_draft' | 'submit' | 'review' | 'withdraw' | 'open_correction'
@@ -7,6 +8,7 @@ export type TransitionResultState = 'awaiting_admin' | 'pending' | 'accepted' | 
 export type CooperationResultAction = 'create' | 'accept' | 'decline' | 'request_completion' | 'confirm_completion' | 'return_completion' | 'retract_completion' | 'cancel'
 export type TeachingResultAction = 'course_create' | 'roster_import' | 'observation_save' | 'record_withdraw' | 'rubric_save' | 'assessment_save' | 'activity_review' | 'activity_import' | 'activity_correct'
 export type SchoolDataResultAction = 'course_correct' | 'course_cancel' | 'course_archive' | 'course_restore' | 'course_teacher_correct' | 'student_correct' | 'student_void' | 'student_restore' | 'enrollment_correct'
+export type RelationResultAction = 'assignment_end' | 'assignment_replace' | 'membership_end' | 'student_transfer_out'
 export type WorkflowResult = ResultBase & (
   | RecordedResult & { kind: 'message'; action: 'start' | 'reply'; deliveries: { threadId: string; messageId: string; sequence: number }[] }
   | RecordedResult & { kind: 'collection'; action: CollectionResultAction; requestId: string; resourceId: string; resourceVersion: number }
@@ -19,6 +21,10 @@ export type WorkflowResult = ResultBase & (
   | RecordedResult & { kind: 'teaching'; action: TeachingResultAction; courseId: string; entityId: string; entityVersion: number; recordKind?: 'observation' | 'assessment'; confirmed?: boolean; disposition?: 'hold' | 'adopt' | 'exclude' | 'withdraw'; previousImportId?: string }
   | RecordedResult & { kind: 'school_data'; action: SchoolDataResultAction; courseId: string; entityId: string; entityVersion: number }
   | RecordedResult & { kind: 'publication'; action: 'publish' | 'publish_manifest'; publicationId: string; publicationVersion: number; changedCount: number }
+  | RecordedResult & { kind: 'school_configuration'; action: 'update' | 'create_year'; configurationId: string; configurationVersion: number; schoolYear: number }
+  | RecordedResult & { kind: 'relations'; action: RelationResultAction; courseId: string; relationId: string; relationVersion: number; changedCount: number; replacementAssignmentId?: string }
+  | RecordedResult & { kind: 'knowledge'; action: 'create' | 'update' | 'publish' | 'retire' | 'import'; sourceId: string; sourceVersion: number }
+  | RecordedResult & { kind: 'execution'; action: 'save' | 'correct'; recordId: string; recordVersion: number; lessonId: string; lessonVersion: number; outcome: 'completed' | 'not_performed' | 'needs_review' }
   | { kind: 'record_export'; action: 'preview' | 'csv_requested' | 'print_opened'; observedAt: string; courseId: string; studentId: string; firstDay: string; lastDay: string; observations: boolean; assessments: boolean; includeWithdrawn: boolean; recordCount: number; fingerprint: string }
   | { kind: 'guided'; action: 'render'; observedAt: string; artifactId: string; templateId: string; templateVersion: number; responseId: string; responseVersion: number; sha256: string; bytes: number }
 )
@@ -76,6 +82,18 @@ export function copyWorkflowResult(raw: WorkflowResult): WorkflowResult | undefi
   }
   if (!instant(raw.recordedAt)) return
   const base = { ...shared, recordedAt: raw.recordedAt }
+  if (raw.kind === 'school_configuration' && ['update', 'create_year'].includes(raw.action) && text(raw.configurationId) && version(raw.configurationVersion) && raw.configurationVersion >= 2 && Number.isSafeInteger(raw.schoolYear) && raw.schoolYear >= schoolAdminLimits.schoolYearBounds.min && raw.schoolYear <= schoolAdminLimits.schoolYearBounds.max)
+    return { ...base, kind: raw.kind, action: raw.action, configurationId: raw.configurationId, configurationVersion: raw.configurationVersion, schoolYear: raw.schoolYear }
+  if (raw.kind === 'relations' && ['assignment_end', 'assignment_replace', 'membership_end', 'student_transfer_out'].includes(raw.action) && text(raw.courseId) && text(raw.relationId) && version(raw.relationVersion) && raw.relationVersion >= 2 && version(raw.changedCount) &&
+      (raw.action === 'assignment_replace' ? text(raw.replacementAssignmentId) && raw.replacementAssignmentId !== raw.relationId : raw.replacementAssignmentId === undefined))
+    return { ...base, kind: raw.kind, action: raw.action, courseId: raw.courseId, relationId: raw.relationId, relationVersion: raw.relationVersion, changedCount: raw.changedCount,
+      ...(raw.action === 'assignment_replace' ? { replacementAssignmentId: raw.replacementAssignmentId } : {}) }
+  if (raw.kind === 'knowledge' && ['create', 'update', 'publish', 'retire', 'import'].includes(raw.action) && text(raw.sourceId) && version(raw.sourceVersion) &&
+      (['create', 'import'].includes(raw.action) ? raw.sourceVersion === 1 : raw.sourceVersion >= 2))
+    return { ...base, kind: raw.kind, action: raw.action, sourceId: raw.sourceId, sourceVersion: raw.sourceVersion }
+  if (raw.kind === 'execution' && ['save', 'correct'].includes(raw.action) && text(raw.recordId) && text(raw.lessonId) && version(raw.recordVersion) && version(raw.lessonVersion) &&
+      (raw.action === 'save' ? raw.recordVersion === 1 : raw.recordVersion >= 2) && ['completed', 'not_performed', 'needs_review'].includes(raw.outcome))
+    return { ...base, kind: raw.kind, action: raw.action, recordId: raw.recordId, recordVersion: raw.recordVersion, lessonId: raw.lessonId, lessonVersion: raw.lessonVersion, outcome: raw.outcome }
   if (raw.kind === 'school_data' && Object.hasOwn(schoolDataLabels, raw.action) && text(raw.courseId) && text(raw.entityId) && version(raw.entityVersion) && raw.entityVersion >= 2 &&
       (!raw.action.startsWith('course_') || raw.courseId === raw.entityId))
     return { ...base, kind: raw.kind, action: raw.action, courseId: raw.courseId, entityId: raw.entityId, entityVersion: raw.entityVersion }
@@ -122,6 +140,10 @@ export function copyWorkflowResult(raw: WorkflowResult): WorkflowResult | undefi
 }
 
 export function workflowResultLabel(result: WorkflowResult): string {
+  if (result.kind === 'school_configuration') return result.action === 'create_year' ? '새 학년도 구성 저장 · 담당 배정 별도' : '학교 기본 구성 저장'
+  if (result.kind === 'relations') return { assignment_end: '수업 담당 종료', assignment_replace: '수업 담당 교체', membership_end: '수강 종료', student_transfer_out: '학생 전출 처리 · 기존 기록 보존' }[result.action]
+  if (result.kind === 'knowledge') return { create: '학교 자료 초안 저장 · 게시 전', update: '학교 자료 초안 변경 · 게시 전', publish: '학교 자료 게시 · 적용 기간 별도', retire: '학교 자료 게시 종료', import: 'HWPX 자료 초안 저장 · 게시 전' }[result.action]
+  if (result.kind === 'execution') return `실시 기록 ${result.action === 'save' ? '저장' : '정정'} · ${{ completed: '실시 완료', not_performed: '미실시', needs_review: '확인 필요' }[result.outcome]}`
   if (result.kind === 'school_data') return schoolDataLabels[result.action]
   if (result.kind === 'publication') return `시간표 공개 · 수업 ${result.changedCount}건 반영`
   if (result.kind === 'record_export') return result.action === 'preview' ? `기록 미리보기 · ${result.recordCount}건 · 출력 전`

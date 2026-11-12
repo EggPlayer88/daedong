@@ -3,13 +3,15 @@ import type { Membership } from '../contracts'
 import type { OperationLesson } from './operations-contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest, type TimetableRecovery } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
+import { reportExecutionResult } from './execution-workflow-results'
 import { ServiceError } from '../services/service-values'
 import { executionOutcomeLabels, executionRecordCommand, type ExecutionOutcome, type ExecutionRecord, type ExecutionRecordCommand, type ExecutionRecordReceipt, type ExecutionRecordsView, type TimetableExecutionRecordsServer } from './execution-records'
 import policy from './execution-records-policy.json'
 import executionStyles from './execution-records.css?inline'
 import { RequestClosePanel } from './RequestClosePanel'
 
-interface Props { member: Membership; lesson?: OperationLesson; server?: TimetableExecutionRecordsServer; disabled?: boolean; refreshKey?: number; onLockChange?: (locked: boolean) => void; onRecorded?: (receipt: ExecutionRecordReceipt) => void; openRequest?: { lessonId: string; token: number } }
+interface Props { member: Membership; date?: string; lesson?: OperationLesson; server?: TimetableExecutionRecordsServer; disabled?: boolean; refreshKey?: number; onLockChange?: (locked: boolean) => void; onRecorded?: (receipt: ExecutionRecordReceipt) => void; onWorkflowResult?: WorkflowResultListener; openRequest?: { lessonId: string; token: number } }
 type Draft = { kind: 'editing'; command: ExecutionRecordCommand } | { kind: 'saved'; receipt: ExecutionRecordReceipt }
 const errorText = (error: unknown) => error instanceof ServiceError ? error.message : '기록 결과를 확인하지 못했습니다. 입력과 요청 번호를 보관했습니다.'
 const definitive = ['INVALID_INPUT', 'CONFLICT', 'FORBIDDEN', 'INACTIVE_MEMBERSHIP', 'NOT_READY', 'NOT_FOUND']
@@ -34,6 +36,10 @@ export function TimetableExecutionRecordsPanel(props: Props) {
   const editAllowed = Boolean(view && !loading && !busy && !pending && !props.disabled && draft?.kind !== 'saved' && view.allowedOutcomes.length)
   const store = useCallback((value: Draft | undefined) => { setDraftScope(token); setDraft(value); memory.save(value, Boolean(value)) }, [memory, token])
   useEffect(() => () => { life.current++; readEpoch.current++ }, [])
+  useEffect(() => {
+    life.current++; operation.current = false; setBusy(false); setHistoryBusy(false); setConfirmed(false); setMissingKey(undefined); setResendConfirmed(false)
+    return () => { life.current++; operation.current = false }
+  }, [props.server, props.date, selection])
   useEffect(() => { props.onLockChange?.(lock); return () => props.onLockChange?.(false) }, [lock, props.onLockChange])
   useEffect(() => { life.current++; operation.current = false; setBusy(false); setHistoryBusy(false); setDraftScope(token); setDraft(memory.initial); setConfirmed(false); setMissingKey(undefined); setResendConfirmed(false); setError(''); setNotice('') }, [token, memory])
   useEffect(() => {
@@ -73,14 +79,15 @@ export function TimetableExecutionRecordsPanel(props: Props) {
       try { request = { key: crypto.randomUUID(), command: executionRecordCommand(activeDraft, view) } } catch (failure) { setError(errorText(failure)); return }
       pendingStore.put(request)
     }
-    const epoch = life.current, scope = selection; operation.current = true; setBusy(true); setConfirmed(false); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
+    const epoch = life.current, scope = selection, resultListener = props.onWorkflowResult; operation.current = true; setBusy(true); setConfirmed(false); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
     try {
       const receipt = await (mode === 'recover' ? server.recover(props.member.id, request.command, request.key) : mode === 'resend' ? server.resend(props.member.id, request.command, request.key) : server.execute(props.member.id, request.command, request.key))
       if (life.current !== epoch || current.current.selection !== scope) return
       pendingStore.remove(request.key)
       if (request.command.lessonId === lessonId) { store({ kind: 'saved', receipt }); setRefresh(value => value + 1) }
       setNotice('원래 요청의 저장 접수증을 확인했습니다. 현재 기록을 다시 읽고 있습니다.')
-      current.current.props.onRecorded?.(receipt)
+      reportExecutionResult(resultListener, token, request.key, request.command, receipt)
+      try { current.current.props.onRecorded?.(receipt) } catch { /* 후속 화면 갱신 오류로 접수를 미확정으로 되돌리지 않는다. */ }
     } catch (failure) {
       if (life.current !== epoch || current.current.selection !== scope) return
       setError(errorText(failure))
@@ -95,7 +102,7 @@ export function TimetableExecutionRecordsPanel(props: Props) {
   async function closeRequest() {
     const server = props.server
     if (!server?.abandon || !pending?.closeState || operation.current) return
-    const request = structuredClone(pending), epoch = life.current, scope = selection
+    const request = structuredClone(pending), epoch = life.current, scope = selection, resultListener = props.onWorkflowResult
     operation.current = true; setBusy(true); setConfirmed(false); setError(''); setNotice(''); setMissingKey(undefined); setResendConfirmed(false)
     pendingStore.put({ ...request, closeState: 'closing' })
     try {
@@ -105,7 +112,8 @@ export function TimetableExecutionRecordsPanel(props: Props) {
       if (result.outcome === 'applied') {
         store({ kind: 'saved', receipt: result.receipt })
         setNotice('원래 요청의 실시 기록이 이미 저장됐습니다. 현재 기록을 다시 확인합니다.')
-        current.current.props.onRecorded?.(result.receipt)
+        reportExecutionResult(resultListener, token, request.key, request.command, result.receipt)
+        try { current.current.props.onRecorded?.(result.receipt) } catch { /* 후속 화면 갱신 오류로 접수를 미확정으로 되돌리지 않는다. */ }
       } else {
         store({ kind: 'editing', command: request.command })
         setNotice('이 요청을 닫았습니다. 기록 입력은 보관했습니다. 최신 수업과 기록을 확인한 뒤 새 요청으로 저장할 수 있습니다.')

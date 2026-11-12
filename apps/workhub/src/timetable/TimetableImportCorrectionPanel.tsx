@@ -48,11 +48,11 @@ export function TimetableImportCorrectionPanel({ connection, date, revision, mem
       {locked && <span role="status">작성 중인 정정을 마치거나 취소하고, 처리 중인 요청의 결과를 확인해 주세요.</span>}
     </div> : null}
     <Suspense fallback={<p role="status">자료 정정 화면을 준비하는 중…</p>}>
-      {target.kind === 'school' ? <SchoolAdminPanel connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={notifyLock} onUpdated={notifySaved} />
+      {target.kind === 'school' ? <SchoolAdminPanel onWorkflowResult={onWorkflowResult} connection={connection} member={member} date={date} revision={revision} onNavigationLockChange={notifyLock} onUpdated={notifySaved} />
         : target.kind === 'setup' ? <SetupPanel server={setup} member={member} disabled={false} expectedTermId={target.termId} refreshRevision={revision} initialOpen onLockChange={notifyLock} onSaved={notifySaved} />
         : <div className="teaching-workspace">{target.kind === 'course'
           ? <MaintenancePanel onWorkflowResult={onWorkflowResult} date={date} server={maintenance} member={member} courseId={target.courseId} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} />
-          : <>{relationCourseId !== target.courseId && <p role="status">다른 수업 [{relationCourseId}]에서 처리 중이던 관계 변경을 먼저 확인합니다. 원래 요청 번호를 유지합니다.</p>}<RelationsPanel adapter={relations} member={member} courseId={relationCourseId} revision={revision} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} /></>}</div>}
+          : <>{relationCourseId !== target.courseId && <p role="status">다른 수업 [{relationCourseId}]에서 처리 중이던 관계 변경을 먼저 확인합니다. 원래 요청 번호를 유지합니다.</p>}<RelationsPanel onWorkflowResult={onWorkflowResult} date={date} adapter={relations} member={member} courseId={relationCourseId} revision={revision} closeLabel="시간표 입력으로 돌아가기" onClose={onClose} onSaved={notifySaved} /></>}</div>}
     </Suspense>
   </section>
 }

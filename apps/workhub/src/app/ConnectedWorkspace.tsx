@@ -560,7 +560,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderKnowledge(inDelivery: boolean) {
     if (!member || !context) return null
-    return <KnowledgeWorkspace returnLabel={inDelivery ? '대화로 돌아가기' : knowledgeOpen?.fromPage ? '이전 화면으로 돌아가기' : undefined}
+    return <KnowledgeWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} returnLabel={inDelivery ? '대화로 돌아가기' : knowledgeOpen?.fromPage ? '이전 화면으로 돌아가기' : undefined}
       openRequest={knowledgeOpen?.scope === currentScope ? knowledgeOpen.request : undefined}
       onReturnToSource={inDelivery ? () => setDeliveryTalking(true) : knowledgeOpen?.scope === currentScope && knowledgeOpen.fromPage !== 'knowledge' ? () => {navigate(knowledgeOpen.fromPage ?? 'assistant')} : undefined}
       onAskAssistant={request => sendToAssistant(knowledgeAssistantContext(request,member))}

@@ -1,46 +1,66 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
-import { usePendingRequest } from '../app/pending-requests'
-import { TeachingError } from './contracts'
+import { recoveryScope, usePendingRequest } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
+import { TeachingError, teachingScope } from './contracts'
 import policy from './policy.json'
 import { RelationsLists } from './RelationsLists'
 import type { TeachingRelationsAdapter, RelationsSnapshot, TeachingRelation, RelationIntent, RelationPreview, RelationCommit, RelationIntentKind } from './relations-contracts'
-import { validateRelationSelection, validateRelationCommit, relationCommit, assertRelationPreviewFresh } from './relations-validation'
+import { validateRelationSelection, validateRelationCommit, relationCommit, relationsReceipt, assertRelationPreviewFresh } from './relations-validation'
 
 interface RelationDraft { intent?: RelationIntent; preview?: RelationPreview; confirmed: boolean }
 const empty = (): RelationDraft => ({ confirmed:false })
 const names: Record<RelationIntentKind,string> = { assignment_end:'담당 교사 종료', assignment_replace:'담당 교사 교체', membership_end:'이 수업의 수강 종료', student_transfer_out:'학생 전출 처리' }
 const relationNames = { assignment:'교사 담당', course_membership:'수강 관계', enrollment:'학교 학적' }
-export function RelationsPanel({adapter,member,courseId,revision=0,blockedReason,onClose,onSaved,closeLabel,focusStudent}:{focusStudent?:{studentId:string;courseMembershipId:string;enrollmentId:string};adapter:TeachingRelationsAdapter;member:Membership;courseId:string;revision?:number;blockedReason?:string;onClose:()=>void;onSaved:()=>void;closeLabel?:string}) {
+interface RelationsPanelProps {focusStudent?:{studentId:string;courseMembershipId:string;enrollmentId:string};adapter:TeachingRelationsAdapter;member:Membership;courseId:string;date?:string;revision?:number;blockedReason?:string;onClose:()=>void;onSaved:()=>void;closeLabel?:string;onWorkflowResult?:WorkflowResultListener}
+export function RelationsPanel(props:RelationsPanelProps) {return <RelationsBody key={recoveryScope(props.member)+':'+props.courseId} {...props}/>}
+function RelationsBody({adapter,member,courseId,date,revision=0,blockedReason,onClose,onSaved,closeLabel,focusStudent,onWorkflowResult}:RelationsPanelProps) {
   const memory=useEditDraft<RelationDraft>(member,'teaching-relations:'+courseId),recovery=usePendingRequest(member,'teachingRelations')
   const [draft,setDraft]=useState<RelationDraft>(()=>memory.initial??empty()),[snapshot,setSnapshot]=useState<RelationsSnapshot>(),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[loadError,setLoadError]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[reload,setReload]=useState(0),[stale,setStale]=useState(false)
-  const alive=useRef(true),generation=useRef(0),inFlight=useRef(false),draftRef=useRef(draft),feedback=useRef<HTMLDivElement>(null)
+  const alive=useRef(true),generation=useRef(0),life=useRef(0),inFlight=useRef(false),draftRef=useRef(draft),feedback=useRef<HTMLDivElement>(null)
+  const source=useRef({adapter,date,blockedReason})
+  // 새 연결·기준일의 렌더 직후에도 이전 비동기 결과가 원키나 입력을 지우지 않는다.
+  if(source.current.adapter!==adapter||source.current.date!==date||source.current.blockedReason!==blockedReason){source.current={adapter,date,blockedReason};life.current++}
   const pending=recovery.request,locked=busy||Boolean(pending),ready=Boolean(snapshot)&&!loading&&!loadError&&!blockedReason
   function change(value:RelationDraft){draftRef.current=value;setDraft(value);memory.save(value.intent?value:undefined,Boolean(value.intent))}
   function message(f:unknown){return f instanceof TeachingError?f.message:'관계 자료를 확인하지 못했습니다. 입력을 유지했습니다.'}
-  useEffect(()=>{alive.current=true;return()=>{alive.current=false;generation.current++}},[adapter])
+  useEffect(()=>{alive.current=true;return()=>{alive.current=false;life.current++;generation.current++}},[adapter,date])
+  useEffect(()=>{inFlight.current=false;setBusy(false)},[adapter,date,blockedReason])
   useEffect(()=>{
     let current=true;const seq=++generation.current;setLoading(true);setLoadError('');setStale(Boolean(draftRef.current.preview))
     void adapter.snapshot(member.id,courseId).then(value=>{if(!current||!alive.current||seq!==generation.current)return;setSnapshot(value);setLoading(false)}).catch(f=>{if(!current||!alive.current||seq!==generation.current)return;setSnapshot(undefined);setLoading(false);setLoadError(message(f))})
     return()=>{current=false;generation.current++}
-  },[adapter,member.id,courseId,revision,reload])
+  },[adapter,member.id,courseId,date,revision,reload])
   useEffect(()=>{if(error||notice||loadError)feedback.current?.focus()},[error,notice,loadError])
   function begin(kind:RelationIntentKind,target:TeachingRelation){if(!snapshot||locked)return;change({confirmed:false,intent:{kind,courseId,expectedCourseVersion:snapshot.courseVersion,relationId:target.id,expectedRelationVersion:target.version,studentId:target.studentId,enrollmentId:target.enrollmentId,lastDay:snapshot.basisDate>target.validFrom?snapshot.basisDate:target.validFrom,replacementMemberId:kind==='assignment_replace'?'':null,reason:''}});setError('');setNotice('');setStale(false)}
   function edit(patch:Partial<RelationIntent>){if(locked||!draft.intent)return;change({intent:{...draft.intent,...patch},confirmed:false});setError('');setStale(false)}
   async function preview(){
     if(!snapshot||!draft.intent||locked||!ready||inFlight.current)return
     let intent:RelationIntent;try{intent=validateRelationSelection(draft.intent,snapshot)}catch(f){setError(message(f));return}
-    const seq=generation.current;inFlight.current=true;setBusy(true);setError('');setNotice('')
-    try{const result=await adapter.preview(member.id,intent);if(!alive.current)return;if(seq!==generation.current){setError('확인 중 관계가 갱신되었습니다. 입력을 유지했으니 다시 미리보기 해 주세요.');return}change({intent,preview:result,confirmed:false});setStale(false)}catch(f){if(alive.current)setError(message(f))}finally{if(alive.current){inFlight.current=false;setBusy(false)}}
+    const seq=generation.current,epoch=life.current,current=()=>alive.current&&epoch===life.current;inFlight.current=true;setBusy(true);setError('');setNotice('')
+    try{const result=await adapter.preview(member.id,intent);if(!current())return;if(seq!==generation.current){setError('확인 중 관계가 갱신되었습니다. 입력을 유지했으니 다시 미리보기 해 주세요.');return}change({intent,preview:result,confirmed:false});setStale(false)}catch(f){if(current())setError(message(f))}finally{if(current()){inFlight.current=false;setBusy(false)}}
   }
   async function commit(command:RelationCommit,key?:string){
     if(inFlight.current||(!key&&(!ready||pending||stale||!draft.confirmed)))return
     let normalized:RelationCommit;try{normalized=validateRelationCommit(command);if(!key&&snapshot){validateRelationSelection(normalized.intent,snapshot);if(!draft.preview)throw new TeachingError('CONFLICT','변경 영향을 먼저 확인해 주세요.');assertRelationPreviewFresh(draft.preview)}}catch(f){setError(message(f));return}
-    const requestKey=key??crypto.randomUUID();inFlight.current=true;setBusy(true);setError('');setNotice('');recovery.put({command:normalized,key:requestKey})
-    try{await adapter.commit(member.id,normalized,requestKey);if(!alive.current)return;recovery.remove(requestKey);change(empty());setStale(false);setNotice('서버에서 관계 변경을 확인했습니다. 기존 학생과 기록은 보존됩니다.');setReload(x=>x+1);onSaved()}
-    catch(f){if(!alive.current)return;const code=f instanceof TeachingError?f.code:'SAVE_UNCERTAIN';if(!key&&['INVALID_INPUT','FORBIDDEN','NOT_FOUND','CONFLICT','UNAVAILABLE'].includes(code)){recovery.remove(requestKey);change({...draftRef.current,confirmed:false});setStale(true);if(code==='CONFLICT')setReload(x=>x+1)}setError(message(f))}
-    finally{if(alive.current){inFlight.current=false;setBusy(false)}}
+    const requestKey=key??crypto.randomUUID(),epoch=life.current,reportResult=onWorkflowResult,notifySaved=onSaved,current=()=>alive.current&&epoch===life.current
+    inFlight.current=true;setBusy(true);setError('');setNotice('');recovery.put({command:normalized,key:requestKey})
+    try{
+      const raw=await adapter.commit(member.id,normalized,requestKey)
+      if(!current())return
+      // 대체 어댑터도 같은 원문·영향 전원의 다음 판을 확인한다. 손상된 응답은 원키를 보존한다.
+      const receipt=(()=>{try{return relationsReceipt(raw,teachingScope(member),normalized,requestKey)}catch{throw new TeachingError('SAVE_UNCERTAIN','관계 변경 접수증이 원래 요청과 맞지 않습니다. 같은 번호로 결과를 다시 확인해 주세요.')}})()
+      recovery.remove(requestKey);change(empty());setStale(false);setNotice('서버에서 관계 변경을 확인했습니다. 기존 학생과 기록은 보존됩니다.');setReload(x=>x+1)
+      const relationKind=normalized.intent.kind.startsWith('assignment_')?'assignment':normalized.intent.kind==='membership_end'?'course_membership':'enrollment'
+      const target=receipt.changes.find(row=>row.kind===relationKind&&row.id===normalized.intent.relationId)
+      try{if(target)reportResult?.({kind:'relations',action:receipt.intentKind,scope:recoveryScope(member),key:receipt.requestKey,recordedAt:receipt.appliedAt,
+        courseId:normalized.intent.courseId,relationId:target.id,relationVersion:target.version,changedCount:receipt.changes.length,
+        ...(receipt.intentKind==='assignment_replace'?{replacementAssignmentId:receipt.replacementAssignmentId!}:{})})}catch{/* 보조 이력 오류로 이미 접수한 관계 변경을 다시 보내지 않는다. */}
+      try{notifySaved()}catch{/* 후속 조회 오류와 이미 확인한 접수를 구분한다. */}
+    }
+    catch(f){if(!current())return;const code=f instanceof TeachingError?f.code:'SAVE_UNCERTAIN';if(!key&&['INVALID_INPUT','FORBIDDEN','NOT_FOUND','CONFLICT','UNAVAILABLE'].includes(code)){recovery.remove(requestKey);change({...draftRef.current,confirmed:false});setStale(true);if(code==='CONFLICT')setReload(x=>x+1)}setError(message(f))}
+    finally{if(current()){inFlight.current=false;setBusy(false)}}
   }
   function useLatest(){if(!snapshot||!draft.intent||locked)return;const i=draft.intent,s=snapshot.students.find(s=>s.studentId===i.studentId),target=i.kind.startsWith('assignment_')?snapshot.assignments.find(r=>r.id===i.relationId):i.kind==='membership_end'?s?.membership:s?.enrollment;if(!target||target.id!==i.relationId){setError('선택한 관계를 현재 목록에서 확인할 수 없습니다. 새 대상을 선택해 주세요.');return}change({intent:{...i,expectedCourseVersion:snapshot.courseVersion,expectedRelationVersion:target.version},confirmed:false});setStale(false);setError('');setNotice('최신 관계판을 반영했습니다. 기간과 대상을 다시 미리보기 해 주세요.')}
   function close(){if(locked)return;memory.remove();onClose()}

@@ -4,29 +4,51 @@ import type {Membership} from '../contracts'
 import type {SupabaseConnection} from '../connection/supabase-connection'
 import {useEditDraft} from '../app/edit-drafts'
 import {recoveryScope,usePendingRequest} from '../app/pending-requests'
+import type {WorkflowResultListener} from '../app/workflow-results'
 import { ServiceError } from '../services/service-values'
 import {requestBlobDownload} from '../files/download'
 import {createKnowledgeImportService,type KnowledgeImportService} from './import-adapter'
 import {extractedInput,importCommit,type ImportCommit,type ImportResult} from './import-contracts'
-import {SOURCE_KINDS,sourceInput,sourceLabels,type SourceInput} from './contracts'
+import {SOURCE_KINDS,sourceInput,sourceLabels,knowledgeReceipt,type SourceInput} from './contracts'
+import {reportKnowledgeResult} from './workflow-results'
 import styles from '../documents/documents.css?inline'
 type Pending={kind:'file';key:string;extractKey:string;file:File}|{kind:'commit';key:string;input:ImportCommit}
 type Memory={result:ImportResult|null;input:SourceInput|null;pending:Pending|null;reviewed:boolean;folded:boolean}
-interface Props{connection:SupabaseConnection;member:Membership;date:string;onCreated:(receipt:{id:string;version:number})=>void;onClose:()=>void;onNavigationLockChange?:(locked:boolean)=>void;service?:KnowledgeImportService}
+interface Props{connection:SupabaseConnection;member:Membership;date:string;onCreated:(receipt:{id:string;version:number})=>void;onClose:()=>void;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener;service?:KnowledgeImportService}
 export function KnowledgeImport(props:Props){return <ImportScope key={recoveryScope(props.member)} {...props}/>}
-function ImportScope({connection,member,date,onCreated,onClose,onNavigationLockChange,service:provided}:Props){
+function ImportScope({connection,member,date,onCreated,onClose,onNavigationLockChange,onWorkflowResult,service:provided}:Props){
  const service=useMemo(()=>provided??createKnowledgeImportService(connection),[connection,provided]),memory=useEditDraft<Memory>(member,'knowledge-import'),recovery=usePendingRequest(member,'knowledgeImport'),id=useId()
  const[saved]=useState(memory.initial),[result,setResult]=useState<ImportResult|null>(saved?.result??null),[input,setInput]=useState<SourceInput|null>(saved?.input??null),[pending,setPending]=useState<Pending|null>((recovery.request?.command as Pending|undefined)??saved?.pending??null),[reviewed,setReviewed]=useState(saved?.reviewed??false),[folded,setFolded]=useState(saved?.folded??false),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[ready,setReady]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[discard,setDiscard]=useState(false),[denied,setDenied]=useState(false)
- const alive=useRef(true),writing=useRef(false),locked=busy||Boolean(pending),dirty=Boolean(result||input||pending)
- useEffect(()=>{alive.current=true;return()=>{alive.current=false}},[service])
+ const alive=useRef(true),writing=useRef(false),epoch=useRef(0),lifetime=useRef({service,date}),locked=busy||Boolean(pending),dirty=Boolean(result||input||pending)
+ if(lifetime.current.service!==service||lifetime.current.date!==date){lifetime.current={service,date};epoch.current++}
+ useEffect(()=>{alive.current=true;writing.current=false;setBusy(false);return()=>{alive.current=false;epoch.current++}},[service,date])
  useEffect(()=>{onNavigationLockChange?.(busy||(!folded&&dirty));return()=>onNavigationLockChange?.(false)},[busy,dirty,folded,onNavigationLockChange])
  useEffect(()=>{memory.save(dirty?{result,input,pending,reviewed,folded}:undefined,dirty)},[result,input,pending,reviewed,folded,dirty,memory])
  useEffect(()=>{setReviewed(false)},[input])
- async function connect(){setLoading(true);setError('');try{const value=await service.ready(member.id);if(alive.current){setReady(value);setDenied(false)}}catch(error){if(alive.current){setReady(false);setError(error instanceof ServiceError?error.message:'HWPX 자료 가져오기 연결을 확인하지 못했습니다.')}}finally{if(alive.current)setLoading(false)}}
- useEffect(()=>{void connect()},[service,member.id])
+ async function connect(){const started=epoch.current,current=()=>alive.current&&started===epoch.current;setLoading(true);setError('');try{const value=await service.ready(member.id);if(current()){setReady(value);setDenied(false)}}catch(error){if(current()){setReady(false);setError(error instanceof ServiceError?error.message:'HWPX 자료 가져오기 연결을 확인하지 못했습니다.')}}finally{if(current())setLoading(false)}}
+ useEffect(()=>{void connect()},[service,member.id,date])
  function fail(error:unknown){if(!alive.current)return;const problem=error instanceof ServiceError?error:new ServiceError('RESULT_UNKNOWN');setError(problem.message);if(['FORBIDDEN','INACTIVE_MEMBERSHIP'].includes(problem.code)){setDenied(true);setReady(false)}}
- async function execute(next:Pending,retry=false){if(writing.current||denied)return;writing.current=true;setBusy(true);setError('');setPending(next);recovery.put({key:next.key,command:next})
-  try{if(next.kind==='file'){const reserved=await service.prepare(member.id,next.file,next.key,retry&&!ready);if(!reserved.uploaded&&ready)await service.upload(member.id,reserved.fileId,next.file);const value=await service.extract(member.id,reserved.fileId,next.extractKey,retry&&!ready);if(!alive.current)return;setResult(value);setInput(extractedInput(value,date));setReviewed(false);setNotice('실제 문단을 가져왔습니다. 파일에서 읽지 못한 부분과 적용 기간을 확인한 뒤 초안으로 저장해 주세요.');setPending(null);recovery.remove(next.key)}else{const receipt=await service.commit(member.id,next.input,next.key,retry&&!ready);if(!alive.current)return;setPending(null);recovery.remove(next.key);setResult(null);setInput(null);memory.remove();onCreated(receipt)}}catch(error){if(!alive.current)return;const problem=error instanceof ServiceError?error:new ServiceError('RESULT_UNKNOWN');if(['INVALID_INPUT','NOT_FOUND','FORBIDDEN','INACTIVE_MEMBERSHIP','CONFLICT'].includes(problem.code)){setPending(null);recovery.remove(next.key)}fail(problem)}finally{writing.current=false;if(alive.current)setBusy(false)}
+ async function execute(next:Pending,retry=false){
+  if(writing.current||denied)return
+  if(next.kind==='commit')try{next={...next,input:importCommit(next.input)}}catch(error){fail(error);return}
+  const started=epoch.current,report=onWorkflowResult,current=()=>alive.current&&started===epoch.current
+  writing.current=true;setBusy(true);setError('');setPending(next);recovery.put({key:next.key,command:next})
+  try{
+   if(next.kind==='file'){
+    const reserved=await service.prepare(member.id,next.file,next.key,retry&&!ready);if(!current())return
+    if(!reserved.uploaded&&ready){await service.upload(member.id,reserved.fileId,next.file);if(!current())return}
+    const value=await service.extract(member.id,reserved.fileId,next.extractKey,retry&&!ready);if(!current())return
+    setResult(value);setInput(extractedInput(value,date));setReviewed(false);setNotice('실제 문단을 가져왔습니다. 파일에서 읽지 못한 부분과 적용 기간을 확인한 뒤 초안으로 저장해 주세요.');setPending(null);recovery.remove(next.key)
+   }else{
+    const receipt=knowledgeReceipt(await service.commit(member.id,next.input,next.key,retry&&!ready),next.key,{kind:'create',input:next.input.input})
+    if(receipt.version!==1)throw new ServiceError('RESULT_UNKNOWN')
+    if(!current())return
+    setPending(null);recovery.remove(next.key);setResult(null);setInput(null);memory.remove();setNotice('자료 초안 저장을 확인했습니다. 게시 검토는 별도로 진행해 주세요.')
+    reportKnowledgeResult(report,member,'import',receipt)
+    try{onCreated(receipt)}catch{/* 후속 화면 오류가 접수된 초안을 다시 만들게 하지 않는다. */}
+   }
+  }catch(error){if(!current())return;const problem=error instanceof ServiceError?error:new ServiceError('RESULT_UNKNOWN');if(['INVALID_INPUT','NOT_FOUND','FORBIDDEN','INACTIVE_MEMBERSHIP','CONFLICT'].includes(problem.code)){setPending(null);recovery.remove(next.key)}fail(problem)}
+  finally{if(current()){writing.current=false;setBusy(false)}}
  }
  function save(){try{if(!result||!input||!reviewed||!ready)return;const checked=importCommit({fileId:result.fileId,fileVersion:result.fileVersion,extractionSha256:result.extraction.extractionSha256,input:sourceInput(input)});void execute({kind:'commit',key:`source-${crypto.randomUUID()}`,input:checked})}catch{setError('제목·자료 종류·근거 위치·적용 기간과 확인한 본문을 점검해 주세요.')}}
  function close(){if(locked)return;if(dirty&&!discard){setDiscard(true);return}memory.remove();onClose()}

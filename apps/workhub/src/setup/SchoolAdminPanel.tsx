@@ -2,13 +2,14 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 're
 import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { activeAt } from '../domain'
-import { usePendingRequest } from '../app/pending-requests'
+import { recoveryScope, usePendingRequest } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { useEditDraft } from '../app/edit-drafts'
 import { ListPagination } from '../app/ListPagination'
 import { listWindow } from '../app/list-window'
 import { newSetupRowId, validateSetupDraft } from './contract'
 import { academicYearStartMatches, ACADEMIC_YEAR_START_MESSAGE } from './academic-year'
-import { SCHOOL_ADMIN_LIMITS, SCHOOL_ASSIGNMENT_KINDS, SCHOOL_MEMBER_LABELS, SchoolAdminError, schoolAdminCommand, schoolAdminSubjects, type SchoolAdminCommand, type SchoolAdminServer, type SchoolAdminSnapshot, type SchoolAdminMember, type SchoolAssignment, type SchoolAdminReadiness } from './school-admin-contract'
+import { SCHOOL_ADMIN_LIMITS, SCHOOL_ASSIGNMENT_KINDS, SCHOOL_MEMBER_LABELS, SchoolAdminError, schoolAdminCommand, schoolAdminReceipt, schoolAdminSubjects, type SchoolAdminCommand, type SchoolAdminServer, type SchoolAdminSnapshot, type SchoolAdminMember, type SchoolAssignment, type SchoolAdminReadiness } from './school-admin-contract'
 import { createSupabaseSchoolAdminServer } from './school-admin-server'
 import { reconcileSchoolConfiguration, schoolConfigurationChanges, schoolConfigurationValue, type SchoolConflictChoices } from './school-admin-edit'
 import { SchoolConfigurationEditor } from './SchoolConfigurationEditor'
@@ -18,7 +19,7 @@ import adminStyles from './school-admin.css?inline'
 import workflowStyles from '../app/school-records-ui.css?inline'
 import { SchoolConfigurationOverview } from './SchoolConfigurationOverview'
 
-export interface SchoolAdminPanelProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked:boolean)=>void; onUpdated?:()=>void; server?:SchoolAdminServer }
+export interface SchoolAdminPanelProps { connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked:boolean)=>void; onUpdated?:()=>void; server?:SchoolAdminServer; onWorkflowResult?:WorkflowResultListener }
 type Session = { command?:SchoolAdminCommand; base?:SchoolAdminSnapshot; reviewing?:boolean; pending?:{command:SchoolAdminCommand;key:string}; conflict?:boolean; choices?:SchoolConflictChoices; batch?:SchoolBatchInput }
 const layoutEffect=typeof window==='undefined'?useEffect:useLayoutEffect
 const confirmedRejection=(error:unknown)=>error instanceof SchoolAdminError&&['NOT_READY','INVALID_INPUT','FORBIDDEN','INACTIVE_MEMBERSHIP','NOT_FOUND','CONFLICT'].includes(error.code)
@@ -29,7 +30,7 @@ const pretty=(value:unknown)=>value===null?'없음':typeof value==='string'?valu
 export function SchoolAdminPanel(props:SchoolAdminPanelProps) {
   return <SchoolAdminScope key={`${props.member.userId}:${props.member.schoolId}:${props.member.id}`} {...props}/>
 }
-function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockChange,onUpdated,server:provided}:SchoolAdminPanelProps) {
+function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockChange,onUpdated,onWorkflowResult,server:provided}:SchoolAdminPanelProps) {
   const server=useMemo(()=>provided??createSupabaseSchoolAdminServer(connection),[provided,connection])
   const recovery=usePendingRequest(member,'schoolAdmin'),memory=useEditDraft<Session>(member,'school-admin-editor')
   const [session,setSessionState]=useState<Session>(()=>{
@@ -38,6 +39,8 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     return saved
   })
   const latest=useRef(session),life=useRef(0),operation=useRef(false),panel=useRef<HTMLElement>(null),uid=useId()
+  const source=useRef({server,date})
+  if(source.current.server!==server||source.current.date!==date){source.current={server,date};life.current++}
   const [snapshot,setSnapshot]=useState<SchoolAdminSnapshot>(),[ready,setReady]=useState<SchoolAdminReadiness>(),[year,setYear]=useState<number>()
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[reload,setReload]=useState(0)
   const [error,setError]=useState(''),[readError,setReadError]=useState(''),[notice,setNotice]=useState(''),[issues,setIssues]=useState<string[]>([])
@@ -49,7 +52,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
   const command=session.command
   function update(value:Session) { latest.current=value;memory.save(value,Boolean(value.command||value.pending));setSessionState(value) }
   function move(target:string) { setFocus({target,serial:++focusSerial.current}) }
-  useEffect(()=>()=>{life.current++;operation.current=false},[server])
+  useEffect(()=>{operation.current=false;setBusy(false);return()=>{life.current++;operation.current=false}},[server,date])
   layoutEffect(()=>{onNavigationLockChange?.(locked);return()=>onNavigationLockChange?.(false)},[locked,onNavigationLockChange])
   useEffect(()=>{if(!locked)return;const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''};window.addEventListener('beforeunload',warn);return()=>window.removeEventListener('beforeunload',warn)},[locked])
   layoutEffect(()=>{if(!focus)return;const node=panel.current?.querySelector<HTMLElement>(`[data-admin-focus="${focus.target}"]`);if(node){node.focus({preventScroll:true});node.scrollIntoView({block:'start'})}},[focus])
@@ -64,7 +67,7 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
       if(!cancelled)setSnapshot(next)
     }).catch(failure=>{if(!cancelled){setReadError(safeMessage(failure));if(failure instanceof SchoolAdminError&&['FORBIDDEN','INACTIVE_MEMBERSHIP','CANCELLED'].includes(failure.code))setSnapshot(undefined)}}).finally(()=>{if(!cancelled)setLoading(false)})
     return()=>{cancelled=true}
-  },[server,member.id,member.schoolId,enabled,year,revision,reload])
+  },[server,member.id,member.schoolId,enabled,date,year,revision,reload])
   function change(patch:Partial<SchoolAdminCommand>) { if(operation.current||latest.current.pending||!editable||!latest.current.command)return;update({...latest.current,command:{...latest.current.command,...patch} as SchoolAdminCommand,reviewing:false});setIssues([]);setError('');setNotice('') }
   function start(next:SchoolAdminCommand) { if(operation.current||latest.current.command||latest.current.pending||!snapshot||locked||!enabled)return;update({command:next,base:structuredClone(snapshot)});setError('');setIssues([]);setNotice('');move('editor') }
   function editConfiguration(create=false) {
@@ -123,12 +126,14 @@ function SchoolAdminScope({connection,member,date,revision=0,onNavigationLockCha
     let pending=current.pending
     try{pending=pending??{command:schoolAdminCommand(current.command),key:crypto.randomUUID()}}catch{setError('변경 요청을 준비하지 못했습니다. 입력은 유지했습니다.');move('error');return}
     // 네트워크 요청 전부터 원문과 번호를 함께 보존한다. 재시도 때 새 번호를 만들지 않는다.
-    recovery.put(pending);update({...current,pending});operation.current=true;setBusy(true);setError('');const epoch=life.current
+    recovery.put(pending);update({...current,pending});operation.current=true;setBusy(true);setError('');const epoch=life.current,resultListener=onWorkflowResult
     try{
-      const receipt=await server.mutate(member.id,pending.command,pending.key,{existingRequest:retry})
+      const receipt=schoolAdminReceipt(await server.mutate(member.id,pending.command,pending.key,{existingRequest:retry}),pending.command,pending.key)
       if(epoch!==life.current)return
       recovery.remove(pending.key);update({});setIssues([]);setNotice(`${formatDate(receipt.recordedAt)}에 변경 반영을 확인했습니다. 최신 자료를 다시 확인합니다.`)
       setYear(receipt.schoolYear);setReload(value=>value+1);move('notice')
+      // 구성 저장의 접수만 요약한다. 교사 소속·권한·담당 변경을 구성 저장으로 기록하지 않는다.
+      if(pending.command.kind==='save_configuration')try{resultListener?.({kind:'school_configuration',action:pending.command.mode,scope:recoveryScope(member),key:receipt.requestKey,recordedAt:receipt.recordedAt,configurationId:pending.command.configuration.draftId,configurationVersion:receipt.version,schoolYear:receipt.schoolYear})}catch{/* 보조 표시 실패는 이미 확인한 저장을 다시 보내는 사유가 아니다. */}
       try { onUpdated?.() } catch { /* 저장 접수증은 유효하다. 상위 갱신 실패를 미저장으로 바꾸지 않는다. */ }
     }catch(failure){
       if(epoch!==life.current)return
