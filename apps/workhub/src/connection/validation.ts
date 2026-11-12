@@ -1,10 +1,8 @@
-import { ContractError, type CalendarEvent, type Membership, type School } from '../contracts'
-import { normalizeDraft } from '../domain'
+import { ContractError, type Membership, type School } from '../contracts'
+import { bad, record, str } from '../response-values'
 import type { ConnectionContext, LegacyProfile, RelationLabels } from './contracts'
+export { eventResponse } from '../calendar/event-response'
 
-const bad = (): never => { throw new ContractError('QUERY_FAILED', '서버 응답 형식을 확인할 수 없습니다. 다시 연결해 주세요.') }
-const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : bad()
-const str = (value: unknown, max = 200): string => typeof value === 'string' && value.length > 0 && Array.from(value).length <= max ? value : bad()
 const strings = (value: unknown): string[] => Array.isArray(value) && value.length <= 1000 && value.every(item => typeof item === 'string' && item.length <= 200) ? value as string[] : bad()
 const date = (value: unknown): string => {
   const text = str(value, 10)
@@ -48,16 +46,4 @@ export function contextResponse(value: unknown, selectedSchool?: string): Connec
   const selected=selectedSchool??schools[0]?.id
   if(selectedSchool&&!schoolIds.has(selectedSchool)) throw new ContractError('FORBIDDEN','이 학교에 연결할 수 없습니다.')
   return {schools,memberships,basisDate:date(raw.basisDate),schoolLabels,relationLabels:selected?schoolLabels[selected]:{departmentIds:[],gradeIds:[],subjectIds:[]}}
-}
-export function eventResponse(value: unknown, schoolId: string, members: Membership[]): CalendarEvent {
-  const raw=record(value)
-  if(raw.schoolId!==schoolId || !Number.isSafeInteger(raw.version) || (raw.version as number)<1) return bad()
-  const author=members.find(m=>m.id===raw.authorMemberId&&m.schoolId===schoolId)
-  if(!author) return bad()
-  const updatedAt=str(raw.updatedAt,60)
-  if(Number.isNaN(Date.parse(updatedAt))) return bad()
-  try {
-    const normalized=normalizeDraft(raw as unknown as CalendarEvent,author,members)
-    return {...normalized,id:str(raw.id),schoolId,authorMemberId:author.id,version:raw.version as number,updatedAt}
-  } catch { return bad() }
 }
