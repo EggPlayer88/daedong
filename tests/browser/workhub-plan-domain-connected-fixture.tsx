@@ -15,7 +15,7 @@ const configuration = (year: number) => ({ draftId: 'year-' + year, schoolName: 
 const configurations = new Map([2026, 2027].map(year => [year, configuration(year)])), subjects = [{ id: 'subject-one', name: '도덕' }]
 let version = 3
 const sources: any[] = [], receipts = new Map<string, any>()
-const qa = w.qa = { calls: [], writes: 0, configurationWrites: 0, knowledgeWrites: 0, unknown: '', sources, configurations }
+const qa = w.qa = { seedSources() { sources.push(...['검색 대상 학교 자료', '별도 학교 자료'].map((title, index) => ({ id: 'source-' + (index + 1), schoolId: self.schoolId, authorMemberId: self.id, title, kind: 'school_guide', body: '결과 목록에 복제하지 않을 원문', locator: '제3조', effectiveFrom: date, effectiveThrough: '', version: 1, status: 'draft', updatedAt: stamp }))) }, calls: [], writes: 0, configurationWrites: 0, knowledgeWrites: 0, unknown: '', sources, configurations }
 const services: any = {
   getSession: async () => ({ user: { id: self.userId } }),
   fetchMyProfile: async () => ({ id: self.userId, name: self.name, email: 'synthetic@example.invalid', role: 'superadmin', extra_permissions: [], department_id: null, is_active: true }),
@@ -39,7 +39,12 @@ const services: any = {
       if (qa.unknown === 'configuration') { qa.unknown = ''; throw Error('합성 구성 접수 응답 유실') }
       return school(receipt)
     }
-    if (name === 'workhub_knowledge_list') return knowledge({ items: sources, nextCursor: null, canManage: true })
+    if (name === 'workhub_knowledge_list') return knowledge({ items: sources.filter(row => !args.p_query || (row.title + row.body).includes(args.p_query)), nextCursor: null, canManage: true })
+    if (name === 'workhub_knowledge_get') {
+      const row = sources.find(row => row.id === args.p_source_id && row.version === args.p_source_version)
+      return row ? knowledge({ source: row, isCurrent: true, canManage: true }) : { data: null, error: { message: 'NOT_FOUND' } }
+    }
+    if (name === 'workhub_knowledge_original_access') return ok({ contract: 'knowledge-import.v1', schoolId: self.schoolId, memberId: self.id, data: { available: false } })
     if (name === 'workhub_knowledge_history') { const row = sources.find(row => row.id === args.p_source_id)!; return knowledge({ sourceId: row.id, authorMemberId: row.authorMemberId,
       items: [{ version: row.version, status: row.status, title: row.title, recordedAt: row.updatedAt, isCurrent: true }], nextBeforeVersion: null, canManage: true }) }
     if (name === 'workhub_knowledge_mutate') {

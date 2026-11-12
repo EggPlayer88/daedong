@@ -85,5 +85,27 @@ try{
  await test('과거 공백 포함 미확정 명령은 동일 키의 내용을 바꾸어 재전송하지 않는다',async()=>{const original={kind:'confirmTask',input:{threadId:'thread-one',proposalId:'proposal-one',expectedVersion:1,input:{title:' 원 제목 ',notes:' 원 메모 ',dueDate:''}}};await page.evaluate(command=>{window.setShow(false);window.seedPending(command)},original);await settle();await page.evaluate(()=>window.setShow(true));await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).isDisabled(),true);assert.equal(await page.evaluate(()=>window.pending.count()),1);assert.equal(await page.evaluate(()=>window.calls.length),0);assert.match(await page.locator('.assistant-pending').innerText(),/원 요청을 유지/);assert.equal(await page.evaluate(()=>window.tasks),0)})
 
  await test('질문도 코드포인트로 세고 붙여넣은 초과 입력을 자르지 않고 전송을 막는다',async()=>{const field=page.getByLabel('질문 또는 부탁할 일',{exact:true}),send=page.getByRole('button',{name:'AI에게 요청',exact:true});await field.fill('😀'.repeat(4001));assert.equal(await field.inputValue(),'😀'.repeat(4001));assert.equal(await send.isDisabled(),true);assert.match(await page.getByRole('alert').innerText(),/질문은 4000자/);assert.equal(await page.evaluate(()=>window.calls.length),0);await field.fill('😀'.repeat(4000));assert.equal(await field.inputValue(),'😀'.repeat(4000));assert.equal(await send.isDisabled(),false);await send.click();await page.getByRole('heading',{name:'AI 답변',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.calls[0].input.prompt),'😀'.repeat(4000))})
+ for (const recoverFirst of [false, true]) await test(`할 일 ${recoverFirst ? '원키 복구' : '최초 접수'} 뒤 화면 갱신 실패는 저장 성공을 미확정으로 바꾸지 않는다`, async () => {
+  await personal()
+  await page.getByRole('button', { name: '할 일 제안 검토', exact: true }).click()
+  await page.getByRole('button', { name: '추가할 내용 확인', exact: true }).click()
+  await page.evaluate(recover => { window.taskUnknown = recover; Object.defineProperty(window, 'updated', { configurable: true, get() { throw new Error('합성 후속 화면 갱신 실패') } }) }, recoverFirst)
+  await page.getByRole('button', { name: '확인한 할 일 추가', exact: true }).click()
+  if (recoverFirst) {
+    await page.getByRole('button', { name: '같은 요청으로 결과 확인', exact: true }).click()
+    assert.deepEqual(await page.evaluate(() => window.calls[1]), await page.evaluate(() => window.calls[2]))
+  }
+  await page.getByText('개인 할 일에 추가했습니다.', { exact: true }).waitFor()
+  assert.equal(await page.evaluate(() => window.tasks), 1)
+  assert.equal(await page.evaluate(() => window.pending.count()), 0)
+  assert.match(await page.getByRole('alert').innerText(), /저장은 확인했지만 후속 화면을 갱신하지 못했습니다/)
+  assert.doesNotMatch(await page.getByRole('alert').innerText(), /결과를 확인하지 못했습니다/)
+  assert.equal(await page.getByRole('button', { name: '같은 요청으로 결과 확인', exact: true }).count(), 0)
+  assert.equal(await page.getByRole('button', { name: '할 일 제안 검토', exact: true }).count(), 0)
+  await page.getByRole('button', { name: '추가한 할 일 열기', exact: true }).click()
+  assert.deepEqual(await page.evaluate(() => window.openedTasks), ['task-one'])
+  assert.equal(await page.evaluate(() => window.calls.filter(row => row.kind === 'confirmTask').length), recoverFirst ? 2 : 1)
+  assert.equal(await page.evaluate(() => window.aiCalls), 1)
+ })
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('AI 비서 브라우저: '+passed+'개 통과')
 }finally{await browser.close()}
