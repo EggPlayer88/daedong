@@ -113,6 +113,8 @@ try{
  await check('작성 중 다른 대화 수업 요청이 와도 원래 학생·입력을 유지하고 명시 저장 후에만 한 건을 만든다',async()=>{
   await openStudent();await page.getByRole('button',{name:'관찰 기록 작성',exact:true}).click()
   await page.getByLabel('관찰한 사실',{exact:true}).fill('대화 안에서 확인한 관찰')
+  // 자식 화면의 편집 상태가 부모 대화 프레임의 이동 잠금에 반영된 뒤 단언한다.
+  await page.getByRole('button',{name:'대화 보기',exact:true}).and(page.locator(':disabled')).waitFor()
   assert.equal(await page.getByRole('button',{name:'대화 보기',exact:true}).isDisabled(),true)
   await page.evaluate(()=>window.openCourse('missing'))
   await page.getByText('작성 중인 입력과 요청 번호를 유지했습니다.',{exact:false}).waitFor()
