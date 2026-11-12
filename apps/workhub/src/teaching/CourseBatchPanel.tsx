@@ -2,9 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { requestBlobDownload } from '../files/download'
 import { TeachingError, teachingScope, type TeachingAdapter, type TeachingCatalog } from './contracts'
 import { readCsvFile } from './csv'
+import { reportTeachingResult } from './workflow-results'
 import policy from './policy.json'
 import {
   blankCourseBatch, courseBatchBasis, courseBatchHeaders, courseBatchLimit, courseBatchTemplate, courseBatchTokens, courseBatchRowsCsv, courseBatchResultsCsv,
@@ -16,11 +18,12 @@ import styles from './course-batch.css?inline'
 export interface CourseBatchPanelProps {
   adapter:TeachingAdapter; member:Membership; catalog?:TeachingCatalog; disabled:boolean; canRecover:boolean;
   onBusyChange:(busy:boolean)=>void; onSaved:()=>void; onClose:()=>void
+  onWorkflowResult?:WorkflowResultListener
 }
 export function CourseBatchPanel(props:CourseBatchPanelProps) {
   return <CourseBatchBody key={recoveryScope(props.member)} {...props}/>
 }
-function CourseBatchBody({adapter,member,catalog,disabled,canRecover,onBusyChange,onSaved,onClose}:CourseBatchPanelProps) {
+function CourseBatchBody({adapter,member,catalog,disabled,canRecover,onBusyChange,onSaved,onClose,onWorkflowResult}:CourseBatchPanelProps) {
   const memory=useEditDraft<CourseBatchDraft>(member,'teaching-course-batch'),recovery=usePendingRequest(member,'teaching')
   const [draft,setDraft]=useState(()=>memory.initial??blankCourseBatch()),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('')
   const [reviewed,setReviewed]=useState(''),[confirmed,setConfirmed]=useState(''),[discard,setDiscard]=useState(false),[page,setPage]=useState(0)
@@ -53,6 +56,7 @@ function CourseBatchBody({adapter,member,catalog,disabled,canRecover,onBusyChang
     catch(f){if(valid(epoch)&&read===readGeneration.current)setError(message(f))}
   }
   async function send(attempt:CourseBatchAttempt,recovering:boolean,epoch:number):Promise<boolean> {
+    const resultListener=onWorkflowResult
     // 전송 전에 원명령과 번호를 탭 메모리·공통 복구 슬롯 양쪽에 고정한다.
     updateAttempt({...attempt,status:'unknown'})
     recovery.put({key:attempt.key,command:attempt.command})
@@ -61,6 +65,7 @@ function CourseBatchBody({adapter,member,catalog,disabled,canRecover,onBusyChang
       if(!valid(epoch))return false
       const next=finishCourseBatchAttempt(attempt,receipt,teachingScope(member))
       updateAttempt(next);recovery.remove(attempt.key)
+      reportTeachingResult(resultListener,member,attempt.command,next.receipt!)
       return true
     }catch(f) {
       if(!valid(epoch))return false

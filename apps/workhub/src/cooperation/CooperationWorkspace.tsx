@@ -3,24 +3,25 @@ import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
-import { createCooperationAdapter, validateCooperationCommand } from './adapter'
+import { createCooperationAdapter, receiptResponse, validateCooperationCommand } from './adapter'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { ModuleError, message, uncertain } from './protocol'
 import { allowedActions, statusLabels, actionLabels, historyLabels, historyActorName, type CooperationAdapter, type CooperationCatalog, type CooperationDetail, type CooperationRequest, type CooperationFilter, type CooperationCommand } from './contracts'
 import { CooperationEditor, commandFromEdit, type CooperationEdit } from './editors'
 import { cooperationHistoryTime } from './presentation'
 import styles from './cooperation.css?inline'
 import composerStyles from '../app/composer-layout.css?inline'
-export interface CooperationWorkspaceProps {connection:SupabaseConnection;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onOpenTask?:(taskId:string)=>void;openRequest?:{key:string;id:string}}
+export interface CooperationWorkspaceProps {connection:SupabaseConnection;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener;onOpenTask?:(taskId:string)=>void;openRequest?:{key:string;id:string}}
 export function CooperationWorkspace({connection,...props}:CooperationWorkspaceProps){const adapter=useMemo(()=>createCooperationAdapter(connection),[connection]);return <CooperationWorkspacePanel key={recoveryScope(props.member)} {...props} adapter={adapter}/>}
 type Saved={edit:CooperationEdit|null;selectedId:string;filter:CooperationFilter}
 const initialFilter:CooperationFilter={box:'received',status:'all',query:'',cursor:null}
-export function CooperationWorkspacePanel({adapter,member,revision=0,onNavigationLockChange,onOpenTask,openRequest}:{adapter:CooperationAdapter;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onOpenTask?:(taskId:string)=>void;openRequest?:{key:string;id:string}}){
+export function CooperationWorkspacePanel({adapter,member,date,revision=0,onNavigationLockChange,onWorkflowResult,onOpenTask,openRequest}:{adapter:CooperationAdapter;member:Membership;date:string;revision?:number;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener;onOpenTask?:(taskId:string)=>void;openRequest?:{key:string;id:string}}){
  const memory=useEditDraft<Saved>(member,'cooperation.editor'),pending=usePendingRequest(member,'cooperation')
  const [saved,setSaved]=useState<Saved>(()=>memory.initial??{edit:null,selectedId:'',filter:initialFilter}),latest=useRef(saved)
  const [catalog,setCatalog]=useState<CooperationCatalog>(),[items,setItems]=useState<CooperationRequest[]>([]),[next,setNext]=useState<string|null>(null),[detail,setDetail]=useState<CooperationDetail>(),[detailBlocked,setDetailBlocked]=useState(false),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[reload,setReload]=useState(0),[conflict,setConflict]=useState(false),[discard,setDiscard]=useState(false),[denied,setDenied]=useState(false)
- const seq=useRef(0),detailSeq=useRef(0),mounted=useRef(true),sending=useRef(false),heading=useRef<HTMLHeadingElement>(null)
+ const seq=useRef(0),detailSeq=useRef(0),mounted=useRef(true),life=useRef(0),sending=useRef(false),heading=useRef<HTMLHeadingElement>(null)
  const change=(patch:Partial<Saved>)=>{const value={...latest.current,...patch};latest.current=value;setSaved(value);memory.save(value,!!value.edit)}
- useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
+ useEffect(()=>{mounted.current=true;sending.current=false;setBusy(false);return()=>{mounted.current=false;life.current++}},[adapter,member.id,member.schoolId,member.userId,date])
  function readError(e:unknown){if(e instanceof ModuleError&&['FORBIDDEN','CANCELLED'].includes(e.code)){setDenied(true);setDetail(undefined);setItems([]);setCatalog(undefined)}setError(message(e))}
  const locked=!!saved.edit||!!pending.request||busy
  const openedRequest=useRef('')
@@ -45,8 +46,11 @@ export function CooperationWorkspacePanel({adapter,member,revision=0,onNavigatio
  async function moreTasks(){if(!catalog?.nextTaskCursor||busy)return;setBusy(true);try{const page=await adapter.catalog(member.id,catalog.nextTaskCursor);if(mounted.current)setCatalog(old=>old?{...page,sourceTasks:[...old.sourceTasks,...page.sourceTasks.filter(t=>!old.sourceTasks.some(o=>o.id===t.id))]}:page)}catch(e){if(mounted.current)setError(message(e))}finally{if(mounted.current)setBusy(false)}}
  async function submit(retry=false){if(sending.current)return;let command:CooperationCommand,key:string
   try{if(retry){if(!pending.request)return;command=validateCooperationCommand(pending.request.command);key=pending.request.key}else{if(!latest.current.edit||!latest.current.edit.confirmed||pending.request)return;if(latest.current.edit.kind==='transition'&&detailBlocked)throw new ModuleError('QUERY_FAILED','협업 처리 이력을 다시 확인해 주세요. 입력은 보관했습니다.');command=validateCooperationCommand(commandFromEdit(latest.current.edit));if(command.kind==='transition'&&!allowedActions(latest.current.edit.kind==='transition'?latest.current.edit.request:detail!.request,member).includes(command.action))throw new ModuleError('FORBIDDEN','현재 상태에서 가능한 처리가 아닙니다.');key=crypto.randomUUID()}}catch(e){setError(message(e));return}
+  const epoch=life.current,report=onWorkflowResult,current=()=>mounted.current&&life.current===epoch
   sending.current=true;setBusy(true);setError('');setNotice('');pending.put({command,key})
-  try{const result=await adapter.mutate(member.id,command,key);pending.remove(key);if(!mounted.current)return;change({edit:null,selectedId:result.entityId});setConflict(false);setDiscard(false);setDenied(false);setNotice(result.outcome==='replayed'?'이전 요청이 저장된 것을 확인했습니다.':'서버에 저장했습니다.');setReload(v=>v+1)}catch(e){if(e instanceof ModuleError&&e.definitive||!retry&&!uncertain(e))pending.remove(key);if(mounted.current){readError(e);if(e instanceof ModuleError&&e.code==='CONFLICT'&&e.definitive){setConflict(true);setReload(v=>v+1)}}}finally{sending.current=false;if(mounted.current)setBusy(false)}
+  try{const result=await adapter.mutate(member.id,command,key);if(!current())return;pending.remove(key);change({edit:null,selectedId:result.entityId});setConflict(false);setDiscard(false);setDenied(false);setNotice(result.outcome==='replayed'?'이전 요청이 저장된 것을 확인했습니다.':'서버에 저장했습니다.');setReload(v=>v+1)
+   try{const receipt=receiptResponse(result,{schoolId:member.schoolId,memberId:member.id,ownerUserId:member.userId},command,key);report?.({kind:'cooperation',action:command.kind==='create'?'create':command.action,scope:recoveryScope(member),key,recordedAt:receipt.appliedAt,requestId:receipt.entityId,requestVersion:receipt.version})}catch{/* 이력 표시 실패로 접수된 협업을 다시 보내지 않는다. */}
+  }catch(e){if(!current())return;if(e instanceof ModuleError&&e.definitive||!retry&&!uncertain(e))pending.remove(key);readError(e);if(e instanceof ModuleError&&e.code==='CONFLICT'&&e.definitive){setConflict(true);setReload(v=>v+1)}}finally{if(current()){sending.current=false;setBusy(false)}}
  }
  function cancel(){if(pending.request||busy)return;setDiscard(true)}
  const d=saved.edit,current=detail?.request.id===saved.selectedId?detail.request:undefined

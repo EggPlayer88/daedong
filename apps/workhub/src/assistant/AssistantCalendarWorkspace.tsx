@@ -7,6 +7,7 @@ import type { SupabaseConnection } from '../connection/supabase-connection'
 import type { ResourceOpenRequest } from '../search/contracts'
 import { PendingRequestsProvider, recoveryScope, usePendingRequest, useRecoveryStore } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
+import type { WorkflowResultListener } from '../app/workflow-results'
 
 export interface AssistantCalendarWorkspaceProps {
   connection: SupabaseConnection
@@ -21,6 +22,7 @@ export interface AssistantCalendarWorkspaceProps {
   onNavigationLockChange?: (locked: boolean) => void
   onPageChange?: (page: 'home' | 'calendar') => void
   onSaved?: () => void
+  onWorkflowResult?: WorkflowResultListener
   renderLessonAgenda?: (date: string) => ReactNode
 }
 
@@ -30,7 +32,7 @@ export function AssistantCalendarWorkspace(props: AssistantCalendarWorkspaceProp
   return <PendingRequestsProvider store={store}><CalendarWorkspaceScope key={recoveryScope(props.member)} {...props} /></PendingRequestsProvider>
 }
 
-function CalendarWorkspaceScope({ connection, adapter, member, members, schoolName, date, revision, relationOptions, openRequest, onNavigationLockChange, onPageChange, onSaved, renderLessonAgenda }: AssistantCalendarWorkspaceProps) {
+function CalendarWorkspaceScope({ connection, adapter, member, members, schoolName, date, revision, relationOptions, openRequest, onNavigationLockChange, onPageChange, onSaved, onWorkflowResult, renderLessonAgenda }: AssistantCalendarWorkspaceProps) {
   const batchPending = usePendingRequest(member, 'calendarBatch')
   const calendarPending = usePendingRequest(member, 'calendar')
   const batchMemory = useEditDraft(member, 'calendar-batch')
@@ -57,10 +59,10 @@ function CalendarWorkspaceScope({ connection, adapter, member, members, schoolNa
         adapter={adapter} revision={revision + refresh} page="calendar" relationOptions={relationOptions}
         openRequest={!batchOpen && openRequest && !openedRequests.current.has(openRequest.key) ? openRequest : undefined}
         onOpenRequestHandled={rememberOpened} onPageChange={next => onPageChange?.(next)} renderLessonAgenda={renderLessonAgenda}
-        onNavigationLockChange={setCalendarLocked} onOpenBatchImport={() => { if (!locked) setBatchOpen(true) }} />
+        onNavigationLockChange={setCalendarLocked} onWorkflowResult={onWorkflowResult} onOpenBatchImport={() => { if (!locked) setBatchOpen(true) }} />
     </div>
     {batchOpen && <CalendarBatchImport connection={connection} member={member} members={members} date={date}
-      revision={revision} onNavigationLockChange={setBatchLocked} onClose={() => setBatchOpen(false)}
+      revision={revision} onNavigationLockChange={setBatchLocked} onWorkflowResult={onWorkflowResult} onClose={() => setBatchOpen(false)}
       onSaved={() => { setRefresh(value => value + 1); onSaved?.() }} />}
   </section>
 }

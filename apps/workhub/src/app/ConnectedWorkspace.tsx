@@ -545,7 +545,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     const request = inDelivery && activeDelivery?.request
       ? {courseId:activeDelivery.request.id,token:activeDelivery.request.key,source:'assistant' as const,tab:initialTab}
       : teachingOpen?.scope === currentScope ? teachingOpen : undefined
-    return <TeachingWorkspace presentation={inDelivery ? 'assistant' : 'page'} initialTab={initialTab} initialRequest={request}
+    return <TeachingWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} initialTab={initialTab} initialRequest={request}
       initialAction={task === 'teachingActivity' ? 'activityImport' : undefined}
       onRequestStudentDraft={source => { try { sendToAssistant(studentAssistantRequest(source,member)) } catch { setHandoffError('현재 학교와 학생 근거를 다시 확인해 주세요.') } }}
       key={inDelivery ? `${resetKey}:${activeDelivery?.key}` : resetKey} connection={connection} member={member} date={context.basisDate}
@@ -553,7 +553,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderCooperation(inDelivery: boolean) {
     if (!member || !context) return null
-    return <CooperationWorkspace openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'cooperation' && requested.id ? { key: requested.key, id: requested.id } : undefined}
+    return <CooperationWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'cooperation' && requested.id ? { key: requested.key, id: requested.id } : undefined}
       key={inDelivery ? `${resetKey}:${activeDelivery?.key}` : resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch}
       onNavigationLockChange={inDelivery ? setDeliveryLocked : setExtensionNavigationLocked}
       onOpenTask={id => inDelivery ? startDelivery('tasks',{key:crypto.randomUUID(),id}) : resource.openSearchItem({kind:'task',id,title:'',description:'',meta:''})} />
@@ -569,7 +569,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   function renderAssistantCalendar() {
     if (!member || !context || !school) return null
-    return <AssistantCalendarWorkspace key={`${resetKey}:${activeDelivery?.key}`} connection={connection} adapter={adapter}
+    return <AssistantCalendarWorkspace onWorkflowResult={activeDelivery?.onResult} key={`${resetKey}:${activeDelivery?.key}`} connection={connection} adapter={adapter}
       member={member} members={context.memberships} schoolName={school.name} date={context.basisDate} revision={refreshEpoch}
       relationOptions={context.schoolLabels[school.id] ?? context.relationLabels} openRequest={activeDelivery?.request}
       onNavigationLockChange={setDeliveryLocked} onPageChange={next => { if (next === 'home') navigate('home') }}

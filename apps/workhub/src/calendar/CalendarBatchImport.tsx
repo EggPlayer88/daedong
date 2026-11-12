@@ -3,6 +3,7 @@ import type { Membership } from '../contracts'
 import type { SupabaseConnection } from '../connection/supabase-connection'
 import { useEditDraft } from '../app/edit-drafts'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
+import type { WorkflowResultListener } from '../app/workflow-results'
 import { ModuleError, message, uncertain } from '../cooperation/protocol'
 import { IMPORT_FIELDS, IMPORT_LIMITS, parseImportTable, suggestImportMapping, unmappedImportColumns, type ImportMapping, type ImportTable } from './import-table'
 import { BATCH_LIMIT, batchStateLabels, type CalendarBatchAdapter, type BatchPreview, type BatchReceipt, type BatchCommit } from './batch-contracts'
@@ -11,16 +12,16 @@ import { buildBatchInput, batchCommit, validateBatchCommit, comparisonFields } f
 import type { RelationOptions } from './contracts'
 import { batchStyles } from './batch-styles'
 import flowStyles from './batch-layout.css?inline'
-export interface CalendarBatchImportProps {connection:SupabaseConnection;member:Membership;members:Membership[];date:string;revision?:number;onClose:()=>void;onSaved?:(receipt:BatchReceipt)=>void;onNavigationLockChange?:(locked:boolean)=>void}
+export interface CalendarBatchImportProps {connection:SupabaseConnection;member:Membership;members:Membership[];date:string;revision?:number;onClose:()=>void;onSaved?:(receipt:BatchReceipt)=>void;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener}
 export function CalendarBatchImport({connection,...props}:CalendarBatchImportProps){const adapter=useMemo(()=>createCalendarBatchAdapter(connection),[connection]);return <CalendarBatchImportPanel key={recoveryScope(props.member)} {...props} relationOptions={connection.info().schoolLabels?.[props.member.schoolId]??connection.info().relationLabels} adapter={adapter}/>}
 type Draft={raw:string;sourceKey:string;sourceLabel:string;visibility:'school'|'private';table?:ImportTable;mapping?:ImportMapping;omissionsConfirmed:boolean;preview?:BatchPreview;held:{line:number;sourceId:string;title:string;errors:string[]}[];selected:string[];confirmedConflicts:string[];confirmed:boolean;receipt?:BatchReceipt}
 // change는 기존 초안에 병합하므로 완료 뒤 재시작할 때 선택 항목도 명시적으로 비운다.
 const emptyDraft=():Draft=>({raw:'',sourceKey:'',sourceLabel:'',visibility:'private',table:undefined,mapping:undefined,omissionsConfirmed:false,preview:undefined,held:[],selected:[],confirmedConflicts:[],confirmed:false,receipt:undefined})
-export function CalendarBatchImportPanel({adapter,member,members,relationOptions,onClose,onSaved,onNavigationLockChange}:{relationOptions?:RelationOptions;adapter:CalendarBatchAdapter;member:Membership;members:Membership[];date:string;revision?:number;onClose:()=>void;onSaved?:(receipt:BatchReceipt)=>void;onNavigationLockChange?:(locked:boolean)=>void}){
+export function CalendarBatchImportPanel({adapter,member,members,date,relationOptions,onClose,onSaved,onNavigationLockChange,onWorkflowResult}:{relationOptions?:RelationOptions;adapter:CalendarBatchAdapter;member:Membership;members:Membership[];date:string;revision?:number;onClose:()=>void;onSaved?:(receipt:BatchReceipt)=>void;onNavigationLockChange?:(locked:boolean)=>void;onWorkflowResult?:WorkflowResultListener}){
  const memory=useEditDraft<Draft>(member,'calendar-batch'),pending=usePendingRequest(member,'calendarBatch'),[draft,setDraft]=useState<Draft>(()=>memory.initial??emptyDraft()),ref=useRef(draft)
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[closing,setClosing]=useState(false),[denied,setDenied]=useState(false)
- const alive=useRef(true),generation=useRef(0),sending=useRef(false),heading=useRef<HTMLHeadingElement>(null)
- useEffect(()=>{alive.current=true;return()=>{alive.current=false;generation.current++}},[])
+ const alive=useRef(true),life=useRef(0),generation=useRef(0),sending=useRef(false),heading=useRef<HTMLHeadingElement>(null)
+ useEffect(()=>{alive.current=true;sending.current=false;setBusy(false);return()=>{alive.current=false;life.current++;generation.current++}},[adapter,date])
  function change(patch:Partial<Draft>){const value={...ref.current,...patch};ref.current=value;setDraft(value);memory.save(value,!value.receipt&&!!(value.raw||value.sourceKey||value.sourceLabel))}
  function invalidate(patch:Partial<Draft>){change({...patch,preview:undefined,selected:[],confirmedConflicts:[],held:[],confirmed:false,receipt:undefined});setNotice('');setError('')}
  const locked=busy||!!pending.request,dirty=!draft.receipt&&!!(draft.raw||draft.sourceKey||draft.sourceLabel)
@@ -31,8 +32,14 @@ export function CalendarBatchImportPanel({adapter,member,members,relationOptions
  async function prepare(){if(locked||!ref.current.mapping)return;const attempt=++generation.current;setBusy(true);setError('');change({preview:undefined,selected:[],confirmedConflicts:[],confirmed:false,held:[]});try{const built=await buildBatchInput({raw:ref.current.raw,mapping:ref.current.mapping!,sourceKey:ref.current.sourceKey,sourceLabel:ref.current.sourceLabel,visibility:ref.current.visibility,omissionsConfirmed:ref.current.omissionsConfirmed,member,members});if(alive.current&&attempt===generation.current)change({held:built.held});const preview=await adapter.prepare(member.id,built.input);if(alive.current&&attempt===generation.current){change({preview});setDenied(false);setNotice('서버의 원본 이력과 현재 일정을 비교했습니다. 저장할 행을 직접 선택하세요.');heading.current?.focus()}}catch(e){if(alive.current&&attempt===generation.current)setError(e instanceof Error?e.message:message(e))}finally{if(alive.current&&attempt===generation.current)setBusy(false)}}
  async function save(retry=false){if(sending.current)return;let command:BatchCommit,key:string
   try{if(retry){if(!pending.request)return;command=validateBatchCommit(pending.request.command);key=pending.request.key}else{const d=ref.current;if(pending.request||!d.preview||!d.confirmed)return;if(Date.parse(d.preview.expiresAt)<=Date.now())throw new ModuleError('CONFLICT','비교 유효기간이 지났습니다. 원본을 유지한 채 서버와 다시 비교해 주세요.');command=batchCommit(d.preview,d.selected,d.confirmedConflicts);key=crypto.randomUUID()}}catch(e){setError(message(e));return}
+  const epoch=life.current,reportResult=onWorkflowResult,scope=recoveryScope(member),current=()=>alive.current&&epoch===life.current
   sending.current=true;setBusy(true);setError('');pending.put({command,key})
-  try{const receipt=await adapter.commit(member.id,command,key);pending.remove(key);if(!alive.current)return;change({receipt,confirmed:false});setDenied(false);setNotice(`${receipt.items.length}개 일정의 저장을 확인했습니다.${receipt.outcome==='replayed'?' 이전 요청 결과이며 중복 등록하지 않았습니다.':''}`);onSaved?.(receipt)}catch(e){if(e instanceof ModuleError&&e.definitive||!retry&&!uncertain(e))pending.remove(key);if(alive.current){if(e instanceof ModuleError&&['FORBIDDEN','CANCELLED'].includes(e.code))setDenied(true);setError(message(e));if(e instanceof ModuleError&&e.definitive&&e.code==='CONFLICT')change({preview:undefined,selected:[],confirmedConflicts:[],confirmed:false})}}finally{sending.current=false;if(alive.current)setBusy(false)}
+  try{const receipt=await adapter.commit(member.id,command,key);if(!current())return;pending.remove(key);change({receipt,confirmed:false});setDenied(false);setNotice(`${receipt.items.length}개 일정의 저장을 확인했습니다.${receipt.outcome==='replayed'?' 이전 요청 결과이며 중복 등록하지 않았습니다.':''}`)
+   try{reportResult?.({kind:'calendar_batch',action:'commit',scope,key:receipt.requestKey,recordedAt:receipt.appliedAt,prepareId:receipt.prepareId,events:receipt.items.map(item=>({eventId:item.eventId,eventVersion:item.version}))})}catch{
+    // 결과 목록 오류가 확인한 일괄 저장을 다시 실행하거나 원키 복구를 되돌리지 않는다.
+   }
+   onSaved?.(receipt)
+  }catch(e){if(!current())return;if(e instanceof ModuleError&&e.definitive||!retry&&!uncertain(e))pending.remove(key);if(e instanceof ModuleError&&['FORBIDDEN','CANCELLED'].includes(e.code))setDenied(true);setError(message(e));if(e instanceof ModuleError&&e.definitive&&e.code==='CONFLICT')change({preview:undefined,selected:[],confirmedConflicts:[],confirmed:false})}finally{if(current()){sending.current=false;setBusy(false)}}
  }
  const finish=()=>{memory.remove();onClose()},close=()=>{if(locked)return;if(dirty)setClosing(true);else finish()}
  if(denied)return <section className="calendar-batch"><style>{batchStyles}{flowStyles}</style><h2>일정 연결을 다시 확인해 주세요</h2><p role="alert">{error}</p><p>연결 상태가 확인될 때까지 비교 결과와 보관한 원본을 표시하지 않습니다.</p>{pending.request?<button disabled={busy} onClick={()=>void save(true)}>같은 일괄 요청으로 결과 다시 확인</button>:<><button disabled={busy} onClick={()=>void prepare()}>연결과 원본 다시 확인</button><button disabled={busy} onClick={finish}>저장하지 않은 입력 폐기</button></>}</section>
