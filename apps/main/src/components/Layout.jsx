@@ -1,3 +1,4 @@
+import { clearTabCheckpoints } from '../../../workhub/src/app/tab-checkpoint'
 import { Suspense } from 'react'
 import { SiteNavigationProvider } from '../site/site-navigation.jsx'
 import UnifiedPageShell from '../site/UnifiedPageShell.jsx'
@@ -37,7 +38,7 @@ export default function Layout() {
                 <RoleBadge role={profile.role} />
               </>
             )}
-            <button className="btn-plain" onClick={() => signOut()}>
+            <button className="btn-plain" onClick={() => { clearTabCheckpoints(); return signOut() }}>
               로그아웃
             </button>
           </div>

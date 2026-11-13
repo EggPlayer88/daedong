@@ -1,6 +1,7 @@
 import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 // 실제 연결 셸·메시지·시간표 어댑터를 합성 RPC로 왕복한다. 운영 DB 호출은 없다.
 import assert from 'node:assert/strict'
+import { assertDraftOnlyCheckpoint } from '../helpers/tab-checkpoint.mjs'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -67,7 +68,7 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true)
     const back = page.getByRole('button', { name: '메시지·알림으로 돌아가기', exact: true }); await back.focus(); await page.keyboard.press('Enter')
     await page.getByRole('button', { name: '작성 계속하기', exact: true }).click(); assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '보존할 메시지 초안')
-    assert.equal(await page.evaluate(() => window.state.writes.length), 0); assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 })
+    assert.equal(await page.evaluate(() => window.state.writes.length), 0); await assertDraftOnlyCheckpoint(page, { slots: ['messaging-composer', 'calendar-panel', 'calendar-browse', 'task-panel'], requiredMessage: '보존할 메시지 초안' })
     if (process.env.WORKHUB_QA_OUTPUT) { mkdirSync(process.env.WORKHUB_QA_OUTPUT, { recursive: true }); await page.screenshot({ path: join(process.env.WORKHUB_QA_OUTPUT, 'timetable-notification-return-320.png'), fullPage: true }) }
   })
   await check('홈 보강 요약은 선택한 날짜의 정확한 취소 수업을 열고 자동 전송 없이 홈으로 돌아간다', async () => {
@@ -119,7 +120,7 @@ try {
     await go('메시지와 알림'); await page.getByRole('button', { name: '작성 계속하기', exact: true }).click()
     assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '보강을 확인한 뒤 이어 쓸 메시지')
     await noAutomaticWrite()
-    assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length })), { local: 0, session: 0 })
+    await assertDraftOnlyCheckpoint(page, { slots: ['messaging-composer', 'calendar-panel', 'calendar-browse', 'task-panel'], requiredMessage: '보강을 확인한 뒤 이어 쓸 메시지' })
   }, { t3: true })
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
   if (process.env.WORKHUB_QA_OUTPUT) { mkdirSync(process.env.WORKHUB_QA_OUTPUT, { recursive: true }); writeFileSync(join(process.env.WORKHUB_QA_OUTPUT, 'timetable-notification-results.json'), JSON.stringify({ passed, errors, external, scope: '실제 연결 셸·메신저·시간표 어댑터, 합성 RPC' }, null, 2)) }

@@ -8,6 +8,7 @@ import { hasPreviewUrl } from './preview-readiness.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const scripts = [
+  'workhub-ai-review-plan', 'workhub-ai-review-usability', 'workhub-tab-checkpoint', 'workhub-timetable-teacher-entry',
   'workhub-teacher-pilot-ai',
   'workhub-school-configuration-result-events', 'workhub-relations-result-events', 'workhub-knowledge-result-events', 'workhub-knowledge-result-events-import', 'workhub-execution-result-events', 'workhub-execution-result-events-connected', 'workhub-plan-domain-connected',
   'workhub-plan-publication-connected', 'workhub-publication-result-events', 'workhub-school-data-result-events', 'workhub-record-export-result-events',

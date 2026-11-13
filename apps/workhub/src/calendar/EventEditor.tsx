@@ -8,6 +8,7 @@ import type { WorkflowResultListener } from '../app/workflow-results'
 import { eventResponse } from './event-response'
 import { canonical } from '../services/service-values'
 import { eventTime, visibilityLabels } from './formatting'
+import { AssistantAudienceCandidates, assistantAudienceCandidates, selectAssistantAudience, type AssistantAudienceDecisions } from './assistant-audience'
 import { ComposerOptions } from '../app/ComposerOptions'
 import composerStyles from '../app/composer-layout.css?inline'
 import editorStyles from './event-editor.css?inline'
@@ -15,7 +16,7 @@ import editorStyles from './event-editor.css?inline'
 // 기존 일정 화면·미리보기 import 경로를 유지한다. 순수 조회 계층은 formatting을 직접 사용한다.
 export { dateLabel, eventTime, visibilityLabels } from './formatting'
 
-export interface EventEditorSnapshot { original?: CalendarEvent; draft: EventDraft; version?: number; initialValue: string; conflict?: CalendarEvent }
+export interface EventEditorSnapshot { original?: CalendarEvent; draft: EventDraft; version?: number; initialValue: string; conflict?: CalendarEvent; assistantAudienceQueries?: string[]; assistantAudienceDecisions?: AssistantAudienceDecisions }
 const useBrowserLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect
 const noRelations: RelationOptions = { departmentIds: [], gradeIds: [], subjectIds: [] }
 
@@ -28,8 +29,8 @@ function audienceLabel(event: EventDraft, members: Membership[], relationLabels:
   return `${event.audience.all ? '모든 교사' : groups || '직접 포함 교사만'} · 직접 포함: ${names(event.audience.includeMemberIds)} · 제외: ${names(event.audience.excludeMemberIds)}`
 }
 
-export function EventEditor({ original: providedOriginal, initialDraft, draftSlot = 'calendar-editor', member, members, date, adapter, onClose, onSaved, onWorkflowResult, onDiscard, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
-  original?: CalendarEvent; initialDraft?: EventDraft; draftSlot?: string; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onWorkflowResult?: WorkflowResultListener; onDiscard?: () => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
+export function EventEditor({ original: providedOriginal, initialDraft, assistantAudienceQueries, draftSlot = 'calendar-editor', member, members, date, adapter, onClose, onSaved, onWorkflowResult, onDiscard, onSuspend, suspendLabel = '입력창 접고 목록 보기', onNavigationLockChange, relationLabels = noRelations, demo = false, storageLabel = '학교 서버에 저장' }: {
+  original?: CalendarEvent; initialDraft?: EventDraft; assistantAudienceQueries?: string[]; draftSlot?: string; member: Membership; members: Membership[]; date: string; adapter: Adapter; onClose: () => void; onSaved: (event: CalendarEvent) => void; onWorkflowResult?: WorkflowResultListener; onDiscard?: () => void; onSuspend?: () => void; suspendLabel?: string; onNavigationLockChange?: (locked: boolean) => void; relationLabels?: RelationOptions; demo?: boolean; storageLabel?: string
 }) {
   const recovery = usePendingRequest(member, 'calendar')
   const [restored] = useState(() => recovery.request)
@@ -41,6 +42,10 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
   const [restoreAttempt, setRestoreAttempt] = useState(0)
   const [restoreError, setRestoreError] = useState('')
   const [draft, setDraft] = useState<EventDraft>(() => restored ? structuredClone(restored.command.draft) : savedDraft ? structuredClone(savedDraft.draft) : original || initialDraft ? structuredClone(original ?? initialDraft!) : blank(date))
+  const [audienceQueries] = useState(savedDraft?.assistantAudienceQueries ?? assistantAudienceQueries ?? [])
+  const [audienceDecisions, setAudienceDecisions] = useState<AssistantAudienceDecisions>(savedDraft?.assistantAudienceDecisions ?? {})
+  const unconfirmedAudience = audienceQueries.some(query => !Object.prototype.hasOwnProperty.call(audienceDecisions, query) ||
+    audienceDecisions[query] !== null && !assistantAudienceCandidates(query, members, member, date).some(item => item.id === audienceDecisions[query]))
   const [version, setVersion] = useState(savedDraft?.version ?? original?.version)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -64,7 +69,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
   }, [adapter, date])
   useBrowserLayoutEffect(() => {
     if (retiredDraft.current) return
-    editMemory.save({ original, draft, version, initialValue: initialValue.current, conflict }, dirty || saving || Boolean(conflict))
+    editMemory.save({ original, draft, version, initialValue: initialValue.current, conflict, ...(audienceQueries.length ? { assistantAudienceQueries: audienceQueries, assistantAudienceDecisions: audienceDecisions } : {}) }, dirty || saving || Boolean(conflict))
   })
   useEffect(() => {
     if (!savedDraft?.original) return
@@ -156,6 +161,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
   function save(event: FormEvent) {
     event.preventDefault()
     if (pending || inFlight.current || conflict) return
+    if (unconfirmedAudience) { setError('말씀하신 대상 교사를 선택하거나 이번 일정에서 제외한 뒤 저장해 주세요.'); return }
     const payload = JSON.stringify({ draft, id: original?.id, expectedVersion: version })
     if (saveRequest.current?.payload !== payload) saveRequest.current = { payload, key: crypto.randomUUID() }
     void perform({ draft: structuredClone(draft), id: original?.id, expectedVersion: version, idempotencyKey: saveRequest.current.key })
@@ -169,7 +175,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
         <p className="subtle-note">{demo ? '합성 자료로 등록 흐름을 확인합니다. 실제 학교나 학생의 개인정보는 입력하지 마세요.' : '현재 선택한 학교의 일정입니다. 저장된 변경은 같은 학교의 열람 대상에게 반영됩니다.'}</p>
         {error && <div ref={errorRef} id={`${id}-error`} className="error-box" role="alert" tabIndex={-1}>{error}</div>}
         {notice && <p className="notice-box" role="status">{notice}</p>}
-        {pending && <section className="notice-box" aria-label="일정 저장 결과 확인 필요"><h3>먼저 이전 저장 결과를 확인해 주세요</h3><p>저장이 처리된 뒤 응답만 끊겼을 수 있습니다. 중복 등록을 막기 위해 입력과 요청 번호를 유지합니다.</p><button type="button" className="primary" disabled={saving} onClick={() => { void perform(pending) }}>같은 요청으로 저장 결과 확인</button>{onSuspend && <><p>현재 탭에서 요청을 보관하고 목록을 볼 수 있습니다. 새로고침하면 복구 정보가 사라집니다.</p><button type="button" className="secondary" disabled={saving} onClick={onSuspend}>{suspendLabel}</button></>}</section>}
+        {pending && <section className="notice-box" aria-label="일정 저장 결과 확인 필요"><h3>먼저 이전 저장 결과를 확인해 주세요</h3><p>저장이 처리된 뒤 응답만 끊겼을 수 있습니다. 중복 등록을 막기 위해 입력과 요청 번호를 유지합니다.</p><button type="button" className="primary" disabled={saving} onClick={() => { void perform(pending) }}>같은 요청으로 저장 결과 확인</button>{onSuspend && <><p>현재 탭에서 요청을 보관하고 목록을 볼 수 있습니다. 같은 탭에서 새로고침한 뒤 입력 복구를 선택할 수 있습니다. 로그아웃하거나 탭을 닫기 전에는 결과를 확인해 주세요.</p><button type="button" className="secondary" disabled={saving} onClick={onSuspend}>{suspendLabel}</button></>}</section>}
         {conflict && <section className="conflict-box" aria-labelledby={`${id}-conflict`}><h3 id={`${id}-conflict`}>원본이 v{conflict.version}으로 바뀌었습니다</h3><p>다른 교사가 저장한 제목: <strong>{conflict.title}</strong></p><p>현재 원본: {conflict.startDate} ~ {conflict.endDate}, {eventTime(conflict)} / {visibilityLabels[conflict.visibility]}</p><p>내 입력은 아래에 그대로 남아 있습니다. 현재 원본을 확인한 뒤 다시 저장해 주세요.</p><details><summary>현재 원본의 전체 내용 확인</summary><dl className="event-detail"><div><dt>장소</dt><dd>{conflict.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{conflict.description || '등록된 안내 없음'}</dd></div><div><dt>관련 대상</dt><dd>{audienceLabel(conflict, members, relationLabels)}</dd></div></dl></details><div className="button-row"><button type="button" className="secondary" onClick={() => { setVersion(conflict.version); setConflict(undefined); setError(''); setNotice('변경된 원본을 확인했습니다. 내 입력으로 바꾸려면 다시 저장해 주세요.') }}>변경 확인 · 내 입력 유지</button><button type="button" className="text-button" onClick={() => { setDraft(structuredClone(conflict)); setVersion(conflict.version); setConflict(undefined); setError(''); setNotice('현재 원본을 불러왔습니다. 이전 입력은 이 양식에서 대체되었습니다.') }}>현재 원본으로 입력 바꾸기</button></div></section>}
         <fieldset disabled={saving || Boolean(pending)} className="form-fields calendar-compose-grid"><legend className="sr-only">일정 기본 정보</legend>
           <section className="calendar-compose-core" aria-labelledby={`${id}-core`}><h3 id={`${id}-core`}>어떤 일정인가요?</h3>
@@ -180,6 +186,18 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
           <label>장소<input maxLength={100} value={draft.location} placeholder="예: 2학년 연구실" onChange={event => change('location', event.target.value)} /></label>
           <label>안내 내용<textarea rows={3} maxLength={2000} value={draft.description} placeholder="함께 알아야 할 준비 사항을 적어 주세요." onChange={event => change('description', event.target.value)} /></label>
           </section><section className="calendar-compose-scope" aria-labelledby={`${id}-scope`}><h3 id={`${id}-scope`}>누구와 공유하나요?</h3>
+          <AssistantAudienceCandidates queries={audienceQueries} decisions={audienceDecisions} members={members} member={member} date={date} relations={relationLabels}
+            onChoose={(query, selectedId) => {
+              try {
+                let next = draft
+                const previousId = audienceDecisions[query]
+                if (previousId && previousId !== member.id && previousId !== selectedId && !Object.entries(audienceDecisions).some(([other, value]) => other !== query && value === previousId))
+                  next = { ...next, audience: { ...next.audience, includeMemberIds: next.audience.includeMemberIds.filter(id => id !== previousId) } }
+                if (selectedId) next = selectAssistantAudience(next, query, selectedId, members, member, date)
+                setDraft(next)
+                setAudienceDecisions(current => ({ ...current, [query]: selectedId })); setError('')
+              } catch (failure) { setError(failure instanceof Error ? failure.message : '대상 교사를 다시 확인해 주세요.') }
+            }} />
           <label>누가 원본을 볼 수 있나요?<select value={draft.visibility} onChange={event => change('visibility', event.target.value as EventDraft['visibility'])}><option value="school">학교 교사 전체</option><option value="audience">관련 대상만</option><option value="private" disabled={Boolean(original && original.authorMemberId !== member.id)}>나만 보기</option></select></label>
           <p className="calendar-scope-summary">{draft.visibility === 'private' ? '나만 보는 일정입니다.' : draft.visibility === 'audience' ? '아래 관련 대상에 해당하는 교사가 볼 수 있습니다.' : '학교 교사 전체가 볼 수 있습니다.'} 홈 추천 대상은 별도로 정할 수 있습니다.</p>
           <ComposerOptions key={draft.visibility} className="calendar-target-options" summary="홈 추천·관련 대상 설정" initialOpen={draft.visibility === 'audience' || !draft.audience.all || !!draft.audience.includeMemberIds.length || !!draft.audience.excludeMemberIds.length}>
@@ -193,7 +211,7 @@ export function EventEditor({ original: providedOriginal, initialDraft, draftSlo
 
         {demo && original && adapter.simulateConcurrentEdit && adapter.failNextSave && <details className="developer-inline"><summary>개발 시험 · 동시 수정 / 저장 실패</summary><div className="button-row"><button type="button" className="secondary small" disabled={saving || Boolean(pending)} onClick={() => { try { adapter.simulateConcurrentEdit?.(member.id, original.id); setNotice('가상 원본을 다른 교사가 수정했습니다. 저장을 눌러 충돌과 입력 보존을 확인하세요.') } catch (failure) { setError((failure as Error).message) } }}>다른 교사 수정 발생</button><button type="button" className="secondary small" disabled={saving || Boolean(pending)} onClick={() => { adapter.failNextSave?.(); setNotice('다음 저장이 한 번 실패합니다. 입력을 유지한 재시도를 확인하세요.') }}>다음 저장 실패</button></div></details>}
       </div>
-      <footer className="dialog-footer wh-compose-footer"><p className="hint">{original ? `확인한 원본 v${version} · ${storageLabel}` : storageLabel}</p><div className="button-row"><button type="button" className="secondary" disabled={saving || Boolean(pending)} onClick={closeEditor}>취소</button><button className="primary" type="submit" disabled={saving || Boolean(pending) || Boolean(conflict)}>{saving ? '저장 중…' : original ? '수정 저장' : '일정 등록'}</button></div></footer>
+      <footer className="dialog-footer wh-compose-footer"><p className="hint">{original ? `확인한 원본 v${version} · ${storageLabel}` : storageLabel}</p><div className="button-row"><button type="button" className="secondary" disabled={saving || Boolean(pending)} onClick={closeEditor}>취소</button><button className="primary" type="submit" disabled={saving || Boolean(pending) || Boolean(conflict) || unconfirmedAudience}>{saving ? '저장 중…' : original ? '수정 저장' : '일정 등록'}</button></div></footer>
     </form>
   </dialog>
 }

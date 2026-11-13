@@ -87,8 +87,8 @@ export function useWorkspaceOperation({ member, date, actions, onSaved }: {
     } finally { if (epoch === life.current) flight.current = false }
   }
   function cancel() {
-    if (flight.current || recovery.request) return
-    store(undefined); setError('')
+    if (flight.current || recovery.request) return false
+    store(undefined); setError(''); return true
   }
   return {
     state, preparing, locked, error, prepare, confirm: () => void confirm(), retry: () => void confirm(true), cancel,

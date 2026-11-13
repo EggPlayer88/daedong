@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 
 import React from 'react';import{createRoot}from'react-dom/client';
 import{ConnectedWorkspace}from'../../apps/workhub/src/app/ConnectedWorkspace';

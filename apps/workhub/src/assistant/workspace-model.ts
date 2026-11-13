@@ -1,5 +1,6 @@
 import type { EvaluationTarget } from './evaluation-workspace'
 import type { SavedWorkspacePlan } from './plan-control'
+import type { TaskPlanOrigin } from './plan-task-receipts'
 import type { WorkflowResultListener } from '../app/workflow-results'
 import type { DailyCommand } from './daily-command'
 import type { MemoryService } from './memory-contracts'
@@ -39,6 +40,8 @@ export interface AssistantWorkspaceSearchResult {
   hasMore: boolean
 }
 export interface AssistantWorkspaceActions {
+  availablePages?: readonly PageId[]
+  availableSearchKinds?: readonly SearchKind[]
   deliveryInConversation?: boolean
   specialist?: (command: SpecialistCommand, onResult?: WorkflowResultListener) => boolean
   daily?: (command: DailyCommand) => boolean
@@ -77,6 +80,7 @@ export interface AssistantPanelProps {
     request: AssistantContextRequest
   }
   onDraftReady?: (draft: AssistantDraftReady, contextId?: string) => void
+  guidedDraftContextIds?: readonly string[]
   onComposeMessage?: (draft: { requestId: string; body: string }) => void
   onOpenTask?: (taskId: string) => void
   onOpenKnowledgeCitation?: (request: KnowledgeAssistantRequest) => void | Promise<void>
@@ -100,8 +104,11 @@ export type Session = {
   prompt: string
   conversationFocus?: ConversationFocus
   workspacePlan?: SavedWorkspacePlan
+  taskPlanOrigins?: Record<string, TaskPlanOrigin>
+  proposalPlanOrigins?: Record<string, TaskPlanOrigin>
   draftDialogue?: DraftFollowup
   calendarDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string; planPrompt?: string }
+  calendarReviewDialogue?: { command: CalendarWorkspaceCommand; basisDate: string; scope: string; planPrompt?: string; reviewKey: string }
   references: AssistantContextRequest['references']
   studentContext: StudentContext | null
   thread?: AssistantThread

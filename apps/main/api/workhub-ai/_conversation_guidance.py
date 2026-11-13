@@ -1,9 +1,20 @@
 """대화 분야는 로컬 답변 지침만 고른다. 저장 요청·권한·모델 설정은 변경하지 않는다."""
 import json
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 
 CATALOG = json.loads((Path(__file__).parent / '_assets/conversation-profiles.json').read_text(encoding='utf-8'))
+
+
+def server_context(now=None):
+    """브라우저·질문 본문의 날짜 대신 서버 시계와 로컬 설정으로 기준일을 만든다."""
+    zone = CATALOG['serverContext']['timeZone']
+    instant = (now or (lambda: datetime.now(timezone.utc)))()
+    if not isinstance(instant, datetime) or instant.tzinfo is None or instant.utcoffset() is None:
+        raise ValueError('서버 기준 시각에는 시간대가 필요합니다.')
+    return {'basisDate': instant.astimezone(ZoneInfo(zone)).date().isoformat(), 'timeZone': zone}
 
 
 def read_conversation_prompt(prompt):

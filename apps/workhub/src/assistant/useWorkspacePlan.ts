@@ -45,7 +45,7 @@ export function useWorkspacePlan({ session, latest, scope, date, active, editabl
     if (latest.current.workspacePlan) {
       feedback('보관한 업무 목록을 먼저 닫아 주세요. 새 요청은 입력칸에 유지했습니다.'); return true
     }
-    update({ ...latest.current, prompt: '', workspacePlan: { plan: candidate, scope } })
+    update({ ...latest.current, prompt: '', workspacePlan: { plan: candidate, scope, instanceId: crypto.randomUUID() } })
     selected(); feedback('', '할 일을 나눴습니다. 먼저 할 단계를 선택해 주세요.')
     return true
   }

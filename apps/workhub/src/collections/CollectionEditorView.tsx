@@ -308,8 +308,8 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
             {pending ? '과 기존 요청 번호로 결과를' : '을'} 다시 확인해 주세요.
           </p>
           <p>
-            새로고침·탭 닫기·로그아웃·학교 변경 시 보관 내용이 사라질 수 있습니다. 이 보관은 서버
-            저장이 아닙니다.
+            같은 탭의 입력 복구를 지원하며 선택한 파일은 다시 골라야 합니다. 탭 닫기·로그아웃 후
+            복구는 보장하지 않습니다. 서버 저장은 아닙니다.
           </p>
           <button type="button" disabled={!!busy || exportBusy} onClick={resumeEditing}>
             보관한 입력과 요청 다시 열기
@@ -347,7 +347,8 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
         <section className="cs-warning" aria-label="수합 입력 임시 보관">
           <p>
             지금 확인하기 어렵다면 입력과 기존 요청 번호를 이 탭에 보관하고 업무실 안의 다른 메뉴를
-            이용할 수 있습니다. 새로고침하면 보관 내용이 사라집니다.
+            이용할 수 있습니다. 같은 탭의 입력 복구를 지원하며 선택한 파일은 다시 골라야 합니다.
+            탭 닫기·로그아웃 후 복구는 보장하지 않습니다. 서버 저장은 아닙니다.
           </p>
           <button type="button" disabled={!!busy || exportBusy} onClick={parkEditing}>
             입력 보관하고 다른 메뉴 이용
@@ -797,7 +798,9 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                 <ComposerOptions
                   className="cs-optional"
                   initialOpen={session.editor!.input.reviewMode === 'required'}
-                  summary="선택 설정 · 제출 후 담당자 검토"
+                  summary={session.editor!.input.reviewMode === 'required'
+                    ? '제출 후 검토 · 담당자 확인 필요'
+                    : '제출 후 검토 · 검토 없이 완료'}
                 >
                   <p className="cs-muted">
                     검토자를 지정하면 제출한 파일을 확인하고 보완을 요청할 수 있습니다.

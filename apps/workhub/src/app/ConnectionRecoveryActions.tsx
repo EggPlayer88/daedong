@@ -41,7 +41,7 @@ export function ConnectionRecoveryActions({ hasDraft, hasPending, announcement, 
     {hasPending ? <p>저장 결과를 확인하지 못한 요청이 있습니다. 이미 서버에 저장됐을 수 있어 확인 전에는 현재 탭을 유지해 주세요. 연결을 다시 확인한 뒤 같은 요청으로 결과를 확인할 수 있습니다.</p>
       : hasDraft ? <p>작성 중인 내용은 현재 탭에 임시 보관했습니다. 연결을 다시 확인하면 같은 계정과 학교의 입력을 복원합니다. 임시 입력을 버리면 기존 업무 메뉴로 이동할 수 있습니다.</p>
         : <p>기존 업무 메뉴는 계속 이용할 수 있습니다.</p>}
-    {(hasDraft || hasPending) && <p className="hint ws-recovery-warning">새로고침하거나 이 탭을 닫으면 보관 정보가 사라집니다. 기존 메뉴를 새 탭에서 열면 이 탭의 보관 정보는 유지됩니다.</p>}
+    {(hasDraft || hasPending) && <p className="hint ws-recovery-warning">새로고침 복구는 지원되는 입력·요청과 브라우저 저장 상태에 따라 다릅니다. 선택 파일과 일부 작업 진행 정보는 복구되지 않습니다. 결과 확인 전에는 이 탭을 유지하고, 기존 메뉴는 새 탭에서 이용해 주세요.</p>}
     {announcement && <p className="notice-box" role="status" aria-live="polite">
       {hasPending ? '저장 결과 확인이 필요한 요청을 보호하기 위해 이동을 막았습니다. 연결을 다시 확인하거나 기존 메뉴를 새 탭에서 이용해 주세요.'
         : hasDraft ? '임시 보관한 입력을 보호하기 위해 이동을 막았습니다. 연결을 다시 확인하거나 입력을 버린 뒤 이동해 주세요.'

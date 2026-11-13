@@ -1,3 +1,4 @@
+import { draftDateWords, resolveDraftDate } from './draft-date'
 import { SEARCH_LIMITS } from '../search/limits'
 import { TASK_INPUT_LIMITS } from '../tasks/validation'
 import type { TaskStatus } from '../tasks/contracts'
@@ -14,39 +15,21 @@ export interface TaskChangeCommand { kind: 'taskChange'; prompt: string; query: 
 type Clarification = { kind: 'clarify'; message: string }
 
 const clarify = (message: string): Clarification => ({ kind: 'clarify', message })
-const datePattern = /^(?:오늘|내일|모레|(?:이번\s*주\s*|다음\s*주\s*)?[월화수목금토일]요일|\d{4}[-./]\d{1,2}[-./]\d{1,2})$/
-const weekdayIndex = '일월화수목금토'
+const datePattern = new RegExp('^(?:' + draftDateWords.source + ')$', 'u')
 const taskPrefix = /^(?:내\s*)?(?:할\s*일|업무)\s+/
 const statusValue = (text: string): TaskStatus | undefined => (Object.entries(taskStatusLabels) as [TaskStatus, string][])
   .find(([, label]) => label.replace(/\s/g, '') === text.replace(/\s/g, ''))?.[0]
 
 export function resolveAssistantDueDate(token: string, basisDate: string): string | null {
-  if (!datePattern.test(token)) return null
-  const base = new Date(basisDate + 'T00:00:00.000Z')
-  if (!Number.isFinite(base.getTime()) || base.toISOString().slice(0, 10) !== basisDate) return null
-  if (/^\d/.test(token)) {
-    const [year, month, day] = token.split(/[-./]/)
-    const date = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
-    const parsed = new Date(date + 'T00:00:00.000Z')
-    return year !== '0000' && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date ? date : null
-  }
-  const relative: Record<string, number> = { 오늘: 0, 내일: 1, 모레: 2 }
-  const weekday = weekdayIndex.indexOf(token.at(-3) ?? '')
-  const day = base.getUTCDay()
-  // 요일만 말하면 오늘을 포함한 가장 가까운 요일, '이번 주/다음 주'는 월요일 기준이다.
-  const offset = relative[token] ?? (token.startsWith('이번') || token.startsWith('다음')
-    ? (weekday + 6) % 7 - (day + 6) % 7 + (token.startsWith('다음') ? 7 : 0)
-    : (weekday - day + 7) % 7)
-  base.setUTCDate(base.getUTCDate() + offset)
-  return base.toISOString().slice(0, 10)
+  return resolveDraftDate(token, basisDate)
 }
 
 export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskChangeCommand | Clarification | null {
   // 공통 분류기에서 인용·부정·설명·복합 요청을 먼저 제외한다. 이 함수는 대상을 조회할 의도만 만든다.
-  const value = prompt.trim()
-  const complete = value.match(/^(.*?)\s*(?:완료(?:\s*처리)?|완료로\s*변경)(?:해\s*(?:줘|주세요|주십시오)|해줘요)$/)
-  const restart = value.match(/^(.*?)\s*(?:다시\s*시작|재개)해\s*(?:줘|주세요|주십시오)$/)
-  const update = value.match(/^(.*?)\s*(?:바꿔|변경해|수정해)\s*(?:줘|주세요|주십시오)$/)
+  const value = prompt.trim().replace(/[.!?。！？]+$/, '').trim()
+  const complete = value.match(/^(.*?)\s*(?:완료(?:\s*처리)?|완료로\s*변경)(?:해\s*(?:줘|주세요|주십시오|줄래요?|주시겠어요|주실래요)|해줘요)$/)
+  const restart = value.match(/^(.*?)\s*(?:다시\s*시작|재개)해\s*(?:줘|주세요|주십시오|줄래요?|주시겠어요|주실래요)$/)
+  const update = value.match(/^(.*?)\s*(?:바꿔|변경해|수정해)\s*(?:줘|주세요|주십시오|줄래요?|주시겠어요|주실래요)$/)
   if (!complete && !restart && !update) return null
   let rawTarget = '', change: TaskChange
   if (restart) {
@@ -60,7 +43,8 @@ export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskC
     const title = body.match(/^(.*?)\s+(?:의\s*)?제목(?:을|은)?\s+(.+?)(?:으)?로$/)
     const status = body.match(/^(.*?)\s+(?:의\s*)?상태(?:를|는)?\s+(.+?)(?:으)?로$/)
     const memo = body.match(/^(.*?)\s*(?:의\s*)?메모(?:를|는)?\s+(.+?)(?:으)?로$/)
-    const due = body.match(/^(.*?)\s+(?:((?:이번\s*주|다음\s*주)\s*[월화수목금토일]요일|\S+?))(?:까지)?(?:으)?로$/)
+    const due = body.match(new RegExp('^(.*?)\\s+(' + draftDateWords.source + ')(?:\\s*까지)?(?:으)?로$', 'u'))
+      ?? body.match(/^(.*?)\s+(\S+?)(?:까지)?(?:으)?로$/)
     // ‘바꿔줘’만으로는 할 일 변경이 아니다. 문장·안내문 편집은 기존 AI 경로에 둔다.
     const taskHint = /^(?:내\s+)?(?:할\s*일|업무)(?:\s|[의을를은는]|$)|(?:^|\s)(?:기한|마감(?:일)?|메모)(?:을|를|은|는)?(?:\s|$)/.test(body)
     if (!memo && !(due && datePattern.test(due[2])) && !taskHint) return null
@@ -91,6 +75,7 @@ export function parseTaskChangeCommand(prompt: string, basisDate: string): TaskC
     } else return clarify('할 일 제목과 바꿀 제목·기한·메모 또는 상태를 알려 주세요. 예: 할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘')
   }
   const query = rawTarget.trim().replace(taskPrefix, '').replace(/(?:을|를)$/, '').trim()
+    .replace(/\s+할\s*일$/, '').trim()
   if (!query || /^(?:내\s*)?(?:일|업무|할\s*일|전부|모두|전체|모든|이것|그것|이거|그거)$/.test(query)
     || /(?:모두|전부|전체)\s*(?:완료|처리)?$|(?:하고|한 뒤|변경하고|수정하고|완료하고)|[;；]/.test(query)
     || Array.from(query).length > SEARCH_LIMITS.queryChars) return clarify('변경할 개인 할 일의 제목을 한 가지 적어 주세요.')

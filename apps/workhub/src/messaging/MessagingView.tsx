@@ -1,7 +1,7 @@
 import { type MessageDraft } from './composer'
 import { MessagePreview } from './MessagePreview'
 import { SentDeliveryPanel } from './SentDeliveryPanel'
-import { recipientLabel } from './deliveries'
+import { recipientLabel, sortedRecipients } from './deliveries'
 import { MessageAttachments } from './MessageAttachments'
 import messagingStyles from './messaging.css?inline'
 import composerStyles from '../app/composer-layout.css?inline'
@@ -107,142 +107,8 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
     waitingOpen,
   } = model
   const assistant = model.presentation === 'assistant'
-  return (
-    <section className="messaging-workspace" data-presentation={model.presentation} aria-labelledby={`${id}-heading`}>
-      <style>{messagingStyles + composerStyles + inboxStyles + assistantStyles}</style>
-      <header className="messaging-header ws-page-intro">
-        <div>
-          <h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>
-            {assistant ? tab === 'inbox' ? '업무 알림' : '메시지 보내기' : '메시지와 알림'}
-          </h2>
-
-        </div>
-        {!assistant && <button
-          type="button"
-          className="messaging-primary"
-          disabled={!usable || locked || dirty}
-          onClick={() => start()}
-        >
-          새 메시지
-        </button>}
-      </header>
-      {openRequest && onReturnToSource && (
-        <div className="messaging-actions">
-          <button type="button" disabled={navigationLocked} onClick={onReturnToSource}>
-            홈으로 돌아가기
-          </button>
-          <p className="messaging-muted">대화를 열어도 자동으로 읽음 처리하지 않습니다.</p>
-        </div>
-      )}
-      {waitingOpen && usable && navigationLocked && (
-        <section className="messaging-status" aria-label="요청한 대화 열기">
-          <p>작성 중인 입력과 이전 요청은 보관합니다. 입력을 접은 뒤 요청한 대화를 열어 주세요.</p>
-          <button
-            type="button"
-            disabled={busy || fileLocked || Boolean(preview)}
-            onClick={() => setFolded(true)}
-          >
-            입력 접고 요청한 대화 열기
-          </button>
-        </section>
-      )}
-      {(!assistant || !composing || folded) && composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && (
-        <section className="messaging-status" aria-label="AI 메시지 초안">
-          <p>
-            {usable && !checking && !readyError && chosenRecipients?.length
-              ? `대화에서 선택한 수신자 ${chosenRecipients.length}명을 확인하고 초안을 엽니다.`
-              : '받는 사람은 직접 선택합니다.'}{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}
-          </p>
-          {composeRequest.basisDate && usable && !checking && !readyError && <p className="messaging-body">{composeRequest.body}</p>}
-          <button type="button" disabled={!canUseAiDraft} onClick={useAiDraft}>
-            {checkingDraftRecipients ? '받는 사람 확인 중…' : '전달받은 메시지 초안 사용'}
-          </button>
-          {composeRequest.basisDate && <button type="button" onClick={dismissAiDraft}>전달받은 메시지 초안 닫기</button>}
-        </section>
-      )}
-      {checking && <p role="status">메시지 연결을 확인하는 중…</p>}
-      {notice && (
-        <div className="messaging-status" role="status">
-          {notice}
-        </div>
-      )}
-      {error && (
-        <div className="messaging-status" role="alert">
-          {error}
-        </div>
-      )}
-      {!usable && !checking && (
-        <div className="messaging-status" role="alert">
-          <p>
-            {readyError ||
-              (!enabled || denied
-                ? '현재 학교의 메시지 이용 권한을 다시 확인해 주세요.'
-                : '메시지와 알림의 서버 연결을 준비하고 있습니다. 준비되지 않은 대화를 빈 목록으로 표시하지 않습니다.')}
-          </p>
-          <button type="button" onClick={() => setRefresh((value) => value + 1)}>
-            연결 다시 확인
-          </button>
-        </div>
-      )}
-      {pending && (
-        <section className="messaging-status messaging-recovery" aria-label="이전 메시지 요청 확인">
-          <h3>이전 요청의 결과를 먼저 확인해 주세요</h3>
-          <p>
-            같은 내용과 요청 번호로 다시 확인합니다. 확인 전에는 새 메시지 전송을 멈춥니다. 보관
-            정보는 현재 탭에만 남습니다. 연결 준비를 확인하지 못한 경우에는 기존 접수증만
-            조회합니다.
-          </p>
-          <div className="messaging-actions">
-            <button
-              type="button"
-              className="messaging-primary"
-              disabled={busy || !enabled || denied}
-              onClick={() => void send(pending, true)}
-            >
-              이전 요청 그대로 다시 확인
-            </button>
-            {!assistant && <button type="button" disabled={busy} onClick={() => setFolded((value) => !value)}>
-              {folded ? '보관한 입력 보기' : '입력 접고 목록 보기'}
-            </button>}
-          </div>
-        </section>
-      )}
-      {!usable && !denied && enabled && fileRecovery.request && (
-        <MessageAttachments
-          server={fileServer}
-          member={member}
-          enabled={false}
-          disabled={busy || Boolean(pending)}
-          files={draft.attachments}
-          onChange={(files) => setDraft((value) => ({ ...value, attachments: files }))}
-          onLockChange={setFileLocked}
-        />
-      )}
-      {usable && (
-        <>
-          {delivered && !checking && (
-            <SentDeliveryPanel
-              key={delivered.receipt.requestKey}
-              record={delivered}
-              disabled={locked}
-              hasDraft={dirty}
-              onOpen={openDeliveredThread}
-              onDismiss={() => setDelivered(null)}
-            />
-          )}
-          {!assistant && <div className="messaging-tabs" role="group" aria-label="메시지 분류">
-            <button
-              type="button"
-              aria-pressed={tab === 'messages'}
-              onClick={() => setTab('messages')}
-            >
-              대화
-            </button>
-            <button type="button" aria-pressed={tab === 'inbox'} onClick={() => setTab('inbox')}>
-              업무 알림
-            </button>
-          </div>}
-          {composing && (
+  const replyAtConversation = Boolean(draft.thread && tab === 'messages' && (!assistant || openedId || showThreadList))
+  const composer = composing ? (
             <form
               hidden={folded || (assistant && Boolean(preview || pending))}
               className="messaging-compose wh-composer"
@@ -356,7 +222,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                       )}
                       {loadingRecipients && <p role="status">교사 명단 확인 중…</p>}
                       <ul className="messaging-recipient-list" aria-label="받는 사람 선택">
-                        {recipients.items.map((recipient) => (
+                        {sortedRecipients(recipients.items).map((recipient) => (
                           <li key={recipient.memberId}>
                             <label>
                               <input
@@ -493,7 +359,143 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                 <p role="status">닫기를 한 번 더 누르면 아직 보내지 않은 입력을 버립니다.</p>
               )}
             </form>
+  ) : null
+  return (
+    <section className="messaging-workspace" data-presentation={model.presentation} aria-labelledby={`${id}-heading`}>
+      <style>{messagingStyles + composerStyles + inboxStyles + assistantStyles}</style>
+      <header className="messaging-header ws-page-intro">
+        <div>
+          <h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>
+            {assistant ? tab === 'inbox' ? '업무 알림' : '메시지 보내기' : '메시지와 알림'}
+          </h2>
+
+        </div>
+        {!assistant && <button
+          type="button"
+          className="messaging-primary"
+          disabled={!usable || locked || dirty}
+          onClick={() => start()}
+        >
+          새 메시지
+        </button>}
+      </header>
+      {openRequest && onReturnToSource && (
+        <div className="messaging-actions">
+          <button type="button" disabled={navigationLocked} onClick={onReturnToSource}>
+            홈으로 돌아가기
+          </button>
+          <p className="messaging-muted">대화를 열어도 자동으로 읽음 처리하지 않습니다.</p>
+        </div>
+      )}
+      {waitingOpen && usable && navigationLocked && (
+        <section className="messaging-status" aria-label="요청한 대화 열기">
+          <p>작성 중인 입력과 이전 요청은 보관합니다. 입력을 접은 뒤 요청한 대화를 열어 주세요.</p>
+          <button
+            type="button"
+            disabled={busy || fileLocked || Boolean(preview)}
+            onClick={() => setFolded(true)}
+          >
+            입력 접고 요청한 대화 열기
+          </button>
+        </section>
+      )}
+      {(!assistant || !composing || folded) && composeRequest?.schoolId === member.schoolId && composeRequest.memberId === member.id && (
+        <section className="messaging-status" aria-label="AI 메시지 초안">
+          <p>
+            {usable && !checking && !readyError && chosenRecipients?.length
+              ? `대화에서 선택한 수신자 ${chosenRecipients.length}명을 확인하고 초안을 엽니다.`
+              : '받는 사람은 직접 선택합니다.'}{dirty && ' 현재 작성 중인 메시지를 먼저 마무리해 주세요.'}
+          </p>
+          {composeRequest.basisDate && usable && !checking && !readyError && <p className="messaging-body">{composeRequest.body}</p>}
+          <button type="button" disabled={!canUseAiDraft} onClick={useAiDraft}>
+            {checkingDraftRecipients ? '받는 사람 확인 중…' : '전달받은 메시지 초안 사용'}
+          </button>
+          {composeRequest.basisDate && <button type="button" onClick={dismissAiDraft}>전달받은 메시지 초안 닫기</button>}
+        </section>
+      )}
+      {checking && <p role="status">메시지 연결을 확인하는 중…</p>}
+      {notice && (
+        <div className="messaging-status" role="status">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div className="messaging-status" role="alert">
+          {error}
+        </div>
+      )}
+      {!usable && !checking && (
+        <div className="messaging-status" role="alert">
+          <p>
+            {readyError ||
+              (!enabled || denied
+                ? '현재 학교의 메시지 이용 권한을 다시 확인해 주세요.'
+                : '메시지와 알림의 서버 연결을 준비하고 있습니다. 준비되지 않은 대화를 빈 목록으로 표시하지 않습니다.')}
+          </p>
+          <button type="button" onClick={() => setRefresh((value) => value + 1)}>
+            연결 다시 확인
+          </button>
+        </div>
+      )}
+      {pending && (
+        <section className="messaging-status messaging-recovery" aria-label="이전 메시지 요청 확인">
+          <h3>이전 요청의 결과를 먼저 확인해 주세요</h3>
+          <p>
+            같은 내용과 요청 번호로 다시 확인합니다. 확인 전에는 새 메시지 전송을 멈춥니다. 보관
+            정보는 현재 탭에만 남습니다. 연결 준비를 확인하지 못한 경우에는 기존 접수증만
+            조회합니다.
+          </p>
+          <div className="messaging-actions">
+            <button
+              type="button"
+              className="messaging-primary"
+              disabled={busy || !enabled || denied}
+              onClick={() => void send(pending, true)}
+            >
+              이전 요청 그대로 다시 확인
+            </button>
+            {!assistant && <button type="button" disabled={busy} onClick={() => setFolded((value) => !value)}>
+              {folded ? '보관한 입력 보기' : '입력 접고 목록 보기'}
+            </button>}
+          </div>
+        </section>
+      )}
+      {!usable && !denied && enabled && fileRecovery.request && (
+        <MessageAttachments
+          server={fileServer}
+          member={member}
+          enabled={false}
+          disabled={busy || Boolean(pending)}
+          files={draft.attachments}
+          onChange={(files) => setDraft((value) => ({ ...value, attachments: files }))}
+          onLockChange={setFileLocked}
+        />
+      )}
+      {usable && (
+        <>
+          {delivered && !checking && (
+            <SentDeliveryPanel
+              key={delivered.receipt.requestKey}
+              record={delivered}
+              disabled={locked}
+              hasDraft={dirty}
+              onOpen={openDeliveredThread}
+              onDismiss={() => setDelivered(null)}
+            />
           )}
+          {!assistant && <div className="messaging-tabs" role="group" aria-label="메시지 분류">
+            <button
+              type="button"
+              aria-pressed={tab === 'messages'}
+              onClick={() => setTab('messages')}
+            >
+              대화
+            </button>
+            <button type="button" aria-pressed={tab === 'inbox'} onClick={() => setTab('inbox')}>
+              업무 알림
+            </button>
+          </div>}
+          {!replyAtConversation && composer}
           {composing && folded && !pending && (
             <div className="messaging-status">
               <p>작성 중인 메시지를 현재 탭에 보관했습니다.</p>
@@ -717,6 +719,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                     <p>목록에서 대화를 열면 메시지와 첨부 파일을 확인할 수 있습니다.</p>
                   </div>
                 )}
+                {replyAtConversation && composer}
               </section>
             </div>
           ) : (

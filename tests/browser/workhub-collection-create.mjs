@@ -41,6 +41,18 @@ async function saved(count = 1) {
 }
 async function retryFile() { await button('같은 파일 상태 다시 확인').click() }
 try {
+  await test('검토 기본값을 펼치기 전부터 알리고 검토자 선택 뒤 현재 값으로 바꾼다', async () => {
+    const summary=page.getByText('제출 후 검토 · 검토 없이 완료',{exact:true})
+    await summary.waitFor(); await summary.click()
+    const reviewer=page.getByLabel('제출 후 검토',{exact:true})
+    assert.equal(await reviewer.inputValue(),'')
+    const value=await reviewer.locator('option').evaluateAll(items=>items.find(item=>item.value&&!item.disabled)?.value)
+    assert.ok(value); await reviewer.selectOption(value)
+    await page.getByText('제출 후 검토 · 담당자 확인 필요',{exact:true}).waitFor()
+    await reviewer.selectOption('')
+    await page.getByText('제출 후 검토 · 검토 없이 완료',{exact:true}).waitFor()
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+  })
   await test('파일 전송 실패는 권한 오류로 표시하지 않고 같은 초안에서 다시 내려받는다', async () => {
     await picker().setInputFiles(hwpx('보존양식.hwpx')); await button('수합 초안 저장').click(); await saved()
     await page.evaluate(() => { window.downloadFailure = 'FILE_FAILED' })

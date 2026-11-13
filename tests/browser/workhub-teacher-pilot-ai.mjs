@@ -54,14 +54,14 @@ try {
     await test('AI 명령 ' + command + '도 허용 범위 밖 화면을 열지 않는다', {}, async () => {
       await field().waitFor(); await field().fill(command)
       await page.locator('.assistant-compose button[type="submit"]').click()
-      await page.getByText(/(?:화면을|업무를) 열지 못했습니다/).waitFor()
+      await page.getByText(/(?:화면을|업무를) 열지 못했습니다|현재 계정에는 이 업무 메뉴가 열려 있지 않습니다/).waitFor()
       assert.equal(await field().inputValue(), command)
       const calls = await page.evaluate(() => window.qa.calls)
       assert.equal(calls.some(c => /school_admin|document|knowledge|credential|policy/.test(c.name)), false)
     })
   await test('AI 학교 자료 검색은 제외한 자료 API를 부르지 않는다', {}, async () => {
     await field().waitFor(); await field().fill('학교 자료에서 출장 찾아줘'); await button('자료 찾기').click()
-    await page.getByText('자료를 찾지 못했습니다. 입력은 유지했습니다. 잠시 뒤 다시 확인해 주세요.', { exact: true }).waitFor()
+    await page.getByText('현재 계정에는 이 자료 조회 메뉴가 열려 있지 않습니다. 입력은 유지했습니다.', { exact: true }).waitFor()
     assert.equal(await page.evaluate(() => window.qa.calls.some(c => /document|knowledge/.test(c.name))), false)
   })
   await test('교사 AI에서 기존 할 일을 선택·완료하고 원래 작업 어댑터로 저장한다', {}, async () => {
