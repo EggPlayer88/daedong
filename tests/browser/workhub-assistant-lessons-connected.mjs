@@ -20,7 +20,7 @@ async function today() {
   await button('AI 비서').first().click()
   const input = page.getByLabel('질문 또는 부탁할 일', { exact: true })
   await input.and(page.locator(':enabled')).waitFor()
-  await input.fill('오늘 업무 요약해줘'); await button('학교 자료 확인').click()
+  await input.fill('오늘 업무 요약해줘'); await button('확인하기').click()
   const lessons = page.getByRole('region', { name: '대화에서 오늘 수업', exact: true })
   await lessons.getByRole('button', { name: /정확한 교환 반영 수업/ }).waitFor()
   if (process.env.WORKHUB_QA_OUTPUT) {
