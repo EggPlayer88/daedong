@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 
 // 새로고침 초안 보관만 허용한다. 단순 storage 개수 완화로 서버 응답·다른 계정 자료 저장을 놓치지 않는다.
-export async function assertDraftOnlyCheckpoint(page, { memberId = 'gaon-soyeon', slots, requiredMessage } = {}) {
+export async function assertDraftOnlyCheckpoint(page, { memberId = 'gaon-soyeon', validFrom = '2020-01-01', validThrough = '2099-12-31', slots, requiredMessage } = {}) {
   const snapshot = await page.evaluate(() => ({
     local: Object.keys(localStorage), session: Object.entries(sessionStorage),
   }))
@@ -17,7 +17,7 @@ export async function assertDraftOnlyCheckpoint(page, { memberId = 'gaon-soyeon'
   assert.ok(Array.isArray(saved.items) && saved.items.length > 0 && saved.items.length <= 48)
   const gaon = memberId === 'gaon-soyeon'
   assert.ok(gaon || memberId === 'nuri-soyeon', '현재 fixture의 검증된 소속만 허용합니다')
-  const scope = ['fixture-soyeon', gaon ? 'fixture-school-gaon' : 'fixture-school-nuri', memberId, true, '2020-01-01', '2099-12-31', 'teacher', [gaon ? 'curriculum' : 'research'], [gaon ? '2' : '1'], ['math']]
+  const scope = ['fixture-soyeon', gaon ? 'fixture-school-gaon' : 'fixture-school-nuri', memberId, true, validFrom, validThrough, 'teacher', [gaon ? 'curriculum' : 'research'], [gaon ? '2' : '1'], ['math']]
   const unique = new Set()
   for (const item of saved.items) {
     assert.deepEqual(Object.keys(item).sort(), ['channel', 'savedAt', 'scope', 'slot', 'value', 'warn'])
