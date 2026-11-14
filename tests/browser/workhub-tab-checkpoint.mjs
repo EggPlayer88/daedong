@@ -38,6 +38,7 @@ try{
   await reload('hold=1');await page.getByRole('heading',{name:'학교 연결 확인 중',exact:true}).waitFor();assert.equal(await input().count(),0);assert.equal(await button('보관한 입력 이어쓰기').count(),0);
   await page.waitForFunction(()=>typeof window.releaseCheckpointContext==='function');await page.evaluate(()=>window.releaseCheckpointContext());
   await button('보관한 입력 이어쓰기').waitFor();assert.equal(await input().count(),0);await page.getByText('선택했던 파일은 다시 골라 주세요. 이전 AI 답변과 학생 근거는 다시 조회합니다.',{exact:true}).waitFor();
+  await page.getByText('공용 PC에서는 사용을 마친 뒤 로그아웃해 주세요.',{exact:true}).waitFor();
   await button('보관한 입력 이어쓰기').click();await input().waitFor();assert.equal(await input().inputValue(),'보관할 업무 질문 123');
   assert.equal(await page.evaluate(()=>window.dailyConnected.calls.some(c=>/_ask$|_execute$|_mutate$|_save$/.test(c.name))),false)
  })

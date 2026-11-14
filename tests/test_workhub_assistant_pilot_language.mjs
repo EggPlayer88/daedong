@@ -113,4 +113,103 @@ check('서버 안내의 대화 예시는 실제 로컬 작성 분류기와 일�
   assert.equal(calendar.kind,'calendar')
   assert.equal(calendar.startTime,'15:00')
 })
+const politeEndings = ['주실 수 있나요?', '주실 수 있을까요?', '줄 수 있을까요?']
+check('M1 세 질문형 종결은 네 업무 모두 초안으로 분류하고 원문·대상 힌트를 유지한다', () => {
+  for (const ending of politeEndings) {
+    const task = '[TP1 T05] 채점 할 일로 넣어 ' + ending
+    assert.deepEqual(parse(task, basis), {kind:'task',prompt:task})
+    const calendar = '11월 18일 회의 일정 잡아 ' + ending
+    assert.deepEqual(parse(calendar,basis),{kind:'calendar',prompt:calendar,title:'회의',date:'2026-11-18',startTime:null,endTime:null,allDay:false})
+    const message = "김준철 선생님에게 '[TP1 T05] 회의 안내' 메시지 써 " + ending
+    assert.deepEqual(parse(message,basis),{kind:'messageDraft',prompt:message,body:'[TP1 T05] 회의 안내',firstTurn:{names:['김준철']}})
+    const collection = '11월 18일까지 선수영 선생님에게 [TP1 T05] 계획서 수합 요청해 ' + ending
+    assert.deepEqual(parse(collection,basis),{kind:'collectionDraft',prompt:collection,title:'[TP1 T05] 계획서',instructions:'',firstTurn:{names:['선수영'],dueDate:'2026-11-18'}})
+  }
+})
+check('M1 기존 내용·제목 명시 문법과 띄어 쓴 부탁도 같은 종결을 지원한다', () => {
+  for (const ending of politeEndings) {
+    const message = '“내일 회의 자료를 확인해 주세요.”라는 내용으로 메시지 초안 만들어 ' + ending
+    assert.deepEqual(parse(message,basis),{kind:'messageDraft',prompt:message,body:'내일 회의 자료를 확인해 주세요.'})
+    const collection = '“계획서”라는 제목으로 자료 수합 초안 만들어 ' + ending
+    assert.deepEqual(parse(collection,basis),{kind:'collectionDraft',prompt:collection,title:'계획서',instructions:''})
+  }
+  assert.equal(parse('회의 안내 메시지 초안 만들어 주실  수  있을까요?',basis),null)
+  assert.equal(parse('메시지 초안 만들어 주실  수  있을까요?',basis).kind,'messageDraft')
+})
+check('M1 부정·인용·복합 실행은 새 종결에서도 하나의 저장 명령이 되지 않는다', () => {
+  for (const ending of politeEndings) {
+    for (const text of [
+      '채점은 할 일로 넣지 말고 안내 할 일로 넣어 ' + ending,
+      '회의는 잡지 말고 연수 일정 잡아 ' + ending,
+      '메시지는 만들지 않고 계획서 수합 만들어 ' + ending,
+      '수합 대신 “안내” 메시지 만들어 ' + ending,
+      '안내 할 일로 넣어 ' + ending + ' 회의 일정 잡아 ' + ending,
+      '회의 일정 잡아 ' + ending + ' 그리고 계획서 수합 요청해 ' + ending,
+      '“안내” 메시지 써 ' + ending + ' 계획서 수합 요청해 ' + ending,
+      '계획서 수합 요청해 ' + ending + ' 안내 할 일로 넣어 ' + ending,
+      '“회의 일정 잡아 ' + ending + '”',
+      '예시: 계획서 수합 요청해 ' + ending,
+    ]) {
+      const result = parse(text,basis)
+      assert.ok(result === null || result.kind === 'clarify',text + ': ' + JSON.stringify(result))
+    }
+    const quoted = '“회의 일정 잡아 주실 수 있나요?” 메시지 써 ' + ending
+    assert.equal(parse(quoted,basis).body,'회의 일정 잡아 주실 수 있나요?')
+  }
+})
+check('본문의 공지 마감·제출하지 않은 자료는 작성 금지 명령으로 오인하지 않는다', () => {
+  for (const ending of ['주세요', '줘', '주시겠어요?', ...politeEndings]) {
+    for (const body of ['공지 마감 안내', '제출하지 않은 자료 확인', '작성하지 않은 초안 확인']) {
+      const prompt = '김혜진 선생님에게 ' + body + ' 메시지 만들어 ' + ending
+      assert.deepEqual(parse(prompt,basis),{kind:'messageDraft',prompt,body,firstTurn:{names:['김혜진']}})
+    }
+    const prompt = '11월18일까지 공지 마감 자료 수합 만들어' + ending
+    // 기존 '자료 수합' 업무 이름 해석은 유지한다. 인용한 '자료'는 제목으로 보존한다.
+    assert.deepEqual(parse(prompt,basis),{kind:'collectionDraft',prompt,title:'공지 마감',instructions:'',firstTurn:{names:[],dueDate:'2026-11-18'}})
+    const quoted = '11월18일까지 “공지 마감 자료” 수합 만들어' + ending
+    assert.deepEqual(parse(quoted,basis),{kind:'collectionDraft',prompt:quoted,title:'공지 마감 자료',instructions:'',firstTurn:{names:[],dueDate:'2026-11-18'}})
+  }
+})
+check('콜론 검색어와 수신자 뒤의 부탁 본문은 복합 작성 명령으로 세지 않는다', () => {
+  for (const query of ['시간표 보여줘 그리고 교사 명부 보여줘','회의 일정 잡아 주실 수 있나요? 계획서 수합 요청해 주실 수 있나요?']) {
+    assert.deepEqual(parse('학교 자료 검색: ' + query,basis),{kind:'search',query:query.replace(/[.!?。！？]+$/, ''),kinds:['knowledge']})
+  }
+  for (const ending of ['주세요', '줘', ...politeEndings]) {
+    for (const body of ['자료 준비해 주세요', '자료 준비해 주세요. 결과도 확인해 주세요']) {
+      const prompt = '김혜진 선생님에게 ' + body + ' 메시지 만들어 ' + ending
+      assert.deepEqual(parse(prompt,basis),{kind:'messageDraft',prompt,body,firstTurn:{names:['김혜진']}})
+    }
+  }
+})
+check('U4 현실·진실·객관은 장소가 아니며 명시한 공간만 제목에서 분리한다', () => {
+  for (const title of ['현실에서 적용하는 연수','진실에서 출발하는 토론','객관에서 바라보는 평가','늘봄실에서 진행하는 연수']) {
+    const result = parse(title + ' 11월20일 일정잡아줘',basis)
+    assert.equal(result.kind,'calendar'); assert.equal(result.title,title)
+    assert.equal(result.location,undefined); assert.equal(result.date,'2026-11-20')
+  }
+  for (const location of ['협의실','2층 협의실','본관 2층 회의실','301호','체육관','운동장']) {
+    const result = parse(location + '에서 현실에서 적용하는 연수 11월20일 일정잡아줘',basis)
+    assert.equal(result.location,location); assert.equal(result.title,'현실에서 적용하는 연수')
+  }
+  const quoted = parse('11월20일 “협의실에서 배우는 대화” 일정잡아줘',basis)
+  assert.equal(quoted.title,'“협의실에서 배우는 대화”'); assert.equal(quoted.location,undefined)
+  assert.equal(parse('회의실에서 협의실에서 회의 11월20일 일정잡아줘',basis).kind,'clarify')
+})
+check('U5 일정 뒤의 날짜 하나는 제목에 남기지 않고 빠진 시각만 비워 둔다', () => {
+  for (const date of ['11월18일','11월 18일 수요일','11/18','18일','2026-11-18','다음 주 수요일']) {
+    for (const ending of ['잡아줘', ...politeEndings.map(end => '잡아 ' + end)]) {
+      const prompt = '[TP1 T01] 회의 일정 ' + date + '로 ' + ending
+      assert.deepEqual(parse(prompt,basis),{kind:'calendar',prompt,title:'[TP1 T01] 회의',date:'2026-11-18',startTime:null,endTime:null,allDay:false})
+    }
+  }
+  const prompt = '회의 일정 11월18일로 잡아줘. 대상은 김준철 선생님이야.'
+  assert.deepEqual(parse(prompt,basis),{kind:'calendar',prompt,title:'회의',date:'2026-11-18',startTime:null,endTime:null,allDay:false,audienceQueries:['김준철']})
+})
+check('U5 애매한 날짜·요일 불일치·여러 날짜와 조건은 유효 일정으로 축약하지 않는다', () => {
+  for (const date of ['수요일','11월18일 목요일','11/31','11월18일이나 19일','11월18일~19일','11월18일과 19일','다음 주 중','매주 수요일','11월18일 오후 3시 또는 4시']) {
+    const prompt = '회의 일정 ' + date + '로 잡아 주실 수 있을까요?'
+    const result = parse(prompt,basis)
+    assert.ok(result === null || result.kind === 'clarify',prompt + ': ' + JSON.stringify(result))
+  }
+})
 console.log(`\nAI 실사용 표현 회귀: ${count} 묶음 통과 (유료 API 호출 없음)`)

@@ -687,6 +687,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       <p>같은 탭에 보관한 입력입니다. 현재 계정과 학교 소속 확인을 마쳤습니다. 이어쓰기를 눌러도 자동으로 전송하거나 저장하지 않습니다.</p>
       {restorePending > 0 && <p role="status">결과를 확인하지 못한 요청 {restorePending}건은 원래 요청 번호로 먼저 확인합니다.</p>}
       <p>선택했던 파일은 다시 골라 주세요. 이전 AI 답변과 학생 근거는 다시 조회합니다.</p>
+      <p>공용 PC에서는 사용을 마친 뒤 로그아웃해 주세요.</p>
       <button type="button" onClick={() => {pendingRequests.restore(currentScope);editDrafts.restore(currentScope);setRestoreEpoch(value => value + 1)}}>보관한 입력 이어쓰기</button>
       {!restorePending && <button type="button" onClick={() => {editDrafts.discardRestore(currentScope);setRestoreEpoch(value => value + 1)}}>보관한 입력 버리기</button>}
     </main> :

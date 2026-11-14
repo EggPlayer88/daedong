@@ -1,4 +1,5 @@
 import { draftDateWords, resolveDraftDate } from './draft-date'
+import { assistantRequestEnding, hasMultipleAssistantRequests } from './request-expression'
 import type { EvaluationTarget } from './evaluation-workspace'
 import { parseDraftCommand, type DirectDraftCommand } from './draft-commands'
 import { parseTaskChangeCommand, type TaskChangeCommand } from './task-change-command'
@@ -49,7 +50,7 @@ const searchScopes: ReadonlyArray<[string, SearchKind[]]> = [
   ['자료', ['knowledge', 'document']],
 ]
 const esc = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*')
-const askEnd = '(?:줘|주세요|주십시오|주시겠어요|줄래|줄래요|줄 수 있어|줄 수 있나요|주실래요)'
+const askEnd = assistantRequestEnding
 const moveEnd = `(?:열어|보여|이동해|가|띄워)\\s*${askEnd}`
 const findEnd = `(?:찾아|검색해|조회해)\\s*${askEnd}`
 const makeEnd = `(?:(?:만들어|작성해|추가해|등록해|잡아|넣어)\\s*${askEnd}|(?:만들고|작성하고|추가하고|등록하고|잡고|넣고)\\s*싶(?:어|어요|습니다))`
@@ -138,7 +139,11 @@ export function parseCalendarFields(prompt: string, raw: string, basisDate: stri
     return clarification('시각을 HH:MM 또는 오전·오후 몇 시로 적어 주세요.')
   text = text.replace(/(?:부터|까지|에)(?=\s|$)|[~～]/g, ' ').replace(/\s+/g, ' ').trim()
   // '2층 협의실에서'처럼 장소가 명시된 부분만 분리한다. 남은 제목은 요약하지 않는다.
-  const place = /(?:^|\s)((?:\d+층\s+|(?:본관|신관|별관)\s+)?(?:[^\s]+(?:실|관)|[^\s]*(?:운동장|강당)))에서(?=\s|$)/.exec(text)
+  // '현실·진실·관점' 같은 일반 명사를 임의의 공간으로 분리하지 않는다.
+  const spaceName = '(?:교무실|교장실|교감실|행정실|보건실|회의실|협의실|교실|연구실|상담실|방송실|과학실|컴퓨터실|음악실|미술실|가사실|기술실|어학실|도서실|자료실|체육관|도서관|운동장|강당|급식실|식당|시청각실|다목적실|\\d{1,4}호(?:실)?)'
+  const places = [...text.matchAll(new RegExp('(?:^|\\s)((?:(?:본관|신관|별관)\\s+)?(?:\\d+층\\s+)?' + spaceName + ')에서(?=\\s|$)', 'g'))]
+  if (places.length > 1) return clarification('일정 장소를 하나만 적어 주세요. 여러 장소는 일정 화면에서 확인해 주세요.')
+  const place = places[0]
   const location = place?.[1]
   if (place) text = (text.slice(0, place.index) + ' ' + text.slice(place.index + place[0].length)).replace(/\s+/g, ' ').trim()
   text = text.replace(/^(?:나의|내)\s+/, '').replace(/(?:을|를)$/, '').trim()
@@ -168,6 +173,8 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   if (/^(?:["'“‘`]|예시\s*[:：]|예를\s*들어)/.test(text) || /(?:라고|라는|말하면|입력하면|명령어|사용법|어떻게|가능한지|않|지\s*마|지\s*말|아니라)/.test(text))
     return null
   text = text.replace(/^(?:비서야|AI야|부탁인데)\s*[,，]?\s*/, '')
+  if (hasMultipleAssistantRequests(text))
+    return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
   if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해|수정해|완료해|변경해|바꿔|전송해|잡아)\s*(?:주고|줘서)|(?:열고|찾고|등록하고(?!\s*싶)|추가하고(?!\s*싶)|만들고(?!\s*싶)|이동하고|수정하고|완료하고|변경하고|바꾸고|전송하고|잡고(?!\s*싶))|[;；]/.test(text))
     return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
   const evaluation = text.match(new RegExp(`^평가\\s*계획서\\s*(작성|제출)(?:\\s*(?:메뉴|화면))?\\s*(?:을|를|으로|로)?\\s*${moveEnd}$`))
@@ -207,8 +214,11 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   const calendarText = audience ? text.slice(0, audience.index).trim() : text
   const calendar = calendarText.match(new RegExp(`^(.*?)\\s*일정(?:\\s*초안)?(?:을|를)?\\s*${makeEnd}$`))
     ?? calendarText.match(new RegExp(`^일정\\s*초안\\s*[:：]\\s*(.+)$`))
-  if (calendar) {
-    const parsed = parseCalendarFields(prompt, calendar[1], basisDate)
+  // 일정 뒤에는 날짜 하나와 조사만 허용한다. 다른 조건을 제목에 몰래 합치지 않는다.
+  const datedCalendar = calendar ? null : calendarText.match(new RegExp(`^(.*?)\\s*일정(?:\\s*초안)?(?:을|를)?\\s+(${draftDateWords.source})\\s*(?:으?로|에)?\\s*${makeEnd}$`, 'u'))
+  if (calendar || datedCalendar) {
+    const raw = calendar ? calendar[1] : datedCalendar![1] + ' ' + datedCalendar![2]
+    const parsed = parseCalendarFields(prompt, raw, basisDate)
     if (parsed.kind === 'clarify' || !audience) return parsed
     const names = parseCalendarAudience(audience[1])
     return names ? { ...parsed, audienceQueries: names } : clarification('일정 대상의 교사 이름을 적어 주세요. 전체 공개는 일정 화면에서 확인합니다.')
