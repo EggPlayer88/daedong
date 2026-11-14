@@ -228,6 +228,7 @@ export function useCollectionEditor({
     setPublishReview(undefined)
     setSession({ selectedId: selected })
     setError('')
+    setNotice('')
     setComparison(undefined)
   }
   function hideDenied() {

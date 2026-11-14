@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 
-const { buildAssistantCalendarDraft: build, validateAssistantCalendarDraftRequest: validate, fixtureData } = await loadBrowserModule(`
+const { buildAssistantCalendarDraft: build, validateAssistantCalendarDraftRequest: validate, assistantAudienceCandidates: candidates, selectAssistantAudience: selectAudience, prepareCalendarOperation: prepareCalendar, fixtureData } = await loadBrowserModule(`
   export * from '../apps/workhub/src/calendar/assistant-draft.ts'
+  export * from '../apps/workhub/src/calendar/assistant-audience.tsx'
+  export { prepareCalendarOperation } from '../apps/workhub/src/assistant/workspace-operations.ts'
   export { fixtureData } from '../apps/workhub/src/preview/fixtures.ts'
 `)
 const member = fixtureData.memberships.find(row => row.id === 'gaon-soyeon')
@@ -58,5 +60,27 @@ test('이관 경계에서 형식·날짜·시간·숨은 종일 시간을 다시
   for (const patch of [{ title: [] }, { startDate: '2026-02-31' }, { endDate: '2099-01-01' }, { startTime: '25:30' }, { allDay: true }, { description: '\u0000' }]) {
     const raw = request(); Object.assign(raw.draft, patch); rejects(() => validate(raw, member, date))
   }
+})
+test('명시 장소와 이름 힌트는 넘기되 후보 확인 없는 대화 저장을 거절한다', () => {
+  const draft = build({...command(),location:'2층 협의실'},member,date)
+  assert.equal(draft.location,'2층 협의실'); assert.equal(draft.visibility,'private')
+  const raw = {...request(),draft,audienceQueries:['김교사']}
+  const validated = validate(raw,member,date)
+  assert.deepEqual(validated.audienceQueries,['김교사'])
+  raw.audienceQueries[0]='다른 이름';assert.deepEqual(validated.audienceQueries,['김교사'])
+  rejects(()=>prepareCalendar(validated,member,date),'EDITOR_REQUIRED')
+  for(const hints of [[''],['가'.repeat(201)],['교사\u0085'],[{}],{name:'교사'}]) rejects(()=>validate({...request(),audienceQueries:hints},member,date))
+  rejects(()=>build({...command(),location:'가'.repeat(101)},member,date))
+})
+test('교사 후보가 한 명이어도 직접 선택 전에는 대상이 바뀌지 않고 다른 학교·중지 소속은 제외한다', () => {
+  const peer={...member,id:'peer',userId:'peer-user',name:'김교사'}
+  const people=[member,peer,{...peer,id:'other-school',schoolId:'other'},{...peer,id:'inactive',active:false}]
+  const draft=build(command(),member,date)
+  assert.deepEqual(candidates('김교사',people,member,date).map(row=>row.id),['peer'])
+  assert.deepEqual(draft.audience.includeMemberIds,[member.id])
+  const selected=selectAudience(draft,'김교사','peer',people,member,date)
+  assert.equal(selected.visibility,'audience');assert.deepEqual(selected.audience.includeMemberIds,[member.id,'peer'])
+  assert.deepEqual(draft.audience.includeMemberIds,[member.id])
+  for(const id of ['other-school','inactive','invented']) rejects(()=>selectAudience(draft,'김교사',id,people,member,date))
 })
 if (failures) process.exit(1)

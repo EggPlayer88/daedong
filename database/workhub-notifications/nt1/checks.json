@@ -1,0 +1,9 @@
+{
+  "postcheck": "INT-15",
+  "baseline": "INT-14 + NT1-01",
+  "rows": 18,
+  "source": "database/workhub-notifications/nt1/INT-15_알림연결포함_통합점검.sql",
+  "bytes": 658791,
+  "sha256": "65458944f0ade5f25beb447db702a0f46c1fd1b936558c73b1d29067679a91cb",
+  "deltaObjects": 11
+}

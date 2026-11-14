@@ -32,7 +32,7 @@ type DraftReply =
   | { kind: 'cancel' }
 
 const explain = (message: string): DraftReply => ({ kind: 'clarify', message })
-const dateHint = '제출 기한을 날짜 하나로 적어 주세요. 예: 내일, 다음 주 금요일, 2027-03-05.'
+const dateHint = '제출 기한을 날짜 하나로 적어 주세요. 예: 11월 18일 수요일, 11/18, 18일, 내일.'
 const nameHint = '대상 교사의 이름을 한 분씩 적고 검색 결과에서 선택해 주세요.'
 const dueLabel = /^(?:제출\s*기한|기한|마감(?:일|날짜)?)\s*(?:은|는|[:：])?\s*/
 const personLabel = /^(?:받는\s*사람|수신자|제출\s*대상|대상(?:자)?)\s*(?:은|는|[:：])?\s*/
@@ -54,7 +54,7 @@ export function parseDraftReply(draft: DraftFollowup, reply: string): DraftReply
   if (dates.length) {
     if (draft.command.kind !== 'collectionDraft') return explain('메시지를 받을 교사의 이름을 적어 주세요.')
     const found = dates[0], date = resolveDraftDate(found[0], draft.basisDate)
-    if (!date || date < draft.basisDate) return explain('제출 기한은 오늘 이후의 실제 날짜여야 합니다.')
+    if (!date || date < draft.basisDate) return explain('제출 기한은 오늘 이후의 실제 날짜여야 하며, 적은 요일도 날짜와 같아야 합니다.')
     dueDate = date
     const before = text.slice(0, found.index).replace(/(?:제출\s*기한|기한|마감(?:일|날짜)?)\s*(?:은|는|[:：])?\s*$/, '')
     const after = text.slice(found.index + found[0].length).replace(/^(?:까지)?(?:(?:로|으로)(?:\s*해\s*(?:줘|주세요))?|에)?(?:입니다|예요|이에요|요)?(?=$|[\s,，])/, '')
@@ -62,7 +62,7 @@ export function parseDraftReply(draft: DraftFollowup, reply: string): DraftReply
   }
   if (dueLabel.test(remainder) || dateResidue.test(remainder)) return explain(dateHint)
   if (!remainder && dueDate) return { kind: 'fields', dueDate }
-  const query = remainder.replace(personLabel, '').trim()
+  const query = remainder.replace(personLabel, '').trim().replace(/(?:입니다|이에요|예요|이야|야)$/, '').trim()
     .replace(/\s*(?:추가해|찾아)\s*(?:줘|주세요)$/, '')
     .replace(/(?:에게|한테|께)(?:요)?$/, '')
     .replace(/\s*(?:선생님|교사)(?:도|으로|으로요|이요|요)?$/, '').trim()

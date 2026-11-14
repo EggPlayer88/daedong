@@ -8,7 +8,7 @@ const { renderShell, renderFailure, renderBoundary, enabledModules, workhubModul
   import { ModuleBoundary, ModuleFailureView } from '../apps/workhub/src/app/ModuleBoundary.tsx'
   export { enabledModules, workhubModules } from '../apps/workhub/src/modules.ts'
   export function renderShell(props) { return renderToStaticMarkup(<WorkspaceShell page="home" onNavigate={()=>{}} mode="preview" schoolName="가상 학교" memberName="가상 교사" {...props}><main><h1>기능 화면 제목</h1><p>기능 본문</p></main></WorkspaceShell>) }
-  export function renderFailure(name) { return renderToStaticMarkup(<ModuleFailureView moduleName={name} onRetry={()=>{}}/>) }
+  export function renderFailure(name,retried=false) { return renderToStaticMarkup(<ModuleFailureView retried={retried} moduleName={name} onRetry={()=>{}}/>) }
   export function renderBoundary() { return renderToStaticMarkup(<ModuleBoundary moduleName="내 업무"><p>정상 기능 본문</p></ModuleBoundary>) }
 `)
 let passed = 0, failed = 0
@@ -79,6 +79,14 @@ test('기능 오류 화면은 원본 초기화 없이 다시 열기를 제공하
   assert.match(html,/저장하지 않은 입력은 다시 확인/);assert.match(html,/>이 화면 다시 열기<\/button>/)
   assert(!html.includes('다시 로그인'));assert.equal(renderBoundary(),'<p>정상 기능 본문</p>')
 })
+test('반복 오류 안내는 지원되는 복구 범위만 알리고 새로고침을 자동 실행하지 않는다', () => {
+ const html=renderFailure('문서',true)
+ assert.match(html,/새로고침 복구는 지원되는 입력·요청에만 적용됩니다/)
+ assert.match(html,/선택 파일과 일부 작업 진행 정보는 복구되지 않습니다/)
+ assert.match(html,/기존 요청 번호로 결과를 먼저 확인/)
+ assert.doesNotMatch(html,/새로고침하면 현재 탭에만 보관한 입력과 요청 번호가 사라집니다/)
+})
+
 test('참여 셸은 전달된 표시 목록만 쓰며 기본 관리자 메뉴와 AI를 노출하지 않는다', () => {
   const allowed = enabledModules('connected').filter(module=>['messages','tasks','calendar'].includes(module.id))
   const html = body(renderShell({mode:'connected',participant:true,page:'messages',navigationModules:allowed}))

@@ -3,7 +3,7 @@ import styles from './workspace-plan.css?inline'
 import { hasWorkspacePlanResult } from './plan-control'
 import { workflowResultLabel } from '../app/workflow-results'
 
-export function WorkspacePlanCard({ model, hasInput }: { model: ReturnType<typeof useWorkspacePlan>; hasInput: boolean }) {
+export function WorkspacePlanCard({ model, hasInput, onOpenResult }: { model: ReturnType<typeof useWorkspacePlan>; hasInput: boolean; onOpenResult?: (stepId: string) => void }) {
   const saved = model.saved
   if (!saved) return null
   return <section className="assistant-plan" aria-label="나누어 진행할 업무">
@@ -20,7 +20,9 @@ export function WorkspacePlanCard({ model, hasInput }: { model: ReturnType<typeo
       </button>
       {outcome && <div className="assistant-plan-progress" data-outcome={outcome.kind}>
         <strong>{outcome.kind === 'confirmed' ? '서버 처리 확인' : outcome.kind === 'recorded' ? '처리 내역 확인' : '화면 연결됨'}</strong>
-        {outcome.kind === 'confirmed' && <span>{outcome.receipt.title}</span>}
+        {outcome.kind === 'confirmed' && <><span>{outcome.receipt.title}</span>
+          {onOpenResult && <button type="button" disabled={!model.manageable || hasInput} onClick={() => onOpenResult(step.id)}>처리된 업무 열기</button>}
+        </>}
         {outcome.kind === 'recorded' && <>
           <span>{workflowResultLabel(outcome.results[outcome.results.length - 1])}</span>
           {outcome.results.length > 1 && <details><summary>이전 처리 {outcome.results.length - 1}건</summary>

@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import type { CalendarEvent, Membership, SaveCommand } from '../contracts'
 import type { PersonalTask, TaskCommand } from '../tasks/contracts'
 import type { CollectionCommand } from '../collections/contracts'
+import type { CheckpointItem, TabCheckpoint } from './tab-checkpoint'
 
 export type TaskRecovery = { command: TaskCommand; key: string; original?: PersonalTask; fromAssistant?: true }
 export type CalendarRecovery = { command: SaveCommand; original?: CalendarEvent }
@@ -15,28 +16,48 @@ export type TimetableRecovery = ModuleRecovery & { closeState?: 'available' | 'c
 type Requests = { assistantOperation: ModuleRecovery; teacherRoster: SchoolRosterRecovery; neis: ModuleRecovery; annualOperations: ModuleRecovery; assistantMemory: SchoolRosterRecovery; assistantSchoolSettings: SchoolRosterRecovery; schoolDataMaintenance: SchoolRosterRecovery; timetableImport: TimetableRecovery; timetableInterventions: TimetableRecovery; timetableOperationsAssistant: SchoolRosterRecovery; schoolRoster: SchoolRosterRecovery; timetableExecutionRecords: TimetableRecovery; timetableTarget: ModuleRecovery; timetableSetupBatch: ModuleRecovery; timetableSetup: ModuleRecovery; timetableAssistant: SchoolRosterRecovery; timetablePreparation: ModuleRecovery; timetableOperations: TimetableRecovery; timetable: ModuleRecovery; task: TaskRecovery; calendar: CalendarRecovery; collection: CollectionRecovery; schoolAdmin: ModuleRecovery; teaching: ModuleRecovery; teachingRelations: ModuleRecovery; messaging: ModuleRecovery; messagingFile: ModuleRecovery; knowledge: ModuleRecovery; assistant: SchoolRosterRecovery; collectionOps: ModuleRecovery; documents: ModuleRecovery; cooperation: ModuleRecovery; calendarBatch: ModuleRecovery; handover: ModuleRecovery; guidedDocuments: ModuleRecovery; knowledgeImport: ModuleRecovery }
 type Listener = () => void
 
-// 결과 미확정 명령만 현재 탭 메모리에 둔다. 새로고침·로그아웃 후 복구 저장소로 쓰지 않는다.
-export function createPendingRequests() {
+// 서버에 보낸 원명령만 보관한다. 동일 탭 복구를 선택해도 자동 재전송하지 않으며 로그아웃 때는 폐기한다.
+export function createPendingRequests(checkpoint?: TabCheckpoint) {
   const entries = new Map<string, TaskRecovery | CalendarRecovery | CollectionRecovery | ModuleRecovery>()
+  const waiting = new Map<string, CheckpointItem[]>(), checked = new Set<string>()
+  let verifiedScopes = new Set<string>()
   const listeners = new Set<Listener>()
   const notify = () => { for (const listener of listeners) listener() }
+  const persist = (scope: string) => {
+    if (!verifiedScopes.has(scope) || waiting.get(scope)?.length) return
+    checkpoint?.write('pending', scope, [...entries.entries()].filter(([id]) => id.slice(0, id.lastIndexOf(':')) === scope).map(([id, value]) => ({ slot: id.slice(id.lastIndexOf(':') + 1), value, warn: true })))
+  }
   return {
     subscribe(listener: Listener) { listeners.add(listener); return () => { listeners.delete(listener) } },
     get<T extends keyof Requests>(scope: string, kind: T): Requests[T] | undefined { return entries.get(scope + ':' + kind) as Requests[T] | undefined },
-    put<T extends keyof Requests>(scope: string, kind: T, request: Requests[T]) { entries.set(scope + ':' + kind, structuredClone(request)); notify() },
+    put<T extends keyof Requests>(scope: string, kind: T, request: Requests[T]) { entries.set(scope + ':' + kind, structuredClone(request)); persist(scope); notify() },
     remove(scope: string, kind: keyof Requests, key?: string) {
       const id = scope + ':' + kind
       const saved = entries.get(id)
       if (!saved || (key && ('key' in saved ? saved.key : saved.command.idempotencyKey) !== key)) return
-      entries.delete(id); notify()
+      entries.delete(id); persist(scope); notify()
+    },
+    restoreCount: (scope: string) => verifiedScopes.has(scope) ? waiting.get(scope)?.length ?? 0 : 0,
+    restore(scope: string) {
+      if (!verifiedScopes.has(scope)) return false
+      const saved = waiting.get(scope)
+      if (!saved?.length) return false
+      for (const item of saved) entries.set(scope + ':' + item.slot, structuredClone(item.value) as ModuleRecovery)
+      waiting.delete(scope); persist(scope); notify(); return true
     },
     retainScopes(scopes: readonly string[]) {
       const allowed = new Set(scopes)
+      verifiedScopes = allowed; checkpoint?.retainScopes(scopes)
       let changed = false
       for (const key of entries.keys()) if (!allowed.has(key.slice(0, key.lastIndexOf(':')))) { entries.delete(key); changed = true }
+      for (const key of waiting.keys()) if (!allowed.has(key)) { waiting.delete(key); changed = true }
+      for (const scope of scopes) if (!checked.has(scope)) {
+        checked.add(scope); const saved = checkpoint?.read('pending', scope)
+        if (saved?.length) { waiting.set(scope, saved); changed = true }
+      }
       if (changed) notify()
     },
-    clear() { entries.clear(); notify() },
+    clear() { entries.clear(); waiting.clear(); checked.clear(); verifiedScopes.clear(); checkpoint?.clear(); notify() },
     count: () => entries.size,
   }
 }

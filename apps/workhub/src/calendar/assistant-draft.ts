@@ -1,4 +1,5 @@
 import { ContractError, type EventDraft, type Membership } from '../contracts'
+import { SEARCH_LIMITS } from '../search/limits'
 import { activeAt } from '../domain'
 
 export interface AssistantCalendarDraftRequest {
@@ -6,6 +7,7 @@ export interface AssistantCalendarDraftRequest {
   schoolId: string
   memberId: string
   draft: EventDraft
+  audienceQueries?: string[]
 }
 
 export interface AssistantCalendarInput {
@@ -14,6 +16,8 @@ export interface AssistantCalendarInput {
   startTime: string | null
   endTime: string | null
   allDay: boolean
+  location?: string
+  audienceQueries?: string[]
 }
 
 function invalid(message: string): never { throw new ContractError('INVALID_INPUT', message) }
@@ -32,11 +36,12 @@ export function buildAssistantCalendarDraft(input: AssistantCalendarInput, membe
   if (!validDate(baseDate) || !activeAt(member, baseDate)) throw new ContractError('INACTIVE_MEMBERSHIP', '현재 학교 소속을 다시 확인해 주세요.')
   if (!input || !safeText(input.title, 100) || !input.title.trim()) invalid('일정 제목을 1~100자로 입력해 주세요.')
   if (!validDate(input.date)) invalid('일정 날짜를 함께 알려 주세요. 예: 내일 오후 3시 회의 일정 초안')
+  if (input.location !== undefined && !safeText(input.location, 100)) invalid('일정 장소를 100자 이내로 적어 주세요.')
   if (typeof input.allDay !== 'boolean') invalid('종일 일정 여부를 확인해 주세요.')
   if (input.startTime !== null && !partialTime(input.startTime) || input.endTime !== null && !partialTime(input.endTime)) invalid('일정 시작·종료 시간을 확인해 주세요.')
   if (!input.allDay && input.startTime && input.endTime && input.startTime >= input.endTime) invalid('종료 시간은 시작 시간 이후로 입력해 주세요.')
   return {
-    title: input.title.trim(), description: '', location: '', startDate: input.date, endDate: input.date,
+    title: input.title.trim(), description: '', location: input.location?.trim() ?? '', startDate: input.date, endDate: input.date,
     allDay: input.allDay, startTime: input.allDay ? '' : input.startTime ?? '', endTime: input.allDay ? '' : input.endTime ?? '',
     visibility: 'private', audience: { all: false, groups: [], includeMemberIds: [member.id], excludeMemberIds: [] },
   }
@@ -56,5 +61,9 @@ export function validateAssistantCalendarDraftRequest(raw: unknown, member: Memb
   if (draft.allDay && (draft.startTime !== '' || draft.endTime !== '') || !draft.allDay && draft.startTime && draft.endTime && draft.startTime >= draft.endTime) invalid('일정 초안의 시작·종료 시간을 확인해 주세요.')
   const audience = draft.audience
   if (draft.visibility !== 'private' || !audience || audience.all !== false || !Array.isArray(audience.groups) || audience.groups.length || !Array.isArray(audience.includeMemberIds) || audience.includeMemberIds.length !== 1 || audience.includeMemberIds[0] !== member.id || !Array.isArray(audience.excludeMemberIds) || audience.excludeMemberIds.length) invalid('대화의 일정 초안은 나만 보기로 시작합니다. 공유는 편집 화면에서 확인해 주세요.')
-  return { id: value.id, schoolId: member.schoolId, memberId: member.id, draft: structuredClone(draft) }
+  const names = value.audienceQueries
+  if (names !== undefined && (!Array.isArray(names) || names.length > SEARCH_LIMITS.pageItems || names.some(name => !safeText(name, SEARCH_LIMITS.queryChars) || !name.trim())))
+    invalid('일정 대상 후보의 이름을 다시 확인해 주세요.')
+  return { id: value.id, schoolId: member.schoolId, memberId: member.id, draft: structuredClone(draft),
+    ...(Array.isArray(names) && names.length ? { audienceQueries: [...new Set(names as string[])] } : {}) }
 }

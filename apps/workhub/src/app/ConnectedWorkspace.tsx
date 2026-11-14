@@ -52,6 +52,7 @@ import { createPendingRequests, PendingRequestsProvider, recoveryScope } from '.
 import { watchSchoolDay } from './school-day'
 import { ConnectionRecoveryActions } from './ConnectionRecoveryActions'
 import { createEditDrafts, EditDraftsProvider } from './edit-drafts'
+import { createTabCheckpoint } from './tab-checkpoint'
 import { createSupabaseCollectionServer } from '../collections/supabase-collections'
 
 const AssistantPanel = lazy(() => import('../assistant/AssistantPanel').then(module => ({ default: module.AssistantPanel })))
@@ -95,11 +96,13 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [taskAdapter] = useState(() => createSupabaseTaskAdapter(connection))
   const [collectionServer] = useState(() => createSupabaseCollectionServer(connection))
   const [collectionOperations] = useState(() => createCollectionOperations(connection))
-  const pendingRequests = useMemo(createPendingRequests, [connection, expectedUserId])
-  const editDrafts = useMemo(() => createEditDrafts(true), [connection, expectedUserId])
+  const tabCheckpoint = useMemo(() => createTabCheckpoint(expectedUserId), [connection, expectedUserId])
+  const checkpointStatus = useSyncExternalStore(tabCheckpoint.subscribe, tabCheckpoint.status, tabCheckpoint.status)
+  const pendingRequests = useMemo(() => createPendingRequests(tabCheckpoint), [tabCheckpoint])
+  const editDrafts = useMemo(() => createEditDrafts(true, tabCheckpoint), [tabCheckpoint])
   const draftCount = useSyncExternalStore(editDrafts.subscribe, editDrafts.count, editDrafts.count)
   const pendingCount = useSyncExternalStore(pendingRequests.subscribe, pendingRequests.count, pendingRequests.count)
-  useEffect(() => () => editDrafts.clear(), [editDrafts])
+  useEffect(() => () => editDrafts.suspend(), [editDrafts])
   const [context, setContext] = useState<ConnectionContext>()
   const basisDateRef = useRef<string>()
   basisDateRef.current = context?.basisDate
@@ -109,6 +112,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const [attempt, setAttempt] = useState(0)
   const [refreshEpoch, setRefreshEpoch] = useState(0)
   const [scopeEpoch, setScopeEpoch] = useState(0)
+  const [restoreEpoch, setRestoreEpoch] = useState(0)
   const [diagnosticEpoch, setDiagnosticEpoch] = useState(0)
   const [taskNavigationLocked, setTaskNavigationLocked] = useState(false)
   const [calendarNavigationLocked, setCalendarNavigationLocked] = useState(false)
@@ -233,7 +237,10 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const connectionUnavailable = loading || !!error || !context || !member || !school
   const currentScope = member ? recoveryScope(member) : ''
   const navigationLocked = deliveryLocked || assistantNavigationLocked || batchNavigationLocked || taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
-  const exitLocked = draftCount > 0 || pendingCount > 0
+  const restoreDrafts = !connectionUnavailable && currentScope ? editDrafts.restoreCount(currentScope) : 0
+  const restorePending = !connectionUnavailable && currentScope ? pendingRequests.restoreCount(currentScope) : 0
+  const awaitingRestore = restoreDrafts + restorePending > 0
+  const exitLocked = draftCount > 0 || pendingCount > 0 || awaitingRestore
   const navigation = useWorkspaceNavigation({
     allowedPages: [...connectedPages],
     defaultPage: teacherPilot ? 'assistant' : 'home',
@@ -243,9 +250,13 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   })
   const page = navigation.page as PageId
   const activeDelivery = page === 'assistant' && delivery?.scope === currentScope ? delivery : undefined
+  const deliveryDraftActive = Boolean(activeDelivery && (
+    hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)) ||
+    (activeDelivery.kind === 'messages' ? messageDraft : activeDelivery.kind === 'collections' ? collectionDraft || generatedFile : false)
+  ))
   const deliveryResultContext = useRef({ key: activeDelivery?.key, scope: currentScope, date: context?.basisDate, available: !connectionUnavailable })
   deliveryResultContext.current = { key: activeDelivery?.key, scope: currentScope, date: context?.basisDate, available: !connectionUnavailable }
-  const resetKey = `${memberId}:${attempt}:${scopeEpoch}`
+  const resetKey = `${memberId}:${attempt}:${scopeEpoch}:${restoreEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
   const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; if (next === 'assistant' && page !== 'assistant') assistantReturn.current = {scope:currentScope,page}; setHandoff(undefined); setWorkReturn(undefined); return true }
   useEffect(() => { if (workReturn && (page !== workReturn.page || (currentScope && currentScope !== workReturn.scope))) setWorkReturn(undefined) }, [page, currentScope, workReturn])
@@ -272,7 +283,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)))
   function startDelivery(kind: DeliveryKind, request?: DeliveryWorkspace['request'], resume = false, task?: SpecialistTask, options?: { daily?: DailyCommand; inbox?: boolean; list?: boolean; evaluation?: EvaluationTarget; onResult?: WorkflowResultListener }) {
     if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() ||
-        !activeAt(member, context.basisDate) || !connectedPages.includes(kind === 'daily' ? 'home' : kind === 'evaluation' ? 'documents' : kind)) return false
+        !activeAt(member, context.basisDate) || !connectedPages.includes(kind === 'daily' ? options?.daily?.view === 'lessons' ? 'timetable' : 'home' : kind === 'evaluation' ? 'documents' : kind)) return false
     if (teacherPilot && kind === 'schoolAdmin' && task !== 'schoolTransition') return false
     if (!resume && hasDeliveryDraft(kind, editDrafts.dirtySlots(currentScope))) return false
     if (deliverySwitchBlocked(kind)) return false
@@ -341,11 +352,13 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   }
   const assistantActions: AssistantWorkspaceActions = {
     deliveryInConversation: true,
+    availablePages: connectedPages,
+    availableSearchKinds: searchSources.map(source => source.kind),
     evaluation(target) {
       return Boolean(evaluationLink(legacyEvaluationLinks,target)) && startDelivery('evaluation', undefined, false, undefined, {evaluation:target})
     },
     daily(command) {
-      if (!context || !/^\d{4}-\d{2}-\d{2}$/.test(command.date) || (command.view !== 'meals' && command.date !== context.basisDate)) return false
+      if (!context || !/^\d{4}-\d{2}-\d{2}$/.test(command.date) || (!['meals', 'lessons'].includes(command.view) && command.date !== context.basisDate)) return false
       return command.view === 'notifications' ? startDelivery('messages', undefined, false, undefined, { inbox: true })
         : startDelivery('daily', undefined, false, undefined, { daily: command })
     },
@@ -357,7 +370,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       if (!member || !context || connectionUnavailable || !activeAt(member, context.basisDate))
         throw new Error('현재 학교 연결과 소속을 확인해 주세요.')
       const ownPending = pendingRequests.get(currentScope, 'assistantOperation') ? 1 : 0
-      if (pendingRequests.count() > (preparing ? 0 : ownPending) || handoff || activeDelivery ||
+      if (pendingRequests.count() > (preparing ? 0 : ownPending) || handoff || deliveryTransfer ||
+          (activeDelivery && (deliveryLocked || deliveryDraftActive)) ||
           taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || batchNavigationLocked)
         throw new Error('먼저 작성 중인 업무나 결과 확인을 마쳐 주세요. 입력은 유지됩니다.')
       if (kind === 'taskChange' && (assistantTask || editDrafts.bind(currentScope, 'task-editor').initial))
@@ -367,6 +381,10 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
         if (batchOpen || assistantCalendar || prior?.editor || prior?.importing ||
             ['calendar-editor', 'calendar-import', 'calendar-batch'].some(slot => editDrafts.bind(currentScope, slot).initial))
           throw new Error('일정 화면에서 작성 중인 내용을 먼저 확인해 주세요.')
+      }
+      // 완료 결과·조회 화면은 다음 부탁을 막지 않는다. 미저장 입력·미확정 요청은 위에서 보존한다.
+      if (preparing && activeDelivery) {
+        setDelivery(undefined); setDeliveryTalking(false); setHandoffError('')
       }
       const epoch = generation.current
       return { member, date: context.basisDate, isCurrent: () => epoch === generation.current }
@@ -442,7 +460,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       try {
         const draft = buildAssistantCalendarDraft(command,member,context.basisDate)
         if (!navigate('calendar')) return false
-        setAssistantCalendar({scope:currentScope,request:{id:crypto.randomUUID(),schoolId:member.schoolId,memberId:member.id,draft},prompt:command.prompt})
+        setAssistantCalendar({scope:currentScope,request:{id:crypto.randomUUID(),schoolId:member.schoolId,memberId:member.id,draft,...(command.audienceQueries?.length ? {audienceQueries:command.audienceQueries} : {})},prompt:command.prompt})
         setWorkReturn({scope:currentScope,page:'calendar',fromPage:'assistant'})
         setAssistantOpen(false)
         return true
@@ -611,7 +629,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     const daily = activeDelivery?.daily
     return <AssistantDailyWorkspace key={`${resetKey}:${activeDelivery?.key}`} connection={connection} member={member}
       members={context.memberships} date={context.basisDate} revision={refreshEpoch} calendarAdapter={adapter} taskAdapter={taskAdapter}
-      view={daily?.view === 'meals' ? 'meals' : 'overview'} mealDate={daily?.view === 'meals' ? daily.date : undefined}
+      view={daily?.view === 'lessons' ? 'lessons' : daily?.view === 'meals' ? 'meals' : 'overview'} mealDate={daily?.view === 'meals' ? daily.date : undefined} lessonDate={daily?.view === 'lessons' ? daily.date : undefined}
       locked={navigationLocked || pendingCount > 0}
       onOpen={item => {
         if (item.kind === 'student_followup') {
@@ -624,13 +642,13 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       onOpenTask={item => startDelivery('tasks',{key:crypto.randomUUID(),id:item.id,version:item.version})}
       onOpenCalendarList={() => startDelivery('calendar')} onOpenTaskList={() => startDelivery('tasks')} />
   }
-  const assistantPanel = member && !connectionUnavailable && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={displayModules.find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && (navigationLocked || Boolean(activeDelivery && pendingCount))} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : teacherPilot ? 'tasks' : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantDeliveryFrame error={handoffError} workspace={activeDelivery} finishDisabled={Boolean(activeDelivery && (hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)) || (activeDelivery.kind === 'messages' ? messageDraft : activeDelivery.kind === 'collections' ? collectionDraft || generatedFile : false)))} talking={deliveryTalking} locked={deliveryLocked || assistantNavigationLocked || pendingCount > 0 || Boolean(deliveryTransfer)} onTalk={() => setDeliveryTalking(true)} onResume={() => setDeliveryTalking(false)} onClose={() => {if(!deliveryLocked && !pendingCount){setDelivery(undefined);setDeliveryTalking(false)}}} chat={<AssistantPanel memoryEnabled={!teacherPilot} workActive={Boolean(activeDelivery && !deliveryTalking)} workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={teacherPilot ? undefined : value => {
+  const assistantPanel = member && !connectionUnavailable && !awaitingRestore && (assistantVisited || page === 'assistant') ? <AssistantDock open={assistantOpen} fullPage={page === 'assistant'} contextLabel={displayModules.find(item => item.id === page)?.title ?? '업무실'} closeDisabled={page === 'assistant' && (navigationLocked || Boolean(activeDelivery && pendingCount))} onClose={() => { if (page !== 'assistant' || navigate(assistantReturn.current?.scope === currentScope ? assistantReturn.current.page : teacherPilot ? 'tasks' : 'home')) setAssistantOpen(false) }}><ModuleBoundary moduleName="AI 비서" resetKey={resetKey}><Suspense fallback={<p role="status">AI 비서를 준비하고 있습니다…</p>}><AssistantDeliveryFrame error={handoffError} workspace={activeDelivery} finishDisabled={Boolean(activeDelivery && (hasDeliveryDraft(activeDelivery.kind, editDrafts.dirtySlots(currentScope)) || (activeDelivery.kind === 'messages' ? messageDraft : activeDelivery.kind === 'collections' ? collectionDraft || generatedFile : false)))} talking={deliveryTalking} locked={deliveryLocked || assistantNavigationLocked || pendingCount > 0 || Boolean(deliveryTransfer)} onTalk={() => setDeliveryTalking(true)} onResume={() => setDeliveryTalking(false)} onClose={() => {if(!deliveryLocked && !pendingCount){setDelivery(undefined);setDeliveryTalking(false);setDeliveryLocked(false);setHandoffError('')}}} chat={<AssistantPanel memoryEnabled={!teacherPilot} workActive={Boolean(activeDelivery && !deliveryTalking)} workspaceActions={assistantActions} onOpenTask={id => setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'tasks',taskId:id})} onOpenKnowledgeCitation={teacherPilot ? undefined : value => {
                const request = {...value,key:crypto.randomUUID()}
                if (!validKnowledgeOpenRequest(request,member)) throw new Error('현재 학교의 인용인지 확인하지 못했습니다.')
                if (!startDelivery('knowledge')) throw new Error('작성 중인 업무를 먼저 확인해 주세요.')
                setKnowledgeOpen({scope:currentScope,request,fromPage:'assistant'})
-             }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={forwardMessageAnswer} onNavigationLockChange={setAssistantNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} onDraftReady={teacherPilot ? undefined : (value, contextId) => {try {
-               if (deliverySwitchBlocked('documents') || deliveryTransfer) {setHandoffError('작성하던 업무를 먼저 마친 뒤 이 답변을 다시 선택해 주세요. 답변과 기존 입력은 유지했습니다.');return}
+             }} key={resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch} contextRequest={assistantContext?.scope === currentScope ? assistantContext : undefined} onComposeMessage={forwardMessageAnswer} onNavigationLockChange={setAssistantNavigationLocked} onUpdated={() => setRefreshEpoch(value => value + 1)} guidedDraftContextIds={[setupOrigin, guidedOrigin].filter(origin => origin?.scope === currentScope).map(origin => origin!.id)} onDraftReady={teacherPilot ? undefined : (value, contextId) => {try {
+               if (deliverySwitchBlocked('documents') || deliveryTransfer) throw new Error('작성하던 업무를 먼저 마친 뒤 이 답변을 다시 선택해 주세요. 답변과 기존 입력은 유지했습니다.')
                const draft = assistantDocumentDraft(value,member)
                if (value.intent === 'guided_collection') {
                  if(setupOrigin?.scope===currentScope&&setupOrigin.id===contextId){setSetupSuggestion(guidedSetupSuggestion({origin:setupOrigin,requestId:value.requestKey,body:draft.body},member));setGuidedSuggestion(undefined)}
@@ -638,7 +656,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
                  setGuidedSuggestion(guidedAiSuggestion({origin:guidedOrigin,requestId:value.requestKey,body:draft.body},member));setSetupSuggestion(undefined)}setDocumentDraft(undefined)
                } else {setDocumentDraft({scope:currentScope,draft});setGuidedSuggestion(undefined);setSetupSuggestion(undefined)}
                if(activeDelivery?.kind === 'documents')setDeliveryTalking(false);else setHandoff({scope:currentScope,fromPage:page,viaAssistant:true,page:'documents'})
-             } catch {setHandoffError('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 원래 답변은 유지됩니다.')}}} />}>{activeDelivery?.kind === 'messages' ? renderMessages(true) : activeDelivery?.kind === 'collections' ? renderCollections(true) : activeDelivery?.kind === 'documents' ? renderDocuments(true) : activeDelivery?.kind === 'timetable' ? renderTimetable(true) : activeDelivery?.kind === 'students' ? renderTeaching(true) : activeDelivery?.kind === 'schoolAdmin' ? renderSchoolAdmin(true) : activeDelivery?.kind === 'cooperation' ? renderCooperation(true) : activeDelivery?.kind === 'knowledge' ? renderKnowledge(true) : activeDelivery?.kind === 'calendar' ? renderAssistantCalendar() : activeDelivery?.kind === 'evaluation' ? <EvaluationWorkspace links={legacyEvaluationLinks} target={activeDelivery.evaluation ?? 'authoring'} locked={navigationLocked || pendingCount > 0} /> : activeDelivery?.kind === 'tasks' ? renderAssistantTasks() : activeDelivery?.kind === 'daily' ? renderAssistantDaily() : null}</AssistantDeliveryFrame></Suspense></ModuleBoundary></AssistantDock> : undefined
+             } catch {throw new Error('초안의 원래 양식·근거와 학생 범위를 확인하지 못했습니다. 수합 화면에서 원본 양식을 선택한 뒤 다시 요청해 주세요. 원래 답변은 유지됩니다.')}}} />}>{activeDelivery?.kind === 'messages' ? renderMessages(true) : activeDelivery?.kind === 'collections' ? renderCollections(true) : activeDelivery?.kind === 'documents' ? renderDocuments(true) : activeDelivery?.kind === 'timetable' ? renderTimetable(true) : activeDelivery?.kind === 'students' ? renderTeaching(true) : activeDelivery?.kind === 'schoolAdmin' ? renderSchoolAdmin(true) : activeDelivery?.kind === 'cooperation' ? renderCooperation(true) : activeDelivery?.kind === 'knowledge' ? renderKnowledge(true) : activeDelivery?.kind === 'calendar' ? renderAssistantCalendar() : activeDelivery?.kind === 'evaluation' ? <EvaluationWorkspace links={legacyEvaluationLinks} target={activeDelivery.evaluation ?? 'authoring'} locked={navigationLocked || pendingCount > 0} /> : activeDelivery?.kind === 'tasks' ? renderAssistantTasks() : activeDelivery?.kind === 'daily' ? renderAssistantDaily() : null}</AssistantDeliveryFrame></Suspense></ModuleBoundary></AssistantDock> : undefined
 
   function discardUnsentInput() {
     if (pendingRequests.count() > 0) return false
@@ -664,12 +682,21 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       {!loading && <button className="secondary" onClick={() => setAttempt(value => value + 1)}>학교 연결 다시 확인</button>}
       <ConnectionRecoveryActions hasDraft={draftCount > 0} hasPending={pendingCount > 0}
         announcement={navigation.announcement} onDiscard={discardUnsentInput} legacyHomeHref={legacyHomeHref} />
+    </main> : awaitingRestore ? <main id="main-content" className="connected-empty" aria-label="작성 중 입력 복구">
+      <h1>작성하던 내용이 있습니다</h1>
+      <p>같은 탭에 보관한 입력입니다. 현재 계정과 학교 소속 확인을 마쳤습니다. 이어쓰기를 눌러도 자동으로 전송하거나 저장하지 않습니다.</p>
+      {restorePending > 0 && <p role="status">결과를 확인하지 못한 요청 {restorePending}건은 원래 요청 번호로 먼저 확인합니다.</p>}
+      <p>선택했던 파일은 다시 골라 주세요. 이전 AI 답변과 학생 근거는 다시 조회합니다.</p>
+      <p>공용 PC에서는 사용을 마친 뒤 로그아웃해 주세요.</p>
+      <button type="button" onClick={() => {pendingRequests.restore(currentScope);editDrafts.restore(currentScope);setRestoreEpoch(value => value + 1)}}>보관한 입력 이어쓰기</button>
+      {!restorePending && <button type="button" onClick={() => {editDrafts.discardRestore(currentScope);setRestoreEpoch(value => value + 1)}}>보관한 입력 버리기</button>}
     </main> :
       <WorkspaceShell navigationModules={teacherPilot ? displayModules : undefined} onOpenAssistant={openAssistant} assistantOpen={assistantOpen || page === 'assistant'} sidePanel={assistantPanel} mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}
         serviceTools={!teacherPilot && <details className="connected-diagnostics"><summary>운영 연결 진단</summary><ConnectionReadinessPanel key={`${expectedUserId}:${diagnosticEpoch}`} expectedUserId={expectedUserId} runCheck={checkReadiness} /></details>}
         storageLabel={page === 'timetable' ? '학교 서버에서 확인' : page === 'collections' ? '학교 계정으로 연결' : '현재 학교 서버에 저장'} locked={navigationLocked} notice={navigation.announcement}
         quickActions={<><WorkspaceSearch key={`${expectedUserId}:${resetKey}:${page}`} scopeKey={`${expectedUserId}:${resetKey}`} sources={searchSources} locked={navigationLocked} onOpen={openSearchItem} />{!teacherPilot && <WorkspaceHelp key={resetKey} connection={connection} memberId={member.id} scopeKey={`${expectedUserId}:${resetKey}:${currentScope}`} locked={navigationLocked} onNavigate={navigate}/>}</>}
         contextControls={!teacherPilot && <label>사용할 학교<select disabled={navigationLocked || exitLocked} value={memberId} onChange={event => { const value = event.target.value; navigation.requestAction(() => { resource.clear(); clearHandoffs(); const nextMember = context.memberships.find(item => item.id === value); if (nextMember) { scopeFingerprint.current = recoveryScope(nextMember); editDrafts.activate(scopeFingerprint.current) } else editDrafts.clear(); lastVerifiedMemberId.current = value; setMemberId(value) }) }}>{context.memberships.filter(item => item.userId === expectedUserId && activeAt(item, context.basisDate)).map(item => <option key={item.id} value={item.id}>{context.schools.find(value => value.id === item.schoolId)?.name ?? '학교'} · {item.name}</option>)}</select></label>}>
+        {checkpointStatus === 'unavailable' && <p role="status">이 브라우저에서는 새로고침 후 입력 복구를 사용할 수 없습니다. 작성 중에는 탭을 유지해 주세요.</p>}
         <ModuleBoundary moduleName={displayModules.find(item => item.id === page)?.title ?? '업무실'} resetKey={`${resetKey}:${page}`}>
           {assistantNavigationLocked && !assistantOpen && page !== 'assistant' && <p className="ws-ai-preserved" role="status">AI 입력 또는 확인할 요청이 보관되어 있습니다. <button type="button" onClick={openAssistant}>작성 중인 AI 대화 열기</button></p>}
           {handoffError && !assistantOpen && page !== 'assistant' && <p role="alert">{handoffError}</p>}

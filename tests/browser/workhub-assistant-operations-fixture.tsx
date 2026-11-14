@@ -12,7 +12,7 @@ import { createPendingRequests, PendingRequestsProvider } from '../../apps/workh
 
 const w = window as any
 let member: Membership = { id: 'member-one', userId: 'user-one', schoolId: 'school-one', name: '합성 교사', role: 'teacher', active: true, validFrom: '2026-01-01', validThrough: '2026-12-31', departmentIds: [], gradeIds: [], subjectIds: [] }
-w.epoch = 0; w.calls = []; w.opened = []; w.aiCalls = 0; w.applied = 0; w.unknown = false; w.deferGet = false
+w.epoch = 0; w.calls = []; w.opened = []; w.aiCalls = 0; w.applied = 0; w.unknown = false; w.deferGet = false; w.calendarHandoffs = []; w.deferCalendar = false
 w.pending = createPendingRequests(); w.memory = createEditDrafts()
 w.task = { id: 'task-one', schoolId: member.schoolId, ownerMemberId: member.id, title: '제출 자료 확인', notes: '기존 메모', dueDate: '2026-11-18', status: 'doing', version: 2 }
 const receipts = new Map<string, any>()
@@ -38,6 +38,7 @@ const adapters: any = {
   calendar: {
     async save(memberId: string, command: any) {
       w.calls.push({ kind: 'calendar', memberId, command: structuredClone(command) })
+      if (w.deferCalendar) await new Promise<void>(resolve => { w.releaseCalendar = resolve })
       if (receipts.has(command.idempotencyKey)) return structuredClone(receipts.get(command.idempotencyKey))
       const result = { ...structuredClone(command.draft), id: 'event-one', schoolId: member.schoolId, authorMemberId: memberId, version: 1, updatedAt: '2026-11-11T01:00:00Z' }
       receipts.set(command.idempotencyKey, result); w.applied++
@@ -62,7 +63,7 @@ function App() {
   const actions: AssistantWorkspaceActions = {
     navigate: () => true,
     open: item => { w.opened.push(structuredClone(item)); return true },
-    calendar: () => true,
+    calendar: command => { w.calendarHandoffs.push(structuredClone(command)); return true },
     search: async query => ({ items: w.task.title.includes(query) ? [{ kind: 'task', id: w.task.id, title: w.task.title, description: w.task.notes, meta: '나만 보는 업무', version: w.task.version, date: w.task.dueDate }] : [], coverage: ['현재 소속 본인의 개인 업무'], hasMore: false }),
     operations: {
       prepareTask: (command, item) => prepareTaskOperation(adapters.task, { key: crypto.randomUUID(), schoolId: member.schoolId, memberId: member.id, basisDate: date, taskId: item.id, title: item.title, expectedVersion: item.version!, change: command.change }, member, date),

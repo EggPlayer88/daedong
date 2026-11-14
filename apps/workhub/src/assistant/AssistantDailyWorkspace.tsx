@@ -26,8 +26,9 @@ export interface AssistantDailyWorkspaceProps {
   revision: number
   calendarAdapter: CalendarAdapter
   taskAdapter: TaskAdapter
-  view: 'overview' | 'meals'
+  view: 'overview' | 'meals' | 'lessons'
   mealDate?: string
+  lessonDate?: string
   locked?: boolean
   onOpen: (item: HomeAction) => void
   onOpenList: (kind: HomeKind) => void
@@ -41,17 +42,18 @@ export interface AssistantDailyWorkspaceProps {
 // 원본은 기존 조회·표시 규칙을 사용한다. 이 화면의 조회 결과를 AI 문맥이나 쓰기 명령으로 바꾸지 않는다.
 export function AssistantDailyWorkspace(props: AssistantDailyWorkspaceProps) {
   const mealDate = props.mealDate ?? props.date
-  try { iso(props.date); iso(mealDate) } catch { return <p role="alert">확인할 날짜를 다시 선택해 주세요.</p> }
+  const lessonDate = props.lessonDate ?? props.date
+  try { iso(props.date); iso(mealDate); iso(lessonDate) } catch { return <p role="alert">확인할 날짜를 다시 선택해 주세요.</p> }
   if (!activeAt(props.member, props.date)) return <p role="alert">현재 학교 소속을 확인한 뒤 다시 열어 주세요.</p>
-  return <DailyWorkspaceScope key={`${recoveryScope(props.member)}:${props.date}:${props.view}:${mealDate}`} {...props} mealDate={mealDate} />
+  return <DailyWorkspaceScope key={`${recoveryScope(props.member)}:${props.date}:${props.view}:${mealDate}:${lessonDate}`} {...props} mealDate={mealDate} lessonDate={lessonDate} />
 }
 
 function DailyWorkspaceScope(props: AssistantDailyWorkspaceProps & { mealDate: string }) {
   const { connection, member, date, revision, view, mealDate, locked, onOpen, onOpenList } = props
-  return <section className="assistant-daily" aria-label={view === 'meals' ? '대화에서 급식 확인' : '대화에서 오늘 업무 확인'}>
+  return <section className="assistant-daily" aria-label={view === 'meals' ? '대화에서 급식 확인' : view === 'lessons' ? '대화에서 내 수업 확인' : '대화에서 오늘 업무 확인'}>
     <style>{styles}</style>
-    <header className="assistant-daily-heading"><h2>{view === 'meals' ? '급식' : '오늘의 업무'}</h2>{view === 'overview' && <span>{dayLabel(date)}</span>}</header>
-    {view === 'meals' ? <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" /> : <>
+    <header className="assistant-daily-heading"><h2>{view === 'meals' ? '급식' : view === 'lessons' ? '내 수업 시간표' : '오늘의 업무'}</h2>{view === 'overview' && <span>{dayLabel(date)}</span>}</header>
+    {view === 'meals' ? <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" /> : view === 'lessons' ? <fieldset disabled={locked} aria-label="선택 날짜 내 수업 조회"><TimetableAgendaWorkspace connection={connection} member={member} date={props.lessonDate ?? date} revision={revision} title="날짜별 내 수업" showBasicFallback onOpen={(lessonId, lessonDate) => { if (!locked) props.onOpenLesson?.(lessonId, lessonDate) }} /></fieldset> : <>
     {props.onOpenLesson && <section className="assistant-daily-lessons" aria-label="대화에서 오늘 수업">
       <fieldset disabled={locked} aria-label="오늘 수업 조회">
         <TimetableAgendaWorkspace connection={connection} member={member} date={date} revision={revision} title="오늘 수업"

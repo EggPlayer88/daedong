@@ -19,6 +19,13 @@ test('급식은 생략한 날짜만 오늘로 잡고 내일·명시 날짜는 �
 test('해석할 수 없는 급식 날짜는 추측하지 않는다', () => {
   for (const text of ['2026-02-30 급식 알려줘','언젠가 급식 알려줘','다다음 학기 급식 알려줘']) assert.equal(parse(text,day)?.kind,'clarify',text)
 })
+test('내 시간표 자연어 질문은 선택 날짜의 읽기 화면으로 이어진다', () => {
+  for (const [text,date] of [['내 시간표 알려줘',day],['오늘 내 수업 보여줘',day],['다음 주 화요일 내 수업 시간표 알려줘','2026-11-17'],['2026-11-18 나의 시간표를 확인해 주세요','2026-11-18']]) {
+    assert.deepEqual(parse(text,day),{kind:'daily',view:'lessons',date},text)
+  }
+  assert.equal(parse('언젠가 내 수업 알려줘',day)?.kind,'clarify')
+  for (const text of ['내 시간표를 삭제해줘','다음 주 화요일 내 수업 교환해줘','김 선생님 시간표 알려줘','내 시간표 알려줘 그리고 수업 모두 취소해줘']) assert.notEqual(parse(text,day)?.kind,'daily',text)
+})
 test('인용·부정·일반 질문을 조회 명령으로 실행하지 않는다', () => {
   for (const text of ['“오늘 업무 요약해줘”','알림 보여주지 마','급식 보여주지 마','오늘 업무 요약은 왜 필요한가요','급식은 어떻게 구성되나요']) assert.notEqual(parse(text,day)?.kind,'daily',text)
 })

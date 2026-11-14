@@ -22,7 +22,9 @@ test('일반 초안은 복구와 명시 폐기를 선택하고 탭 종료의 한
   assert.match(html, /임시 입력 버리기/)
   assert.match(html, /입력을 보호하기 위해 이동을 막았습니다/)
   assert.match(html, /role="status" aria-live="polite"/)
-  assert.match(html, /새로고침하거나 이 탭을 닫으면 보관 정보가 사라집니다/)
+  assert.match(html, /새로고침 복구는 지원되는 입력·요청과 브라우저 저장 상태에 따라 다릅니다/)
+  assert.match(html, /선택 파일과 일부 작업 진행 정보는 복구되지 않습니다/)
+  assert.doesNotMatch(html, /새로고침하거나 이 탭을 닫으면 보관 정보가 사라집니다/)
 })
 test('결과 미확정 요청은 초안 유무와 관계없이 일반 폐기를 제공하지 않는다', () => {
   for (const hasDraft of [false, true]) {

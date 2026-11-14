@@ -2,6 +2,7 @@ import { validCollectionComposeText } from '../collections/compose-text'
 import { SEARCH_LIMITS } from '../search/limits'
 import type { DraftFirstTurn, DraftResult } from './draft-commands'
 import { draftDateWords, resolveDraftDate } from './draft-date'
+import { assistantRequestEnding, hasMultipleAssistantRequests } from './request-expression'
 
 type Kind = 'messageDraft' | 'collectionDraft'
 interface Fields { content: string; people?: string; deadline?: string; instructions?: string }
@@ -10,10 +11,10 @@ const hint = (message: string): DraftResult => ({ kind: 'clarify', message })
 const personHint = '교사 이름을 적어 주세요. 여러 명은 쉼표로 구분한 뒤 후보에서 직접 선택할 수 있습니다.'
 const dateHint = '제출 기한을 하나의 날짜로 다시 적어 주세요. 예: 내일, 다음 주 금요일.'
 const singleRequest = '한 번에 초안 한 건을 요청해 주세요. 전송·저장·공개는 기존 작성 화면에서 확인합니다.'
-const action = /^(?<lead>[\s\S]*?)(?<kind>메시지|(?:자료\s*)?수합)\s*초안(?:을|를|으로)?\s*(?:(?:하나|한\s*건)\s*)?(?:만들어|작성해|써|준비해)\s*(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
-const collect = /^([\s\S]+?)\s*수합해\s*(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
+const action = new RegExp(String.raw`^(?<lead>[\s\S]*?)(?<kind>메시지|(?:자료\s*)?수합)(?:\s*초안)?(?:을|를|으로)?\s*(?:(?:하나|한\s*건)\s*)?(?:(?:만들어|작성해|써|준비해)\s*${assistantRequestEnding}|(?:만들고|작성하고|준비하고)\s*싶(?:어|어요|습니다))[.!?。！？]*$`)
+const collect = new RegExp(String.raw`^([\s\S]*?)\s*수합(?:해|\s*요청해|\s*받아)\s*${assistantRequestEnding}[.!?。！？]*$`)
 const labelled = /^(메시지|(?:자료\s*)?수합)\s*초안\s*[:：]([\s\S]*)$/
-const outsideCommand = /[;；]|(?:보내고|전송하고|공개하고|게시하고|저장하고|만들고|작성하고|하지\s*말고|말고|대신|제외하고|하지\s*마)|(?:다음|이어서|그리고)\s+.{1,40}(?:해줘|주세요)|(?:일정|메시지|수합)\s*초안\s*[:：]/
+const outsideCommand = /[;；]|(?:보내고|전송하고|공개하고|게시하고|저장하고|만들고(?!\s*싶)|작성하고(?!\s*싶)|하지\s*말고|말고|대신|제외하고|하지\s*마)|(?:다음|이어서|그리고)\s+.{1,40}(?:해줘|주세요)|(?:일정|메시지|수합)\s*초안\s*[:：]/
 const quotes = /“([^”]*)”|‘([^’]*)’|"([^"]*)"|'([^']*)'/g
 
 function namesFrom(raw: string): string[] | null {
@@ -87,8 +88,35 @@ function objectTitle(text: string) {
 export function parseFirstDraftSentence(text: string, prompt: string, basisDate: string): DraftResult | null {
   const prefix = labelled.exec(text)
   if (prefix) return readLabels(prefix[1] === '메시지' ? 'messageDraft' : 'collectionDraft', prefix[2], prompt, basisDate)
+  // 요청 뒤의 별도 문장도 명시한 대상/기한만 잇는다. 같은 필드를 덮어쓰거나 실행 명령을 섞지 않는다.
+  const supplementalText = maskQuotes(text, true)
+  const supplementary = /[.!。！]\s*(?=(?:대상(?:자)?|제출\s*대상|수신자|받는\s*사람|제출\s*기한|기한|마감(?:일)?)\s*(?:은|는|[:：]))/.exec(supplementalText.masked)
+  if (supplementary) {
+    const initial = parseFirstDraftSentence(supplementalText.restore(supplementalText.masked.slice(0, supplementary.index)), prompt, basisDate)
+    if (!initial || initial.kind === 'clarify') return initial
+    const firstTurn: DraftFirstTurn = { names: initial.firstTurn?.names ?? [], ...initial.firstTurn }
+    const parts = supplementalText.restore(supplementalText.masked.slice(supplementary.index + supplementary[0].length)).trim().replace(/[.!。！]+$/, '')
+      .split(/[.!。！]\s*(?=(?:대상|제출|수신자|받는|기한|마감))/)
+    for (const part of parts) {
+      const field = /^(대상(?:자)?|제출\s*대상|수신자|받는\s*사람|제출\s*기한|기한|마감(?:일)?)\s*(?:은|는|[:：])\s*(.+)$/.exec(part.trim())
+      if (!field) return hint(singleRequest)
+      const value = field[2].trim().replace(/(?:입니다|이에요|예요|이야|야)$/, '').trim()
+      if (/기한|마감/.test(field[1])) {
+        if (initial.kind !== 'collectionDraft' || firstTurn.dueDate || firstTurn.dateIssue) return hint(singleRequest)
+        const date = resolveDraftDate(value.replace(/까지$/, '').trim(), basisDate)
+        if (date && date >= basisDate) firstTurn.dueDate = date
+        else firstTurn.dateIssue = dateHint
+      } else {
+        const names = namesFrom(value)
+        if (!names || firstTurn.names.length) return hint(personHint)
+        firstTurn.names = names
+      }
+    }
+    return { ...initial, firstTurn }
+  }
   const request = action.exec(text), short = !request && collect.exec(text)
   if (!request && !short) return null
+  if (hasMultipleAssistantRequests(text)) return hint(singleRequest)
   const kind: Kind = request?.groups?.kind === '메시지' ? 'messageDraft' : 'collectionDraft'
   const lead = (request?.groups?.lead ?? (short ? short[1] : '')).trim()
   // 인용 속 '까지', '에게' 등을 필드로 읽지 않는다. 자리 표시자는 사용자가 입력할 수 없는 제어 문자다.
@@ -96,6 +124,8 @@ export function parseFirstDraftSentence(text: string, prompt: string, basisDate:
   let rest = masked.trim()
   if (/["“”‘’']/.test(rest)) return hint('따옴표가 닫혔는지 확인해 주세요.')
   if (outsideCommand.test(rest)) return hint(singleRequest)
+  // '공지 마감', '제출하지 않은 자료'는 본문이다. 작성 동사의 실행 부정 접속만 차단한다.
+  if (/(?:만들|작성하|준비하|등록하|추가하)지\s*않고(?=\s|$)/.test(rest)) return hint(singleRequest)
   const fields: Fields = { content: '' }
   let objectBeforeName = false
   let quotedInstructions: string | undefined

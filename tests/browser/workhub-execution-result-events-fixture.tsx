@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 import React, { useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { TimetableExecutionRecordsPanel } from '../../apps/workhub/src/timetable/TimetableExecutionRecordsPanel'

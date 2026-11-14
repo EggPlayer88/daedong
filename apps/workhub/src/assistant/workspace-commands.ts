@@ -1,3 +1,5 @@
+import { draftDateWords, resolveDraftDate } from './draft-date'
+import { assistantRequestEnding, hasMultipleAssistantRequests } from './request-expression'
 import type { EvaluationTarget } from './evaluation-workspace'
 import { parseDraftCommand, type DirectDraftCommand } from './draft-commands'
 import { parseTaskChangeCommand, type TaskChangeCommand } from './task-change-command'
@@ -20,6 +22,7 @@ export type WorkspaceCommand =
   | {
       kind: 'calendar'; prompt: string; title: string; date: string | null
       startTime: string | null; endTime: string | null; allDay: boolean
+      location?: string; audienceQueries?: string[]
     }
   | { kind: 'clarify'; message: string }
 
@@ -47,23 +50,16 @@ const searchScopes: ReadonlyArray<[string, SearchKind[]]> = [
   ['자료', ['knowledge', 'document']],
 ]
 const esc = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*')
-const askEnd = '(?:줘|주세요|주십시오|주시겠어요|줄래|줄래요|줄 수 있어|줄 수 있나요|주실래요)'
+const askEnd = assistantRequestEnding
 const moveEnd = `(?:열어|보여|이동해|가|띄워)\\s*${askEnd}`
 const findEnd = `(?:찾아|검색해|조회해)\\s*${askEnd}`
-const makeEnd = `(?:만들어|작성해|추가해|등록해|잡아)\\s*${askEnd}`
+const makeEnd = `(?:(?:만들어|작성해|추가해|등록해|잡아|넣어)\\s*${askEnd}|(?:만들고|작성하고|추가하고|등록하고|잡고|넣고)\\s*싶(?:어|어요|습니다))`
 const clarification = (message: string): Extract<WorkspaceCommand, { kind: 'clarify' }> => ({ kind: 'clarify', message })
 
 function validDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
   const date = new Date(value + 'T00:00:00.000Z')
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value
-}
-function shiftDate(value: string, days: number): string | null {
-  if (!validDate(value)) return null
-  const date = new Date(value + 'T00:00:00.000Z')
-  date.setUTCDate(date.getUTCDate() + days)
-  const shifted = date.toISOString().slice(0, 10)
-  return validDate(shifted) ? shifted : null
 }
 function intactText(value: string): boolean {
   // 깨진 UTF-16과 숨은 제어 문자는 명령으로 해석하지 않는다.
@@ -91,30 +87,26 @@ export function parseCalendarFields(prompt: string, raw: string, basisDate: stri
     return clarification('일정의 날짜와 시작·종료 시각을 적어 주세요. 반복 일정은 일정 화면에서 확인해 주세요.')
   if (/(?:전교사|모든\s*교사|학교\s*전체|전원|공개|비공개|대상자)/.test(raw))
     return clarification('일정 제목·날짜·시각으로 초안을 만든 뒤, 일정 화면에서 공개 범위와 대상을 선택해 주세요.')
-  let text = raw.trim(), date: string | null = null
-  const dateExpression = /(?<!\d)\d{4}[-/.]\d{1,2}[-/.]\d{1,2}(?!\d)|(?<!\d)(?:(?:\d{4}년|내후년|내년|올해|작년)\s*)?\d{1,2}월\s*\d{1,2}일|다음\s*주\s*[월화수목금토일]요일|오늘|내일|모레/g
-  const dates = [...text.matchAll(dateExpression)]
+  // 시험 표식과 인용한 제목의 숫자·날짜를 일정 정보로 소비하지 않는다.
+  const literals: string[] = []
+  let text = raw.trim().replace(/\[[^\]\r\n]*\]|“[^”]*”|‘[^’]*’|"[^"\r\n]*"|'[^'\r\n]*'/g, literal => {
+    literals.push(literal); return '\x01' + (literals.length - 1) + '\x02'
+  })
+  const restore = (value: string) => value.replace(/\x01(\d+)\x02/g, (_match, index) => literals[Number(index)])
+  let date: string | null = null
+  const dates = [...text.matchAll(draftDateWords)]
   if (dates.length > 1) return clarification('한 번에 한 날짜의 일정 초안을 만들 수 있어요. 사용할 날짜를 하나만 적어 주세요.')
   if (dates[0]) {
     const token = dates[0][0]
-    if (token === '오늘' || token === '내일' || token === '모레') {
-      date = shiftDate(basisDate, token === '오늘' ? 0 : token === '내일' ? 1 : 2)
-    } else if (/^다음/.test(token)) {
-      const weekday = '일월화수목금토'.indexOf(token.match(/([월화수목금토일])요일/)![1])
-      const current = new Date(basisDate + 'T00:00:00.000Z').getUTCDay()
-      date = shiftDate(basisDate, 7 - ((current + 6) % 7) + ((weekday + 6) % 7))
-    } else {
-      const parts = token.match(/\d+/g)!.map(Number)
-      const yearOffset = token.startsWith('내후년') ? 2 : token.startsWith('내년') ? 1 : token.startsWith('작년') ? -1 : 0
-      const [year, month, day] = parts.length === 3 ? parts : [Number(basisDate.slice(0, 4)) + yearOffset, ...parts]
-      date = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    }
-    if (!date || !validDate(date)) return clarification('실제로 있는 날짜인지 확인해 주세요. 예: 2027-03-02')
+    if (/^[월화수목금토일]요일$/.test(token))
+      return clarification('이번 주인지 다음 주인지 알려 주세요. 날짜로 적어도 됩니다. 예: 11월 18일 수요일')
+    date = resolveDraftDate(token, basisDate)
+    if (!date) return clarification('실제 날짜와 요일이 맞는지 확인해 주세요. 예: 11월 18일 수요일 또는 2026-11-18')
     text = text.replace(token, ' ').trim()
   }
   // 인식하지 못한 날짜를 제목으로 옮기지 않는다. 기준일·다음 해를 임의로 선택하지 않는다.
   if (/\d{1,4}\s*(?:년|월|일)|\d+[-/.]\d+|[월화수목금토일]요일|내후년|내년|올해|작년|금년|익년|[~～-]\s*\d{1,2}(?:일)?(?=\s|$)/.test(text))
-    return clarification('날짜를 YYYY-MM-DD 또는 오늘·내일·모레로 적어 주세요.')
+    return clarification('날짜를 하나만 적어 주세요. 예: 11월 18일 수요일, 11/18, 18일, 내일.')
 
   const allDay = /(?:하루\s*)?종일/.test(text)
   text = text.replace(/(?:하루\s*)?종일/g, ' ')
@@ -146,8 +138,25 @@ export function parseCalendarFields(prompt: string, raw: string, basisDate: stri
   if (/(?:오전|오후|\d+\s*(?:시|분|초)|\d+:)/.test(text))
     return clarification('시각을 HH:MM 또는 오전·오후 몇 시로 적어 주세요.')
   text = text.replace(/(?:부터|까지|에)(?=\s|$)|[~～]/g, ' ').replace(/\s+/g, ' ').trim()
+  // '2층 협의실에서'처럼 장소가 명시된 부분만 분리한다. 남은 제목은 요약하지 않는다.
+  // '현실·진실·관점' 같은 일반 명사를 임의의 공간으로 분리하지 않는다.
+  const spaceName = '(?:교무실|교장실|교감실|행정실|보건실|회의실|협의실|교실|연구실|상담실|방송실|과학실|컴퓨터실|음악실|미술실|가사실|기술실|어학실|도서실|자료실|체육관|도서관|운동장|강당|급식실|식당|시청각실|다목적실|\\d{1,4}호(?:실)?)'
+  const places = [...text.matchAll(new RegExp('(?:^|\\s)((?:(?:본관|신관|별관)\\s+)?(?:\\d+층\\s+)?' + spaceName + ')에서(?=\\s|$)', 'g'))]
+  if (places.length > 1) return clarification('일정 장소를 하나만 적어 주세요. 여러 장소는 일정 화면에서 확인해 주세요.')
+  const place = places[0]
+  const location = place?.[1]
+  if (place) text = (text.slice(0, place.index) + ' ' + text.slice(place.index + place[0].length)).replace(/\s+/g, ' ').trim()
   text = text.replace(/^(?:나의|내)\s+/, '').replace(/(?:을|를)$/, '').trim()
-  return { kind: 'calendar', prompt, title: text, date, startTime, endTime, allDay }
+  return { kind: 'calendar', prompt, title: restore(text), date, startTime, endTime, allDay, ...(location ? { location: restore(location) } : {}) }
+}
+
+export function parseCalendarAudience(raw: string): string[] | null {
+  const value = raw.trim().replace(/(?:입니다|이에요|예요|이야|야)$/, '').trim()
+  const names = value.split(/\s*[,，]\s*|\s+(?:및|그리고)\s+|(?:과|와)\s+/)
+    .map(name => name.trim().replace(/\s*(?:선생님|교사|부장님)$/, '').trim())
+  return names.length && names.every(name => name && [...name].length <= SEARCH_LIMITS.queryChars &&
+    /^[\p{L}\p{N}_-]+(?: [\p{L}\p{N}_-]+)*$/u.test(name) &&
+    !/(?:모두|전체|전원|모든|전교사|누구나|아무나|말고|제외|보내|해줘|해주|공개|취소)/.test(name)) ? names : null
 }
 
 // 이 함수는 사용자가 직접 보낸 한 문장만 분류한다. 모델 답변·자료 본문에는 사용하지 않는다.
@@ -164,7 +173,9 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   if (/^(?:["'“‘`]|예시\s*[:：]|예를\s*들어)/.test(text) || /(?:라고|라는|말하면|입력하면|명령어|사용법|어떻게|가능한지|않|지\s*마|지\s*말|아니라)/.test(text))
     return null
   text = text.replace(/^(?:비서야|AI야|부탁인데)\s*[,，]?\s*/, '')
-  if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해|수정해|완료해|변경해|바꿔|전송해|잡아)\s*(?:주고|줘서)|(?:열고|찾고|등록하고|추가하고|만들고|이동하고|수정하고|완료하고|변경하고|바꾸고|전송하고|잡고)|[;；]/.test(text))
+  if (hasMultipleAssistantRequests(text))
+    return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
+  if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해|수정해|완료해|변경해|바꿔|전송해|잡아)\s*(?:주고|줘서)|(?:열고|찾고|등록하고(?!\s*싶)|추가하고(?!\s*싶)|만들고(?!\s*싶)|이동하고|수정하고|완료하고|변경하고|바꾸고|전송하고|잡고(?!\s*싶))|[;；]/.test(text))
     return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
   const evaluation = text.match(new RegExp(`^평가\\s*계획서\\s*(작성|제출)(?:\\s*(?:메뉴|화면))?\\s*(?:을|를|으로|로)?\\s*${moveEnd}$`))
   if (evaluation) return {kind:'evaluation',target:evaluation[1] === '작성' ? 'authoring' : 'submissions'}
@@ -198,9 +209,20 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
     if (!task[1].trim()) return clarification('추가할 할 일 내용을 적어 주세요. 예: 안내장 작성 할 일로 추가해줘')
     return { kind: 'task', prompt }
   }
-  const calendar = text.match(new RegExp(`^(.*?)\\s*일정(?:\\s*초안)?(?:을|를)?\\s*${makeEnd}$`))
-    ?? text.match(new RegExp(`^일정\\s*초안\\s*[:：]\\s*(.+)$`))
-  if (calendar) return parseCalendarFields(prompt, calendar[1], basisDate)
+  // 두 번째 문장의 대상은 검색 힌트일 뿐이다. 교사는 후보에서 직접 선택한다.
+  const audience = /[.!。！]\s*(?:대상(?:자)?|참석자|참여자)(?:은|는|[:：])?\s*(.+)$/.exec(text)
+  const calendarText = audience ? text.slice(0, audience.index).trim() : text
+  const calendar = calendarText.match(new RegExp(`^(.*?)\\s*일정(?:\\s*초안)?(?:을|를)?\\s*${makeEnd}$`))
+    ?? calendarText.match(new RegExp(`^일정\\s*초안\\s*[:：]\\s*(.+)$`))
+  // 일정 뒤에는 날짜 하나와 조사만 허용한다. 다른 조건을 제목에 몰래 합치지 않는다.
+  const datedCalendar = calendar ? null : calendarText.match(new RegExp(`^(.*?)\\s*일정(?:\\s*초안)?(?:을|를)?\\s+(${draftDateWords.source})\\s*(?:으?로|에)?\\s*${makeEnd}$`, 'u'))
+  if (calendar || datedCalendar) {
+    const raw = calendar ? calendar[1] : datedCalendar![1] + ' ' + datedCalendar![2]
+    const parsed = parseCalendarFields(prompt, raw, basisDate)
+    if (parsed.kind === 'clarify' || !audience) return parsed
+    const names = parseCalendarAudience(audience[1])
+    return names ? { ...parsed, audienceQueries: names } : clarification('일정 대상의 교사 이름을 적어 주세요. 전체 공개는 일정 화면에서 확인합니다.')
+  }
   // '잡아줘'만으로는 일정인지 확실하지 않으므로 회의·연수처럼 일정 이름이 명시된 경우만 연다.
   const meeting = text.match(new RegExp(`^(.*?(?:회의|연수|면담|모임|상담))(?:을|를)?\\s+잡아\\s*${askEnd}$`))
   if (meeting) return parseCalendarFields(prompt, meeting[1], basisDate)

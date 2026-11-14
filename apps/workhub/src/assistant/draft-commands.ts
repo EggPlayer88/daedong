@@ -1,4 +1,5 @@
 import { parseFirstDraftSentence } from './first-draft-sentence'
+import { assistantDataPrefix, assistantRequestEnding } from './request-expression'
 import { validCollectionComposeText } from '../collections/compose-text'
 import { COLLECTION_TEXT_LIMITS } from '../collections/text-limits'
 
@@ -13,7 +14,7 @@ const clarify = (message: string): DraftResult => ({ kind: 'clarify', message })
 const oneDraft = '초안 한 건의 내용만 적어 주세요. 대상 선택과 발송·공개는 원래 화면에서 확인해 주세요.'
 const collectionHint = '수합 제목을 첫 줄에 적어 주세요. 안내를 덧붙이려면 다음 줄을 “안내:”로 시작해 주세요.'
 const label = /^(메시지|(?:자료\s*)?수합)\s*초안\s*[:：]([\s\S]*)$/
-const natural = /^([\s\S]+?)\s*이?라는\s*(내용|제목)으로\s*(메시지|(?:자료\s*)?수합)\s*초안(?:을|를)?\s*(?:만들어|작성해|써)\s*(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
+const natural = new RegExp(String.raw`^([\s\S]+?)\s*이?라는\s*(내용|제목)으로\s*(메시지|(?:자료\s*)?수합)\s*초안(?:을|를)?\s*(?:만들어|작성해|써)\s*${assistantRequestEnding}[.!?。！？]*$`)
 const draftName = /(?:메시지|(?:자료\s*)?수합)\s*초안/
 const commandQuestion = /(?:라고|라는)\s*(?:(?:입력하면|말하면|하면)\s*(?:어떻게|무슨|무엇|뭐|어떤|어디|되나)|(?:표현|명령어|뜻)(?:이|은|는|가)?\s*(?:무엇|뭐|맞|괜찮|자연스러|적절))[^\r\n]*(?:[?？]|돼(?:요)?|되나요|될까요|인가요|하나요|있나요)[.。]*$/
 const recipient = /^(?:(?:모든|전체|전)\s*(?:교사|선생님)?(?:들)?|전원|.+?(?:선생님|부장님|교사))\s*(?:에게|한테|께)/
@@ -27,6 +28,8 @@ const extraField = /^[ \t]*(?:대상(?:자)?|수신자|받는\s*사람|기한|�
 // 첫 문장에서 구별할 수 있는 필드는 이어 입력으로 넘기고, 기존 본문 전용 명령은 그대로 전달한다.
 export function parseDraftCommand(prompt: string, basisDate: string): DraftResult | null {
   const text = prompt.trim().replace(/^(?:비서야|AI야|부탁인데)\s*[,，]?\s*/, '')
+  // 다른 업무의 콜론 뒤 데이터가 메시지·수합 부탁으로 끝나도 초안 명령으로 가로채지 않는다.
+  if (assistantDataPrefix.test(text) && !label.test(text)) return null
   if (/^(?:예시\s*[:：]|예를\s*들어|(?:학생\s*기록|참고\s*자료|AI\s*답변)\s*[:：])/.test(text))
     return null
 

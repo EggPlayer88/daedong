@@ -1,3 +1,4 @@
+import { clearTabCheckpoints } from '../../../workhub/src/app/tab-checkpoint'
 import { signOut } from '@daedong/shared'
 import { useAuth } from '../lib/AuthContext.jsx'
 
@@ -32,7 +33,7 @@ export default function PendingPage() {
           다른 계정으로 가입하시려면 로그아웃 후 다시 로그인해 주세요.
         </p>
 
-        <button className="btn-plain wide" onClick={() => signOut()}>
+        <button className="btn-plain wide" onClick={() => { clearTabCheckpoints(); return signOut() }}>
           로그아웃
         </button>
       </div>
