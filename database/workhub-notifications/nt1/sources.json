@@ -1,0 +1,11 @@
+{
+  "baselineFunctions": {
+    "workhub_private.p3_post(workhub_private.actor_context,text,text,text[],text)": "de571a19885bc5016eb32cb5dc9af4ab",
+    "workhub_private.c_cmd_publish(workhub_private.actor_context,jsonb,jsonb)": "b586e8ac750e816d4d9b73eb7a0edb88",
+    "workhub_private.p3_notify(text,text,text,text,text,text,text)": "91003e540f773b97879f2ce5418cb725"
+  },
+  "newFunctions": {
+    "workhub_private.nt1_message_notice()": "a3e41bea6d098b3ed4e2fa0fd37fe199",
+    "workhub_private.nt1_collection_notice()": "c25d0e77638311e9c4f830fb96ee56cc"
+  }
+}

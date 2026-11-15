@@ -22,6 +22,7 @@ export function createConnectedAssistantOperations(task: TaskAdapter, calendar: 
       return review
     },
     async prepareCalendar(command) {
+      if (command.audienceQueries?.length) throw new WorkspaceOperationError('EDITOR_REQUIRED', '교사 후보를 일정 작성 화면에서 직접 선택한 뒤 저장해 주세요.', 'not_saved')
       const current = bind('calendarCreate', true)
       return prepareCalendarOperation({ id: crypto.randomUUID(), schoolId: current.member.schoolId, memberId: current.member.id,
         draft: buildAssistantCalendarDraft(command, current.member, current.date) }, current.member, current.date)

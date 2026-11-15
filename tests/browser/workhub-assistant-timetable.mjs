@@ -25,6 +25,14 @@ try {
     await page.getByLabel('변경할 내 수업', { exact: true }).waitFor(); assert.equal(await page.getByLabel('변경할 내 수업', { exact: true }).inputValue(), '')
     assert.match(await page.getByRole('list', { name: '시간표 처리 순서' }).innerText(), /당사자 동의·담당자 승인/); assert.equal(await page.evaluate(() => window.actualWrites), 0)
   }, 'exchange')
+  await check('T2 조회가 허용돼도 T1 서버가 편성 권한을 거절하면 관리 탭을 숨긴다', async () => {
+    await button('편성 관리').waitFor()
+    await page.evaluate(() => { window.managementDenied = true; window.refresh() })
+    await button('편성 관리').waitFor({ state: 'detached' })
+    await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor()
+    assert.ok(await page.evaluate(() => window.calls.filter(call => call.name === 'workhub_timetable_readiness').length >= 2))
+    assert.equal(await page.evaluate(() => window.actualWrites), 0)
+  })
   await check('입력 중 다른 편성으로 이동을 막고 원본 영향 비교와 명시 확인 뒤 한 번만 요청한다', async () => {
     await compose(); assert.equal(await button('편성 관리').isDisabled(), true); await preview()
     assert.equal(await button('내 동의와 변경 요청 보내기').isDisabled(), true); assert.equal(await page.evaluate(() => window.actualWrites), 0)

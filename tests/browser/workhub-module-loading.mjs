@@ -57,7 +57,7 @@ try{
   })
   await test('지속 실패는 클릭 한 번에 한 번만 재시도하고 데이터 정리 뒤 수동 새로고침을 안내한다',async()=>{
     await failure().waitFor();await page.evaluate(()=>window.failures.primary=-1);await retry().click()
-    await page.getByText(/새로고침하면 현재 탭에만 보관한 입력과 요청 번호가 사라집니다/).waitFor()
+    await page.getByText(/새로고침 복구는 지원되는 입력·요청에만 적용됩니다/).waitFor()
     assert.equal(await page.evaluate(()=>window.loads.primary),2);assert.equal(documentRequests,1)
     await settle();assert.equal(await page.evaluate(()=>window.loads.primary),2)
   })

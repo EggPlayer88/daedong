@@ -19,6 +19,20 @@ async function test(name,run){await start();await run();passed.push(name);consol
 try{
 await test('담당자 집계와 현재 접수 상태를 표시한다',async()=>{assert.match(await page.locator('body').innerText(),/전체 2 · 미제출 1 · 제출 1/);assert.match(await page.locator('body').innerText(),/진행 중/)})
 await test('마감은 사유와 최종 확인 뒤 서버 명령을 보낸다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('모두 검토');assert.equal(await page.getByRole('button',{name:'확인한 운영 변경 적용'}).isDisabled(),true);await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();assert.equal(await page.evaluate(()=>window.calls.find(x=>x.name.endsWith('_mutate')).args.p_command.expectedVersion),2)})
+await test('알림 적용을 막는 빠진 입력을 순서대로 안내하고 체크와 이름을 묶는다',async()=>{
+ await page.getByRole('button',{name:'미제출·보완 대상 알림'}).click()
+ await page.getByText('변경 사유 또는 알림 내용을 입력해 주세요.',{exact:true}).waitFor()
+ await page.getByLabel('변경 사유 또는 알림 내용').fill('확인 부탁드립니다')
+ await page.getByText('알림을 받을 제출 대상을 선택해 주세요.',{exact:true}).waitFor()
+ const choice=page.getByLabel('1학년 · 미제출')
+ assert.equal(await choice.locator('..').getAttribute('class'),'cs-operation-choice')
+ await choice.check()
+ await page.getByText('변경 내용과 대상 확인란을 선택하면 적용할 수 있습니다.',{exact:true}).waitFor()
+ assert.equal(await page.getByRole('button',{name:'확인한 운영 변경 적용'}).isDisabled(),true)
+ await page.getByLabel('변경 내용과 대상을 확인했습니다').check()
+ assert.equal(await page.getByRole('button',{name:'확인한 운영 변경 적용'}).isEnabled(),true)
+ assert.equal(await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')).length),0)
+})
 await test('알림은 미제출·보완 대상만 선택하며 제출자는 포함하지 않는다',async()=>{await page.getByRole('button',{name:'미제출·보완 대상 알림'}).click();assert.equal(await page.getByLabel('2학년').count(),0);await page.getByLabel('1학년 · 미제출').check();await page.getByLabel('변경 사유 또는 알림 내용').fill('제출 확인 부탁');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();assert.deepEqual(await page.evaluate(()=>window.calls.find(x=>x.name.endsWith('_mutate')).args.p_command.recipients),[{unitId:'unit1',memberId:'m1',expectedVersion:2}])})
 await test('통신 유실 후 재마운트에도 입력과 기존 키를 보존한다',async()=>{await page.getByRole('button',{name:'접수 마감',exact:true}).click();await page.getByLabel('변경 사유 또는 알림 내용').fill('보관할 사유');await page.getByLabel('변경 내용과 대상을 확인했습니다').check();await page.evaluate(()=>{window.mode='unknown'});await page.getByRole('button',{name:'확인한 운영 변경 적용'}).click();await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor();assert.equal(await page.evaluate(()=>window.pending.count()),1);await page.evaluate(()=>{window.root.unmount();window.mount()});await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).waitFor();assert.equal(await page.getByLabel('변경 사유 또는 알림 내용').inputValue(),'보관할 사유');await page.evaluate(()=>{window.mode='ok'});await page.getByRole('button',{name:'원래 운영 요청 결과 확인'}).click();await page.getByText('확인한 운영 변경을 서버에 저장했습니다.').waitFor();const calls=await page.evaluate(()=>window.calls.filter(x=>x.name.endsWith('_mutate')));assert.deepEqual(calls[0].args,calls[1].args)})
 await test('처리 중에는 복구 버튼 대신 상태를 보이고 유실 후 같은 명령만 복구한다',async()=>{

@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 // 실제 업무실 셸과 각 전송 어댑터에 같은 학교·교사의 합성 RPC/HTTP만 제공한다.
 import React from 'react'
 import {createRoot} from 'react-dom/client'

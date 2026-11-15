@@ -80,6 +80,7 @@ export function prepareCalendarOperation(raw: AssistantCalendarDraftRequest, mem
   try {
     activeMember(member, date)
     const request = validateAssistantCalendarDraftRequest(raw, member, date)
+    if (request.audienceQueries?.length) throw new WorkspaceOperationError('EDITOR_REQUIRED', '일정 대상 후보를 작성 화면에서 직접 확인해 주세요.', 'not_saved')
     if (!request.draft.allDay && (!request.draft.startTime || !request.draft.endTime)) {
       throw new WorkspaceOperationError('EDITOR_REQUIRED', '시작·종료 시간을 일정 편집 화면에서 확인해 주세요.', 'not_saved')
     }

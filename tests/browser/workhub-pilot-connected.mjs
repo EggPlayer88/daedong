@@ -1,5 +1,5 @@
 import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
-// 실제 연결 셸·어댑터를 사용한다. 기본은 R0만 제공하고 협업 알림 시험만 합성 P2/P3 조회를 켠다.
+// 실제 연결 셸·어댑터를 사용한다. 기본은 R0만 제공하고 각 기능 시험에서 필요한 합성 조회만 켠다.
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 const fontCss=readFileSync(new URL('../../apps/workhub/src/typography.css',import.meta.url),'utf8'),fontBytes=readFileSync(new URL('../../apps/workhub/src/assets/fonts/PretendardVariable.woff2',import.meta.url))
 const bundle = await build({stdin:{contents:`
+import './tests/browser/reset-fixture-checkpoint';
 import React from 'react'; import {createRoot} from 'react-dom/client';
 import {ASSISTANT_ROUTING} from './apps/workhub/src/assistant/contracts';
 import {ConnectedWorkspace} from './apps/workhub/src/app/ConnectedWorkspace';
@@ -21,7 +22,7 @@ tasks.createTask('nuri-soyeon',{title:'겸임 학교의 확인할 업무',notes:
 const initialContext={...calendar.info(),schoolLabels:Object.fromEntries(data.schools.map(s=>[s.id,relationLabels])),relationLabels};
 const identity={userId:'fixture-soyeon',approved:true,profile:{id:'fixture-soyeon',name:'합성 교사',email:'test@example.invalid',role:'superadmin',extra_permissions:[],department_id:null,is_active:true}};
 let onIdentity=()=>{},onInvalidation=()=>{},connected=true;
-window.scenario={calls:[],readFailures:[],writes:[],contextCalls:0,throwInfo:false,profileFailure:false,failConnection(){connected=false;onInvalidation(new ContractError('QUERY_FAILED','합성 연결 재확인 실패'))},restoreConnection(){connected=true},refresh(){onIdentity()},};
+window.scenario={calls:[],readFailures:[],writes:[],contextCalls:0,throwInfo:false,profileFailure:false,timetablePreparationEnabled:false,failConnection(){connected=false;onInvalidation(new ContractError('QUERY_FAILED','합성 연결 재확인 실패'))},restoreConnection(){connected=true},refresh(){onIdentity()},};
 const now='2026-10-19T00:00:00Z';
 const knowledgeSource={id:'knowledge-linked-source',schoolId:'fixture-school-gaon',authorMemberId:'gaon-minjun',version:7,status:'published',updatedAt:now,title:'연결한 학교 업무 안내',kind:'school_guide',body:'정확히 7판인 업무 안내 원문',locator:'학교 안내 제3조',effectiveFrom:'2026-03-01',effectiveThrough:'2027-02-28'};
 // 목록의 최신 판과 인용할 과거 판을 분리해 K1 직접 조회 계약을 재현한다.
@@ -53,6 +54,8 @@ if(name==='workhub_calendar_list')return calendar.list(args.p_member_id);
 if(name==='workhub_calendar_get')return calendar.get(args.p_member_id,args.p_event_id);
 if(name==='workhub_task_list')return tasks.listTasks(args.p_member_id);
 if(name==='workhub_task_get')return tasks.listTasks(args.p_member_id).find(t=>t.id===args.p_task_id);
+// T1 관리 권한 확인과 T2 운영 RPC 미설치를 분리한다. 기본 R0-only 시험에서는 이 응답을 주지 않는다.
+if(name==='workhub_timetable_readiness'&&window.scenario.timetablePreparationEnabled)return{contract:'timetable.v1',schoolId:'fixture-school-gaon',memberId:args.p_member_id,data:{available:false,reason:'basis_missing'}};
 if(window.scenario.knowledgeEnabled){
  if(name==='workhub_knowledge_list')return{contract:'knowledge.v1',schoolId:'fixture-school-gaon',memberId:'gaon-soyeon',data:{items:[structuredClone(knowledgeSource)],nextCursor:null,canManage:true}};
  if(name==='workhub_knowledge_get'){
@@ -123,9 +126,8 @@ await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 �
     const before = await page.evaluate(() => window.scenario.readFailures.length)
     if (title === '학교 자료') await page.evaluate(name => { window.scenario.holdReadFailure = name }, rpc)
     await go(title)
-    if (title === '시간표') await page.getByRole('button', { name: '편성 관리', exact: true }).click()
     if (title === 'AI 비서') await page.getByRole('dialog', { name: 'AI 비서', exact: true }).waitFor()
-    else await page.locator(title === '시간표' ? '.timetable-workspace' : '#main-content > .page-header')
+    else await page.locator(title === '시간표' ? '.timetable-entry-header' : '#main-content > .page-header')
       .getByRole('heading', { name: title, exact: true, level: 1 }).waitFor()
     if (title !== 'AI 비서') await page.waitForFunction(n => window.scenario.readFailures.length > n, before)
     if (title === '학교 자료') {
@@ -138,7 +140,9 @@ await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 �
     // RPC 관측은 React 렌더 완료가 아니다. CI에서도 실제 사용자에게 보이는 오류가 기준이다.
     await page.getByRole('alert').first().waitFor({ state: 'visible' })
     if (title === '시간표') {
-      assert.equal(await page.getByRole('button', { name: '예시로 편성 연습', exact: true }).isEnabled(), true)
+      await page.getByRole('button', { name: '관리 도구 권한 다시 확인', exact: true }).waitFor()
+      assert.equal(await page.getByRole('button', { name: '편성 관리', exact: true }).count(), 0)
+      assert.equal(await page.getByRole('button', { name: '예시로 편성 연습', exact: true }).count(), 0)
       assert.equal(await page.locator('.timetable-board').count(), 0)
       assert.ok(await page.evaluate(name => window.scenario.calls.some(call => call.name === name), rpc))
     }
@@ -153,6 +157,7 @@ await check('모든 새 모듈의 조회 실패가 메뉴·가용한 일정에 �
   await screenshot('pilot-calendar-1280.png')
 })
 await check('시간표 운영 RPC 미설치는 편성·기존 일정 이동을 막거나 자동 공개하지 않는다', async () => {
+  await page.evaluate(() => { window.scenario.timetablePreparationEnabled = true })
   await go('시간표')
   await page.getByRole('button', { name: '시간표 보기', exact: true }).click()
   await page.waitForFunction(() => window.scenario.calls.some(call => call.name === 'workhub_timetable_operations_readiness'))
@@ -162,6 +167,7 @@ await check('시간표 운영 RPC 미설치는 편성·기존 일정 이동을 �
   assert.deepEqual(await page.evaluate(() => window.scenario.writes), [])
   await page.getByRole('button', { name: '편성 관리', exact: true }).click()
   await page.getByRole('button', { name: '예시로 편성 연습', exact: true }).waitFor()
+  assert.equal(await page.getByRole('button', { name: '예시로 편성 연습', exact: true }).isEnabled(), true)
   await go('학교 일정')
   await page.getByRole('button', { name: '일정 등록', exact: true }).waitFor()
   assert.equal(await page.getByRole('button', { name: '일정 등록', exact: true }).isEnabled(), true)

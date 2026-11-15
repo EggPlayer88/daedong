@@ -33,9 +33,43 @@ async function fits(){
   }).map(el=>({text:el.textContent?.slice(0,65),width:el.getBoundingClientRect().width})))
   assert.deepEqual(overflow,[],'대화 안의 조작 대상이 화면 밖으로 잘리면 안 됩니다')
 }
+async function reachable(control){
+  await control.scrollIntoViewIfNeeded();await control.click({trial:true})
+  assert(await control.evaluate(el=>{
+    const r=el.getBoundingClientRect(),root=el.getRootNode(),hit=root.elementFromPoint(r.left+r.width/2,r.top+r.height/2)
+    return r.top>=0&&r.bottom<=innerHeight+1&&(hit===el||el.contains(hit))
+  }),'실행 버튼이 하단 메뉴나 다른 고정 요소에 가려지면 안 됩니다')
+}
 async function screenshot(name){if(process.env.WORKHUB_QA_OUTPUT){mkdirSync(process.env.WORKHUB_QA_OUTPUT,{recursive:true});await page.screenshot({path:join(process.env.WORKHUB_QA_OUTPUT,name+'.png'),fullPage:true})}}
 async function chooseCourse(){await command('수업에서 국어 찾아줘','자료 찾기');await page.getByRole('button',{name:/가상 1학년 국어.*열기/}).click();await page.getByRole('heading',{name:'가상 1학년 국어',exact:true}).waitFor()}
 try{
+  await test('완료한 할 일 화면은 다음 일정 요청 때 자동 접고 새 일정은 확인 전 저장하지 않는다',async()=>{
+    await page.evaluate(()=>window.qa.qaTasks.seed());await command('내 할 일 보여줘','바로 이동')
+    const tasks=page.locator('.assistant-delivery-work .task-panel');await tasks.getByRole('button',{name:'완료',exact:true}).first().click()
+    await tasks.getByRole('button',{name:'저장한 업무 보기',exact:true}).waitFor();assert.equal(await page.evaluate(()=>window.qa.qaTasks.snapshot().writes),1)
+    await button('대화 보기').click();await command('내일 교과회의 일정 잡아줘','일정 초안 열기');await input().fill('오후 3시부터 4시');await button('일정 정보 이어 입력').click()
+    await page.locator('.workspace-operation[data-operation-kind="calendarCreate"]').waitFor();assert.equal(await page.locator('.assistant-delivery-header').count(),0)
+    assert.equal((await mutations()).length,1);assert.equal(await page.evaluate(()=>window.qa.qaTasks.snapshot().writes),1)
+    assert.equal(await page.getByText('먼저 작성 중인 업무나 결과 확인을 마쳐 주세요. 입력은 유지됩니다.',{exact:true}).count(),0);await fits()
+  })
+  await test('미저장 할 일과 결과 미상 작업은 완료 화면처럼 자동 접지 않는다',async()=>{
+    await page.evaluate(()=>window.qa.qaTasks.seed());await command('내 할 일 보여줘','바로 이동');const tasks=page.locator('.assistant-delivery-work .task-panel')
+    await tasks.getByRole('button',{name:'할 일 등록',exact:true}).click();await tasks.getByLabel('해야 할 일',{exact:true}).fill('미저장 입력 보존')
+    assert.equal(await button('대화 보기').isDisabled(),true);assert.equal(await button('작업 마치기').isDisabled(),true)
+    await page.setViewportSize({width:320,height:420});assert.equal(await tasks.getByLabel('해야 할 일',{exact:true}).inputValue(),'미저장 입력 보존');await noWrite()
+    await tasks.getByRole('button',{name:'편집 취소',exact:true}).click();await page.evaluate(()=>window.qa.qaTasks.loseNextReply());await tasks.getByRole('button',{name:'완료',exact:true}).first().click()
+    await tasks.getByRole('region',{name:'저장 결과 확인 필요',exact:true}).waitFor();const first=await mutations();assert.equal(first.length,1)
+    await tasks.getByRole('button',{name:'입력창 접고 목록 보기',exact:true}).click();assert.equal(await button('대화 보기').isDisabled(),true);assert.equal(await button('작업 마치기').isDisabled(),true)
+    await tasks.getByRole('button',{name:'이전 요청 그대로 다시 확인',exact:true}).click();await tasks.getByRole('button',{name:'저장한 업무 보기',exact:true}).waitFor()
+    assert.deepEqual(await mutations(),[first[0],first[0]]);assert.equal(await page.evaluate(()=>window.qa.qaTasks.snapshot().writes),1)
+  })
+  await test('390px 첫 입력과 전체 AI 화면의 실행 버튼은 하단 메뉴 위에서 누를 수 있다',async()=>{
+    await input().fill('내 할 일 보여줘');await reachable(button('바로 이동'));await button('바로 이동').click();await button('대화 보기').click()
+    for(const size of [{width:390,height:844},{width:390,height:360},{width:320,height:420}]){
+      await page.setViewportSize(size);await input().fill('내일 교과회의 일정 잡아줘');await reachable(button('일정 초안 열기'));await fits()
+    }
+    await noWrite()
+  })
   await test('320px 전문 업무의 진행 순서와 복귀 버튼을 잘림 없이 조작한다',async()=>{
     await page.setViewportSize({width:320,height:720});await command('교사 명부 보여줘');await page.getByLabel('학교 관리 업무',{exact:true}).waitFor()
     await page.locator('.assistant-specialist-plan summary').click();await fits();await button('대화 보기').click();await input().waitFor();await button('작성하던 업무 보기').click();await page.getByLabel('학교 관리 업무',{exact:true}).waitFor();await fits();await noWrite();await screenshot('mobile-school-work')

@@ -17,3 +17,6 @@ database/workhub-teacher-roster/tr1/checks.json text eol=lf
 database/workhub-teacher-pilot/tp1/*.sql text eol=lf
 database/workhub-teacher-pilot/tp1/*.sql.inc text eol=lf
 database/workhub-teacher-pilot/tp1/*.json text eol=lf
+
+database/workhub-notifications/nt1/*.sql text eol=lf
+database/workhub-notifications/nt1/*.json text eol=lf

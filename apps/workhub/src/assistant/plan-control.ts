@@ -11,9 +11,10 @@ export type WorkspacePlanControl =
   | { kind: 'choose'; number: number }
 export type WorkspacePlanOutcome =
   | { kind: 'opened' }
-  | { kind: 'confirmed'; receipt: Pick<WorkspaceOperationReceipt, 'kind' | 'key' | 'id' | 'title' | 'version'> }
+  | { kind: 'confirmed'; receipt: Pick<WorkspaceOperationReceipt, 'kind' | 'key' | 'id' | 'title' | 'version'> | { kind: 'taskCreate'; key: string; id: string; title: string; version: number } }
   | { kind: 'recorded'; results: WorkflowResult[] }
 export interface SavedWorkspacePlan {
+  instanceId?: string
   plan: WorkspacePlan
   scope: string
   selectedId?: string

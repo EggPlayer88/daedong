@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 import React from 'react'
 import { createDialogueTaskFixture } from './workhub-dialogue-task-fixture'
 import { createRoot } from 'react-dom/client'

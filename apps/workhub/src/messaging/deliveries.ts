@@ -3,6 +3,11 @@ import type { MessageAttempt } from './composer'
 import * as validate from './validation'
 
 export interface DeliveryPerson { memberId: string; name: string; department: string }
+/** 표시 순서만 정돈한다. 수신자 번호와 서버가 확인한 명부·권한은 바꾸지 않는다. */
+export function sortedRecipients<T extends DeliveryPerson>(people: readonly T[]): T[] {
+  return [...people].sort((a, b) => a.name.localeCompare(b.name, 'ko')
+    || a.department.localeCompare(b.department, 'ko') || a.memberId.localeCompare(b.memberId))
+}
 export interface SentDeliveryRecord {
   scope: string
   mode: 'direct' | 'group' | 'individual' | 'reply'

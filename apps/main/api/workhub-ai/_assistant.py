@@ -10,7 +10,7 @@ from pathlib import Path
 # 기존 서버의 토큰 검증과 Supabase 호스트 제한을 그대로 재사용한다.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "collections"))
 from _hwpx_basic import SupabaseClient, CheckError, parse_json, _token
-from _conversation_guidance import conversation_policy, read_conversation_prompt
+from _conversation_guidance import conversation_policy, read_conversation_prompt, server_context
 
 ASSETS = Path(__file__).parent / "_assets"
 LIMITS = json.loads((ASSETS / "assistant-limits.json").read_text(encoding="utf-8"))
@@ -268,12 +268,12 @@ TOOL = {"name": "deliver_workhub_answer", "description": "교사가 검토할 �
         "taskDraft": {"anyOf": [{"type": "null"}, {"type": "object", "additionalProperties": False, "required": ["title", "notes", "dueDate"], "properties": {"title": {"type": "string", "minLength": 1, "maxLength": TASK_LIMITS["titleChars"], "description": "교사가 확인할 할 일 제목"}, "notes": {"type": "string", "maxLength": TASK_LIMITS["notesChars"], "description": "교사 개인 할 일의 메모"}, "dueDate": {"type": "string"}}}]}
     }}}
 
-def provider_body(claim):
+def provider_body(claim, now=None):
     # 지시문은 로컬 자산만 사용한다. 학교 자료와 사용자 입력은 JSON 데이터로 전달한다.
     # 판이 본문에 없어도 답할 수 있도록 인용 카드와 같은 서버 확정 reference를 함께 보낸다.
     sources = [{"sourceKey": row["key"], "reference": row["reference"], "title": row["title"], "locator": row["locator"], "body": row["body"]} for row in claim["sources"]]
     conversation = read_conversation_prompt(claim["input"]["prompt"])
-    prompt = json.dumps({"mode": claim["input"]["mode"], "intent": claim["input"]["intent"], "request": conversation["prompt"], "conversationProfile": conversation["profileId"], "authorizedEvidence": sources}, ensure_ascii=False)
+    prompt = json.dumps({"mode": claim["input"]["mode"], "intent": claim["input"]["intent"], "request": conversation["prompt"], "conversationProfile": conversation["profileId"], "serverContext": server_context(now), "authorizedEvidence": sources}, ensure_ascii=False)
     return {"model": claim["policy"]["model"], "max_tokens": claim["policy"]["maxTokens"], "system": conversation_policy(BASE_POLICY, conversation["profileId"]), "messages": claim["history"] + [{"role": "user", "content": prompt}], "tools": [TOOL], "tool_choice": {"type": "tool", "name": TOOL["name"]}, "stream": False}
 
 def anthropic(body, key, deadline, connection_factory=http.client.HTTPSConnection, clock=time.monotonic):

@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 import { createRoot } from 'react-dom/client'
 import { ConnectedWorkspace } from '../../apps/workhub/src/app/ConnectedWorkspace'
 import { createSupabaseConnection } from '../../apps/workhub/src/connection/supabase-connection'

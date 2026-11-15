@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 // 가상 학교의 합성 전송만 제공한다. 화면·서비스·응답 파서·수합 저장 규칙은 제품 코드를 사용한다.
 import React, {useState} from 'react'
 import {createRoot} from 'react-dom/client'

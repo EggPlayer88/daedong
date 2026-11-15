@@ -1,5 +1,5 @@
 import {
-  parseCalendarFields, parseWorkspaceCommand, validWorkspaceText, type WorkspaceCommand,
+  parseCalendarAudience, parseCalendarFields, parseWorkspaceCommand, validWorkspaceText, type WorkspaceCommand,
 } from './workspace-commands'
 
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
@@ -20,8 +20,8 @@ export function calendarQuestion(draft: CalendarWorkspaceCommand): string | null
 }
 
 const clarify = (message: string): CalendarContinuation => ({ kind: 'clarify', message })
-const fields = ['title', 'date', 'startTime', 'endTime'] as const
-const fieldLabels = { title: '제목', date: '날짜', startTime: '시작 시각', endTime: '종료 시각' }
+const fields = ['title', 'date', 'startTime', 'endTime', 'location'] as const
+const fieldLabels = { title: '제목', date: '날짜', startTime: '시작 시각', endTime: '종료 시각', location: '장소' }
 const cancelReply = /^(?:그만|그만할래(?:요)?|취소|(?:일정(?:\s*초안)?\s*)?취소해\s*(?:줘|주세요))$/
 
 // 새 명령이나 질문을 기존 초안의 제목으로 받아들이지 않는다. 취소할 때까지 모든 답은 여기서 처리한다.
@@ -29,6 +29,13 @@ const notFieldReply = /[?？;；“”‘’"'`]|(?:어떻게|알려\s*줘|해\s
 const anotherRequest = /(?:줘|주세요|주십시오|줄래|하자|할까|인가요|인가|할래|해줘요|해요|입니다만)$/
 
 function parseReply(text: string, date: string, draft: CalendarWorkspaceCommand): CalendarContinuation {
+  const audience = /^(?:대상(?:자)?|참석자|참여자)(?:은|는|[:：])\s*(.+)$/.exec(text)
+  if (audience) {
+    const names = parseCalendarAudience(audience[1])
+    return names ? { kind: 'calendar', command: { kind: 'calendar', prompt: text, title: '', date: null,
+      startTime: null, endTime: null, allDay: false, audienceQueries: names } }
+      : clarify('일정 대상 교사의 이름을 적어 주세요. 후보에서 직접 선택한 뒤 작성 화면에서 확인합니다.')
+  }
   if (notFieldReply.test(text) || anotherRequest.test(text) || parseWorkspaceCommand(text, date))
     return clarify('지금 작성 중인 일정의 빠진 정보만 답해 주세요. 다른 업무를 시작하려면 먼저 취소해 주세요.')
   const label = /^(제목|날짜|시작(?:\s*(?:시각|시간))?|종료(?:\s*(?:시각|시간))?|끝(?:나는\s*시간)?)\s*(?:은|는|[:：])\s*/.exec(text)
@@ -67,7 +74,8 @@ export function continueCalendar(
   const text = reply.trim().replace(/\s+/g, ' ').replace(/[.!。！]+$/, '').trim()
   if (cancelReply.test(text)) return { kind: 'cancel' }
   const question = calendarQuestion(draft)
-  if (!text || !question) return clarify('현재 초안에 필요한 정보를 확인해 주세요.')
+  const explicitAudience = /^(?:대상(?:자)?|참석자|참여자)(?:은|는|[:：])/.test(text)
+  if (!text || !question && !explicitAudience) return clarify('현재 초안에 필요한 정보를 확인해 주세요.')
   const result = parseReply(text, basisDate, draft)
   if (result.kind !== 'calendar') return result
   const answer = result.command
@@ -76,12 +84,18 @@ export function continueCalendar(
   const different = fields.find(field => draft[field] && answer[field] && draft[field] !== answer[field])
   if (different)
     return clarify(`앞서 입력한 ${fieldLabels[different]}과 달라요. 기존 값을 유지했어요. 빠진 정보만 답하거나 취소 후 새로 시작해 주세요.`)
-  const changed = fields.some(field => answer[field] && !draft[field]) || answer.allDay && !draft.allDay
-  if (!changed) return clarify(question)
+  if (draft.audienceQueries?.length && answer.audienceQueries?.length &&
+      JSON.stringify(draft.audienceQueries) !== JSON.stringify(answer.audienceQueries))
+    return clarify('앞서 입력한 대상과 달라요. 기존 대상을 유지했어요. 변경은 일정 작성 화면에서 확인해 주세요.')
+  const changed = fields.some(field => answer[field] && !draft[field]) || answer.allDay && !draft.allDay ||
+    Boolean(answer.audienceQueries?.length && !draft.audienceQueries?.length)
+  if (!changed) return clarify(question ?? '현재 초안의 대상과 내용을 확인해 주세요.')
   const command: CalendarWorkspaceCommand = {
     ...draft, prompt: draft.prompt + '\n' + reply.trim(), title: draft.title || answer.title,
     date: draft.date ?? answer.date, startTime: draft.startTime ?? answer.startTime,
     endTime: draft.endTime ?? answer.endTime, allDay: draft.allDay || answer.allDay,
+    ...(draft.location || answer.location ? { location: draft.location || answer.location } : {}),
+    ...(draft.audienceQueries || answer.audienceQueries ? { audienceQueries: draft.audienceQueries || answer.audienceQueries } : {}),
   }
   if (!validWorkspaceText(command.prompt)) return clarify('대화가 길어졌어요. 답을 짧게 적거나 초안을 새로 시작해 주세요.')
   if (command.startTime && command.endTime && command.endTime <= command.startTime)

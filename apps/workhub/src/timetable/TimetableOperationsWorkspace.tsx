@@ -15,6 +15,8 @@ import { TimetablePublishPanel } from './TimetablePublishPanel'
 import { TimetableExchangePanel } from './TimetableExchangePanel'
 import { dateOffset } from './OperationChangeList'
 import { PublishedTimetableBoard } from './PublishedTimetableBoard'
+import { BasicTimetableDay } from './BasicTimetableDay'
+import type { ReactNode } from 'react'
 import { createTimetableOperationsExtensions } from './operations-next-server'
 import { createPublicationExecutionServer } from './publication-execution-server'
 import type { PublicationCommitCommand, PublicationCommitReceipt, PublicationExecutionServer } from './publication-execution-contracts'
@@ -42,7 +44,7 @@ import themeStyles from './timetable-theme.css?inline'
 
 type Tab = 'shared' | 'publish' | 'exchange'
 interface Props { presentation?: 'page' | 'assistant'; initialOperationTab?: 'shared' | 'publish' | 'exchange'; initialOperationMode?: 'exchange' | 'interventions'; embeddedHeader?: boolean; connection: SupabaseConnection; member: Membership; date: string; revision?: number; onNavigationLockChange?: (locked: boolean) => void; onWorkflowResult?: WorkflowResultListener; initialLessonId?: string; initialDate?: string; initialRequestId?: string; initialNotificationId?: string; initialIntent?: { kind: 'makeup'; lessonId: string; token: string }; onInitialIntentConsumed?: (token: string) => void; initialDraftId?: string; initialDraftVersion?: number; onInitialDraftConsumed?: () => void; onOpenLesson?: (lessonId: string, date: string) => void }
-interface PanelProps extends Omit<Props, 'connection'> { server: TimetableOperationsServer; extensions?: OperationsExtensions; publicationExecution?: PublicationExecutionServer; schoolDayExecution?: SchoolDayExecutionServer; executionRecords?: TimetableExecutionRecordsServer; interventions?: TimetableInterventionsServer; assistantServer?: AssistantServer;annualServer?:AnnualOperations }
+interface PanelProps extends Omit<Props, 'connection'> { renderBasicDay?: (date: string, locked: boolean) => ReactNode; server: TimetableOperationsServer; extensions?: OperationsExtensions; publicationExecution?: PublicationExecutionServer; schoolDayExecution?: SchoolDayExecutionServer; executionRecords?: TimetableExecutionRecordsServer; interventions?: TimetableInterventionsServer; assistantServer?: AssistantServer;annualServer?:AnnualOperations }
 const operatingAssistantHttp: AssistantHttpPort = { async send(payload, expectedUserId, writing) { const { legacyAssistantHttp } = await import('../assistant/legacy-http'); return legacyAssistantHttp.send(payload, expectedUserId, writing) } }
 type OperationsCommand = OperationCommand | PublicationCommitCommand | SchoolDayCommitCommand
 type OperationsReceipt = OperationReceipt | PublicationCommitReceipt | SchoolDayCommitReceipt
@@ -51,7 +53,7 @@ const rejected = (error: unknown) => error instanceof ServiceError && ['NOT_READ
 const readinessMessage = { not_installed: '확정·공유·교환 기능의 서버 연결을 준비 중입니다.', not_allowed: '현재 계정에는 시간표 운영 자료를 볼 권한이 없습니다.', basis_missing: '학교의 시간표 운영 기초 자료를 먼저 연결해야 합니다.' }
 const receiptMessage = (receipt: OperationsReceipt) => receipt.kind === 'publish_manifest' ? `전체 기간의 시간표 ${receipt.version}판을 확정했습니다. 변경 수업 ${receipt.changedCount}건을 공유 화면에서 확인할 수 있습니다.` : receipt.kind === 'school_day' ? `학사 변경을 ${receipt.changedLessonCount}개 수업에 반영했습니다. 보강 검토가 필요한 수업은 ${receipt.lostLessonCount}개입니다.` : receipt.kind === 'publish' ? `학교 시간표 ${receipt.version}판을 확정했습니다. 공유 화면에서 적용 기간을 확인할 수 있습니다.` : receipt.status === 'applied' ? '수업 변경을 시간표에 반영했습니다. 최신 수업을 확인해 주세요.' : '수업 변경 요청의 처리 결과를 확인했습니다. 요청 현황에서 다음 단계를 확인해 주세요.'
 
-export function TimetableOperationsWorkspace(props: Props & { aiEnabled?: boolean }) {
+export function TimetableOperationsWorkspace(props: Props & { aiEnabled?: boolean; onOpenBasicTimetable?: (date: string) => void }) {
   const annualServer=useMemo(()=>createAnnualOperations(props.connection),[props.connection])
   const server = useMemo(() => createTimetableOperationsServer(props.connection), [props.connection])
   const extensions = useMemo(() => createTimetableOperationsExtensions(props.connection), [props.connection])
@@ -60,9 +62,9 @@ export function TimetableOperationsWorkspace(props: Props & { aiEnabled?: boolea
   const schoolDayExecution = useMemo(() => createSchoolDayExecutionServer(props.connection), [props.connection])
   const interventions = useMemo(() => createTimetableInterventionsServer(props.connection), [props.connection])
   const assistantServer = useMemo(() => createAssistantServer(props.connection, operatingAssistantHttp, {policyReads:true}), [props.connection])
-  return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} annualServer={annualServer} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={props.aiEnabled === false ? undefined : assistantServer} />
+  return <TimetableOperationsPanel key={recoveryScope(props.member)} {...props} renderBasicDay={(date, locked) => <BasicTimetableDay key={date} connection={props.connection} member={props.member} date={date} revision={props.revision} locked={locked} onOpenWeekly={props.onOpenBasicTimetable} />} annualServer={annualServer} server={server} executionRecords={executionRecords} extensions={extensions} publicationExecution={publicationExecution} schoolDayExecution={schoolDayExecution} interventions={interventions} assistantServer={props.aiEnabled === false ? undefined : assistantServer} />
 }
-export function TimetableOperationsPanel({ presentation = 'page', initialOperationTab, initialOperationMode, embeddedHeader = false, server, member, date, revision = 0, onNavigationLockChange, onWorkflowResult, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, annualServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson }: PanelProps) {
+export function TimetableOperationsPanel({ presentation = 'page', initialOperationTab, initialOperationMode, embeddedHeader = false, server, member, date, revision = 0, onNavigationLockChange, onWorkflowResult, extensions, publicationExecution, schoolDayExecution, executionRecords, interventions, assistantServer, annualServer, initialLessonId, initialDate, initialRequestId, initialNotificationId, initialIntent, onInitialIntentConsumed, initialDraftId, initialDraftVersion, onInitialDraftConsumed, onOpenLesson, renderBasicDay }: PanelProps) {
   const id = useId(), pendingStore = usePendingRequest(member, 'timetableOperations')
   const route = useEditDraft<Tab>(member, 'timetable-operations-tab'), publishMemory = useEditDraft<unknown>(member, 'timetable-publish'), exchangeMemory = useEditDraft<unknown>(member, 'timetable-exchanges')
   const schoolDayMemory = useEditDraft<unknown>(member, 'timetable-school-day')
@@ -362,6 +364,7 @@ export function TimetableOperationsPanel({ presentation = 'page', initialOperati
       {view && <section className="ttops-card" aria-label="확정 수업 조회">
         <PublishedTimetableBoard view={view} memberId={member.id} date={date} initialDate={boardDate} initialFilter={boardFilter} onFilterChange={setBoardFilter} initialMode={boardMode} onModeChange={setBoardMode} locked={locked} selectionLocked={recordsLocked || Boolean(recordsPending.request)} references={references} interventions={linkedInterventions} interventionLocked={navLocked} onIntervention={interventions ? openLessonIntervention : undefined} onOpenRecords={lessonId => { if (!locked) { setRecordLessonId(lessonId); setRecordOpen({ lessonId, token: ++selectionToken.current }) } }} onRequest={requestLesson} onRangeChange={(first, selected) => { if (locked) return; setBoardDate(selected); if (first < view.from || dateOffset(first, 7) > view.until) setFrom(first) }} initialLessonId={recordLessonId} onSelectLesson={setRecordLessonId} onOpenLesson={onOpenLesson} />
         {referenceError && <details><summary>학급 연결 상태</summary><p className="ttops-muted">{referenceError}</p></details>}
+        {!view.lessons.length && !view.publications.length && renderBasicDay?.(boardDate, navLocked)}
         <details className="ttops-publications"><summary>적용 중인 확정본 {view.publications.length}건</summary>{view.publications.length ? <ul>{view.publications.map(item => <li key={item.id}><strong>{item.title} · {item.version}판</strong><p>{item.from} ~ {dateOffset(item.until, -1)}</p><small>확정 시각 {new Date(item.publishedAt).toLocaleString('ko-KR', { timeZone: view.timeZone })}</small></li>)}</ul> : <p>이 조회 기간에 적용되는 확정본이 없습니다.</p>}</details>
       </section>}
       <TimetableExecutionRecordsPanel member={member} date={date} lesson={view?.lessons.find(lesson => lesson.id === recordLessonId)} server={executionRecords} disabled={writeLocked || publicationBusy || schoolDayBusy || interventionLock || !enabled} openRequest={recordOpen} refreshKey={revision + reload} onLockChange={setRecordsLocked} onRecorded={refresh} onWorkflowResult={onWorkflowResult} />

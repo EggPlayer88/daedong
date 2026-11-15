@@ -12,3 +12,4 @@
 .ws-shell .ui-home-main :is(.ttagenda-empty,.ttagenda-unavailable,.ttagenda-loading) .ttagenda-header{margin-bottom:4px}
 .ws-shell .ui-home-main :is(.ttagenda-empty,.ttagenda-unavailable,.ttagenda-loading) p{margin:4px 0}
 .ws-shell .ui-home-main .ttagenda-error [role="alert"]{color:var(--ui-danger,#b42332)}
+.ttagenda-basic li{display:grid;gap:5px;padding:12px 0;overflow-wrap:anywhere;min-width:0}.ttagenda-basic li>span{font-size:13px;color:var(--text-muted,#586575)}

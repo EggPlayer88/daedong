@@ -252,6 +252,11 @@ jobs:
           WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
           WORKHUB_DEPLOYMENT_TEST_PORT: '55679'
         run: python database/workhub-neis/n1/build_checks.py
+      - name: 메시지·수합 알림 증분 및 전체 점검 재생성
+        env:
+          WORKHUB_DEPLOYMENT_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin
+          WORKHUB_DEPLOYMENT_TEST_PORT: '55841'
+        run: python database/workhub-notifications/nt1/build_checks.py
       - name: 실제 시간표 가져오기 SQL·원자성·앱 응답
         env:
           P9_PG_BIN: ${{ runner.temp }}/workhub-pg17/node_modules/@embedded-postgres/linux-x64/native/bin

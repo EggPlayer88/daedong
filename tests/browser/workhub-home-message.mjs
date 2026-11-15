@@ -7,6 +7,7 @@ import { mkdirSync, writeFileSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 const bundle = buildSync({stdin:{contents:`
+import './tests/browser/reset-fixture-checkpoint';
 import React from 'react';import{createRoot}from'react-dom/client';
 import{ConnectedWorkspace}from'./apps/workhub/src/app/ConnectedWorkspace';
 import{ContractError}from'./apps/workhub/src/contracts';

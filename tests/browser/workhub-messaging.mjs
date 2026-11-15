@@ -123,7 +123,14 @@ try {
     assert.equal(await input.inputValue(), '확인 부탁드립니다.'); assert.deepEqual(await input.evaluate(element => [element.selectionStart, element.selectionEnd]), [2, 5]); assert.equal(await page.evaluate(() => window.calls.length), 0)
   })
   await test('답장 참여자 충돌은 내용을 보존하고 최신 명단 확인 후 새 키로 전송한다', async () => {
-    await page.getByRole('button', { name: /김교사와의 대화/ }).click(); await page.getByText('회의자료를 확인해 주세요.', { exact: true }).waitFor(); await page.getByRole('button', { name: '답장', exact: true }).click(); await page.getByLabel('메시지', { exact: true }).fill('내 답장'); await page.getByRole('button', { name: '받는 사람과 내용 확인' }).click(); await page.getByRole('button', { name: '확인한 내용 보내기' }).click(); await page.getByRole('button', { name: '현재 참여자 다시 확인' }).click(); assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '내 답장')
+    await page.getByRole('button', { name: /김교사와의 대화/ }).click(); await page.getByText('회의자료를 확인해 주세요.', { exact: true }).waitFor(); await page.getByRole('button', { name: '답장', exact: true }).click();
+    assert.equal(await page.getByRole('region', { name: '선택한 대화', exact: true }).getByRole('form', { name: '답장 작성', exact: true }).count(), 1)
+    assert.equal(await page.evaluate(() => {
+      const messages = document.querySelector('.messaging-messages'), composer = document.querySelector('form[aria-label="답장 작성"]')
+      return Boolean(messages.compareDocumentPosition(composer) & Node.DOCUMENT_POSITION_FOLLOWING)
+    }), true)
+    assert.equal(await page.evaluate(() => window.calls.some(x => x.command.kind === 'read_thread')), false)
+    await page.getByLabel('메시지', { exact: true }).fill('내 답장'); await page.getByRole('button', { name: '받는 사람과 내용 확인' }).click(); await page.getByRole('button', { name: '확인한 내용 보내기' }).click(); await page.getByRole('button', { name: '현재 참여자 다시 확인' }).click(); assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '내 답장')
     await page.getByRole('button', { name: '받는 사람과 내용 확인' }).click(); assert.match(await page.getByRole('region', { name: '보내기 전 확인' }).innerText(), /김교사, 이교사/); await page.getByRole('button', { name: '확인한 내용 보내기' }).click(); await page.getByText(/메시지를 보냈습니다/).waitFor(); const calls = await page.evaluate(() => window.calls); assert.notEqual(calls[0].key, calls[1].key); assert.equal(calls[1].command.expectedVersion, 2); assert.equal(calls[1].command.body, '내 답장')
   }, 'conflict')
   await test('대화를 읽기만 하면 변경하지 않고 읽음 버튼만 화면 순번을 기록한다', async () => {

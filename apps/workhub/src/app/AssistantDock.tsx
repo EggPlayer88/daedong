@@ -60,7 +60,8 @@ export function AssistantDock({ open, fullPage = false, closeDisabled = false, c
     }
   }, [open, modal, fullPage])
   return <dialog ref={panel} className={`ws-ai-dock${fullPage ? ' ws-ai-full' : ''}`} aria-labelledby={id}
-    onCancel={event => { event.preventDefault(); if (!closeDisabled) onClose() }} onKeyDown={event => {
+    onCancel={event => { event.preventDefault(); const root = panel.current?.getRootNode(); const focused = root instanceof ShadowRoot ? root.activeElement : document.activeElement; if (!closeDisabled && !(focused instanceof HTMLSelectElement)) onClose() }} onKeyDown={event => {
+      if (event.key === 'Escape' && event.target instanceof HTMLSelectElement) { event.stopPropagation(); return }
       if (!fullPage && !mobile && event.key === 'Escape' && !event.nativeEvent.isComposing) { event.preventDefault(); event.stopPropagation(); if (!closeDisabled) onClose() }
     }}>
     <header className="ws-ai-heading"><div><WorkspaceIcon name="assistant" />{fullPage ? <h1 id={id}>AI 비서</h1> : <h2 id={id}>AI 비서</h2>}</div><button ref={close} type="button" disabled={closeDisabled} aria-label="AI 비서 닫기" onClick={onClose}>✕</button></header>

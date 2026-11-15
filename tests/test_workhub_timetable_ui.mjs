@@ -26,14 +26,15 @@ check('수업 이동은 키보드 버튼이며 선택 상태와 비활성을 전
 check('학교의 수업·자원 이름은 실행 코드로 렌더하지 않는다',()=>{const unsafe=structuredClone(basis);unsafe.lessons[0].label='<img src=x onerror=alert(1)>';unsafe.resources[0].label='<script>bad</script>';const html=m.render('board',{basis:unsafe,placements:result.placements,onSelect:()=>{}});assert.match(html,/&lt;img/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<img|<script>/)})
 check('아직 배치하지 않은 빈 시간표도 실제 수업을 만들어 표시하지 않는다',()=>{const html=m.render('board',{basis,placements:[],onSelect:()=>{}});assert.doesNotMatch(html,/이동할 수업 선택/);assert.match(html,/편성 초안/)})
 check('자정 경계 시각은 날짜를 추측하지 않고 시각만 표현한다',()=>{assert.equal(m.timetableClock(0),'00:00');assert.equal(m.timetableClock(1439),'23:59');assert.equal(m.timetableClock(1440),'24:00')})
-check('새 진입은 공유 시간표부터 열되 교사가 고른 편성 화면은 기억한다',()=>{
+check('권한 확인 전에는 공유 시간표부터 열고 과거 편성 경로를 권한 근거로 삼지 않는다',()=>{
   const active=html=>html.match(/<button[^>]*aria-pressed="true"[^>]*>[^<]*<\/button>/)?.[0];
   assert.match(active(m.renderEntry(member).html),/시간표 보기/);
-  assert.match(active(m.renderEntry(member,undefined,'editor').html),/편성 관리/);
+  assert.match(active(m.renderEntry(member,undefined,'editor').html),/시간표 보기/);
+  assert.doesNotMatch(m.renderEntry(member,undefined,'editor').html,/편성 관리|시간표 관리 도구/);
 })
 for(const kind of ['timetable','timetableAssistant','timetablePreparation','timetableSetup','timetableSetupBatch','timetableTarget'])check(kind+' 미확정 요청은 새 기본 화면보다 복구 화면을 우선한다',()=>{
   const {html,pending}=m.renderEntry(member,kind,'operations');
-  assert.match(html,/<button[^>]*aria-pressed="true"[^>]*>편성 관리<\/button>/);
+  assert.match(html,/<button[^>]*aria-pressed="true"[^>]*>편성 요청 결과 확인<\/button>/);
   assert.deepEqual(pending,{key:'원래-요청',command:{kind:'original'}});
 })
 console.log(`시간표 화면 렌더 검사: ${count}개 통과`)

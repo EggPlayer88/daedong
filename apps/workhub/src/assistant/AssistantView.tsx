@@ -20,6 +20,8 @@ import { DraftFollowupCard } from './DraftFollowupCard'
 import { CONVERSATION_PROFILES, readConversationPrompt } from './conversation-guidance'
 import { WorkspaceOperationCard } from './WorkspaceOperationCard'
 import { specialistStarters } from './specialist-workflows'
+import { unavailableWorkspaceCommand } from './workspace-availability'
+import { parseWorkspaceCommand } from './workspace-commands'
 export function AssistantView({ model }: { model: ReturnType<typeof useAssistantWorkspace> }) {
   const {
     addTask,
@@ -105,6 +107,10 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     workspaceSearching,
   } = model
   const continuing = Boolean(calendarFollowup || draftFollowup)
+  const supportedPrompt = (prompt: string) => !unavailableWorkspaceCommand(parseWorkspaceCommand(prompt, date), workspaceActions)
+  const visibleProfiles = CONVERSATION_PROFILES.filter(profile => !workspaceActions?.availablePages ||
+    !['administration', 'documents'].includes(profile.id) ||
+    workspaceActions.availablePages.includes(profile.id === 'administration' ? 'home' : 'documents'))
   const canContinueDraft = !continuing && workspaceActions?.findDraftPeople && (
     workspaceCommand?.kind === 'messageDraft' || workspaceCommand?.kind === 'collectionDraft') && !workspaceCommand.firstTurn
   return (
@@ -288,7 +294,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                           disabled={!editable || locked}
                           onClick={() => setReviewConfirm(exchange.id)}
                         >
-                          이 답변 정밀 검토
+                          {session.thread?.exchanges.some(row => row.execution?.reviewOf?.exchangeId === exchange.id) ? '이 답변 다시 정밀 검토' : '이 답변 정밀 검토'}
                         </button>
                         {reviewConfirm === exchange.id && (
                           <div role="group" aria-label="정밀 검토 비용 확인">
@@ -391,9 +397,9 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                       {onDraftReady && (
                         <button
                           type="button"
-                          disabled={!editable || locked}
+                          disabled={!editable || locked || exchange.intent === 'guided_collection' && !model.canUseGuidedDraft(session.requestContexts?.[exchange.requestKey])}
                           onClick={() =>
-                            onDraftReady(
+                            { try { onDraftReady(
                               {
                                 intent: exchange.intent,
                                 segments: structuredClone(exchange.segments),
@@ -402,12 +408,14 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                                 studentContext: exchange.studentContext,
                               },
                               session.requestContexts?.[exchange.requestKey],
-                            )
+                            ) } catch (failure) { setError(failure instanceof Error ? failure.message : '초안을 연결하지 못했습니다. 원래 답변은 유지했습니다.') } }
                           }
                         >
                           이 초안을 작성 화면으로 보내기
                         </button>
                       )}
+                      {exchange.intent === 'guided_collection' && !model.canUseGuidedDraft(session.requestContexts?.[exchange.requestKey]) &&
+                        <p className="assistant-hint">이 답변에는 연결된 원본 양식이 없습니다. 수합 화면에서 양식을 선택한 뒤 질문 구성을 요청해 주세요. 답변은 그대로 보관됩니다.</p>}
                     </div>
                   )}
                   {onComposeMessage &&
@@ -437,13 +445,14 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           {model.workspaceOperation.preparing && <p role="status">저장 전에 현재 내용을 확인하고 있습니다…</p>}
           {(model.workspaceOperation.error || model.workspaceOperation.unreadable) && <p role="alert">{model.workspaceOperation.error || '보관한 저장 요청을 읽지 못했습니다. 원래 요청을 유지하며 새 저장을 막았습니다.'}</p>}
           {model.workspaceOperation.state && enabled && <WorkspaceOperationCard {...model.workspaceOperation.state}
-            onConfirm={model.workspaceOperation.confirm} onRetry={model.workspaceOperation.retry} onCancel={model.workspaceOperation.cancel}
+            onConfirm={model.workspaceOperation.confirm} onRetry={model.workspaceOperation.retry} onCancel={model.cancelWorkspaceOperation}
+            onResumeCalendar={model.canResumeCalendar ? model.resumeCalendarAudience : undefined}
             onOpenResult={model.workspaceOperation.state.receipt ? () => {
               const receipt = model.workspaceOperation.state?.receipt
               if (receipt) workspaceActions?.open({ kind: receipt.kind === 'taskChange' ? 'task' : 'calendar', id: receipt.id,
                 title: receipt.title, description: '', meta: '', version: receipt.version })
             } : undefined} />}
-          {enabled && <WorkspacePlanCard model={model.workspacePlan} hasInput={Boolean(session.prompt.trim())} />}
+          {enabled && <WorkspacePlanCard model={model.workspacePlan} hasInput={Boolean(session.prompt.trim())} onOpenResult={model.openPlanResult} />}
           {workspaceSearching && <p role="status" className="assistant-workspace-searching">열람 가능한 자료를 찾고 있습니다.</p>}
           {workspaceActionNotice && enabled && <section className="assistant-workspace-result" aria-label="대화 업무 처리 안내">
             <p className="assistant-command-question">{workspaceActionNotice.prompt}</p>
@@ -475,7 +484,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                   onChange={(event) => setConversationFocus(event.target.value as typeof conversationFocus)}
                 >
                   <option value="auto">{conversationFocus === 'auto' ? `자동 · ${conversationProfile.label}` : '자동'}</option>
-                  {CONVERSATION_PROFILES.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
+                  {visibleProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
                 </select>
               </div>
             </div>
@@ -490,6 +499,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                   onChange={(event) => changeIntent(event.target.value as AssistantIntent)}
                 >
                   {Object.entries(intentLabels)
+                    .filter(([key]) => key !== 'guided_collection' || model.canUseGuidedDraft(session.contextId))
                     .filter(
                       ([key]) =>
                         session.mode === 'personal' ||
@@ -513,13 +523,14 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 <ul>
                   {session.references.map((ref) => (
                     <li key={`${ref.kind}:${ref.id}`}>
-                      {ref.kind} · {ref.id} · 판 {ref.version}
+                      <span>{{ knowledge: '학교 자료', document: '문서', collection: '수합', calendar: '일정', task: '할 일' }[ref.kind]} · {ref.version}판</span>
+                      <details><summary>연결 정보</summary><code>{ref.id}</code></details>
                     </li>
                   ))}
                   {session.studentContext?.evidence.map((ref) => (
                     <li key={`${ref.kind}:${ref.id}:${ref.start}`}>
-                      {ref.kind === 'observation' ? '관찰' : '평가'} · {ref.id} · 개정{' '}
-                      {ref.revisionId} · 구간 {ref.start}–{ref.end}
+                      {ref.kind === 'observation' ? '관찰' : '평가'} · 선택 구간 {ref.start}–{ref.end}
+                      <details><summary>연결 정보</summary>{ref.id} · {ref.revisionId}</details>
                     </li>
                   ))}
                 </ul>
@@ -558,7 +569,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               <details className="assistant-command-help">
                 <summary>대화로 할 수 있는 일</summary>
                 <div className="assistant-command-examples">
-                {['오늘 업무 요약해줘', '내일 급식 알려줘', '업무 알림 보여줘', '할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘', '할 일 자료 점검 다시 시작해줘', '시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].map((text) => (
+                {['오늘 업무 요약해줘', '내일 급식 알려줘', '내일 내 시간표 알려줘', '업무 알림 보여줘', '내 할 일 열어줘', '할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘', '할 일 자료 점검 다시 시작해줘', '시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].filter(supportedPrompt).map((text) => (
                   <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
                 ))}
@@ -607,7 +618,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
             <div className="assistant-welcome">
               <h3>이렇게 시작해 보세요</h3>
               <div className="assistant-starters" aria-label="대화 시작 예시">
-                {(workspaceActions?.specialist ? specialistStarters(conversationProfile.id) ?? conversationProfile.starterPrompts : conversationProfile.starterPrompts).slice(0, 3).map((prompt) => (
+                {(workspaceActions?.specialist ? specialistStarters(conversationProfile.id) ?? conversationProfile.starterPrompts : conversationProfile.starterPrompts).filter(supportedPrompt).slice(0, 3).map((prompt) => (
                   <button type="button" key={prompt} disabled={(!editable && !workspaceEditable) || Boolean(session.prompt.trim())}
                     onClick={() => update({ ...latest.current, prompt })}>
                     {prompt}
@@ -816,7 +827,7 @@ export function AnswerView({
                       <span className="assistant-source-version">
                         {'version' in source.reference
                           ? '판 ' + source.reference.version
-                          : '개정 ' + source.reference.revisionId}
+                          : '정정 이력 있음'}
                       </span>
                     </div>
                     <p className="assistant-source-locator">{source.locator}</p>
@@ -844,13 +855,12 @@ export function AnswerView({
                 ))}
               </ul>
             </details>
-          ) : (
-            <p className="assistant-hint assistant-no-source">
-              연결된 학교 근거가 없는 일반 안내입니다.
-            </p>
-          )}
+          ) : null}
         </div>
       ))}
+      {segments.some(segment => !segment.citations.length) && <p className="assistant-hint assistant-no-source">
+        {segments.every(segment => !segment.citations.length) ? '연결된 학교 근거가 없는 일반 안내입니다.' : '근거 표시가 없는 문단은 일반 안내입니다.'}
+      </p>}
     </div>
   )
 }

@@ -24,7 +24,7 @@ const bundle = buildSync({ stdin: { contents: `
       if(kind==='restored'){const draft=fresh().draft;draft.title='기존 미저장 입력';drafts.bind(scope,'calendar-editor').save({draft,initialValue:JSON.stringify(draft)},true)}
       if(kind==='pending')pending.put(scope,'calendar',{command:{draft:fresh().draft,idempotencyKey:'original-pending-key'}});
       render();},
-    send(kind='normal',id='draft-1'){request=fresh(id,kind==='partial');if(kind==='foreign')request.schoolId='another-school';if(kind==='inactive')member={...baseMember,active:false};render()},
+    send(kind='normal',id='draft-1'){request=fresh(id,kind==='partial');if(kind==='audience'){request.audienceQueries=['민준'];request.draft.location='2층 협의실'};if(kind==='foreign')request.schoolId='another-school';if(kind==='inactive')member={...baseMember,active:false};render()},
     show(next){page=next;render()},remount(){generation++;render()},
     snapshot(){return memory.exportState()},pending(){return pending.get(scope,'calendar')},draft(){return drafts.bind(scope,'calendar-editor').initial},
   };window.scenario=scenario;
@@ -91,6 +91,30 @@ try {
   await send(); assert.equal(await page.locator('input[name=title]').inputValue(), '작성 중 원래 일정')
   assert.deepEqual(await page.evaluate(() => window.scenario.handled), [{ id: 'draft-1', accepted: false }])
   report('열려 있는 수동 입력을 대화 초안으로 덮어쓰지 않는다')
+
+  await reset(); await send('audience'); await page.getByRole('dialog').waitFor()
+  assert.equal(await page.getByLabel('장소',{exact:true}).inputValue(),'2층 협의실')
+  const saveButton=page.getByRole('dialog').getByRole('button',{name:'일정 등록',exact:true})
+  assert.equal(await saveButton.isDisabled(),true)
+  assert.equal(await page.getByLabel('누가 원본을 볼 수 있나요?').inputValue(),'private')
+  assert.equal(await page.evaluate(() => window.scenario.attempts.length),0)
+  await page.getByRole('button',{name:/민준.*대상에 포함/}).click()
+  assert.equal(await saveButton.isEnabled(),true)
+  assert.equal(await page.getByLabel('누가 원본을 볼 수 있나요?').inputValue(),'audience')
+  await page.getByRole('button',{name:'‘민준’ 대상 요청 제외',exact:true}).click()
+  await page.getByText('교사 직접 포함·제외',{exact:true}).click()
+  assert.equal(await page.getByRole('checkbox',{name:'이민준 직접 포함',exact:true}).isChecked(),false)
+  await page.getByRole('button',{name:/민준.*대상에 포함/}).click()
+  await page.evaluate(()=>window.scenario.remount());await page.getByRole('dialog').waitFor()
+  assert.equal(await page.getByRole('button',{name:/민준.*대상에 포함/}).getAttribute('aria-pressed'),'true')
+  assert.equal(await page.getByLabel('장소',{exact:true}).inputValue(),'2층 협의실')
+  await page.getByRole('dialog').getByRole('button',{name:'일정 등록',exact:true}).click()
+  await page.getByRole('dialog').waitFor({state:'detached'})
+  const shared = await page.evaluate(() => window.scenario.snapshot().data.events.find(row=>row.title==='대화로 만든 회의'))
+  assert.equal(shared.visibility,'audience');assert.ok(shared.audience.includeMemberIds.includes('gaon-minjun'))
+  assert.equal(shared.location,'2층 협의실')
+  assert.equal(await page.evaluate(() => window.scenario.attempts.length),1)
+  report('대상 힌트는 직접 선택 전 저장을 막고, 후보 선택·해제·복원 뒤 원래 일정 저장을 한 번만 실행한다')
 
   await reset(); await send(); await page.evaluate(() => { window.scenario.failAfter=true })
   await page.getByRole('dialog').getByRole('button', { name: '일정 등록', exact: true }).click()

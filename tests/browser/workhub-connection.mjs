@@ -4,6 +4,7 @@ import { buildSync } from 'esbuild'
 import { launchBrowser } from './launch-browser.mjs'
 import { fileURLToPath } from 'node:url'
 const bundle=buildSync({stdin:{contents:`
+  import './tests/browser/reset-fixture-checkpoint';
   import React from 'react'; import {createRoot} from 'react-dom/client';
   import {ConnectedWorkspace} from './apps/workhub/src/app/ConnectedWorkspace';
   import {createSupabaseConnection} from './apps/workhub/src/connection/supabase-connection';

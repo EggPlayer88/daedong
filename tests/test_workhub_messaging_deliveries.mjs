@@ -17,6 +17,13 @@ function receipt(attempt) {
 }
 let count = 0
 function test(name, run) { run(); count++; console.log('  ✓ ' + name) }
+test('수신자 표시는 한국어 이름·부서순이고 원본 목록과 선택 번호를 보존한다', () => {
+  const input = [person('z', '최교사'), person('b', '김교사'), person('a', '김교사')]
+  const before = structuredClone(input), sorted = m.deliveries.sortedRecipients(input)
+  assert.deepEqual(sorted.map(p => p.memberId), ['a', 'b', 'z'])
+  assert.deepEqual(input, before)
+  assert.equal(sorted[0], input[2])
+})
 test('선택 순서·서버 접수 순서가 달라도 소속 번호로 정확한 이름과 대화를 연결한다', () => {
   const attempt = m.messageAttempt(draft('individual'), 'self', 'request'), record = m.deliveries.sentDeliveryRecord(attempt, receipt(attempt), 'scope', 'self')
   assert.deepEqual(attempt.command.recipients.map(r => r.memberId), ['a-teacher', 'z-teacher'])

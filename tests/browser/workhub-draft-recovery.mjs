@@ -1,4 +1,5 @@
 import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
+import { assertDraftOnlyCheckpoint } from '../helpers/tab-checkpoint.mjs'
 // 실제 연결 화면에서 미저장 초안과 서버에 보낸 명령의 복구를 구분한다.
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
@@ -199,7 +200,22 @@ try {
       }
       for (const stage of ['profile', 'context']) { await transientFailure(page, kind, stage); await verifyDraft(page, kind, text); await verifyDetails() }
       assert.deepEqual(await page.evaluate(() => qa.writes), [])
-      assert.equal(await page.evaluate(text => [...Object.values(localStorage), ...Object.values(sessionStorage)].some(value => value.includes(text)), text), false)
+      // 같은 탭 새로고침용 입력만 허용한다. 소속 재검증·명시 복원과 별개인 서버 응답/명령은 저장하지 않는다.
+      const checkpoint = await assertDraftOnlyCheckpoint(page, { validFrom: '2026-03-01', validThrough: '2027-02-28', slots: ['calendar-browse', 'calendar-panel', kind + '-editor'] })
+      const saved = checkpoint.find(item => item.slot === kind + '-editor')
+      assert.ok(saved, '작성 중 초안의 동일 탭 복구 자료가 필요합니다')
+      assert.equal(saved.warn, true)
+      if (kind === 'calendar') {
+        assert.deepEqual(Object.keys(saved.value).sort(), ['draft', 'initialValue'])
+        assert.deepEqual(saved.value.draft, { title: text, description: memo, location: '합성 교실', startDate: '2026-10-20', endDate: '2026-10-21', allDay: false, startTime: '15:30', endTime: '16:30', visibility: 'private', audience: { all: true, groups: [], includeMemberIds: [], excludeMemberIds: [] } })
+        assert.deepEqual(JSON.parse(saved.value.initialValue), { title: '', description: '', location: '', startDate: '2026-10-19', endDate: '2026-10-19', allDay: false, startTime: '15:30', endTime: '16:30', visibility: 'school', audience: { all: true, groups: [], includeMemberIds: [], excludeMemberIds: [] } })
+        assert.deepEqual(checkpoint.find(item => item.slot === 'calendar-panel')?.value, { importing: false, importedCount: 0, editor: {} })
+      } else {
+        assert.deepEqual(saved.value, { editor: {}, input: { title: text, notes: memo, dueDate: '2026-10-21' } })
+        assert.equal(checkpoint.some(item => item.slot === 'calendar-panel'), false)
+      }
+      const browse = checkpoint.find(item => item.slot === 'calendar-browse')
+      if (browse) assert.deepEqual(browse.value, { search: '', view: 'list', anchor: '2026-10-19', relation: 'all', allDates: false })
     })
 
     for (const change of ['membership-role', 'membership-ended', 'profile-role', 'account']) {

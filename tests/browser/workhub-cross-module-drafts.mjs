@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { assertDraftOnlyCheckpoint } from '../helpers/tab-checkpoint.mjs'
 import { join } from 'node:path'
 import { checkFirstDraftSentence } from './workhub-cross-module-first-draft.mjs'
 import { checkDraftFollowup } from './workhub-cross-module-draft-followup.mjs'
@@ -23,9 +24,9 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     const result = await page.evaluate(() => ({
       asks: window.cross.aiCalls, writes: window.cross.writes, storage: window.cross.storageCalls,
       files: window.cross.calls.filter(row => row.name.startsWith('workhub_file_')),
-      persisted: [localStorage.length, sessionStorage.length],
     }))
-    assert.deepEqual(result, { asks: [], writes: [], storage: [], files: [], persisted: [0, 0] })
+    assert.deepEqual(result, { asks: [], writes: [], storage: [], files: [] })
+    await assertDraftOnlyCheckpoint(page, { memberId: await page.getByLabel('사용할 학교').inputValue(), slots: ['assistant', 'messaging-composer', 'collection-editor', 'calendar-panel', 'calendar-browse', 'calendar-assistant-view', 'task-panel'] })
   }
 
   await checkFirstDraftSentence({ page, test, request, noSideEffects })

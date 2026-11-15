@@ -18,7 +18,7 @@ await context.route('**/*', route => {
 const button = name => page.getByRole('button', { name, exact: true })
 const input = () => page.getByLabel('질문 또는 부탁할 일', { exact: true })
 async function openAssistant() { await button('AI 비서').first().click(); await input().and(page.locator(':enabled')).waitFor() }
-async function command(text) { await input().fill(text); await button('학교 자료 확인').click() }
+async function command(text) { await input().fill(text); await button('확인하기').click() }
 async function single(selector) { assert.equal(new URL(page.url()).searchParams.get('view'), 'assistant'); assert.equal(await page.locator('.assistant-delivery-work ' + selector).count(), 1); assert.equal(await page.locator(selector).count(), 1) }
 async function noWrites() { assert.equal(await page.evaluate(() => window.dailyConnected.calls.some(call => /_mutate$|_save$|_prepare$|_commit$|_confirm|_ask$/.test(call.name))), false); assert.deepEqual(await page.evaluate(() => window.dailyConnected.notices.map(item => item.readAt)), [null, null, null]) }
 async function test(name, run) {

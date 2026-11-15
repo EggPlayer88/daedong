@@ -1,3 +1,4 @@
+import './reset-fixture-checkpoint'
 import React,{useState} from 'react'
 import {createRoot} from 'react-dom/client'
 import {GuidedWorkspace} from '../../apps/workhub/src/documents/GuidedWorkspace'

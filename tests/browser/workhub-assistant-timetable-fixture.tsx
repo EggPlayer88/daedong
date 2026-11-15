@@ -12,6 +12,11 @@ w.enableNext = true
 w.workflowResults = []; w.resultThrows = false
 // 부가 운영 연결을 준비 중으로 둔다. 교환 RPC는 기존 fixture를 그대로 사용한다.
 connection.rpcVerified = async (name: string, args: any) => {
+  // 편성 진입은 T1 서버가 year.manage를 확인한 결과다. T2 조회 계약을 대신 쓰지 않는다.
+  if (name === 'workhub_timetable_readiness') {
+    w.calls.push({ name, args: structuredClone(args) })
+    return { contract: 'timetable.v1', schoolId: 's', memberId: 'm', data: w.managementDenied ? { available: false, reason: 'not_allowed' } : { available: true } }
+  }
   // 요청 닫기는 기존 실행 접수증을 되돌린다. 실 서비스의 경합은 별도 SQL 회귀가 확인한다.
   if (name === 'workhub_timetable_operations_abandon') {
     w.calls.push({ name, args: structuredClone(args) })

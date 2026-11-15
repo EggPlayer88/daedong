@@ -48,6 +48,8 @@ const failure = (contract: string, member: any, code: string) => ({ contract, sc
 async function rpcVerified(name: string, args: any) {
   const member = copy(w.member)
   w.calls.push({ name, args: copy(args) })
+  // 가져오기는 T1의 관리 권한 확인 뒤 진입한다. 관리 화면의 합성 허가도 원 계약으로 응답한다.
+  if (name === 'workhub_timetable_readiness') return envelope('timetable.v1', member, { available: false, reason: 'basis_missing' })
   if (name === 'workhub_teaching_relations') return relationSnapshot(member, args.p_course_id)
   if (name === 'workhub_teaching_relation_commit') {
     const command = args.p_command, key = args.p_request_key

@@ -32,6 +32,15 @@ try {
     assert.equal(await page.getByRole('checkbox', { name: '담당교사', exact: true }).isChecked(), true)
     assert.deepEqual(await writeCalls(), [])
   }, true)
+  await test('전달받은 초안을 닫으면 쓰기 없이 제안을 없애고 작성 취소는 옛 안내를 지운다', async () => {
+    await button('전달받은 수합 초안 닫기').click()
+    assert.equal(await button('수합 초안 사용').count(), 0)
+    assert.deepEqual(await writeCalls(), [])
+    await input(); await button('작성 취소').click()
+    assert.equal(await page.getByRole('form',{name:'수합 작성'}).count(),0)
+    assert.equal(await page.getByText(/수합 초안을 열었습니다/).count(),0)
+    assert.deepEqual(await writeCalls(), [])
+  },true)
   await test('HWPX 양식은 원래 검사 경로를 거쳐 비공개 저장하고 별도 확인 뒤에만 공개한다', async () => {
     await input(); await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(hwpx('배부.hwpx')); assert.deepEqual(await writeCalls(), [])
     await button('수합 초안 저장').click(); await button('대상 교사에게 공개').waitFor()

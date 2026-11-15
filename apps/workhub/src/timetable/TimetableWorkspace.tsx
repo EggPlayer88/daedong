@@ -15,6 +15,8 @@ import { createTimetableImportServer } from './import-server'
 import { WorkspaceProps, PanelProps, timetableClock } from './designer-model'
 import { useTimetableDesigner } from './useTimetableDesigner'
 import { TimetableDesignerView } from './TimetableDesignerView'
+import { useTimetableManagement } from './useTimetableManagement'
+import { TimetableEntryNavigation } from './TimetableEntryNavigation'
 export { TimetableBoard } from './TimetableBoard'
 const PublishedRoster = lazy(() => import('../teacher-roster/PublishedRoster').then(module => ({ default: module.PublishedRoster })))
 const TimetableOperationsWorkspace = lazy(() => import('./TimetableOperationsWorkspace').then(module => ({ default: module.TimetableOperationsWorkspace })))
@@ -46,6 +48,10 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   // 새 기본 화면보다 미확정 편성 작업의 원 요청 복구를 먼저 보여 준다.
   const hasEditorRecovery = [editorRecovery, editorAiRecovery, preparationRecovery, setupRecovery, setupBatchRecovery, targetRecovery].some(item => item.request)
   const [mode, setMode] = useState<'editor' | 'operations' | 'pilot' | 'import' | 'roster'>(() => importRecovery.request ? 'import' : hasEditorRecovery ? 'editor' : recovery.request || interventionRecovery.request || operationsAiRecovery.request || (props.initialLessonId !== undefined || props.initialRequestId !== undefined || props.initialNotificationId !== undefined || props.initialIntent !== undefined) ? 'operations' : props.initialPreparationStep === 'import' ? 'import' : props.initialPreparationStep ? 'editor' : props.initialOperationTab || props.initialOperationMode ? 'operations' : route.initial ?? 'operations')
+  const management = useTimetableManagement(server, props.member.id, props.date, props.revision)
+  const canManage = management.status === 'allowed'
+  const selectedMode = mode === 'editor' && !canManage && !hasEditorRecovery || mode === 'import' && !canManage && !importRecovery.request || mode === 'pilot' && !canManage ? 'operations' : mode
+  const [rosterDate, setRosterDate] = useState(props.initialDate ?? props.date)
   const [locked, setLocked] = useState(false)
   const [publicationDraft, setPublicationDraft] = useState<{ id: string; version: number }>()
   const [consumedIntent, setConsumedIntent] = useState('')
@@ -57,8 +63,13 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   }, [props.onNavigationLockChange])
   function navigate(next: 'editor' | 'operations' | 'pilot' | 'import' | 'roster') {
     if (locked || next === mode) return
+    if ((next === 'editor' && !hasEditorRecovery || next === 'import' && !importRecovery.request || next === 'pilot') && !canManage) return
     route.save(next, false)
     setMode(next)
+  }
+  function openBasicTimetable(date: string) {
+    if (locked) return
+    setRosterDate(date); route.save('roster', false); setMode('roster')
   }
   function openPublication(draft: { id: string; version: number }) {
     if (locked) return
@@ -66,17 +77,14 @@ function TimetableWorkspaceEntry(props: WorkspaceProps) {
   }
   const inConversation = props.presentation === 'assistant'
   const content = <><style>{themeStyles}</style>{inConversation && <style>{assistantStyles}</style>}
-    <header className="timetable-entry-header ws-page-intro"><div>{inConversation ? <h3>시간표 업무</h3> : mode === 'operations' ? <h1>시간표</h1> : <strong>시간표</strong>}</div><nav aria-label="시간표 작업 구분" className="timetable-entry-navigation">
-      <button type="button" className="secondary" aria-pressed={mode === 'operations'} disabled={locked && mode !== 'operations'} onClick={() => navigate('operations')}>시간표 보기</button>
-      <button type="button" className="secondary" aria-pressed={mode === 'editor'} disabled={locked && mode !== 'editor'} onClick={() => navigate('editor')}>편성 관리</button>
-      <button type="button" className="secondary" aria-pressed={mode === 'roster'} disabled={locked} onClick={() => navigate('roster')}>기본 주간표</button><details className="timetable-entry-tools" open={mode === 'pilot' || mode === 'import' || undefined}><summary>시간표 관리 도구</summary><div><button type="button" className="secondary" aria-pressed={mode === 'pilot'} disabled={locked && mode !== 'pilot'} onClick={() => navigate('pilot')}>9학급 운영 연습</button>
-      <button type="button" className="text-button" aria-pressed={mode === 'import'} disabled={locked && mode !== 'import'} onClick={() => navigate('import')}>실제 시간표 가져오기</button></div></details>
-    </nav></header>
-    {mode === 'roster' ? <Suspense fallback={<p role="status">기본 시간표를 여는 중…</p>}><PublishedRoster connection={props.connection} member={props.member} date={props.date}/></Suspense> : mode === 'editor'
+    <header className="timetable-entry-header ws-page-intro"><div>{inConversation ? <h3>시간표 업무</h3> : selectedMode === 'operations' ? <h1>시간표</h1> : <strong>시간표</strong>}</div>
+      <TimetableEntryNavigation mode={selectedMode} locked={locked} canManage={canManage} editorRecovery={hasEditorRecovery} importRecovery={Boolean(importRecovery.request)} managementError={management.status === 'error'} onRetry={management.retry} onNavigate={navigate} />
+    </header>
+    {selectedMode === 'roster' ? <Suspense fallback={<p role="status">기본 시간표를 여는 중…</p>}><PublishedRoster key={rosterDate} connection={props.connection} member={props.member} date={rosterDate}/></Suspense> : selectedMode === 'editor'
       ? <TimetableWorkspacePanel {...props} server={server} assistantServer={assistantServer} preparationServer={preparationServer} setupServer={setupServer} targetServer={targetServer} onOpenOperations={openPublication} onOpenPublished={() => navigate('operations')} onNavigationLockChange={notifyLock} />
-      : mode === 'pilot' ? <Suspense fallback={<p role="status">학교 운영 연습을 준비하는 중…</p>}><TimetablePilotPanel scope={JSON.stringify([props.member.schoolId, props.member.userId])} member={props.member} connection={props.connection} onNavigationLockChange={notifyLock} /></Suspense>
-      : mode === 'import' ? <Suspense fallback={<p role="status">시간표 가져오기를 준비하는 중…</p>}><TimetableImportPanel onWorkflowResult={props.onWorkflowResult} server={importServer} member={props.member} correctionContext={{ connection: props.connection, date: props.date, revision: props.revision }} onLockChange={notifyLock} onOpenPublish={openPublication} onOpenSchoolAdmin={props.onOpenSchoolAdmin} onOpenTeaching={props.onOpenTeaching} /></Suspense>
-      : <Suspense fallback={<p role="status">시간표 운영 화면을 준비하는 중…</p>}><TimetableOperationsWorkspace embeddedHeader {...props} initialIntent={props.initialIntent?.token !== consumedIntent ? props.initialIntent : undefined} onInitialIntentConsumed={consumeIntent} initialDraftId={publicationDraft?.id} initialDraftVersion={publicationDraft?.version} onInitialDraftConsumed={consumePublicationDraft} onNavigationLockChange={notifyLock} /></Suspense>}
+      : selectedMode === 'pilot' ? <Suspense fallback={<p role="status">학교 운영 연습을 준비하는 중…</p>}><TimetablePilotPanel scope={JSON.stringify([props.member.schoolId, props.member.userId])} member={props.member} connection={props.connection} onNavigationLockChange={notifyLock} /></Suspense>
+      : selectedMode === 'import' ? <Suspense fallback={<p role="status">시간표 가져오기를 준비하는 중…</p>}><TimetableImportPanel onWorkflowResult={props.onWorkflowResult} server={importServer} member={props.member} correctionContext={{ connection: props.connection, date: props.date, revision: props.revision }} onLockChange={notifyLock} onOpenPublish={openPublication} onOpenSchoolAdmin={props.onOpenSchoolAdmin} onOpenTeaching={props.onOpenTeaching} /></Suspense>
+      : <Suspense fallback={<p role="status">시간표 운영 화면을 준비하는 중…</p>}><TimetableOperationsWorkspace embeddedHeader {...props} onOpenBasicTimetable={openBasicTimetable} initialIntent={props.initialIntent?.token !== consumedIntent ? props.initialIntent : undefined} onInitialIntentConsumed={consumeIntent} initialDraftId={publicationDraft?.id} initialDraftVersion={publicationDraft?.version} onInitialDraftConsumed={consumePublicationDraft} onNavigationLockChange={notifyLock} /></Suspense>}
   </>
   return inConversation ? <div className="timetable-conversation" data-timetable-presentation="assistant">{content}</div> : content
 }

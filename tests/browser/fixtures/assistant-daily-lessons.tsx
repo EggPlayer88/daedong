@@ -17,7 +17,7 @@ const member = (id = 'member', role: Membership['role'] = 'teacher'): Membership
 })
 const qa = win.qa = {
   member: member(), members: [] as Membership[], date: '2026-11-16', mealDate: undefined as string | undefined,
-  view: 'overview' as 'overview' | 'meals', revision: 0, locked: false, failed: [] as string[], defer: [] as string[],
+  view: 'overview' as 'overview' | 'meals' | 'lessons', lessonDate: undefined as string | undefined, publication: false, revision: 0, locked: false, failed: [] as string[], defer: [] as string[],
   lessonEmpty: false, lessonNotReady: false, rosterUnlinked: false, lessonBadScope: false, lessonLong: false, empty: false, unconfigured: false, homeUnavailable: false, invalid: '', long: false, label: '원본',
   calls: [] as any[], opened: [] as any[], waits: [] as Array<{ source: string; resolve: () => void }>,
 }
@@ -62,7 +62,7 @@ const connection = {
         {id:'lesson-performed',label:label + ' 실시 완료 수업',state:'performed',hour:'02',minute:'40',teacher:who.id},
         {id:'lesson-other',label:'다른 교사의 수업 원문',state:'scheduled',hour:'03',minute:'40',teacher:'other'},
       ].map(row=>({id:row.id,version:3,label:qa.lessonLong ? row.label+'아주긴수업이름'.repeat(15) : row.label,time:{startsAt:args.p_from+'T'+row.hour+':'+row.minute+':00.000Z',endsAt:args.p_from+'T'+String(Number(row.hour)+1).padStart(2,'0')+':25:00.000Z'},teachers:[{id:row.teacher,name:who.name}],groupNames:[qa.lessonLong ? '아주긴학급이름'.repeat(10) : '1학년 1반'],roomNames:['본관'],state:row.state,canRequest:false,allowedTargets:[]}))
-      return after('lessons',{contract:'timetable-operations.v1',schoolId:qa.lessonBadScope?'foreign':who.schoolId,memberId:who.id,data:{asOf:new Date().toISOString(),timeZone:'Asia/Seoul',from:args.p_from,until:args.p_until,canPublish:false,canRequest:false,drafts:[],requests:[],publications:[],lessons:rows}})
+      return after('lessons',{contract:'timetable-operations.v1',schoolId:qa.lessonBadScope?'foreign':who.schoolId,memberId:who.id,data:{asOf:new Date().toISOString(),timeZone:'Asia/Seoul',from:args.p_from,until:args.p_until,canPublish:false,canRequest:false,drafts:[],requests:[],publications:qa.publication?[{id:'published',version:1,title:'확정 시간표',from:args.p_from,until:args.p_until,publishedAt:'2026-11-01T00:00:00.000Z'}]:[],lessons:rows}})
     }
     if (name === 'workhub_teacher_roster_published') {
       const plan=structuredClone(rosterFixture.plan), inRange=plan.from<=args.p_date && args.p_date<plan.until
@@ -89,7 +89,7 @@ const calendarAdapter = { list: async (id: string) => { qa.calls.push({ source: 
 const root = createRoot(document.getElementById('root')!)
 qa.render = () => root.render(<><style>{theme}{home}{neis}{'body{margin:0}.ws-shell{padding:16px}.assistant-daily{max-width:1120px;margin:auto}'}</style><main className="ws-shell"><AssistantDailyWorkspace
   connection={connection} member={qa.member} members={qa.members} date={qa.date} revision={qa.revision} calendarAdapter={calendarAdapter} taskAdapter={taskAdapter}
-  view={qa.view} mealDate={qa.mealDate} locked={qa.locked} onOpenLesson={(lessonId,date)=>qa.opened.push({source:'lesson',lessonId,date})}
+  view={qa.view} mealDate={qa.mealDate} lessonDate={qa.lessonDate} locked={qa.locked} onOpenLesson={(lessonId,date)=>qa.opened.push({source:'lesson',lessonId,date})}
   onOpen={item => qa.opened.push({ source: 'home', item })} onOpenList={kind => qa.opened.push({ source: 'home-list', kind })}
   onOpenCalendar={item => qa.opened.push({ source: 'calendar', item })} onOpenTask={item => qa.opened.push({ source: 'task', item })}
   onOpenCalendarList={() => qa.opened.push({ source: 'calendar-list' })} onOpenTaskList={() => qa.opened.push({ source: 'task-list' })}
