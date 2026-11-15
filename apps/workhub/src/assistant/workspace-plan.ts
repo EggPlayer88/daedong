@@ -1,6 +1,7 @@
 import { parseWorkspaceCommand, validWorkspaceText, type WorkspaceCommand } from './workspace-commands'
 import { specialistWorkflow } from './specialist-workflows'
 import { workhubModules } from '../modules'
+import { assistantRequestEnding } from './request-expression'
 
 // UI에서 한 번에 검토하는 업무 수다. 서버 일괄 실행이나 유료 호출 한도가 아니다.
 export const WORKSPACE_PLAN_MAX_STEPS = 4
@@ -23,7 +24,7 @@ export type WorkspacePlanResult = WorkspacePlan | { kind: 'clarify'; message: st
 const quoteEnds: Readonly<Record<string, string>> = { '"': '"', "'": "'", '“': '”', '‘': '’', '`': '`' }
 const dataPrefix = /^(?:(?:메시지|(?:자료\s*)?수합|일정)\s*초안|할\s*일\s*(?:추가|등록|작성)|(?:학교\s*자료(?:실)?|자료실|문서함?|자료\s*수합|수합|학교\s*일정|일정|내\s*업무|할\s*일|협업|메시지|메신저|수업|전체|자료)\s*(?:검색|찾기)|검색|찾기)\s*[:：]/
 const badRequest = (message: string): Exclude<WorkspacePlanResult, WorkspacePlan | null> => ({ kind: 'clarify', message })
-const oneByOne = '각 업무를 한 줄씩 완전한 요청으로 적어 주세요. 빠뜨린 단계 없이 확인한 뒤 하나씩 진행할게요.'
+const oneByOne = '각 업무에 1., 2.처럼 번호를 붙이고 줄을 나누어 완전한 요청으로 적어 주세요. 함께 검토한 뒤 하나씩 진행할게요.'
 const explicitRequest = /(?:줘|주세요|주십시오|줄래요?)[.!?。！？]*$/
 
 function stepLabel(command: PlannedWorkspaceCommand): string {
@@ -86,8 +87,37 @@ function numberedRequests(text: string): { parts: string[]; valid: boolean } | n
   return { parts, valid }
 }
 
+// 두 업무 종류와 접속 동사가 모두 명시된 경우만 후보로 나눈다. 임의의 '하고'는 분리하지 않는다.
+function linkedTaskAndCalendar(text: string): string[] | null {
+  let outside = '', closing: string | undefined, escaped = false
+  for (const point of text) {
+    if (closing) {
+      outside += ' '.repeat(point.length)
+      if (escaped) { escaped = false; continue }
+      if (point === '\\') { escaped = true; continue }
+      if (point === closing) closing = undefined
+    } else if (Object.hasOwn(quoteEnds, point) || point === '[') {
+      closing = point === '[' ? ']' : quoteEnds[point]
+      outside += ' '.repeat(point.length)
+    } else outside += point
+  }
+  if (closing) return null
+  // 조건부 부탁을 독립 업무로 바꾸지 않는다. 조건은 번호를 나누어 사용자가 다시 확인한다.
+  if (/(?:만약|(?:다면|하면|되면|으면|라면|끝나면)(?=\s|[,，]))/.test(outside)) return null
+  const joins = [...outside.matchAll(/할\s*일(?:로|에)?\s*(?:추가|등록)하고\s*[,，]\s*/g)]
+  if (joins.length !== 1) return null
+  const join = joins[0], start = join.index! + join[0].length
+  const suffix = new RegExp(`일정도\\s*(?:추가해|등록해|잡아)\\s*${assistantRequestEnding}[.!?。！？]*$`).exec(outside.slice(start))
+  if (!suffix) return null
+  // 접속 어미와 보조사만 선택 가능한 부탁 문장으로 바꾼다. 전체 원문은 plan.prompt에 보존한다.
+  const task = text.slice(0, join.index! + join[0].indexOf('하고')) + '해줘'
+  const calendar = text.slice(start, start + suffix.index) + '일정' + text.slice(start + suffix.index + '일정도'.length)
+  return [task.trim(), calendar.trim()]
+}
+
 /**
  * 사용자가 직접 쓴 명시적 복합 요청의 검토 목록만 만든다. 실행·요청 번호·성공 판정은 만들지 않는다.
+ * 좁은 접속 문법의 후보는 선택용 어미만 바꾸고 전체 원문을 plan.prompt에 남긴다.
  * 각 단계는 기존 단일 명령 경로에서 명시 선택하고, 원래 기준일/소속이 달라지면 다시 검토한다.
  * null이면 단일 요청/일반 대화 경로로 넘긴다. clarify이면 어느 단계도 실행하지 않는다.
  */
@@ -99,9 +129,11 @@ export function parseWorkspacePlan(prompt: string, basisDate: string): Workspace
   // 콜론 뒤는 본문/검색어다. 안에 완전한 명령이 들어 있어도 별개 업무로 승격하지 않는다.
   if (dataPrefix.test(text)) return null
   const numbered = numberedRequests(text)
-  const parts = numbered?.parts ?? splitExplicitRequests(text)
+  const linked = numbered ? null : linkedTaskAndCalendar(text)
+  const parts = numbered?.parts ?? linked ?? splitExplicitRequests(text)
   if (!parts || parts.length < 2) return null
   const commands = parts.map(part => part ? parseWorkspaceCommand(part, basisDate) : null)
+  if (linked && (commands[0]?.kind !== 'task' || commands[1]?.kind !== 'calendar')) return badRequest(oneByOne)
   // 번호 목록은 질문을 정리하는 데도 쓰인다. 모두 일반 대화이면 업무 계획으로 가로채지 않는다.
   // 실행 가능한 명령이 없는 대화이며, 지원 업무나 입력 오류가 섞인 목록만 전체 보류한다.
   if (numbered && commands.every(command => command === null) && parts.every(Boolean)) return null

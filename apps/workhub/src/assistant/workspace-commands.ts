@@ -174,9 +174,9 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
     return null
   text = text.replace(/^(?:비서야|AI야|부탁인데)\s*[,，]?\s*/, '')
   if (hasMultipleAssistantRequests(text))
-    return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
+    return clarification('업무를 구분해 주세요. 여러 업무는 1., 2.처럼 번호를 붙여 줄을 나누면 함께 검토할 수 있어요.')
   if (/(?:열어|보여|찾아|검색해|등록해|추가해|만들어|이동해|수정해|완료해|변경해|바꿔|전송해|잡아)\s*(?:주고|줘서)|(?:열고|찾고|등록하고(?!\s*싶)|추가하고(?!\s*싶)|만들고(?!\s*싶)|이동하고|수정하고|완료하고|변경하고|바꾸고|전송하고|잡고(?!\s*싶))|[;；]/.test(text))
-    return clarification('한 번에 한 가지 업무를 요청해 주세요. 먼저 할 메뉴 이동·검색·할 일·일정 초안을 적어 주세요.')
+    return clarification('업무를 구분해 주세요. 여러 업무는 1., 2.처럼 번호를 붙여 줄을 나누면 함께 검토할 수 있어요.')
   const evaluation = text.match(new RegExp(`^평가\\s*계획서\\s*(작성|제출)(?:\\s*(?:메뉴|화면))?\\s*(?:을|를|으로|로)?\\s*${moveEnd}$`))
   if (evaluation) return {kind:'evaluation',target:evaluation[1] === '작성' ? 'authoring' : 'submissions'}
   const daily = parseDailyCommand(text, basisDate)
