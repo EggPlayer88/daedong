@@ -24,6 +24,14 @@ test('미확정 원키·본문은 일반 입력과 분리하고 복원만으로 
  assert.deepEqual(b.pending.get(scope,'task'),request());b.pending.remove(scope,'task','wrong');assert.equal(b.pending.count(),1);b.pending.remove(scope,'task','original-request-key');
  const c=open(port);activate(c);assert.equal(c.pending.restoreCount(scope),0)
 })
+
+test('복구 목록은 검증된 범위의 입력 종류만 반환하고 본문이나 다른 계정 보관함을 노출하지 않는다',()=>{
+ const port=storage(),a=open(port);activate(a);a.drafts.bind(scope,'messaging-composer').save({draft:{body:'비공개 본문'},composing:true});a.drafts.bind(scope,'calendar-browse').save({mode:'week'},false);
+ const b=open(port);assert.deepEqual(b.drafts.restoreSlots(scope),[]);activate(b);
+ assert.deepEqual(b.drafts.restoreSlots(scope),['messaging-composer']);assert.deepEqual(b.drafts.restoreSlots('다른 소속'),[]);
+ assert.equal(b.drafts.bind(scope,'messaging-composer').initial,undefined);b.drafts.suspend();assert.deepEqual(b.drafts.restoreSlots(scope),[]);
+ activate(b);b.drafts.restore(scope);assert.deepEqual(b.drafts.restoreSlots(scope),[]);assert.equal(b.drafts.bind(scope,'messaging-composer').initial.draft.body,'비공개 본문')
+})
 test('일시 재검증 실패는 숨겼다가 같은 범위로 되돌리고 로그아웃·권한 변경은 폐기한다',()=>{
  const port=storage(),a=open(port);activate(a);a.drafts.bind(scope,'assistant').save({prompt:'남은 질문',studentContext:null});a.pending.put(scope,'task',request());a.drafts.suspend();
  assert.equal(a.drafts.bind(scope,'assistant').initial,undefined);activate(a);assert.equal(a.drafts.bind(scope,'assistant').initial.prompt,'남은 질문');

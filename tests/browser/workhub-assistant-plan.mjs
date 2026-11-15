@@ -25,6 +25,16 @@ try{
  await test('명시적 복합 요청은 원문과 2단계만 보관하고 조회·유료 호출·쓰기를 실행하지 않는다',async()=>{
   await build();assert.equal(await plan().locator('li').count(),2);assert.equal(await input().inputValue(),'');assert.equal(await page.locator('.assistant-delivery-work').count(),0);await plan().locator('summary').click();assert.equal(await plan().locator('.assistant-text').innerText(),text);await noWrite()
  })
+ await test('할 일 추가하고 일정도 요청은 두 후보를 만들고 제목·미입력 시각을 그대로 이어 묻는다',async()=>{
+  const request='[TP1 U5] 협의회 자료 확인 할 일 추가하고, 11월 19일 [TP1 U5] 평가 협의회 일정도 추가해줘'
+  await build(request);assert.equal(await plan().locator('li').count(),2);await plan().locator('summary').click();assert.equal(await plan().locator('.assistant-text').innerText(),request);await noWrite()
+  await button('1단계 선택 · 할 일 추가 검토').click();assert.equal(await input().inputValue(),'[TP1 U5] 협의회 자료 확인 할 일 추가해줘');await noWrite()
+  await input().fill('');await button('2단계 선택 · 일정 초안 · [TP1 U5] 평가 협의회').click();assert.equal(await input().inputValue(),'11월 19일 [TP1 U5] 평가 협의회 일정 추가해줘');await noWrite()
+  await button('일정 초안 열기').click();const followup=page.getByRole('region',{name:'작성 중인 일정',exact:true});await followup.waitFor()
+  assert.match(await followup.innerText(),/\[TP1 U5\] 평가 협의회 · 2026-11-19 · 시작 미정 ~ 종료 미정/)
+  assert.equal(await followup.getByRole('status').innerText(),'몇 시부터 몇 시까지인가요? 하루 일정이면 “종일”이라고 답해 주세요.')
+  assert.equal(await plan().locator('li').count(),2);assert.equal(await input().inputValue(),'');assert.equal(await page.locator('.assistant-calendar-workspace').count(),0);await noWrite()
+ })
  await test('단계 선택은 입력만 채우며 각 실행 뒤에도 다음 단계는 자동 시작하지 않는다',async()=>{
   await build();await button('1단계 선택 · 시간표 열기').click();assert.equal(await input().inputValue(),'시간표 보여줘');assert.equal(await page.locator('.assistant-delivery-work').count(),0)
   await button('바로 이동').click();await page.locator('[data-timetable-presentation="assistant"]').waitFor();assert.equal(await page.locator('.school-administration-conversation').count(),0)
