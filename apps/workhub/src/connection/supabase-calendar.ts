@@ -1,6 +1,7 @@
 import { ContractError, type CalendarEvent, type SaveCommand } from '../contracts'
 import type { SupabaseConnection } from './supabase-connection'
 import { eventResponse } from './validation'
+import { createCalendarLifecycleAdapter } from '../calendar/lifecycle'
 
 // 학교·작성자·현재 소속은 서버가 auth.uid 기준으로 검증한다. 로컬 검사는 응답 형식 보호다.
 export function createSupabaseCalendarAdapter(connection: SupabaseConnection) {
@@ -11,6 +12,7 @@ export function createSupabaseCalendarAdapter(connection: SupabaseConnection) {
     return eventResponse(raw,member.schoolId,context.memberships)
   }
   return {
+    lifecycle: createCalendarLifecycleAdapter(connection),
     info: () => connection.info(),
     async list(memberId: string): Promise<CalendarEvent[]> {
       const rows = await connection.rpcVerified('workhub_calendar_list', { p_member_id: memberId })

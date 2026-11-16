@@ -14,6 +14,7 @@ export interface WorkspaceOperationCardProps {
   onOpenResult?: () => void
   onOpenEditor?: () => void
   onResumeCalendar?: () => void
+  onReviseCalendar?: () => void
 }
 
 export function WorkspaceOperationCard(props: WorkspaceOperationCardProps) {
@@ -26,7 +27,7 @@ export function WorkspaceOperationCard(props: WorkspaceOperationCardProps) {
   return <WorkspaceOperationCardContent {...props} />
 }
 
-function WorkspaceOperationCardContent({ review, status, receipt, error, onConfirm, onCancel, onRetry, onOpenResult, onOpenEditor, onResumeCalendar }: WorkspaceOperationCardProps) {
+function WorkspaceOperationCardContent({ review, status, receipt, error, onConfirm, onCancel, onRetry, onOpenResult, onOpenEditor, onResumeCalendar, onReviseCalendar }: WorkspaceOperationCardProps) {
   const id = useId()
   const heading = useRef<HTMLHeadingElement>(null)
   useEffect(() => { heading.current?.focus() }, [review.key, status])
@@ -51,6 +52,7 @@ function WorkspaceOperationCardContent({ review, status, receipt, error, onConfi
       {status === 'pending' && <button type="button" className="workspace-operation-primary" onClick={onRetry}>같은 요청으로 저장 결과 확인</button>}
       {saved && onOpenResult && <button type="button" className="workspace-operation-primary" onClick={onOpenResult}>저장된 원본 보기</button>}
       {status === 'review' && draft && onResumeCalendar && <button type="button" className="workspace-operation-secondary" onClick={onResumeCalendar}>대상 이어 입력</button>}
+      {status === 'review' && draft && onReviseCalendar && <button type="button" className="workspace-operation-secondary" onClick={onReviseCalendar}>내용 이어 수정</button>}
       {status === 'review' && onOpenEditor && <button type="button" className="workspace-operation-secondary" onClick={onOpenEditor}>편집 화면에서 계속</button>}
       {(status === 'review' || status === 'error' || saved) && <button type="button" className="workspace-operation-secondary" onClick={onCancel}>{saved ? '확인' : status === 'error' ? '닫기' : '취소'}</button>}
     </div>

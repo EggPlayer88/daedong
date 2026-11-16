@@ -22,7 +22,7 @@ export function canRead(event: CalendarEvent, member: Membership, today: string)
 }
 
 export function canEdit(event: CalendarEvent, member: Membership, today: string): boolean {
-  return canRead(event, member, today) && (event.authorMemberId === member.id || (member.role === 'calendar_manager' && event.visibility !== 'private'))
+  return event.status !== 'cancelled' && canRead(event, member, today) && (event.authorMemberId === member.id || (member.role === 'calendar_manager' && event.visibility !== 'private'))
 }
 
 export function recommendationReason(event: CalendarEvent, member: Membership, today: string): string | null {
@@ -34,7 +34,7 @@ export function recommendationReason(event: CalendarEvent, member: Membership, t
 }
 
 export function homeItems(events: CalendarEvent[], member: Membership, today: string): { today: HomeItem[]; upcoming: HomeItem[] } {
-  const relevant = events.filter(event => canRead(event, member, today) && event.endDate >= today)
+  const relevant = events.filter(event => event.status !== 'cancelled' && canRead(event, member, today) && event.endDate >= today)
     .map(event => ({ event, reason: recommendationReason(event, member, today) }))
     .filter((item): item is HomeItem => item.reason !== null)
     .sort((a, b) => a.event.startDate.localeCompare(b.event.startDate) || a.event.startTime.localeCompare(b.event.startTime) || a.event.id.localeCompare(b.event.id))

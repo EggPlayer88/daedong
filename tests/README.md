@@ -381,6 +381,15 @@ test_workhub_school_day.mjs는 한국 날짜 경계·숨김 복귀·제한된 �
 - 기존 `workhub-messaging*`, `workhub-collection-*`, `workhub-tasks`, `workhub-task-navigation`, `workhub-cross-module`의 요청 복구·권한·첨부 회귀를 함께 실행한다.
 - 운영 DB·실제 회원·유료 AI는 호출하지 않는다. [화면·검증 기록](../docs/workhub/workflow-ui/README.md).
 
+## 일정 취소·AI 초안 이어 수정·기본표 운영 연결
+
+- `test_workhub_calendar_lifecycle.mjs`, `workhub-calendar-lifecycle.mjs`: 취소 원본·사유 보존, 판 충돌, 조회와 같은 번호 재전송 구분, 새로고침 복원, 늦은 응답, 좁은 화면을 확인한다.
+- `test_workhub_assistant_draft_revision.mjs`와 기존 assistant·operations·cross-module 브라우저: 기존 초안의 항목만 수정하고 대상 후보·최종 확인을 유지한다. 유료 API는 사용하지 않는다.
+- `test_workhub_workflow_results.mjs`, `workhub-assistant-workflows.mjs`: 취소 접수증의 원본 재열기, 입력 보호·중복 결과·늦은 다른 학교 응답 배제를 확인한다.
+- `test_timetable_roster_bridge.mjs`, `workhub-timetable-roster-bridge.mjs`: 기본표·기간 선택, 변경 수업 비교, 원래 요청 복구·닫기, 판·시각·학교 범위 검증을 확인한다.
+- `database/workhub-timetable/tr2/build_checks.py`: 기존 설치 전체 기준 → NT1 → CL1 → TR2를 새 localhost PostgreSQL17에 설치하고 전체 구조·권한·자료 보존과 업무 회귀를 검증한다. 실제 DB 접속 옵션은 없다.
+- 새 브라우저 두 파일은 전체 브라우저 러너에 포함한다. [구현 범위와 적용 순서](../docs/workhub/core-workflows/README.md)를 참고한다.
+
 ## 일정·협업·인계 화면
 
 - `workhub-coordination-ui.mjs`: 실제 React와 합성 전송을 사용한 7개 시나리오. 일정 공유 범위·대상 보존, 일괄 입력 단계, 협업 목록/상세·선택 업무 연결·재확인, 인계 미리보기/제외 자료·입력 변경, 같은 요청 복구, 320px·큰 글씨·다크 모드를 확인한다.
