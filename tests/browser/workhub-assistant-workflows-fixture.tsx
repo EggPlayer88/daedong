@@ -4,7 +4,7 @@ import {AssistantPanel} from '../../apps/workhub/src/assistant/AssistantPanel'
 import {createAssistantServer} from '../../apps/workhub/src/assistant/server'
 import {AssistantError, ASSISTANT_ROUTING} from '../../apps/workhub/src/assistant/contracts'
 import {createEditDrafts, EditDraftsProvider} from '../../apps/workhub/src/app/edit-drafts'
-import {createPendingRequests, PendingRequestsProvider} from '../../apps/workhub/src/app/pending-requests'
+import {createPendingRequests, PendingRequestsProvider, recoveryScope} from '../../apps/workhub/src/app/pending-requests'
 
 const w = window as any
 let member:any = {id:'member-one',userId:'user-one',schoolId:'school-one',name:'시험 교사',role:'teacher',active:true,validFrom:'2026-03-01',validThrough:'2027-02-28',departmentIds:[],gradeIds:[],subjectIds:[]}
@@ -52,11 +52,12 @@ const result=()=>({items:[{kind:'knowledge',id:'travel-rule',title:'출장 안�
 function App(){
   const[revision,setRevision]=useState(0),[show,setShow]=useState(true),[context,setContext]=useState<any>()
   const[date,setDate]=useState('2026-11-03'); w.advanceDate=()=>setDate('2026-11-04')
+  w.workflowScope=recoveryScope(member)
   w.refresh=()=>setRevision(x=>x+1);w.setShow=setShow;w.setContext=setContext
   w.switchAccount=()=>{member={...member,id:'member-two',userId:'user-two',schoolId:'school-two'};setRevision(x=>x+1)}
   w.endMembership=()=>{member={...member,active:false};setRevision(x=>x+1)}
   const actions={
-    navigate:(page:any)=>{w.navigation.push(page);return w.allow},
+    navigate:(page:any,onResult:any)=>{w.navigation.push(page);w.navigationResult=onResult;return w.allow},
     search:async(query:any,kinds:any,signal:AbortSignal)=>{
       w.searches.push({query,kinds});w.searchSignal=signal
       if(w.searchFail)throw new Error('합성 조회 실패')

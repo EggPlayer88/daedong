@@ -14,6 +14,7 @@ export interface EventDraft {
 }
 export interface CalendarEvent extends EventDraft {
   id: string; schoolId: string; authorMemberId: string; version: number; updatedAt: string
+  status?: 'active' | 'cancelled'; cancelledAt?: string | null; cancelReason?: string | null
 }
 export interface PreviewData { schools: School[]; memberships: Membership[]; events: CalendarEvent[]; basisDate: string }
 export interface HomeItem { event: CalendarEvent; reason: string }

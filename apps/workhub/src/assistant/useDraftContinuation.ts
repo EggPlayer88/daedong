@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { parseDraftReply, type DraftFollowup, type DraftPeople, type DraftPerson } from './draft-followup'
+import { parseDraftReply, reviseDraftFollowup, type DraftFollowup, type DraftPeople, type DraftPerson } from './draft-followup'
 import { validCollectionComposeText } from '../collections/compose-text'
 import { validWorkspaceText } from './workspace-commands'
 import type { DirectDraftCommand } from './draft-commands'
@@ -65,6 +65,17 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
   async function reply() {
     const current = latest.current
     if (!editable || !current || !followup || !actions?.findDraftPeople || flight.current) return
+    const revised = reviseDraftFollowup(followup, current.prompt)
+    if (revised) {
+      if (revised.kind === 'clarify') { feedback(revised.message); return }
+      clearMatches()
+      if (revised.query) showNextCandidate(current, revised.draft)
+      else {
+        update({ ...current, prompt: '', draftDialogue: revised.draft })
+        feedback('', '초안에 반영했습니다. 다른 입력과 선택한 교사는 유지했습니다.')
+      }
+      return
+    }
     const requestedName = followup.pendingNames?.[0]
     const result = requestedName && requestedName === current.prompt
       ? { kind: 'fields' as const, query: requestedName, dueDate: undefined } : parseDraftReply(followup, current.prompt)
@@ -118,14 +129,15 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
   function selectDraftPerson(person: DraftPerson) {
     const current = latest.current, match = visibleMatches?.people
     if (!editable || !followup || !current || !match?.items.includes(person) || flight.current) return
-    if (followup.selected.some(item => item.memberId === person.memberId)) {
+    if (!followup.replaceSelection && followup.selected.some(item => item.memberId === person.memberId)) {
       feedback('이미 선택한 교사입니다.'); return
     }
-    if (followup.selected.length >= match.limit) {
+    if (!followup.replaceSelection && followup.selected.length >= match.limit) {
       feedback(`교사는 최대 ${match.limit}명까지 선택할 수 있습니다.`); return
     }
     clearMatches()
-    showNextCandidate(current, { ...followup, selected: [...followup.selected, person], pendingNames: followup.pendingNames?.slice(1) })
+    showNextCandidate(current, { ...followup, selected: followup.replaceSelection ? [person] : [...followup.selected, person],
+      pendingNames: followup.pendingNames?.slice(1), replaceSelection: undefined })
   }
   function removeDraftPerson(id: string) {
     if (!editable || !latest.current || !followup || flight.current) return
@@ -142,7 +154,7 @@ export function useDraftContinuation({ session, latest, update, scope, basisDate
   function dismissDraftPeople() {
     if (!editable || !latest.current || !followup) return
     clearMatches()
-    showNextCandidate(latest.current, { ...followup, pendingNames: followup.pendingNames?.slice(1) })
+    showNextCandidate(latest.current, { ...followup, pendingNames: followup.pendingNames?.slice(1), replaceSelection: undefined })
   }
   function openDraftForm() {
     if (!editable || !latest.current || !followup || latest.current.prompt.trim() || flight.current || visibleMatches || followup.pendingNames?.length) return

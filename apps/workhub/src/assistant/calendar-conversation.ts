@@ -1,6 +1,7 @@
 import {
   parseCalendarAudience, parseCalendarFields, parseWorkspaceCommand, validWorkspaceText, type WorkspaceCommand,
 } from './workspace-commands'
+import { parseDraftRevision, revisionDate } from './draft-revision'
 
 export type CalendarWorkspaceCommand = Extract<WorkspaceCommand, { kind: 'calendar' }>
 export type CalendarContinuation =
@@ -27,6 +28,52 @@ const cancelReply = /^(?:그만|그만할래(?:요)?|취소|(?:일정(?:\s*초�
 // 새 명령이나 질문을 기존 초안의 제목으로 받아들이지 않는다. 취소할 때까지 모든 답은 여기서 처리한다.
 const notFieldReply = /[?？;；“”‘’"'`]|(?:어떻게|알려\s*줘|해\s*주세요|해\s*줘|해\s*줄래|해\s*봐|말하면|입력하면|하지\s*마|아니라|지\s*않|말고|무엇|언제인가|안녕|모르겠|아무거나|알아서)/
 const anotherRequest = /(?:줘|주세요|주십시오|줄래|하자|할까|인가요|인가|할래|해줘요|해요|입니다만)$/
+
+function reviseCalendar(draft: CalendarWorkspaceCommand, reply: string, basisDate: string): CalendarContinuation | null {
+  const change = parseDraftRevision(reply, 'calendar')
+  if (change.kind === 'none') return null
+  if (change.kind === 'clarify') return change
+  const next = { ...draft }, value = change.value
+  if (change.field === 'title' || change.field === 'location') {
+    if ((!value && change.field === 'title') || /[\r\n\t]/.test(value) || Array.from(value).length > 100)
+      return clarify('제목과 장소는 한 줄 100자 이내로 적어 주세요. 제목은 비울 수 없습니다.')
+    next[change.field] = value
+  } else if (change.field === 'date') {
+    const date = revisionDate(value, basisDate)
+    if (!date) return clarify('날짜 하나를 적어 주세요. 적은 요일도 실제 날짜와 같아야 합니다. 기존 날짜는 유지했습니다.')
+    next.date = date
+  } else if (change.field === 'people') {
+    const people = parseCalendarAudience(value)
+    if (!people) return clarify('대상 교사 이름을 적어 주세요. 후보는 작성 화면에서 직접 선택합니다.')
+    if (draft.audienceQueries?.length && JSON.stringify(draft.audienceQueries) !== JSON.stringify(people) &&
+        !/^(?:대상(?:자)?|참석자|참여자)만|(?:바꿔|변경해|수정해)/.test(reply))
+      return clarify('대상을 바꾸려면 “대상은 ○○ 선생님으로 바꿔줘”라고 적어 주세요. 기존 대상은 유지했습니다.')
+    next.audienceQueries = people
+  } else {
+    const timeValue = value.replace(/(?:입니다|이에요|예요|이요|요)[.!。]*$/, '').trim()
+    const parsed = parseCalendarFields(reply, timeValue, basisDate)
+    if (parsed.kind === 'clarify') return parsed
+    if (parsed.title || parsed.date || parsed.location || (!parsed.allDay && !parsed.startTime && !parsed.endTime))
+      return clarify('시작·종료 시각 또는 종일만 적어 주세요. 기존 시간은 유지했습니다.')
+    if (change.field === 'time') {
+      if (!parsed.allDay && (!parsed.startTime || !parsed.endTime)) return clarify('시간을 바꾸려면 시작과 종료를 함께 적어 주세요. 예: 시간은 오후 3시부터 4시로 바꿔줘')
+      next.allDay = parsed.allDay; next.startTime = parsed.startTime; next.endTime = parsed.endTime
+    } else {
+      if (parsed.allDay || Boolean(parsed.startTime) === Boolean(parsed.endTime)) return clarify('바꿀 시각 하나를 적어 주세요.')
+      if (change.field === 'startTime' && parsed.endTime || change.field === 'endTime' && /부터/.test(value))
+        return clarify('시작인지 종료인지 확인해 주세요. 기존 시간은 유지했습니다.')
+      if (change.field !== 'startTime' && change.field !== 'endTime') return clarify('일정의 제목·날짜·시간·장소·대상을 적어 주세요.')
+      next[change.field] = parsed.startTime ?? parsed.endTime
+      // 종일에서 시각 지정으로 바꾸면 다른 쪽 시각은 다시 묻는다.
+      next.allDay = false
+    }
+    if (next.startTime && next.endTime && next.endTime <= next.startTime)
+      return clarify('종료 시각은 시작보다 늦어야 합니다. 시간을 함께 바꾸려면 시작·종료를 한 번에 적어 주세요.')
+  }
+  next.prompt = draft.prompt + '\n' + reply.trim()
+  if (!validWorkspaceText(next.prompt)) return clarify('대화가 길어졌어요. 답을 짧게 적거나 초안을 새로 시작해 주세요.')
+  return { kind: 'calendar', command: next }
+}
 
 function parseReply(text: string, date: string, draft: CalendarWorkspaceCommand): CalendarContinuation {
   const audience = /^(?:대상(?:자)?|참석자|참여자)(?:은|는|[:：])\s*(.+)$/.exec(text)
@@ -73,6 +120,8 @@ export function continueCalendar(
   if (typeof reply !== 'string' || !validWorkspaceText(reply)) return clarify('답변의 길이와 문자를 확인해 주세요.')
   const text = reply.trim().replace(/\s+/g, ' ').replace(/[.!。！]+$/, '').trim()
   if (cancelReply.test(text)) return { kind: 'cancel' }
+  const revision = reviseCalendar(draft, reply, basisDate)
+  if (revision) return revision
   const question = calendarQuestion(draft)
   const explicitAudience = /^(?:대상(?:자)?|참석자|참여자)(?:은|는|[:：])/.test(text)
   if (!text || !question && !explicitAudience) return clarify('현재 초안에 필요한 정보를 확인해 주세요.')

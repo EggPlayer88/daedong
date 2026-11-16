@@ -456,6 +456,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           {model.workspaceOperation.state && enabled && <WorkspaceOperationCard {...model.workspaceOperation.state}
             onConfirm={model.workspaceOperation.confirm} onRetry={model.workspaceOperation.retry} onCancel={model.cancelWorkspaceOperation}
             onResumeCalendar={model.canResumeCalendar ? model.resumeCalendarAudience : undefined}
+            onReviseCalendar={model.canResumeCalendar ? model.resumeCalendarDraft : undefined}
             onOpenResult={model.workspaceOperation.state.receipt ? () => {
               const receipt = model.workspaceOperation.state?.receipt
               if (receipt) workspaceActions?.open({ kind: receipt.kind === 'taskChange' ? 'task' : 'calendar', id: receipt.id,
@@ -569,8 +570,8 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               rows={3}
               aria-describedby={`${uid}-prompt-hint`}
               aria-invalid={Array.from(session.prompt).length > model.promptLimit}
-              placeholder={draftFollowup ? (draftFollowup.command.kind === 'messageDraft' ? '예: 김민지 선생님' : '예: 다음 주 금요일, 김민지 선생님') : calendarFollowup ? '빠진 정보만 답해 주세요.' : '필요한 일이나 궁금한 점을 편하게 적어 주세요.'}
-              disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || Boolean(draft) || model.workspaceOperation.locked}
+              placeholder={draft ? '예: 기한만 내일로 · 제목은 자료 점검으로 바꿔줘' : draftFollowup ? (draftFollowup.command.kind === 'messageDraft' ? '예: 김민지 선생님 · 본문: 변경할 내용' : '예: 다음 주 금요일, 김민지 선생님 · 기한만 내일로') : calendarFollowup ? '빠진 정보나 바꿀 항목만 알려 주세요. 예: 날짜만 내일로' : '필요한 일이나 궁금한 점을 편하게 적어 주세요.'}
+              disabled={busy || draftSearching || memoryLocked || Boolean(recovery.request) || Boolean(draft && session.taskReview) || model.workspaceOperation.locked}
               value={session.prompt}
               onChange={(event) => update({ ...latest.current, prompt: event.target.value })}
             />
@@ -604,7 +605,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                 className={canContinueDraft ? 'assistant-quiet' : 'assistant-primary'}
                 disabled={
                   !canSubmit || draftSearching ||
-                  Boolean(draft) ||
+                  Boolean(draft && session.taskReview) ||
                   Array.from(session.prompt).length > model.promptLimit ||
                   !session.prompt.trim() ||
                   (session.intent === 'student_record_draft' && !session.studentContext && !workspaceCommand)
@@ -612,7 +613,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               >
                 {submitLabel}
               </button>
-              {workspaceCommand && workspaceCommand.kind !== 'task' && <span className="assistant-hint">AI 사용료 없이 처리</span>}
+              {(draft || workspaceCommand && workspaceCommand.kind !== 'task') && <span className="assistant-hint">AI 사용료 없이 처리</span>}
               <button
                 type="button"
                 className="assistant-quiet"
@@ -718,12 +719,13 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               ) : (
                 <button
                   type="button"
-                  disabled={!editable || Boolean(taskIssue)}
+                  disabled={!editable || Boolean(taskIssue) || Boolean(session.prompt.trim())}
                   onClick={reviewTask}
                 >
                   추가할 내용 확인
                 </button>
               )}
+              {!session.taskReview && session.prompt.trim() && <p className="assistant-hint">위에 작성한 수정 요청을 반영하거나 비운 뒤 최종 내용을 확인해 주세요.</p>}
               <button
                 type="button"
                 disabled={busy || Boolean(recovery.request)}

@@ -181,6 +181,9 @@ export function parseWorkspaceCommand(prompt: string, basisDate: string): Worksp
   if (evaluation) return {kind:'evaluation',target:evaluation[1] === '작성' ? 'authoring' : 'submissions'}
   const daily = parseDailyCommand(text, basisDate)
   if (daily) return daily
+  // 취소 대상을 추측하거나 저장하지 않는다. 권한 있는 기존 일정 목록에서 원본을 고르게 한다.
+  if (new RegExp(`^(?:(?:내|학교)\\s*)?일정(?:을|를)?\\s*취소(?:해\\s*${askEnd}|하고\\s*싶(?:어|어요|습니다)|\\s*(?:화면|메뉴)(?:을|를)?\\s*${moveEnd})?$`).test(text))
+    return { kind: 'navigate', page: 'calendar' }
   for (const [page, aliases] of menus) {
     for (const alias of aliases) {
       if (new RegExp(`^${esc(alias)}(?:\\s*(?:메뉴|화면))?\\s*(?:을|를|으로|로)?\\s*${moveEnd}$`, 'i').test(text))

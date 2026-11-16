@@ -16,7 +16,7 @@ export type WorkflowResult = ResultBase & (
   | RecordedResult & { kind: 'transition'; action: TransitionResultAction; recordId: string; recordVersion: number; state: TransitionResultState }
   | RecordedResult & { kind: 'document'; action: 'create' | 'update' | 'confirm' | 'archive'; documentId: string; documentVersion: number }
   | RecordedResult & { kind: 'cooperation'; action: CooperationResultAction; requestId: string; requestVersion: number }
-  | RecordedResult & { kind: 'calendar'; action: 'create' | 'update'; eventId: string; eventVersion: number }
+  | RecordedResult & { kind: 'calendar'; action: 'create' | 'update' | 'cancel'; eventId: string; eventVersion: number }
   | RecordedResult & { kind: 'calendar_batch'; action: 'commit'; prepareId: string; events: { eventId: string; eventVersion: number }[] }
   | RecordedResult & { kind: 'teaching'; action: TeachingResultAction; courseId: string; entityId: string; entityVersion: number; recordKind?: 'observation' | 'assessment'; confirmed?: boolean; disposition?: 'hold' | 'adopt' | 'exclude' | 'withdraw'; previousImportId?: string }
   | RecordedResult & { kind: 'school_data'; action: SchoolDataResultAction; courseId: string; entityId: string; entityVersion: number }
@@ -120,7 +120,7 @@ export function copyWorkflowResult(raw: WorkflowResult): WorkflowResult | undefi
     return { ...base, kind: raw.kind, action: raw.action, documentId: raw.documentId, documentVersion: raw.documentVersion }
   if (raw.kind === 'cooperation' && Object.hasOwn(cooperationLabels, raw.action) && text(raw.requestId) && version(raw.requestVersion) && (raw.action !== 'create' || raw.requestVersion === 1))
     return { ...base, kind: raw.kind, action: raw.action, requestId: raw.requestId, requestVersion: raw.requestVersion }
-  if (raw.kind === 'calendar' && ['create', 'update'].includes(raw.action) && text(raw.eventId) && version(raw.eventVersion) && (raw.action !== 'create' || raw.eventVersion === 1))
+  if (raw.kind === 'calendar' && ['create', 'update', 'cancel'].includes(raw.action) && text(raw.eventId) && version(raw.eventVersion) && (raw.action !== 'create' || raw.eventVersion === 1))
     return { ...base, kind: raw.kind, action: raw.action, eventId: raw.eventId, eventVersion: raw.eventVersion }
   if (raw.kind === 'calendar_batch' && raw.action === 'commit' && text(raw.prepareId) && Array.isArray(raw.events) && raw.events.length > 0 &&
       raw.events.every(row => row && text(row.eventId) && version(row.eventVersion)) && new Set(raw.events.map(row => row.eventId)).size === raw.events.length)
@@ -153,7 +153,7 @@ export function workflowResultLabel(result: WorkflowResult): string {
   if (result.kind === 'collection') return collectionLabels[result.action]
   if (result.kind === 'document') return documentLabels[result.action]
   if (result.kind === 'cooperation') return cooperationLabels[result.action]
-  if (result.kind === 'calendar') return result.action === 'create' ? '일정 등록' : '일정 변경 저장'
+  if (result.kind === 'calendar') return result.action === 'create' ? '일정 등록' : result.action === 'cancel' ? '일정 취소' : '일정 변경 저장'
   if (result.kind === 'calendar_batch') return `일정 일괄 반영 · ${result.events.length}건 접수`
   if (result.kind === 'teaching') {
     switch (result.action) {

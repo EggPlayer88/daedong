@@ -1,4 +1,5 @@
-import { copyWorkflowResult, type WorkflowResult } from '../app/workflow-results'
+import { copyWorkflowResult, workflowResultLabel, type WorkflowResult } from '../app/workflow-results'
+import type { SearchItem } from '../search/contracts'
 import type { SavedWorkspacePlan } from './plan-control'
 import type { WorkspacePlan, WorkspacePlanStep } from './workspace-plan'
 
@@ -95,4 +96,17 @@ export function recordWorkflowPlanResult(saved: SavedWorkspacePlan | undefined, 
   const anchor = result.kind === 'teaching' && ['activity_import', 'activity_correct'].includes(result.action) ? results.at(-1) : results[0]
   if (results.some(prior => prior.key === result.key) || (anchor && !sameResource(anchor, result))) return saved
   return { ...saved, outcomes: { ...saved.outcomes, [step.id]: { kind: 'recorded', results: [...results, result] } } }
+}
+
+// 취소한 일정도 서버가 확인한 원본 번호와 판으로 다시 조회한다. 재열기는 새 저장 요청을 만들지 않는다.
+export function recordedCalendarPlanTarget(saved: SavedWorkspacePlan | undefined, stepId: string, scope: string): SearchItem | undefined {
+  if (!saved || saved.scope !== scope) return
+  const step = saved.plan.steps.find(row => row.id === stepId), outcome = saved.outcomes?.[stepId]
+  if (!step || outcome?.kind !== 'recorded') return
+  const latest = outcome.results.at(-1)
+  if (!latest) return
+  const result = copyWorkflowResult(latest)
+  if (!result || result.scope !== scope || result.kind !== 'calendar' || !matchesStep(step, result)) return
+  return { kind: 'calendar', id: result.eventId, version: result.eventVersion,
+    title: workflowResultLabel(result), description: '', meta: '' }
 }

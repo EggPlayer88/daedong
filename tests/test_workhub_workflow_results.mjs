@@ -3,6 +3,7 @@ import { loadBrowserModule } from './helpers/load-browser-module.mjs'
 const {
   copyWorkflowResult: copy, workflowResultLabel: label,
   captureWorkflowPlanOrigin: capture, recordWorkflowPlanResult: record,
+  recordedCalendarPlanTarget: calendarTarget,
   hasWorkspacePlanResult: hasResult, nextWorkspacePlanStep: next, recordWorkspacePlanOutcome: mark,
   messageAttempt, blankMessageDraft, retryMessageAttempt,
 } = await loadBrowserModule(`
@@ -239,6 +240,42 @@ test('원본 계획·접수 자료를 수정하지 않고 후속 원본 변경�
   assert.equal(result.outcomes['step-1'].results[0].deliveries[0].messageId,'message-a')
   assert.equal(result.outcomes['step-1'].results[0].deliveries.length,2)
 })
+test('일정 취소 접수는 같은 원본의 이전 변경 내역을 보존하고 원래 번호·판으로만 다시 연다',()=>{
+  const value=saved({kind:'navigate',page:'calendar'}),bound=origin(value)
+  const initial={...base,kind:'calendar',action:'create',eventId:'event-a',eventVersion:1}
+  const cancelled={...initial,key:'cancel-key',action:'cancel',eventVersion:2}
+  const state=record(record(value,bound,initial,scope,date),bound,cancelled,scope,date)
+  assert.deepEqual(state.outcomes['step-1'].results.map(row=>row.action),['create','cancel'])
+  assert.equal(label(state.outcomes['step-1'].results.at(-1)),'일정 취소')
+  assert.deepEqual(calendarTarget(state,'step-1',scope),{kind:'calendar',id:'event-a',version:2,title:'일정 취소',description:'',meta:''})
+  assert.equal(record(state,bound,cancelled,scope,date),state)
+  assert.equal(record(state,bound,{...cancelled,key:'another',eventId:'event-other'},scope,date),state)
+  assert.equal(next({...state,selectedId:undefined}).id,'step-2')
+})
+
+test('일정 검색 단계의 취소 결과도 조회 대상과 일치할 때만 다시 열고 다른 범위·잘못된 접수는 거절한다',()=>{
+  const value=saved({kind:'search',query:'회의',kinds:['calendar']}),bound=origin(value,{kind:'calendar',id:'event-a'})
+  const cancelled={...base,kind:'calendar',action:'cancel',eventId:'event-a',eventVersion:2}
+  const state=record(value,bound,cancelled,scope,date)
+  assert.equal(calendarTarget(state,'step-1',scope).id,'event-a')
+  assert.equal(calendarTarget(state,'step-1','other/member/user'),undefined)
+  assert.equal(calendarTarget(state,'missing-step',scope),undefined)
+  for(const change of [{scope:'other/member/user'},{eventId:''},{eventVersion:0},{action:'delete'},{recordedAt:'bad'}]) {
+    const invalid={...state,outcomes:{'step-1':{kind:'recorded',results:[{...cancelled,...change}]}}}
+    assert.equal(calendarTarget(invalid,'step-1',scope),undefined)
+  }
+  assert.equal(record(value,bound,{...cancelled,eventId:'event-other'},scope,date),value)
+})
+
+test('화면 연결만 한 단계와 다른 종류의 결과를 일정 열기로 승격하지 않는다',()=>{
+  for(const outcome of [undefined,{kind:'opened'},{kind:'recorded',results:[]},{kind:'recorded',results:[message]}]) {
+    const value={...saved({kind:'navigate',page:'calendar'}),outcomes:{'step-1':outcome}}
+    assert.equal(calendarTarget(value,'step-1',scope),undefined)
+  }
+  const value=saved({kind:'navigate',page:'messages'})
+  assert.equal(calendarTarget({...value,outcomes:{'step-1':{kind:'recorded',results:[{...base,kind:'calendar',action:'cancel',eventId:'event-a',eventVersion:2}]}}},'step-1',scope),undefined)
+})
+
 test('처리 기록이 있는 단계는 다음 선택에서 건너뛰되 단순 화면 연결은 처리로 세지 않는다',()=>{
   assert.equal(hasResult(undefined),false)
   assert.equal(hasResult({kind:'opened'}),false)

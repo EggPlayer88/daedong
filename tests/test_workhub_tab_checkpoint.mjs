@@ -93,4 +93,18 @@ test('저장소에 남은 일시 저장 플래그도 복원 시 제거해 파일
  const key=port.key(0),raw=JSON.parse(port.getItem(key));raw.items[0].value.editor.saving=true;port.setItem(key,JSON.stringify(raw));
  const b=open(port);activate(b);b.drafts.restore(scope);assert.equal(b.drafts.bind(scope,'collection-editor').initial.editor.saving,undefined);assert.deepEqual(b.drafts.bind(scope,'collection-editor').initial.editor.staged,[])
 })
+test('일정 취소와 기본표 운영 연결은 원키·닫기 상태·작성 입력을 별도로 복원한다',()=>{
+ const port=storage(),a=open(port);activate(a);
+ const cancel={key:'cancel-key',command:{eventId:'event-a',expectedVersion:2,reason:'일정 변경'}};
+ const bridge={key:'bridge-key',command:{previewId:'preview-a',hash:'a'.repeat(64),input:{planId:'plan-a',planVersion:2,from:'2026-11-16',until:'2026-11-20'}},closeState:'closing'};
+ a.pending.put(scope,'calendarLifecycle',cancel);a.pending.put(scope,'timetableRosterBridge',bridge);
+ a.drafts.bind(scope,'calendar-cancel').save({eventId:'event-a',reason:'일정 변경'});
+ a.drafts.bind(scope,'timetable-roster-bridge').save({planId:'plan-a',from:'2026-11-16',lastDay:'2026-11-19'});
+ const b=open(port);activate(b);assert.equal(b.pending.count(),0);assert.equal(b.pending.restoreCount(scope),2);assert.equal(b.drafts.restoreCount(scope),2);
+ b.pending.restore(scope);b.drafts.restore(scope);
+ assert.deepEqual(b.pending.get(scope,'calendarLifecycle'),cancel);assert.deepEqual(b.pending.get(scope,'timetableRosterBridge'),bridge);
+ assert.deepEqual(b.drafts.bind(scope,'calendar-cancel').initial,{eventId:'event-a',reason:'일정 변경'});
+ assert.deepEqual(b.drafts.bind(scope,'timetable-roster-bridge').initial,{planId:'plan-a',from:'2026-11-16',lastDay:'2026-11-19'});
+ b.pending.remove(scope,'timetableRosterBridge','older-key');assert.deepEqual(b.pending.get(scope,'timetableRosterBridge'),bridge)
+})
 console.log('같은 탭 새로고침 복구 '+passed+'건 통과, '+failed+'건 실패');if(failed)process.exitCode=1

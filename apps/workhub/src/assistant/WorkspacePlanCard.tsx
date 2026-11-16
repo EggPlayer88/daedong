@@ -2,6 +2,7 @@ import type { useWorkspacePlan } from './useWorkspacePlan'
 import styles from './workspace-plan.css?inline'
 import { hasWorkspacePlanResult } from './plan-control'
 import { workflowResultLabel } from '../app/workflow-results'
+import { recordedCalendarPlanTarget } from './plan-workflow-results'
 
 export function WorkspacePlanCard({ model, hasInput, onOpenResult }: { model: ReturnType<typeof useWorkspacePlan>; hasInput: boolean; onOpenResult?: (stepId: string) => void }) {
   const saved = model.saved
@@ -25,6 +26,8 @@ export function WorkspacePlanCard({ model, hasInput, onOpenResult }: { model: Re
         </>}
         {outcome.kind === 'recorded' && <>
           <span>{workflowResultLabel(outcome.results[outcome.results.length - 1])}</span>
+          {onOpenResult && recordedCalendarPlanTarget(saved, step.id, saved.scope) &&
+            <button type="button" disabled={!model.manageable || hasInput} onClick={() => onOpenResult(step.id)}>처리된 업무 열기</button>}
           {outcome.results.length > 1 && <details><summary>이전 처리 {outcome.results.length - 1}건</summary>
             <ul>{outcome.results.slice(0, -1).map(result => <li key={result.key}>{workflowResultLabel(result)}</li>)}</ul>
           </details>}
