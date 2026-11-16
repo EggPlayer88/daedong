@@ -190,6 +190,31 @@ test('U5 조건부·부정·여러 날짜와 섞인 명령을 일부만 후보�
   ]) assert.notEqual(plan(prompt)?.kind,'plan',prompt)
 })
 
+test('R1 접속 요청의 조건절을 독립된 두 업무로 승격하지 않는다', () => {
+  for (const condition of ['비가 오면','학교에 가면','검토하면','회의가 끝나면','자료가 있으면','자료가 없으면','준비되면','승인이라면','참석한다면','확인해주면','결과가 좋으면','비가 오면,']) {
+    for (const prompt of [
+      `자료 확인 할 일 추가하고, ${condition} 내일 회의 일정도 추가해줘`,
+      `${condition} 자료 확인 할 일 추가하고, 내일 회의 일정도 추가해줘`,
+    ]) {
+      assert.equal(plan(prompt),null,prompt)
+      assert.equal(parseWorkspaceCommand(prompt,day)?.kind,'clarify',prompt)
+    }
+  }
+})
+
+test('R1 인용 제목의 조건 표현은 내용으로 보존하고 번호 목록과 본문 문법은 유지한다', () => {
+  const prompt='자료 “비가 오면 확인” 할 일 추가하고, 내일 “자료가 있으면 검토” 회의 일정도 추가해줘'
+  const result=plan(prompt)
+  assert.equal(result?.kind,'plan');assert.equal(result.prompt,prompt)
+  assert.equal(result.steps[0].prompt,'자료 “비가 오면 확인” 할 일 추가해줘')
+  assert.equal(result.steps[1].command.title,'“자료가 있으면 검토” 회의')
+  const body='비가 오면 자료 확인 할 일 추가하고, 내일 회의 일정도 추가해줘'
+  assert.equal(plan('메시지 초안: '+body),null)
+  assert.equal(parseWorkspaceCommand('메시지 초안: '+body,day).body,body)
+  const numbered=plan('1. 메시지 초안: '+body+'\n2. 시간표 보여줘')
+  assert.equal(numbered?.kind,'plan');assert.equal(numbered.steps[0].command.body,body)
+})
+
 test('U5 안전하게 나누지 못하는 요청은 번호·줄바꿈 입력 방법을 안내한다', () => {
   const result = parseWorkspaceCommand('자료 확인 할 일 추가하고, 문서함도 열어줘',day)
   assert.equal(result.kind,'clarify'); assert.match(result.message,/번호/); assert.match(result.message,/줄을 나누/)

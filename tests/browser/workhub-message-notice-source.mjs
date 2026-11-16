@@ -55,7 +55,15 @@ async function inbox(mode){
 async function boot(mode){await page.goto(origin+'notice-source');await page.evaluate(value=>window.mode=value,mode);await page.addScriptTag({content:bundle});if(mode==='participant')await page.getByRole('heading',{name:'메시지와 알림',level:2,exact:true}).waitFor();else await button('AI 비서').first().waitFor();await inbox(mode)}
 async function test(mode,label,run){try{await boot(mode);await run();await noWrite();passed++;console.log('  ✓ '+mode+' · '+label)}catch(error){console.error(await page.locator('body').innerText());console.error(await page.evaluate(()=>window.qa.calls));console.error(errors);throw error}}
 async function open(title='새 메시지 도착'){await notice(title).getByRole('button',{name:'메시지 원본 열기',exact:true}).click()}
-async function returnInbox(mode){if(mode==='assistant'){await button('대화 보기').click();await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('업무 알림 보여줘');await button('확인하기').click()}else await button('업무 알림').click();await notice('새 메시지 도착').waitFor()}
+async function returnInbox(mode){
+  assert.equal(await button('홈으로 돌아가기').count(),0,'알림 출처를 홈 출처로 잘못 표시하지 않아야 합니다')
+  const back=button('업무 알림으로 돌아가기');assert.equal(await back.count(),1,'같은 복귀 버튼을 중복 표시하지 않아야 합니다');await back.click();await notice('새 메시지 도착').waitFor()
+  assert.equal(await page.getByText('알림에서 연 정확한 메시지입니다.',{exact:true}).count(),0)
+  assert.equal(await button('홈으로 돌아가기').count(),0)
+  if(mode==='assistant')assert.equal(new URL(page.url()).searchParams.get('view'),'assistant','AI에서 연 알림은 AI 업무 안으로 돌아와야 합니다')
+  else if(mode==='admin')assert.equal(new URL(page.url()).searchParams.get('view'),'messages')
+  else assert.equal(new URL(page.url()).searchParams.get('view')??'messages','messages')
+}
 async function exactThread(){await detail().getByText('알림에서 연 정확한 메시지입니다.',{exact:true}).waitFor();assert.equal(await detail().getByText('다른 대화의 메시지입니다.',{exact:true}).count(),0);assert.equal(await detail().getByRole('heading',{name:'알림의 정확한 대화',exact:true}).count(),1)}
 try{
  for(const mode of ['admin','assistant','participant']){
@@ -76,6 +84,21 @@ try{
   })
   await test(mode,'조회 도중 신원·참여 권한이 무효화되면 늦은 원본을 다시 노출하지 않는다',async()=>{
     await page.evaluate(()=>window.qa.hold=true);await open();await page.waitForFunction(()=>window.qa.releases.length===1);await page.evaluate(()=>window.qa.invalidate());await page.getByText(mode==='participant'?'현재 참여 허용과 학교 소속을 다시 확인해 주세요.':/현재 로그인 계정으로 신축 시험 화면을 이용할 수 없습니다/).waitFor();await page.evaluate(()=>window.qa.release());await page.waitForTimeout(40);assert.equal(await page.getByText('알림에서 연 정확한 메시지입니다.',{exact:true}).count(),0)
+  })
+  await test(mode,'원본 조회 중 알림으로 돌아온 뒤 늦은 응답이 대화를 다시 열지 않는다',async()=>{
+    await page.evaluate(()=>window.qa.hold=true);await open();await page.waitForFunction(()=>window.qa.releases.length===1);await returnInbox(mode);await page.evaluate(()=>window.qa.release());await page.waitForTimeout(40)
+    assert.equal(await page.getByText('알림에서 연 정확한 메시지입니다.',{exact:true}).count(),0);assert.deepEqual(await page.locator('.messaging-notice').evaluateAll(items=>items.map(item=>item.dataset.read)),['false','false'])
+    assert.equal(await page.evaluate(()=>window.qa.calls.filter(c=>c.name==='workhub_message_get').length),1,'복귀한 원래 요청을 다시 자동 조회하지 않아야 합니다')
+  })
+  await test(mode,'답장 작성 중에는 복귀를 막고 입력을 접은 뒤 알림으로 돌아와도 답장을 보존한다',async()=>{
+    await open();await exactThread();await button('답장').click();const input=page.getByRole('form',{name:'답장 작성',exact:true}).getByLabel('메시지',{exact:true});await input.fill('알림 복귀 후에도 보존할 답장\n두 번째 줄')
+    const back=button('업무 알림으로 돌아가기');await back.and(page.locator(':disabled')).waitFor();assert.equal(await back.isDisabled(),true);assert.equal(await button('홈으로 돌아가기').count(),0)
+    await button(mode==='assistant'?'입력 보관하고 접기':'입력 접고 목록 보기').click();await back.and(page.locator(':enabled')).waitFor();await returnInbox(mode)
+    await button('작성 계속하기').click();assert.equal(await page.getByRole('form',{name:'답장 작성',exact:true}).getByLabel('메시지',{exact:true}).inputValue(),'알림 복귀 후에도 보존할 답장\n두 번째 줄')
+  })
+  if(mode!=='assistant')await test(mode,'알림에서 들어온 뒤 다른 대화를 선택해도 처음 알림으로 돌아간다',async()=>{
+    await open();await exactThread();await page.getByRole('button',{name:/다른 대화.*읽지/}).click();await detail().getByText('다른 대화의 메시지입니다.',{exact:true}).waitFor();await returnInbox(mode)
+    assert.equal(await page.getByText('다른 대화의 메시지입니다.',{exact:true}).count(),0);assert.deepEqual(await page.locator('.messaging-notice').evaluateAll(items=>items.map(item=>item.dataset.read)),['false','false'])
   })
  }
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('메시지 알림 원본 연결 '+passed+'건 통과 · 운영 DB·유료 AI 호출 없음')

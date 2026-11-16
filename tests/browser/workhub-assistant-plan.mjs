@@ -35,6 +35,13 @@ try{
   assert.equal(await followup.getByRole('status').innerText(),'몇 시부터 몇 시까지인가요? 하루 일정이면 “종일”이라고 답해 주세요.')
   assert.equal(await plan().locator('li').count(),2);assert.equal(await input().inputValue(),'');assert.equal(await page.locator('.assistant-calendar-workspace').count(),0);await noWrite()
  })
+ await test('조건부 접속 요청은 두 업무로 나누지 않고 원문을 유지하며 유료 호출·저장을 하지 않는다',async()=>{
+  for(const condition of ['비가 오면','학교에 가면','검토하면','회의가 끝나면','자료가 있으면']){
+   const request=`자료 확인 할 일 추가하고, ${condition} 내일 회의 일정도 추가해줘`
+   await input().fill(request);assert.equal(await button('업무 나누기').count(),0);await button('요청 확인').click()
+   assert.equal(await plan().count(),0);assert.equal(await input().inputValue(),request);assert.equal(await page.getByRole('region',{name:'작성 중인 일정',exact:true}).count(),0);await noWrite()
+  }
+ })
  await test('단계 선택은 입력만 채우며 각 실행 뒤에도 다음 단계는 자동 시작하지 않는다',async()=>{
   await build();await button('1단계 선택 · 시간표 열기').click();assert.equal(await input().inputValue(),'시간표 보여줘');assert.equal(await page.locator('.assistant-delivery-work').count(),0)
   await button('바로 이동').click();await page.locator('[data-timetable-presentation="assistant"]').waitFor();assert.equal(await page.locator('.school-administration-conversation').count(),0)
