@@ -32,6 +32,8 @@ async function receipt(command: any, key: string) {
 }
 async function rpcVerified(name: string, args: any) {
   w.calls.push({ name, args: copy(args) })
+  // 새 기본표 연결 조회는 기존 초안 공개와 별도 계약이며 이 시험에는 확정 명부가 없다.
+  if (name === 'workhub_timetable_roster_bridge_get') return envelope('timetable-roster-bridge.v1', { plans: [] })
   if (name.endsWith('_readiness')) return envelope('timetable-operations.v1', { available: true })
   if (name.endsWith('_get')) return w.failRead ? failure('timetable-operations.v1', 'QUERY_FAILED') : envelope('timetable-operations.v1', { ...copy(w.snapshot), from: args.p_from, until: args.p_until })
   if (name.endsWith('_references')) return envelope('timetable-operations.next.v1', { asOf: w.snapshot.asOf, from: args.p_from, until: args.p_until,

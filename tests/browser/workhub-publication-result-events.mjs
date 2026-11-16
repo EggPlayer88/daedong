@@ -19,7 +19,11 @@ const results = () => page.evaluate(() => window.results), writes = () => page.e
 async function start() {
   await page.goto(origin + 'publication'); await page.clock.setFixedTime(new Date('2026-10-18T00:00:00.000Z')); await page.addScriptTag({ content: bundle })
   await page.getByRole('heading', { name: '학교가 확정한 수업', exact: true }).waitFor()
-  await button('시간표 확정').click(); await field('확정할 저장 초안').selectOption('draft@2')
+  await button('시간표 확정').click();
+  const bridge = page.getByRole('region', { name: '기본 시간표 운영 연결', exact: true })
+  await bridge.getByText('선택할 확정 기본표가 없습니다. 교사 명부·기본 시간표에서 먼저 확정해 주세요.', { exact: true }).waitFor()
+  assert.equal(await bridge.getByRole('alert').count(), 0)
+  await field('확정할 저장 초안').selectOption('draft@2')
   await field('적용 시작일').fill('2026-10-19'); await field('적용 마지막 날').fill('2026-10-19')
 }
 async function inspect(kind) {
@@ -137,7 +141,7 @@ try {
   }
   await test('명세 상세가 변조되면 전체 검증과 공개 결과를 만들지 않는다', async () => {
     await page.evaluate(() => { window.badPage = true }); await inspect('publish_manifest'); await button('전체 변경 자동 검증').click()
-    await page.getByRole('alert').filter({ hasText: '서버 자료의 형식을 확인하지 못했습니다.' }).waitFor(); assert.deepEqual(await results(), []); assert.equal((await writes()).length, 0)
+    await page.getByRole('region', { name: '저장한 초안을 학교 시간표로 확정', exact: true }).getByRole('alert').filter({ hasText: '서버 자료의 형식을 확인하지 못했습니다.' }).waitFor(); assert.deepEqual(await results(), []); assert.equal((await writes()).length, 0)
   })
   console.log(`\n시간표 공개 결과 연결 ${passed.length}/${passed.length} 통과 · 실제 React/어댑터, 합성 RPC`)
 } finally { await context.close(); await browser.close() }
