@@ -507,7 +507,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   function openMessageSource(source: NotificationSource, inDelivery: boolean) {
     let moved = false
     if (source.module === 'messages') {
-      moved = inDelivery ? startDelivery('messages', {key:crypto.randomUUID(),id:source.id}) : resource.openMessage(source.id)
+      moved = inDelivery ? startDelivery('messages', {key:crypto.randomUUID(),id:source.id,fromInbox:true}) : resource.openMessage(source.id,true)
     } else if (source.module === 'transitions') {
       moved = inDelivery ? startDelivery('schoolAdmin', undefined, false, 'schoolTransition') : navigate('schoolAdmin')
       if (moved) setTransitionOpen({scope:currentScope,id:source.id,key:crypto.randomUUID()})
@@ -526,7 +526,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!member || !context) return null
     return <MessagingWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} initialTab={inDelivery && activeDelivery?.inbox ? 'inbox' : 'messages'} showThreadList={inDelivery && activeDelivery?.list}
       onUpdated={() => setRefreshEpoch(value => value + 1)}
-      openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'message' && requested.id ? {key:requested.key,id:requested.id} : undefined}
+      openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'message' && requested.id ? {key:requested.key,id:requested.id,fromInbox:requested.fromInbox} : undefined}
       onReturnToSource={!inDelivery && requested?.kind === 'message' ? () => resource.navigate('home') : undefined}
       composeRequest={messageDraft?.scope === currentScope ? messageDraft.draft : undefined}
       onComposeRequestConsumed={id => setMessageDraft(current => current?.draft.id === id ? undefined : current)}

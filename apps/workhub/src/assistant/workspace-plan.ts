@@ -102,8 +102,9 @@ function linkedTaskAndCalendar(text: string): string[] | null {
     } else outside += point
   }
   if (closing) return null
-  // 조건부 부탁을 독립 업무로 바꾸지 않는다. 조건은 번호를 나누어 사용자가 다시 확인한다.
-  if (/(?:만약|(?:다면|하면|되면|으면|라면|끝나면)(?=\s|[,，]))/.test(outside)) return null
+  // 조건부 부탁을 독립 업무로 바꾸지 않는다. 동사를 열거하면 '오면·가면·주면' 등을 놓친다.
+  // 인용 밖에서 '-면'으로 끝나는 어절은 보수적으로 보류하고, 인용한 제목·본문은 그대로 둔다.
+  if (/(?:만약|[가-힣]+면(?=$|[\s,，.。!?！？;；:：]))/.test(outside)) return null
   const joins = [...outside.matchAll(/할\s*일(?:로|에)?\s*(?:추가|등록)하고\s*[,，]\s*/g)]
   if (joins.length !== 1) return null
   const join = joins[0], start = join.index! + join[0].length

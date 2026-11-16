@@ -62,6 +62,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
     notice,
     onOpenSource,
     onReturnToSource,
+    returnToInbox,
     openDeliveredThread,
     openNoticeSource,
     openRequest,
@@ -379,10 +380,10 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
           새 메시지
         </button>}
       </header>
-      {openRequest && onReturnToSource && (
+      {openRequest && (openRequest.fromInbox ? tab === 'messages' : onReturnToSource) && (
         <div className="messaging-actions">
-          <button type="button" disabled={navigationLocked} onClick={onReturnToSource}>
-            홈으로 돌아가기
+          <button type="button" disabled={navigationLocked} onClick={openRequest.fromInbox ? returnToInbox : onReturnToSource}>
+            {openRequest.fromInbox ? '업무 알림으로 돌아가기' : '홈으로 돌아가기'}
           </button>
           <p className="messaging-muted">대화를 열어도 자동으로 읽음 처리하지 않습니다.</p>
         </div>
