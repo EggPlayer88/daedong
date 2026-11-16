@@ -17,7 +17,7 @@ export interface MessagingWorkspaceProps {
   presentation?: 'page' | 'assistant'
   initialTab?: 'messages' | 'inbox'
   showThreadList?: boolean
-  openRequest?: { key: string; id: string }
+  openRequest?: { key: string; id: string; fromInbox?: boolean }
   onReturnToSource?: () => void
   composeRequest?: MessageComposeRequest
   onComposeRequestConsumed?: (id: string) => void

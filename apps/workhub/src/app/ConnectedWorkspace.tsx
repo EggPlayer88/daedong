@@ -239,6 +239,14 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const navigationLocked = deliveryLocked || assistantNavigationLocked || batchNavigationLocked || taskNavigationLocked || calendarNavigationLocked || collectionNavigationLocked || extensionNavigationLocked || (connectionUnavailable && (draftCount > 0 || pendingCount > 0))
   const restoreDrafts = !connectionUnavailable && currentScope ? editDrafts.restoreCount(currentScope) : 0
   const restorePending = !connectionUnavailable && currentScope ? pendingRequests.restoreCount(currentScope) : 0
+  const restoreSlots = !connectionUnavailable && currentScope ? editDrafts.restoreSlots(currentScope) : []
+  const restoreGroups = [
+    {page:'assistant' as const,label:'AI 질문·업무 초안',slots:['assistant','assistant-operation']},
+    {page:'messages' as const,label:'메시지 초안',slots:['messaging-composer']},
+    {page:'collections' as const,label:'수합 초안',slots:['collection-editor']},
+    {page:'calendar' as const,label:'일정 입력',slots:['calendar-editor','calendar-panel','calendar-browse','calendar-assistant-view']},
+    {page:'tasks' as const,label:'할 일 입력',slots:['task-editor','task-panel']},
+  ].filter(group => group.slots.some(slot => restoreSlots.includes(slot)))
   const awaitingRestore = restoreDrafts + restorePending > 0
   const exitLocked = draftCount > 0 || pendingCount > 0 || awaitingRestore
   const navigation = useWorkspaceNavigation({
@@ -259,6 +267,12 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   const resetKey = `${memberId}:${attempt}:${scopeEpoch}:${restoreEpoch}`
   const resource = useResourceNavigation(`${expectedUserId}:${resetKey}`, page, navigation.requestNavigate)
   const navigate = (next: PageId) => { if (!resource.navigate(next)) return false; if (next === 'assistant' && page !== 'assistant') assistantReturn.current = {scope:currentScope,page}; setHandoff(undefined); setWorkReturn(undefined); return true }
+  function restoreInputs(firstPage?: PageId) {
+    // 미확정 요청은 화면 선택보다 원래 요청 번호 확인이 먼저다.
+    if (firstPage && (restorePending || !navigate(firstPage))) return
+    pendingRequests.restore(currentScope); editDrafts.restore(currentScope)
+    setRestoreEpoch(value => value + 1)
+  }
   useEffect(() => { if (workReturn && (page !== workReturn.page || (currentScope && currentScope !== workReturn.scope))) setWorkReturn(undefined) }, [page, currentScope, workReturn])
   // 수업 선택은 한 번의 이동에만 속한다. 다른 메뉴에서 시간표를 다시 열 때 과거 수업을 강제로 열지 않는다.
   useEffect(() => { if (page !== 'tasks') setAssistantTask(undefined) }, [page])
@@ -492,7 +506,9 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
   // AI 안과 일반 메뉴는 같은 편집기·서버를 사용하며 현재 페이지에서 한 번만 렌더한다.
   function openMessageSource(source: NotificationSource, inDelivery: boolean) {
     let moved = false
-    if (source.module === 'transitions') {
+    if (source.module === 'messages') {
+      moved = inDelivery ? startDelivery('messages', {key:crypto.randomUUID(),id:source.id,fromInbox:true}) : resource.openMessage(source.id,true)
+    } else if (source.module === 'transitions') {
       moved = inDelivery ? startDelivery('schoolAdmin', undefined, false, 'schoolTransition') : navigate('schoolAdmin')
       if (moved) setTransitionOpen({scope:currentScope,id:source.id,key:crypto.randomUUID()})
     } else if (source.module === 'timetable') {
@@ -510,11 +526,11 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     if (!member || !context) return null
     return <MessagingWorkspace onWorkflowResult={inDelivery ? activeDelivery?.onResult : undefined} presentation={inDelivery ? 'assistant' : 'page'} initialTab={inDelivery && activeDelivery?.inbox ? 'inbox' : 'messages'} showThreadList={inDelivery && activeDelivery?.list}
       onUpdated={() => setRefreshEpoch(value => value + 1)}
-      openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'message' && requested.id ? {key:requested.key,id:requested.id} : undefined}
+      openRequest={inDelivery ? activeDelivery?.request : requested?.kind === 'message' && requested.id ? {key:requested.key,id:requested.id,fromInbox:requested.fromInbox} : undefined}
       onReturnToSource={!inDelivery && requested?.kind === 'message' ? () => resource.navigate('home') : undefined}
       composeRequest={messageDraft?.scope === currentScope ? messageDraft.draft : undefined}
       onComposeRequestConsumed={id => setMessageDraft(current => current?.draft.id === id ? undefined : current)}
-      canOpenSource={source => ['calendar','tasks','collections','cooperation','timetable','transitions'].includes(source.module)}
+      canOpenSource={source => ['messages','calendar','tasks','collections','cooperation','timetable','transitions'].includes(source.module)}
       onOpenSource={source => openMessageSource(source,inDelivery)}
       key={inDelivery ? `${resetKey}:${activeDelivery?.key}` : resetKey} connection={connection} member={member} date={context.basisDate} revision={refreshEpoch}
       onNavigationLockChange={inDelivery ? setDeliveryLocked : setExtensionNavigationLocked} />
@@ -685,10 +701,14 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     </main> : awaitingRestore ? <main id="main-content" className="connected-empty" aria-label="작성 중 입력 복구">
       <h1>작성하던 내용이 있습니다</h1>
       <p>같은 탭에 보관한 입력입니다. 현재 계정과 학교 소속 확인을 마쳤습니다. 이어쓰기를 눌러도 자동으로 전송하거나 저장하지 않습니다.</p>
+      {restoreGroups.length > 0 && <ul aria-label="보관한 입력 목록">{restoreGroups.map(group => <li key={group.page}>
+        <span>{group.label}</span>{!restorePending && connectedPages.includes(group.page) && <button type="button" className="text-button" onClick={() => restoreInputs(group.page)}>{group.label}부터 이어쓰기</button>}
+      </li>)}</ul>}
+      {!restorePending && restoreGroups.length > 1 && <p>먼저 열 항목을 고를 수 있습니다. 다른 입력도 함께 보관되며, 각 화면에서 이어 쓸 수 있습니다.</p>}
       {restorePending > 0 && <p role="status">결과를 확인하지 못한 요청 {restorePending}건은 원래 요청 번호로 먼저 확인합니다.</p>}
       <p>선택했던 파일은 다시 골라 주세요. 이전 AI 답변과 학생 근거는 다시 조회합니다.</p>
       <p>공용 PC에서는 사용을 마친 뒤 로그아웃해 주세요.</p>
-      <button type="button" onClick={() => {pendingRequests.restore(currentScope);editDrafts.restore(currentScope);setRestoreEpoch(value => value + 1)}}>보관한 입력 이어쓰기</button>
+      <button type="button" onClick={() => restoreInputs()}>보관한 입력 이어쓰기</button>
       {!restorePending && <button type="button" onClick={() => {editDrafts.discardRestore(currentScope);setRestoreEpoch(value => value + 1)}}>보관한 입력 버리기</button>}
     </main> :
       <WorkspaceShell navigationModules={teacherPilot ? displayModules : undefined} onOpenAssistant={openAssistant} assistantOpen={assistantOpen || page === 'assistant'} sidePanel={assistantPanel} mode="connected" page={page} onNavigate={navigate} schoolName={school.name} memberName={member.name}

@@ -4,7 +4,7 @@ import type { SearchItem, SearchKind } from '../search/contracts'
 
 type ResourceKind = Exclude<SearchKind, 'menu'>
 type DueFilter = 'overdue' | 'today' | 'upcoming' | 'none'
-interface Selection { scopeKey: string; key: string; kind: ResourceKind; id?: string; unitId?: string; dueFilter?: DueFilter; version?: number; locator?: string }
+interface Selection { scopeKey: string; key: string; kind: ResourceKind; id?: string; unitId?: string; dueFilter?: DueFilter; version?: number; locator?: string; fromInbox?: boolean }
 const destination: Record<ResourceKind, PageId> = { calendar: 'calendar', task: 'tasks', collection: 'collections', cooperation: 'cooperation', message: 'messages', document:'documents', knowledge:'knowledge', course:'students' }
 
 // 원본 선택은 현재 화면의 일회성 의도다. 학생/업무 식별자와 검색어를 주소나 영속 저장소에 남기지 않는다.
@@ -14,7 +14,7 @@ export function useResourceNavigation(scopeKey: string, page: PageId, requestNav
   useEffect(() => {
     setSelection(previous => previous && (previous.scopeKey !== scopeKey || destination[previous.kind] !== page) ? undefined : previous)
   }, [scopeKey, page])
-  function open(kind: ResourceKind, values: { id?: string; unitId?: string; dueFilter?: DueFilter; version?: number; locator?: string }) {
+  function open(kind: ResourceKind, values: { id?: string; unitId?: string; dueFilter?: DueFilter; version?: number; locator?: string; fromInbox?: boolean }) {
     if (!requestNavigate(destination[kind])) return false
     setSelection({ scopeKey, key: crypto.randomUUID(), kind, ...values })
     return true
@@ -31,7 +31,7 @@ export function useResourceNavigation(scopeKey: string, page: PageId, requestNav
       }
       return open(item.kind, { id: item.id, unitId: item.unitId, version:item.version, locator:item.locator })
     },
-    openMessage: (id: string) => open('message', { id }),
+    openMessage: (id: string, fromInbox = false) => open('message', { id, fromInbox }),
     openCooperation: (id: string) => open('cooperation', { id }),
     openTasks: (dueFilter?: DueFilter) => open('task', { dueFilter }),
     openCollection: (id?: string, unitId?: string) => open('collection', { id, unitId }),

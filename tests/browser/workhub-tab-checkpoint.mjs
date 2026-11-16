@@ -4,13 +4,15 @@ import { buildSync } from 'esbuild'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { launchBrowser } from './launch-browser.mjs'
+import { clickWorkspaceMenu } from '../helpers/workspace-menu.mjs'
 let contents=readFileSync(new URL('./workhub-assistant-daily-connected-fixture.tsx',import.meta.url),'utf8')
 contents=contents.replace("import './reset-fixture-checkpoint'",'')
 contents=`import {createTabCheckpoint} from '../../apps/workhub/src/app/tab-checkpoint';
 import {recoveryScope} from '../../apps/workhub/src/app/pending-requests';\n`+contents
 contents=contents.replace("id: 'member-01', userId: 'user-01'","id: new URLSearchParams(location.search).has('other')?'member-99':'member-01', userId: new URLSearchParams(location.search).has('other')?'user-99':'user-01'")
 contents=contents.replace("if (name === 'workhub_context') return ok(context)","if(name==='workhub_context'){if(new URLSearchParams(location.search).has('hold'))await new Promise<void>(resolve=>w.releaseCheckpointContext=resolve);return ok(context)}")
-contents=contents.replace("createRoot(document.getElementById('root')!).render",`w.seedPending=()=>createTabCheckpoint(teacher.userId).write('pending',recoveryScope(teacher),[{slot:'task',warn:true,value:{key:'checkpoint-original-key',command:{kind:'create',input:{title:'원래 요청 본문',notes:'새 번호 금지',dueDate:'2026-10-23'}}}}]);
+contents=contents.replace("createRoot(document.getElementById('root')!).render",`w.seedOtherDrafts=()=>{const checkpoint=createTabCheckpoint(teacher.userId),scope=recoveryScope(teacher);checkpoint.write('drafts',scope,[...checkpoint.read('drafts',scope),{slot:'collection-editor',warn:true,value:{editor:{input:{title:'아직 열지 않은 수합'},staged:[]}}}])};
+w.seedPending=()=>createTabCheckpoint(teacher.userId).write('pending',recoveryScope(teacher),[{slot:'task',warn:true,value:{key:'checkpoint-original-key',command:{kind:'create',input:{title:'원래 요청 본문',notes:'새 번호 금지',dueDate:'2026-10-23'}}}}]);
 createRoot(document.getElementById('root')!).render`)
 const bundle=buildSync({stdin:{contents,loader:'tsx',resolveDir:fileURLToPath(new URL('.',import.meta.url))},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://example.supabase.co',VITE_SUPABASE_ANON_KEY:'synthetic'}),'process.env.NODE_ENV':'"production"'},logLevel:'silent'}).outputFiles[0].text
 let collectionSource=readFileSync(new URL('./workhub-collection-create-fixture.tsx',import.meta.url),'utf8')
@@ -53,10 +55,23 @@ try{
  })
  await test('미확정 요청은 버리기 없이 원키 복구로 열고 클릭 전 자동 쓰기를 하지 않는다',async()=>{
   await start('tasks');await page.evaluate(()=>window.seedPending());await reload();await button('보관한 입력 이어쓰기').waitFor();assert.equal(await button('보관한 입력 버리기').count(),0);
+  assert.equal(await page.getByRole('button',{name:/부터 이어쓰기$/}).count(),0);
   await button('보관한 입력 이어쓰기').click();await button('이전 요청 그대로 다시 확인').waitFor();
   assert.equal(await page.evaluate(()=>window.dailyConnected.calls.some(c=>/_mutate$|_create$|_update$|_set_status$/.test(c.name))),false);
   await button('이전 요청 그대로 다시 확인').click();await page.waitForFunction(()=>window.dailyConnected.calls.some(c=>c.args?.p_request_key==='checkpoint-original-key'));
   const call=await page.evaluate(()=>window.dailyConnected.calls.find(c=>c.args?.p_request_key==='checkpoint-original-key'));assert.match(JSON.stringify(call.args),/원래 요청 본문/);assert.match(JSON.stringify(call.args),/새 번호 금지/)
+ })
+ await test('수합 화면에서 새로고침해도 보관 목록에서 메시지부터 열고 다른 초안은 그대로 둔다',async()=>{
+  await start();await input().and(page.locator(':enabled')).waitFor();await input().fill('함께 보관한 AI 질문');await clickWorkspaceMenu(page,'메시지와 알림');await button('새 메시지').click();await page.getByLabel('메시지',{exact:true}).fill('먼저 이어 쓸 메시지');await button('입력 접고 목록 보기').click();
+  await page.evaluate(()=>window.seedOtherDrafts());await reload('view=collections');
+  const list=page.getByRole('list',{name:'보관한 입력 목록'});await list.waitFor();assert.equal(await list.getByRole('listitem').count(),3);
+  assert.equal(await page.getByText('함께 보관한 AI 질문',{exact:true}).count(),0);assert.equal(await page.getByLabel('수합 제목',{exact:true}).count(),0);
+  await button('메시지 초안부터 이어쓰기').click();await button('작성 계속하기').click();assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'먼저 이어 쓸 메시지');
+  assert.equal(await page.getByLabel('수합 제목',{exact:true}).count(),0);assert.equal(await page.evaluate(()=>window.dailyConnected.calls.some(c=>/_ask$|_execute$|_mutate$|_save$/.test(c.name))),false);
+  await reload();await button('AI 질문·업무 초안부터 이어쓰기').click();await input().waitFor();assert.equal(await input().inputValue(),'함께 보관한 AI 질문');
+  const saved=await page.evaluate(()=>JSON.parse(sessionStorage.getItem('workhub:tab-checkpoint:v1:user-01')).items);
+  assert.equal(saved.find(x=>x.slot==='collection-editor').value.editor.input.title,'아직 열지 않은 수합');assert.equal(saved.find(x=>x.slot==='messaging-composer').value.draft.body,'먼저 이어 쓸 메시지');
+  assert.equal(await page.evaluate(()=>window.dailyConnected.calls.some(c=>/_ask$|_execute$|_mutate$|_save$/.test(c.name))),false)
  })
  await test('동일 탭 계정 전환은 이전 사용자의 초안과 요청을 노출하지 않는다',async()=>{
   await start();await input().and(page.locator(':enabled')).waitFor();await input().fill('다른 계정에 보이면 안 됨');await reload('other=1');await input().waitFor();

@@ -191,7 +191,16 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
           새 대화
         </button>
       </div>
-      {recovery.request && (
+      {recovery.request && busy && (
+        <div className="assistant-status" role="status" aria-label="요청 처리 중">
+          {recovery.request.closeState === 'closing'
+            ? '요청 닫힘을 확인하고 있습니다…'
+            : pending?.kind === 'confirmTask'
+              ? '할 일 저장 결과를 확인하고 있습니다…'
+              : 'AI 답변을 기다리고 있습니다…'}
+        </div>
+      )}
+      {recovery.request && !busy && (
         <section className="assistant-pending" aria-label="미확정 요청">
           <h3>기존 요청 결과 확인</h3>
           <p>
@@ -685,7 +694,9 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
                   })
                 }
               />
-              {taskIssue && <p role="alert">{taskIssue}</p>}
+              {recovery.request
+                ? !busy && <p className="assistant-hint">이전 요청 결과를 먼저 확인합니다.</p>
+                : taskIssue && <p role="alert">{taskIssue}</p>}
               {session.taskReview ? (
                 <>
                   <p>위 내용을 개인 할 일에 추가합니다. 다른 교사에게 전송하지 않습니다.</p>

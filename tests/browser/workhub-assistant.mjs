@@ -5,16 +5,19 @@ import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { launchBrowser } from './launch-browser.mjs'
 const bundle=buildSync({stdin:{contents:`
-import React,{useState}from'react';import{createRoot}from'react-dom/client';import{AssistantPanel}from'./apps/workhub/src/assistant/AssistantPanel';import{AssistantError,ASSISTANT_ROUTING}from'./apps/workhub/src/assistant/contracts';import{createAssistantServer}from'./apps/workhub/src/assistant/server';import{createEditDrafts,EditDraftsProvider}from'./apps/workhub/src/app/edit-drafts';import{createPendingRequests,PendingRequestsProvider,recoveryScope}from'./apps/workhub/src/app/pending-requests';
+import React,{useState}from'react';import{createRoot}from'react-dom/client';import{AssistantPanel}from'./apps/workhub/src/assistant/AssistantPanel';import{AssistantError,ASSISTANT_ROUTING}from'./apps/workhub/src/assistant/contracts';import{createAssistantServer}from'./apps/workhub/src/assistant/server';import{createTabCheckpoint}from'./apps/workhub/src/app/tab-checkpoint';import{createEditDrafts,EditDraftsProvider}from'./apps/workhub/src/app/edit-drafts';import{createPendingRequests,PendingRequestsProvider,recoveryScope}from'./apps/workhub/src/app/pending-requests';
 const member={id:'member-one',userId:'user-one',schoolId:'school-one',name:'검증 교사',role:'teacher',active:true,validFrom:'2026-03-01',validThrough:'2027-02-28',departmentIds:[],gradeIds:[],subjectIds:[]};
-window.calls=[];window.aiCalls=0;window.tasks=0;window.pendingOnce=false;window.proposalInput=null;window.badTaskReceipt=false;window.deferTask=false;window.releaseTask=null;window.taskUnknown=false;window.readFail=false;window.updated=0;window.openedTasks=[];window.openTaskFail=false;window.drafts=[];window.messageDrafts=[];window.listCalls=0;window.context=null;window.pending=createPendingRequests();window.memory=createEditDrafts();const receipts=new Map(),taskReceipts=new Map();
+window.calls=[];window.aiCalls=0;window.tasks=0;window.pendingOnce=false;window.deferAsk=false;window.releaseAsk=null;window.proposalInput=null;window.badTaskReceipt=false;window.deferTask=false;window.releaseTask=null;window.taskUnknown=false;window.readFail=false;window.updated=0;window.openedTasks=[];window.openTaskFail=false;window.drafts=[];window.messageDrafts=[];window.listCalls=0;window.context=null;window.pending=createPendingRequests();window.memory=createEditDrafts();const receipts=new Map(),taskReceipts=new Map();
 const ref={kind:'knowledge',id:'rule-one',version:3},citation={reference:ref,title:'학교 안내',locator:'제3항'};
 function thread(input,key){const student=input.studentContext;return{id:'thread-one',mode:input.mode,version:1,title:'제출 절차 확인',exchanges:[{id:'exchange-one',requestKey:key,intent:input.intent,prompt:input.prompt,segments:window.answerSegments??[{text:'담당자에게 제출해 주세요.',citations:student?student.evidence.map(reference=>({reference,title:'확인한 학습 기록',locator:'선택 구간'})):[citation]}],proposal:input.intent==='personal_assistant'?{id:'proposal-one',version:1,kind:'create_personal_task',input:window.proposalInput??{title:'제출 자료 확인',notes:'근거 확인 후 담당자에게 제출',dueDate:'2026-10-20'},status:'pending',resourceId:null}:null,createdAt:'2026-10-16T10:00:00+09:00',studentContext:student,...(input.quality?{execution:{quality:input.intent==='student_record_draft'?'review':input.quality,model:ASSISTANT_ROUTING.models[input.intent==='student_record_draft'?'review':input.quality].id,reviewOf:input.reviewOf}}:{})}],nextCursor:null}}
-const server={async readiness(){if(window.scenario==='notready')return{available:false,reason:'not_configured'};if(window.readFail)throw new AssistantError('QUERY_FAILED');return{available:true}},async list(memberId,mode){window.listCalls++;return{items:[{id:'prior-thread',mode,version:1,title:mode==='school'?'이전 학교 안내':'이전 개인 업무',updatedAt:'2026-10-16T10:00:00+09:00'}],nextCursor:null}},async get(memberId,id){const saved=[...receipts.values()].find(row=>row.thread.id===id);if(saved)return structuredClone(saved.thread);const value=thread({mode:'school',intent:'school_advice',prompt:'이전 질문',studentContext:null},'prior-request');return{...value,id}},async ask(memberId,input,key){window.calls.push(structuredClone({kind:'ask',memberId,input,key}));if(receipts.has(key))return receipts.get(key);window.aiCalls++;const receipt={state:'completed',requestKey:key,thread:thread(input,key)};receipts.set(key,receipt);if(window.pendingOnce){window.pendingOnce=false;return{state:'pending',requestKey:key,reason:'provider_unknown'}}return receipt},async confirmTask(memberId,input,key){window.calls.push(structuredClone({kind:'confirmTask',memberId,input,key}));if(taskReceipts.has(key))return taskReceipts.get(key);window.tasks++;const result={requestKey:key,proposalId:input.proposalId,proposalVersion:input.expectedVersion+1,taskId:'task-one',taskVersion:1,threadVersion:2};taskReceipts.set(key,result);for(const saved of receipts.values()){if(saved.thread.id===input.threadId){saved.thread.version=result.threadVersion;saved.thread.exchanges=saved.thread.exchanges.map(row=>row.proposal?.id===input.proposalId?{...row,proposal:{...row.proposal,status:'applied',version:result.proposalVersion,resourceId:result.taskId}}:row)}}if(window.deferTask){window.deferTask=false;return await new Promise(resolve=>window.releaseTask=()=>resolve(result))}if(window.badTaskReceipt){window.badTaskReceipt=false;return{unexpected:true}}if(window.taskUnknown){window.taskUnknown=false;throw new AssistantError('RESULT_UNKNOWN')}return result}};
+const server={async readiness(){if(window.scenario==='notready')return{available:false,reason:'not_configured'};if(window.readFail)throw new AssistantError('QUERY_FAILED');return{available:true}},async list(memberId,mode){window.listCalls++;return{items:[{id:'prior-thread',mode,version:1,title:mode==='school'?'이전 학교 안내':'이전 개인 업무',updatedAt:'2026-10-16T10:00:00+09:00'}],nextCursor:null}},async get(memberId,id){const saved=[...receipts.values()].find(row=>row.thread.id===id);if(saved)return structuredClone(saved.thread);const value=thread({mode:'school',intent:'school_advice',prompt:'이전 질문',studentContext:null},'prior-request');return{...value,id}},async ask(memberId,input,key){window.calls.push(structuredClone({kind:'ask',memberId,input,key}));if(receipts.has(key))return receipts.get(key);window.aiCalls++;const receipt={state:'completed',requestKey:key,thread:thread(input,key)};receipts.set(key,receipt);const answer=window.pendingOnce?{state:'pending',requestKey:key,reason:'provider_unknown'}:receipt;window.pendingOnce=false;if(window.deferAsk){window.deferAsk=false;return await new Promise(resolve=>window.releaseAsk=()=>resolve(answer))}return answer},async confirmTask(memberId,input,key){window.calls.push(structuredClone({kind:'confirmTask',memberId,input,key}));if(taskReceipts.has(key))return taskReceipts.get(key);window.tasks++;const result={requestKey:key,proposalId:input.proposalId,proposalVersion:input.expectedVersion+1,taskId:'task-one',taskVersion:1,threadVersion:2};taskReceipts.set(key,result);for(const saved of receipts.values()){if(saved.thread.id===input.threadId){saved.thread.version=result.threadVersion;saved.thread.exchanges=saved.thread.exchanges.map(row=>row.proposal?.id===input.proposalId?{...row,proposal:{...row.proposal,status:'applied',version:result.proposalVersion,resourceId:result.taskId}}:row)}}if(window.deferTask){window.deferTask=false;return await new Promise(resolve=>window.releaseTask=()=>resolve(result))}if(window.badTaskReceipt){window.badTaskReceipt=false;return{unexpected:true}}if(window.taskUnknown){window.taskUnknown=false;throw new AssistantError('RESULT_UNKNOWN')}return result}};
 const envelope=data=>({contract:'assistant.v1',schoolId:member.schoolId,memberId:member.id,data});
 const connection={info:()=>({schools:[{id:member.schoolId}],memberships:[member],basisDate:'2026-10-16'}),getIdentity:async()=>({userId:member.userId,approved:true}),rpcVerified:async(name,args)=>envelope(await(name==='workhub_ai_policy_threads_list'?server.list(args.p_member_id,args.p_mode):name==='workhub_ai_policy_thread_get'?server.get(args.p_member_id,args.p_thread_id):server.confirmTask(args.p_member_id,args.p_input,args.p_request_key)))};
 const adapter=createAssistantServer(connection,{send:async payload=>envelope(await(payload.action==='readiness'?server.readiness():server.ask(payload.memberId,payload.input,payload.requestKey)))},{policyReads:true});
 window.seedPending=command=>window.pending.put(recoveryScope(member),'assistant',{key:'legacy-task-key-123',command});
+// 운영 체크포인트가 대화 본문을 제외하는 직렬화와 명시 복원을 그대로 거친다.
+window.restoreCheckpoint=()=>{const scope=recoveryScope(member),checkpoint=createTabCheckpoint(member.userId);checkpoint.write('drafts',scope,[{slot:'assistant',warn:true,value:window.memory.bind(scope,'assistant').initial}]);checkpoint.write('pending',scope,[{slot:'assistant',warn:true,value:window.pending.get(scope,'assistant')}]);window.memory=createEditDrafts(true,checkpoint);window.pending=createPendingRequests(checkpoint);window.memory.activate(scope);window.pending.retainScopes([scope]);const result={drafts:window.memory.restoreCount(scope),pending:window.pending.restoreCount(scope),threadSaved:!!checkpoint.read('drafts',scope)?.[0]?.value.thread};window.memory.restore(scope);window.pending.restore(scope);return result};
+
 function App(){const[show,setShow]=useState(true),[revision,setRevision]=useState(0),[context,setContext]=useState(null);window.setShow=setShow;window.refresh=()=>setRevision(x=>x+1);window.setContext=setContext;return<EditDraftsProvider store={window.memory}><PendingRequestsProvider store={window.pending}>{show&&<AssistantPanel settingsServer={{status:async()=>{throw new AssistantError('NOT_READY')}}} server={adapter} connection={connection} member={member} date="2026-10-16" revision={revision} contextRequest={context??undefined} onDraftReady={draft=>window.drafts.push(draft)} onComposeMessage={draft=>window.messageDrafts.push(draft)} onUpdated={()=>window.updated++} onOpenTask={id=>{if(window.openTaskFail)throw Error('synthetic task navigation blocked');window.openedTasks.push(id)}} onNavigationLockChange={locked=>window.locked=locked}/>}</PendingRequestsProvider></EditDraftsProvider>}
 createRoot(document.getElementById('root')).render(<React.StrictMode><App/></React.StrictMode>);
 `,resolveDir:fileURLToPath(new URL('../../',import.meta.url)),loader:'tsx'},bundle:true,write:false,format:'iife',jsx:'automatic',loader:{'.css':'text'},define:{'import.meta.env':JSON.stringify({MODE:'test',VITE_SUPABASE_URL:'https://abcdefghijklmnopqrst.supabase.co',VITE_SUPABASE_ANON_KEY:'synthetic-test-key'}),'process.env.NODE_ENV':'"development"'},logLevel:'silent'})
@@ -26,6 +29,75 @@ async function test(name,run,scenario=''){await start(scenario);try{await run()}
 async function ask(text='학교 제출 절차를 확인해 주세요.'){await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill(text);await page.getByRole('button',{name:'AI에게 요청',exact:true}).click();await settle()}
 async function personal(){await page.getByText('자료 범위 변경',{exact:true}).click();await page.getByRole('button',{name:'내 개인 비서',exact:true}).click();await settle();await ask('제출 자료 확인을 할 일로 정리해 주세요.');await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).waitFor()}
 try{
+ for(const unknown of [false,true])await test(`AI 정상 대기와 ${unknown?'결과 불명 상태':'완료'}를 구분하고 원요청 잠금을 유지한다`,async()=>{
+  await page.evaluate(value=>{window.deferAsk=true;window.pendingOnce=value},unknown);
+  await ask('시험용 질문을 그대로 유지합니다.');
+  await page.waitForFunction(()=>typeof window.releaseAsk==='function');
+  await page.getByRole('status',{name:'요청 처리 중',exact:true}).waitFor();
+  assert.equal(await page.getByRole('region',{name:'미확정 요청',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'새 호출 없이 요청 닫기',exact:true}).count(),0);
+  assert.equal(await page.getByLabel('질문 또는 부탁할 일',{exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'질문 비우기',exact:true}).isDisabled(),true);
+  assert.equal(await page.evaluate(()=>window.pending.count()),1);
+  assert.equal(await page.evaluate(()=>window.calls.length),1);
+  const original=await page.evaluate(()=>window.calls[0]);
+  await page.evaluate(()=>window.releaseAsk());
+  if(unknown){
+   await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();
+   assert.equal(await page.getByRole('status',{name:'요청 처리 중',exact:true}).count(),0);
+   await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).click();
+   assert.deepEqual(await page.evaluate(()=>window.calls[1]),original);
+  }
+  await page.getByRole('heading',{name:'AI 답변',exact:true}).waitFor();
+  assert.equal(await page.getByRole('status',{name:'요청 처리 중',exact:true}).count(),0);
+  assert.equal(await page.getByRole('region',{name:'미확정 요청',exact:true}).count(),0);
+  assert.equal(await page.evaluate(()=>window.pending.count()),0);
+  assert.equal(await page.evaluate(()=>window.aiCalls),1);
+ });
+ await test('정상 할 일 저장 대기는 결과 불명 패널을 띄우지 않고 저장 버튼을 잠근다',async()=>{
+  await personal();await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).click();
+  await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).click();
+  await page.evaluate(()=>window.deferTask=true);
+  await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).click();
+  await page.waitForFunction(()=>typeof window.releaseTask==='function');
+  await page.getByRole('status',{name:'요청 처리 중',exact:true}).waitFor();
+  assert.match(await page.getByRole('status',{name:'요청 처리 중',exact:true}).innerText(),/할 일 저장 결과/);
+  assert.equal(await page.getByRole('region',{name:'미확정 요청',exact:true}).count(),0);
+  assert.equal(await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'제안 검토 닫기',exact:true}).isDisabled(),true);
+  assert.equal(await page.evaluate(()=>window.pending.count()),1);
+  await page.evaluate(()=>window.releaseTask());
+  await page.getByText('개인 할 일에 추가했습니다.',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>window.tasks),1);
+  assert.equal(await page.evaluate(()=>window.calls.filter(row=>row.kind==='confirmTask').length),1);
+  assert.equal(await page.evaluate(()=>window.pending.count()),0);
+ });
+ await test('미확정 할 일은 실제 체크포인트의 대화 본문 제외 뒤에도 입력 오류로 안내하지 않는다',async()=>{
+  await personal();await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).click();
+  await page.getByLabel('할 일 제목',{exact:true}).fill('복구할 정상 제목');
+  await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).click();
+  await page.evaluate(()=>window.taskUnknown=true);
+  await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).click();
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();
+  const original=await page.evaluate(()=>window.calls[1]);
+  await page.evaluate(()=>window.setShow(false));await settle();
+  assert.deepEqual(await page.evaluate(()=>window.restoreCheckpoint()),{drafts:1,pending:1,threadSaved:false});
+  await page.evaluate(()=>window.setShow(true));
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();
+  assert.equal(await page.getByText('할 일 제목·메모의 문자와 날짜를 확인해 주세요.',{exact:true}).count(),0);
+  await page.getByText('이전 요청 결과를 먼저 확인합니다.',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('할 일 제목',{exact:true}).inputValue(),'복구할 정상 제목');
+  assert.equal(await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).isDisabled(),true);
+  assert.equal(await page.getByRole('button',{name:'제안 검토 닫기',exact:true}).isDisabled(),true);
+  assert.equal(await page.evaluate(()=>window.calls.length),2);
+  assert.match(await page.locator('.assistant-pending').innerText(),new RegExp(original.key));
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).click();
+  await page.getByText('개인 할 일에 추가했습니다.',{exact:true}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.calls[2]),original);
+  assert.equal(await page.evaluate(()=>window.tasks),1);
+  assert.equal(await page.evaluate(()=>window.pending.count()),0);
+ });
  await test('질문 초안은 메뉴 이동을 막지 않고 재마운트해도 보존한다',async()=>{
   await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('다른 업무를 보고 이어 쓸 질문');await settle();
   assert.equal(await page.evaluate(()=>window.locked),false);

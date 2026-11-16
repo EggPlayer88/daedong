@@ -26,6 +26,9 @@ export function createEditDrafts(restricted = false, checkpoint?: TabCheckpoint)
     dirtySlots: (scope: string) => allowed(scope, generation)
       ? [...(entries.get(scope)?.entries() ?? [])].filter(([, entry]) => entry.warn).map(([slot]) => slot) : [],
     restoreCount: (scope: string) => allowed(scope, generation) ? waiting.get(scope)?.length ?? 0 : 0,
+    // 복구를 선택하기 전에는 본문 대신 보관한 업무의 종류만 안내한다.
+    restoreSlots: (scope: string) => allowed(scope, generation)
+      ? (waiting.get(scope) ?? []).filter(item => item.warn).map(item => item.slot) : [],
     restore(scope: string) {
       if (!allowed(scope, generation)) return false
       const saved = waiting.get(scope)

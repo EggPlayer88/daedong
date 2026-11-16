@@ -11,7 +11,7 @@ export interface DeliveryWorkspace {
   scope: string
   kind: DeliveryKind
   key: string
-  request?: { key: string; id: string; version?: number }
+  request?: { key: string; id: string; version?: number; fromInbox?: boolean }
   task?: SpecialistTask
   daily?: DailyCommand
   inbox?: boolean

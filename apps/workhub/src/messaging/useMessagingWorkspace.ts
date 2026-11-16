@@ -313,6 +313,12 @@ export function useMessagingWorkspace({
     focusThread.current = false
     heading.current?.focus()
   }
+  function returnToInbox() {
+    if (navigationLocked) return
+    // 원본 조회를 닫고 출발한 알림으로 돌아간다. 늦은 응답과 같은 열기 요청의 재실행은 막는다.
+    closeThread()
+    setTab('inbox')
+  }
   function openDeliveredThread(threadId: string) {
     if (
       !usable ||
@@ -732,6 +738,7 @@ export function useMessagingWorkspace({
     notice,
     onOpenSource,
     onReturnToSource,
+    returnToInbox,
     openDeliveredThread,
     openNoticeSource,
     openRequest,
