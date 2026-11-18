@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import balancedPolicy from '../../../../packages/timetable/_assets/balanced-policy.json'
 import type { Membership } from '../contracts'
 import { useEditDraft } from '../app/edit-drafts'
 import type { CpSatRequest, CpSatResponse } from '../../../../packages/timetable/src/cpSat'
@@ -95,7 +96,7 @@ export function LocalTimetableEngine(props: Props) {
   }
   useEffect(() => {
     if (!watch || !connection || !job || props.disabled) return
-    const timer = window.setInterval(() => void inspect(), 1000)
+    const timer = window.setInterval(() => void inspect(), job.request.options.qualityMode === 'balanced' ? balancedPolicy.resultPollMilliseconds : 1000)
     return () => window.clearInterval(timer)
   }, [watch, connection, job?.request.requestId, props.disabled])
   async function cancel() {
