@@ -1,0 +1,2122 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-11-18T11:32:08.509Z",
+  "scope": "실제 학교 자료가 아닌 합성 문제의 최종 정책 비교와 실제 UI 버튼 경로 측정. 원시 배치는 제외하고 원시 JSON 파일 해시로 연결한다.",
+  "selection": {
+    "filenames": [
+      "final-*.json",
+      "benchmark-button-*.json"
+    ],
+    "verificationReserveSeconds": 4,
+    "excluded": [
+      {
+        "file": "benchmark-button-2026-11-18T11-11-11-621Z.json",
+        "reason": "최종 4초 검증·전달 여유 정책과 다른 기록",
+        "verificationReserveSeconds": 1.5
+      }
+    ]
+  },
+  "hardware": {
+    "cpu": "13th Gen Intel Core i7-1360P",
+    "logicalProcessors": 16,
+    "memoryGiB": 16,
+    "provenance": "측정 담당자가 제공한 실행 PC 정보"
+  },
+  "method": "기준·개선 엔진은 동일 입력·시드·벽시계 요청 예산으로 한 번에 한 프로세스씩 교대 실행하며, 기준 1 워커·개선 정책 워커 수의 CPU 자원 차이가 있다. 양쪽 후보는 같은 품질 평가기로 재평가한다. 버튼 측정은 요청 작성·실제 파일 전송·작업자·검증·브라우저 표시를 포함하며 폴더 선택 UI만 시험 어댑터로 연결한다. 실패 기록도 포함하고 집계 시점에 다시 계산하거나 현재 소스 해시를 과거 측정에 붙이지 않는다.",
+  "interpretation": "여러 규모·조건에서 항상 3안 또는 60초 완료를 보장하지 않는다. 최고 패널티가 낮아도 개별 지표는 악화할 수 있으며, 여기에 보존한 각 원시 지표와 반환율을 함께 확인한다. 합성 문제 간 종합 평균으로 학교 전체 만족도를 주장하지 않는다.",
+  "totals": {
+    "comparisonReports": 4,
+    "comparisonPairs": 6,
+    "buttonReports": 2,
+    "pairedFeasibleRuns": 6,
+    "improvedPairs": 6,
+    "worsePairs": 0,
+    "equalPairs": 0,
+    "candidatesWithHardValidation": 35,
+    "hardInvalidCandidates": 0,
+    "buttonSuccesses": 2,
+    "meanButtonSeconds": 58.84009999999962
+  },
+  "comparisons": [
+    {
+      "startedAt": "2026-11-18T11:22:21.292Z",
+      "finishedAt": null,
+      "baselineCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "currentCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "scenario": "complex",
+      "fixtureSeed": 71283,
+      "warmStart": false,
+      "method": "같은 합성 입력·지정한 벽시계 예산·시드·후보3개·품질우선(minimizeChanges:false). 별도 Python 프로세스를 한 번에 하나씩 실행하고 순서 교대. 이전 엔진은 원래 단일 워커이며 새 엔진의 워커 수는 기록한 정책을 따른다. 모든 후보를 현재 독립 검증기와 같은 품질 평가기로 재평가. wallSeconds는 Python 기동부터 종료까지, verifiedWallSeconds는 요청 생성부터 응답 독립 검증까지이며 추가 보고용 재평가는 제외한다. 실제 학교 성능의 보장이 아님.",
+      "environment": {
+        "python": "3.12.10",
+        "ortools": "9.15.6755",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-1360P",
+        "logicalProcessors": 16,
+        "memoryGiB": 16
+      },
+      "input": {
+        "label": "실제 학교가 아닌 합성 9학급·270시수 공동교사·집단·자원·블록·고정·불가시간 포함 문제",
+        "sha256": "0bca8e9a6b6ee3fca6d81d807184372de0195f615e2a345ec4fd392e0b2c06a6",
+        "lessons": 261,
+        "periods": 270,
+        "resources": 39,
+        "slots": 55
+      },
+      "options": {
+        "seconds": 60,
+        "seeds": [
+          11,
+          12
+        ],
+        "maxCandidates": 3,
+        "minimizeChanges": false
+      },
+      "qualityPolicy": {
+        "version": 1,
+        "engineVersion": "canonical-balanced-1",
+        "defaultSeconds": 60,
+        "defaultCandidates": 3,
+        "workers": 8,
+        "initialFraction": 0.28,
+        "warmInitialFraction": 0.05,
+        "roundSeconds": 3,
+        "candidateReserveFraction": 0.25,
+        "verificationReserveSeconds": 4,
+        "verificationReserveFraction": 0.1,
+        "resultPollMilliseconds": 250,
+        "restartEvery": 7,
+        "poolCapacity": 48,
+        "relativeQualityTolerance": 0.1,
+        "absoluteQualityTolerance": 10,
+        "minimumDifferenceFraction": 0.04,
+        "weights": {
+          "preferencePenalty": 10,
+          "teacherDailyExcess": 30,
+          "teacherWorstExcess": 20,
+          "courseDailyPairs": 80,
+          "courseAdjacency": 8,
+          "teacherGapMinutes": 1
+        }
+      },
+      "sourceHashes": {
+        "packages/timetable/engine/balanced_engine.py": "d90cc72b86dbfb30af74baa026b43ef04b8c6c397a18e74dd2dced41d66e04f3",
+        "packages/timetable/engine/balanced_quality.py": "17bd2716ef1a76a38a21929331c51bda40eaed1b454253dadb3a83dbc9768a8c",
+        "packages/timetable/engine/jobs.py": "8d2531b78c7d9b29fd785cb18d9e79630ffaebe1cd1ef84993410f1a46b4a005",
+        "packages/timetable/engine/jobs_contract.py": "f4d67d79273b0a7478076930390b1307228ffb530c10a3c2764ca9cf85c57f6a",
+        "packages/timetable/engine/jobs_runtime.py": "71b9ecbcad02e17c20a19cf5b0417119a524165550743d493fa200254c6e16dd",
+        "packages/timetable/engine/jobs_worker.py": "0da5bd31f530806db9994948bdfc5646735772c217b9f9834137d1e4357f9387",
+        "packages/timetable/engine/runner.py": "ee138db13901212c839265a4667c55f0deeb19435dbba6e775e1736dc2b175ca",
+        "packages/timetable/_assets/balanced-policy.json": "1623c14edfbc84796aea9258aa35972b2d0985bba9d9fe57c8651bcb8408a2d1",
+        "packages/timetable/_assets/browser-policy.json": "42b3a25c8d8d059a2304b785858186f6e52983d713eb27342c3532d4ccb642fa",
+        "packages/timetable/_assets/engine-policy.json": "112a0995eb79959e0d047ec6f9a87dd2f772e4755747d6f064f3bfebd701887e",
+        "packages/timetable/_assets/job-policy.json": "272211ec06c53352b8b5909df96dfcfdc16f53c191f359ea81be37716bdd598a",
+        "packages/timetable/src/balanced.ts": "4e73aefa1b9b6a1f2629259a7b6df8a16c2dd0c23d1203965186be4ab69088e3",
+        "packages/timetable/src/validate.ts": "873e117a1954f7cd15a4f520858198fd323312a49e24bad7e5e47de7e42f396e",
+        "packages/timetable/src/cpSat.ts": "edbacc339d529c1cd1a5526557039a310023358fb926e88d41a83bde95678f82",
+        "tests/helpers/timetable-quality-fixtures.mjs": "667179d1ca82613260c53435ec391d3453fd9ade0d5bb41205403c68f49b0c60"
+      },
+      "previousQuality": null,
+      "summary": {
+        "baseline": {
+          "runs": 2,
+          "feasibleRuns": 2,
+          "threeActualCandidateRuns": 0,
+          "threeHighQualityDiverseRuns": 0,
+          "meanBestPenalty": 9172.5,
+          "medianBestPenalty": 9172.5,
+          "worstBestPenalty": 9486,
+          "threeHighQualityDiverseWithinBudgetRuns": 0,
+          "meanWallSeconds": 60.396112999999986,
+          "maxWallSeconds": 60.41334199999997,
+          "meanVerifiedWallSeconds": 60.564761450000006,
+          "maxVerifiedWallSeconds": 60.58323200000002
+        },
+        "improved": {
+          "runs": 2,
+          "feasibleRuns": 2,
+          "threeActualCandidateRuns": 2,
+          "threeHighQualityDiverseRuns": 2,
+          "meanBestPenalty": 4526.5,
+          "medianBestPenalty": 4526.5,
+          "worstBestPenalty": 5301,
+          "threeHighQualityDiverseWithinBudgetRuns": 2,
+          "meanWallSeconds": 56.62890614999999,
+          "maxWallSeconds": 56.6684206,
+          "meanVerifiedWallSeconds": 56.907746700000004,
+          "maxVerifiedWallSeconds": 56.9221136
+        },
+        "pairedFeasibleRuns": 2,
+        "improvedPairs": 2,
+        "worsePairs": 0,
+        "pairedMeanPenaltyReduction": 0.5065140365222132
+      },
+      "rawSource": {
+        "file": "final-complex-60.json",
+        "sha256": "b222e72df7860860deed5935ceec9598fa2990f03c08250e0807b9a49b576cd3",
+        "bytes": 277847
+      },
+      "sourceHashProvenance": "비교 실행 시작 때 원시 보고서가 캡처한 해시",
+      "workerCounts": {
+        "baseline": 1,
+        "improved": 8
+      },
+      "runs": [
+        {
+          "seed": 11,
+          "order": [
+            "baseline",
+            "improved"
+          ],
+          "baseline": {
+            "status": "feasible",
+            "wallSeconds": 60.378884,
+            "requestBuildSeconds": 0.015633299999999965,
+            "resultValidationSeconds": 0.14790589999999793,
+            "verifiedWallSeconds": 60.5462909,
+            "engineStats": {
+              "elapsedMs": 60093,
+              "branches": 728038,
+              "stoppedByLimit": true
+            },
+            "requestHash": "18aff8472abcc9582f345e2bad9593a2300804d3103a9fdc177ef883ac6b678c",
+            "bestPenalty": 9486,
+            "firstPenalty": 9486,
+            "actualCandidateCount": 2,
+            "highQualityDiverseCandidateCount": 1,
+            "qualityCeiling": 10434,
+            "minimumRequiredDifferenceMinutes": 492,
+            "differences": [
+              [
+                0,
+                10070
+              ],
+              [
+                10070,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 9486,
+                  "preferencePenalty": 8,
+                  "teacherDailyExcess": 10,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 142,
+                  "teacherGapMinutes": 7930
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 8,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "69c2d1568e133ef45d2dcfee3bf5e18c3c8662ea07db47b574b61b571f7d3eff"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 12980,
+                  "preferencePenalty": 8,
+                  "teacherDailyExcess": 9,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 56,
+                  "courseAdjacency": 85,
+                  "teacherGapMinutes": 7410
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 8,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 51
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "df9a3a608e5683945e2df6a4fcf476137b041cc52d4689acaae4814ed430d10a"
+              }
+            ],
+            "returnedCandidateCount": 2,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          },
+          "improved": {
+            "status": "feasible",
+            "wallSeconds": 56.6684206,
+            "requestBuildSeconds": 0.03916370000000461,
+            "resultValidationSeconds": 0.20508989999999175,
+            "verifiedWallSeconds": 56.9221136,
+            "engineStats": {
+              "elapsedMs": 56266,
+              "branches": 87535,
+              "stoppedByLimit": true
+            },
+            "requestHash": "5d8b7cdba5b6cf96302a586b1c1ad6c130a27d0a7c14db0550e79b68ac0aae71",
+            "bestPenalty": 3752,
+            "firstPenalty": 3752,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 4127,
+            "minimumRequiredDifferenceMinutes": 496,
+            "differences": [
+              [
+                0,
+                1580,
+                720
+              ],
+              [
+                1580,
+                0,
+                950
+              ],
+              [
+                720,
+                950,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 3752,
+                  "preferencePenalty": 68,
+                  "teacherDailyExcess": 15,
+                  "teacherWorstExcess": 5,
+                  "courseDailyPairs": 1,
+                  "courseAdjacency": 139,
+                  "teacherGapMinutes": 1330
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 68,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 1
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "d545f886b3ce87fd3259b89ac1e6ae316662ccb6b2161544fefd62dea32a7aef"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 3796,
+                  "preferencePenalty": 61,
+                  "teacherDailyExcess": 13,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 1,
+                  "courseAdjacency": 142,
+                  "teacherGapMinutes": 1520
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 61,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 1
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "94050eeda219f4cbd690ef50ab246c9f4e76314ec0265337339d0bc3bd377a00"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 3830,
+                  "preferencePenalty": 60,
+                  "teacherDailyExcess": 13,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 1,
+                  "courseAdjacency": 140,
+                  "teacherGapMinutes": 1580
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 60,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 1
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "59d3619e6610fc71c5b71bfd747500e2ea39e47c72115ce966b0e46473687186"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          }
+        },
+        {
+          "seed": 12,
+          "order": [
+            "improved",
+            "baseline"
+          ],
+          "baseline": {
+            "status": "feasible",
+            "wallSeconds": 60.41334199999997,
+            "requestBuildSeconds": 0.03485140000001411,
+            "resultValidationSeconds": 0.12717360000000918,
+            "verifiedWallSeconds": 60.58323200000002,
+            "engineStats": {
+              "elapsedMs": 60157,
+              "branches": 650514,
+              "stoppedByLimit": true
+            },
+            "requestHash": "c1aef0f9946379cd90ca262b9ac43a7a42f898f69482e268fc400f54b198fa47",
+            "bestPenalty": 8859,
+            "firstPenalty": 8859,
+            "actualCandidateCount": 1,
+            "highQualityDiverseCandidateCount": 1,
+            "qualityCeiling": 9744,
+            "minimumRequiredDifferenceMinutes": 495,
+            "differences": [
+              [
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 8859,
+                  "preferencePenalty": 8,
+                  "teacherDailyExcess": 8,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 6,
+                  "courseAdjacency": 133,
+                  "teacherGapMinutes": 6955
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 8,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 6
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "44eb051fcdb3e5323136248af9883166c49c39eb91c8b9ef9555c1284dcc89db"
+              }
+            ],
+            "returnedCandidateCount": 1,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          },
+          "improved": {
+            "status": "feasible",
+            "wallSeconds": 56.58939169999999,
+            "requestBuildSeconds": 0.038448200000013456,
+            "resultValidationSeconds": 0.251331199999986,
+            "verifiedWallSeconds": 56.8933798,
+            "engineStats": {
+              "elapsedMs": 56250,
+              "branches": 72995,
+              "stoppedByLimit": true
+            },
+            "requestHash": "56fec55e21c4077a46e4f502cb62c35edaf79eb864bff23584a9af192ce9bd80",
+            "bestPenalty": 5301,
+            "firstPenalty": 5301,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 5831,
+            "minimumRequiredDifferenceMinutes": 492,
+            "differences": [
+              [
+                0,
+                1215,
+                495
+              ],
+              [
+                1215,
+                0,
+                1710
+              ],
+              [
+                495,
+                1710,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 5301,
+                  "preferencePenalty": 57,
+                  "teacherDailyExcess": 7,
+                  "teacherWorstExcess": 1,
+                  "courseDailyPairs": 7,
+                  "courseAdjacency": 127,
+                  "teacherGapMinutes": 2925
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 57,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 7
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "b36b3200c748c3819a5d81bc57074c8aa3358598d947e5a1aefa555b43a7bd31"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 5601,
+                  "preferencePenalty": 49,
+                  "teacherDailyExcess": 6,
+                  "teacherWorstExcess": 1,
+                  "courseDailyPairs": 7,
+                  "courseAdjacency": 127,
+                  "teacherGapMinutes": 3335
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 49,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 7
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "013b7957292df1ce607d758aad41f709eba3558ca1779f73da8f04d729419952"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 5656,
+                  "preferencePenalty": 57,
+                  "teacherDailyExcess": 8,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 7,
+                  "courseAdjacency": 127,
+                  "teacherGapMinutes": 3230
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 57,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 7
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "0f5108582cd8e068ec6761d33d2f8948ae86d6b29553e9c62fba71173b391fc8"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          }
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-11-18T11:26:18.050Z",
+      "finishedAt": null,
+      "baselineCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "currentCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "scenario": "large",
+      "fixtureSeed": 71283,
+      "warmStart": false,
+      "method": "같은 합성 입력·지정한 벽시계 예산·시드·후보3개·품질우선(minimizeChanges:false). 별도 Python 프로세스를 한 번에 하나씩 실행하고 순서 교대. 이전 엔진은 원래 단일 워커이며 새 엔진의 워커 수는 기록한 정책을 따른다. 모든 후보를 현재 독립 검증기와 같은 품질 평가기로 재평가. wallSeconds는 Python 기동부터 종료까지, verifiedWallSeconds는 요청 생성부터 응답 독립 검증까지이며 추가 보고용 재평가는 제외한다. 실제 학교 성능의 보장이 아님.",
+      "environment": {
+        "python": "3.12.10",
+        "ortools": "9.15.6755",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-1360P",
+        "logicalProcessors": 16,
+        "memoryGiB": 16
+      },
+      "input": {
+        "label": "실제 학교가 아닌 합성 18학급·540시수 공동교사·집단·자원·블록·고정·불가시간 포함 문제",
+        "sha256": "3c6e7cdcc4e1e9ee7b864f9a6b4c37d8d4db71755bfba7b99e04aacf07d9f078",
+        "lessons": 522,
+        "periods": 540,
+        "resources": 75,
+        "slots": 55
+      },
+      "options": {
+        "seconds": 60,
+        "seeds": [
+          11
+        ],
+        "maxCandidates": 3,
+        "minimizeChanges": false
+      },
+      "qualityPolicy": {
+        "version": 1,
+        "engineVersion": "canonical-balanced-1",
+        "defaultSeconds": 60,
+        "defaultCandidates": 3,
+        "workers": 8,
+        "initialFraction": 0.28,
+        "warmInitialFraction": 0.05,
+        "roundSeconds": 3,
+        "candidateReserveFraction": 0.25,
+        "verificationReserveSeconds": 4,
+        "verificationReserveFraction": 0.1,
+        "resultPollMilliseconds": 250,
+        "restartEvery": 7,
+        "poolCapacity": 48,
+        "relativeQualityTolerance": 0.1,
+        "absoluteQualityTolerance": 10,
+        "minimumDifferenceFraction": 0.04,
+        "weights": {
+          "preferencePenalty": 10,
+          "teacherDailyExcess": 30,
+          "teacherWorstExcess": 20,
+          "courseDailyPairs": 80,
+          "courseAdjacency": 8,
+          "teacherGapMinutes": 1
+        }
+      },
+      "sourceHashes": {
+        "packages/timetable/engine/balanced_engine.py": "d90cc72b86dbfb30af74baa026b43ef04b8c6c397a18e74dd2dced41d66e04f3",
+        "packages/timetable/engine/balanced_quality.py": "17bd2716ef1a76a38a21929331c51bda40eaed1b454253dadb3a83dbc9768a8c",
+        "packages/timetable/engine/jobs.py": "8d2531b78c7d9b29fd785cb18d9e79630ffaebe1cd1ef84993410f1a46b4a005",
+        "packages/timetable/engine/jobs_contract.py": "f4d67d79273b0a7478076930390b1307228ffb530c10a3c2764ca9cf85c57f6a",
+        "packages/timetable/engine/jobs_runtime.py": "71b9ecbcad02e17c20a19cf5b0417119a524165550743d493fa200254c6e16dd",
+        "packages/timetable/engine/jobs_worker.py": "0da5bd31f530806db9994948bdfc5646735772c217b9f9834137d1e4357f9387",
+        "packages/timetable/engine/runner.py": "ee138db13901212c839265a4667c55f0deeb19435dbba6e775e1736dc2b175ca",
+        "packages/timetable/_assets/balanced-policy.json": "1623c14edfbc84796aea9258aa35972b2d0985bba9d9fe57c8651bcb8408a2d1",
+        "packages/timetable/_assets/browser-policy.json": "42b3a25c8d8d059a2304b785858186f6e52983d713eb27342c3532d4ccb642fa",
+        "packages/timetable/_assets/engine-policy.json": "112a0995eb79959e0d047ec6f9a87dd2f772e4755747d6f064f3bfebd701887e",
+        "packages/timetable/_assets/job-policy.json": "272211ec06c53352b8b5909df96dfcfdc16f53c191f359ea81be37716bdd598a",
+        "packages/timetable/src/balanced.ts": "4e73aefa1b9b6a1f2629259a7b6df8a16c2dd0c23d1203965186be4ab69088e3",
+        "packages/timetable/src/validate.ts": "873e117a1954f7cd15a4f520858198fd323312a49e24bad7e5e47de7e42f396e",
+        "packages/timetable/src/cpSat.ts": "edbacc339d529c1cd1a5526557039a310023358fb926e88d41a83bde95678f82",
+        "tests/helpers/timetable-quality-fixtures.mjs": "667179d1ca82613260c53435ec391d3453fd9ade0d5bb41205403c68f49b0c60"
+      },
+      "previousQuality": null,
+      "summary": {
+        "baseline": {
+          "runs": 1,
+          "feasibleRuns": 1,
+          "threeActualCandidateRuns": 0,
+          "threeHighQualityDiverseRuns": 0,
+          "meanBestPenalty": 24281,
+          "medianBestPenalty": 24281,
+          "worstBestPenalty": 24281,
+          "threeHighQualityDiverseWithinBudgetRuns": 0,
+          "meanWallSeconds": 60.5878229,
+          "maxWallSeconds": 60.5878229,
+          "meanVerifiedWallSeconds": 60.8190175,
+          "maxVerifiedWallSeconds": 60.8190175
+        },
+        "improved": {
+          "runs": 1,
+          "feasibleRuns": 1,
+          "threeActualCandidateRuns": 1,
+          "threeHighQualityDiverseRuns": 1,
+          "meanBestPenalty": 12524,
+          "medianBestPenalty": 12524,
+          "worstBestPenalty": 12524,
+          "threeHighQualityDiverseWithinBudgetRuns": 1,
+          "meanWallSeconds": 57.1316774,
+          "maxWallSeconds": 57.1316774,
+          "meanVerifiedWallSeconds": 57.754907499999995,
+          "maxVerifiedWallSeconds": 57.754907499999995
+        },
+        "pairedFeasibleRuns": 1,
+        "improvedPairs": 1,
+        "worsePairs": 0,
+        "pairedMeanPenaltyReduction": 0.4842057575882377
+      },
+      "rawSource": {
+        "file": "final-large-60.json",
+        "sha256": "675f5ed889d6c019060a97544f129120b3276e5ec46f502ab6a8169d40fe7986",
+        "bytes": 243810
+      },
+      "sourceHashProvenance": "비교 실행 시작 때 원시 보고서가 캡처한 해시",
+      "workerCounts": {
+        "baseline": 1,
+        "improved": 8
+      },
+      "runs": [
+        {
+          "seed": 11,
+          "order": [
+            "baseline",
+            "improved"
+          ],
+          "baseline": {
+            "status": "feasible",
+            "wallSeconds": 60.5878229,
+            "requestBuildSeconds": 0.027007900000000064,
+            "resultValidationSeconds": 0.1971154000000024,
+            "verifiedWallSeconds": 60.8190175,
+            "engineStats": {
+              "elapsedMs": 60281,
+              "branches": 786559,
+              "stoppedByLimit": true
+            },
+            "requestHash": "bad5eb35424c5de99304a861328eaec3348cfc51c4315dbb3c64b8eb88a8f6ae",
+            "bestPenalty": 24281,
+            "firstPenalty": 24281,
+            "actualCandidateCount": 1,
+            "highQualityDiverseCandidateCount": 1,
+            "qualityCeiling": 26709,
+            "minimumRequiredDifferenceMinutes": 983,
+            "differences": [
+              [
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 24281,
+                  "preferencePenalty": 168,
+                  "teacherDailyExcess": 75,
+                  "teacherWorstExcess": 5,
+                  "courseDailyPairs": 77,
+                  "courseAdjacency": 182,
+                  "teacherGapMinutes": 12635
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 168,
+                  "teacherPeakPeriods": 5,
+                  "courseRepeats": 77
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "03359a5695bb64a0a4fd43a09862d711f5ec1be3d9120019f3f467b02d459638"
+              }
+            ],
+            "returnedCandidateCount": 1,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          },
+          "improved": {
+            "status": "feasible",
+            "wallSeconds": 57.1316774,
+            "requestBuildSeconds": 0.07715380000000005,
+            "resultValidationSeconds": 0.5310323000000062,
+            "verifiedWallSeconds": 57.754907499999995,
+            "engineStats": {
+              "elapsedMs": 56703,
+              "branches": 102226,
+              "stoppedByLimit": true
+            },
+            "requestHash": "618db043846198109680956c7d5615cad047d704f75f00388cc4b4df801d0334",
+            "bestPenalty": 12524,
+            "firstPenalty": 12524,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 13776,
+            "minimumRequiredDifferenceMinutes": 983,
+            "differences": [
+              [
+                0,
+                1360,
+                1855
+              ],
+              [
+                1360,
+                0,
+                1755
+              ],
+              [
+                1855,
+                1755,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 12524,
+                  "preferencePenalty": 197,
+                  "teacherDailyExcess": 26,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 6,
+                  "courseAdjacency": 263,
+                  "teacherGapMinutes": 7150
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 197,
+                  "teacherPeakPeriods": 5,
+                  "courseRepeats": 6
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "e8f15efb8ae2d6c5d44a0b572978d000b40df3451fb9c1940a34cfbcfd5fb301"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 12566,
+                  "preferencePenalty": 188,
+                  "teacherDailyExcess": 25,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 6,
+                  "courseAdjacency": 262,
+                  "teacherGapMinutes": 7320
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 188,
+                  "teacherPeakPeriods": 5,
+                  "courseRepeats": 6
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "d7393b4ee53c6e6d4e14b6489170c50137266c8bb7e8ccb446cf5fcf787a650c"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 12941,
+                  "preferencePenalty": 197,
+                  "teacherDailyExcess": 24,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 6,
+                  "courseAdjacency": 262,
+                  "teacherGapMinutes": 7635
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 197,
+                  "teacherPeakPeriods": 5,
+                  "courseRepeats": 6
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "068cdee634128d0731852edbf1e94cd96ab2d2033587963f66dd2373c139016e"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          }
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-11-18T11:16:12.036Z",
+      "finishedAt": null,
+      "baselineCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "currentCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "scenario": "simple",
+      "fixtureSeed": 71283,
+      "warmStart": false,
+      "method": "같은 합성 입력·지정한 벽시계 예산·시드·후보3개·품질우선(minimizeChanges:false). 별도 Python 프로세스를 한 번에 하나씩 실행하고 순서 교대. 이전 엔진은 원래 단일 워커이며 새 엔진의 워커 수는 기록한 정책을 따른다. 모든 후보를 현재 독립 검증기와 같은 품질 평가기로 재평가. wallSeconds는 Python 기동부터 종료까지, verifiedWallSeconds는 요청 생성부터 응답 독립 검증까지이며 추가 보고용 재평가는 제외한다. 실제 학교 성능의 보장이 아님.",
+      "environment": {
+        "python": "3.12.10",
+        "ortools": "9.15.6755",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-1360P",
+        "logicalProcessors": 16,
+        "memoryGiB": 16
+      },
+      "input": {
+        "label": "실제 학교가 아닌 합성 9학급·270시수 기본 반복과목 문제",
+        "sha256": "98e2237b1a200c0d2d62b8e1015788a98c6af3571a8d96dcc71bfcdf09c98039",
+        "lessons": 270,
+        "periods": 270,
+        "resources": 33,
+        "slots": 30
+      },
+      "options": {
+        "seconds": 60,
+        "seeds": [
+          11,
+          12
+        ],
+        "maxCandidates": 3,
+        "minimizeChanges": false
+      },
+      "qualityPolicy": {
+        "version": 1,
+        "engineVersion": "canonical-balanced-1",
+        "defaultSeconds": 60,
+        "defaultCandidates": 3,
+        "workers": 8,
+        "initialFraction": 0.28,
+        "warmInitialFraction": 0.05,
+        "roundSeconds": 3,
+        "candidateReserveFraction": 0.25,
+        "verificationReserveSeconds": 4,
+        "verificationReserveFraction": 0.1,
+        "resultPollMilliseconds": 250,
+        "restartEvery": 7,
+        "poolCapacity": 48,
+        "relativeQualityTolerance": 0.1,
+        "absoluteQualityTolerance": 10,
+        "minimumDifferenceFraction": 0.04,
+        "weights": {
+          "preferencePenalty": 10,
+          "teacherDailyExcess": 30,
+          "teacherWorstExcess": 20,
+          "courseDailyPairs": 80,
+          "courseAdjacency": 8,
+          "teacherGapMinutes": 1
+        }
+      },
+      "sourceHashes": {
+        "packages/timetable/engine/balanced_engine.py": "d90cc72b86dbfb30af74baa026b43ef04b8c6c397a18e74dd2dced41d66e04f3",
+        "packages/timetable/engine/balanced_quality.py": "17bd2716ef1a76a38a21929331c51bda40eaed1b454253dadb3a83dbc9768a8c",
+        "packages/timetable/engine/jobs.py": "8d2531b78c7d9b29fd785cb18d9e79630ffaebe1cd1ef84993410f1a46b4a005",
+        "packages/timetable/engine/jobs_contract.py": "f4d67d79273b0a7478076930390b1307228ffb530c10a3c2764ca9cf85c57f6a",
+        "packages/timetable/engine/jobs_runtime.py": "71b9ecbcad02e17c20a19cf5b0417119a524165550743d493fa200254c6e16dd",
+        "packages/timetable/engine/jobs_worker.py": "0da5bd31f530806db9994948bdfc5646735772c217b9f9834137d1e4357f9387",
+        "packages/timetable/engine/runner.py": "ee138db13901212c839265a4667c55f0deeb19435dbba6e775e1736dc2b175ca",
+        "packages/timetable/_assets/balanced-policy.json": "1623c14edfbc84796aea9258aa35972b2d0985bba9d9fe57c8651bcb8408a2d1",
+        "packages/timetable/_assets/browser-policy.json": "42b3a25c8d8d059a2304b785858186f6e52983d713eb27342c3532d4ccb642fa",
+        "packages/timetable/_assets/engine-policy.json": "112a0995eb79959e0d047ec6f9a87dd2f772e4755747d6f064f3bfebd701887e",
+        "packages/timetable/_assets/job-policy.json": "272211ec06c53352b8b5909df96dfcfdc16f53c191f359ea81be37716bdd598a",
+        "packages/timetable/src/balanced.ts": "4e73aefa1b9b6a1f2629259a7b6df8a16c2dd0c23d1203965186be4ab69088e3",
+        "packages/timetable/src/validate.ts": "873e117a1954f7cd15a4f520858198fd323312a49e24bad7e5e47de7e42f396e",
+        "packages/timetable/src/cpSat.ts": "edbacc339d529c1cd1a5526557039a310023358fb926e88d41a83bde95678f82",
+        "tests/helpers/timetable-quality-fixtures.mjs": "667179d1ca82613260c53435ec391d3453fd9ade0d5bb41205403c68f49b0c60"
+      },
+      "previousQuality": null,
+      "summary": {
+        "baseline": {
+          "runs": 2,
+          "feasibleRuns": 2,
+          "threeActualCandidateRuns": 2,
+          "threeHighQualityDiverseRuns": 1,
+          "meanBestPenalty": 7698.5,
+          "medianBestPenalty": 7698.5,
+          "worstBestPenalty": 7878,
+          "threeHighQualityDiverseWithinBudgetRuns": 1,
+          "meanWallSeconds": 53.44811425,
+          "maxWallSeconds": 58.53386600000001,
+          "meanVerifiedWallSeconds": 53.645325,
+          "maxVerifiedWallSeconds": 58.71699960000001
+        },
+        "improved": {
+          "runs": 2,
+          "feasibleRuns": 2,
+          "threeActualCandidateRuns": 2,
+          "threeHighQualityDiverseRuns": 2,
+          "meanBestPenalty": 2103.5,
+          "medianBestPenalty": 2103.5,
+          "worstBestPenalty": 2229,
+          "threeHighQualityDiverseWithinBudgetRuns": 2,
+          "meanWallSeconds": 56.862904099999994,
+          "maxWallSeconds": 56.97256569999999,
+          "meanVerifiedWallSeconds": 57.1175019,
+          "maxVerifiedWallSeconds": 57.2125736
+        },
+        "pairedFeasibleRuns": 2,
+        "improvedPairs": 2,
+        "worsePairs": 0,
+        "pairedMeanPenaltyReduction": 0.7267649542118595
+      },
+      "rawSource": {
+        "file": "final-simple-60.json",
+        "sha256": "b50d1073143ec7b56ba12e252d93e09cbc454dd5dc0d4b0f2e5a0d24e22f484c",
+        "bytes": 379298
+      },
+      "sourceHashProvenance": "비교 실행 시작 때 원시 보고서가 캡처한 해시",
+      "workerCounts": {
+        "baseline": 1,
+        "improved": 8
+      },
+      "runs": [
+        {
+          "seed": 11,
+          "order": [
+            "baseline",
+            "improved"
+          ],
+          "baseline": {
+            "status": "feasible",
+            "wallSeconds": 48.3623625,
+            "requestBuildSeconds": 0.01563280000000009,
+            "resultValidationSeconds": 0.1891241000000009,
+            "verifiedWallSeconds": 48.5736504,
+            "engineStats": {
+              "elapsedMs": 48063,
+              "branches": 686870,
+              "stoppedByLimit": false
+            },
+            "requestHash": "dc62caa7da907a4e2bb3ee413b564097d47f61b1e381add59ca33c053268e508",
+            "bestPenalty": 7878,
+            "firstPenalty": 8049,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 8665,
+            "minimumRequiredDifferenceMinutes": 486,
+            "differences": [
+              [
+                0,
+                6480,
+                6075
+              ],
+              [
+                6480,
+                0,
+                6030
+              ],
+              [
+                6075,
+                6030,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 8049,
+                  "preferencePenalty": 0,
+                  "teacherDailyExcess": 8,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 153,
+                  "teacherGapMinutes": 6525
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 0,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "97e8478d401f7ce04d0a560207647591ab87daafbdf702ff0d3bf010a07eaccc"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 8224,
+                  "preferencePenalty": 0,
+                  "teacherDailyExcess": 7,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 153,
+                  "teacherGapMinutes": 6750
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 0,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "de7ec9fd411b99a7e75fbd1ebc8ef69aa6b82feb38e77bd156dcfe31d5ea7556"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 7878,
+                  "preferencePenalty": 0,
+                  "teacherDailyExcess": 5,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 151,
+                  "teacherGapMinutes": 6480
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 0,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "fab116f6b2c62f0a3216b8ca350646f07379e1ddc5a75ced7e63f09f443c5921"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          },
+          "improved": {
+            "status": "feasible",
+            "wallSeconds": 56.97256569999999,
+            "requestBuildSeconds": 0.03828340000000026,
+            "resultValidationSeconds": 0.1901756999999925,
+            "verifiedWallSeconds": 57.2125736,
+            "engineStats": {
+              "elapsedMs": 56578,
+              "branches": 88977,
+              "stoppedByLimit": true
+            },
+            "requestHash": "34ad96dbf6828c908a68dc3dfddde8346fe527d27a10f875952d004f5dd5f74f",
+            "bestPenalty": 2229,
+            "firstPenalty": 2229,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 2451,
+            "minimumRequiredDifferenceMinutes": 486,
+            "differences": [
+              [
+                0,
+                855,
+                900
+              ],
+              [
+                855,
+                0,
+                585
+              ],
+              [
+                900,
+                585,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 2229,
+                  "preferencePenalty": 50,
+                  "teacherDailyExcess": 10,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 2,
+                  "courseAdjacency": 148,
+                  "teacherGapMinutes": 45
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 50,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 2
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "c8c65375f5aa2c9a8026c6235e896ce0c75d549032cf9da370a981b876fd82a3"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 2264,
+                  "preferencePenalty": 58,
+                  "teacherDailyExcess": 10,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 2,
+                  "courseAdjacency": 148,
+                  "teacherGapMinutes": 0
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 58,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 2
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "e20212d2c3ed85eca197d30b73fab30e3de9fdcf51bf7a9be76b2d4cad8905f1"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 2330,
+                  "preferencePenalty": 63,
+                  "teacherDailyExcess": 10,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 2,
+                  "courseAdjacency": 150,
+                  "teacherGapMinutes": 0
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 63,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 2
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "daa87d79d87162566a66b2a2c46d96f66454eb5f32b944b10551586eb5e4a267"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          }
+        },
+        {
+          "seed": 12,
+          "order": [
+            "improved",
+            "baseline"
+          ],
+          "baseline": {
+            "status": "feasible",
+            "wallSeconds": 58.53386600000001,
+            "requestBuildSeconds": 0.0373243000000075,
+            "resultValidationSeconds": 0.1350124000000069,
+            "verifiedWallSeconds": 58.71699960000001,
+            "engineStats": {
+              "elapsedMs": 58234,
+              "branches": 837774,
+              "stoppedByLimit": false
+            },
+            "requestHash": "3639b1f38dc3e40d8f67a826be780da1a22bd24992758526f48e837103e51aee",
+            "bestPenalty": 7519,
+            "firstPenalty": 7519,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 2,
+            "qualityCeiling": 8270,
+            "minimumRequiredDifferenceMinutes": 486,
+            "differences": [
+              [
+                0,
+                6930,
+                6705
+              ],
+              [
+                6930,
+                0,
+                6390
+              ],
+              [
+                6705,
+                6390,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 7519,
+                  "preferencePenalty": 0,
+                  "teacherDailyExcess": 6,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 153,
+                  "teacherGapMinutes": 6075
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 0,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "322965aa5bff7148aa883c22b89be539267dff537d0b52e6675a97543b483baa"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 7992,
+                  "preferencePenalty": 0,
+                  "teacherDailyExcess": 8,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 154,
+                  "teacherGapMinutes": 6480
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 0,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "bdc33478bdee0160ed841739717078ee186343a9dd33bd144f10b291c537c9a0"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 8271,
+                  "preferencePenalty": 0,
+                  "teacherDailyExcess": 5,
+                  "teacherWorstExcess": 1,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 152,
+                  "teacherGapMinutes": 6885
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 0,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 0
+                },
+                "optimal": true,
+                "hardValid": true,
+                "actualFingerprintSha256": "ac6a788e8ab440ac3258ecd6708294a5c082341cdc953ecfe0eee8f8ad2ea654"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          },
+          "improved": {
+            "status": "feasible",
+            "wallSeconds": 56.753242500000006,
+            "requestBuildSeconds": 0.032688899999993734,
+            "resultValidationSeconds": 0.22645569999999135,
+            "verifiedWallSeconds": 57.0224302,
+            "engineStats": {
+              "elapsedMs": 56407,
+              "branches": 61944,
+              "stoppedByLimit": true
+            },
+            "requestHash": "bf70c907a7c854e68e80552e083675fb2480b80bc48184230461cddb65e3fcb6",
+            "bestPenalty": 1978,
+            "firstPenalty": 1978,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 2175,
+            "minimumRequiredDifferenceMinutes": 486,
+            "differences": [
+              [
+                0,
+                1260,
+                945
+              ],
+              [
+                1260,
+                0,
+                585
+              ],
+              [
+                945,
+                585,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 1978,
+                  "preferencePenalty": 48,
+                  "teacherDailyExcess": 5,
+                  "teacherWorstExcess": 1,
+                  "courseDailyPairs": 2,
+                  "courseAdjacency": 146,
+                  "teacherGapMinutes": 0
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 48,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 2
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "f8fd81f05bdcebddcb1f4611ea4b7d0b250c8cc2fc2fe1ccda9d2aca471abf0e"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 2006,
+                  "preferencePenalty": 50,
+                  "teacherDailyExcess": 5,
+                  "teacherWorstExcess": 1,
+                  "courseDailyPairs": 2,
+                  "courseAdjacency": 147,
+                  "teacherGapMinutes": 0
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 50,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 2
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "2222122b88daab1147ca5db601365a20b614da3c6f4a002c89d12b67b1cf4674"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 2014,
+                  "preferencePenalty": 50,
+                  "teacherDailyExcess": 5,
+                  "teacherWorstExcess": 1,
+                  "courseDailyPairs": 2,
+                  "courseAdjacency": 148,
+                  "teacherGapMinutes": 0
+                },
+                "originalObjective": {
+                  "changedLessons": 0,
+                  "movedLessons": 0,
+                  "preferencePenalty": 50,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 2
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "d4734d33be12cfb97386ebc0246f69c5beb5ddfbb07fbb54d3dd0694f6196fe6"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          }
+        }
+      ]
+    },
+    {
+      "startedAt": "2026-11-18T11:28:18.354Z",
+      "finishedAt": null,
+      "baselineCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "currentCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "scenario": "complex",
+      "fixtureSeed": 71283,
+      "warmStart": true,
+      "method": "같은 합성 입력·지정한 벽시계 예산·시드·후보3개·품질우선(minimizeChanges:false). 별도 Python 프로세스를 한 번에 하나씩 실행하고 순서 교대. 이전 엔진은 원래 단일 워커이며 새 엔진의 워커 수는 기록한 정책을 따른다. 모든 후보를 현재 독립 검증기와 같은 품질 평가기로 재평가. wallSeconds는 Python 기동부터 종료까지, verifiedWallSeconds는 요청 생성부터 응답 독립 검증까지이며 추가 보고용 재평가는 제외한다. 실제 학교 성능의 보장이 아님.",
+      "environment": {
+        "python": "3.12.10",
+        "ortools": "9.15.6755",
+        "platform": "Windows-11-10.0.26200-SP0",
+        "cpu": "13th Gen Intel(R) Core(TM) i7-1360P",
+        "logicalProcessors": 16,
+        "memoryGiB": 16
+      },
+      "input": {
+        "label": "실제 학교가 아닌 합성 9학급·270시수 공동교사·집단·자원·블록·고정·불가시간 포함 문제",
+        "sha256": "0bca8e9a6b6ee3fca6d81d807184372de0195f615e2a345ec4fd392e0b2c06a6",
+        "lessons": 261,
+        "periods": 270,
+        "resources": 39,
+        "slots": 55
+      },
+      "options": {
+        "seconds": 60,
+        "seeds": [
+          11
+        ],
+        "maxCandidates": 3,
+        "minimizeChanges": false
+      },
+      "qualityPolicy": {
+        "version": 1,
+        "engineVersion": "canonical-balanced-1",
+        "defaultSeconds": 60,
+        "defaultCandidates": 3,
+        "workers": 8,
+        "initialFraction": 0.28,
+        "warmInitialFraction": 0.05,
+        "roundSeconds": 3,
+        "candidateReserveFraction": 0.25,
+        "verificationReserveSeconds": 4,
+        "verificationReserveFraction": 0.1,
+        "resultPollMilliseconds": 250,
+        "restartEvery": 7,
+        "poolCapacity": 48,
+        "relativeQualityTolerance": 0.1,
+        "absoluteQualityTolerance": 10,
+        "minimumDifferenceFraction": 0.04,
+        "weights": {
+          "preferencePenalty": 10,
+          "teacherDailyExcess": 30,
+          "teacherWorstExcess": 20,
+          "courseDailyPairs": 80,
+          "courseAdjacency": 8,
+          "teacherGapMinutes": 1
+        }
+      },
+      "sourceHashes": {
+        "packages/timetable/engine/balanced_engine.py": "d90cc72b86dbfb30af74baa026b43ef04b8c6c397a18e74dd2dced41d66e04f3",
+        "packages/timetable/engine/balanced_quality.py": "17bd2716ef1a76a38a21929331c51bda40eaed1b454253dadb3a83dbc9768a8c",
+        "packages/timetable/engine/jobs.py": "8d2531b78c7d9b29fd785cb18d9e79630ffaebe1cd1ef84993410f1a46b4a005",
+        "packages/timetable/engine/jobs_contract.py": "f4d67d79273b0a7478076930390b1307228ffb530c10a3c2764ca9cf85c57f6a",
+        "packages/timetable/engine/jobs_runtime.py": "71b9ecbcad02e17c20a19cf5b0417119a524165550743d493fa200254c6e16dd",
+        "packages/timetable/engine/jobs_worker.py": "0da5bd31f530806db9994948bdfc5646735772c217b9f9834137d1e4357f9387",
+        "packages/timetable/engine/runner.py": "ee138db13901212c839265a4667c55f0deeb19435dbba6e775e1736dc2b175ca",
+        "packages/timetable/_assets/balanced-policy.json": "1623c14edfbc84796aea9258aa35972b2d0985bba9d9fe57c8651bcb8408a2d1",
+        "packages/timetable/_assets/browser-policy.json": "42b3a25c8d8d059a2304b785858186f6e52983d713eb27342c3532d4ccb642fa",
+        "packages/timetable/_assets/engine-policy.json": "112a0995eb79959e0d047ec6f9a87dd2f772e4755747d6f064f3bfebd701887e",
+        "packages/timetable/_assets/job-policy.json": "272211ec06c53352b8b5909df96dfcfdc16f53c191f359ea81be37716bdd598a",
+        "packages/timetable/src/balanced.ts": "4e73aefa1b9b6a1f2629259a7b6df8a16c2dd0c23d1203965186be4ab69088e3",
+        "packages/timetable/src/validate.ts": "873e117a1954f7cd15a4f520858198fd323312a49e24bad7e5e47de7e42f396e",
+        "packages/timetable/src/cpSat.ts": "edbacc339d529c1cd1a5526557039a310023358fb926e88d41a83bde95678f82",
+        "tests/helpers/timetable-quality-fixtures.mjs": "667179d1ca82613260c53435ec391d3453fd9ade0d5bb41205403c68f49b0c60"
+      },
+      "previousQuality": {
+        "totalPenalty": 4530,
+        "preferencePenalty": 149,
+        "teacherDailyExcess": 20,
+        "teacherWorstExcess": 5,
+        "courseDailyPairs": 0,
+        "courseAdjacency": 135,
+        "teacherGapMinutes": 1260
+      },
+      "summary": {
+        "baseline": {
+          "runs": 1,
+          "feasibleRuns": 1,
+          "threeActualCandidateRuns": 0,
+          "threeHighQualityDiverseRuns": 0,
+          "meanBestPenalty": 12899,
+          "medianBestPenalty": 12899,
+          "worstBestPenalty": 12899,
+          "threeHighQualityDiverseWithinBudgetRuns": 0,
+          "meanWallSeconds": 60.377907699999994,
+          "maxWallSeconds": 60.377907699999994,
+          "meanVerifiedWallSeconds": 60.5462197,
+          "maxVerifiedWallSeconds": 60.5462197
+        },
+        "improved": {
+          "runs": 1,
+          "feasibleRuns": 1,
+          "threeActualCandidateRuns": 1,
+          "threeHighQualityDiverseRuns": 1,
+          "meanBestPenalty": 3355,
+          "medianBestPenalty": 3355,
+          "worstBestPenalty": 3355,
+          "threeHighQualityDiverseWithinBudgetRuns": 1,
+          "meanWallSeconds": 56.67040060000001,
+          "maxWallSeconds": 56.67040060000001,
+          "meanVerifiedWallSeconds": 57.027787,
+          "maxVerifiedWallSeconds": 57.027787
+        },
+        "pairedFeasibleRuns": 1,
+        "improvedPairs": 1,
+        "worsePairs": 0,
+        "pairedMeanPenaltyReduction": 0.739902318009148
+      },
+      "rawSource": {
+        "file": "final-warm-60.json",
+        "sha256": "7b8b26cc7b9c319b6e14d3afe049849b9c5adcbf22c03afd1eede435412c0596",
+        "bytes": 126776
+      },
+      "sourceHashProvenance": "비교 실행 시작 때 원시 보고서가 캡처한 해시",
+      "workerCounts": {
+        "baseline": 1,
+        "improved": 8
+      },
+      "runs": [
+        {
+          "seed": 11,
+          "order": [
+            "baseline",
+            "improved"
+          ],
+          "baseline": {
+            "status": "feasible",
+            "wallSeconds": 60.377907699999994,
+            "requestBuildSeconds": 0.025497299999999997,
+            "resultValidationSeconds": 0.13795810000000347,
+            "verifiedWallSeconds": 60.5462197,
+            "engineStats": {
+              "elapsedMs": 60110,
+              "branches": 556625,
+              "stoppedByLimit": true
+            },
+            "requestHash": "12202e546b303fab1d0757d5451c34fa9d85bfcaf5e96e8a9a2c1326521b89e5",
+            "bestPenalty": 12899,
+            "firstPenalty": 12899,
+            "actualCandidateCount": 1,
+            "highQualityDiverseCandidateCount": 1,
+            "qualityCeiling": 14188,
+            "minimumRequiredDifferenceMinutes": 492,
+            "differences": [
+              [
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 12899,
+                  "preferencePenalty": 8,
+                  "teacherDailyExcess": 11,
+                  "teacherWorstExcess": 2,
+                  "courseDailyPairs": 57,
+                  "courseAdjacency": 88,
+                  "teacherGapMinutes": 7185
+                },
+                "originalObjective": {
+                  "changedLessons": 246,
+                  "movedLessons": 246,
+                  "preferencePenalty": 8,
+                  "teacherPeakPeriods": 3,
+                  "courseRepeats": 53
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "57a662bdcc56f92aa2c0f0b0618bc2614aa62e16f9a2bb15e24f5cc0674ddd7c"
+              }
+            ],
+            "returnedCandidateCount": 1,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          },
+          "improved": {
+            "status": "feasible",
+            "wallSeconds": 56.67040060000001,
+            "requestBuildSeconds": 0.07330909999999859,
+            "resultValidationSeconds": 0.27216339999999034,
+            "verifiedWallSeconds": 57.027787,
+            "engineStats": {
+              "elapsedMs": 56266,
+              "branches": 81534,
+              "stoppedByLimit": true
+            },
+            "requestHash": "dcf49c1ceea1cbaa38f3d8de3438d2d06d951f78ca76a3604dc8262090722058",
+            "bestPenalty": 3355,
+            "firstPenalty": 3355,
+            "actualCandidateCount": 3,
+            "highQualityDiverseCandidateCount": 3,
+            "qualityCeiling": 3690,
+            "minimumRequiredDifferenceMinutes": 492,
+            "differences": [
+              [
+                0,
+                560,
+                1100
+              ],
+              [
+                560,
+                0,
+                540
+              ],
+              [
+                1100,
+                540,
+                0
+              ]
+            ],
+            "issues": [],
+            "candidates": [
+              {
+                "index": 1,
+                "quality": {
+                  "totalPenalty": 3355,
+                  "preferencePenalty": 88,
+                  "teacherDailyExcess": 14,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 140,
+                  "teacherGapMinutes": 875
+                },
+                "originalObjective": {
+                  "changedLessons": 129,
+                  "movedLessons": 129,
+                  "preferencePenalty": 88,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 0
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "a1b155591d3fbd0a17fc835bdf028fc75ef822199340dc6bf1a6c006b99ff69c"
+              },
+              {
+                "index": 2,
+                "quality": {
+                  "totalPenalty": 3415,
+                  "preferencePenalty": 94,
+                  "teacherDailyExcess": 14,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 140,
+                  "teacherGapMinutes": 875
+                },
+                "originalObjective": {
+                  "changedLessons": 118,
+                  "movedLessons": 118,
+                  "preferencePenalty": 94,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 0
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "00217665e25f5d298aabd862a1882b2ef9cc405fa4ca7d2b97fa8a728de05b8f"
+              },
+              {
+                "index": 3,
+                "quality": {
+                  "totalPenalty": 3487,
+                  "preferencePenalty": 102,
+                  "teacherDailyExcess": 14,
+                  "teacherWorstExcess": 3,
+                  "courseDailyPairs": 0,
+                  "courseAdjacency": 139,
+                  "teacherGapMinutes": 875
+                },
+                "originalObjective": {
+                  "changedLessons": 113,
+                  "movedLessons": 113,
+                  "preferencePenalty": 102,
+                  "teacherPeakPeriods": 4,
+                  "courseRepeats": 0
+                },
+                "optimal": false,
+                "hardValid": true,
+                "actualFingerprintSha256": "4dcce6c5038c9fc28a1c91b9769a031fbcd59afc49e7369985d34cb7ac3780c1"
+              }
+            ],
+            "returnedCandidateCount": 3,
+            "hardValidationComplete": true,
+            "allReturnedCandidatesHardValid": true
+          }
+        }
+      ]
+    }
+  ],
+  "buttonRuns": [
+    {
+      "rawSource": {
+        "file": "benchmark-button-18classes-2026-11-18T11-20-42-071Z.json",
+        "sha256": "b7f6b7620fc801dc76c08b89e45ecee15203c55b13fee0cbcb0546cfe0eb5b97",
+        "bytes": 1165118
+      },
+      "startedAt": "2026-11-18T11:20:42.105Z",
+      "baselineCommit": null,
+      "currentCommit": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+      "sourceHashes": {
+        "apps/workhub/src/timetable/LocalTimetableEngine.tsx": "e8f013c661fed48bcc173085582fbe795835d2186d084d41654031bd6d31f81b",
+        "apps/workhub/src/timetable/TimetableEnginePanel.tsx": "9692e8ef1ef85bac724d631e8805036b6cd53df5bf1781915dd9e069f8765dc9",
+        "packages/timetable/_assets/balanced-policy.json": "1623c14edfbc84796aea9258aa35972b2d0985bba9d9fe57c8651bcb8408a2d1",
+        "packages/timetable/_assets/browser-policy.json": "42b3a25c8d8d059a2304b785858186f6e52983d713eb27342c3532d4ccb642fa",
+        "packages/timetable/_assets/engine-policy.json": "112a0995eb79959e0d047ec6f9a87dd2f772e4755747d6f064f3bfebd701887e",
+        "packages/timetable/_assets/job-policy.json": "272211ec06c53352b8b5909df96dfcfdc16f53c191f359ea81be37716bdd598a",
+        "packages/timetable/engine/balanced_engine.py": "d90cc72b86dbfb30af74baa026b43ef04b8c6c397a18e74dd2dced41d66e04f3",
+        "packages/timetable/engine/balanced_quality.py": "17bd2716ef1a76a38a21929331c51bda40eaed1b454253dadb3a83dbc9768a8c",
+        "packages/timetable/engine/jobs.py": "8d2531b78c7d9b29fd785cb18d9e79630ffaebe1cd1ef84993410f1a46b4a005",
+        "packages/timetable/engine/jobs_contract.py": "f4d67d79273b0a7478076930390b1307228ffb530c10a3c2764ca9cf85c57f6a",
+        "packages/timetable/engine/jobs_runtime.py": "71b9ecbcad02e17c20a19cf5b0417119a524165550743d493fa200254c6e16dd",
+        "packages/timetable/engine/jobs_worker.py": "0da5bd31f530806db9994948bdfc5646735772c217b9f9834137d1e4357f9387",
+        "packages/timetable/engine/runner.py": "ee138db13901212c839265a4667c55f0deeb19435dbba6e775e1736dc2b175ca",
+        "packages/timetable/src/balanced.ts": "4e73aefa1b9b6a1f2629259a7b6df8a16c2dd0c23d1203965186be4ab69088e3",
+        "packages/timetable/src/cpSat.ts": "edbacc339d529c1cd1a5526557039a310023358fb926e88d41a83bde95678f82",
+        "packages/timetable/src/validate.ts": "873e117a1954f7cd15a4f520858198fd323312a49e24bad7e5e47de7e42f396e",
+        "scripts/benchmark-timetable-button.mjs": "fb4e51aaba596590d0f4f1315ba3e8092292a965aa2b6ecb2777f9210b583cfa",
+        "tests/helpers/timetable-quality-fixtures.mjs": "667179d1ca82613260c53435ec391d3453fd9ade0d5bb41205403c68f49b0c60"
+      },
+      "sourceHashProvenance": "버튼 측정 원시 보고서가 캡처한 해시",
+      "environment": {
+        "platform": "win32",
+        "release": "10.0.26200",
+        "arch": "x64",
+        "nodeVersion": "v24.15.0",
+        "cpu": {
+          "model": "13th Gen Intel(R) Core(TM) i7-1360P",
+          "logicalProcessors": 16,
+          "reportedSpeedsMHz": [
+            2611
+          ]
+        },
+        "totalMemoryBytes": 16718426112,
+        "python": {
+          "version": "3.12.10",
+          "fullVersion": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+          "implementation": "CPython",
+          "executable": "C:\\Users\\lyj19\\Desktop\\학교업무혁신시스템\\packages\\timetable\\.venv\\Scripts\\python.exe",
+          "ortoolsVersion": "9.15.6755"
+        },
+        "browser": {
+          "version": "157.0.8103.79",
+          "channel": "chrome",
+          "viewport": {
+            "width": 1280,
+            "height": 900
+          }
+        }
+      },
+      "fixture": {
+        "label": "실제 학교가 아닌 합성 18학급·540시수 공동교사·집단·자원·블록·고정·불가시간 포함 문제",
+        "classes": 18,
+        "complex": true,
+        "seed": 71283,
+        "sha256": "3c6e7cdcc4e1e9ee7b864f9a6b4c37d8d4db71755bfba7b99e04aacf07d9f078",
+        "sha256Definition": "버튼 요청의 basis 전체를 JSON.stringify한 UTF-8 바이트",
+        "sourceFingerprint": "ee30a58a158e52a4a0ed006864c8b1cc4c60c9650f6b24782fb23d92a7e09b73",
+        "lessons": 522,
+        "periods": 540,
+        "resources": 75,
+        "slots": 55
+      },
+      "policy": {
+        "version": 1,
+        "engineVersion": "canonical-balanced-1",
+        "defaultSeconds": 60,
+        "defaultCandidates": 3,
+        "workers": 8,
+        "initialFraction": 0.28,
+        "warmInitialFraction": 0.05,
+        "roundSeconds": 3,
+        "candidateReserveFraction": 0.25,
+        "verificationReserveSeconds": 4,
+        "verificationReserveFraction": 0.1,
+        "resultPollMilliseconds": 250,
+        "restartEvery": 7,
+        "poolCapacity": 48,
+        "relativeQualityTolerance": 0.1,
+        "absoluteQualityTolerance": 10,
+        "minimumDifferenceFraction": 0.04,
+        "weights": {
+          "preferencePenalty": 10,
+          "teacherDailyExcess": 30,
+          "teacherWorstExcess": 20,
+          "courseDailyPairs": 80,
+          "courseAdjacency": 8,
+          "teacherGapMinutes": 1
+        }
+      },
+      "options": {
+        "maxSeconds": 60,
+        "maxCandidates": 3,
+        "seed": 71283,
+        "minimizeChanges": false,
+        "improveTeacherBalance": true,
+        "spreadCourses": true,
+        "qualityMode": "balanced"
+      },
+      "requestHash": "d80355c4025ea721c7832c8b63dd881148154123668e6a7d745db6a414e6442c",
+      "targetMs": 60000,
+      "testBudgetMs": 180000,
+      "timingDefinition": "실제 버튼 click capture부터 후보 제목·radio 3개·품질 평가가 표시된 뒤 두 프레임까지; 작업자 검증과 실제 정책 간격의 UI 조회 포함",
+      "clickToThreeCandidatesMs": 59673.900000002235,
+      "clickToThreeCandidatesSeconds": 59.673900000002234,
+      "clickToReadyHostMs": 190.4918,
+      "readyToWorkerSpawnHostMs": 3.6534999999998945,
+      "worker": {
+        "exitCode": 0,
+        "signal": null,
+        "spawnError": null,
+        "elapsedMs": 58727.286400000005
+      },
+      "jobStatus": {
+        "state": "succeeded",
+        "code": null,
+        "queuedAt": "2026-11-18T11:20:43.599Z",
+        "startedAt": "2026-11-18T11:20:43.867Z",
+        "finishedAt": "2026-11-18T11:21:42.295Z"
+      },
+      "engineVersion": "canonical-balanced-1",
+      "status": "feasible",
+      "engineStats": {
+        "branches": 32969,
+        "elapsedMs": 56657,
+        "stoppedByLimit": true
+      },
+      "passed": true,
+      "met60SecondsGoal": true,
+      "requestAndResponseAccepted": true,
+      "qualityIndependentlyVerified": true,
+      "returnedCandidateCount": 3,
+      "actualCandidateCount": 3,
+      "highQualityDiverseCandidateCount": 3,
+      "hardValidationComplete": true,
+      "allReturnedCandidatesHardValid": true,
+      "differences": [
+        [
+          0,
+          1535,
+          1895
+        ],
+        [
+          1535,
+          0,
+          1395
+        ],
+        [
+          1895,
+          1395,
+          0
+        ]
+      ],
+      "bestPenalty": 17001,
+      "qualityCeiling": 18701,
+      "adoptedCount": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "quality": {
+            "totalPenalty": 17001,
+            "preferencePenalty": 209,
+            "teacherDailyExcess": 39,
+            "teacherWorstExcess": 5,
+            "courseDailyPairs": 51,
+            "courseAdjacency": 222,
+            "teacherGapMinutes": 7785
+          },
+          "originalObjective": {
+            "changedLessons": 0,
+            "courseRepeats": 50,
+            "movedLessons": 0,
+            "preferencePenalty": 209,
+            "teacherPeakPeriods": 6
+          },
+          "optimal": false,
+          "hardValid": true,
+          "actualFingerprintSha256": null
+        },
+        {
+          "index": 2,
+          "quality": {
+            "totalPenalty": 17358,
+            "preferencePenalty": 211,
+            "teacherDailyExcess": 35,
+            "teacherWorstExcess": 5,
+            "courseDailyPairs": 54,
+            "courseAdjacency": 216,
+            "teacherGapMinutes": 8050
+          },
+          "originalObjective": {
+            "changedLessons": 0,
+            "courseRepeats": 53,
+            "movedLessons": 0,
+            "preferencePenalty": 211,
+            "teacherPeakPeriods": 6
+          },
+          "optimal": false,
+          "hardValid": true,
+          "actualFingerprintSha256": null
+        },
+        {
+          "index": 3,
+          "quality": {
+            "totalPenalty": 18075,
+            "preferencePenalty": 207,
+            "teacherDailyExcess": 42,
+            "teacherWorstExcess": 5,
+            "courseDailyPairs": 53,
+            "courseAdjacency": 220,
+            "teacherGapMinutes": 8645
+          },
+          "originalObjective": {
+            "changedLessons": 0,
+            "courseRepeats": 52,
+            "movedLessons": 0,
+            "preferencePenalty": 207,
+            "teacherPeakPeriods": 6
+          },
+          "optimal": false,
+          "hardValid": true,
+          "actualFingerprintSha256": null
+        }
+      ],
+      "issues": [],
+      "errors": [],
+      "failure": null
+    },
+    {
+      "rawSource": {
+        "file": "benchmark-button-2026-11-18T11-13-21-736Z.json",
+        "sha256": "d8516e075eae7abbf524d766758f3b97ca2ac970a5bc311452e0693f8af27e6e",
+        "bytes": 586293
+      },
+      "startedAt": "2026-11-18T11:13:21.754Z",
+      "baselineCommit": null,
+      "currentCommit": null,
+      "sourceHashes": null,
+      "sourceHashProvenance": "실행 당시 소스 해시 미기록. 집계 시점의 파일을 측정 소스로 추정하지 않음",
+      "environment": null,
+      "fixture": {
+        "label": "실제 학교가 아닌 합성 9학급·270시수 공동교사·집단·자원·블록·고정·불가시간 포함 문제",
+        "classes": 9,
+        "complex": true,
+        "seed": 71283,
+        "sha256": "0bca8e9a6b6ee3fca6d81d807184372de0195f615e2a345ec4fd392e0b2c06a6",
+        "sha256Definition": "버튼 요청의 basis 전체를 JSON.stringify한 UTF-8 바이트",
+        "sourceFingerprint": "fad88878aa0ab815dea4374117108fd0e32e85bcdd7ec548973c43e609a65a43",
+        "lessons": 261,
+        "periods": 270,
+        "resources": 39,
+        "slots": 55
+      },
+      "policy": {
+        "version": 1,
+        "engineVersion": "canonical-balanced-1",
+        "defaultSeconds": 60,
+        "defaultCandidates": 3,
+        "workers": 8,
+        "initialFraction": 0.28,
+        "warmInitialFraction": 0.05,
+        "roundSeconds": 3,
+        "candidateReserveFraction": 0.25,
+        "verificationReserveSeconds": 4,
+        "verificationReserveFraction": 0.1,
+        "resultPollMilliseconds": 250,
+        "restartEvery": 7,
+        "poolCapacity": 48,
+        "relativeQualityTolerance": 0.1,
+        "absoluteQualityTolerance": 10,
+        "minimumDifferenceFraction": 0.04,
+        "weights": {
+          "preferencePenalty": 10,
+          "teacherDailyExcess": 30,
+          "teacherWorstExcess": 20,
+          "courseDailyPairs": 80,
+          "courseAdjacency": 8,
+          "teacherGapMinutes": 1
+        }
+      },
+      "options": {
+        "maxSeconds": 60,
+        "maxCandidates": 3,
+        "seed": 71283,
+        "minimizeChanges": false,
+        "improveTeacherBalance": true,
+        "spreadCourses": true,
+        "qualityMode": "balanced"
+      },
+      "requestHash": "a26973bb83fbed448746595ee429160372c17d022cc555abc2caf39a061d0c04",
+      "targetMs": 60000,
+      "testBudgetMs": 180000,
+      "timingDefinition": "실제 버튼 click capture부터 후보 제목·radio 3개·품질 평가가 표시된 뒤 두 프레임까지",
+      "clickToThreeCandidatesMs": 58006.29999999702,
+      "clickToThreeCandidatesSeconds": 58.00629999999702,
+      "clickToReadyHostMs": 133.15689999999995,
+      "readyToWorkerSpawnHostMs": 2.022100000000137,
+      "worker": {
+        "exitCode": 0,
+        "signal": null,
+        "spawnError": null,
+        "elapsedMs": 57521.718100000006
+      },
+      "jobStatus": {
+        "state": "succeeded",
+        "code": null,
+        "queuedAt": "2026-11-18T11:13:22.982Z",
+        "startedAt": "2026-11-18T11:13:23.211Z",
+        "finishedAt": "2026-11-18T11:14:20.489Z"
+      },
+      "engineVersion": "canonical-balanced-1",
+      "status": "feasible",
+      "engineStats": {
+        "branches": 75882,
+        "elapsedMs": 56265,
+        "stoppedByLimit": true
+      },
+      "passed": true,
+      "met60SecondsGoal": true,
+      "requestAndResponseAccepted": true,
+      "qualityIndependentlyVerified": true,
+      "returnedCandidateCount": 3,
+      "actualCandidateCount": 3,
+      "highQualityDiverseCandidateCount": 3,
+      "hardValidationComplete": true,
+      "allReturnedCandidatesHardValid": true,
+      "differences": [
+        [
+          0,
+          540,
+          1305
+        ],
+        [
+          540,
+          0,
+          765
+        ],
+        [
+          1305,
+          765,
+          0
+        ]
+      ],
+      "bestPenalty": 4991,
+      "qualityCeiling": 5490,
+      "adoptedCount": 0,
+      "candidates": [
+        {
+          "index": 1,
+          "quality": {
+            "totalPenalty": 4991,
+            "preferencePenalty": 77,
+            "teacherDailyExcess": 4,
+            "teacherWorstExcess": 1,
+            "courseDailyPairs": 6,
+            "courseAdjacency": 132,
+            "teacherGapMinutes": 2545
+          },
+          "originalObjective": {
+            "changedLessons": 0,
+            "courseRepeats": 6,
+            "movedLessons": 0,
+            "preferencePenalty": 77,
+            "teacherPeakPeriods": 3
+          },
+          "optimal": false,
+          "hardValid": true,
+          "actualFingerprintSha256": null
+        },
+        {
+          "index": 2,
+          "quality": {
+            "totalPenalty": 5061,
+            "preferencePenalty": 69,
+            "teacherDailyExcess": 4,
+            "teacherWorstExcess": 1,
+            "courseDailyPairs": 6,
+            "courseAdjacency": 132,
+            "teacherGapMinutes": 2695
+          },
+          "originalObjective": {
+            "changedLessons": 0,
+            "courseRepeats": 6,
+            "movedLessons": 0,
+            "preferencePenalty": 69,
+            "teacherPeakPeriods": 3
+          },
+          "optimal": false,
+          "hardValid": true,
+          "actualFingerprintSha256": null
+        },
+        {
+          "index": 3,
+          "quality": {
+            "totalPenalty": 5163,
+            "preferencePenalty": 80,
+            "teacherDailyExcess": 4,
+            "teacherWorstExcess": 1,
+            "courseDailyPairs": 6,
+            "courseAdjacency": 131,
+            "teacherGapMinutes": 2695
+          },
+          "originalObjective": {
+            "changedLessons": 0,
+            "courseRepeats": 6,
+            "movedLessons": 0,
+            "preferencePenalty": 80,
+            "teacherPeakPeriods": 3
+          },
+          "optimal": false,
+          "hardValid": true,
+          "actualFingerprintSha256": null
+        }
+      ],
+      "issues": [],
+      "errors": [],
+      "failure": null
+    }
+  ]
+}
