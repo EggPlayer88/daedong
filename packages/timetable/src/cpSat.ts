@@ -2,11 +2,13 @@ import policy from '../_assets/engine-policy.json'
 import type { Placement, TimetableBasis, TimetableIssue } from './types'
 import { validateBasis, validatePlacements } from './validate'
 import { evaluateTimetableQuality, type PreviousTimetable } from './quality'
+import balancedPolicy from '../_assets/balanced-policy.json'
+import { actualTimetableCells, actualTimetableFingerprint, evaluateBalancedQuality, timetableDifferenceMinutes, type BalancedQuality } from './balanced'
 
-export interface CpSatOptions { maxSeconds: number; maxCandidates: number; seed: number; minimizeChanges: boolean; improveTeacherBalance: boolean; spreadCourses: boolean }
+export interface CpSatOptions { maxSeconds: number; maxCandidates: number; seed: number; minimizeChanges: boolean; improveTeacherBalance: boolean; spreadCourses: boolean; qualityMode?: 'balanced' }
 export interface CpSatRequest { contract: 'timetable.solve.v1'; requestId: string; inputHash: string; basis: TimetableBasis; previous: PreviousTimetable | null; options: CpSatOptions }
 export interface CpSatObjective { changedLessons: number; movedLessons: number; preferencePenalty: number; teacherPeakPeriods: number; courseRepeats: number }
-export interface CpSatCandidate { placements: Placement[]; objective: CpSatObjective; optimal: boolean }
+export interface CpSatCandidate { placements: Placement[]; objective: CpSatObjective; optimal: boolean; quality?: BalancedQuality }
 export interface CpSatResponse { contract: 'timetable.solve.v1'; requestId: string; inputHash: string; engineVersion: string; status: 'feasible' | 'infeasible' | 'unknown' | 'invalid' | 'unsupported' | 'error'; candidates: CpSatCandidate[]; issues: TimetableIssue[]; stats: { elapsedMs: number; branches: number; stoppedByLimit: boolean } }
 const own = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const exact = (v: unknown, keys: string[]): v is Record<string, unknown> => own(v) && Object.keys(v).length === keys.length && keys.every(k => Object.hasOwn(v, k))
@@ -23,8 +25,9 @@ export async function buildCpSatRequest(basis: TimetableBasis, requestId: string
   if (!validateBasis(basis).valid || typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(requestId)) throw new Error('계산 요청의 기초판과 요청 번호를 확인해 주세요.')
   if (basis.lessons.reduce((n, l) => n + l.allowedSlotIds.length, 0) > policy.maximumModelChoices || basis.lessons.reduce((n, l) => n + l.allowedSlotIds.length * l.resourceIds.length, 0) > policy.maximumResourceChoices) throw new Error('계산 모델 크기 한도를 넘었습니다. 수업별 허용 시간과 수강 집단을 검토해 주세요.')
   if (previous !== null && (!exact(previous, ['basis', 'placements']) || !validatePlacements(previous.basis, previous.placements).valid || previous.basis.schoolId !== basis.schoolId || previous.basis.termId !== basis.termId)) throw new Error('이전 시간표는 같은 학교·학기의 당시 기초판과 유효 배치를 함께 전달해야 합니다.')
-  if (!own(options) || Object.keys(options).some(k => !['maxSeconds', 'maxCandidates', 'seed', 'minimizeChanges', 'improveTeacherBalance', 'spreadCourses'].includes(k))) throw new Error('지원하지 않는 계산 옵션입니다.')
+  if (!own(options) || Object.keys(options).some(k => !['maxSeconds', 'maxCandidates', 'seed', 'minimizeChanges', 'improveTeacherBalance', 'spreadCourses', 'qualityMode'].includes(k)) || Object.hasOwn(options, 'qualityMode') && options.qualityMode !== 'balanced') throw new Error('지원하지 않는 계산 옵션입니다.')
   const merged: CpSatOptions = { maxSeconds: policy.defaultMaxSeconds, maxCandidates: 1, seed: policy.defaultSeed, minimizeChanges: true, improveTeacherBalance: true, spreadCourses: true, ...options }
+  if (merged.qualityMode === 'balanced' && merged.minimizeChanges) throw new Error('품질 우선 계산은 변경 최소화를 해제하고 요청해 주세요.')
   if (!integer(merged.maxSeconds, 1, policy.maximumMaxSeconds) || !integer(merged.maxCandidates, 1, policy.maximumCandidates) || !integer(merged.seed, 0, 2147483647) || ['minimizeChanges', 'improveTeacherBalance', 'spreadCourses'].some(k => typeof merged[k as keyof CpSatOptions] !== 'boolean')) throw new Error('계산 시간·후보 수·최적화 설정을 확인해 주세요.')
   const payload = structuredClone({ contract: policy.contract as 'timetable.solve.v1', requestId, basis, previous, options: merged })
   if (new TextEncoder().encode(canonicalTimetableJson(payload)).length + 100 > policy.maximumRequestBytes) throw new Error('계산 요청 파일 크기 한도를 넘었습니다.')
@@ -57,18 +60,33 @@ export async function parseCpSatResponse(request: CpSatRequest, value: unknown):
   const rebuilt = await buildCpSatRequest(request.basis, request.requestId, request.previous, request.options)
   if (inputHash !== rebuilt.inputHash || await digest(payload) !== inputHash) fail()
   if (!exact(value, ['contract', 'requestId', 'inputHash', 'engineVersion', 'status', 'candidates', 'issues', 'stats'])) return fail()
-  if (value.contract !== policy.contract || value.requestId !== request.requestId || value.inputHash !== inputHash || value.engineVersion !== policy.engineVersion || !['feasible', 'infeasible', 'unknown', 'invalid', 'unsupported', 'error'].includes(value.status as string)) fail()
+  const balanced = request.options.qualityMode === 'balanced'
+  const expectedVersion = balanced ? balancedPolicy.engineVersion : policy.engineVersion
+  if (value.contract !== policy.contract || value.requestId !== request.requestId || value.inputHash !== inputHash || value.engineVersion !== expectedVersion || !['feasible', 'infeasible', 'unknown', 'invalid', 'unsupported', 'error'].includes(value.status as string)) fail()
   if (!exact(value.stats, ['elapsedMs', 'branches', 'stoppedByLimit']) || typeof value.stats.elapsedMs !== 'number' || !Number.isFinite(value.stats.elapsedMs) || value.stats.elapsedMs < 0 || !integer(value.stats.branches, 0) || typeof value.stats.stoppedByLimit !== 'boolean') fail()
   if (!Array.isArray(value.candidates) || value.candidates.length > request.options.maxCandidates || !Array.isArray(value.issues) || value.issues.length > 101) return fail()
   for (const i of value.issues) if (!exact(i, ['code', 'message', 'path']) || typeof i.code !== 'string' || !/^[A-Z_]{1,100}$/.test(i.code) || typeof i.message !== 'string' || !i.message.trim() || i.message.length > 2000 || typeof i.path !== 'string' || i.path.length > 500) fail()
   const seen = new Set<string>()
   for (const c of value.candidates) {
-    if (!exact(c, ['placements', 'objective', 'optimal']) || typeof c.optimal !== 'boolean' || !validatePlacements(request.basis, c.placements).valid || !exact(c.objective, ['changedLessons', 'movedLessons', 'preferencePenalty', 'teacherPeakPeriods', 'courseRepeats'])) return fail()
+    if (!exact(c, ['placements', 'objective', 'optimal', ...(balanced ? ['quality'] : [])]) || typeof c.optimal !== 'boolean' || balanced && c.optimal !== false || !validatePlacements(request.basis, c.placements).valid || !exact(c.objective, ['changedLessons', 'movedLessons', 'preferencePenalty', 'teacherPeakPeriods', 'courseRepeats'])) return fail()
     const expected = evaluateCpSatObjective(request.basis, c.placements as Placement[], request.previous)
     for (const key of Object.keys(expected) as (keyof CpSatObjective)[]) if (expected[key] !== c.objective[key]) fail()
-    const key = canonicalTimetableJson([...(c.placements as Placement[])].sort((a, b) => a.lessonId.localeCompare(b.lessonId)))
+    if (balanced && canonicalTimetableJson(c.quality) !== canonicalTimetableJson(evaluateBalancedQuality(request.basis, c.placements as Placement[], request.options))) fail()
+    const key = balanced ? actualTimetableFingerprint(request.basis, c.placements as Placement[]) : canonicalTimetableJson([...(c.placements as Placement[])].sort((a, b) => a.lessonId.localeCompare(b.lessonId)))
     if (seen.has(key)) fail(); seen.add(key)
   }
+  if (balanced && value.candidates.length) {
+    const candidates = value.candidates as unknown as CpSatCandidate[], best = candidates[0]
+    const score = best.quality!.totalPenalty
+    const ceiling = score + Math.max(balancedPolicy.absoluteQualityTolerance, Math.floor(score * balancedPolicy.relativeQualityTolerance))
+    const minimum = Math.max(1, Math.ceil([...actualTimetableCells(request.basis, best.placements).values()].reduce((a, b) => a + b, 0) * balancedPolicy.minimumDifferenceFraction))
+    for (let i = 0; i < candidates.length; i++) {
+      if (candidates[i].quality!.totalPenalty < score || candidates[i].quality!.totalPenalty > ceiling) fail()
+      for (let j = 0; j < i; j++) if (timetableDifferenceMinutes(request.basis, candidates[i].placements, candidates[j].placements) < minimum) fail()
+    }
+    if (request.previous && validatePlacements(request.basis, request.previous.placements).valid && score > evaluateBalancedQuality(request.basis, request.previous.placements, request.options).totalPenalty) fail()
+  }
+  if (balanced && ['unknown', 'infeasible'].includes(value.status as string) && request.previous && validatePlacements(request.basis, request.previous.placements).valid) fail()
   if ((value.status === 'feasible') !== (value.candidates.length > 0) || (value.status === 'feasible' ? value.issues.length !== 0 : value.issues.length === 0)) fail()
   if (value.status === 'unsupported' && !request.basis.unsupportedFeatures.length || value.status === 'infeasible' && (value.stats as CpSatResponse['stats']).stoppedByLimit || ['feasible', 'infeasible', 'unknown'].includes(value.status as string) && request.basis.unsupportedFeatures.length > 0 || value.status === 'unknown' && !(value.stats as CpSatResponse['stats']).stoppedByLimit) fail()
   return structuredClone(value) as unknown as CpSatResponse

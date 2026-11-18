@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "engineVersion": "canonical-balanced-1",
+  "defaultSeconds": 60,
+  "defaultCandidates": 3,
+  "workers": 8,
+  "initialFraction": 0.28,
+  "warmInitialFraction": 0.05,
+  "roundSeconds": 3,
+  "candidateReserveFraction": 0.25,
+  "verificationReserveSeconds": 4,
+  "verificationReserveFraction": 0.1,
+  "resultPollMilliseconds": 250,
+  "restartEvery": 7,
+  "poolCapacity": 48,
+  "relativeQualityTolerance": 0.1,
+  "absoluteQualityTolerance": 10,
+  "minimumDifferenceFraction": 0.04,
+  "weights": {
+    "preferencePenalty": 10,
+    "teacherDailyExcess": 30,
+    "teacherWorstExcess": 20,
+    "courseDailyPairs": 80,
+    "courseAdjacency": 8,
+    "teacherGapMinutes": 1
+  }
+}
