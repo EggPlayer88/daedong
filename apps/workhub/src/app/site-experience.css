@@ -1,5 +1,6 @@
 /* 업무의 밀도는 유지하고, 탐색·작업·보조 정보가 서로 경쟁하지 않게 한다. */
-.ws-shell{--ui-bg:#f4f6f9;--ui-text:#202a3b;--ui-muted:#606e82;--ui-line:#e4e9f1;--ui-accent:#2765db;--ui-accent-soft:#eaf1ff;--ui-radius:18px;--ui-control-radius:11px;--ui-card-shadow:0 2px 8px #25375404,0 10px 28px #25375403;line-height:1.6}
+.ws-shell{--ui-bg:#f6f7f9;--ui-text:#202a3b;--ui-muted:#606e82;--ui-line:#e7ebf0;--ui-accent:#2765db;--ui-accent-soft:#eaf1ff;--ui-radius:16px;--ui-control-radius:11px;--ui-card-shadow:0 2px 8px #25375404;--ui-workspace-gap:18px;line-height:1.6}
+.ws-shell[data-density=compact]{--ui-workspace-gap:12px}
 .ws-shell[data-theme=warm]{--ui-bg:#f6f4ef;--ui-text:#35332f;--ui-muted:#716d64;--ui-line:#e5e1d8;--ui-accent:#345f9e;--ui-accent-soft:#ebf0f8}
 .ws-shell[data-theme=dark]{--ui-bg:#141a24;--ui-text:#e7edf6;--ui-muted:#acb8c8;--ui-line:#394655;--ui-accent:#9abfff;--ui-accent-soft:#283c5e;--ui-card-shadow:none}
 .ws-shell .ws-frame{grid-template-columns:216px minmax(0,1fr)}
@@ -10,22 +11,25 @@
 .ws-shell .ws-primary-menus{gap:4px}.ws-shell .ws-menu-button,.ws-shell .ws-more-button{min-height:48px;border-radius:12px;font-size:15px;font-weight:550;padding:11px 13px;gap:12px}
 .ws-shell .ws-menu-button[aria-current=page]{color:var(--ui-accent);font-weight:750;background:var(--ui-accent-soft)}
 .ws-shell .ws-menu-icon{width:27px}.ws-shell .ws-menu-icon .ws-tossface{font-size:23px}
-.ws-shell .ws-assistant-trigger{margin-top:20px;border:1px solid var(--ui-line);background:var(--ui-surface)}
+.ws-shell .ws-assistant-trigger{margin-top:20px;border:1px solid transparent;background:var(--ui-accent-soft);color:var(--ui-accent);font-weight:650}
 .ws-shell .ws-assistant-trigger:hover{border-color:var(--ui-accent);background:var(--ui-accent-soft)}
 .ws-shell .ws-more-button{color:var(--ui-muted)}.ws-shell .ws-utilities{padding-top:20px;gap:2px}.ws-shell .ws-member{margin-top:10px;padding:16px 8px 0}
 .ws-shell .ws-member div>span{display:none}.ws-shell .ws-avatar{background:var(--ui-accent-soft);color:var(--ui-accent);width:34px;height:34px}
-.ws-shell .ws-context{min-height:70px;padding:12px clamp(20px,3vw,44px);border-color:var(--ui-line);background:var(--ui-surface)}
+.ws-shell .ws-context{min-height:64px;padding:10px clamp(20px,3vw,36px);border-color:var(--ui-line);background:var(--ui-surface)}
 .ws-shell .ws-breadcrumb{font-size:13px;gap:10px}.ws-shell .ws-breadcrumb>span:first-child,.ws-shell .ws-breadcrumb>span:nth-child(2){display:none}
-.ws-shell .ws-header-actions{gap:10px}.ws-shell .ws-search-trigger{width:260px;border:1px solid transparent;background:var(--ui-surface-muted);border-radius:12px}
+.ws-shell .ws-header-actions{gap:8px}.ws-shell .ws-search-trigger{width:260px;border:1px solid transparent;background:var(--ui-surface-muted);border-radius:12px}
+/* 중요한 이동은 아이콘의 뜻을 추측하지 않고 이름으로 찾는다. */
+.ws-shell .ws-header-messages{display:flex;align-items:center;justify-content:center;gap:7px;width:auto;padding:7px 11px;font-size:var(--ui-small-size);font-weight:600;white-space:nowrap}
+.ws-shell .ws-header-messages-label{line-height:1.4}
 .ws-shell .ws-related{padding:0 clamp(20px,3vw,44px);gap:22px}.ws-shell .ws-related-label{display:none}.ws-shell .ws-related button{min-height:48px;padding:10px 2px;font-size:14px}
-.ws-shell .ws-content>.main-content{max-width:1456px;margin-inline:auto;padding:30px clamp(20px,3vw,44px) 40px}
+.ws-shell .ws-content>.main-content{max-width:1456px;margin-inline:auto;padding:26px clamp(20px,3vw,36px) 36px}
 .ws-shell .ws-content>.main-content:has(>.messaging-workspace){position:relative}
 @media(min-width:721px){
  .ws-shell .main-content:has(>.messaging-workspace)>.page-header{padding-right:160px}
  .ws-shell .main-content>.messaging-workspace>.messaging-header{margin:0;padding:0;min-height:0}
- .ws-shell .main-content>.messaging-workspace>.messaging-header>button{position:absolute;right:clamp(20px,3vw,44px);top:50px}
+ .ws-shell .main-content>.messaging-workspace>.messaging-header>button{position:absolute;right:clamp(20px,3vw,36px);top:46px}
 }
-.ws-shell :is(.page-header,.wf-page-heading,.students-header,.ws-page-intro){margin-bottom:24px;gap:14px;align-items:center}
+.ws-shell :is(.page-header,.wf-page-heading,.students-header,.ws-page-intro){margin-bottom:20px;gap:14px;align-items:center}
 .ws-shell :is(.page-header h1,.wf-page-heading h2,.students-header h1){font-size:28px;font-weight:750;line-height:1.4;letter-spacing:-.045em}
 .ws-shell :is(.page-header,.wf-page-heading,.students-header,.ws-page-intro)>div>p:not(.eyebrow):not(.wf-eyebrow){font-size:var(--ui-small-size);line-height:1.6;max-width:64ch}
 .ws-shell :is(.primary,.task-primary,.wf-primary){padding:10px 17px;font-weight:650;box-shadow:0 2px 3px #183f7c0a;border-radius:var(--ui-control-radius)}
@@ -57,6 +61,7 @@
 @media(max-width:720px){
  .ws-shell .ws-frame{display:block}.ws-shell .ws-sidebar{padding:14px 18px;border-right:0}.ws-shell .ws-brand strong{font-size:16px}.ws-shell .ws-brand-mark .ws-tossface{font-size:25px}.ws-shell .ws-school{padding:0;font-size:12px}.ws-shell .ws-school-dot{display:none}
  .ws-shell .ws-context{padding:10px 16px;min-height:0}.ws-shell .ws-header-actions{gap:6px}.ws-shell .ws-search-trigger{width:100%}.ws-shell .ws-content>.main-content{padding:24px 16px 28px}
+ .ws-shell .ws-header-messages-label{display:none}.ws-shell .ws-header-messages{width:44px;padding:6px}
  .ws-shell .ws-navigation{grid-template-columns:repeat(var(--ws-nav-count,5),minmax(0,1fr));padding-top:7px;box-shadow:0 -4px 20px #25375406}
  .ws-shell .ws-navigation>.ws-primary-menus>.ws-menu-button{font-size:12px;gap:4px;min-height:58px;padding:5px 2px;border-radius:11px}
  .ws-shell .ws-navigation>.ws-primary-menus>.ws-desktop-menu,.ws-shell .ws-navigation>.ws-assistant-trigger{display:none}

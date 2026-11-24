@@ -1,0 +1,21 @@
+/* 영역의 넓이를 기준으로 접어 대화 안에서도 네 카드가 같은 순서를 유지한다. */
+.daily-overview{container:daily-overview / inline-size;min-width:0;--daily-line:var(--ui-line,var(--border,#dfe5ef));--daily-surface:var(--ui-surface,var(--surface,#fff))}
+.daily-overview .daily-overview-layout,.ws-shell .ui-home-main .daily-overview .home-dashboard.home-dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--ui-workspace-gap,18px);align-items:stretch}
+.daily-overview .daily-overview-card{min-width:0;padding:24px;border:1px solid var(--daily-line);border-radius:var(--ui-radius,16px);background:var(--daily-surface)}
+.daily-overview .daily-overview-card>section{min-width:0;margin:0}
+.daily-overview .daily-overview-card :is(.home-overview,.assistant-daily-card,.assistant-daily-lessons){padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.daily-overview .daily-overview-card>.home-calendar-section,.ws-shell .ui-home-main .daily-overview-card>.home-calendar-section{padding:0;margin:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.daily-overview-supplementary{margin-top:var(--ui-workspace-gap,18px);min-width:0;padding:20px 24px;border:1px solid var(--daily-line);border-radius:var(--ui-radius,16px);background:var(--daily-surface)}
+.daily-overview-supplementary .neis-meals{padding:0;margin:0;border:0;border-radius:0;background:transparent}
+.daily-overview-supplementary .neis-meals header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.daily-overview-supplementary .neis-meals h3{margin:0}
+.daily-overview-supplementary .neis-meals input{min-width:0;max-width:100%}
+.ws-shell .ui-home-main .daily-overview .home-dashboard-grid>.daily-overview-card{border-top:1px solid var(--daily-line);padding-top:24px;border-radius:var(--ui-radius,16px)}
+@container daily-overview (max-width:720px){
+ .daily-overview .daily-overview-layout,.ws-shell .ui-home-main .daily-overview .home-dashboard.home-dashboard-grid{grid-template-columns:minmax(0,1fr);gap:var(--ui-workspace-gap,18px)}
+ .daily-overview .daily-overview-card,.ws-shell .ui-home-main .daily-overview .home-dashboard-grid>.daily-overview-card{padding:20px}
+ .daily-overview-supplementary{padding:20px;margin-top:var(--ui-workspace-gap,18px)}
+}
+@container daily-overview (max-width:380px){
+ .daily-overview .daily-overview-card,.ws-shell .ui-home-main .daily-overview .home-dashboard-grid>.daily-overview-card,.daily-overview-supplementary{padding:16px}
+}

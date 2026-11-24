@@ -11,6 +11,7 @@ import {
 } from './contracts'
 import { SchoolAiBudget } from './SchoolAiSettingsPanel'
 import styles from './assistant.css?inline'
+import coherentStyles from './assistant-coherent.css?inline'
 import type { Citation } from './contracts'
 import { intentLabels } from './workspace-model'
 import type { useAssistantWorkspace } from './useAssistantWorkspace'
@@ -115,7 +116,7 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
     workspaceCommand?.kind === 'messageDraft' || workspaceCommand?.kind === 'collectionDraft') && !workspaceCommand.firstTurn
   return (
     <section className="assistant-workspace" aria-labelledby={`${uid}-title`}>
-      <style>{styles}</style>
+      <style>{styles}{coherentStyles}</style>
       <header className="assistant-header">
         <div className="assistant-brand">
           <span className="assistant-brand-icon"><WorkspaceIcon name="assistant" /></span>
@@ -574,17 +575,6 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
               value={session.prompt}
               onChange={(event) => update({ ...latest.current, prompt: event.target.value })}
             />
-            {workspaceActions && !continuing && !session.contextId && !session.references.length && !session.studentContext && (
-              <details className="assistant-command-help">
-                <summary>대화로 할 수 있는 일</summary>
-                <div className="assistant-command-examples">
-                {['오늘 업무 요약해줘', '내일 급식 알려줘', '내일 내 시간표 알려줘', '업무 알림 보여줘', '내 할 일 열어줘', '할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘', '할 일 자료 점검 다시 시작해줘', '시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].filter(supportedPrompt).map((text) => (
-                  <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
-                    onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
-                ))}
-                </div>
-              </details>
-            )}
             <span id={`${uid}-prompt-hint`} className="assistant-hint">
               {Array.from(session.prompt).length} / {model.promptLimit}자 · 상담·건강
               정보는 입력하지 마세요.
@@ -740,6 +730,17 @@ export function AssistantView({ model }: { model: ReturnType<typeof useAssistant
         <aside className="assistant-tools" aria-label="AI 대화 도구">
           <h3>{model.memoryEnabled ? '대화와 기억' : '대화'}</h3>
           <button type="button" className="assistant-quiet assistant-reconnect" disabled={busy || loading || memoryLocked} onClick={() => setRefresh((value) => value + 1)}>연결 다시 확인</button>
+          {workspaceActions && !continuing && !session.contextId && !session.references.length && !session.studentContext && (
+            <details className="assistant-command-help">
+              <summary>대화로 할 수 있는 일</summary>
+              <div className="assistant-command-examples">
+              {['오늘 업무 요약해줘', '내일 급식 알려줘', '내일 내 시간표 알려줘', '업무 알림 보여줘', '내 할 일 열어줘', '할 일 제출 자료 확인 제목을 자료 점검으로 바꿔줘', '할 일 자료 점검 다시 시작해줘', '시간표 열어줘', '학교 자료에서 출장 찾아줘', '제출 자료 확인을 할 일로 추가해줘', '제출 자료 확인을 금요일까지로 바꿔줘', '내일 회의 일정 잡아줘', '김민지 선생님에게 “내일 회의 자료를 확인해 주세요”라는 메시지 초안 만들어줘', '금요일까지 김민지 선생님에게 현장체험학습 계획서 수합 초안 만들어줘'].filter(supportedPrompt).map((text) => (
+                <button type="button" key={text} disabled={!workspaceEditable || Boolean(session.prompt.trim())}
+                  onClick={() => update({ ...latest.current, prompt: text })}>{text}</button>
+              ))}
+              </div>
+            </details>
+          )}
           <details className="assistant-budget-disclosure">
             <summary>학교 AI 예산 · 기본 {ASSISTANT_ROUTING.models.quick.label}</summary>
             {schoolStatus ? (

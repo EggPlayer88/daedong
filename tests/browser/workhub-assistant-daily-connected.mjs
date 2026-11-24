@@ -33,11 +33,19 @@ async function screenshot(name) { const output = process.env.WORKHUB_QA_OUTPUT; 
 async function inbox() { await openAssistant(); await command('업무 알림 보여줘'); await page.getByRole('region', { name: '내 업무 알림', exact: true }).getByRole('heading', { name: '2학년 업무 확인', exact: true }).waitFor(); await single('.messaging-workspace') }
 try {
   await test('오늘 업무 요약 대화가 실제 연결 패널과 기존 원본 할 일로 이어지고 일반 메뉴는 유지', async () => {
-    await openAssistant(); await command('오늘 업무 요약해줘')
+    await openAssistant(); await screenshot('assistant-connected-start.png')
+    await page.setViewportSize({width:390,height:844});await screenshot('assistant-connected-start-mobile.png');await page.setViewportSize({width:1280,height:950})
+    assert.equal(await page.locator('.assistant-compose .assistant-command-help').count(), 0)
+    const help=page.locator('.assistant-tools .assistant-command-help')
+    assert.equal(await help.count(),1);assert.equal(await help.getAttribute('open'),null)
+    await help.locator('summary').click();await help.getByRole('button',{name:'오늘 업무 요약해줘',exact:true}).click()
+    assert.equal(await input().inputValue(),'오늘 업무 요약해줘');await button('질문 비우기').click();await help.locator('summary').click()
+    await command('오늘 업무 요약해줘')
     const daily = page.getByRole('region', { name: '대화에서 오늘 업무 확인', exact: true })
     await daily.getByRole('button', { name: '제출 자료 확인 · 할 일 v2 열기', exact: true }).waitFor()
     await daily.getByText('2026-10-21 쌀밥\n미역국', { exact: true }).waitFor()
     await single('.assistant-daily'); await screenshot('assistant-daily-connected.png')
+    await page.setViewportSize({width:390,height:844});await screenshot('assistant-daily-connected-mobile.png');await page.setViewportSize({width:1280,height:950})
     await daily.getByRole('button', { name: '제출 자료 확인 · 할 일 v4 열기', exact: true }).click()
     const selected = page.locator('.task-card-highlighted[data-task-id="task-b"]')
     await selected.getByText('2학년 원본 업무', { exact: true }).waitFor()
