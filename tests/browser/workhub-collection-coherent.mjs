@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict'
 import { buildSync } from 'esbuild'
 import { fileURLToPath } from 'node:url'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { launchBrowser } from './launch-browser.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const bundle = buildSync({ entryPoints: [join(root, 'tests/browser/workhub-collection-conversation-fixture.tsx')], bundle: true, write: false, format: 'iife', jsx: 'automatic', loader: { '.css': 'text' }, define: { 'import.meta.env': '{}', 'process.env.NODE_ENV': '"development"' }, logLevel: 'silent' })
+const font = readFileSync(join(root, 'apps/workhub/src/assets/fonts/PretendardVariable.woff2')).toString('base64')
+const typography = readFileSync(join(root, 'apps/workhub/src/typography.css'), 'utf8')
+  .replace("./assets/fonts/PretendardVariable.woff2", `data:font/woff2;base64,${font}`)
+const shellStyles = ['workspace-shell.css', 'workspace-renewal.css', 'site-experience.css']
+  .map(file => readFileSync(join(root, 'apps/workhub/src/app', file), 'utf8')).join('\n')
+// 실제 공통 토큰과 원본 글꼴을 로컬로 주입한다. 화면 계약과 합성 서버는 기존 회귀와 같다.
+const html = `<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${typography}${shellStyles}*{box-sizing:border-box}body{margin:0;padding:16px;background:#f6f7f9;font-family:'Pretendard Variable',sans-serif}#root{max-width:1120px;margin:auto;min-height:0}</style><div id="root" class="ws-shell" data-theme="light"></div></html>`
 const browser = await launchBrowser(), context = await browser.newContext({ viewport: { width: 1080, height: 850 } }), page = await context.newPage()
 const errors = [], external = [], results = [], output = process.env.WORKHUB_QA_OUTPUT
 page.on('pageerror', error => errors.push(error.message))
@@ -14,7 +21,7 @@ page.on('dialog', async dialog => { if (dialog.type() === 'beforeunload') await 
 page.setDefaultTimeout(15000)
 await context.route('**/*', route => {
   if (!route.request().url().startsWith('http://127.0.0.1:5179/')) { external.push(route.request().url()); return route.abort() }
-  return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;padding:16px;background:#f5f7fa;font-family:Arial,"Malgun Gothic",sans-serif}*{box-sizing:border-box}</style><div id="root"></div></html>' })
+  return route.fulfill({ contentType: 'text/html', body: html })
 })
 const button = name => page.getByRole('button', { name, exact: true })
 const review = () => page.getByRole('region', { name: '대화 수합 최종 제출 확인', exact: true })
@@ -24,6 +31,9 @@ async function reset(options = {}) {
   await page.goto('http://127.0.0.1:5179/coherent')
   await page.evaluate(options => { window.withCompose = options.compose; window.presentation = options.presentation ?? 'assistant' }, options)
   await page.addScriptTag({ content: bundle.outputFiles[0].text })
+  await page.evaluate(() => document.fonts.ready)
+  assert.equal(await page.evaluate(() => document.fonts.check('16px "Pretendard Variable"')), true)
+  assert.match(await page.locator('.collection-coherent').evaluate(node => getComputedStyle(node).fontFamily), /Pretendard Variable/)
   await page.getByRole('heading', { name: options.presentation === 'page' ? '문서 수합' : '수합 작업', exact: true }).waitFor()
 }
 async function input() {
