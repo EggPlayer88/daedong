@@ -82,7 +82,8 @@ try{
   await button('새 수합 만들기').click();await page.getByLabel('수합 제목',{exact:true}).fill('복구할 문서 수합');await page.getByLabel('안내 내용',{exact:true}).fill('줄바꿈\n보관할 안내');await page.getByLabel('제출 기한',{exact:true}).fill('2026-10-31');await page.getByRole('checkbox',{name:'김담당',exact:true}).check();
   await page.getByLabel('양식 파일 선택',{exact:true}).setInputFiles({name:'재선택.hwpx',mimeType:'application/hwp+zip',buffer:Buffer.from('PK synthetic HWPX')});await button('재선택.hwpx 선택 취소').waitFor();
   await page.evaluate(()=>window.markSaving());await page.reload();await page.addScriptTag({content:collectionBundle});await button('수합 입력 복원').click();
-  await page.getByLabel('수합 제목',{exact:true}).waitFor();assert.equal(await page.getByLabel('수합 제목',{exact:true}).inputValue(),'복구할 문서 수합');assert.equal(await page.getByLabel('안내 내용',{exact:true}).inputValue(),'줄바꿈\n보관할 안내');assert.equal(await page.getByLabel('제출 기한',{exact:true}).inputValue(),'2026-10-31');assert.equal(await page.getByRole('checkbox',{name:'김담당',exact:true}).isChecked(),true);
+  await page.getByLabel('수합 제목',{exact:true}).waitFor();assert.equal(await page.getByLabel('수합 제목',{exact:true}).inputValue(),'복구할 문서 수합');assert.equal(await page.getByLabel('안내 내용',{exact:true}).inputValue(),'줄바꿈\n보관할 안내');assert.equal(await page.getByLabel('제출 기한',{exact:true}).inputValue(),'2026-10-31');
+  await page.getByText('제출 대상 변경',{exact:true}).click();assert.equal(await page.getByRole('checkbox',{name:'김담당',exact:true}).isChecked(),true);
   assert.equal(await button('재선택.hwpx 선택 취소').count(),0);assert.equal(await page.getByLabel('양식 파일 선택',{exact:true}).inputValue(),'');await button('수합 초안 저장').and(page.locator(':enabled')).waitFor();
   assert.equal(await page.evaluate(()=>window.calls.length+window.fileCalls.length),0)
  })

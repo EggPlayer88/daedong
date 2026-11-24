@@ -78,7 +78,7 @@ try{
  })
  await test('보관한 수합 입력이 있으면 다른 메시지 답변 전환을 거절하고 입력 정리 뒤에도 자동 전환하지 않는다',async()=>{
   await go('AI 비서');await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('수합 초안: 보존할 수합 제목');await page.getByRole('button',{name:'수합 초안 열기',exact:true}).click()
-  await page.getByRole('button',{name:'수합 초안 사용',exact:true}).click();await page.getByLabel('안내 내용',{exact:true}).fill('보존해야 하는 수합 안내')
+  await page.getByLabel('안내 내용',{exact:true}).fill('보존해야 하는 수합 안내')
   await page.getByRole('button',{name:'입력 보관하고 접기',exact:true}).click();await page.getByRole('button',{name:'대화 보기',exact:true}).click()
   await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill('학교 행사 안내 메시지를 짧게 작성해 주세요.');await page.getByRole('button',{name:'AI에게 요청',exact:true}).click()
   await page.getByRole('button',{name:'메시지 초안으로 사용',exact:true}).click();await page.getByText('작성하던 업무를 먼저 마친 뒤 이 답변을 다시 선택해 주세요. 답변과 기존 입력은 유지했습니다.',{exact:true}).waitFor()

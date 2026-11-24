@@ -92,7 +92,6 @@ try {
       await request(`내일까지 이민준 선생님에게 “제출 자료 확인” 안내는 “${instructions}” 수합 초안 만들어 ${ending}?`, '수합 초안 확인')
       const card = region('작성 중인 수합'); await card.getByText(date, { exact: true }).waitFor()
       await card.getByText(instructions, { exact: true }).waitFor(); await chooseTeacher('작성 중인 수합')
-      await button('수합 초안 사용').click()
       const form = page.getByRole('form', { name: '수합 초안 작성', exact: true }); await form.waitFor()
       assert.equal(await form.getByLabel('수합 제목', { exact: true }).inputValue(), '제출 자료 확인')
       assert.equal(await form.getByLabel('안내 내용', { exact: true }).inputValue(), instructions)

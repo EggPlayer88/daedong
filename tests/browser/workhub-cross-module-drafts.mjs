@@ -61,12 +61,9 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
 
   await test('수합 초안의 제목·여러 줄 안내만 가져오고 기한·대상·검토자·양식은 비워 둔다', async () => {
     await request('수합 초안: ' + title + '\n안내: ' + instructions, '수합 초안 열기')
-    await collectionCard().waitFor()
-    assert.equal(await collectionForm().count(), 0)
-    await noSideEffects()
-    await collectionCard().getByRole('button', { name: '수합 초안 사용', exact: true }).click()
     const form = collectionForm()
     await form.waitFor()
+    await noSideEffects()
     assert.equal(await collectionCard().count(), 0)
     assert.equal(await form.getByLabel('수합 제목', { exact: true }).inputValue(), title)
     assert.equal(await form.getByLabel('안내 내용', { exact: true }).inputValue(), instructions)
@@ -100,7 +97,7 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     await noSideEffects()
   })
 
-  await test('수합 연결 실패와 복구 뒤에도 자동으로 작성하지 않고 취소한 초안을 재사용하지 않는다', async () => {
+  await test('수합 연결 실패에는 작성을 막고 복구 후 입력만 열며 취소한 초안을 재사용하지 않는다', async () => {
     await page.evaluate(() => { window.cross.collectionUnavailable = true })
     await request('수합 초안: ' + title, '수합 초안 열기')
     await button('준비 상태 다시 확인').waitFor()
@@ -110,10 +107,10 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     assert.equal(await collectionForm().count(), 0)
     await page.evaluate(() => { window.cross.collectionUnavailable = false })
     await button('준비 상태 다시 확인').click()
-    await accept.and(page.locator(':enabled')).waitFor()
-    assert.equal(await collectionForm().count(), 0)
-    await button('전달받은 수합 초안 닫기').click()
-    await collectionCard().waitFor({ state: 'detached' })
+    await collectionForm().waitFor()
+    assert.equal(await collectionForm().getByLabel('수합 제목', { exact: true }).inputValue(), title)
+    await button('작성 취소').click()
+    await collectionForm().waitFor({ state: 'detached' })
     await go('오늘')
     await go('자료 수합')
     await button('새 수합 만들기').waitFor()
@@ -146,9 +143,9 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
           assert.equal(await offer.editor().getByLabel('메시지', {exact:true}).inputValue(), offer.content)
           assert.equal(await accept.count(), 0)
         } else {
-          await accept.and(page.locator(':enabled')).waitFor()
-          await collectionCard().getByText(offer.content, {exact:true}).waitFor()
-          assert.equal(await offer.editor().count(), 0)
+          await offer.editor().waitFor()
+          assert.equal(await offer.editor().getByLabel('수합 제목', {exact:true}).inputValue(), offer.content)
+          assert.equal(await accept.count(), 0)
         }
       }
       await request(offer.name + ' 초안: ' + offer.content, offer.name + ' 초안 열기')
@@ -175,9 +172,11 @@ export async function checkExplicitDrafts({ page, go, test, output }) {
     })
   }
 
-  await test('다른 학교로 바꾼 뒤에는 이전 학교의 미사용 수합 초안을 표시하지 않는다', async () => {
+  await test('수합 작성 중 학교 변경은 막고 작성 취소 뒤 바꾸면 이전 학교의 초안을 표시하지 않는다', async () => {
     await request('수합 초안: ' + title, '수합 초안 열기')
-    await collectionCard().waitFor()
+    await collectionForm().waitFor()
+    assert.equal(await page.getByLabel('사용할 학교').isDisabled(), true)
+    await button('작성 취소').click()
     await page.getByLabel('사용할 학교').selectOption('nuri-soyeon')
     await go('자료 수합')
     await button('새 수합 만들기').and(page.locator(':enabled')).waitFor()

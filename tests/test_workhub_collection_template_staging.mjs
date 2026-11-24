@@ -40,6 +40,14 @@ test('화면은 처음부터 양식 선택과 비공개 안내를 보여주고 �
   assert(html.indexOf('<h4>수합 내용') < html.indexOf('<h4>제출 대상'))
   assert(html.indexOf('<h4>제출 대상') < html.indexOf('<h4>나눠 줄 양식'))
   assert.match(html, /type="file"[^>]*multiple=""/)
-  assert.doesNotMatch(html, /먼저 초안을 저장한 뒤|<details[^>]*open/)
+  assert.doesNotMatch(html, /먼저 초안을 저장한 뒤/)
+  const sections = [...html.matchAll(/<details([^>]*)>\s*<summary>([\s\S]*?)<\/summary>/g)]
+  const targets = sections.find(([, attrs]) => attrs.includes('cs-target-picker'))
+  assert(targets && /\bopen=/.test(targets[1]), '비어 있는 필수 제출 대상은 바로 선택할 수 있다')
+  for (const summary of ['제출 후 검토', '함께 받을 답변']) {
+    const options = sections.find(([, , text]) => text.includes(summary))
+    assert(options, `${summary} 설정이 유지되어야 한다`)
+    assert.doesNotMatch(options[1], /\bopen=/, `${summary}는 기본적으로 접는다`)
+  }
 })
 console.log(`\n수합 양식 선택·SSR: ${passed} 통과`)
