@@ -1,0 +1,62 @@
+{
+  "date": "2026-11-25",
+  "base": "be379a8a78ebbb80bac5e2fe9c485f4f7abafefa",
+  "scope": "홈·메시지·수합·AI 화면 통일",
+  "unit": {
+    "command": "npm test",
+    "passed": true,
+    "files": 267,
+    "assertions": 5881,
+    "initialFailures": [
+      "test_timetable_jobs.mjs"
+    ],
+    "note": "최초 실패 기록을 보존했다. Windows 파일 교체 접근 거부를 진단한 뒤 원본 코드·기대값·계산 제한을 유지한 채 저장소 밖 전용 임시 폴더에서 전체 단위 시험을 단독 실행했다. 진단용 재시도는 제품에 반영하지 않았다."
+  },
+  "browser": {
+    "files": 206,
+    "verifiedPassed": 205,
+    "firstRunPassed": 204,
+    "firstRunFailures": [
+      "workhub-tab-checkpoint",
+      "workhub-timetable-local-engine"
+    ],
+    "rechecks": [
+      {
+        "name": "workhub-collection-coherent",
+        "passed": true
+      },
+      {
+        "name": "workhub-messaging-coherent",
+        "passed": true
+      },
+      {
+        "name": "workhub-tab-checkpoint",
+        "passed": true
+      },
+      {
+        "name": "workhub-timetable-local-engine",
+        "passed": false
+      }
+    ],
+    "resolution": {
+      "workhub-tab-checkpoint": "복구 후 접힌 제출 대상 선택기를 펼친 다음 기존 대상 유지 검증을 수행하도록 시험 갱신.",
+      "workhub-timetable-local-engine": "원본 계산 코드와 시험을 유지해 단독·전용 임시 폴더 재검사했으나 Windows 파일 교체 접근 거부가 남았다. GitHub 별도 환경 확인과 PC 환경 후속 진단 필요."
+    },
+    "unresolvedFailures": [
+      "workhub-timetable-local-engine"
+    ]
+  },
+  "checks": {
+    "typecheck": "passed",
+    "mainBuild": "passed",
+    "workhubBuild": "passed",
+    "designContracts": "passed"
+  },
+  "productionWrites": 0,
+  "paidAiCalls": 0,
+  "sqlRequired": false,
+  "limits": [
+    "합성 응답으로 실제 React 화면을 검증했다. 운영 배포 후 확인과 실제 휴대폰 키보드 시험을 대신하지 않는다.",
+    "진단에서 확인한 직접 실패는 Windows manifest.json 원자 교체의 PermissionError(errno=13, winerror=5)다. 파일을 잠근 외부 프로세스는 특정하지 않았다. 원본 실패 로그는 재검사 결과와 분리해 보존한다."
+  ]
+}
