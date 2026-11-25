@@ -203,10 +203,14 @@ class LocalWorker:
             self.heartbeat('busy', request_id, force=True)
             started = time.monotonic()
             # stdin/출력/로그를 상속하지 않는다. 키와 교사 자료가 터미널에 노출되지 않는다.
-            child = subprocess.Popen([sys.executable, str(ENGINE), '--input', str(directory / 'request.snapshot.json'), '--output', str(temporary)],
-                                     stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                     creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
-                                     env={**os.environ, 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'})
+            try:
+                child = subprocess.Popen([sys.executable, str(ENGINE), '--input', str(directory / 'request.snapshot.json'), '--output', str(temporary)],
+                                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+                                         env={**os.environ, 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8'})
+            except OSError:
+                # 파일 기록 실패를 Python 실행 실패로 안내하지 않는다.
+                raise JobError('ENGINE_START_FAILED', '계산 프로세스를 시작하지 못했습니다.') from None
             manifest['processId'] = child.pid
             manifest['processIdentity'] = process_identity(child.pid)
             atomic_json(directory / 'manifest.json', manifest)
@@ -247,7 +251,7 @@ class LocalWorker:
         except OSError:
             if not self.stop_or_block(request_id, child):
                 return self.safe_status(request_id)
-            return self.finish(request_id, 'failed', 'ENGINE_START_FAILED')
+            return self.finish(request_id, 'failed', 'FILE_ACCESS_FAILED')
         finally:
             if temporary is not None and request_id not in self.recovery_required:
                 try:
