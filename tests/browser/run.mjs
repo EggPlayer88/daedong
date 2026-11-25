@@ -13,6 +13,7 @@ const scripts = [
   'workhub-teacher-pilot-ai',
   'workhub-school-configuration-result-events', 'workhub-relations-result-events', 'workhub-knowledge-result-events', 'workhub-knowledge-result-events-import', 'workhub-execution-result-events', 'workhub-execution-result-events-connected', 'workhub-plan-domain-connected',
   'workhub-plan-publication-connected', 'workhub-publication-result-events', 'workhub-school-data-result-events', 'workhub-record-export-result-events',
+  'workhub-calendar-lifecycle', 'workhub-timetable-roster-bridge',
   'workhub-calendar-result-events', 'workhub-teaching-result-events', 'workhub-cooperation-result-connected',
   'workhub-approval-result-events', 'workhub-document-result-events', 'workhub-plan-approval-connected',
   'workhub-workflow-result-events', 'workhub-plan-workflow-connected',

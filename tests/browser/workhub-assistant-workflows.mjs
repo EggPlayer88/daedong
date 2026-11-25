@@ -228,6 +228,45 @@ try{
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),true)
     await capture('assistant-workspace-mobile')
   })
+  await test('취소한 일정의 처리 결과를 업무 목록에 남기고 원본 번호·판으로 다시 조회한다',async()=>{
+    await request('1. 일정 취소\n2. 시간표 보여줘','업무 나누기')
+    const plan=page.getByRole('region',{name:'나누어 진행할 업무',exact:true})
+    await plan.getByRole('button',{name:/^1단계 선택/}).click()
+    await button('바로 이동').click()
+    assert.equal(await plan.getByRole('button',{name:'처리된 업무 열기',exact:true}).count(),0)
+    await page.evaluate(()=>{
+      const result={scope:window.workflowScope,key:'cancel-event-one',recordedAt:'2026-11-03T01:00:00.000Z',kind:'calendar',action:'cancel',eventId:'event-cancelled',eventVersion:4}
+      window.navigationResult(result);window.navigationResult(result)
+    })
+    await plan.locator('[data-outcome="recorded"]').waitFor()
+    assert.equal(await plan.getByRole('button',{name:/^1단계 선택/}).isDisabled(),true)
+    const reopen=plan.getByRole('button',{name:'처리된 업무 열기',exact:true})
+    await input().fill('아직 보내지 않은 새 입력')
+    assert.equal(await reopen.isDisabled(),true)
+    await input().fill('');await reopen.click()
+    assert.deepEqual(await page.evaluate(()=>window.opened),[{kind:'calendar',id:'event-cancelled',version:4,title:'일정 취소',description:'',meta:''}])
+    assert.deepEqual(await page.evaluate(()=>window.navigation),['calendar'])
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+    assert.equal(await plan.getByText(/이전 처리/).count(),0)
+  },'notready')
+  await test('취소 일정 재열기가 보류되면 결과를 유지하고 다른 학교의 늦은 결과는 표시하지 않는다',async()=>{
+    await request('1. 일정 취소\n2. 시간표 보여줘','업무 나누기')
+    const plan=page.getByRole('region',{name:'나누어 진행할 업무',exact:true})
+    await plan.getByRole('button',{name:/^1단계 선택/}).click();await button('바로 이동').click()
+    await page.evaluate(()=>{
+      window.cancelledResult={scope:window.workflowScope,key:'cancel-event-one',recordedAt:'2026-11-03T01:00:00.000Z',kind:'calendar',action:'cancel',eventId:'event-cancelled',eventVersion:4}
+      window.navigationResult(window.cancelledResult);window.allow=false
+    })
+    await plan.getByRole('button',{name:'처리된 업무 열기',exact:true}).click()
+    await page.getByRole('alert').filter({hasText:'처리된 업무를 열지 못했습니다'}).waitFor()
+    assert.match(await plan.innerText(),/일정 취소/)
+    await page.evaluate(()=>{window.oldResult=window.navigationResult;window.switchAccount()});await settle()
+    await page.evaluate(()=>window.oldResult(window.cancelledResult));await settle()
+    assert.equal(await plan.count(),0)
+    assert.equal(await page.evaluate(()=>window.aiCalls),0)
+    assert.equal(await page.evaluate(()=>window.calls.length),0)
+  },'notready')
   assert.deepEqual(errors,[]);assert.deepEqual(external,[])
   console.log(`대화 업무 연결 브라우저: ${results.length}개 통과`)
 }finally{

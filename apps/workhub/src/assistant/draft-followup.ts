@@ -3,6 +3,8 @@ import type { Recipient } from '../messaging/contracts'
 import type { DirectDraftCommand } from './draft-commands'
 import { draftDateWords, resolveDraftDate } from './draft-date'
 import { validWorkspaceText } from './workspace-commands'
+import { parseDraftRevision, revisionDate } from './draft-revision'
+import { validCollectionComposeText } from '../collections/compose-text'
 
 export interface DraftPerson {
   memberId: string
@@ -15,6 +17,7 @@ export interface DraftFollowup {
   command: DirectDraftCommand
   selected: DraftPerson[]
   pendingNames?: string[]
+  replaceSelection?: boolean
   dueDate?: string
   scope: string
   basisDate: string
@@ -69,4 +72,38 @@ export function parseDraftReply(draft: DraftFollowup, reply: string): DraftReply
   if (!query || [...query].length > SEARCH_LIMITS.queryChars || !/^[\p{L}\p{N}][\p{L}\p{N} .·'-]*$/u.test(query) ||
       /(?:선생님|에게|한테|추가해|(?:^|\s)도\s|해줘|해\s*주세요|주세요|그리고|(?:\S[와과랑])\s)/.test(query)) return explain(nameHint)
   return { kind: 'fields', query, ...(dueDate ? { dueDate } : {}) }
+}
+
+// 제목·본문·기한만 고칠 때 선택된 교사는 보존한다. 대상 교체는 새 후보를 직접 고른 뒤 적용한다.
+export function reviseDraftFollowup(draft: DraftFollowup, reply: string):
+  {kind: 'revised'; draft: DraftFollowup; query?: string} | {kind: 'clarify'; message: string} | null {
+  // 기존의 “기한은 내일까지, 대상은 …” 답은 두 항목을 명시적으로 보완한다.
+  if (/^(?:제출\s*기한|기한|마감|수신자|받는\s*사람|제출\s*대상|대상)/.test(reply)) {
+    const combined = parseDraftReply(draft, reply)
+    if (combined.kind === 'fields' && combined.query && combined.dueDate) return null
+  }
+  const change = parseDraftRevision(reply, draft.command.kind === 'messageDraft' ? 'message' : 'collection')
+  if (change.kind === 'none') return null
+  if (change.kind === 'clarify') return change
+  const { field, value } = change, next = { ...draft }
+  if (field === 'people') {
+    const candidate = parseDraftReply(draft, value)
+    if (candidate.kind !== 'fields' || !candidate.query || candidate.dueDate)
+      return {kind: 'clarify', message: '새 대상 교사 이름을 한 분씩 적어 주세요. 기존 선택은 새 후보를 고를 때까지 유지합니다.'}
+    return {kind: 'revised', draft: {...draft, pendingNames: [candidate.query], replaceSelection: true}, query: candidate.query}
+  }
+  if (field === 'dueDate') {
+    const date = revisionDate(value, draft.basisDate)
+    if (!date || date < draft.basisDate) return {kind: 'clarify', message: '제출 기한에는 오늘 이후의 날짜 하나를 적어 주세요. 기존 내용은 유지했습니다.'}
+    next.dueDate = date
+  } else if (draft.command.kind === 'messageDraft' && field === 'body') {
+    if (!value.trim()) return {kind: 'clarify', message: '메시지 본문은 비울 수 없습니다. 기존 본문은 유지했습니다.'}
+    next.command = {...draft.command, body: value}
+  } else if (draft.command.kind === 'collectionDraft' && (field === 'title' || field === 'instructions')) {
+    const command = {...draft.command, [field]: value}
+    if (!validCollectionComposeText(command.title, command.instructions))
+      return {kind: 'clarify', message: '수합 제목·안내의 문자와 길이를 확인해 주세요. 기존 내용은 유지했습니다.'}
+    next.command = command
+  } else return {kind: 'clarify', message: '현재 초안의 수정 항목을 확인해 주세요.'}
+  return {kind: 'revised', draft: next}
 }

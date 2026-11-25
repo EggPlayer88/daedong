@@ -44,6 +44,7 @@ export function DraftFollowupCard({
           <p>제출 기한 · {dueDate ? <time dateTime={dueDate}>{dueDate}</time> : '미입력'}</p></>}
     {!dueDate && command.firstTurn?.dateIssue && <p>{command.firstTurn.dateIssue}</p>}
     <p>{role} · {selected.length}명</p>
+    {draft.replaceSelection && <p role="status">새 후보를 선택하면 {role}을 바꿉니다. 선택 전에는 기존 대상을 유지합니다.</p>}
     {selected.length > 0 && <ul className="assistant-draft-people" aria-label={role + ' 선택 목록'}>
       {selected.map(person => <li key={person.memberId}><span>{personLabel(person)}</span>
         <button type="button" className="assistant-quiet" disabled={disabled} onClick={() => onRemove(person.memberId)}
@@ -54,7 +55,7 @@ export function DraftFollowupCard({
       <p>“{result.query}” 검색 결과</p>
       {result.items.length ? <ul className="assistant-resource-list">
         {result.items.map(person => {
-          const isSelected = selected.some(item => item.memberId === person.memberId)
+          const isSelected = !draft.replaceSelection && selected.some(item => item.memberId === person.memberId)
           return <li key={person.memberId}><button type="button" disabled={disabled || isSelected} onClick={() => onSelect(person)}>
             <strong>{personLabel(person)}</strong><span className="assistant-resource-open">{isSelected ? '선택됨' : '선택'}</span>
           </button></li>

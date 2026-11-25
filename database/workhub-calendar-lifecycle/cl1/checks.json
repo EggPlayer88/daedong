@@ -1,0 +1,9 @@
+{
+  "postcheck": "INT-16",
+  "baseline": "INT-15 + CL1-01",
+  "rows": 18,
+  "source": "database/workhub-calendar-lifecycle/cl1/INT-16_일정취소포함_통합점검.sql",
+  "bytes": 660656,
+  "sha256": "85ad12d368b64861e4ba63e1ae8b534ee72362d20c48c980e05d7cab91d60203",
+  "deltaObjects": 15
+}

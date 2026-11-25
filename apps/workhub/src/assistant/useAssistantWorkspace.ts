@@ -1,6 +1,7 @@
 import { useWorkspacePlan } from './useWorkspacePlan'
 import { parseWorkspacePlanControl } from './plan-control'
 import { captureTaskPlanOrigin, recordTaskPlanReceipt } from './plan-task-receipts'
+import { recordedCalendarPlanTarget } from './plan-workflow-results'
 import { unavailableWorkspaceCommand } from './workspace-availability'
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { recoveryScope, usePendingRequest } from '../app/pending-requests'
@@ -35,6 +36,7 @@ import { parseWorkspaceCommand, type WorkspaceCommand } from './workspace-comman
 import type { DirectDraftCommand } from './draft-commands'
 import { useDraftContinuation } from './useDraftContinuation'
 import { calendarQuestion, continueCalendar } from './calendar-conversation'
+import { reviseTaskDraft } from './draft-revision'
 import type { TaskChangeCommand } from './task-change-command'
 import type { AssistantWorkspaceSearchResult } from './workspace-model'
 import { composeConversationPrompt, readConversationPrompt, conversationPromptLimit, inferConversationProfile, conversationProfile as profileFor, CONVERSATION_PROFILES, type ConversationFocus } from './conversation-guidance'
@@ -191,14 +193,17 @@ export function useAssistantWorkspace({
     !session.proposal && !openingCitation && calendarReview?.scope === dialogueScope && calendarReview.basisDate === date &&
     workspaceOperation.state?.status === 'review' && workspaceOperation.state.review.kind === 'calendarCreate' &&
     workspaceOperation.state.review.key === calendarReview.reviewKey
-  function resumeCalendarAudience() {
+  function resumeCalendarDraft(audience = false) {
     const original = latest.current.calendarReviewDialogue
     if (!canResumeCalendar || operation.current || !original || original.reviewKey !== workspaceOperation.state?.review.key) return
     // 저장이 시작된 직후의 늦은 클릭도 취소 실패 시 초안 입력으로 우회하지 않는다.
     if (!workspaceOperation.cancel()) return
     update({ ...latest.current, prompt: '', calendarDialogue: original, calendarReviewDialogue: undefined })
-    setError(''); setNotice('대상 교사의 이름을 알려 주세요. 후보에서 직접 선택한 뒤 일정 화면에서 확인합니다.')
+    setError(''); setNotice(audience
+      ? '대상 교사의 이름을 알려 주세요. 후보에서 직접 선택한 뒤 일정 화면에서 확인합니다.'
+      : '바꿀 항목만 알려 주세요. 예: 날짜만 내일로 · 제목은 학년 회의로 바꿔줘')
   }
+  function resumeCalendarAudience() { resumeCalendarDraft(true) }
   function cancelWorkspaceOperation() {
     const original = latest.current.calendarReviewDialogue
     if (!workspaceOperation.cancel()) return
@@ -222,7 +227,7 @@ export function useAssistantWorkspace({
     feedback: (error, notice = '') => { setError(error); setNotice(notice) },
   })
   // 이어지는 답은 현재 초안에만 사용한다. 잘못된 날짜나 이름도 유료 질문이 되지 않는다.
-  const workspaceCommand = commandContext
+  const workspaceCommand = commandContext && !session.proposal
     ? continuation.draftFollowup?.command ?? calendarFollowup ?? parseWorkspaceCommand(session.prompt, date)
     : null
   const workspacePlan = useWorkspacePlan({ session, latest, scope: dialogueScope, date, active: commandContext && enabled,
@@ -230,10 +235,10 @@ export function useAssistantWorkspace({
     feedback: (error, notice = '') => { setError(error); setNotice(notice) },
     selected: () => { setWorkspaceResult(undefined); setWorkspaceActionNotice(undefined) },
   })
-  const freeCommand = Boolean(workspacePlan.control || workspacePlan.candidate) || (workspaceCommand && workspaceCommand.kind !== 'task')
+  const freeCommand = Boolean(session.proposal || workspacePlan.control || workspacePlan.candidate) || (workspaceCommand && workspaceCommand.kind !== 'task')
   const promptLimit = freeCommand ? ASSISTANT_LIMITS.promptChars : conversationPromptLimit(conversationProfile.id, session.prompt)
-  const canSubmit = !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
-  const submitLabel = workspacePlan.control ? '업무 목록 확인' : workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
+  const canSubmit = session.proposal ? editable && !session.taskReview : !workspacePlan.blockedSelection && (freeCommand ? workspaceEditable : editable)
+  const submitLabel = session.proposal ? '할 일 초안 수정' : workspacePlan.control ? '업무 목록 확인' : workspacePlan.candidate ? (workspacePlan.candidate.kind === 'plan' ? '업무 나누기' : '요청 확인') : continuation.draftFollowup ? '초안 정보 이어 입력' : calendarFollowup ? '일정 정보 이어 입력' :
     workspaceCommand?.kind === 'evaluation' ? '평가계획서 연결 확인' :
     workspaceCommand?.kind === 'daily' ? '확인하기' :
     workspaceCommand?.kind === 'taskChange' ? '내 할 일 찾기' :
@@ -609,6 +614,19 @@ export function useAssistantWorkspace({
     setWorkspaceActionNotice(undefined)
   }
   function ask() {
+    // 검토 중인 제안은 같은 판의 입력만 고친다. 해석 실패도 새 유료 요청이나 저장이 되지 않는다.
+    if (latest.current.proposal) {
+      if (!editable || operation.current || latest.current.taskReview) return
+      const current = latest.current, proposal = current.proposal!
+      const revision = reviseTaskDraft(proposal.input, current.prompt, date)
+      if (revision.kind !== 'revised') {
+        setError(revision.kind === 'clarify' ? revision.message : '제목·메모·기한 중 바꿀 항목만 적어 주세요. 예: 기한만 내일로')
+        setNotice(''); return
+      }
+      update({ ...current, prompt: '', proposal: { ...proposal, input: revision.input }, taskReview: false })
+      setError(''); setNotice('할 일 초안을 고쳤습니다. 나머지 내용은 유지했고 아직 저장하지 않았습니다.')
+      return
+    }
     // 누락 정보를 받는 중에는 목록 명령을 제목이나 수신자 이름으로 채우지 않는다.
     if (commandContext && (latest.current.calendarDialogue || latest.current.draftDialogue) &&
         parseWorkspacePlanControl(latest.current.prompt)) {
@@ -864,11 +882,14 @@ export function useAssistantWorkspace({
   function openPlanResult(stepId: string) {
     if (!workspaceEditable || operation.current || latest.current.prompt.trim() || !workspaceActions) return
     const plan = latest.current.workspacePlan, outcome = plan?.outcomes?.[stepId]
-    if (plan?.scope !== dialogueScope || outcome?.kind !== 'confirmed') return
-    const receipt = outcome.receipt
+    if (plan?.scope !== dialogueScope) return
+    const receipt = outcome?.kind === 'confirmed' ? outcome.receipt : undefined
+    const target: SearchItem | undefined = receipt ? { kind: receipt.kind === 'calendarCreate' ? 'calendar' : 'task',
+      id: receipt.id, title: receipt.title, version: receipt.version, description: '', meta: '' }
+      : recordedCalendarPlanTarget(plan, stepId, dialogueScope)
+    if (!target) return
     try {
-      if (!workspaceActions.open({ kind: receipt.kind === 'calendarCreate' ? 'calendar' : 'task',
-        id: receipt.id, title: receipt.title, version: receipt.version, description: '', meta: '' }))
+      if (!workspaceActions.open(target))
         setError('처리된 업무를 열지 못했습니다. 작성 중인 입력을 먼저 확인해 주세요.')
     } catch { setError('처리된 업무를 열지 못했습니다. 저장 결과는 유지했습니다.') }
   }
@@ -894,7 +915,7 @@ export function useAssistantWorkspace({
     }
   }
   function reviewTask() {
-    if (!draft || !editable || taskIssue) return
+    if (!draft || !editable || taskIssue || latest.current.prompt.trim()) return
     try {
       const checked = confirmTask({
         threadId: session.thread?.id,
@@ -936,6 +957,7 @@ export function useAssistantWorkspace({
     calendarFollowup,
     canResumeCalendar,
     resumeCalendarAudience,
+    resumeCalendarDraft: () => resumeCalendarDraft(),
     cancelWorkspaceOperation,
     cancelCalendar,
     dismissTaskMatches: () => { setWorkspaceResult(undefined); setError(''); setNotice('할 일 선택을 닫았습니다. 변경한 내용은 없습니다.') },

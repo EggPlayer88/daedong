@@ -244,7 +244,8 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
     {page:'assistant' as const,label:'AI 질문·업무 초안',slots:['assistant','assistant-operation']},
     {page:'messages' as const,label:'메시지 초안',slots:['messaging-composer']},
     {page:'collections' as const,label:'수합 초안',slots:['collection-editor']},
-    {page:'calendar' as const,label:'일정 입력',slots:['calendar-editor','calendar-panel','calendar-browse','calendar-assistant-view']},
+    {page:'calendar' as const,label:'일정 입력',slots:['calendar-editor','calendar-cancel','calendar-panel','calendar-browse','calendar-assistant-view']},
+    {page:'timetable' as const,label:'기본표 운영 연결',slots:['timetable-roster-bridge']},
     {page:'tasks' as const,label:'할 일 입력',slots:['task-editor','task-panel']},
   ].filter(group => group.slots.some(slot => restoreSlots.includes(slot)))
   const awaitingRestore = restoreDrafts + restorePending > 0
@@ -393,7 +394,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       if (kind === 'calendarCreate') {
         const prior = editDrafts.bind<{ editor?: unknown; importing?: boolean }>(currentScope, 'calendar-panel').initial
         if (batchOpen || assistantCalendar || prior?.editor || prior?.importing ||
-            ['calendar-editor', 'calendar-import', 'calendar-batch'].some(slot => editDrafts.bind(currentScope, slot).initial))
+            ['calendar-editor', 'calendar-cancel', 'calendar-import', 'calendar-batch'].some(slot => editDrafts.bind(currentScope, slot).initial))
           throw new Error('일정 화면에서 작성 중인 내용을 먼저 확인해 주세요.')
       }
       // 완료 결과·조회 화면은 다음 부탁을 막지 않는다. 미저장 입력·미확정 요청은 위에서 보존한다.
@@ -470,7 +471,7 @@ export function ConnectedWorkspace({ expectedUserId, legacyHomeHref, legacyPlanH
       if (!member || !context || connectionUnavailable || navigationLocked || pendingRequests.count() || batchOpen || assistantCalendar) return false
       const prior = editDrafts.bind<{editor?:unknown;importing?:boolean}>(currentScope,'calendar-panel').initial
       if (prior?.editor || prior?.importing || editDrafts.bind(currentScope,'calendar-editor').initial
-        || editDrafts.bind(currentScope,'calendar-import').initial || editDrafts.bind(currentScope,'calendar-batch').initial) return false
+        || editDrafts.bind(currentScope,'calendar-cancel').initial || editDrafts.bind(currentScope,'calendar-import').initial || editDrafts.bind(currentScope,'calendar-batch').initial) return false
       try {
         const draft = buildAssistantCalendarDraft(command,member,context.basisDate)
         if (!navigate('calendar')) return false

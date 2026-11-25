@@ -1,0 +1,9 @@
+{
+  "postcheck": "INT-17",
+  "baseline": "INT-16 + TR2-01",
+  "rows": 18,
+  "source": "database/workhub-timetable/tr2/INT-17_명부시간표운영연결포함_통합점검.sql",
+  "bytes": 667326,
+  "sha256": "ffa9fa565b3ad891a6874c5fde8ebc827173f4665f97dac588511f1169f01e1f",
+  "deltaObjects": 65
+}

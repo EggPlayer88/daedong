@@ -11,6 +11,8 @@ import homeStyles from './home-dashboard.css?inline'
 import { DailyOverviewLayout } from '../home/DailyOverviewLayout'
 import type { ResourceOpenRequest } from '../search/contracts'
 import { CalendarImport } from './CalendarImport'
+import { CalendarCancellation, type CalendarCancelDraft } from './CalendarCancellation'
+import { cancelCommand } from './lifecycle'
 import { PendingRequestsProvider, useRecoveryStore, usePendingRequest, recoveryScope } from '../app/pending-requests'
 import { useEditDraft } from '../app/edit-drafts'
 import type { WorkflowResultListener } from '../app/workflow-results'
@@ -28,6 +30,14 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   const Frame = presentation === 'assistant' ? 'section' : 'main'
   const Heading = presentation === 'assistant' ? 'h2' : 'h1'
   const recovery = usePendingRequest(member, 'calendar')
+  const cancelRecovery = usePendingRequest(member, 'calendarLifecycle')
+  const cancelMemory = useEditDraft<CalendarCancelDraft>(member, 'calendar-cancel')
+  const pendingCancelId = (() => { try { return cancelRecovery.request ? cancelCommand(cancelRecovery.request.command).eventId : undefined } catch { return undefined } })()
+  const [cancelling, setCancelling] = useState<string | undefined>(() => pendingCancelId ?? cancelMemory.initial?.eventId)
+  const [cancelLocked, setCancelLocked] = useState(false)
+  const [history, setHistory] = useState(false)
+  const showCancelled = page === 'calendar' && history
+  const pendingWrite = Boolean(recovery.request || cancelRecovery.request)
   const draft = useEditDraft<CalendarSession>(member, 'calendar-panel')
   const browse = useEditDraft<CalendarBrowseState>(member, 'calendar-browse')
   const editorMemory = useEditDraft<EventEditorSnapshot>(member, 'calendar-editor')
@@ -55,7 +65,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
   const setImportedCount = (value: number | ((current: number) => number)) => updateSession({ importedCount: typeof value === 'function' ? value(sessionRef.current.importedCount) : value })
   const [editorLocked, setEditorLocked] = useState(false)
   const [importLocked, setImportLocked] = useState(false)
-  const navigationLocked = editorLocked || importLocked
+  const navigationLocked = editorLocked || importLocked || cancelLocked
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [hasLoaded, setHasLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -93,7 +103,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
     let accepted = false
     try {
       const request = validateAssistantCalendarDraftRequest(assistantDraftRequest, member, date)
-      if (sessionRef.current.editor || sessionRef.current.importing || recovery.request || restoredEditor.current || detail || (openRequest && openedRequest.current !== openRequest.key)) {
+      if (sessionRef.current.editor || sessionRef.current.importing || recovery.request || cancelRecovery.request || cancelling || restoredEditor.current || detail || (openRequest && openedRequest.current !== openRequest.key)) {
         setMessage('진행 중인 일정 입력을 유지했습니다. 마친 뒤 대화에서 일정 초안을 다시 열어 주세요.')
       } else {
         setEditor({ initialDraft: request.draft, ...(request.audienceQueries ? { audienceQueries: request.audienceQueries } : {}) })
@@ -104,7 +114,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
       setMessage(failure instanceof Error ? failure.message : '일정 초안을 열지 못했습니다. 대화의 입력은 유지합니다.')
     }
     onAssistantDraftHandled?.(assistantDraftRequest.id, accepted)
-  }, [assistantDraftRequest, page, member, date, recovery.request, detail, openRequest, handledMemory, onAssistantDraftHandled])
+  }, [assistantDraftRequest, page, member, date, recovery.request, cancelRecovery.request, cancelling, detail, openRequest, handledMemory, onAssistantDraftHandled])
   // 저장 뒤 목록을 다시 읽으면 이전 일정 버튼이 사라질 수 있어 완료 안내로 잇는다.
   useEffect(() => { if (message) successMessage.current?.focus() }, [message])
   useEffect(() => {
@@ -112,31 +122,32 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
     previousPage.current = page
   }, [page])
   useEffect(() => {
-    if (!openRequest || openedRequest.current === openRequest.key || editor || importing || page !== 'calendar') return
+    if (!openRequest || openedRequest.current === openRequest.key || editor || importing || cancelling || page !== 'calendar') return
     openedRequest.current = openRequest.key
     setDetail(openRequest.id)
     onOpenRequestHandled?.(openRequest.key)
     setMessage('')
-  }, [openRequest, editor, importing, page, onOpenRequestHandled])
+  }, [openRequest, editor, importing, cancelling, page, onOpenRequestHandled])
   useLayoutEffect(() => {
     onNavigationLockChange?.(navigationLocked)
     return () => { onNavigationLockChange?.(false) }
   }, [navigationLocked, onNavigationLockChange])
   useEffect(() => {
-    if (!navigationLocked && !recovery.request) return
+    if (!navigationLocked && !pendingWrite) return
     const beforeLeave = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
     window.addEventListener('beforeunload', beforeLeave)
     return () => window.removeEventListener('beforeunload', beforeLeave)
-  }, [navigationLocked, Boolean(recovery.request)])
+  }, [navigationLocked, pendingWrite])
   useEffect(() => {
     const generation = ++listGeneration.current
     setLoading(true); setError('')
-    adapter.list(member.id).then(result => { if (generation === listGeneration.current) { setEvents(result); setHasLoaded(true) } }).catch(() => { if (generation === listGeneration.current) { setEvents([]); setHasLoaded(false); setError('일정 목록을 불러오지 못했습니다. 일정이 없는 것으로 처리하지 않습니다.') } }).finally(() => { if (generation === listGeneration.current) setLoading(false) })
+    const request = showCancelled && adapter.lifecycle ? adapter.lifecycle.listCancelled(member.id) : adapter.list(member.id)
+    request.then(result => { if (generation === listGeneration.current) { setEvents(result); setHasLoaded(true) } }).catch(() => { if (generation === listGeneration.current) { setEvents([]); setHasLoaded(false); setError('일정 목록을 불러오지 못했습니다. 일정이 없는 것으로 처리하지 않습니다.') } }).finally(() => { if (generation === listGeneration.current) setLoading(false) })
     return () => { listGeneration.current += 1 }
-  }, [adapter, member.id, revision, reload])
+  }, [adapter, member.id, revision, reload, showCancelled])
   const initialLoading = loading && !hasLoaded
   const cards = homeItems(events, member, date)
-  const upcoming = upcomingPreview(events, member, date, 3)
+  const upcoming = upcomingPreview(events.filter(event => event.status !== 'cancelled'), member, date, 3)
   const shownToday = todayExpanded ? cards.today : cards.today.slice(0, 3)
   useEffect(() => { setTodayExpanded(false) }, [member.id, date, page])
   const period = dateRange(view, anchor)
@@ -159,16 +170,18 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
     event.preventDefault(); setAnchor(next)
     requestAnimationFrame(() => monthRef.current?.querySelector<HTMLButtonElement>(`[data-calendar-day="${next}"]`)?.focus())
   }
-  return <><style>{calendarStyles}{homeStyles}</style><Frame id={presentation === 'page' ? 'main-content' : undefined} aria-label={presentation === 'assistant' ? '일정 작업' : undefined} className={page === 'home' ? 'main-content ui-home-main' : 'main-content'}><header className="page-header"><div><p className="eyebrow">{schoolName} · {dateLabel(date)}{demo && <span className="home-basis-label"> · 합성 기준일</span>}</p><Heading ref={heading} tabIndex={-1}>{page === 'home' ? '오늘' : '학교 일정'}</Heading>{page === 'calendar' && <p>학교의 일정을 함께 보고, 필요한 일을 함께 준비해요.</p>}</div><div className="button-row"><button className="primary" disabled={!activeAt(member, date) || Boolean(recovery.request)} onClick={() => { setEditor({}); setMessage('') }}><Icon name="plus" />일정 등록</button>{page === 'calendar' && <button type="button" className="secondary" disabled={!activeAt(member, date) || Boolean(recovery.request) || loading || Boolean(error)} onClick={() => { if (onOpenBatchImport) onOpenBatchImport(); else { setImportedCount(0); setImporting(true); setMessage('') } }}>시트에서 가져오기</button>}</div></header>
+  return <><style>{calendarStyles}{homeStyles}</style><Frame id={presentation === 'page' ? 'main-content' : undefined} aria-label={presentation === 'assistant' ? '일정 작업' : undefined} className={page === 'home' ? 'main-content ui-home-main' : 'main-content'}><header className="page-header"><div><p className="eyebrow">{schoolName} · {dateLabel(date)}{demo && <span className="home-basis-label"> · 합성 기준일</span>}</p><Heading ref={heading} tabIndex={-1}>{page === 'home' ? '오늘' : '학교 일정'}</Heading>{page === 'calendar' && <p>학교의 일정을 함께 보고, 필요한 일을 함께 준비해요.</p>}</div><div className="button-row"><button className="primary" disabled={!activeAt(member, date) || pendingWrite} onClick={() => { setEditor({}); setMessage('') }}><Icon name="plus" />일정 등록</button>{page === 'calendar' && <button type="button" className="secondary" disabled={!activeAt(member, date) || pendingWrite || loading || Boolean(error)} onClick={() => { if (onOpenBatchImport) onOpenBatchImport(); else { setImportedCount(0); setImporting(true); setMessage('') } }}>시트에서 가져오기</button>}</div></header>
     {page === 'calendar' && <div className="basis-strip"><span className="small-tag">{demo ? '합성 기준일' : '한국 시간'}</span><span><strong>{date}</strong> 기준입니다. 종일 일정의 종료일을 포함합니다.</span></div>}
     {recovery.request && !editor && !importing && <section ref={recoveryMessage} tabIndex={-1} className="notice-box" aria-label="보관한 일정 저장 요청"><h2>확인이 필요한 일정 저장이 있습니다</h2><p>이전 요청은 현재 탭에 보관되어 있습니다. 새로 등록하기 전에 같은 요청으로 저장 결과를 확인하세요.</p><button type="button" className="secondary" onClick={() => setEditor({ original: recovery.request?.original })}>보관한 일정 확인</button></section>}
+    {pendingCancelId && !cancelling && <section className="notice-box" aria-label="보관한 일정 취소 요청"><h2>일정 취소 결과를 확인해 주세요</h2><p>원래 요청을 보관했습니다.</p><button className="secondary" onClick={() => setCancelling(pendingCancelId)}>보관한 취소 요청 확인</button></section>}
     {message && <div ref={successMessage} className="success-box" role="status" tabIndex={-1}>{message}</div>}
     {page === 'calendar' && <section className="cv-controls" aria-label="일정 보기 설정">
+      {adapter.lifecycle && <label>일정 상태<select aria-label="일정 상태" value={history ? 'cancelled' : 'active'} onChange={e => { setHistory(e.target.value === 'cancelled'); setHasLoaded(false) }}><option value="active">진행 예정·진행 중</option><option value="cancelled">취소한 일정</option></select></label>}
       <div className="cv-toolbar"><div className="cv-switch" role="group" aria-label="일정 보기 방식">{(['list', 'week', 'month'] as const).map(mode => <button type="button" key={mode} aria-pressed={view === mode} onClick={() => setView(mode)}>{({ list: '목록', week: '주', month: '월' })[mode]}</button>)}</div><div className="cv-period"><h2 id={`${id}-period`} aria-live="polite">{activeRange ? rangeLabel(period, view) : '모든 날짜'}</h2><div className="cv-period-buttons"><button type="button" className="secondary" aria-label={view === 'week' ? '이전 주' : '이전 달'} disabled={!activeRange} onClick={() => move(-1)}>←</button><button type="button" className="secondary" onClick={() => { setAnchor(date); setAllDates(false) }}>오늘로</button><button type="button" className="secondary" aria-label={view === 'week' ? '다음 주' : '다음 달'} disabled={!activeRange} onClick={() => move(1)}>→</button></div></div></div>
       <div className="cv-filters"><label className="search-field" htmlFor={`${id}-search`}>일정 검색<input ref={searchInput} id={`${id}-search`} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="제목·장소·안내 내용 검색" /></label><label htmlFor={`${id}-relation`}>표시할 일정<select aria-label="표시할 일정" id={`${id}-relation`} value={relation} onChange={event => setRelation(event.target.value as CalendarRelation)}><option value="all">열람 가능한 전체</option><option value="related">나와 관련된 일정</option></select></label>{view === 'list' ? <label htmlFor={`${id}-range`}>조회 기간<select aria-label="조회 기간" id={`${id}-range`} value={allDates ? 'all' : 'month'} onChange={event => setAllDates(event.target.value === 'all')}><option value="month">선택한 달</option><option value="all">모든 날짜</option></select></label> : <p className="hint">{view === 'week' ? '월요일부터 일요일까지' : '날짜를 선택하면 아래에 원본 표시'}</p>}</div>
       <div className="cv-filter-summary"><p role="status">{loading ? '일정 확인 중' : error ? '조회 실패 · 건수 확인 안 됨' : `${activeRange ? '선택 기간' : '모든 날짜'} · 원본 ${filtered.length}개`}</p>{(search || relation !== 'all') && <button type="button" className="text-button" onClick={() => { clearFilters(); searchInput.current?.focus() }}>검색·관련 필터 지우기</button>}</div><p className="hint list-hint">관련 여부는 홈 추천 조건입니다. 전체 보기에서도 현재 소속으로 열람 가능한 원본만 표시합니다. 여러 날 일정은 날짜마다 표시되며 원본 개수에는 한 번만 셉니다.</p>
     </section>}
-    {page === 'calendar' && renderLessonAgenda?.(anchor)}
+    {page === 'calendar' && !showCancelled && renderLessonAgenda?.(anchor)}
     {page === 'home' ? <DailyOverviewLayout presentation="home" attention={homePriority} lessons={renderLessonAgenda?.(date)} tasks={homeExtras} supplementary={homeSupplementary}
       calendar={<section className="home-calendar-section" aria-labelledby={id + '-today'}>
         <div className="section-heading home-calendar-heading"><div><h2 id={id + '-today'}><span className="home-heading-icon"><WorkspaceIcon name="calendar" /></span>오늘의 일정</h2>{!initialLoading && !error && <span className="count" aria-label={'오늘 관련 일정 ' + cards.today.length + '개'}>{cards.today.length}</span>}</div><button type="button" className="text-button" aria-label="학교 전체 일정 살펴보기" onClick={() => { setAllDates(false); setAnchor(date); clearFilters(); changePage('calendar') }}>전체 일정 <Icon name="arrow" /></button></div>
@@ -189,7 +202,7 @@ function CalendarPanelScope({ member, members, schoolName, date, adapter, revisi
     </section>}
     {page === 'calendar' && <details className="home-display-help"><summary>일정 도움말</summary><p>{demo ? '합성 기준일' : '한국 시간'} {date} 기준으로 내 업무·학년·교과와 관련된 일정을 표시합니다. 종일 일정은 종료일까지 포함하며, 진행 중인 일정은 오늘에 표시합니다. 전체 일정에서는 현재 소속으로 열람 가능한 다른 일정도 확인할 수 있습니다.</p></details>}
     {demo && <footer className="workspace-footer">{storageLabel ?? '합성 자료 · 개발 저장소'}</footer>}
-  </Frame>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setImportLocked} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} editingBlocked={Boolean(recovery.request)} onClose={() => setDetail(undefined)} onEdit={event => { if (recovery.request) return; setDetail(undefined); setEditor({ original: event }) }} />}{editor && <EventEditor onWorkflowResult={onWorkflowResult} relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} initialDraft={editor.initialDraft} assistantAudienceQueries={editor.audienceQueries} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setEditorLocked} onDiscard={discardEditor} onSuspend={() => { focusRecovery.current = true; setEditor(undefined) }} onClose={() => { restoredEditor.current = undefined; setEditor(undefined) }} onSaved={event => { restoredEditor.current = undefined; setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
+  </Frame>{importing && activeAt(member, date) && <CalendarImport key={`${member.schoolId}:${member.id}:${member.userId}`} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setImportLocked} relationOptions={relationOptions} demo={demo} storageLabel={storageLabel} onClose={() => { setImporting(false); if (importedCount) setMessage(`시트에서 확인한 일정 ${importedCount}개를 등록했습니다. 등록한 원본은 학교 일정에서 확인할 수 있습니다.`) }} onSaved={() => { setImportedCount(value => value + 1); setReload(value => value + 1) }} />}{detail && <EventDetail key={detail} id={detail} member={member} date={date} adapter={adapter} editingBlocked={pendingWrite} onCancelEvent={adapter.lifecycle ? event => { if(pendingWrite)return; setDetail(undefined); setCancelling(event.id) } : undefined} onClose={() => setDetail(undefined)} onEdit={event => { if (pendingWrite) return; setDetail(undefined); setEditor({ original: event }) }} />}{cancelling && <CalendarCancellation key={cancelling} eventId={cancelling} member={member} date={date} adapter={adapter} onWorkflowResult={onWorkflowResult} onNavigationLockChange={setCancelLocked} onClose={() => setCancelling(undefined)} onCancelled={event => { setCancelling(undefined); setMessage(`‘${event.title}’ 일정을 취소했습니다. 취소한 일정에서 원본과 사유를 확인할 수 있습니다.`); setReload(n => n + 1) }} />}{editor && <EventEditor onWorkflowResult={onWorkflowResult} relationLabels={relationOptions} demo={demo} storageLabel={storageLabel} original={editor.original} initialDraft={editor.initialDraft} assistantAudienceQueries={editor.audienceQueries} member={member} members={members} date={date} adapter={adapter} onNavigationLockChange={setEditorLocked} onDiscard={discardEditor} onSuspend={() => { focusRecovery.current = true; setEditor(undefined) }} onClose={() => { restoredEditor.current = undefined; setEditor(undefined) }} onSaved={event => { restoredEditor.current = undefined; setEditor(undefined); setMessage(`‘${event.title}’ ${event.version === 1 ? '등록' : '수정'} 완료 · 원본 v${event.version}. 관련 일정은 오늘 홈에도 반영됩니다.`); setReload(value => value + 1) }} />}</>
 }
 function EventCard({ event, reason, onOpen, compact = false, summary = false, today = false, shownDate }: { event: CalendarEvent; reason?: string; onOpen: (id: string) => void; compact?: boolean; summary?: boolean; today?: boolean; shownDate?: string }) {
   const timeDescriptionId = useId()
@@ -197,13 +210,13 @@ function EventCard({ event, reason, onOpen, compact = false, summary = false, to
   const timing = eventTiming(event, shownDate), time = timing.description
   const summaryMeta = [today && event.startDate === event.endDate ? '' : time, event.location].filter(Boolean).join(' · ')
   return <button className={'event-card' + (compact ? ' compact' : '') + (summary ? ' home-event-card' : '')} onClick={() => onOpen(event.id)} aria-label={event.title + ' · 원본 v' + event.version + ' 보기'} aria-describedby={today ? timeDescriptionId : undefined}>{today && <span className="sr-only" id={timeDescriptionId}>{time}</span>}<span className={today ? "home-time-tile" : "date-tile"} aria-hidden={today || undefined}>{today ? <><strong>{timing.primary}</strong>{timing.secondary && <small>{timing.secondary}</small>}</> : <><small>{date.getUTCMonth() + 1}월</small><strong>{date.getUTCDate()}</strong></>}</span><span className="event-body">
-    {summary ? <><strong className="event-title">{event.title}</strong>{summaryMeta && <span className="event-meta">{summaryMeta}</span>}{event.visibility === 'private' && <span className="event-badges"><span className="reason-tag">나만 보는 일정</span></span>}</> : <><span className="event-meta">{time}</span><strong className="event-title">{event.title}</strong><span className="event-location">{event.location || '장소 미지정'}</span><span className="event-badges"><span className="reason-tag">{reason ?? visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span></span></>}
+    {summary ? <><strong className="event-title">{event.title}</strong>{summaryMeta && <span className="event-meta">{summaryMeta}</span>}{event.visibility === 'private' && <span className="event-badges"><span className="reason-tag">나만 보는 일정</span></span>}</> : <><span className="event-meta">{time}</span><strong className="event-title">{event.title}</strong><span className="event-location">{event.location || '장소 미지정'}</span><span className="event-badges"><span className="reason-tag">{reason ?? visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span>{event.status === 'cancelled' && <span className="reason-tag">취소됨</span>}</span></>}
   </span><span className="card-arrow" aria-hidden="true">{summary ? "›" : "↗"}</span></button>
 }
 
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><span aria-hidden="true">○</span><h3>{title}</h3><p>{text}</p></div> }
 
-function EventDetail({ id, member, date, adapter, onClose, onEdit, editingBlocked = false }: { id: string; member: Membership; date: string; adapter: Adapter; onClose: () => void; onEdit: (event: CalendarEvent) => void; editingBlocked?: boolean }) {
+function EventDetail({ id, member, date, adapter, onClose, onEdit, onCancelEvent, editingBlocked = false }: { id: string; member: Membership; date: string; adapter: Adapter; onClose: () => void; onEdit: (event: CalendarEvent) => void; onCancelEvent?: (event: CalendarEvent) => void; editingBlocked?: boolean }) {
   const [event, setEvent] = useState<CalendarEvent>()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
@@ -211,5 +224,5 @@ function EventDetail({ id, member, date, adapter, onClose, onEdit, editingBlocke
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => { const element = dialog.current; const root = element?.getRootNode(); const previous = (root instanceof ShadowRoot ? root.activeElement : document.activeElement) as HTMLElement | null; element?.showModal(); return () => { element?.close(); if (previous?.isConnected) previous.focus() } }, [])
   useEffect(() => { let active = true; setLoading(true); setEvent(undefined); setError(''); adapter.get(member.id, id).then(result => { if (active) setEvent(result) }).catch(failure => { if (active) setError(failure.message) }).finally(() => { if (active) setLoading(false) }); return () => { active = false } }, [adapter, id, member.id, member.active, attempt])
-  return <dialog ref={dialog} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => { event.preventDefault(); onClose() }}><header className="dialog-header"><div><p className="eyebrow">학교 일정 · 원본 보기</p><h2 id="detail-title">{event?.title ?? '일정 상세'}</h2></div><button className="icon-button" aria-label="일정 상세 닫기" onClick={onClose}>✕</button></header><div className="dialog-body">{loading ? <p role="status">원본을 불러오는 중…</p> : error ? <div role="alert" className="error-box"><p>{error}</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>다시 불러오기</button></div> : event && <><div className="detail-tags"><span className="reason-tag">{visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span></div><dl className="event-detail"><div><dt>일정</dt><dd>{dateLabel(event.startDate)}{event.endDate !== event.startDate ? ` ~ ${dateLabel(event.endDate)}` : ''}<br />{eventTiming(event).description}</dd></div><div><dt>장소</dt><dd>{event.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{event.description || '등록된 안내가 없습니다.'}</dd></div><div><dt>원본 식별자</dt><dd className="mono">{event.id}</dd></div></dl><p className="subtle-note">학교 일정과 홈은 이 원본을 함께 봅니다. 수정 시 원본 버전이 올라가고 추천 대상도 다시 계산됩니다.</p></>}</div><footer className="dialog-footer">{editingBlocked && <p className="hint">보관한 일정의 저장 결과를 확인한 뒤 수정할 수 있습니다.</p>}<button className="secondary" onClick={onClose}>닫기</button>{event && canEdit(event, member, date) && <button className="primary" disabled={editingBlocked} onClick={() => onEdit(event)}>일정 수정</button>}</footer></dialog>
+  return <dialog ref={dialog} className="detail-dialog" aria-labelledby="detail-title" onCancel={event => { event.preventDefault(); onClose() }}><header className="dialog-header"><div><p className="eyebrow">학교 일정 · 원본 보기</p><h2 id="detail-title">{event?.title ?? '일정 상세'}</h2></div><button className="icon-button" aria-label="일정 상세 닫기" onClick={onClose}>✕</button></header><div className="dialog-body">{loading ? <p role="status">원본을 불러오는 중…</p> : error ? <div role="alert" className="error-box"><p>{error}</p><button className="secondary" onClick={() => setAttempt(value => value + 1)}>다시 불러오기</button></div> : event && <><div className="detail-tags"><span className="reason-tag">{visibilityLabels[event.visibility]}</span><span className="version-tag">원본 v{event.version}</span>{event.status === 'cancelled' && <span className="reason-tag">취소됨</span>}</div><dl className="event-detail">{event.status === 'cancelled' && <div><dt>취소 사유</dt><dd>{event.cancelReason}</dd></div>}<div><dt>일정</dt><dd>{dateLabel(event.startDate)}{event.endDate !== event.startDate ? ` ~ ${dateLabel(event.endDate)}` : ''}<br />{eventTiming(event).description}</dd></div><div><dt>장소</dt><dd>{event.location || '장소 미지정'}</dd></div><div><dt>안내</dt><dd className="description">{event.description || '등록된 안내가 없습니다.'}</dd></div><div><dt>원본 식별자</dt><dd className="mono">{event.id}</dd></div></dl><p className="subtle-note">학교 일정과 홈은 이 원본을 함께 봅니다. 수정 시 원본 버전이 올라가고 추천 대상도 다시 계산됩니다.</p></>}</div><footer className="dialog-footer">{editingBlocked && <p className="hint">보관한 일정의 저장 결과를 확인한 뒤 수정할 수 있습니다.</p>}<button className="secondary" onClick={onClose}>닫기</button>{event && canEdit(event, member, date) && onCancelEvent && <button className="secondary" disabled={editingBlocked} onClick={() => onCancelEvent(event)}>일정 취소</button>}{event && canEdit(event, member, date) && <button className="primary" disabled={editingBlocked} onClick={() => onEdit(event)}>일정 수정</button>}</footer></dialog>
 }

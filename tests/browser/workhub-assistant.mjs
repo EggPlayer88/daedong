@@ -29,6 +29,36 @@ async function test(name,run,scenario=''){await start(scenario);try{await run()}
 async function ask(text='학교 제출 절차를 확인해 주세요.'){await page.getByLabel('질문 또는 부탁할 일',{exact:true}).fill(text);await page.getByRole('button',{name:'AI에게 요청',exact:true}).click();await settle()}
 async function personal(){await page.getByText('자료 범위 변경',{exact:true}).click();await page.getByRole('button',{name:'내 개인 비서',exact:true}).click();await settle();await ask('제출 자료 확인을 할 일로 정리해 주세요.');await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).waitFor()}
 try{
+ await test('할 일 제안의 대화 수정은 같은 제안 판을 보존하고 오류·미확정 상태에서 새 유료 요청을 만들지 않는다',async()=>{
+  await personal();await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).click();
+  const prompt=page.getByLabel('질문 또는 부탁할 일',{exact:true});
+  for(const text of ['제목은 준비 자료 점검으로 바꿔줘','메모: 확인해 주세요.\n그리고 회의도 준비해 주세요','기한만 내일로']){
+   await prompt.fill(text);
+   assert.equal(await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).isDisabled(),true);
+   await page.getByRole('button',{name:'할 일 초안 수정',exact:true}).click();
+   assert.equal(await prompt.inputValue(),'');assert.equal(await page.evaluate(()=>window.aiCalls),1);
+   assert.equal(await page.evaluate(()=>window.tasks),0);
+  }
+  assert.equal(await page.getByLabel('할 일 제목',{exact:true}).inputValue(),'준비 자료 점검');
+  assert.equal(await page.getByLabel('할 일 메모',{exact:true}).inputValue(),'확인해 주세요.\n그리고 회의도 준비해 주세요');
+  assert.equal(await page.getByLabel('할 일 마감일',{exact:true}).inputValue(),'2026-10-17');
+  await prompt.fill('기한만 2026-02-30로');await page.getByRole('button',{name:'할 일 초안 수정',exact:true}).click();
+  assert.equal(await prompt.inputValue(),'기한만 2026-02-30로');assert.equal(await page.evaluate(()=>window.aiCalls),1);
+  await prompt.fill('');await page.getByRole('button',{name:'추가할 내용 확인',exact:true}).click();
+  assert.equal(await prompt.isDisabled(),true);
+  await page.evaluate(()=>window.taskUnknown=true);
+  await page.getByRole('button',{name:'확인한 할 일 추가',exact:true}).click();
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).waitFor();
+  assert.equal(await prompt.isDisabled(),true);
+  const original=await page.evaluate(()=>window.calls.find(row=>row.kind==='confirmTask'));
+  assert.equal(original.input.proposalId,'proposal-one');assert.equal(original.input.expectedVersion,1);
+  assert.equal(original.input.input.title,'준비 자료 점검');
+  await page.getByRole('button',{name:'같은 요청으로 결과 확인',exact:true}).click();
+  await page.getByText('개인 할 일에 추가했습니다.',{exact:true}).waitFor();
+  const saved=await page.evaluate(()=>window.calls.filter(row=>row.kind==='confirmTask'));
+  assert.deepEqual(saved,[original,original]);assert.equal(await page.evaluate(()=>window.tasks),1);
+  assert.equal(await page.getByRole('button',{name:'할 일 제안 검토',exact:true}).count(),0);
+ });
  for(const unknown of [false,true])await test(`AI 정상 대기와 ${unknown?'결과 불명 상태':'완료'}를 구분하고 원요청 잠금을 유지한다`,async()=>{
   await page.evaluate(value=>{window.deferAsk=true;window.pendingOnce=value},unknown);
   await ask('시험용 질문을 그대로 유지합니다.');
