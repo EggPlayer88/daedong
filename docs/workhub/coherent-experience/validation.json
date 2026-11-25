@@ -5,16 +5,17 @@
   "unit": {
     "command": "npm test",
     "passed": true,
-    "files": 267,
-    "assertions": 5881,
+    "files": 268,
+    "assertions": 5895,
     "initialFailures": [
-      "test_timetable_jobs.mjs"
+      "test_timetable_jobs.mjs",
+      "test_timetable_cpsat.mjs"
     ],
-    "note": "최초 실패 기록을 보존했다. Windows 파일 교체 접근 거부를 진단한 뒤 원본 코드·기대값·계산 제한을 유지한 채 저장소 밖 전용 임시 폴더에서 전체 단위 시험을 단독 실행했다. 진단용 재시도는 제품에 반영하지 않았다."
+    "note": "Windows 독점 파일 게시와 오류 분류 수정 후 저장소 밖 전용 임시 폴더에서 전체 시험을 통과했다. 최초 실패 기록과 후속 전체 실행의 CP-SAT 실패를 보존한다. CP-SAT 시험의 이름·원스택·응답 상태 진단만 보강했으며 제품 계산 코드는 유지했다. 재시도·계산 제한·기대값 완화는 추가하지 않았다."
   },
   "browser": {
     "files": 206,
-    "verifiedPassed": 205,
+    "verifiedPassed": 206,
     "firstRunPassed": 204,
     "firstRunFailures": [
       "workhub-tab-checkpoint",
@@ -35,16 +36,14 @@
       },
       {
         "name": "workhub-timetable-local-engine",
-        "passed": false
+        "passed": true
       }
     ],
     "resolution": {
       "workhub-tab-checkpoint": "복구 후 접힌 제출 대상 선택기를 펼친 다음 기존 대상 유지 검증을 수행하도록 시험 갱신.",
-      "workhub-timetable-local-engine": "원본 계산 코드와 시험을 유지해 단독·전용 임시 폴더 재검사했으나 Windows 파일 교체 접근 거부가 남았다. GitHub 별도 환경 확인과 PC 환경 후속 진단 필요."
+      "workhub-timetable-local-engine": "Windows 배타 생성을 덮어쓰기 금지 rename으로 보완했다. 실제 파일·Python 계산·브라우저 21건을 서로 다른 임시 경로에서 2회 완주했다. 실패를 접수증 state/code로 즉시 진단하며 기대값과 시간 제한은 유지한다."
     },
-    "unresolvedFailures": [
-      "workhub-timetable-local-engine"
-    ]
+    "unresolvedFailures": []
   },
   "checks": {
     "typecheck": "passed",
@@ -57,6 +56,43 @@
   "sqlRequired": false,
   "limits": [
     "합성 응답으로 실제 React 화면을 검증했다. 운영 배포 후 확인과 실제 휴대폰 키보드 시험을 대신하지 않는다.",
-    "진단에서 확인한 직접 실패는 Windows manifest.json 원자 교체의 PermissionError(errno=13, winerror=5)다. 파일을 잠근 외부 프로세스는 특정하지 않았다. 원본 실패 로그는 재검사 결과와 분리해 보존한다."
-  ]
+    "최초 Windows 접근 거부 기록은 보존했다. 특정 외부 프로세스를 원인으로 단정하지 않으며 새 저장 방식·원본 보존·동시 게시·오류 주입을 검증했다. 최신 커밋의 원격 검사와 Claude 검토를 병합 전에 확인한다."
+  ],
+  "windowsFollowup": {
+    "publicationRegression": 10,
+    "workerRegression": 59,
+    "browserRuns": [
+      {
+        "run": 1,
+        "assertions": 21,
+        "passed": true,
+        "durationMs": 89567,
+        "temporaryDirectory": "external-qa"
+      },
+      {
+        "run": 2,
+        "assertions": 21,
+        "passed": true,
+        "durationMs": 91654,
+        "temporaryDirectory": "Windows-default"
+      }
+    ],
+    "comparison": {
+      "iterationsPerMethod": 300,
+      "hardlinkFailures": 11,
+      "renameFailures": 0,
+      "replaceControlFailures": 0
+    },
+    "changes": [
+      "Windows exclusive publish: os.rename; POSIX os.link unchanged",
+      "Popen failure: ENGINE_START_FAILED; other file OSError: FILE_ACCESS_FAILED"
+    ],
+    "externalLockOwnerIdentified": false
+  },
+  "checksBeforeFollowup": {
+    "sha": "d77971de6bc6147667ef612b1e985a1aa4d77a39",
+    "test": "success",
+    "vercelPreview": "success",
+    "run": "https://github.com/EggPlayer88/daedong/actions/runs/45455141879"
+  }
 }
