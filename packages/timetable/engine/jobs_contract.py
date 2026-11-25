@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 import runner
+import balanced_quality
 
 POLICY = json.loads((Path(__file__).resolve().parents[1] / '_assets' / 'job-policy.json').read_text(encoding='utf-8'))
 CONTRACT = POLICY['contract']
@@ -92,7 +93,8 @@ def validate_result(request, value):
     try:
         exact(value, 'contract requestId inputHash engineVersion status candidates issues stats')
         require(all(value[key] == request[key] for key in ('contract', 'requestId', 'inputHash')))
-        require(value['engineVersion'] == runner.POLICY['engineVersion'])
+        balanced = request['options'].get('qualityMode') == 'balanced'
+        require(value['engineVersion'] == (balanced_quality.POLICY['engineVersion'] if balanced else runner.POLICY['engineVersion']))
         require(value['status'] in ('feasible', 'infeasible', 'unknown', 'invalid', 'unsupported', 'error'))
         exact(value['stats'], 'elapsedMs branches stoppedByLimit')
         stats = value['stats']
@@ -113,15 +115,40 @@ def validate_result(request, value):
         require(value['status'] not in ('feasible', 'infeasible', 'unknown') or not request['basis']['unsupportedFeatures'])
         seen = set()
         for candidate in value['candidates']:
-            exact(candidate, 'placements objective optimal')
+            exact(candidate, 'placements objective optimal' + (' quality' if balanced else ''))
             require(type(candidate['optimal']) is bool)
+            require(not balanced or candidate['optimal'] is False)
             exact(candidate['objective'], 'changedLessons movedLessons preferencePenalty teacherPeakPeriods courseRepeats')
             require(all(type(number) is int and 0 <= number <= 9007199254740991 for number in candidate['objective'].values()))
             runner.validate_placements(request['basis'], candidate['placements'])
             require(candidate['objective'] == runner.objective(request['basis'], candidate['placements'], request['previous']))
-            signature = runner.canonical(sorted(candidate['placements'], key=lambda item: item['lessonId']))
+            if balanced:
+                require(candidate['quality'] == balanced_quality.evaluate(request['basis'], candidate['placements'], request['options']))
+                require(all(type(n) is int and 0 <= n <= 9007199254740991 for n in candidate['quality'].values()))
+            signature = balanced_quality.cells(request['basis'], candidate['placements']) if balanced else runner.canonical(sorted(candidate['placements'], key=lambda item: item['lessonId']))
             require(signature not in seen)
             seen.add(signature)
+        if balanced and value['candidates']:
+            best = value['candidates'][0]
+            cells = [balanced_quality.cells(request['basis'], c['placements']) for c in value['candidates']]
+            minimum = balanced_quality.required_difference(cells[0])
+            score = best['quality']['totalPenalty']
+            require(all(score <= c['quality']['totalPenalty'] <= balanced_quality.ceiling(score) for c in value['candidates']))
+            require(all(balanced_quality.difference(a, b) >= minimum for i, a in enumerate(cells) for b in cells[:i]))
+            if request['previous']:
+                try:
+                    runner.validate_placements(request['basis'], request['previous']['placements'])
+                except runner.InputError:
+                    pass
+                else:
+                    require(score <= balanced_quality.evaluate(request['basis'], request['previous']['placements'], request['options'])['totalPenalty'])
+        if balanced and value['status'] in ('unknown', 'infeasible') and request['previous']:
+            try:
+                runner.validate_placements(request['basis'], request['previous']['placements'])
+            except runner.InputError:
+                pass
+            else:
+                require(False)
         return value
     except (JobError, runner.InputError, KeyError, TypeError, ValueError, OverflowError):
         raise JobError('RESULT_INVALID', '계산 결과의 원본·배치·목적함수를 확인할 수 없습니다.') from None

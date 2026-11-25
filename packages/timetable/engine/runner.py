@@ -208,7 +208,11 @@ def validate_request(r):
         validate_placements(old['basis'], old['placements'])
         if any(old['basis'][k] != r['basis'][k] for k in ('schoolId', 'termId')):
             fail('PREVIOUS_CONTEXT_MISMATCH', '이전 시간표의 학교·학기가 다릅니다.', 'previous')
-    o = r['options']; fields(o, 'maxSeconds maxCandidates seed minimizeChanges improveTeacherBalance spreadCourses', 'options')
+    o = r['options']
+    balanced = isinstance(o, dict) and 'qualityMode' in o
+    fields(o, 'maxSeconds maxCandidates seed minimizeChanges improveTeacherBalance spreadCourses' + (' qualityMode' if balanced else ''), 'options')
+    if balanced and (o['qualityMode'] != 'balanced' or o['minimizeChanges'] is not False):
+        fail('INVALID_OPTIONS', '품질 우선 모드는 변경 최소화와 별도로 선택합니다.', 'options.qualityMode')
     integer(o['maxSeconds'], 1, POLICY['maximumMaxSeconds'], 'options.maxSeconds')
     integer(o['maxCandidates'], 1, POLICY['maximumCandidates'], 'options.maxCandidates')
     integer(o['seed'], 0, 2147483647, 'options.seed')
@@ -308,6 +312,9 @@ def solve(request):
     result = dict(contract=POLICY['contract'], requestId=request.get('requestId', '') if isinstance(request, dict) else '', inputHash=request.get('inputHash', '') if isinstance(request, dict) else '', engineVersion=POLICY['engineVersion'], status='invalid', candidates=[], issues=[], stats=dict(elapsedMs=0, branches=0, stoppedByLimit=False))
     try:
         validate_request(request); b = request['basis']
+        if request['options'].get('qualityMode') == 'balanced':
+            import balanced_quality
+            result['engineVersion'] = balanced_quality.POLICY['engineVersion']
         if b['unsupportedFeatures']:
             result['status'] = 'unsupported'
             result['issues'] = [dict(code='UNSUPPORTED_FEATURE', message='아직 계산할 수 없는 조건: ' + x, path='basis.unsupportedFeatures') for x in b['unsupportedFeatures']]
@@ -321,6 +328,9 @@ def solve(request):
             result['status'] = 'error'
             result['issues'] = [dict(code='ENGINE_UNAVAILABLE', message='고정 버전 OR-Tools 계산 환경이 필요합니다.', path='engine')]
             return result
+        if request['options'].get('qualityMode') == 'balanced':
+            import balanced_engine
+            return balanced_engine.optimize(request, result, started, validate_placements, objective)
         deadline = started + request['options']['maxSeconds']; excluded = []
         for _ in range(request['options']['maxCandidates']):
             model, choices, metrics, stages = make_model(cp, request, excluded, deadline)
