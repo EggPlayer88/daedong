@@ -482,6 +482,89 @@ except JobError as error:
     rmSync(join(path, '교사자료.crswap')); call(['cleanup', '--store', store, '--request-id', req.requestId, '--apply']); assert.equal(existsSync(path), false)
     assert.ok(existsSync(join(store, 'jobs', 'desktop.ini')))
   })
+  await check('프로세스 시작의 OSError만 ENGINE_START_FAILED로 기록한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    const result = runtime(`import json; import jobs_worker; from jobs_runtime import JobStore
+launches=0
+def denied_start(*args,**kwargs):
+ global launches
+ launches+=1
+ raise OSError('fixture')
+jobs_worker.subprocess.Popen=denied_start
+jobs_worker.LocalWorker(JobStore(sys.argv[2])).run(once=True)
+print(json.dumps(launches))`, [store])
+    assert.equal(result, 1); assert.equal(status(store, req.requestId).state, 'failed'); assert.equal(status(store, req.requestId).code, 'ENGINE_START_FAILED')
+    assert.ok(json(join(path, 'manifest.json')).deadlineAt); assert.equal(json(join(path, 'manifest.json')).processId, null)
+    assert.equal(existsSync(join(path, 'result.json')), false); assert.deepEqual(json(join(path, 'request.json')), req)
+  })
+  await check('실행 전 manifest 저장 실패는 엔진을 시작하지 않고 FILE_ACCESS_FAILED로 기록한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    const result = runtime(`import json; import jobs_worker; from jobs_runtime import JobStore
+original_write=jobs_worker.atomic_json; launches=0
+def denied_manifest(path,*args,**kwargs):
+ if path.name=='manifest.json': raise PermissionError('fixture')
+ return original_write(path,*args,**kwargs)
+def unexpected_start(*args,**kwargs):
+ global launches
+ launches+=1
+ raise AssertionError('계산 프로세스가 시작되면 안 됩니다.')
+jobs_worker.atomic_json=denied_manifest; jobs_worker.subprocess.Popen=unexpected_start
+jobs_worker.LocalWorker(JobStore(sys.argv[2])).run(once=True)
+print(json.dumps(launches))`, [store])
+    assert.equal(result, 0); assert.equal(status(store, req.requestId).state, 'failed'); assert.equal(status(store, req.requestId).code, 'FILE_ACCESS_FAILED')
+    assert.equal(json(join(path, 'manifest.json')).deadlineAt, null); assert.equal(json(join(path, 'manifest.json')).processId, null)
+    assert.equal(existsSync(join(path, 'result.json')), false); assert.deepEqual(json(join(path, 'request.json')), req)
+  })
+  await check('실행 후 manifest 저장 실패는 실제 자식을 종료하고 FILE_ACCESS_FAILED로 기록한다', async () => {
+    const store = newStore(), req = await request(), path = browserSubmit(store, req)
+    const result = runtime(`import json; from pathlib import Path; import jobs_worker; from jobs_runtime import JobStore
+original_write=jobs_worker.atomic_json; original_start=jobs_worker.subprocess.Popen; writes=0; children=[]
+def denied_manifest(path,*args,**kwargs):
+ global writes
+ if path.name=='manifest.json':
+  writes+=1
+  if writes==2: raise PermissionError('fixture')
+ return original_write(path,*args,**kwargs)
+def tracked_start(*args,**kwargs):
+ child=original_start(*args,**kwargs); children.append(child); return child
+jobs_worker.ENGINE=Path(sys.argv[3]); jobs_worker.atomic_json=denied_manifest; jobs_worker.subprocess.Popen=tracked_start
+try:
+ jobs_worker.LocalWorker(JobStore(sys.argv[2])).run(once=True)
+ print(json.dumps(dict(writes=writes,launches=len(children),stopped=all(child.poll() is not None for child in children))))
+finally:
+ for child in children:
+  if child.poll() is None: child.kill(); child.wait(timeout=5)`, [store, sleepFixture])
+    assert.deepEqual(result, { writes: 2, launches: 1, stopped: true })
+    assert.equal(status(store, req.requestId).state, 'failed'); assert.equal(status(store, req.requestId).code, 'FILE_ACCESS_FAILED')
+    assert.equal(existsSync(join(path, 'result.json')), false); assert.deepEqual(json(join(path, 'request.json')), req)
+  })
+  await check('저장 실패 뒤 자식 종료가 미확인이면 실패로 확정하거나 다음 작업을 시작하지 않는다', async () => {
+    const store = newStore(), first = await request(), next = await request(); browserSubmit(store, first, true, new Date(Date.now() - 1000).toISOString()); browserSubmit(store, next)
+    const result = runtime(`import json,os; import jobs_worker; from jobs_runtime import JobStore; from jobs_contract import JobError
+original_write=jobs_worker.atomic_json; writes=0; launches=0
+def denied_manifest(path,*args,**kwargs):
+ global writes
+ if path.name=='manifest.json':
+  writes+=1
+  if writes==2: raise PermissionError('fixture')
+ return original_write(path,*args,**kwargs)
+class Child:
+ pid=os.getpid()
+ def __init__(self,*args,**kwargs):
+  global launches
+  launches+=1
+ def poll(self): return None
+ def terminate(self): raise PermissionError('fixture')
+jobs_worker.atomic_json=denied_manifest; jobs_worker.subprocess.Popen=Child
+w=jobs_worker.LocalWorker(JobStore(sys.argv[2]))
+try:
+ w.run(once=True); print(json.dumps('unexpected'))
+except JobError as error:
+ print(json.dumps(dict(code=error.code,launches=launches,recovery=sys.argv[3] in w.recovery_required)))`, [store, first.requestId])
+    assert.deepEqual(result, { code: 'RECOVERY_REQUIRED', launches: 1, recovery: true })
+    assert.equal(status(store, first.requestId).state, 'running'); assert.equal(status(store, next.requestId), null)
+    assert.equal(json(join(store, 'worker.json')).state, 'stopped')
+  })
   await check('자식 두 번째 종료 시간초과와 종료 권한 오류를 미확인 상태로 반환한다', () => {
     const result = runtime(`import json,subprocess; from jobs_worker import LocalWorker
 class Child:

@@ -91,6 +91,10 @@ export function useCollectionEditor({
   }>()
   const [exportBusy, setExportBusy] = useState(false)
   const [savingRequest, setSavingRequest] = useState(false)
+  // 접수된 초안과 재조회한 판이 일치할 때만 다음 검토 화면을 연다. 저장 명령과는 별개인 화면 신호다.
+  const [savedAnswerReview, setSavedAnswerReview] = useState<{
+    requestId: string; unitId: string; draftId: string; version: number; input: AnswerInput
+  }>()
   const [publishReview, setPublishReview] = useState<CollectionRequest>()
   const [operationState, setOperationState] = useState<CollectionOperationsState>()
   const [operationsLocked, setOperationsLocked] = useState(false)
@@ -225,6 +229,7 @@ export function useCollectionEditor({
     if (fromCompose && offeredCompose) finishCompose(offeredCompose.id)
   }
   function resetEditing(selected?: string) {
+    setSavedAnswerReview(undefined)
     setPublishReview(undefined)
     setSession({ selectedId: selected })
     setError('')
@@ -232,6 +237,7 @@ export function useCollectionEditor({
     setComparison(undefined)
   }
   function hideDenied() {
+    setSavedAnswerReview(undefined)
     setPublishReview(undefined)
     focusTarget.current = undefined
     memory.remove()
@@ -444,7 +450,10 @@ export function useCollectionEditor({
           }
         }
         if (answer?.confirmedVersion) {
-          if (latestDraft?.version === answer.confirmedVersion)
+          if (latestDraft?.version === answer.confirmedVersion) {
+            setSavedAnswerReview({ requestId: answer.requestId, unitId: answer.unitId,
+              draftId: latestDraft.id, version: latestDraft.version,
+              input: { text: latestDraft.text, number: latestDraft.number, files: latestDraft.files ?? [] } })
             setSession({
               ...sessionRef.current,
               answer: {
@@ -459,7 +468,8 @@ export function useCollectionEditor({
                 confirmedInput: undefined,
               },
             })
-          else {
+          } else {
+            setSavedAnswerReview(undefined)
             setSession({
               ...sessionRef.current,
               conflict: true,
@@ -524,6 +534,7 @@ export function useCollectionEditor({
     // 양식 일괄 저장의 첫 create는 뼈대만 접수한 상태다. 마지막 update 뒤에만 결과를 알린다.
     const intermediateCreation = request.command.kind === 'create' && Boolean(sessionRef.current.editor?.saving)
     operation.current = true
+    if (request.command.kind === 'save_draft') setSavedAnswerReview(undefined)
     recovery.put(request)
     setSavingRequest(true)
     setBusy('서버에 저장 중…')
@@ -650,6 +661,7 @@ export function useCollectionEditor({
     if (locked || !detail || !canWriteSubmission(unitId)) return
     const epoch = life.current
     operation.current = true
+    setSavedAnswerReview(undefined)
     setBusy('공동 초안을 확인 중…')
     setError('')
     try {
@@ -1228,6 +1240,7 @@ export function useCollectionEditor({
     retainComparedInput,
     revision,
     saveEditor,
+    savedAnswerReview,
     savingRequest,
     selectTemplates,
     selectedId,

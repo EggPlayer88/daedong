@@ -3,10 +3,12 @@ import { MessagePreview } from './MessagePreview'
 import { SentDeliveryPanel } from './SentDeliveryPanel'
 import { recipientLabel, sortedRecipients } from './deliveries'
 import { MessageAttachments } from './MessageAttachments'
+import { MessageRecipientPicker } from './MessageRecipientPicker'
 import messagingStyles from './messaging.css?inline'
 import composerStyles from '../app/composer-layout.css?inline'
 import inboxStyles from './inbox-ui.css?inline'
 import assistantStyles from './assistant-messaging.css?inline'
+import coherentStyles from './messaging-coherent.css?inline'
 import { timeLabel, sourceLabels } from './workspace-model'
 import type { useMessagingWorkspace } from './useMessagingWorkspace'
 export function MessagingView({ model }: { model: ReturnType<typeof useMessagingWorkspace> }) {
@@ -109,17 +111,16 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
   } = model
   const assistant = model.presentation === 'assistant'
   const replyAtConversation = Boolean(draft.thread && tab === 'messages' && (!assistant || openedId || showThreadList))
+  const selectedPeople = draft.thread ? draft.thread.participants.filter(person => person.memberId !== member.id) : draft.recipients
   const composer = composing ? (
             <form
-              hidden={folded || (assistant && Boolean(preview || pending))}
+              hidden={folded || Boolean(preview) || (assistant && Boolean(pending))}
               className="messaging-compose wh-composer"
               onSubmit={prepare}
               aria-label={draft.thread ? '답장 작성' : '새 메시지 작성'}
             >
               <header className="wh-compose-heading">
-                {!assistant && <span className="wh-compose-eyebrow">메시지 작성</span>}
                 <h3>{draft.thread ? '답장 작성' : '새 메시지 작성'}</h3>
-                {!assistant && <p>받는 사람과 내용을 확인한 뒤 전송합니다.</p>}
               </header>
               {conflict && (
                 <div className="messaging-status" role="alert">
@@ -142,27 +143,11 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               <div className="messaging-compose-grid">
                 <fieldset disabled={locked} className="messaging-to wh-compose-body">
                   <legend className="messaging-sr-only">받는 사람과 내용</legend>
-                  <details className="messaging-recipient-editor" open={!assistant || !draft.recipients.length || Boolean(draft.thread) || conflict}>
-                    <summary hidden={!assistant}>받는 사람 {draft.recipients.length}명 · {draft.recipients.map(person => recipientLabel(person, draft.recipients)).join(', ')}</summary>
-                  <div className="wh-compose-label">
-                    <h4>받는 사람</h4>
-                    <span>
-                      {draft.thread
-                        ? draft.thread.participants.filter((item) => item.memberId !== member.id)
-                            .length
-                        : draft.recipients.length}
-                      명 선택
-                    </span>
-                  </div>
-                  {draft.thread ? (
-                    <p>
-                      받는 사람:{' '}
-                      {draft.thread.participants
-                        .filter((item) => item.memberId !== member.id)
-                        .map((item) => item.name)
-                        .join(', ')}
-                    </p>
-                  ) : (
+                  <MessageRecipientPicker key={draft.thread?.id ?? draft.composeId ?? 'new'}
+                    people={selectedPeople} peers={recipientPeers} disabled={locked}
+                    mode={draft.thread ? draft.thread.kind === 'group' ? 'group' : 'reply' : draft.mode}
+                    forceOpen={conflict} readOnly={Boolean(draft.thread)}>
+                  {!draft.thread && (
                     <>
                       <label htmlFor={`${id}-mode`}>
                         보내는 방식
@@ -185,13 +170,6 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                           <option value="individual">각자에게 개별 전송</option>
                         </select>
                       </label>
-                      <p className="messaging-muted">
-                        {draft.mode === 'group'
-                          ? '단체 대화에서는 참여자와 답장을 서로 볼 수 있습니다.'
-                          : draft.mode === 'individual'
-                            ? '같은 내용을 각 교사와의 개별 대화에 보냅니다.'
-                            : '한 명의 교사와 대화합니다.'}
-                      </p>
                       <div className="messaging-filters">
                         <label htmlFor={`${id}-recipient-search`}>
                           교사 이름·부서 검색
@@ -213,14 +191,6 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                           교사 찾기
                         </button>
                       </div>
-                      {recipientError && (
-                        <div role="alert">
-                          {recipientError}
-                          <button type="button" onClick={() => void loadRecipients(false)}>
-                            받는 사람 다시 조회
-                          </button>
-                        </div>
-                      )}
                       {loadingRecipients && <p role="status">교사 명단 확인 중…</p>}
                       <ul className="messaging-recipient-list" aria-label="받는 사람 선택">
                         {sortedRecipients(recipients.items).map((recipient) => (
@@ -279,23 +249,23 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                           </button>
                         ))}
                       </div>
-                      {draft.mode === 'group' && (
-                        <label htmlFor={`${id}-title`}>
-                          대화 제목
-                          <input
-                            id={`${id}-title`}
-                            value={draft.title}
-                            maxLength={readiness?.limits?.titleCharacters}
-                            required
-                            onChange={(event) =>
-                              setDraft((value) => ({ ...value, title: event.target.value }))
-                            }
-                          />
-                        </label>
-                      )}
                     </>
                   )}
-                  </details>
+                  </MessageRecipientPicker>
+                  {!draft.thread && draft.mode === 'group' && (
+                    <label htmlFor={`${id}-title`}>
+                      대화 제목
+                      <input
+                        id={`${id}-title`}
+                        value={draft.title}
+                        maxLength={readiness?.limits?.titleCharacters}
+                        required
+                        onChange={(event) =>
+                          setDraft((value) => ({ ...value, title: event.target.value }))
+                        }
+                      />
+                    </label>
+                  )}
                 </fieldset>
                 <div className="messaging-compose-content wh-compose-body">
                   <fieldset disabled={locked} className="messaging-body-fields">
@@ -336,7 +306,6 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
               </div>
               {!pending && !preview && (
                 <footer className="wh-compose-footer">
-                  {!assistant && <p>다음 화면에서 최종 확인 후 보냅니다.</p>}
                   <div className="messaging-actions">
                     <button
                       className="messaging-primary"
@@ -363,7 +332,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
   ) : null
   return (
     <section className="messaging-workspace" data-presentation={model.presentation} aria-labelledby={`${id}-heading`}>
-      <style>{messagingStyles + composerStyles + inboxStyles + assistantStyles}</style>
+      <style>{messagingStyles + composerStyles + inboxStyles + assistantStyles + coherentStyles}</style>
       <header className="messaging-header ws-page-intro">
         <div>
           <h2 id={`${id}-heading`} tabIndex={-1} ref={heading}>
@@ -425,6 +394,10 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
           {error}
         </div>
       )}
+      {recipientError && composing && <div className="messaging-status" role="alert">
+        <p>{recipientError}</p>
+        <button type="button" disabled={loadingRecipients || locked} onClick={() => void loadRecipients(false)}>받는 사람 다시 조회</button>
+      </div>}
       {!usable && !checking && (
         <div className="messaging-status" role="alert">
           <p>
@@ -600,7 +573,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                   </button>
                 )}
               </section>}
-              <section className="messaging-panel" aria-label="선택한 대화">
+              <section className="messaging-panel messaging-thread-detail" aria-label="선택한 대화">
                 {openedId && (
                   <div className="messaging-actions">
                     <button type="button" onClick={closeThread}>
@@ -610,7 +583,7 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                 )}
                 {selected ? (
                   <>
-                    <h3 ref={threadHeading} tabIndex={-1}>
+                    <header className="messaging-thread-heading"><h3 ref={threadHeading} tabIndex={-1}>
                       {selected.title ||
                         selected.participants
                           .filter((item) => item.memberId !== member.id)
@@ -618,8 +591,12 @@ export function MessagingView({ model }: { model: ReturnType<typeof useMessaging
                           .join(', ')}
                     </h3>
                     <p className="messaging-muted">
-                      참여자: {selected.participants.map((item) => item.name).join(', ')}
+                      {selected.kind === 'group' ? '단체 대화' : '1:1 대화'} · 참여자 {selected.participants.length}명
                     </p>
+                    <details className="messaging-record-details"><summary>참여자·대화 정보</summary>
+                      <p>{selected.participants.map(person => recipientLabel(person, selected.participants)).join(', ')}</p>
+                      <p>대화 번호: {selected.id} · 원본 v{selected.version}</p>
+                    </details></header>
                     {messageError && (
                       <div role="alert">
                         {messageError}

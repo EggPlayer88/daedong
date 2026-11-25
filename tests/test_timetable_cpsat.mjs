@@ -9,8 +9,19 @@ const m = await loadBrowserModule(`export * from '../packages/timetable/src/vali
 const candidates = [process.env.TIMETABLE_PYTHON, process.env.PYTHON, resolve('tests/.venv/Scripts/python.exe'), resolve('tests/.venv/bin/python'), 'python3', 'python'].filter(Boolean)
 const python = candidates.find(p => (!/[\\/]/.test(p) || existsSync(p)) && spawnSync(p, ['-c', 'import ortools; assert ortools.__version__ == "9.15.6755"'], { stdio: 'ignore' }).status === 0)
 assert.ok(python, '고정 버전 OR-Tools가 필요합니다: pip install -r packages/timetable/requirements.txt')
-let count = 0
-async function check(name, fn) { await fn(); count++; console.log('  ✓ ' + name) }
+let count = 0, lastResponse = null
+async function check(name, fn) {
+  lastResponse = null
+  try {
+    await fn()
+  } catch (error) {
+    // 전체 실행기의 마지막 줄 요약에서도 실패한 검사와 원래 스택을 함께 보존한다.
+    console.error(`  ✗ ${name}: ${String(error?.stack ?? error).replace(/\s+/g, ' ')} / 계산 응답: ${JSON.stringify(lastResponse)}`)
+    throw error
+  }
+  count++
+  console.log('  ✓ ' + name)
+}
 const clone = structuredClone
 function basis() {
   return { schemaVersion: 1, id: 'basis-1', revision: 1, schoolId: 'school-1', termId: 'term-1', sourceFingerprint: 'a'.repeat(64), schoolLevel: 'middle', unsupportedFeatures: [], resources: [{ id: 't1', kind: 'teacher', label: '교사1', capacity: 1 }, { id: 'c1', kind: 'class', label: '학급1', capacity: 1 }], slots: [{ id: 's1', day: 1, label: '월1', startMinute: 540, endMinute: 585, periods: 1 }, { id: 's2', day: 1, label: '월2', startMinute: 595, endMinute: 640, periods: 1 }, { id: 's3', day: 2, label: '화1', startMinute: 540, endMinute: 585, periods: 1 }], lessons: [{ id: 'l1', courseId: 'q1', label: '국어', periods: 1, resourceIds: ['t1', 'c1'], allowedSlotIds: ['s1', 's2', 's3'] }, { id: 'l2', courseId: 'q2', label: '수학', periods: 1, resourceIds: ['t1', 'c1'], allowedSlotIds: ['s1', 's2', 's3'] }], courseLoads: [{ courseId: 'q1', periods: 1 }, { courseId: 'q2', periods: 1 }], fixed: [], unavailable: [], preferences: [] }
@@ -20,8 +31,11 @@ function raw(request) {
   assert.equal(r.status, 0, r.stderr || String(r.error)); return JSON.parse(r.stdout)
 }
 async function run(b, previous = null, options = {}) {
+  lastResponse = null
   const request = await m.buildCpSatRequest(b, 'request-1', previous, { maxSeconds: 5, ...options })
-  const result = await m.parseCpSatResponse(request, raw(request)); return { request, result }
+  const result = await m.parseCpSatResponse(request, raw(request))
+  lastResponse = { status: result.status, candidates: result.candidates.length, stats: result.stats, issues: result.issues.map(issue => issue.code) }
+  return { request, result }
 }
 const places = [{ lessonId: 'l1', slotId: 's1' }, { lessonId: 'l2', slotId: 's2' }]
 

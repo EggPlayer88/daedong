@@ -1,0 +1,23 @@
+/* 일반 화면과 AI 안에서 같은 수합 내용·대상·결과를 읽는 간격을 맞춘다. */
+.collection-coherent{gap:12px;color:var(--ui-text,var(--ink,#253044))}
+.collection-coherent .cs-composer-heading{padding:20px 24px 16px}
+.collection-coherent .cs-composer-heading h3{margin:10px 0 0;font-size:1.2rem;letter-spacing:-.025em}
+.collection-coherent .cs-draft-badge{font-size:.75rem;padding:3px 9px}
+.collection-coherent .cs-composer.wh-composer .cs-compose-section{padding:16px 0}
+.collection-coherent .cs-composer.wh-composer .cs-compose-section h4{font-size:.95rem;letter-spacing:-.02em}
+.collection-coherent .cs-compose-section h4 small{font-weight:400;color:var(--ui-muted,var(--muted,#697386));font-size:.8rem}
+.collection-coherent .cs-target-summary{list-style:none;display:flex;flex-wrap:wrap;gap:6px;padding:0;margin:0 0 8px}
+.collection-coherent .cs-target-summary li{border-radius:8px;background:var(--ui-accent-soft,#edf4ff);color:var(--ui-accent,#2868d9);padding:5px 9px;font-size:.85rem;overflow-wrap:anywhere;max-width:100%}
+.collection-coherent .cs-target-picker{border:1px solid var(--ui-line,#dce2eb);border-radius:12px;padding:0 12px;min-width:0}
+.collection-coherent .cs-target-picker>summary{cursor:pointer;min-height:44px;align-content:center;color:var(--ui-text,#253044);font-weight:600;font-size:.85rem}
+.collection-coherent .cs-target-picker[open]{padding-bottom:12px}
+.collection-coherent .cs-target-errors{padding:10px 12px 10px 28px;margin:8px 0;border-radius:9px;background:var(--ui-danger-soft,#fff2f1);color:var(--ui-danger,#822b25);font-size:.85rem}
+.collection-coherent .cs-composer.wh-composer .cs-template-picker{min-height:96px;padding:16px}
+.collection-coherent .cs-conversation-submit-review{border:1px solid var(--ui-accent,#2868d9);border-radius:14px;margin:14px 20px;padding:16px;background:var(--ui-surface,#fff)}
+.collection-coherent .cs-conversation-submit-review h4{margin:0 0 12px;font-size:1rem}
+.collection-coherent .cs-record-info{font-size:.8rem;color:var(--ui-muted,var(--muted,#697386));margin:10px 0}
+.collection-coherent .cs-record-info summary{min-height:36px;align-content:center;cursor:pointer}
+.collection-coherent .cs-record-info p{margin:6px 0}
+.collection-coherent .cs-actions{gap:8px}
+.collection-coherent .cs-list-item{border-radius:14px}
+@media(max-width:640px){.collection-coherent .cs-composer-heading{padding:16px}.collection-coherent .cs-conversation-submit-review{margin-inline:12px;padding:12px}.collection-coherent .cs-target-picker{padding-inline:10px}}

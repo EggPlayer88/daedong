@@ -14,6 +14,19 @@ async function prepare(){await page.getByRole('button',{name:/함께 여는 월�
 async function done(){await page.getByRole('status').filter({hasText:'일정을 취소했습니다'}).waitFor();assert.equal(await page.evaluate(()=>window.qa.pendingCount()),0);assert.equal(await page.evaluate(()=>window.qa.writes),1);assert.equal(await page.evaluate(()=>window.qa.results.length),1)}
 const cancelCalls=()=>page.evaluate(()=>window.qa.calls.filter(c=>c.name==='workhub_calendar_cancel'))
 try{
+ await check('취소 이력에는 수업을 섞지 않고 홈으로 돌아오면 네 업무 영역과 정상 수업을 보존한다',async()=>{
+  const lessons=()=>page.getByRole('region',{name:'시험 날짜별 수업',exact:true})
+  await lessons().waitFor();await prepare();await button('이 일정 취소').click();await done()
+  await page.getByLabel('일정 상태',{exact:true}).selectOption('cancelled')
+  await page.getByRole('button',{name:/함께 여는 월요일.*원본 v2 보기/}).waitFor()
+  assert.equal(await lessons().count(),0)
+  await page.evaluate(()=>window.qa.home())
+  const home=page.locator('[data-daily-presentation="home"]');await home.waitFor();await lessons().waitFor()
+  await page.waitForFunction(()=>window.qa.calls.at(-1)?.name==='workhub_calendar_list'&&!document.querySelector('.loading-state'))
+  assert.deepEqual(await home.locator('[data-daily-slot]').evaluateAll(nodes=>nodes.map(node=>node.dataset.dailySlot)),['attention','lessons','calendar','tasks'])
+  assert.equal(await home.getByRole('button',{name:/함께 여는 월요일.*보기/}).count(),0)
+  assert.equal((await cancelCalls()).length,1);assert.equal(await page.evaluate(()=>window.qa.writes),1)
+ })
  await check('좁은 화면에서도 사유·확인을 유지하고 잘못된 사유는 전송하지 않는다',async()=>{
   await prepare();await page.setViewportSize({width:320,height:640});await reason().fill('가'.repeat(501));await confirmed().check();await button('이 일정 취소').click();await page.getByRole('alert').filter({hasText:'1~500자'}).waitFor();assert.equal((await cancelCalls()).length,0)
   const dimensions=await page.getByRole('dialog').evaluate(e=>({width:e.getBoundingClientRect().width,viewport:innerWidth}));assert.ok(dimensions.width<=dimensions.viewport)

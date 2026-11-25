@@ -39,6 +39,9 @@ function App(){
  const adapter=useMemo(()=>createSupabaseCalendarAdapter({...connection}),[service])
  qa.remount=()=>setGeneration(n=>n+1);qa.changeDate=()=>setDate('2026-10-20');qa.changeService=()=>setService(n=>n+1);qa.home=()=>setPage('home')
  qa.changeScope=()=>{active=fixtureData.memberships.find(m=>m.id==='nuri-harin')!;setCurrent(active)}
- return <EditDraftsProvider store={drafts}><PendingRequestsProvider store={pending}><style>{styles}</style><CalendarPanel key={generation} member={current} members={fixtureData.memberships} schoolName="합성 학교" date={date} adapter={adapter} revision={0} page={page} onPageChange={setPage} onWorkflowResult={result=>{qa.results.push(copy(result));if(qa.resultThrows)throw Error('표시 오류')}} /></PendingRequestsProvider></EditDraftsProvider>
+ return <EditDraftsProvider store={drafts}><PendingRequestsProvider store={pending}><style>{styles}</style><CalendarPanel key={generation} member={current} members={fixtureData.memberships} schoolName="합성 학교" date={date} adapter={adapter} revision={0} page={page} onPageChange={setPage}
+  homePriority={<section aria-label="시험 확인할 일">확인할 일</section>} homeExtras={<section aria-label="시험 내 업무">내 업무</section>}
+  renderLessonAgenda={day=><section aria-label="시험 날짜별 수업">{day} 수업</section>}
+  onWorkflowResult={result=>{qa.results.push(copy(result));if(qa.resultThrows)throw Error('표시 오류')}} /></PendingRequestsProvider></EditDraftsProvider>
 }
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)

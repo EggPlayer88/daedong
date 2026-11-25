@@ -16,7 +16,7 @@ async function command(text,label){await input().fill(text);await button(label).
 async function build(first){await command(`1. ${first}\n2. 시간표 보여줘`,'업무 나누기');await plan().waitFor();await plan().getByRole('button',{name:/^1단계 선택/}).click()}
 async function messageDraft(){await build('메시지 초안: 자료를 확인해 주세요.');await button('메시지 초안 열기').click();await page.getByLabel('가상 교사 02',{exact:true}).check();assert.equal(await page.getByLabel('메시지',{exact:true}).inputValue(),'자료를 확인해 주세요.')}
 async function send(){await button('받는 사람과 내용 확인').click();await button('확인한 내용 보내기').click()}
-async function collectionDraft(){await build('수합 초안: 학년 자료');await button('수합 초안 열기').click();await button('수합 초안 사용').click();await page.getByLabel('제출 기한',{exact:true}).fill('2026-11-20');await page.getByRole('checkbox',{name:'가상 교사 01',exact:true}).check()}
+async function collectionDraft(){await build('수합 초안: 학년 자료');await button('수합 초안 열기').click();await page.getByLabel('제출 기한',{exact:true}).fill('2026-11-20');await page.getByRole('checkbox',{name:'가상 교사 01',exact:true}).check()}
 async function talk(){await button('대화 보기').click();await plan().waitFor()}
 async function test(name,run){await page.setViewportSize({width:1280,height:1000});await page.goto(origin);await page.addScriptTag({content:bundle});await button('AI 비서').first().click();await input().waitFor();try{await run();passed++;console.log('  ✓ '+name)}catch(e){console.error(await page.locator('.workhub-connected').innerText());throw e}}
 try{
@@ -57,7 +57,7 @@ try{
     assert.match(await plan().innerText(),/화면 연결됨/);assert.equal(await plan().locator('[data-outcome="recorded"]').count(),0)
   })
   await test('수합 초안을 닫은 뒤 새로 만든 수합은 원래 단계에 붙이지 않는다',async()=>{
-    await build('수합 초안: 원래 초안');await button('수합 초안 열기').click();await button('전달받은 수합 초안 닫기').click()
+    await build('수합 초안: 원래 초안');await button('수합 초안 열기').click();await page.getByLabel('수합 제목',{exact:true}).waitFor();await button('작성 취소').click()
     await button('새 수합 만들기').click();await page.getByLabel('수합 제목',{exact:true}).fill('다른 수합');await page.getByLabel('제출 기한',{exact:true}).fill('2026-11-20');await page.getByRole('checkbox',{name:'가상 교사 01',exact:true}).check();await button('수합 초안 저장').click();await button('대상 교사에게 공개').waitFor();await talk()
     assert.match(await plan().innerText(),/화면 연결됨/);assert.equal(await plan().locator('[data-outcome="recorded"]').count(),0)
   })
