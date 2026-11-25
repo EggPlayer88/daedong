@@ -59,9 +59,9 @@ async function collectionPublish() { await collectionDraft(); await button('대�
 async function collectionAnswer() {
   await collectionPublish(); await button('내 제출 파일 작성').click(); await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(hwpx('제출.hwpx'))
   await page.getByText(/파일 준비가 완료되었습니다/).waitFor(); await button('제출 초안 저장').click()
-  await page.waitForFunction(() => [...document.querySelectorAll('button')].some(node => node.textContent === '최종 제출 내용 확인' && !node.disabled))
+  await button('확인한 파일 최종 제출').and(page.locator(':enabled')).waitFor()
 }
-async function submitCollection() { await button('최종 제출 내용 확인').click(); await button('확인한 파일 최종 제출').click() }
+async function submitCollection() { await button('확인한 파일 최종 제출').click() }
 async function timetableApprove() {
   await page.evaluate(() => window.addRequest('manager')); await button('승인하고 시간표에 반영').click()
   const review = page.getByRole('region', { name: '변경 요청 응답 확인', exact: true })
@@ -158,9 +158,8 @@ try {
   })
   await test('collection', '파일 준비·제출 초안과 최종 접수는 구분하고 유실된 최종 접수는 한 번만 복구한다', async () => {
     await collectionPublish(); await button('내 제출 파일 작성').click(); await page.getByLabel('제출 파일 선택', { exact: true }).setInputFiles(hwpx('제출.hwpx')); await page.getByText(/파일 준비가 완료되었습니다/).waitFor()
-    assert.deepEqual(await eventActions(), ['create', 'publish']); await button('제출 초안 저장').click(); await button('최종 제출 내용 확인').waitFor(); assert.deepEqual(await eventActions(), ['create', 'publish', 'save_draft'])
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some(node => node.textContent === '최종 제출 내용 확인' && !node.disabled))
-    await button('최종 제출 내용 확인').click(); assert.deepEqual(await eventActions(), ['create', 'publish', 'save_draft'])
+    assert.deepEqual(await eventActions(), ['create', 'publish']); await button('제출 초안 저장').click(); await button('확인한 파일 최종 제출').and(page.locator(':enabled')).waitFor(); assert.deepEqual(await eventActions(), ['create', 'publish', 'save_draft'])
+    await page.getByRole('region', { name: '대화 수합 최종 제출 확인', exact: true }).waitFor(); assert.deepEqual(await eventActions(), ['create', 'publish', 'save_draft'])
     await page.evaluate(() => { window.unknown = 'submit' }); await button('확인한 파일 최종 제출').click(); await button('이전 요청 그대로 다시 확인').waitFor()
     assert.deepEqual(await eventActions(), ['create', 'publish', 'save_draft']); await button('이전 요청 그대로 다시 확인').click(); await page.getByText(/최종 제출을 접수했습니다/).waitFor()
     assert.deepEqual(await eventActions(), ['create', 'publish', 'save_draft', 'submit'])
@@ -173,7 +172,7 @@ try {
     assert.equal(await page.evaluate(() => window.state.submissions.length), 1)
   })
   await test('collection', 'AI 수합 초안 식별은 양식 저장의 마지막 update와 원키 복구에만 보존한다', async () => {
-    await button('수합 초안 사용').click(); await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(hwpx('AI양식.hwpx'))
+    await page.getByLabel('수합 제목', { exact: true }).waitFor(); await page.getByLabel('양식 파일 선택', { exact: true }).setInputFiles(hwpx('AI양식.hwpx'))
     await page.evaluate(() => { window.unknown = 'update' }); await button('수합 초안 저장').click(); await button('이전 요청 그대로 다시 확인').waitFor(); assert.deepEqual(await eventList(), [])
     await button('이전 요청 그대로 다시 확인').click(); await button('대상 교사에게 공개').waitFor()
     const [result] = await eventList(); assert.equal(result.action, 'update'); assert.equal(result.composeId, 'compose-1')
@@ -181,7 +180,7 @@ try {
     assert.equal(await page.evaluate(() => window.state.request.fileCollection.templates.length), 1)
   }, true)
   await test('collection', 'AI 수합 초안을 취소하고 새로 만든 수합은 이전 초안 식별을 재사용하지 않는다', async () => {
-    await button('수합 초안 사용').click(); await button('작성 취소').click(); await collectionDraft()
+    await page.getByLabel('수합 제목', { exact: true }).waitFor(); await button('작성 취소').click(); await collectionDraft()
     assert.equal((await eventList())[0].composeId, undefined); assert.equal((await eventList())[0].action, 'create')
     assert.equal(await page.evaluate(() => window.state.request.title), '결과 연결 수합')
   }, true)

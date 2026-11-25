@@ -7,7 +7,7 @@ export async function checkFirstDraftSentence({ page, test, request, noSideEffec
   const box = () => page.getByRole('textbox', { name: '질문 또는 부탁할 일', exact: true })
   const results = () => region('교사 검색 결과')
   const candidate = name => results().getByRole('button', { name })
-  const goForm = async label => { await button('첨부·최종 검토로 계속').click(); if (label === '수합 초안 사용') await button(label).click(); await form(label === '수합 초안 사용' ? '수합 초안 작성' : '새 메시지 작성').waitFor(); if (label !== '수합 초안 사용') { const detail = page.locator('.messaging-recipient-editor'); if (!await detail.evaluate(node => node.open)) await detail.locator('summary').first().click() } }
+  const goForm = async label => { await button('첨부·최종 검토로 계속').click(); await form(label === '수합 초안 사용' ? '수합 초안 작성' : '새 메시지 작성').waitFor(); if (label !== '수합 초안 사용') { const detail = page.locator('.messaging-recipient-editor'); if (!await detail.evaluate(node => node.open)) await detail.locator('summary').first().click() } else { await page.getByText('제출 대상 변경',{exact:true}).click() } }
   async function reply(text) { await box().fill(text); await button('초안 정보 이어 입력').click() }
   const tomorrow = async () => page.evaluate(() => new Date(Date.parse(window.cross.basisDate + 'T00:00:00Z') + 86400000).toISOString().slice(0,10))
 

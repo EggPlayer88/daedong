@@ -57,6 +57,8 @@ try {
     await accept().click()
     await page.getByRole('form', { name: '새 메시지 작성' }).waitFor()
     assert.equal(await page.getByLabel('보내는 방식').inputValue(), 'individual')
+    assert.match(await page.locator('.messaging-recipient-summary').innerText(), /2명[\s\S]*이교사[\s\S]*김교사/)
+    await page.locator('.messaging-recipient-editor>summary').click()
     assert.equal(await page.getByRole('checkbox', { checked: true }).count(), 2)
     assert.equal(await page.getByLabel('메시지', { exact: true }).inputValue(), '회의 안건을 확인해 주세요.')
     await page.getByRole('button', { name: '받는 사람과 내용 확인' }).click()

@@ -382,7 +382,7 @@ try {
     await page.getByLabel('제출 단위 2 이름', { exact: true }).fill('1학년 협의회'); await page.getByRole('button', { name: '수합 초안 저장', exact: true }).click()
     await page.getByRole('region', { name: '수합 상세', exact: true }).waitFor()
     assert.deepEqual(await page.evaluate(() => window.calls.at(-1).command.input.units), [{ label: '담당교사', responsibleMemberId: 'member-0', contributorMemberIds: [] }, { label: '1학년 협의회', responsibleMemberId: 'member-0', contributorMemberIds: ['member-3'] }])
-    await page.getByRole('button', { name: '양식 추가·초안 수정' }).click(); assert.equal(await page.getByLabel('제출 단위 2 이름', { exact: true }).inputValue(), '1학년 협의회')
+    await page.getByRole('button', { name: '양식 추가·초안 수정' }).click(); await page.getByText('제출 대상 변경', { exact: true }).click(); assert.equal(await page.getByLabel('제출 단위 2 이름', { exact: true }).inputValue(), '1학년 협의회')
     assert.equal(await page.getByRole('checkbox', { name: '공동교사 · 공동 작성자 2', exact: true }).isChecked(), true)
   })
   await test('명부에서 사라진 공동 작성자는 입력을 보존하고 명시적으로 해제하기 전 저장을 막는다', async () => {
