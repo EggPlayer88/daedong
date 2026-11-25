@@ -156,8 +156,9 @@ try {
     const output = process.env.WORKHUB_QA_OUTPUT
     if (output) { mkdirSync(output, { recursive: true }); await page.screenshot({ path: join(output, 'assistant-daily-320-large-text.png'), fullPage: true }) }
     await page.locator('.ws-shell').evaluate(element => { element.style.setProperty('--ui-surface', '#18212f'); element.style.setProperty('--ui-text', '#eef3f8'); element.style.setProperty('--ui-surface-muted', '#243044') })
-    assert.equal(await tasks().evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(24, 33, 47)')
+    assert.equal(await tasks().evaluate(element => getComputedStyle(element.closest('[data-daily-slot]')).backgroundColor), 'rgb(24, 33, 47)')
     assert.equal(await tasks().evaluate(element => getComputedStyle(element).color), 'rgb(238, 243, 248)')
+    await tasks().locator('li button').first().hover()
     assert.equal(await tasks().locator('li button').first().evaluate(element => getComputedStyle(element).backgroundColor), 'rgb(36, 48, 68)')
   })
   assert.deepEqual(external, [])

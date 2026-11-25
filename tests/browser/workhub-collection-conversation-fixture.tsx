@@ -64,11 +64,14 @@ const server: any = {
   async download(_member: string, _parent: any, file: any) { return files.get(file.id).blob },
 }
 const operations: any = { async get() { return { requestId: 'request-1', version: 1, phase: w.phase, dueDate: state.request.dueDate, canManage: true, totals: { total: state.units.length, missing: state.units.length, submitted: 0, accepted: 0, changesRequested: 0 }, units: [] } } }
+w.server = server
 function App() {
   const [visible, setVisible] = useState(true), [revision, setRevision] = useState(0), [compose, setCompose] = useState(w.withCompose ? { id: 'compose-1', schoolId: 'school', memberId: 'member-0', basisDate: '2026-11-11', title: 'AI로 준비한 수합', instructions: '양식을 작성해 주세요.', dueDate: '2026-11-20', targetMemberIds: ['member-0'] } : undefined)
   const [incoming, setIncoming] = useState<any>()
+  const [actor, setActor] = useState(0)
+  w.provideCompose = setCompose; w.changeActor = setActor
   w.remount = setVisible; w.refresh = () => setRevision(value => value + 1)
   w.provideGenerated = () => setIncoming({ requestId: 'request-1', artifactId: 'document-artifact-1', templateId: 'template-1', templateVersion: 1, blob: new Blob(['PK synthetic generated']), fileName: '질문답변.hwpx' })
-  return visible && <CollectionServerPanel presentation="assistant" server={server} operations={operations} member={members[0] as any} members={members as any} date="2026-11-11" revision={revision} composeRequest={compose} onComposeRequestConsumed={() => setCompose(undefined)} incomingFile={incoming} onIncomingFileConsumed={() => setIncoming(undefined)} onNavigationLockChange={value => { w.locked = value }} onWorkflowResult={value => { w.workflowResults.push(copy(value)); if (w.resultThrows) throw Error('합성 결과 표시 실패') }} />
+  return visible && <CollectionServerPanel presentation={w.presentation ?? 'assistant'} server={server} operations={operations} member={members[actor] as any} members={members as any} date="2026-11-11" revision={revision} composeRequest={compose} onComposeRequestConsumed={() => setCompose(undefined)} incomingFile={incoming} onIncomingFileConsumed={() => setIncoming(undefined)} onNavigationLockChange={value => { w.locked = value }} onWorkflowResult={value => { w.workflowResults.push(copy(value)); if (w.resultThrows) throw Error('합성 결과 표시 실패') }} />
 }
 createRoot(document.getElementById('root')!).render(<EditDraftsProvider store={edits}><PendingRequestsProvider store={pending}><App /></PendingRequestsProvider></EditDraftsProvider>)

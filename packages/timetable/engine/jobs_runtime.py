@@ -94,9 +94,13 @@ def atomic_json(path, value, exclusive=False):
             target.flush()
             os.fsync(target.fileno())
         if exclusive:
-            # 이미 있는 원본/마커를 교체하지 않는다. 링크는 같은 파일시스템 안에서만 쓴다.
+            # Windows rename은 기존 대상을 덮어쓰지 않으며, 하드링크 제거 뒤 교체 거부를 피한다.
+            # POSIX rename은 덮어쓸 수 있으므로 같은 파일시스템의 독점 링크 게시를 유지한다.
             try:
-                os.link(temporary, path)
+                if os.name == 'nt':
+                    os.rename(temporary, path)
+                else:
+                    os.link(temporary, path)
             except FileExistsError:
                 raise JobError('REQUEST_CONFLICT', '이미 있는 작업 파일은 덮어쓰지 않습니다.') from None
         else:

@@ -51,6 +51,7 @@ try {
     assert.equal(await field('요청 종류').isVisible(), false)
     assert.equal(await page.locator('.assistant-starters button').count(), 3)
     assert(await page.locator('.assistant-compose').evaluate(el => Boolean(el.compareDocumentPosition(document.querySelector('.assistant-starters')) & Node.DOCUMENT_POSITION_FOLLOWING)))
+    await capture('ai-initial-clean')
     await page.getByText('자료 범위 변경', { exact: true }).click()
     assert.equal(await button('학교 업무 안내').getAttribute('aria-pressed'), 'true')
     await page.locator('.assistant-request-settings summary').click()

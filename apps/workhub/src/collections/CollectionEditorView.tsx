@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { collectionStateLabel } from './presentation'
 import { CollectionOperations } from './CollectionOperations'
 import { type FilePolicy, type FileReference } from '../files/contracts'
@@ -14,6 +14,7 @@ import { CollectionSubmissionGuide } from './CollectionSubmissionGuide'
 import { CollectionUnitWorkbench } from './CollectionUnitWorkbench'
 import styles from './collection-server.css?inline'
 import composerStyles from '../app/composer-layout.css?inline'
+import coherentStyles from './collection-coherent.css?inline'
 import { ComposerOptions } from '../app/ComposerOptions'
 import { inputOf, same } from './collection-editor-model'
 import type { useCollectionEditor } from './useCollectionEditor'
@@ -22,6 +23,8 @@ function ConversationDetails({ enabled, summary, children }: { enabled: boolean;
 }
 export function CollectionEditorView({ model, presentation = 'page' }: { model: ReturnType<typeof useCollectionEditor>; presentation?: 'page' | 'assistant' }) {
   const assistant = presentation === 'assistant'
+  const openedCompose = useRef<string>()
+  const reviewedSave = useRef<string>()
   const [submitReview, setSubmitReview] = useState<{
     command: Extract<CollectionCommand, { kind: 'submit' }>
     input: unknown
@@ -91,6 +94,7 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
     retainComparedInput,
     revision,
     saveEditor,
+    savedAnswerReview,
     savingRequest,
     selectTemplates,
     selectedId,
@@ -115,6 +119,12 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
     unitValidation,
     uploadFile,
   } = model
+  useEffect(() => {
+    // 대화에서 명시적으로 이어 온 초안만 연다. 저장·공개는 하지 않으며 작성 중 입력은 덮지 않는다.
+    if (!assistant || !offeredCompose || !canStartEditor || openedCompose.current === offeredCompose.id) return
+    openedCompose.current = offeredCompose.id
+    startEditor(true)
+  }, [assistant, offeredCompose?.id, canStartEditor, startEditor])
   useEffect(() => { if (!session.answer) setSubmitReview(undefined) }, [session.answer])
   function currentSubmitCommand(): Extract<CollectionCommand, { kind: 'submit' }> | undefined {
     const answer = session.answer
@@ -128,6 +138,20 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
   const submitReviewCurrent = Boolean(submitReview && same(submitReview.command, currentSubmitCommand()) &&
     same(submitReview.input, session.answer?.input) && same(submitReview.request, currentSubmitRequest) &&
     submitReview.label === selectedUnit?.label)
+  useEffect(() => {
+    if (!assistant || !savedAnswerReview || blocked || answerSubmitClosed || !submissionGuide?.canSubmit ||
+        !canShowAnswer || !currentSubmitRequest || !session.answer || !selectedUnit) return
+    const command = currentSubmitCommand()
+    const saved = savedAnswerReview
+    const key = `${saved.requestId}:${saved.unitId}:${saved.draftId}:${saved.version}`
+    if (!command || reviewedSave.current === key || command.requestId !== saved.requestId ||
+        command.unitId !== saved.unitId || command.draftId !== saved.draftId ||
+        command.expectedDraftVersion !== saved.version || !same(session.answer.input, saved.input)) return
+    // 접수 판을 다시 읽은 뒤 검토 카드만 보여 준다. 제출은 마지막 버튼을 눌렀을 때만 실행한다.
+    reviewedSave.current = key
+    setSubmitReview({ command, input: structuredClone(session.answer.input), label: selectedUnit.label, request: currentSubmitRequest })
+  }, [assistant, savedAnswerReview, blocked, answerSubmitClosed, submissionGuide?.canSubmit,
+    canShowAnswer, currentSubmitRequest, session.answer, selectedUnit])
   function filesView(
     files: FileReference[],
     parent?: CollectionFileParent,
@@ -218,8 +242,8 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
     )
   }
   return (
-    <section ref={panelRef} className="collection-server" aria-label="서버 문서 수합">
-      <style>{styles + composerStyles}</style>
+    <section ref={panelRef} className="collection-server collection-coherent" aria-label="서버 문서 수합">
+      <style>{styles + composerStyles + coherentStyles}</style>
       <header className="cs-heading ws-page-intro">
         <div>
           <h2>{assistant ? '수합 작업' : '문서 수합'}</h2>
@@ -606,9 +630,6 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                 <h3 tabIndex={-1} data-cs-focus="editor">
                   {session.editor!.original ? '수합 초안 수정' : '새 수합 초안'}
                 </h3>
-                <p className="cs-muted">
-                  양식과 대상을 선택해 초안으로 저장하세요. 공개는 다음 단계입니다.
-                </p>
               </div>
               <fieldset disabled={inputBlocked}>
                 <legend className="cs-sr-only">수합 내용</legend>
@@ -674,6 +695,13 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                     <h4>
                       제출 대상 <small>{session.editor!.input.units.length}부 선택</small>
                     </h4>
+                    {session.editor!.input.units.length > 0 && <ul className="cs-target-summary" aria-label="선택한 제출 대상">
+                      {session.editor!.input.units.map((unit, index) => <li key={index}>{unit.label || `제출 단위 ${index + 1}`}</li>)}
+                    </ul>}
+                    {unitValidation && !unitValidation.valid && session.editor!.input.units.length > 0 &&
+                      <ul className="cs-target-errors" role="alert">{unitValidation.issues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul>}
+                    <ComposerOptions className="cs-target-picker" initialOpen={!session.editor!.input.units.length || !unitValidation?.valid}
+                      summary={session.editor!.input.units.length ? '제출 대상 변경' : '제출 대상 선택'}>
                     <CollectionUnitsEditor
                       units={session.editor!.input.units}
                       members={allowedMembers}
@@ -689,6 +717,7 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                         })
                       }
                     />
+                    </ComposerOptions>
                   </section>
                   <section className="cs-compose-section">
                     <h4>
@@ -696,7 +725,7 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                     </h4>
                     <p className="cs-muted">
                       {session.editor!.staged !== undefined
-                        ? '양식이 있으면 선택하세요. 저장할 때 HWPX 검사와 업로드를 진행합니다.'
+                        ? '선택한 양식은 초안 저장과 함께 확인합니다.'
                         : '양식을 선택하고 검사 완료 후 초안 변경을 저장하세요.'}
                     </p>
                     {session.editor!.staged !== undefined ? (
@@ -721,8 +750,7 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                             {formatFileBytes(
                               session.editor!.input.fileCollection!.policy.maxFileBytes,
                             )}{' '}
-                            · 최대 {session.editor!.input.fileCollection!.policy.maxFiles}개 ·
-                            선택한 파일은 아래에 표시됩니다.
+                            · 최대 {session.editor!.input.fileCollection!.policy.maxFiles}개
                           </small>
                         </label>
                         <ul className="cs-files" aria-label="선택한 양식">
@@ -802,9 +830,6 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                     ? '제출 후 검토 · 담당자 확인 필요'
                     : '제출 후 검토 · 검토 없이 완료'}
                 >
-                  <p className="cs-muted">
-                    검토자를 지정하면 제출한 파일을 확인하고 보완을 요청할 수 있습니다.
-                  </p>
                   <label>
                     제출 후 검토
                     <select
@@ -856,10 +881,6 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                   )}
                   summary="함께 받을 답변 · 글과 숫자"
                 >
-                  <p className="cs-muted">
-                    파일과 함께 필요한 답변만 요청하세요. 질문을 비우면 해당 항목은 표시하지
-                    않습니다.
-                  </p>
                   <label>
                     글 응답 질문
                     <input
@@ -1551,7 +1572,6 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                 <h3 tabIndex={-1} data-cs-focus="answer">
                   {selectedUnit!.label} · 제출 준비
                 </h3>
-                <p>파일을 저장한 뒤 최종 제출해 주세요.</p>
               </header>
               {submissionGuide && <CollectionSubmissionGuide guidance={submissionGuide} />}
               {answerClosed && (
@@ -1693,7 +1713,6 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                 )}
               </fieldset>
               <footer className="wh-compose-footer">
-                <p>초안 저장과 최종 제출은 별도입니다.</p>
                 <div className="cs-actions">
                   <button
                     type="submit"
@@ -1712,7 +1731,7 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                   >
                     작성 닫기
                   </button>
-                  {session.answer!.original && selectedUnit!.responsibleMemberId === member.id && (
+                  {session.answer!.original && selectedUnit!.responsibleMemberId === member.id && (!assistant || !submitReview) && (
                     <button
                       type="button"
                       className={submissionGuide?.canSubmit ? 'cs-primary' : undefined}
@@ -1736,12 +1755,12 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                     <dt>수합</dt><dd>{submitReview.request.title}</dd>
                     <dt>제출 단위</dt><dd>{submitReview.label}</dd>
                     <dt>제출 기한</dt><dd>{submitReview.request.dueDate}</dd>
-                    <dt>저장한 판</dt><dd>{submitReview.command.expectedDraftVersion}판</dd>
                     <dt>파일</dt><dd>{session.answer!.original?.files?.map(file => file.name).join('\n') || '첨부 없음'}</dd>
                     {session.answer!.input.text && <><dt>글 응답</dt><dd>{session.answer!.input.text}</dd></>}
                     {session.answer!.input.number !== null && <><dt>숫자 응답</dt><dd>{session.answer!.input.number}</dd></>}
                     {submitReview.command.reason && <><dt>사유</dt><dd>{submitReview.command.reason}</dd></>}
                   </dl>
+                  <details className="cs-record-info"><summary>저장 정보</summary><p>저장한 판 · {submitReview.command.expectedDraftVersion}판</p></details>
                   {!submitReviewCurrent && <p role="alert">입력이나 저장한 판이 달라졌습니다. 확인을 닫고 현재 내용을 다시 확인해 주세요.</p>}
                   <div className="cs-actions">
                     <button type="button" disabled={Boolean(busy || pending)} onClick={() => setSubmitReview(undefined)}>제출 확인 닫기</button>
@@ -1753,9 +1772,6 @@ export function CollectionEditorView({ model, presentation = 'page' }: { model: 
                   </div>
                 </section>
               )}
-              <p className="cs-muted cs-answer-note">
-                최종 제출은 책임 교사만 할 수 있습니다. 서버에서 권한과 최신 버전을 다시 확인합니다.
-              </p>
             </form>
           )}
           {!session.editor && !selectedId && list && (

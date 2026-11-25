@@ -1,0 +1,16 @@
+/* 자료 범위와 비용은 남기고, 예시는 입력 영역 밖의 도움말에 둔다. */
+.assistant-workspace .assistant-scope-bar{padding:12px 0;margin-bottom:16px}
+.assistant-workspace .assistant-main{gap:18px}
+.assistant-workspace .assistant-compose{box-shadow:none}
+.assistant-workspace .assistant-tools{padding-top:12px;border-top:1px solid var(--ui-line,#e3e7ed);gap:4px 20px}
+.assistant-workspace .assistant-tools>.assistant-command-help{flex:1 1 190px;min-width:0}
+.assistant-workspace .assistant-tools>.assistant-command-help[open]{flex-basis:100%}
+.assistant-workspace .assistant-tools>.assistant-command-help>summary{min-height:44px;font-weight:500;color:var(--ui-text,#202832)}
+.assistant-workspace .assistant-tools .assistant-command-examples{grid-template-columns:repeat(2,minmax(0,1fr));margin:8px 0 16px}
+.assistant-workspace .assistant-tools .assistant-command-examples>button{text-align:left}
+.assistant-workspace .assistant-starters{gap:8px}
+.assistant-workspace .assistant-starters>button{padding:12px;border-radius:12px}
+@container assistant (max-width:540px){
+ .assistant-workspace .assistant-tools .assistant-command-examples{grid-template-columns:minmax(0,1fr)}
+ .assistant-workspace .assistant-tools{gap:2px 16px}
+}

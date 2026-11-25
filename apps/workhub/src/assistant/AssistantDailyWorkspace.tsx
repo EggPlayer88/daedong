@@ -11,6 +11,7 @@ import { taskListResponse } from '../tasks/validation'
 import { summarizeTasks, taskStatusLabels } from '../tasks/presentation'
 import { recoveryScope } from '../app/pending-requests'
 import { HomeOverviewPanel } from '../home/HomeOverviewPanel'
+import { DailyOverviewLayout } from '../home/DailyOverviewLayout'
 import type { HomeAction, HomeKind } from '../home/overview'
 import { NeisMeals } from '../neis/NeisMeals'
 import { TimetableAgendaWorkspace } from '../timetable/TimetableAgendaPanel'
@@ -53,20 +54,19 @@ function DailyWorkspaceScope(props: AssistantDailyWorkspaceProps & { mealDate: s
   return <section className="assistant-daily" aria-label={view === 'meals' ? '대화에서 급식 확인' : view === 'lessons' ? '대화에서 내 수업 확인' : '대화에서 오늘 업무 확인'}>
     <style>{styles}</style>
     <header className="assistant-daily-heading"><h2>{view === 'meals' ? '급식' : view === 'lessons' ? '내 수업 시간표' : '오늘의 업무'}</h2>{view === 'overview' && <span>{dayLabel(date)}</span>}</header>
-    {view === 'meals' ? <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" /> : view === 'lessons' ? <fieldset disabled={locked} aria-label="선택 날짜 내 수업 조회"><TimetableAgendaWorkspace connection={connection} member={member} date={props.lessonDate ?? date} revision={revision} title="날짜별 내 수업" showBasicFallback onOpen={(lessonId, lessonDate) => { if (!locked) props.onOpenLesson?.(lessonId, lessonDate) }} /></fieldset> : <>
-    {props.onOpenLesson && <section className="assistant-daily-lessons" aria-label="대화에서 오늘 수업">
-      <fieldset disabled={locked} aria-label="오늘 수업 조회">
-        <TimetableAgendaWorkspace connection={connection} member={member} date={date} revision={revision} title="오늘 수업"
-          onOpen={(lessonId, lessonDate) => { if (!locked) props.onOpenLesson?.(lessonId, lessonDate) }} />
-        <PersonalRosterAgenda connection={connection} member={member} date={date} revision={revision} />
-      </fieldset>
-    </section>}
-    <div className="assistant-daily-grid">
-      <HomeOverviewPanel connection={connection} member={member} revision={revision} locked={locked} onOpen={onOpen} onOpenList={onOpenList} />
-      <DailyTasks {...props} />
-      <DailyCalendar {...props} />
-      <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" />
-    </div></>}
+    {view === 'meals' ? <NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" /> : view === 'lessons' ? <fieldset disabled={locked} aria-label="선택 날짜 내 수업 조회"><TimetableAgendaWorkspace connection={connection} member={member} date={props.lessonDate ?? date} revision={revision} title="날짜별 내 수업" showBasicFallback onOpen={(lessonId, lessonDate) => { if (!locked) props.onOpenLesson?.(lessonId, lessonDate) }} /></fieldset> : <DailyOverviewLayout presentation="assistant"
+      attention={<HomeOverviewPanel connection={connection} member={member} revision={revision} locked={locked} onOpen={onOpen} onOpenList={onOpenList} />}
+      lessons={props.onOpenLesson && <section className="assistant-daily-lessons" aria-label="대화에서 오늘 수업">
+        <fieldset disabled={locked} aria-label="오늘 수업 조회">
+          <TimetableAgendaWorkspace connection={connection} member={member} date={date} revision={revision} title="오늘 수업"
+            onOpen={(lessonId, lessonDate) => { if (!locked) props.onOpenLesson?.(lessonId, lessonDate) }} />
+          <PersonalRosterAgenda connection={connection} member={member} date={date} revision={revision} />
+        </fieldset>
+      </section>}
+      calendar={<DailyCalendar {...props} />}
+      tasks={<DailyTasks {...props} />}
+      supplementary={<NeisMeals key={mealDate} connection={connection} member={member} date={mealDate} heading="급식" />}
+    />}
   </section>
 }
 
@@ -83,7 +83,7 @@ function DailyTasks({ taskAdapter, member, date, revision, locked, onOpenTask, o
   }, [taskAdapter, member, date, revision, reload])
   const summary = data ? summarizeTasks(data, date) : undefined
   return <section className="assistant-daily-card" aria-label="대화에서 내 할 일" aria-busy={!data && !failed}>
-    <header><h3>내 할 일</h3>{summary && <span>{summary.total}개</span>}</header>
+    <header><h3>내 업무</h3>{summary && <span>{summary.total}개</span>}</header>
     {failed ? <div role="alert"><p>내 할 일을 확인하지 못했습니다.</p><button type="button" onClick={() => setReload(value => value + 1)}>할 일 다시 확인</button></div>
       : !summary ? <p role="status">내 할 일을 확인하는 중…</p>
       : <><ul>{summary.items.map(({ task, reason }) => <li key={task.id}><button type="button" disabled={locked} onClick={() => onOpenTask(task)} aria-label={`${task.title} · 할 일 v${task.version} 열기`}><strong>{task.title}</strong><small>{reason}{task.dueDate && ` · ${task.dueDate}`} · {taskStatusLabels[task.status]}</small></button></li>)}</ul>
@@ -109,7 +109,7 @@ function DailyCalendar({ calendarAdapter, member, members, date, revision, locke
   const today = data ? homeItems(data, member, date).today : undefined
   const next = data ? upcomingPreview(data, member, date, 3) : undefined
   return <section className="assistant-daily-card" aria-label="대화에서 내 일정" aria-busy={!data && !failed}>
-    <header><h3>오늘 관련 일정</h3>{today && <span>{today.length}개</span>}</header>
+    <header><h3>오늘의 일정</h3>{today && <span>{today.length}개</span>}</header>
     {failed ? <div role="alert"><p>관련 일정을 확인하지 못했습니다.</p><button type="button" onClick={() => setReload(value => value + 1)}>일정 다시 확인</button></div>
       : !today || !next ? <p role="status">관련 일정을 확인하는 중…</p>
       : <><ul>{today.slice(0, 4).map(({ event }) => <li key={event.id}><button type="button" disabled={locked} onClick={() => onOpenCalendar(event)} aria-label={`${event.title} · 일정 v${event.version} 열기`}><strong>{event.title}</strong><small>{eventTiming(event, date).description}{event.location && ` · ${event.location}`}</small></button></li>)}</ul>
