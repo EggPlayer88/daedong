@@ -117,7 +117,9 @@ try {
   await check('실제 비동기 작업자가 브라우저 폴더 요청을 계산하고 앱이 결과를 독립 재검증한다', async () => {
     const store = newStore(), req = await request(), path = browserSubmit(store, req), child = worker(store, null, true)
     assert.equal((await child.finished).code, 0)
-    const done = status(store, req.requestId); assert.equal(done.state, 'succeeded'); assert.equal(done.sequence, 3); assert.ok(done.startedAt && done.finishedAt)
+    const done = status(store, req.requestId)
+    assert.equal(done.state, 'succeeded', `계산 접수증: ${JSON.stringify(done)} / 작업자: ${JSON.stringify(child.diagnostics())}`)
+    assert.equal(done.sequence, 3); assert.ok(done.startedAt && done.finishedAt)
     assert.equal((await m.parseCpSatResponse(req, json(join(path, 'result.json')))).status, 'feasible')
     const originalStatus = json(join(path, 'status.json')); call(['work', '--store', store, '--once']); assert.deepEqual(json(join(path, 'status.json')), originalStatus)
     assert.equal(call(['result', '--store', store, '--request-id', req.requestId]).requestId, req.requestId)
